@@ -1,0 +1,2 @@
+# barlytics-web
+frontend Angular
