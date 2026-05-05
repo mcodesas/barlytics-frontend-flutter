@@ -11,7 +11,7 @@ class AppTheme {
           brightness: Brightness.light,
         ),
         scaffoldBackgroundColor: AppColors.background,
-        cardTheme: const CardTheme(elevation: 1, margin: EdgeInsets.all(8)),
+        cardTheme: const CardThemeData(elevation: 1, margin: EdgeInsets.all(8)),
       );
 
   static ThemeData get dark => ThemeData(

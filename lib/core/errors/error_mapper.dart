@@ -5,7 +5,9 @@ import 'failure.dart';
 class ErrorMapper {
   static Failure map(Object error) {
     if (error is AppException) {
-      return switch (error.statusCode) {
+      final statusCode = error.statusCode ?? 0;
+
+      return switch (statusCode) {
         401 => UnauthorizedFailure(error.message, code: error.code, statusCode: error.statusCode),
         403 => UnauthorizedFailure(error.message, code: error.code, statusCode: error.statusCode),
         404 => NotFoundFailure(error.message, code: error.code, statusCode: error.statusCode),

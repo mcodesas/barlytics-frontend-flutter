@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'app/bootstrap/bootstrap.dart';
+import 'app/app.dart';
 
 /// Punto de entrada principal de BarLytics.
 Future<void> main() async {
