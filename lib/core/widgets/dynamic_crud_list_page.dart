@@ -2,6 +2,10 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../app/theme/app_colors.dart';
+import '../../app/theme/module_visuals.dart';
+import '../crud/crud_field.dart';
+import '../crud/crud_lookup_resolver.dart';
 import '../crud/crud_module_config.dart';
 import '../crud/crud_notifier.dart';
 import '../crud/crud_remote_datasource.dart';
@@ -14,40 +18,142 @@ import 'app_error_view.dart';
 import 'app_loader.dart';
 import 'confirmation_dialog.dart';
 
-class DynamicCrudListPage<T> extends ConsumerWidget {
+/// Página genérica para listar registros CRUD con experiencia responsive.
+class DynamicCrudListPage<T> extends ConsumerStatefulWidget {
   const DynamicCrudListPage({super.key, required this.config});
+
   final CrudModuleConfig<T> config;
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final provider = StateNotifierProvider.autoDispose<CrudNotifier<T>, CrudState<T>>((ref) {
-      final repository = CrudRepository<T>(CrudRemoteDataSource<T>(ref.watch(apiClientProvider), config));
+  ConsumerState<DynamicCrudListPage<T>> createState() => _DynamicCrudListPageState<T>();
+}
+
+class _DynamicCrudListPageState<T> extends ConsumerState<DynamicCrudListPage<T>> {
+  late final AutoDisposeStateNotifierProvider<CrudNotifier<T>, CrudState<T>> _provider;
+  final _searchController = TextEditingController();
+  Map<String, Map<String, String>> _lookupLabels = const <String, Map<String, String>>{};
+  bool _loadingLookups = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _provider = StateNotifierProvider.autoDispose<CrudNotifier<T>, CrudState<T>>((ref) {
+      final repository = CrudRepository<T>(
+        CrudRemoteDataSource<T>(ref.watch(apiClientProvider), widget.config),
+      );
       return CrudNotifier<T>(repository)..load();
     });
-    final state = ref.watch(provider);
-    final notifier = ref.read(provider.notifier);
+    _loadLookupLabels();
+  }
+
+  @override
+  void dispose() {
+    _searchController.dispose();
+    super.dispose();
+  }
+
+  Future<void> _loadLookupLabels() async {
+    if (_loadingLookups) return;
+    setState(() => _loadingLookups = true);
+    final resolver = CrudLookupResolver(ref.read(apiClientProvider));
+    final labels = await resolver.resolveLabels(widget.config.fields);
+    if (!mounted) return;
+    setState(() {
+      _lookupLabels = labels;
+      _loadingLookups = false;
+    });
+  }
+
+  Future<void> _refresh(CrudNotifier<T> notifier) async {
+    await Future.wait<void>([
+      notifier.load(),
+      _loadLookupLabels(),
+    ]);
+  }
+
+  List<T> _filterItems(List<T> items) {
+    final query = _searchController.text.trim().toLowerCase();
+    if (query.isEmpty) return items;
+    return items.where((item) {
+      final json = widget.config.toJson(item);
+      final values = <String>[
+        ...json.values.map((value) => value?.toString() ?? ''),
+        for (final field in widget.config.fields) _displayValueOf(widget.config, item, field, _lookupLabels),
+      ].join(' ').toLowerCase();
+      return values.contains(query);
+    }).toList();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final state = ref.watch(_provider);
+    final notifier = ref.read(_provider.notifier);
+    final visual = ModuleVisuals.byKey(widget.config.key);
+    final visibleItems = _filterItems(state.items);
 
     Widget content;
     if (state.loading && state.items.isEmpty) {
       content = const AppLoader();
     } else if (state.failure != null) {
-      content = AppErrorView(message: state.failure!.message, onRetry: notifier.load);
+      content = AppErrorView(message: state.failure!.message, onRetry: () => _refresh(notifier));
     } else if (state.items.isEmpty) {
       content = const AppEmptyView();
+    } else if (visibleItems.isEmpty) {
+      content = const AppEmptyView(message: 'No encontramos registros con ese filtro.');
     } else {
       content = ResponsiveUtils.isDesktop(context)
-          ? _DesktopTable(config: config, items: state.items, onDelete: (id) async => _delete(context, notifier, id))
-          : _MobileCards(config: config, items: state.items, onDelete: (id) async => _delete(context, notifier, id));
+          ? _DesktopTable(
+              config: widget.config,
+              items: visibleItems,
+              lookupLabels: _lookupLabels,
+              visual: visual,
+              onDelete: (id) async => _delete(context, notifier, id),
+            )
+          : _MobileCards(
+              config: widget.config,
+              items: visibleItems,
+              lookupLabels: _lookupLabels,
+              visual: visual,
+              onDelete: (id) async => _delete(context, notifier, id),
+            );
     }
 
     return Scaffold(
-      appBar: AppBar(title: Text(config.title), actions: [IconButton(onPressed: notifier.load, icon: const Icon(Icons.refresh))]),
+      backgroundColor: AppColors.background,
       floatingActionButton: FloatingActionButton.extended(
-        onPressed: () => context.go('/${config.key}/nuevo'),
-        icon: const Icon(Icons.add),
+        onPressed: () => context.go('/${widget.config.key}/nuevo'),
+        icon: const Icon(Icons.add_rounded),
         label: const Text('Crear'),
       ),
-      body: content,
+      body: CustomScrollView(
+        slivers: [
+          SliverAppBar(
+            pinned: true,
+            expandedHeight: 218,
+            title: Text(widget.config.title),
+            actions: [
+              if (_loadingLookups)
+                const Padding(
+                  padding: EdgeInsets.symmetric(horizontal: 16),
+                  child: SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2)),
+                ),
+              IconButton(onPressed: () => _refresh(notifier), icon: const Icon(Icons.refresh_rounded), tooltip: 'Actualizar'),
+            ],
+            flexibleSpace: FlexibleSpaceBar(
+              background: _ModuleHeader(
+                title: widget.config.title,
+                subtitle: visual.description,
+                visual: visual,
+                total: state.items.length,
+                visible: visibleItems.length,
+                searchController: _searchController,
+                onSearchChanged: (_) => setState(() {}),
+              ),
+            ),
+          ),
+          SliverFillRemaining(hasScrollBody: false, child: content),
+        ],
+      ),
     );
   }
 
@@ -60,9 +166,107 @@ class DynamicCrudListPage<T> extends ConsumerWidget {
     if (!confirmed) return;
     final ok = await notifier.remove(id);
     if (context.mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(ok ? 'Registro procesado correctamente' : 'No fue posible procesar el registro')));
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(ok ? 'Registro procesado correctamente' : 'No fue posible procesar el registro')),
+      );
     }
   }
+}
+
+class _ModuleHeader extends StatelessWidget {
+  const _ModuleHeader({
+    required this.title,
+    required this.subtitle,
+    required this.visual,
+    required this.total,
+    required this.visible,
+    required this.searchController,
+    required this.onSearchChanged,
+  });
+
+  final String title;
+  final String subtitle;
+  final ModuleVisual visual;
+  final int total;
+  final int visible;
+  final TextEditingController searchController;
+  final ValueChanged<String> onSearchChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          colors: [visual.color.withOpacity(0.18), AppColors.accentSoft, Colors.white],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+      ),
+      child: SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(20, 58, 20, 16),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  Container(
+                    width: 58,
+                    height: 58,
+                    decoration: BoxDecoration(color: visual.color, borderRadius: BorderRadius.circular(22), boxShadow: [BoxShadow(color: visual.color.withOpacity(0.25), blurRadius: 22, offset: const Offset(0, 10))]),
+                    child: Icon(visual.icon, color: Colors.white, size: 30),
+                  ),
+                  const SizedBox(width: 14),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(title, maxLines: 1, overflow: TextOverflow.ellipsis, style: Theme.of(context).textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.w900)),
+                        const SizedBox(height: 2),
+                        Text(subtitle, maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(color: AppColors.textSecondary, fontWeight: FontWeight.w700)),
+                      ],
+                    ),
+                  ),
+                  _CountPill(label: '$visible/$total', color: visual.color),
+                ],
+              ),
+              const SizedBox(height: 14),
+              TextField(
+                controller: searchController,
+                onChanged: onSearchChanged,
+                decoration: InputDecoration(
+                  hintText: 'Buscar por nombre, código, estado o referencia...',
+                  prefixIcon: const Icon(Icons.search_rounded),
+                  suffixIcon: searchController.text.isEmpty
+                      ? null
+                      : IconButton(
+                          icon: const Icon(Icons.close_rounded),
+                          onPressed: () {
+                            searchController.clear();
+                            onSearchChanged('');
+                          },
+                        ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _CountPill extends StatelessWidget {
+  const _CountPill({required this.label, required this.color});
+  final String label;
+  final Color color;
+
+  @override
+  Widget build(BuildContext context) => Container(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+        decoration: BoxDecoration(color: color.withOpacity(0.12), borderRadius: BorderRadius.circular(999), border: Border.all(color: color.withOpacity(0.22))),
+        child: Text(label, style: TextStyle(color: color, fontWeight: FontWeight.w900)),
+      );
 }
 
 Object? _valueOf<T>(CrudModuleConfig<T> config, T item, String field) {
@@ -70,34 +274,102 @@ Object? _valueOf<T>(CrudModuleConfig<T> config, T item, String field) {
   return json[field];
 }
 
+String _displayValueOf<T>(
+  CrudModuleConfig<T> config,
+  T item,
+  CrudField field,
+  Map<String, Map<String, String>> lookupLabels,
+) {
+  return crudDisplayValue(field, _valueOf(config, item, field.name), lookupLabels);
+}
+
+List<CrudField> _summaryFields<T>(CrudModuleConfig<T> config) {
+  final businessFields = config.fields
+      .where((field) => field.name != config.idField && !field.readOnly)
+      .take(3)
+      .toList();
+
+  if (businessFields.isNotEmpty) return businessFields;
+  return config.fields.where((field) => field.name != config.idField).take(3).toList();
+}
+
 class _MobileCards<T> extends StatelessWidget {
-  const _MobileCards({required this.config, required this.items, required this.onDelete});
+  const _MobileCards({
+    required this.config,
+    required this.items,
+    required this.lookupLabels,
+    required this.visual,
+    required this.onDelete,
+  });
+
   final CrudModuleConfig<T> config;
   final List<T> items;
+  final Map<String, Map<String, String>> lookupLabels;
+  final ModuleVisual visual;
   final Future<void> Function(Object id) onDelete;
 
   @override
   Widget build(BuildContext context) => ListView.builder(
-        padding: const EdgeInsets.only(bottom: 96),
+        padding: const EdgeInsets.fromLTRB(12, 12, 12, 96),
         itemCount: items.length,
         itemBuilder: (context, index) {
           final item = items[index];
           final id = _valueOf(config, item, config.idField) ?? index;
-          final title = config.fields.take(3).map((f) => _valueOf(config, item, f.name)).where((e) => e != null).join(' · ');
+          final fields = _summaryFields(config);
+          final title = fields
+              .take(1)
+              .map((field) => _displayValueOf(config, item, field, lookupLabels))
+              .where((value) => value != '-')
+              .join('');
+
           return Card(
-            child: ListTile(
-              title: Text(title.isEmpty ? '${config.title} $id' : title),
-              subtitle: Text('${config.idField}: $id'),
+            child: InkWell(
+              borderRadius: BorderRadius.circular(24),
               onTap: () => context.go('/${config.key}/$id'),
-              trailing: PopupMenuButton<String>(
-                onSelected: (value) {
-                  if (value == 'edit') context.go('/${config.key}/$id/editar');
-                  if (value == 'delete') onDelete(id);
-                },
-                itemBuilder: (_) => const [
-                  PopupMenuItem(value: 'edit', child: Text('Editar')),
-                  PopupMenuItem(value: 'delete', child: Text('Eliminar/Inactivar')),
-                ],
+              child: Padding(
+                padding: const EdgeInsets.all(16),
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Container(
+                      width: 54,
+                      height: 54,
+                      decoration: BoxDecoration(color: visual.color.withOpacity(0.14), borderRadius: BorderRadius.circular(20)),
+                      child: Icon(visual.icon, color: visual.color, size: 28),
+                    ),
+                    const SizedBox(width: 14),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(title.isEmpty ? '${config.title} $id' : title, maxLines: 2, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w900)),
+                          const SizedBox(height: 8),
+                          Wrap(
+                            spacing: 6,
+                            runSpacing: 6,
+                            children: [
+                              _MiniChip(label: '#$id', color: visual.color),
+                              for (final field in fields.skip(1).take(3)) _MiniChip(label: _displayValueOf(config, item, field, lookupLabels), color: AppColors.textSecondary),
+                            ],
+                          ),
+                        ],
+                      ),
+                    ),
+                    PopupMenuButton<String>(
+                      icon: const Icon(Icons.more_vert_rounded),
+                      onSelected: (value) {
+                        if (value == 'detail') context.go('/${config.key}/$id');
+                        if (value == 'edit') context.go('/${config.key}/$id/editar');
+                        if (value == 'delete') onDelete(id);
+                      },
+                      itemBuilder: (_) => const [
+                        PopupMenuItem(value: 'detail', child: Text('Ver detalle')),
+                        PopupMenuItem(value: 'edit', child: Text('Editar')),
+                        PopupMenuItem(value: 'delete', child: Text('Eliminar/Inactivar')),
+                      ],
+                    ),
+                  ],
+                ),
               ),
             ),
           );
@@ -105,36 +377,99 @@ class _MobileCards<T> extends StatelessWidget {
       );
 }
 
+class _MiniChip extends StatelessWidget {
+  const _MiniChip({required this.label, required this.color});
+  final String label;
+  final Color color;
+
+  @override
+  Widget build(BuildContext context) => Container(
+        constraints: const BoxConstraints(maxWidth: 220),
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+        decoration: BoxDecoration(color: color.withOpacity(0.09), borderRadius: BorderRadius.circular(999)),
+        child: Text(label, maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(color: color, fontSize: 12, fontWeight: FontWeight.w800)),
+      );
+}
+
 class _DesktopTable<T> extends StatelessWidget {
-  const _DesktopTable({required this.config, required this.items, required this.onDelete});
+  const _DesktopTable({
+    required this.config,
+    required this.items,
+    required this.lookupLabels,
+    required this.visual,
+    required this.onDelete,
+  });
+
   final CrudModuleConfig<T> config;
   final List<T> items;
+  final Map<String, Map<String, String>> lookupLabels;
+  final ModuleVisual visual;
   final Future<void> Function(Object id) onDelete;
 
   @override
   Widget build(BuildContext context) {
-    final columns = config.fields.take(6).toList();
-    return SingleChildScrollView(
-      padding: const EdgeInsets.all(16),
-      child: SizedBox(
+    final columns = config.fields.take(8).toList();
+    return Padding(
+      padding: const EdgeInsets.all(18),
+      child: Container(
         width: double.infinity,
-        child: DataTable(
-          columns: [for (final f in columns) DataColumn(label: Text(f.label)), const DataColumn(label: Text('Acciones'))],
-          rows: [
-            for (final item in items)
-              DataRow(
-                cells: [
-                  for (final f in columns) DataCell(Text('${_valueOf(config, item, f.name) ?? '-'}')),
-                  DataCell(Row(mainAxisSize: MainAxisSize.min, children: [
-                    IconButton(onPressed: () => context.go('/${config.key}/${_valueOf(config, item, config.idField)}'), icon: const Icon(Icons.visibility)),
-                    IconButton(onPressed: () => context.go('/${config.key}/${_valueOf(config, item, config.idField)}/editar'), icon: const Icon(Icons.edit)),
-                    IconButton(onPressed: () => onDelete(_valueOf(config, item, config.idField) ?? ''), icon: const Icon(Icons.delete_outline)),
-                  ])),
-                ],
-              ),
-          ],
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(28),
+          border: Border.all(color: AppColors.border),
+        ),
+        child: ClipRRect(
+          borderRadius: BorderRadius.circular(28),
+          child: SingleChildScrollView(
+            scrollDirection: Axis.horizontal,
+            child: DataTable(
+              headingRowHeight: 58,
+              dataRowMinHeight: 62,
+              dataRowMaxHeight: 76,
+              columns: [
+                for (final field in columns) DataColumn(label: Text(field.label)),
+                const DataColumn(label: Text('Acciones')),
+              ],
+              rows: [
+                for (final item in items)
+                  DataRow(
+                    cells: [
+                      for (final field in columns)
+                        DataCell(
+                          ConstrainedBox(
+                            constraints: const BoxConstraints(maxWidth: 260),
+                            child: Text(_displayValueOf(config, item, field, lookupLabels), overflow: TextOverflow.ellipsis, maxLines: 2),
+                          ),
+                        ),
+                      DataCell(Row(mainAxisSize: MainAxisSize.min, children: [
+                        _ActionIcon(color: visual.color, icon: Icons.visibility_rounded, onPressed: () => context.go('/${config.key}/${_valueOf(config, item, config.idField)}')),
+                        _ActionIcon(color: AppColors.warning, icon: Icons.edit_rounded, onPressed: () => context.go('/${config.key}/${_valueOf(config, item, config.idField)}/editar')),
+                        _ActionIcon(color: AppColors.danger, icon: Icons.delete_outline_rounded, onPressed: () => onDelete(_valueOf(config, item, config.idField) ?? '')),
+                      ])),
+                    ],
+                  ),
+              ],
+            ),
+          ),
         ),
       ),
     );
   }
+}
+
+class _ActionIcon extends StatelessWidget {
+  const _ActionIcon({required this.color, required this.icon, required this.onPressed});
+  final Color color;
+  final IconData icon;
+  final VoidCallback onPressed;
+
+  @override
+  Widget build(BuildContext context) => Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 2),
+        child: IconButton.filledTonal(
+          style: IconButton.styleFrom(backgroundColor: color.withOpacity(0.12), foregroundColor: color),
+          onPressed: onPressed,
+          icon: Icon(icon, size: 20),
+        ),
+      );
 }

@@ -51,6 +51,25 @@ import '../../features/ventas/data/models/ventas_response_model.dart';
 import '../../features/zonas_horarias/data/models/zonas_horarias_request_model.dart';
 import '../../features/zonas_horarias/data/models/zonas_horarias_response_model.dart';
 
+
+const _lookupCiudades = CrudLookupConfig(endpoint: '/api/v1/ciudades', idField: 'ciudId', displayFields: ['ciudNombre', 'ciudCodigoDane']);
+const _lookupCuentasVenta = CrudLookupConfig(endpoint: '/api/v1/cuentasventa', idField: 'cuveId', displayFields: ['cuveId', 'cuevNumero', 'cuevTotal']);
+const _lookupEmpresas = CrudLookupConfig(endpoint: '/api/v1/empresas', idField: 'emprId', displayFields: ['empreNombreComercial', 'emprRazonSocial', 'emprIdentificacion']);
+const _lookupMarcas = CrudLookupConfig(endpoint: '/api/v1/marcas', idField: 'mrcaId', displayFields: ['mrcaNombre', 'mrcaIdentificacion']);
+const _lookupMediosPago = CrudLookupConfig(endpoint: '/api/v1/mediospago', idField: 'mepaId', displayFields: ['mepaNombre', 'mepaDescripcion']);
+const _lookupMenus = CrudLookupConfig(endpoint: '/api/v1/menus', idField: 'menuId', displayFields: ['menuNombre', 'menuParametro']);
+const _lookupMesas = CrudLookupConfig(endpoint: '/api/v1/mesas', idField: 'mesaId', displayFields: ['mesaNumero', 'mesaEstado']);
+const _lookupMonedas = CrudLookupConfig(endpoint: '/api/v1/monedas', idField: 'moneId', displayFields: ['moneCodigoiso', 'moneNombre', 'moneSimbolo']);
+const _lookupPaises = CrudLookupConfig(endpoint: '/api/v1/paises', idField: 'paisId', displayFields: ['paisNombre', 'paisCodigo']);
+const _lookupPrecios = CrudLookupConfig(endpoint: '/api/v1/precios', idField: 'precId', displayFields: ['precId', 'prodId', 'precValorVenta']);
+const _lookupProductos = CrudLookupConfig(endpoint: '/api/v1/productos', idField: 'prodId', displayFields: ['prodNombre', 'prodDescripcion', 'sucuId']);
+const _lookupRegiones = CrudLookupConfig(endpoint: '/api/v1/regiones', idField: 'regiId', displayFields: ['regiNombre', 'regiCodigo']);
+const _lookupRoles = CrudLookupConfig(endpoint: '/api/v1/roles', idField: 'roleId', displayFields: ['roleNombre', 'roleDescripcion']);
+const _lookupSucursales = CrudLookupConfig(endpoint: '/api/v1/sucursales', idField: 'sucuId', displayFields: ['sucuNombre', 'sucuCodigoInterno']);
+const _lookupTiposProducto = CrudLookupConfig(endpoint: '/api/v1/tiposproducto', idField: 'tpprId', displayFields: ['tpprNombre', 'tpprDescripcion']);
+const _lookupVentas = CrudLookupConfig(endpoint: '/api/v1/ventas', idField: 'ventId', displayFields: ['ventId', 'ventEstado', 'ventFecha']);
+const _lookupZonasHorarias = CrudLookupConfig(endpoint: '/api/v1/zonashorarias', idField: 'zohoId', displayFields: ['zohoNombre', 'zohoAbreviatura', 'zohoOffsetOut']);
+
 final ciudadesConfig = CrudModuleConfig<CiudadesResponseModel>(
   key: 'ciudades',
   title: 'Ciudades',
@@ -58,8 +77,8 @@ final ciudadesConfig = CrudModuleConfig<CiudadesResponseModel>(
   idField: 'ciudId',
   fields: const [
     CrudField(name: 'ciudId', label: 'Ciud Id', type: CrudFieldType.number, required: false, readOnly: true),
-    CrudField(name: 'regiId', label: 'Regi Id', type: CrudFieldType.number, required: true, readOnly: false),
-    CrudField(name: 'zohoId', label: 'Zoho Id', type: CrudFieldType.number, required: true, readOnly: false),
+    CrudField(name: 'regiId', label: 'Región', type: CrudFieldType.number, required: true, readOnly: false, lookup: _lookupRegiones),
+    CrudField(name: 'zohoId', label: 'Zona horaria', type: CrudFieldType.number, required: true, readOnly: false, lookup: _lookupZonasHorarias),
     CrudField(name: 'ciudNombre', label: 'Ciud Nombre', type: CrudFieldType.text, required: true, readOnly: false),
     CrudField(name: 'ciudCodigoDane', label: 'Ciud Codigo Dane', type: CrudFieldType.text, required: true, readOnly: false),
     CrudField(name: 'ciudCodigoPostal', label: 'Ciud Codigo Postal', type: CrudFieldType.text, required: true, readOnly: false),
@@ -72,8 +91,8 @@ final ciudadesConfig = CrudModuleConfig<CiudadesResponseModel>(
     CrudField(name: 'ciudCodigoPostal', label: 'Ciud Codigo Postal', type: CrudFieldType.text, required: true),
     CrudField(name: 'ciudEstado', label: 'Ciud Estado', type: CrudFieldType.number, required: true),
     CrudField(name: 'ciudNombre', label: 'Ciud Nombre', type: CrudFieldType.text, required: true),
-    CrudField(name: 'regiId', label: 'Regi Id', type: CrudFieldType.number, required: true),
-    CrudField(name: 'zohoId', label: 'Zoho Id', type: CrudFieldType.number, required: true),
+    CrudField(name: 'regiId', label: 'Región', type: CrudFieldType.number, required: true, lookup: _lookupRegiones),
+    CrudField(name: 'zohoId', label: 'Zona horaria', type: CrudFieldType.number, required: true, lookup: _lookupZonasHorarias),
   ],
   fromJson: CiudadesResponseModel.fromJson,
   toJson: (CiudadesResponseModel model) => model.toJson(),
@@ -86,7 +105,7 @@ final cuentasventaConfig = CrudModuleConfig<CuentasVentaResponseModel>(
   idField: 'cuveId',
   fields: const [
     CrudField(name: 'cuveId', label: 'Cuve Id', type: CrudFieldType.number, required: false, readOnly: true),
-    CrudField(name: 'ventId', label: 'Vent Id', type: CrudFieldType.number, required: true, readOnly: false),
+    CrudField(name: 'ventId', label: 'Venta', type: CrudFieldType.number, required: true, readOnly: false, lookup: _lookupVentas),
     CrudField(name: 'cuevNumero', label: 'Cuev Numero', type: CrudFieldType.number, required: true, readOnly: false),
     CrudField(name: 'cuevTotal', label: 'Cuev Total', type: CrudFieldType.decimal, required: true, readOnly: false),
     CrudField(name: 'cuevPropina', label: 'Cuev Propina', type: CrudFieldType.decimal, required: true, readOnly: false),
@@ -99,7 +118,7 @@ final cuentasventaConfig = CrudModuleConfig<CuentasVentaResponseModel>(
     CrudField(name: 'cuevNumero', label: 'Cuev Numero', type: CrudFieldType.number, required: true),
     CrudField(name: 'cuevPropina', label: 'Cuev Propina', type: CrudFieldType.decimal, required: true),
     CrudField(name: 'cuevTotal', label: 'Cuev Total', type: CrudFieldType.decimal, required: true),
-    CrudField(name: 'ventId', label: 'Vent Id', type: CrudFieldType.number, required: true),
+    CrudField(name: 'ventId', label: 'Venta', type: CrudFieldType.number, required: true, lookup: _lookupVentas),
   ],
   fromJson: CuentasVentaResponseModel.fromJson,
   toJson: (CuentasVentaResponseModel model) => model.toJson(),
@@ -112,18 +131,18 @@ final detallecuentaventaConfig = CrudModuleConfig<DetalleCuentaVentaResponseMode
   idField: 'decvId',
   fields: const [
     CrudField(name: 'decvId', label: 'Decv Id', type: CrudFieldType.number, required: false, readOnly: true),
-    CrudField(name: 'cuveId', label: 'Cuve Id', type: CrudFieldType.number, required: true, readOnly: false),
-    CrudField(name: 'precId', label: 'Prec Id', type: CrudFieldType.number, required: true, readOnly: false),
+    CrudField(name: 'cuveId', label: 'Cuenta de venta', type: CrudFieldType.number, required: true, readOnly: false, lookup: _lookupCuentasVenta),
+    CrudField(name: 'precId', label: 'Precio', type: CrudFieldType.number, required: true, readOnly: false, lookup: _lookupPrecios),
     CrudField(name: 'decvCantidad', label: 'Decv Cantidad', type: CrudFieldType.decimal, required: true, readOnly: false),
     CrudField(name: 'decvSubtotal', label: 'Decv Subtotal', type: CrudFieldType.decimal, required: true, readOnly: false),
     CrudField(name: 'decvFechaCambio', label: 'Decv Fecha Cambio', type: CrudFieldType.dateTime, required: true, readOnly: true),
     CrudField(name: 'decvRegistradoPor', label: 'Decv Registrado Por', type: CrudFieldType.text, required: false, readOnly: true),
   ],
   formFields: const [
-    CrudField(name: 'cuveId', label: 'Cuve Id', type: CrudFieldType.number, required: true),
+    CrudField(name: 'cuveId', label: 'Cuenta de venta', type: CrudFieldType.number, required: true, lookup: _lookupCuentasVenta),
     CrudField(name: 'decvCantidad', label: 'Decv Cantidad', type: CrudFieldType.decimal, required: true),
     CrudField(name: 'decvSubtotal', label: 'Decv Subtotal', type: CrudFieldType.decimal, required: true),
-    CrudField(name: 'precId', label: 'Prec Id', type: CrudFieldType.number, required: true),
+    CrudField(name: 'precId', label: 'Precio', type: CrudFieldType.number, required: true, lookup: _lookupPrecios),
   ],
   fromJson: DetalleCuentaVentaResponseModel.fromJson,
   toJson: (DetalleCuentaVentaResponseModel model) => model.toJson(),
@@ -137,9 +156,9 @@ final empresasConfig = CrudModuleConfig<EmpresasResponseModel>(
   fields: const [
     CrudField(name: 'emprId', label: 'Empr Id', type: CrudFieldType.number, required: false, readOnly: true),
     CrudField(name: 'tiidId', label: 'Tiid Id', type: CrudFieldType.number, required: true, readOnly: false),
-    CrudField(name: 'paisIdtelefono', label: 'Pais Idtelefono', type: CrudFieldType.number, required: true, readOnly: false),
-    CrudField(name: 'ciudId', label: 'Ciud Id', type: CrudFieldType.number, required: true, readOnly: false),
-    CrudField(name: 'zohoId', label: 'Zoho Id', type: CrudFieldType.number, required: true, readOnly: false),
+    CrudField(name: 'paisIdtelefono', label: 'País teléfono', type: CrudFieldType.number, required: true, readOnly: false, lookup: _lookupPaises),
+    CrudField(name: 'ciudId', label: 'Ciudad', type: CrudFieldType.number, required: true, readOnly: false, lookup: _lookupCiudades),
+    CrudField(name: 'zohoId', label: 'Zona horaria', type: CrudFieldType.number, required: true, readOnly: false, lookup: _lookupZonasHorarias),
     CrudField(name: 'empreNombreComercial', label: 'Empre Nombre Comercial', type: CrudFieldType.text, required: true, readOnly: false),
     CrudField(name: 'emprRazonSocial', label: 'Empr Razon Social', type: CrudFieldType.text, required: true, readOnly: false),
     CrudField(name: 'emprIdentificacion', label: 'Empr Identificacion', type: CrudFieldType.text, required: true, readOnly: false),
@@ -154,7 +173,7 @@ final empresasConfig = CrudModuleConfig<EmpresasResponseModel>(
     CrudField(name: 'emprFechaCambio', label: 'Empr Fecha Cambio', type: CrudFieldType.dateTime, required: true, readOnly: true),
   ],
   formFields: const [
-    CrudField(name: 'ciudId', label: 'Ciud Id', type: CrudFieldType.number, required: true),
+    CrudField(name: 'ciudId', label: 'Ciudad', type: CrudFieldType.number, required: true, lookup: _lookupCiudades),
     CrudField(name: 'emprCorreoElectronico', label: 'Empr Correo Electronico', type: CrudFieldType.text, required: true),
     CrudField(name: 'emprDireccion', label: 'Empr Direccion', type: CrudFieldType.text, required: true),
     CrudField(name: 'emprEstado', label: 'Empr Estado', type: CrudFieldType.number, required: true),
@@ -162,9 +181,9 @@ final empresasConfig = CrudModuleConfig<EmpresasResponseModel>(
     CrudField(name: 'emprRazonSocial', label: 'Empr Razon Social', type: CrudFieldType.text, required: true),
     CrudField(name: 'emprTelefono', label: 'Empr Telefono', type: CrudFieldType.text, required: true),
     CrudField(name: 'empreNombreComercial', label: 'Empre Nombre Comercial', type: CrudFieldType.text, required: true),
-    CrudField(name: 'paisIdtelefono', label: 'Pais Idtelefono', type: CrudFieldType.number, required: true),
+    CrudField(name: 'paisIdtelefono', label: 'País teléfono', type: CrudFieldType.number, required: true, lookup: _lookupPaises),
     CrudField(name: 'tiidId', label: 'Tiid Id', type: CrudFieldType.number, required: true),
-    CrudField(name: 'zohoId', label: 'Zoho Id', type: CrudFieldType.number, required: true),
+    CrudField(name: 'zohoId', label: 'Zona horaria', type: CrudFieldType.number, required: true, lookup: _lookupZonasHorarias),
     CrudField(name: 'emprCodigoPostal', label: 'Empr Codigo Postal', type: CrudFieldType.text, required: true),
     CrudField(name: 'emprSitioWeb', label: 'Empr Sitio Web', type: CrudFieldType.text, required: true),
     CrudField(name: 'emprLogo', label: 'Empr Logo', type: CrudFieldType.text, required: true),
@@ -180,8 +199,8 @@ final inventarioConfig = CrudModuleConfig<InventarioResponseModel>(
   idField: 'invtId',
   fields: const [
     CrudField(name: 'invtId', label: 'Invt Id', type: CrudFieldType.number, required: false, readOnly: true),
-    CrudField(name: 'prodId', label: 'Prod Id', type: CrudFieldType.number, required: true, readOnly: false),
-    CrudField(name: 'sucuId', label: 'Sucu Id', type: CrudFieldType.number, required: true, readOnly: false),
+    CrudField(name: 'prodId', label: 'Producto', type: CrudFieldType.number, required: true, readOnly: false, lookup: _lookupProductos),
+    CrudField(name: 'sucuId', label: 'Sucursal', type: CrudFieldType.number, required: true, readOnly: false, lookup: _lookupSucursales),
     CrudField(name: 'invtCantidad', label: 'Invt Cantidad', type: CrudFieldType.decimal, required: true, readOnly: false),
     CrudField(name: 'invtFecha', label: 'Invt Fecha', type: CrudFieldType.dateTime, required: true, readOnly: false),
     CrudField(name: 'invtRegistradoPor', label: 'Invt Registrado Por', type: CrudFieldType.text, required: false, readOnly: true),
@@ -190,8 +209,8 @@ final inventarioConfig = CrudModuleConfig<InventarioResponseModel>(
   formFields: const [
     CrudField(name: 'invtCantidad', label: 'Invt Cantidad', type: CrudFieldType.decimal, required: true),
     CrudField(name: 'invtFecha', label: 'Invt Fecha', type: CrudFieldType.dateTime, required: true),
-    CrudField(name: 'prodId', label: 'Prod Id', type: CrudFieldType.number, required: true),
-    CrudField(name: 'sucuId', label: 'Sucu Id', type: CrudFieldType.number, required: true),
+    CrudField(name: 'prodId', label: 'Producto', type: CrudFieldType.number, required: true, lookup: _lookupProductos),
+    CrudField(name: 'sucuId', label: 'Sucursal', type: CrudFieldType.number, required: true, lookup: _lookupSucursales),
   ],
   fromJson: InventarioResponseModel.fromJson,
   toJson: (InventarioResponseModel model) => model.toJson(),
@@ -270,7 +289,7 @@ final mesasConfig = CrudModuleConfig<MesasResponseModel>(
   idField: 'mesaId',
   fields: const [
     CrudField(name: 'mesaId', label: 'Mesa Id', type: CrudFieldType.number, required: false, readOnly: true),
-    CrudField(name: 'sucuId', label: 'Sucu Id', type: CrudFieldType.number, required: true, readOnly: false),
+    CrudField(name: 'sucuId', label: 'Sucursal', type: CrudFieldType.number, required: true, readOnly: false, lookup: _lookupSucursales),
     CrudField(name: 'mesaNumero', label: 'Mesa Numero', type: CrudFieldType.number, required: true, readOnly: false),
     CrudField(name: 'mesaEstado', label: 'Mesa Estado', type: CrudFieldType.text, required: true, readOnly: false),
     CrudField(name: 'mesaRegistradoPor', label: 'Mesa Registrado Por', type: CrudFieldType.text, required: false, readOnly: true),
@@ -279,7 +298,7 @@ final mesasConfig = CrudModuleConfig<MesasResponseModel>(
   formFields: const [
     CrudField(name: 'mesaEstado', label: 'Mesa Estado', type: CrudFieldType.text, required: true),
     CrudField(name: 'mesaNumero', label: 'Mesa Numero', type: CrudFieldType.number, required: true),
-    CrudField(name: 'sucuId', label: 'Sucu Id', type: CrudFieldType.number, required: true),
+    CrudField(name: 'sucuId', label: 'Sucursal', type: CrudFieldType.number, required: true, lookup: _lookupSucursales),
   ],
   fromJson: MesasResponseModel.fromJson,
   toJson: (MesasResponseModel model) => model.toJson(),
@@ -318,8 +337,8 @@ final movimientosConfig = CrudModuleConfig<MovimientosResponseModel>(
   idField: 'moviId',
   fields: const [
     CrudField(name: 'moviId', label: 'Movi Id', type: CrudFieldType.number, required: false, readOnly: true),
-    CrudField(name: 'prodId', label: 'Prod Id', type: CrudFieldType.number, required: true, readOnly: false),
-    CrudField(name: 'sucuId', label: 'Sucu Id', type: CrudFieldType.number, required: true, readOnly: false),
+    CrudField(name: 'prodId', label: 'Producto', type: CrudFieldType.number, required: true, readOnly: false, lookup: _lookupProductos),
+    CrudField(name: 'sucuId', label: 'Sucursal', type: CrudFieldType.number, required: true, readOnly: false, lookup: _lookupSucursales),
     CrudField(name: 'timoId', label: 'Timo Id', type: CrudFieldType.number, required: true, readOnly: false),
     CrudField(name: 'moviCantidad', label: 'Movi Cantidad', type: CrudFieldType.decimal, required: true, readOnly: false),
     CrudField(name: 'moviMotivo', label: 'Movi Motivo', type: CrudFieldType.text, required: true, readOnly: false),
@@ -331,8 +350,8 @@ final movimientosConfig = CrudModuleConfig<MovimientosResponseModel>(
     CrudField(name: 'moviCantidad', label: 'Movi Cantidad', type: CrudFieldType.decimal, required: true),
     CrudField(name: 'moviMotivo', label: 'Movi Motivo', type: CrudFieldType.text, required: true),
     CrudField(name: 'moviReferencia', label: 'Movi Referencia', type: CrudFieldType.text, required: true),
-    CrudField(name: 'prodId', label: 'Prod Id', type: CrudFieldType.number, required: true),
-    CrudField(name: 'sucuId', label: 'Sucu Id', type: CrudFieldType.number, required: true),
+    CrudField(name: 'prodId', label: 'Producto', type: CrudFieldType.number, required: true, lookup: _lookupProductos),
+    CrudField(name: 'sucuId', label: 'Sucursal', type: CrudFieldType.number, required: true, lookup: _lookupSucursales),
     CrudField(name: 'timoId', label: 'Timo Id', type: CrudFieldType.number, required: true),
   ],
   fromJson: MovimientosResponseModel.fromJson,
@@ -346,8 +365,8 @@ final opcionesmenuConfig = CrudModuleConfig<OpcionesMenuResponseModel>(
   idField: 'opmeId',
   fields: const [
     CrudField(name: 'opmeId', label: 'Opme Id', type: CrudFieldType.number, required: false, readOnly: true),
-    CrudField(name: 'menuId', label: 'Menu Id', type: CrudFieldType.number, required: true, readOnly: false),
-    CrudField(name: 'roleId', label: 'Role Id', type: CrudFieldType.number, required: true, readOnly: false),
+    CrudField(name: 'menuId', label: 'Menú', type: CrudFieldType.number, required: true, readOnly: false, lookup: _lookupMenus),
+    CrudField(name: 'roleId', label: 'Rol', type: CrudFieldType.number, required: true, readOnly: false, lookup: _lookupRoles),
     CrudField(name: 'opmeNombre', label: 'Opme Nombre', type: CrudFieldType.text, required: true, readOnly: false),
     CrudField(name: 'opmeDescripcion', label: 'Opme Descripcion', type: CrudFieldType.text, required: true, readOnly: false),
     CrudField(name: 'opmeCodigotraduccion', label: 'Opme Codigotraduccion', type: CrudFieldType.text, required: true, readOnly: false),
@@ -355,11 +374,11 @@ final opcionesmenuConfig = CrudModuleConfig<OpcionesMenuResponseModel>(
     CrudField(name: 'opmeFechaCambio', label: 'Opme Fecha Cambio', type: CrudFieldType.dateTime, required: true, readOnly: true),
   ],
   formFields: const [
-    CrudField(name: 'menuId', label: 'Menu Id', type: CrudFieldType.number, required: true),
+    CrudField(name: 'menuId', label: 'Menú', type: CrudFieldType.number, required: true, lookup: _lookupMenus),
     CrudField(name: 'opmeCodigotraduccion', label: 'Opme Codigotraduccion', type: CrudFieldType.text, required: true),
     CrudField(name: 'opmeDescripcion', label: 'Opme Descripcion', type: CrudFieldType.text, required: true),
     CrudField(name: 'opmeNombre', label: 'Opme Nombre', type: CrudFieldType.text, required: true),
-    CrudField(name: 'roleId', label: 'Role Id', type: CrudFieldType.number, required: true),
+    CrudField(name: 'roleId', label: 'Rol', type: CrudFieldType.number, required: true, lookup: _lookupRoles),
   ],
   fromJson: OpcionesMenuResponseModel.fromJson,
   toJson: (OpcionesMenuResponseModel model) => model.toJson(),
@@ -372,16 +391,16 @@ final pagosConfig = CrudModuleConfig<PagosResponseModel>(
   idField: 'pacvId',
   fields: const [
     CrudField(name: 'pacvId', label: 'Pacv Id', type: CrudFieldType.number, required: false, readOnly: true),
-    CrudField(name: 'cuveId', label: 'Cuve Id', type: CrudFieldType.number, required: true, readOnly: false),
-    CrudField(name: 'mepaId', label: 'Mepa Id', type: CrudFieldType.number, required: true, readOnly: false),
+    CrudField(name: 'cuveId', label: 'Cuenta de venta', type: CrudFieldType.number, required: true, readOnly: false, lookup: _lookupCuentasVenta),
+    CrudField(name: 'mepaId', label: 'Medio de pago', type: CrudFieldType.number, required: true, readOnly: false, lookup: _lookupMediosPago),
     CrudField(name: 'pacvMonto', label: 'Pacv Monto', type: CrudFieldType.decimal, required: true, readOnly: false),
     CrudField(name: 'pacvObservacion', label: 'Pacv Observacion', type: CrudFieldType.decimal, required: true, readOnly: false),
     CrudField(name: 'pacvRegistradoPor', label: 'Pacv Registrado Por', type: CrudFieldType.text, required: false, readOnly: true),
     CrudField(name: 'pacvFechaCambio', label: 'Pacv Fecha Cambio', type: CrudFieldType.dateTime, required: true, readOnly: true),
   ],
   formFields: const [
-    CrudField(name: 'cuveId', label: 'Cuve Id', type: CrudFieldType.number, required: true),
-    CrudField(name: 'mepaId', label: 'Mepa Id', type: CrudFieldType.number, required: true),
+    CrudField(name: 'cuveId', label: 'Cuenta de venta', type: CrudFieldType.number, required: true, lookup: _lookupCuentasVenta),
+    CrudField(name: 'mepaId', label: 'Medio de pago', type: CrudFieldType.number, required: true, lookup: _lookupMediosPago),
     CrudField(name: 'pacvMonto', label: 'Pacv Monto', type: CrudFieldType.decimal, required: true),
     CrudField(name: 'pacvObservacion', label: 'Pacv Observacion', type: CrudFieldType.decimal, required: true),
   ],
@@ -396,7 +415,7 @@ final paisesConfig = CrudModuleConfig<PaisesResponseModel>(
   idField: 'paisId',
   fields: const [
     CrudField(name: 'paisId', label: 'Pais Id', type: CrudFieldType.number, required: false, readOnly: true),
-    CrudField(name: 'zohoId', label: 'Zoho Id', type: CrudFieldType.number, required: true, readOnly: false),
+    CrudField(name: 'zohoId', label: 'Zona horaria', type: CrudFieldType.number, required: true, readOnly: false, lookup: _lookupZonasHorarias),
     CrudField(name: 'paisNombre', label: 'Pais Nombre', type: CrudFieldType.text, required: true, readOnly: false),
     CrudField(name: 'paisCodigo', label: 'Pais Codigo', type: CrudFieldType.text, required: true, readOnly: false),
     CrudField(name: 'paisEstado', label: 'Pais Estado', type: CrudFieldType.number, required: true, readOnly: false),
@@ -407,7 +426,7 @@ final paisesConfig = CrudModuleConfig<PaisesResponseModel>(
     CrudField(name: 'paisCodigo', label: 'Pais Codigo', type: CrudFieldType.text, required: true),
     CrudField(name: 'paisEstado', label: 'Pais Estado', type: CrudFieldType.number, required: true),
     CrudField(name: 'paisNombre', label: 'Pais Nombre', type: CrudFieldType.text, required: true),
-    CrudField(name: 'zohoId', label: 'Zoho Id', type: CrudFieldType.number, required: true),
+    CrudField(name: 'zohoId', label: 'Zona horaria', type: CrudFieldType.number, required: true, lookup: _lookupZonasHorarias),
   ],
   fromJson: PaisesResponseModel.fromJson,
   toJson: (PaisesResponseModel model) => model.toJson(),
@@ -420,8 +439,8 @@ final parametrosConfig = CrudModuleConfig<ParametrosResponseModel>(
   idField: 'paraId',
   fields: const [
     CrudField(name: 'paraId', label: 'Para Id', type: CrudFieldType.number, required: false, readOnly: true),
-    CrudField(name: 'emprId', label: 'Empr Id', type: CrudFieldType.number, required: true, readOnly: false),
-    CrudField(name: 'sucuId', label: 'Sucu Id', type: CrudFieldType.number, required: true, readOnly: false),
+    CrudField(name: 'emprId', label: 'Empresa', type: CrudFieldType.number, required: true, readOnly: false, lookup: _lookupEmpresas),
+    CrudField(name: 'sucuId', label: 'Sucursal', type: CrudFieldType.number, required: true, readOnly: false, lookup: _lookupSucursales),
     CrudField(name: 'paraCodigo', label: 'Para Codigo', type: CrudFieldType.text, required: true, readOnly: false),
     CrudField(name: 'paraNombre', label: 'Para Nombre', type: CrudFieldType.text, required: true, readOnly: false),
     CrudField(name: 'paraDescripcion', label: 'Para Descripcion', type: CrudFieldType.text, required: true, readOnly: false),
@@ -443,8 +462,8 @@ final parametrosConfig = CrudModuleConfig<ParametrosResponseModel>(
     CrudField(name: 'paraNombre', label: 'Para Nombre', type: CrudFieldType.text, required: true),
     CrudField(name: 'paraTipoDato', label: 'Para Tipo Dato', type: CrudFieldType.text, required: true),
     CrudField(name: 'paraValor', label: 'Para Valor', type: CrudFieldType.text, required: true),
-    CrudField(name: 'emprId', label: 'Empr Id', type: CrudFieldType.number, required: true),
-    CrudField(name: 'sucuId', label: 'Sucu Id', type: CrudFieldType.number, required: true),
+    CrudField(name: 'emprId', label: 'Empresa', type: CrudFieldType.number, required: true, lookup: _lookupEmpresas),
+    CrudField(name: 'sucuId', label: 'Sucursal', type: CrudFieldType.number, required: true, lookup: _lookupSucursales),
     CrudField(name: 'paraValorDefecto', label: 'Para Valor Defecto', type: CrudFieldType.text, required: true),
   ],
   fromJson: ParametrosResponseModel.fromJson,
@@ -458,8 +477,8 @@ final preciosConfig = CrudModuleConfig<PreciosResponseModel>(
   idField: 'precId',
   fields: const [
     CrudField(name: 'precId', label: 'Prec Id', type: CrudFieldType.number, required: false, readOnly: true),
-    CrudField(name: 'prodId', label: 'Prod Id', type: CrudFieldType.number, required: true, readOnly: false),
-    CrudField(name: 'sucuId', label: 'Sucu Id', type: CrudFieldType.number, required: true, readOnly: false),
+    CrudField(name: 'prodId', label: 'Producto', type: CrudFieldType.number, required: true, readOnly: false, lookup: _lookupProductos),
+    CrudField(name: 'sucuId', label: 'Sucursal', type: CrudFieldType.number, required: true, readOnly: false, lookup: _lookupSucursales),
     CrudField(name: 'precEstado', label: 'Prec Estado', type: CrudFieldType.number, required: true, readOnly: false),
     CrudField(name: 'precValorVenta', label: 'Prec Valor Venta', type: CrudFieldType.decimal, required: true, readOnly: false),
     CrudField(name: 'precValorCompra', label: 'Prec Valor Compra', type: CrudFieldType.decimal, required: true, readOnly: false),
@@ -473,8 +492,8 @@ final preciosConfig = CrudModuleConfig<PreciosResponseModel>(
     CrudField(name: 'precFechaInicia', label: 'Prec Fecha Inicia', type: CrudFieldType.dateTime, required: true),
     CrudField(name: 'precValorCompra', label: 'Prec Valor Compra', type: CrudFieldType.decimal, required: true),
     CrudField(name: 'precValorVenta', label: 'Prec Valor Venta', type: CrudFieldType.decimal, required: true),
-    CrudField(name: 'prodId', label: 'Prod Id', type: CrudFieldType.number, required: true),
-    CrudField(name: 'sucuId', label: 'Sucu Id', type: CrudFieldType.number, required: true),
+    CrudField(name: 'prodId', label: 'Producto', type: CrudFieldType.number, required: true, lookup: _lookupProductos),
+    CrudField(name: 'sucuId', label: 'Sucursal', type: CrudFieldType.number, required: true, lookup: _lookupSucursales),
     CrudField(name: 'precFechaFinaliza', label: 'Prec Fecha Finaliza', type: CrudFieldType.dateTime, required: true),
   ],
   fromJson: PreciosResponseModel.fromJson,
@@ -488,21 +507,21 @@ final productosConfig = CrudModuleConfig<ProductosResponseModel>(
   idField: 'prodId',
   fields: const [
     CrudField(name: 'prodId', label: 'Prod Id', type: CrudFieldType.number, required: false, readOnly: true),
-    CrudField(name: 'sucuId', label: 'Sucu Id', type: CrudFieldType.number, required: true, readOnly: false),
-    CrudField(name: 'tpprId', label: 'Tppr Id', type: CrudFieldType.number, required: true, readOnly: false),
-    CrudField(name: 'mrcaId', label: 'Mrca Id', type: CrudFieldType.number, required: true, readOnly: false),
+    CrudField(name: 'sucuId', label: 'Sucursal', type: CrudFieldType.number, required: true, readOnly: false, lookup: _lookupSucursales),
+    CrudField(name: 'tpprId', label: 'Tipo de producto', type: CrudFieldType.number, required: true, readOnly: false, lookup: _lookupTiposProducto),
+    CrudField(name: 'mrcaId', label: 'Marca', type: CrudFieldType.number, required: true, readOnly: false, lookup: _lookupMarcas),
     CrudField(name: 'prodNombre', label: 'Prod Nombre', type: CrudFieldType.text, required: true, readOnly: false),
     CrudField(name: 'prodDescripcion', label: 'Prod Descripcion', type: CrudFieldType.text, required: true, readOnly: false),
     CrudField(name: 'prodCreadoPor', label: 'Prod Creado Por', type: CrudFieldType.text, required: true, readOnly: true),
     CrudField(name: 'prodFechaCambio', label: 'Prod Fecha Cambio', type: CrudFieldType.dateTime, required: true, readOnly: true),
   ],
   formFields: const [
-    CrudField(name: 'mrcaId', label: 'Mrca Id', type: CrudFieldType.number, required: true),
+    CrudField(name: 'mrcaId', label: 'Marca', type: CrudFieldType.number, required: true, lookup: _lookupMarcas),
     CrudField(name: 'prodDescripcion', label: 'Prod Descripcion', type: CrudFieldType.text, required: true),
     CrudField(name: 'prodNombre', label: 'Prod Nombre', type: CrudFieldType.text, required: true),
-    CrudField(name: 'tpprId', label: 'Tppr Id', type: CrudFieldType.number, required: true),
+    CrudField(name: 'tpprId', label: 'Tipo de producto', type: CrudFieldType.number, required: true, lookup: _lookupTiposProducto),
     CrudField(name: 'prodId', label: 'Prod Id', type: CrudFieldType.number, required: false),
-    CrudField(name: 'sucuId', label: 'Sucu Id', type: CrudFieldType.number, required: true),
+    CrudField(name: 'sucuId', label: 'Sucursal', type: CrudFieldType.number, required: true, lookup: _lookupSucursales),
   ],
   fromJson: ProductosResponseModel.fromJson,
   toJson: (ProductosResponseModel model) => model.toJson(),
@@ -515,8 +534,8 @@ final regionesConfig = CrudModuleConfig<RegionesResponseModel>(
   idField: 'regiId',
   fields: const [
     CrudField(name: 'regiId', label: 'Regi Id', type: CrudFieldType.number, required: false, readOnly: true),
-    CrudField(name: 'paisId', label: 'Pais Id', type: CrudFieldType.number, required: true, readOnly: false),
-    CrudField(name: 'zohoId', label: 'Zoho Id', type: CrudFieldType.number, required: true, readOnly: false),
+    CrudField(name: 'paisId', label: 'País', type: CrudFieldType.number, required: true, readOnly: false, lookup: _lookupPaises),
+    CrudField(name: 'zohoId', label: 'Zona horaria', type: CrudFieldType.number, required: true, readOnly: false, lookup: _lookupZonasHorarias),
     CrudField(name: 'regiNombre', label: 'Regi Nombre', type: CrudFieldType.text, required: true, readOnly: false),
     CrudField(name: 'regiCodigo', label: 'Regi Codigo', type: CrudFieldType.text, required: true, readOnly: false),
     CrudField(name: 'regiEstado', label: 'Regi Estado', type: CrudFieldType.number, required: true, readOnly: false),
@@ -524,10 +543,10 @@ final regionesConfig = CrudModuleConfig<RegionesResponseModel>(
     CrudField(name: 'regiFechaCambio', label: 'Regi Fecha Cambio', type: CrudFieldType.dateTime, required: true, readOnly: true),
   ],
   formFields: const [
-    CrudField(name: 'paisId', label: 'Pais Id', type: CrudFieldType.number, required: true),
+    CrudField(name: 'paisId', label: 'País', type: CrudFieldType.number, required: true, lookup: _lookupPaises),
     CrudField(name: 'regiCodigo', label: 'Regi Codigo', type: CrudFieldType.text, required: true),
     CrudField(name: 'regiNombre', label: 'Regi Nombre', type: CrudFieldType.text, required: true),
-    CrudField(name: 'zohoId', label: 'Zoho Id', type: CrudFieldType.number, required: true),
+    CrudField(name: 'zohoId', label: 'Zona horaria', type: CrudFieldType.number, required: true, lookup: _lookupZonasHorarias),
     CrudField(name: 'regiEstado', label: 'Regi Estado', type: CrudFieldType.number, required: true),
   ],
   fromJson: RegionesResponseModel.fromJson,
@@ -578,11 +597,11 @@ final sucursalesConfig = CrudModuleConfig<SucursalesResponseModel>(
   idField: 'sucuId',
   fields: const [
     CrudField(name: 'sucuId', label: 'Sucu Id', type: CrudFieldType.number, required: false, readOnly: true),
-    CrudField(name: 'emprId', label: 'Empr Id', type: CrudFieldType.number, required: true, readOnly: false),
-    CrudField(name: 'ciudId', label: 'Ciud Id', type: CrudFieldType.number, required: true, readOnly: false),
-    CrudField(name: 'zohoId', label: 'Zoho Id', type: CrudFieldType.number, required: true, readOnly: false),
-    CrudField(name: 'moneId', label: 'Mone Id', type: CrudFieldType.number, required: true, readOnly: false),
-    CrudField(name: 'paisIdtelefono', label: 'Pais Idtelefono', type: CrudFieldType.number, required: true, readOnly: false),
+    CrudField(name: 'emprId', label: 'Empresa', type: CrudFieldType.number, required: true, readOnly: false, lookup: _lookupEmpresas),
+    CrudField(name: 'ciudId', label: 'Ciudad', type: CrudFieldType.number, required: true, readOnly: false, lookup: _lookupCiudades),
+    CrudField(name: 'zohoId', label: 'Zona horaria', type: CrudFieldType.number, required: true, readOnly: false, lookup: _lookupZonasHorarias),
+    CrudField(name: 'moneId', label: 'Moneda', type: CrudFieldType.number, required: true, readOnly: false, lookup: _lookupMonedas),
+    CrudField(name: 'paisIdtelefono', label: 'País teléfono', type: CrudFieldType.number, required: true, readOnly: false, lookup: _lookupPaises),
     CrudField(name: 'sucuNombre', label: 'Sucu Nombre', type: CrudFieldType.text, required: true, readOnly: false),
     CrudField(name: 'sucuCodigoInterno', label: 'Sucu Codigo Interno', type: CrudFieldType.text, required: true, readOnly: false),
     CrudField(name: 'sucuDireccion', label: 'Sucu Direccion', type: CrudFieldType.text, required: true, readOnly: false),
@@ -592,16 +611,16 @@ final sucursalesConfig = CrudModuleConfig<SucursalesResponseModel>(
     CrudField(name: 'sucuFechaCambio', label: 'Sucu Fecha Cambio', type: CrudFieldType.dateTime, required: true, readOnly: true),
   ],
   formFields: const [
-    CrudField(name: 'ciudId', label: 'Ciud Id', type: CrudFieldType.number, required: true),
-    CrudField(name: 'emprId', label: 'Empr Id', type: CrudFieldType.number, required: true),
-    CrudField(name: 'moneId', label: 'Mone Id', type: CrudFieldType.number, required: true),
-    CrudField(name: 'paisIdtelefono', label: 'Pais Idtelefono', type: CrudFieldType.number, required: true),
+    CrudField(name: 'ciudId', label: 'Ciudad', type: CrudFieldType.number, required: true, lookup: _lookupCiudades),
+    CrudField(name: 'emprId', label: 'Empresa', type: CrudFieldType.number, required: true, lookup: _lookupEmpresas),
+    CrudField(name: 'moneId', label: 'Moneda', type: CrudFieldType.number, required: true, lookup: _lookupMonedas),
+    CrudField(name: 'paisIdtelefono', label: 'País teléfono', type: CrudFieldType.number, required: true, lookup: _lookupPaises),
     CrudField(name: 'sucuCodigoInterno', label: 'Sucu Codigo Interno', type: CrudFieldType.text, required: true),
     CrudField(name: 'sucuDireccion', label: 'Sucu Direccion', type: CrudFieldType.text, required: true),
     CrudField(name: 'sucuEstado', label: 'Sucu Estado', type: CrudFieldType.number, required: true),
     CrudField(name: 'sucuNombre', label: 'Sucu Nombre', type: CrudFieldType.text, required: true),
     CrudField(name: 'sucuTelefono', label: 'Sucu Telefono', type: CrudFieldType.text, required: true),
-    CrudField(name: 'zohoId', label: 'Zoho Id', type: CrudFieldType.number, required: true),
+    CrudField(name: 'zohoId', label: 'Zona horaria', type: CrudFieldType.number, required: true, lookup: _lookupZonasHorarias),
   ],
   fromJson: SucursalesResponseModel.fromJson,
   toJson: (SucursalesResponseModel model) => model.toJson(),
@@ -634,8 +653,8 @@ final usuariosConfig = CrudModuleConfig<UsuariosResponseModel>(
   idField: 'usuaId',
   fields: const [
     CrudField(name: 'usuaId', label: 'Usua Id', type: CrudFieldType.number, required: false, readOnly: true),
-    CrudField(name: 'ciudId', label: 'Ciud Id', type: CrudFieldType.number, required: true, readOnly: false),
-    CrudField(name: 'emprId', label: 'Empr Id', type: CrudFieldType.number, required: true, readOnly: false),
+    CrudField(name: 'ciudId', label: 'Ciudad', type: CrudFieldType.number, required: true, readOnly: false, lookup: _lookupCiudades),
+    CrudField(name: 'emprId', label: 'Empresa', type: CrudFieldType.number, required: true, readOnly: false, lookup: _lookupEmpresas),
     CrudField(name: 'usuaEstado', label: 'Usua Estado', type: CrudFieldType.number, required: true, readOnly: false),
     CrudField(name: 'usuaBloqueado', label: 'Usua Bloqueado', type: CrudFieldType.number, required: true, readOnly: false),
     CrudField(name: 'usuaPrimerNombre', label: 'Usua Primer Nombre', type: CrudFieldType.text, required: true, readOnly: false),
@@ -651,8 +670,8 @@ final usuariosConfig = CrudModuleConfig<UsuariosResponseModel>(
     CrudField(name: 'usuaFechaCambio', label: 'Usua Fecha Cambio', type: CrudFieldType.dateTime, required: true, readOnly: true),
   ],
   formFields: const [
-    CrudField(name: 'ciudId', label: 'Ciud Id', type: CrudFieldType.number, required: true),
-    CrudField(name: 'emprId', label: 'Empr Id', type: CrudFieldType.number, required: true),
+    CrudField(name: 'ciudId', label: 'Ciudad', type: CrudFieldType.number, required: true, lookup: _lookupCiudades),
+    CrudField(name: 'emprId', label: 'Empresa', type: CrudFieldType.number, required: true, lookup: _lookupEmpresas),
     CrudField(name: 'usuaEmail', label: 'Usua Email', type: CrudFieldType.text, required: true),
     CrudField(name: 'usuaPrimerApellido', label: 'Usua Primer Apellido', type: CrudFieldType.text, required: true),
     CrudField(name: 'usuaPrimerNombre', label: 'Usua Primer Nombre', type: CrudFieldType.text, required: true),
@@ -676,7 +695,7 @@ final ventasConfig = CrudModuleConfig<VentasResponseModel>(
   idField: 'ventId',
   fields: const [
     CrudField(name: 'ventId', label: 'Vent Id', type: CrudFieldType.number, required: false, readOnly: true),
-    CrudField(name: 'mesaId', label: 'Mesa Id', type: CrudFieldType.number, required: true, readOnly: false),
+    CrudField(name: 'mesaId', label: 'Mesa', type: CrudFieldType.number, required: true, readOnly: false, lookup: _lookupMesas),
     CrudField(name: 'ventFecha', label: 'Vent Fecha', type: CrudFieldType.dateTime, required: true, readOnly: false),
     CrudField(name: 'ventEstado', label: 'Vent Estado', type: CrudFieldType.text, required: true, readOnly: false),
     CrudField(name: 'ventTotal', label: 'Vent Total', type: CrudFieldType.decimal, required: true, readOnly: false),
@@ -685,7 +704,7 @@ final ventasConfig = CrudModuleConfig<VentasResponseModel>(
     CrudField(name: 'ventFechaCambio', label: 'Vent Fecha Cambio', type: CrudFieldType.dateTime, required: true, readOnly: true),
   ],
   formFields: const [
-    CrudField(name: 'mesaId', label: 'Mesa Id', type: CrudFieldType.number, required: true),
+    CrudField(name: 'mesaId', label: 'Mesa', type: CrudFieldType.number, required: true, lookup: _lookupMesas),
     CrudField(name: 'ventEstado', label: 'Vent Estado', type: CrudFieldType.text, required: true),
     CrudField(name: 'ventFecha', label: 'Vent Fecha', type: CrudFieldType.dateTime, required: true),
     CrudField(name: 'ventPropina', label: 'Vent Propina', type: CrudFieldType.decimal, required: true),
