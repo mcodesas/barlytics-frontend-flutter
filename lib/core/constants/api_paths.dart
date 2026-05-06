@@ -3,6 +3,8 @@ class ApiPaths {
   static const authLogin = '/api/v1/auth/login';
   static const authLogout = '/api/v1/auth/logout';
   static const authMe = '/api/v1/auth/me';
+  static const authMeMenus = '/api/v1/auth/me/menus';
+  static const profile = '/api/v1/profile';
   static const me = '/api/v1/me';
   static const ciudades = '/api/v1/ciudades';
   static const cuentasventa = '/api/v1/cuentasventa';
@@ -25,6 +27,7 @@ class ApiPaths {
   static const reportes = '/api/v1/reportes';
   static const roles = '/api/v1/roles';
   static const sucursales = '/api/v1/sucursales';
+  static const tiposidentificacion = '/api/v1/tiposidentificacion';
   static const tiposproducto = '/api/v1/tiposproducto';
   static const usuarios = '/api/v1/usuarios';
   static const ventas = '/api/v1/ventas';

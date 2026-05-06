@@ -23,10 +23,25 @@ final Map<String, List<CrudLookupOption>> _lookupCache = <String, List<CrudLooku
 
 /// Formulario genérico para crear y editar registros CRUD con diseño responsive.
 class DynamicCrudFormPage<T> extends ConsumerStatefulWidget {
-  const DynamicCrudFormPage({super.key, required this.config, this.id});
+  const DynamicCrudFormPage({
+    super.key,
+    required this.config,
+    this.id,
+    this.onSaved,
+    this.wizardSteps,
+    this.currentWizardStep = 0,
+  });
 
   final CrudModuleConfig<T> config;
   final String? id;
+  final void Function(BuildContext context, T saved)? onSaved;
+
+  /// Lista opcional de pasos para flujos asistidos, por ejemplo:
+  /// Empresa -> Sucursales -> Finalizar.
+  /// Se muestra dentro de la tarjeta principal para que el usuario entienda
+  /// que el primer formulario no es el final del proceso.
+  final List<String>? wizardSteps;
+  final int currentWizardStep;
 
   @override
   ConsumerState<DynamicCrudFormPage<T>> createState() => _DynamicCrudFormPageState<T>();
@@ -198,6 +213,23 @@ class _DynamicCrudFormPageState<T> extends ConsumerState<DynamicCrudFormPage<T>>
                             return Column(
                               crossAxisAlignment: CrossAxisAlignment.stretch,
                               children: [
+                                if (widget.wizardSteps != null && widget.wizardSteps!.isNotEmpty) ...[
+                                  _WizardStepsTabs(
+                                    steps: widget.wizardSteps!,
+                                    currentStep: widget.currentWizardStep,
+                                  ),
+                                  const SizedBox(height: 22),
+                                  Text(
+                                    widget.currentWizardStep == 0
+                                        ? 'Paso 1: registra primero los datos principales. Al guardar continuarás con la creación de sucursales.'
+                                        : 'Continúa completando los pasos del proceso.',
+                                    style: const TextStyle(
+                                      color: AppColors.textSecondary,
+                                      fontWeight: FontWeight.w700,
+                                    ),
+                                  ),
+                                  const SizedBox(height: 18),
+                                ],
                                 Wrap(
                                   spacing: 20,
                                   runSpacing: 16,
@@ -227,7 +259,7 @@ class _DynamicCrudFormPageState<T> extends ConsumerState<DynamicCrudFormPage<T>>
                                     const SizedBox(width: 12),
                                     Expanded(
                                       child: AppButton(
-                                        label: 'Guardar',
+                                        label: widget.wizardSteps != null && widget.id == null ? 'Guardar y continuar' : 'Guardar',
                                         icon: Icons.save_rounded,
                                         loading: state.loading,
                                         onPressed: () async {
@@ -238,10 +270,17 @@ class _DynamicCrudFormPageState<T> extends ConsumerState<DynamicCrudFormPage<T>>
                                             final text = _controllers[field.name]!.text.trim();
                                             body[field.name] = _parse(text, field.type);
                                           }
-                                          final ok = await notifier.save(id: widget.id, body: body);
+                                          final saved = await notifier.saveAndReturn(id: widget.id, body: body);
                                           if (!context.mounted) return;
+                                          final ok = saved != null;
                                           ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(ok ? 'Registro guardado correctamente' : 'No fue posible guardar')));
-                                          if (ok) context.go('/${widget.config.key}');
+                                          if (ok) {
+                                            if (widget.onSaved != null) {
+                                              widget.onSaved!(context, saved);
+                                            } else {
+                                              context.go('/${widget.config.key}');
+                                            }
+                                          }
                                         },
                                       ),
                                     ),
@@ -308,5 +347,75 @@ class _DynamicCrudFormPageState<T> extends ConsumerState<DynamicCrudFormPage<T>>
       CrudFieldType.boolean => value == 'true' || value == '1',
       _ => value,
     };
+  }
+}
+
+class _WizardStepsTabs extends StatelessWidget {
+  const _WizardStepsTabs({required this.steps, required this.currentStep});
+
+  final List<String> steps;
+  final int currentStep;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(6),
+      decoration: BoxDecoration(
+        color: AppColors.surfaceAlt,
+        borderRadius: BorderRadius.circular(24),
+        border: Border.all(color: Colors.black.withOpacity(0.05)),
+      ),
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          final compact = constraints.maxWidth < 620;
+          final children = List.generate(steps.length, (index) {
+            final selected = index == currentStep;
+            final completed = index < currentStep;
+            final icon = completed ? Icons.check_circle_rounded : Icons.radio_button_checked_rounded;
+            final content = AnimatedContainer(
+              duration: const Duration(milliseconds: 180),
+              padding: EdgeInsets.symmetric(horizontal: compact ? 12 : 16, vertical: 12),
+              decoration: BoxDecoration(
+                color: selected ? Theme.of(context).colorScheme.primary : Colors.transparent,
+                borderRadius: BorderRadius.circular(18),
+              ),
+              child: Row(
+                mainAxisAlignment: compact ? MainAxisAlignment.start : MainAxisAlignment.center,
+                mainAxisSize: compact ? MainAxisSize.max : MainAxisSize.min,
+                children: [
+                  Icon(
+                    icon,
+                    size: 20,
+                    color: selected
+                        ? Colors.white
+                        : completed
+                            ? AppColors.success
+                            : AppColors.textSecondary,
+                  ),
+                  const SizedBox(width: 8),
+                  Flexible(
+                    child: Text(
+                      'Paso ${index + 1}: ${steps[index]}',
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        color: selected ? Colors.white : AppColors.textPrimary,
+                        fontWeight: FontWeight.w900,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            );
+            return compact ? content : Expanded(child: content);
+          });
+
+          if (compact) {
+            return Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: children);
+          }
+          return Row(children: children);
+        },
+      ),
+    );
   }
 }

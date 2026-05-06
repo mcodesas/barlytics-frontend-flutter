@@ -33,18 +33,19 @@ class CrudNotifier<T> extends StateNotifier<CrudState<T>> {
   }
 
   Future<bool> save({Object? id, required Map<String, dynamic> body}) async {
+    final result = await saveAndReturn(id: id, body: body);
+    return result != null;
+  }
+
+  Future<T?> saveAndReturn({Object? id, required Map<String, dynamic> body}) async {
     state = state.copyWith(loading: true);
     try {
-      if (id == null) {
-        await _repository.create(body);
-      } else {
-        await _repository.update(id, body);
-      }
+      final saved = id == null ? await _repository.create(body) : await _repository.update(id, body);
       await load();
-      return true;
+      return saved;
     } catch (error) {
       state = state.copyWith(loading: false, failure: ErrorMapper.map(error));
-      return false;
+      return null;
     }
   }
 

@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 import '../../features/auth/presentation/pages/login_page.dart';
 import '../../features/auth/presentation/providers/auth_provider.dart';
 import '../../features/home/presentation/pages/home_page.dart';
+import '../../features/profile/presentation/pages/profile_page.dart';
 import '../../features/reportes/presentation/pages/reportes_page.dart';
 import '../../core/widgets/app_scaffold.dart';
 import 'module_registry.dart';
@@ -19,6 +20,7 @@ import '../../features/detalle_cuenta_venta/presentation/pages/detalle_cuenta_ve
 import '../../features/empresas/presentation/pages/empresas_list_page.dart';
 import '../../features/empresas/presentation/pages/empresas_form_page.dart';
 import '../../features/empresas/presentation/pages/empresas_detail_page.dart';
+import '../../features/empresas/presentation/pages/empresa_sucursales_wizard_page.dart';
 import '../../features/inventario/presentation/pages/inventario_list_page.dart';
 import '../../features/inventario/presentation/pages/inventario_form_page.dart';
 import '../../features/inventario/presentation/pages/inventario_detail_page.dart';
@@ -73,6 +75,7 @@ import '../../features/tipos_producto/presentation/pages/tipos_producto_detail_p
 import '../../features/usuarios/presentation/pages/usuarios_list_page.dart';
 import '../../features/usuarios/presentation/pages/usuarios_form_page.dart';
 import '../../features/usuarios/presentation/pages/usuarios_detail_page.dart';
+import '../../features/usuarios/presentation/pages/usuario_roles_page.dart';
 import '../../features/ventas/presentation/pages/ventas_list_page.dart';
 import '../../features/ventas/presentation/pages/ventas_form_page.dart';
 import '../../features/ventas/presentation/pages/ventas_detail_page.dart';
@@ -94,6 +97,7 @@ final appRouterProvider = Provider<GoRouter>((ref) {
     routes: [
       GoRoute(path: '/login', builder: (context, state) => const LoginPage()),
       GoRoute(path: '/home', builder: (context, state) => const HomePage()),
+      GoRoute(path: '/profile', builder: (context, state) => AppScaffold(child: const ProfilePage())),
       GoRoute(path: '/reportes', builder: (context, state) => AppScaffold(child: const ReportesPage())),
 
       GoRoute(
@@ -133,6 +137,7 @@ final appRouterProvider = Provider<GoRouter>((ref) {
           GoRoute(path: 'nuevo', builder: (context, state) => AppScaffold(child: const EmpresasFormPage())),
           GoRoute(path: ':id', builder: (context, state) => AppScaffold(child: EmpresasDetailPage(id: state.pathParameters['id']!))),
           GoRoute(path: ':id/editar', builder: (context, state) => AppScaffold(child: EmpresasFormPage(id: state.pathParameters['id']))),
+          GoRoute(path: ':id/sucursales-wizard', builder: (context, state) => AppScaffold(child: EmpresaSucursalesWizardPage(empresaId: state.pathParameters['id']!))),
         ],
       ),
 
@@ -313,6 +318,7 @@ final appRouterProvider = Provider<GoRouter>((ref) {
           GoRoute(path: 'nuevo', builder: (context, state) => AppScaffold(child: const UsuariosFormPage())),
           GoRoute(path: ':id', builder: (context, state) => AppScaffold(child: UsuariosDetailPage(id: state.pathParameters['id']!))),
           GoRoute(path: ':id/editar', builder: (context, state) => AppScaffold(child: UsuariosFormPage(id: state.pathParameters['id']))),
+          GoRoute(path: ':id/roles', builder: (context, state) => AppScaffold(child: UsuarioRolesPage(usuarioId: state.pathParameters['id']!))),
         ],
       ),
 

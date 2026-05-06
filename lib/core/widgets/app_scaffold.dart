@@ -96,6 +96,7 @@ class _SideNavigation extends ConsumerWidget {
                 padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
                 children: [
                   _NavTile(title: 'Inicio', keyName: 'home', path: '/home', dark: true),
+                  _NavTile(title: 'Mi perfil', keyName: 'usuarios', path: '/profile', dark: true),
                   const SizedBox(height: 8),
                   const _NavSectionLabel('Opciones autorizadas'),
                   ..._authorizedMenuWidgets(
@@ -137,6 +138,7 @@ class _DrawerContent extends ConsumerWidget {
             padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
             children: [
               _NavTile(title: 'Inicio', keyName: 'home', path: '/home'),
+              _NavTile(title: 'Mi perfil', keyName: 'usuarios', path: '/profile'),
               const Divider(),
               ..._authorizedMenuWidgets(
                 context: context,
