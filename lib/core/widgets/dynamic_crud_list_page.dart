@@ -1,3 +1,5 @@
+import 'dart:math' as math;
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -5,6 +7,7 @@ import 'package:go_router/go_router.dart';
 import '../../app/theme/app_colors.dart';
 import '../../app/theme/module_visuals.dart';
 import '../crud/crud_field.dart';
+import '../crud/crud_field_ordering.dart';
 import '../crud/crud_lookup_resolver.dart';
 import '../crud/crud_module_config.dart';
 import '../crud/crud_notifier.dart';
@@ -101,7 +104,8 @@ class _DynamicCrudListPageState<T> extends ConsumerState<DynamicCrudListPage<T>>
     } else if (visibleItems.isEmpty) {
       content = const AppEmptyView(message: 'No encontramos registros con ese filtro.');
     } else {
-      content = ResponsiveUtils.isDesktop(context)
+      final showTable = ResponsiveUtils.isDesktop(context) || ResponsiveUtils.isTablet(context);
+      content = showTable
           ? _DesktopTable(
               config: widget.config,
               items: visibleItems,
@@ -151,7 +155,7 @@ class _DynamicCrudListPageState<T> extends ConsumerState<DynamicCrudListPage<T>>
               ),
             ),
           ),
-          SliverFillRemaining(hasScrollBody: false, child: content),
+          SliverToBoxAdapter(child: content),
         ],
       ),
     );
@@ -283,15 +287,6 @@ String _displayValueOf<T>(
   return crudDisplayValue(field, _valueOf(config, item, field.name), lookupLabels);
 }
 
-List<CrudField> _summaryFields<T>(CrudModuleConfig<T> config) {
-  final businessFields = config.fields
-      .where((field) => field.name != config.idField && !field.readOnly)
-      .take(3)
-      .toList();
-
-  if (businessFields.isNotEmpty) return businessFields;
-  return config.fields.where((field) => field.name != config.idField).take(3).toList();
-}
 
 class _MobileCards<T> extends StatelessWidget {
   const _MobileCards({
@@ -310,13 +305,16 @@ class _MobileCards<T> extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => ListView.builder(
+        shrinkWrap: true,
+        physics: const NeverScrollableScrollPhysics(),
         padding: const EdgeInsets.fromLTRB(12, 12, 12, 96),
         itemCount: items.length,
         itemBuilder: (context, index) {
           final item = items[index];
           final id = _valueOf(config, item, config.idField) ?? index;
-          final fields = _summaryFields(config);
-          final title = fields
+          final fields = crudSummaryFields(config);
+          final summaryFields = fields.isEmpty ? <CrudField>[] : fields;
+          final title = summaryFields
               .take(1)
               .map((field) => _displayValueOf(config, item, field, lookupLabels))
               .where((value) => value != '-')
@@ -342,14 +340,13 @@ class _MobileCards<T> extends StatelessWidget {
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Text(title.isEmpty ? '${config.title} $id' : title, maxLines: 2, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w900)),
+                          Text(title.isEmpty ? config.title : title, maxLines: 2, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w900)),
                           const SizedBox(height: 8),
                           Wrap(
                             spacing: 6,
                             runSpacing: 6,
                             children: [
-                              _MiniChip(label: '#$id', color: visual.color),
-                              for (final field in fields.skip(1).take(3)) _MiniChip(label: _displayValueOf(config, item, field, lookupLabels), color: AppColors.textSecondary),
+                              for (final field in summaryFields.skip(1).take(4)) _MiniChip(label: _displayValueOf(config, item, field, lookupLabels), color: AppColors.textSecondary),
                             ],
                           ),
                         ],
@@ -391,7 +388,7 @@ class _MiniChip extends StatelessWidget {
       );
 }
 
-class _DesktopTable<T> extends StatelessWidget {
+class _DesktopTable<T> extends StatefulWidget {
   const _DesktopTable({
     required this.config,
     required this.items,
@@ -407,52 +404,190 @@ class _DesktopTable<T> extends StatelessWidget {
   final Future<void> Function(Object id) onDelete;
 
   @override
+  State<_DesktopTable<T>> createState() => _DesktopTableState<T>();
+}
+
+class _DesktopTableState<T> extends State<_DesktopTable<T>> {
+  final ScrollController _horizontalController = ScrollController();
+
+  @override
+  void dispose() {
+    _horizontalController.dispose();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
-    final columns = config.fields.take(8).toList();
+    final columns = crudVisibleFields(widget.config);
+    final columnWidths = <String, double>{
+      for (final field in columns) field.name: _columnWidthFor(field),
+    };
+    final tableWidth = math.max(
+      MediaQuery.sizeOf(context).width - 48,
+      columnWidths.values.fold<double>(0, (total, value) => total + value) + 210 + (columns.length * 22),
+    );
+
     return Padding(
-      padding: const EdgeInsets.all(18),
-      child: Container(
-        width: double.infinity,
-        decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(28),
-          border: Border.all(color: AppColors.border),
-        ),
-        child: ClipRRect(
-          borderRadius: BorderRadius.circular(28),
-          child: SingleChildScrollView(
-            scrollDirection: Axis.horizontal,
-            child: DataTable(
-              headingRowHeight: 58,
-              dataRowMinHeight: 62,
-              dataRowMaxHeight: 76,
-              columns: [
-                for (final field in columns) DataColumn(label: Text(field.label)),
-                const DataColumn(label: Text('Acciones')),
-              ],
-              rows: [
-                for (final item in items)
-                  DataRow(
-                    cells: [
-                      for (final field in columns)
-                        DataCell(
-                          ConstrainedBox(
-                            constraints: const BoxConstraints(maxWidth: 260),
-                            child: Text(_displayValueOf(config, item, field, lookupLabels), overflow: TextOverflow.ellipsis, maxLines: 2),
-                          ),
-                        ),
-                      DataCell(Row(mainAxisSize: MainAxisSize.min, children: [
-                        _ActionIcon(color: visual.color, icon: Icons.visibility_rounded, onPressed: () => context.go('/${config.key}/${_valueOf(config, item, config.idField)}')),
-                        _ActionIcon(color: AppColors.warning, icon: Icons.edit_rounded, onPressed: () => context.go('/${config.key}/${_valueOf(config, item, config.idField)}/editar')),
-                        _ActionIcon(color: AppColors.danger, icon: Icons.delete_outline_rounded, onPressed: () => onDelete(_valueOf(config, item, config.idField) ?? '')),
-                      ])),
-                    ],
-                  ),
+      padding: const EdgeInsets.fromLTRB(12, 12, 12, 96),
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          return Container(
+            width: double.infinity,
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(28),
+              border: Border.all(color: AppColors.border),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withOpacity(0.04),
+                  blurRadius: 24,
+                  offset: const Offset(0, 12),
+                ),
               ],
             ),
+            child: ClipRRect(
+              borderRadius: BorderRadius.circular(28),
+              child: Scrollbar(
+                controller: _horizontalController,
+                thumbVisibility: true,
+                trackVisibility: true,
+                scrollbarOrientation: ScrollbarOrientation.bottom,
+                child: SingleChildScrollView(
+                  controller: _horizontalController,
+                  scrollDirection: Axis.horizontal,
+                  padding: const EdgeInsets.only(bottom: 14),
+                  child: SizedBox(
+                    width: tableWidth,
+                    child: DataTable(
+                      headingRowHeight: 58,
+                      dataRowMinHeight: 64,
+                      dataRowMaxHeight: 86,
+                      horizontalMargin: 18,
+                      columnSpacing: 18,
+                      showCheckboxColumn: false,
+                      headingTextStyle: const TextStyle(
+                        fontWeight: FontWeight.w900,
+                        color: AppColors.textPrimary,
+                      ),
+                      dataTextStyle: const TextStyle(
+                        fontWeight: FontWeight.w600,
+                        color: AppColors.textPrimary,
+                      ),
+                      columns: [
+                        for (final field in columns)
+                          DataColumn(
+                            label: SizedBox(
+                              width: columnWidths[field.name],
+                              child: Text(
+                                field.label,
+                                maxLines: 2,
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                            ),
+                          ),
+                        const DataColumn(
+                          label: SizedBox(width: 180, child: Text('Acciones')),
+                        ),
+                      ],
+                      rows: [
+                        for (final item in widget.items)
+                          DataRow(
+                            onSelectChanged: (_) => context.go('/${widget.config.key}/${_valueOf(widget.config, item, widget.config.idField)}'),
+                            cells: [
+                              for (final field in columns)
+                                DataCell(
+                                  SizedBox(
+                                    width: columnWidths[field.name],
+                                    child: _ResponsiveCell(
+                                      value: _displayValueOf(widget.config, item, field, widget.lookupLabels),
+                                      field: field,
+                                      color: widget.visual.color,
+                                    ),
+                                  ),
+                                ),
+                              DataCell(
+                                SizedBox(
+                                  width: 180,
+                                  child: Row(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      _ActionIcon(
+                                        color: widget.visual.color,
+                                        icon: Icons.visibility_rounded,
+                                        onPressed: () => context.go('/${widget.config.key}/${_valueOf(widget.config, item, widget.config.idField)}'),
+                                      ),
+                                      _ActionIcon(
+                                        color: AppColors.warning,
+                                        icon: Icons.edit_rounded,
+                                        onPressed: () => context.go('/${widget.config.key}/${_valueOf(widget.config, item, widget.config.idField)}/editar'),
+                                      ),
+                                      _ActionIcon(
+                                        color: AppColors.danger,
+                                        icon: Icons.delete_outline_rounded,
+                                        onPressed: () => widget.onDelete(_valueOf(widget.config, item, widget.config.idField) ?? ''),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          );
+        },
+      ),
+    );
+  }
+
+  double _columnWidthFor(CrudField field) {
+    if (field.lookup != null) return 260;
+    if (field.type == CrudFieldType.date || field.type == CrudFieldType.dateTime) return 190;
+    if (field.type == CrudFieldType.number || field.type == CrudFieldType.decimal) return 150;
+    if (field.type == CrudFieldType.boolean) return 130;
+    final labelBasedWidth = (field.label.length * 9.0) + 72;
+    return math.max(170, math.min(300, labelBasedWidth));
+  }
+}
+
+class _ResponsiveCell extends StatelessWidget {
+  const _ResponsiveCell({required this.value, required this.field, required this.color});
+
+  final String value;
+  final CrudField field;
+  final Color color;
+
+  @override
+  Widget build(BuildContext context) {
+    if (field.lookup != null && value != '-') {
+      return Align(
+        alignment: Alignment.centerLeft,
+        child: Container(
+          constraints: const BoxConstraints(maxWidth: 250),
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
+          decoration: BoxDecoration(
+            color: color.withOpacity(0.08),
+            borderRadius: BorderRadius.circular(999),
+            border: Border.all(color: color.withOpacity(0.12)),
+          ),
+          child: Text(
+            value,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: TextStyle(color: color, fontWeight: FontWeight.w900),
           ),
         ),
-      ),
+      );
+    }
+
+    return Text(
+      value,
+      overflow: TextOverflow.ellipsis,
+      maxLines: 2,
     );
   }
 }

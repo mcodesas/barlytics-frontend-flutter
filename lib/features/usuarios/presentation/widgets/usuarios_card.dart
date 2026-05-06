@@ -10,7 +10,6 @@ class UsuariosCard extends StatelessWidget {
   Widget build(BuildContext context) => Card(
         child: ListTile(
           title: Text(item.label().isEmpty ? 'Usuarios' : item.label()),
-          subtitle: Text('ID: ${item.id ?? '-'}'),
           onTap: onTap,
         ),
       );

@@ -15,7 +15,7 @@ class CrudLookupResolver {
   /// Carga las etiquetas de todos los campos que tengan ayuda de búsqueda.
   ///
   /// Retorna un mapa por nombre de campo. Ejemplo:
-  /// `{ 'paisId': { '1': 'Colombia - CO (#1)' } }`.
+  /// `{ 'paisId': { '1': 'Colombia - CO' } }`.
   Future<Map<String, Map<String, String>>> resolveLabels(List<CrudField> fields) async {
     final result = <String, Map<String, String>>{};
     final cache = <String, Future<Map<String, String>>>{};
@@ -48,12 +48,15 @@ class CrudLookupResolver {
         if (id == null) continue;
 
         final text = lookup.displayFields
+            .where((field) => !field.toLowerCase().endsWith('id'))
             .map((field) => item[field])
             .where((value) => value != null && value.toString().trim().isNotEmpty)
             .map((value) => value.toString().trim())
             .join(' - ');
 
-        labels[id.toString()] = text.isEmpty ? id.toString() : '$text (#$id)';
+        // Nunca imprimimos el ID técnico. Si no hay campos legibles, dejamos
+        // el valor vacío para que la UI muestre un guion o mensaje neutro.
+        labels[id.toString()] = text;
       }
       return labels;
     } catch (_) {
@@ -79,5 +82,9 @@ String crudDisplayValue(
     return rawValue.toString();
   }
 
-  return lookupLabels[field.name]?[rawValue.toString()] ?? rawValue.toString();
+  final label = lookupLabels[field.name]?[rawValue.toString()];
+  if (label != null && label.trim().isNotEmpty) return label.trim();
+
+  // Si no se pudo resolver la ayuda, no mostramos el ID numérico al usuario.
+  return '-';
 }

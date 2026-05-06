@@ -10,7 +10,6 @@ class RegionesCard extends StatelessWidget {
   Widget build(BuildContext context) => Card(
         child: ListTile(
           title: Text(item.label().isEmpty ? 'Regiones' : item.label()),
-          subtitle: Text('ID: ${item.id ?? '-'}'),
           onTap: onTap,
         ),
       );

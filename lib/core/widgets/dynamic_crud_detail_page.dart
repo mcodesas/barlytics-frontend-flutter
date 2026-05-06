@@ -5,6 +5,7 @@ import 'package:go_router/go_router.dart';
 import '../../app/theme/app_colors.dart';
 import '../../app/theme/module_visuals.dart';
 import '../crud/crud_field.dart';
+import '../crud/crud_field_ordering.dart';
 import '../crud/crud_lookup_resolver.dart';
 import '../crud/crud_module_config.dart';
 import '../crud/crud_remote_datasource.dart';
@@ -65,10 +66,7 @@ class _DynamicCrudDetailPageState<T> extends ConsumerState<DynamicCrudDetailPage
           final item = snapshot.data;
           if (item == null) return const AppErrorView(message: 'No fue posible cargar el registro');
           final json = widget.config.toJson(item);
-          final firstField = widget.config.fields.firstWhere(
-            (field) => field.name != widget.config.idField,
-            orElse: () => widget.config.fields.first,
-          );
+          final firstField = crudPrimaryField(widget.config);
           final title = _displayValue(firstField, json[firstField.name]);
 
           return CustomScrollView(
@@ -98,9 +96,7 @@ class _DynamicCrudDetailPageState<T> extends ConsumerState<DynamicCrudDetailPage
                                 crossAxisAlignment: CrossAxisAlignment.start,
                                 mainAxisAlignment: MainAxisAlignment.center,
                                 children: [
-                                  Text(title == '-' ? 'Registro #${widget.id}' : title, maxLines: 2, overflow: TextOverflow.ellipsis, style: Theme.of(context).textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.w900)),
-                                  const SizedBox(height: 6),
-                                  Text('Identificador: ${widget.id}', style: const TextStyle(color: AppColors.textSecondary, fontWeight: FontWeight.w800)),
+                                  Text(title == '-' ? widget.config.title : title, maxLines: 2, overflow: TextOverflow.ellipsis, style: Theme.of(context).textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.w900)),
                                 ],
                               ),
                             ),
@@ -125,7 +121,7 @@ class _DynamicCrudDetailPageState<T> extends ConsumerState<DynamicCrudDetailPage
                               spacing: 14,
                               runSpacing: 14,
                               children: [
-                                for (final field in widget.config.fields)
+                                for (final field in crudVisibleFields(widget.config))
                                   _DetailItem(
                                     label: field.label,
                                     value: _displayValue(field, json[field.name]),
@@ -162,6 +158,7 @@ class _DynamicCrudDetailPageState<T> extends ConsumerState<DynamicCrudDetailPage
     return Icons.info_outline_rounded;
   }
 }
+
 
 class _DetailItem extends StatelessWidget {
   const _DetailItem({required this.label, required this.value, required this.color, required this.icon});

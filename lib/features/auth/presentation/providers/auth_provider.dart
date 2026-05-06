@@ -25,14 +25,32 @@ final authControllerProvider = StateNotifierProvider<AuthController, AuthState>(
 });
 
 class AuthState {
-  const AuthState({this.authenticated = false, this.loading = false, this.failure});
+  const AuthState({
+    this.authenticated = false,
+    this.loading = false,
+    this.failure,
+    this.roles = const <String>[],
+  });
+
   final bool authenticated;
   final bool loading;
   final Failure? failure;
-  AuthState copyWith({bool? authenticated, bool? loading, Failure? failure}) => AuthState(
+
+  /// Roles del usuario autenticado devueltos por el backend en el login.
+  /// Se usan para consultar MENUS/OPCIONMENU y pintar la navegación permitida.
+  final List<String> roles;
+
+  AuthState copyWith({
+    bool? authenticated,
+    bool? loading,
+    Failure? failure,
+    List<String>? roles,
+  }) =>
+      AuthState(
         authenticated: authenticated ?? this.authenticated,
         loading: loading ?? this.loading,
         failure: failure,
+        roles: roles ?? this.roles,
       );
 }
 
@@ -47,14 +65,15 @@ class AuthController extends StateNotifier<AuthState> {
 
   Future<void> checkSession() async {
     final hasSession = await _repository.hasSession();
-    state = state.copyWith(authenticated: hasSession);
+    final roles = hasSession ? await _repository.getStoredRoles() : const <String>[];
+    state = state.copyWith(authenticated: hasSession, roles: roles);
   }
 
   Future<bool> login(String identificador, String password) async {
     state = state.copyWith(loading: true);
     try {
-      await _login(identificador, password);
-      state = const AuthState(authenticated: true);
+      final response = await _login(identificador, password);
+      state = AuthState(authenticated: true, roles: response.roles);
       return true;
     } catch (error) {
       state = state.copyWith(loading: false, failure: ErrorMapper.map(error));

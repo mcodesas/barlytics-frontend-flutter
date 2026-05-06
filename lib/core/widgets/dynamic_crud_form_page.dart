@@ -5,6 +5,7 @@ import 'package:go_router/go_router.dart';
 import '../../app/theme/app_colors.dart';
 import '../../app/theme/module_visuals.dart';
 import '../crud/crud_field.dart';
+import '../crud/crud_field_ordering.dart';
 import '../crud/crud_module_config.dart';
 import '../crud/crud_notifier.dart';
 import '../crud/crud_remote_datasource.dart';
@@ -101,11 +102,11 @@ class _DynamicCrudFormPageState<T> extends ConsumerState<DynamicCrudFormPage<T>>
               final id = raw[lookup.idField];
               if (id == null) return null;
               final labelParts = lookup.displayFields
+                  .where((displayField) => !displayField.toLowerCase().endsWith('id'))
                   .map((displayField) => raw[displayField]?.toString().trim() ?? '')
                   .where((value) => value.isNotEmpty)
                   .toList();
-              final fallback = id.toString();
-              final label = labelParts.isEmpty ? fallback : '${labelParts.join(' - ')} (#$fallback)';
+              final label = labelParts.isEmpty ? 'Opción disponible' : labelParts.join(' - ');
               return CrudLookupOption(id: id, label: label, raw: raw);
             }).whereType<CrudLookupOption>().toList();
           },
@@ -201,7 +202,7 @@ class _DynamicCrudFormPageState<T> extends ConsumerState<DynamicCrudFormPage<T>>
                                   spacing: 20,
                                   runSpacing: 16,
                                   children: [
-                                    for (final field in widget.config.formFields)
+                                    for (final field in crudVisibleFields(widget.config, fields: widget.config.formFields))
                                       SizedBox(width: fieldWidth, child: _buildField(field)),
                                   ],
                                 ),
@@ -233,6 +234,7 @@ class _DynamicCrudFormPageState<T> extends ConsumerState<DynamicCrudFormPage<T>>
                                           if (!_formKey.currentState!.validate()) return;
                                           final body = <String, dynamic>{};
                                           for (final field in widget.config.formFields) {
+                                            if (crudIsTechnicalIdField(widget.config, field)) continue;
                                             final text = _controllers[field.name]!.text.trim();
                                             body[field.name] = _parse(text, field.type);
                                           }

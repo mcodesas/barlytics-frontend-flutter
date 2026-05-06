@@ -24,12 +24,27 @@ class AuthRepositoryImpl implements AuthRepository {
 
   @override
   Future<void> logout() async {
-    try { await _remote.logout(); } finally { await _storage.clear(); }
+    try {
+      await _remote.logout();
+    } finally {
+      await _storage.clear();
+    }
   }
 
   @override
   Future<bool> hasSession() async {
     final token = await _storage.read(StorageKeys.authToken);
     return token != null && token.isNotEmpty;
+  }
+
+  @override
+  Future<List<String>> getStoredRoles() async {
+    final raw = await _storage.read(StorageKeys.roles);
+    if (raw == null || raw.trim().isEmpty) return const <String>[];
+    return raw
+        .split(',')
+        .map((role) => role.trim())
+        .where((role) => role.isNotEmpty)
+        .toList(growable: false);
   }
 }

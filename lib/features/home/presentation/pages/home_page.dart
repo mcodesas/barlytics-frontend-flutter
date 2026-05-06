@@ -1,17 +1,25 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
-import '../../../../app/router/module_registry.dart';
 import '../../../../app/theme/app_colors.dart';
 import '../../../../app/theme/module_visuals.dart';
+import '../../../../core/widgets/app_error_view.dart';
+import '../../../../core/widgets/app_loader.dart';
 import '../../../../core/widgets/app_scaffold.dart';
 import '../../../../core/widgets/responsive_layout.dart';
+import '../../../auth/presentation/providers/auth_provider.dart';
+import '../../../navigation/data/models/user_menu_item.dart';
+import '../../../navigation/presentation/providers/user_menu_provider.dart';
 
-class HomePage extends StatelessWidget {
+class HomePage extends ConsumerWidget {
   const HomePage({super.key});
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    final menuAsync = ref.watch(userMenuProvider);
+    final authState = ref.watch(authControllerProvider);
+
     return AppScaffold(
       child: Scaffold(
         body: CustomScrollView(
@@ -67,16 +75,56 @@ class HomePage extends StatelessWidget {
               padding: const EdgeInsets.all(16),
               sliver: SliverList(
                 delegate: SliverChildListDelegate([
-                  const _QuickStats(),
+                  menuAsync.when(
+                    loading: () => _QuickStats(modulesCount: 0, rolesCount: authState.roles.length),
+                    error: (_, __) => _QuickStats(modulesCount: 0, rolesCount: authState.roles.length),
+                    data: (items) => _QuickStats(modulesCount: items.length, rolesCount: authState.roles.length),
+                  ),
                   const SizedBox(height: 18),
-                  Text('Módulos principales', style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w900)),
+                  Text('Módulos disponibles para tu rol', style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w900)),
                   const SizedBox(height: 8),
-                  const Text('Elige una opción para consultar, crear o actualizar información.', style: TextStyle(color: AppColors.textSecondary, fontWeight: FontWeight.w600)),
+                  const Text('Estas opciones vienen desde la base de datos según los roles asignados a tu usuario.', style: TextStyle(color: AppColors.textSecondary, fontWeight: FontWeight.w600)),
                   const SizedBox(height: 14),
-                  ResponsiveLayout(
-                    mobile: const _Grid(columns: 1),
-                    tablet: const _Grid(columns: 2),
-                    desktop: const _Grid(columns: 3),
+                  menuAsync.when(
+                    loading: () => const Padding(
+                      padding: EdgeInsets.symmetric(vertical: 32),
+                      child: AppLoader(message: 'Cargando módulos autorizados...'),
+                    ),
+                    error: (error, _) => AppErrorView(
+                      message: 'No fue posible cargar los módulos autorizados. Revisa la configuración de MENUS, OPCIONMENU y ROLES.',
+                      onRetry: () => ref.invalidate(userMenuProvider),
+                    ),
+                    data: (items) {
+                      if (items.isEmpty) {
+                        return Container(
+                          width: double.infinity,
+                          padding: const EdgeInsets.all(22),
+                          decoration: BoxDecoration(
+                            color: Colors.white,
+                            borderRadius: BorderRadius.circular(28),
+                            border: Border.all(color: AppColors.border),
+                          ),
+                          child: const Row(
+                            children: [
+                              Icon(Icons.lock_outline_rounded, color: AppColors.primary),
+                              SizedBox(width: 12),
+                              Expanded(
+                                child: Text(
+                                  'Tu usuario no tiene opciones de menú asignadas. Valida la relación ROLES → OPCIONMENU → MENUS.',
+                                  style: TextStyle(color: AppColors.textSecondary, fontWeight: FontWeight.w700),
+                                ),
+                              ),
+                            ],
+                          ),
+                        );
+                      }
+
+                      return ResponsiveLayout(
+                        mobile: _Grid(columns: 1, items: items),
+                        tablet: _Grid(columns: 2, items: items),
+                        desktop: _Grid(columns: 3, items: items),
+                      );
+                    },
                   ),
                 ]),
               ),
@@ -89,16 +137,18 @@ class HomePage extends StatelessWidget {
 }
 
 class _QuickStats extends StatelessWidget {
-  const _QuickStats();
+  const _QuickStats({required this.modulesCount, required this.rolesCount});
+  final int modulesCount;
+  final int rolesCount;
 
   @override
   Widget build(BuildContext context) => Wrap(
         spacing: 12,
         runSpacing: 12,
-        children: const [
-          _StatCard(title: 'Módulos', value: '29', icon: Icons.dashboard_customize_rounded, color: AppColors.secondary),
-          _StatCard(title: 'Operación', value: 'POS', icon: Icons.point_of_sale_rounded, color: AppColors.accent),
-          _StatCard(title: 'Inventario', value: 'Stock', icon: Icons.inventory_2_rounded, color: AppColors.success),
+        children: [
+          _StatCard(title: 'Módulos autorizados', value: modulesCount.toString(), icon: Icons.dashboard_customize_rounded, color: AppColors.secondary),
+          _StatCard(title: 'Roles activos', value: rolesCount.toString(), icon: Icons.admin_panel_settings_rounded, color: AppColors.tertiary),
+          const _StatCard(title: 'Operación', value: 'POS', icon: Icons.point_of_sale_rounded, color: AppColors.accent),
         ],
       );
 }
@@ -124,10 +174,12 @@ class _StatCard extends StatelessWidget {
             children: [
               Container(width: 52, height: 52, decoration: BoxDecoration(color: color.withOpacity(0.14), borderRadius: BorderRadius.circular(18)), child: Icon(icon, color: color)),
               const SizedBox(width: 14),
-              Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                Text(value, style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w900)),
-                Text(title, style: const TextStyle(color: AppColors.textSecondary, fontWeight: FontWeight.w700)),
-              ]),
+              Expanded(
+                child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                  Text(value, style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w900)),
+                  Text(title, style: const TextStyle(color: AppColors.textSecondary, fontWeight: FontWeight.w700)),
+                ]),
+              ),
             ],
           ),
         ),
@@ -135,8 +187,9 @@ class _StatCard extends StatelessWidget {
 }
 
 class _Grid extends StatelessWidget {
-  const _Grid({required this.columns});
+  const _Grid({required this.columns, required this.items});
   final int columns;
+  final List<UserMenuItem> items;
 
   @override
   Widget build(BuildContext context) => GridView.count(
@@ -147,26 +200,24 @@ class _Grid extends StatelessWidget {
         mainAxisSpacing: 12,
         crossAxisSpacing: 12,
         children: [
-          for (final module in moduleRegistry) _ModuleCard(title: module.title, keyName: module.key, path: '/${module.key}'),
+          for (final item in items) _ModuleCard(item: item),
         ],
       );
 }
 
 class _ModuleCard extends StatelessWidget {
-  const _ModuleCard({required this.title, required this.keyName, required this.path});
-  final String title;
-  final String keyName;
-  final String path;
+  const _ModuleCard({required this.item});
+  final UserMenuItem item;
 
   @override
   Widget build(BuildContext context) {
-    final visual = ModuleVisuals.byKey(keyName);
+    final visual = ModuleVisuals.byKey(item.keyName);
     return Material(
       color: Colors.white,
       borderRadius: BorderRadius.circular(28),
       child: InkWell(
         borderRadius: BorderRadius.circular(28),
-        onTap: () => context.go(path),
+        onTap: () => context.go(item.path),
         child: Container(
           padding: const EdgeInsets.all(18),
           decoration: BoxDecoration(
@@ -183,9 +234,9 @@ class _ModuleCard extends StatelessWidget {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
-                    Text(title, maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 16)),
+                    Text(item.title, maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 16)),
                     const SizedBox(height: 4),
-                    Text(visual.description, maxLines: 2, overflow: TextOverflow.ellipsis, style: const TextStyle(color: AppColors.textSecondary, fontWeight: FontWeight.w600, fontSize: 12)),
+                    Text(item.description ?? visual.description, maxLines: 2, overflow: TextOverflow.ellipsis, style: const TextStyle(color: AppColors.textSecondary, fontWeight: FontWeight.w600, fontSize: 12)),
                   ],
                 ),
               ),

@@ -2,10 +2,11 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
-import '../../app/router/module_registry.dart';
 import '../../app/theme/app_colors.dart';
 import '../../app/theme/module_visuals.dart';
 import '../../features/auth/presentation/providers/auth_provider.dart';
+import '../../features/navigation/data/models/user_menu_item.dart';
+import '../../features/navigation/presentation/providers/user_menu_provider.dart';
 import '../utils/responsive_utils.dart';
 
 /// Controlador compartido para conservar la posición del menú lateral.
@@ -19,8 +20,9 @@ final ScrollController _mobileNavigationScrollController = ScrollController();
 
 /// Scaffold principal con navegación adaptable.
 ///
-/// En móvil usa Drawer; en tablet/escritorio usa panel lateral. Las opciones son
-/// las mismas en todos los dispositivos: solo cambia la presentación visual.
+/// Las opciones del menú ya no están quemadas: se consultan al backend desde
+/// MENUS, OPCIONMENU y ROLES, usando los roles devueltos por el login. El
+/// dispositivo solo cambia la presentación visual, no las funcionalidades.
 class AppScaffold extends ConsumerWidget {
   const AppScaffold({super.key, required this.child});
   final Widget child;
@@ -60,16 +62,19 @@ class AppScaffold extends ConsumerWidget {
 
   Future<void> _logout(BuildContext context, WidgetRef ref) async {
     await ref.read(authControllerProvider.notifier).logout();
+    ref.invalidate(userMenuProvider);
     if (context.mounted) context.go('/login');
   }
 }
 
-class _SideNavigation extends StatelessWidget {
+class _SideNavigation extends ConsumerWidget {
   const _SideNavigation({required this.onLogout});
   final VoidCallback onLogout;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    final menuAsync = ref.watch(userMenuProvider);
+
     return Container(
       width: 304,
       decoration: const BoxDecoration(
@@ -92,11 +97,13 @@ class _SideNavigation extends StatelessWidget {
                 children: [
                   _NavTile(title: 'Inicio', keyName: 'home', path: '/home', dark: true),
                   const SizedBox(height: 8),
-                  const _NavSectionLabel('Operación'),
-                  for (final module in moduleRegistry) _NavTile(title: module.title, keyName: module.key, path: '/${module.key}', dark: true),
-                  const SizedBox(height: 8),
-                  const _NavSectionLabel('Indicadores'),
-                  _NavTile(title: 'Reportes', keyName: 'reportes', path: '/reportes', dark: true),
+                  const _NavSectionLabel('Opciones autorizadas'),
+                  ..._authorizedMenuWidgets(
+                    context: context,
+                    ref: ref,
+                    menuAsync: menuAsync,
+                    dark: true,
+                  ),
                 ],
               ),
             ),
@@ -111,35 +118,102 @@ class _SideNavigation extends StatelessWidget {
   }
 }
 
-class _DrawerContent extends StatelessWidget {
+class _DrawerContent extends ConsumerWidget {
   const _DrawerContent({required this.onLogout});
   final VoidCallback onLogout;
 
   @override
-  Widget build(BuildContext context) => Column(
-        children: [
-          const _BrandHeader(dark: false),
-          Expanded(
-            child: ListView(
-              key: const PageStorageKey<String>('mobile-main-navigation-scroll'),
-              controller: _mobileNavigationScrollController,
-              primary: false,
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-              children: [
-                _NavTile(title: 'Inicio', keyName: 'home', path: '/home'),
-                const Divider(),
-                for (final module in moduleRegistry) _NavTile(title: module.title, keyName: module.key, path: '/${module.key}'),
-                const Divider(),
-                _NavTile(title: 'Reportes', keyName: 'reportes', path: '/reportes'),
-              ],
-            ),
+  Widget build(BuildContext context, WidgetRef ref) {
+    final menuAsync = ref.watch(userMenuProvider);
+
+    return Column(
+      children: [
+        const _BrandHeader(dark: false),
+        Expanded(
+          child: ListView(
+            key: const PageStorageKey<String>('mobile-main-navigation-scroll'),
+            controller: _mobileNavigationScrollController,
+            primary: false,
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+            children: [
+              _NavTile(title: 'Inicio', keyName: 'home', path: '/home'),
+              const Divider(),
+              ..._authorizedMenuWidgets(
+                context: context,
+                ref: ref,
+                menuAsync: menuAsync,
+                dark: false,
+              ),
+            ],
           ),
-          Padding(
-            padding: const EdgeInsets.all(12),
-            child: _LogoutTile(onLogout: onLogout),
+        ),
+        Padding(
+          padding: const EdgeInsets.all(12),
+          child: _LogoutTile(onLogout: onLogout),
+        ),
+      ],
+    );
+  }
+}
+
+List<Widget> _authorizedMenuWidgets({
+  required BuildContext context,
+  required WidgetRef ref,
+  required AsyncValue<List<UserMenuItem>> menuAsync,
+  required bool dark,
+}) {
+  return menuAsync.when(
+    loading: () => [
+      _MenuMessage(
+        dark: dark,
+        icon: Icons.hourglass_top_rounded,
+        title: 'Cargando menú...',
+        message: 'Consultando opciones según tu rol.',
+      ),
+    ],
+    error: (error, _) => [
+      _MenuMessage(
+        dark: dark,
+        icon: Icons.warning_amber_rounded,
+        title: 'No se pudo cargar el menú',
+        message: 'Revisa que existan roles, menús y opciones asignadas.',
+      ),
+      Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 6),
+        child: OutlinedButton.icon(
+          style: OutlinedButton.styleFrom(
+            foregroundColor: dark ? Colors.white : AppColors.primary,
+            side: BorderSide(color: dark ? Colors.white54 : AppColors.primary.withOpacity(0.35)),
           ),
-        ],
-      );
+          onPressed: () => ref.invalidate(userMenuProvider),
+          icon: const Icon(Icons.refresh_rounded),
+          label: const Text('Reintentar'),
+        ),
+      ),
+    ],
+    data: (items) {
+      if (items.isEmpty) {
+        return [
+          _MenuMessage(
+            dark: dark,
+            icon: Icons.lock_outline_rounded,
+            title: 'Sin opciones asignadas',
+            message: 'Tu rol aún no tiene opciones de menú configuradas.',
+          ),
+        ];
+      }
+
+      return [
+        for (final item in items)
+          _NavTile(
+            title: item.title,
+            keyName: item.keyName,
+            path: item.path,
+            dark: dark,
+          ),
+      ];
+    },
+  );
 }
 
 class _BrandHeader extends StatelessWidget {
@@ -276,6 +350,54 @@ class _NavTile extends StatelessWidget {
       return '';
     }
   }
+}
+
+class _MenuMessage extends StatelessWidget {
+  const _MenuMessage({
+    required this.dark,
+    required this.icon,
+    required this.title,
+    required this.message,
+  });
+
+  final bool dark;
+  final IconData icon;
+  final String title;
+  final String message;
+
+  @override
+  Widget build(BuildContext context) => Container(
+        margin: const EdgeInsets.symmetric(horizontal: 6, vertical: 8),
+        padding: const EdgeInsets.all(14),
+        decoration: BoxDecoration(
+          color: dark ? Colors.white.withOpacity(0.10) : AppColors.surfaceAlt,
+          borderRadius: BorderRadius.circular(18),
+          border: Border.all(color: dark ? Colors.white24 : AppColors.border),
+        ),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Icon(icon, color: dark ? Colors.white70 : AppColors.primary, size: 22),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    title,
+                    style: TextStyle(color: dark ? Colors.white : AppColors.textPrimary, fontWeight: FontWeight.w900),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    message,
+                    style: TextStyle(color: dark ? Colors.white70 : AppColors.textSecondary, fontSize: 12, height: 1.25),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      );
 }
 
 class _LogoutTile extends StatelessWidget {

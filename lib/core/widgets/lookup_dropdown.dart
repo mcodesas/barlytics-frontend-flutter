@@ -33,7 +33,7 @@ class LookupDropdown extends StatelessWidget {
       builder: (state) {
         final selectedId = (state.value ?? controller.text).trim();
         final selected = options.where((option) => option.id?.toString() == selectedId).firstOrNull;
-        final displayValue = selected?.label ?? (selectedId.isEmpty ? '' : selectedId);
+        final displayValue = selected?.label ?? (selectedId.isEmpty ? '' : 'Opción seleccionada');
 
         return InkWell(
           borderRadius: BorderRadius.circular(18),
@@ -127,7 +127,6 @@ class LookupDropdown extends StatelessWidget {
                                     shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
                                     leading: const CircleAvatar(backgroundColor: AppColors.infoSoft, child: Icon(Icons.check_circle_outline_rounded, color: AppColors.info)),
                                     title: Text(option.label, maxLines: 2, overflow: TextOverflow.ellipsis, style: const TextStyle(fontWeight: FontWeight.w900)),
-                                    subtitle: Text('ID: ${option.id}', style: const TextStyle(color: AppColors.textSecondary, fontWeight: FontWeight.w700)),
                                     onTap: () => Navigator.of(dialogContext).pop(option),
                                   ),
                                 );

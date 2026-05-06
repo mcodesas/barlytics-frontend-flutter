@@ -10,7 +10,6 @@ class PagosCard extends StatelessWidget {
   Widget build(BuildContext context) => Card(
         child: ListTile(
           title: Text(item.label().isEmpty ? 'Pagos' : item.label()),
-          subtitle: Text('ID: ${item.id ?? '-'}'),
           onTap: onTap,
         ),
       );
