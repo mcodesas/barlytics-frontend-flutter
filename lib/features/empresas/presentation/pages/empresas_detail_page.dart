@@ -198,6 +198,12 @@ class _EmpresasDetailPageState extends ConsumerState<EmpresasDetailPage> {
                           ),
                         ),
                         OutlinedButton.icon(
+                          onPressed: () => context.go('/empresas'),
+                          icon: const Icon(Icons.arrow_back_rounded),
+                          label: const Text('Atrás'),
+                        ),
+                        const SizedBox(width: 8),
+                        OutlinedButton.icon(
                           onPressed: () => _safeGo('/empresas/${widget.id}/editar'),
                           icon: const Icon(Icons.edit_rounded),
                           label: const Text('Modificar'),
