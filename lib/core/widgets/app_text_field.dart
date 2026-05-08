@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+import '../../app/theme/app_colors.dart';
+
 /// Campo de texto estándar de la aplicación.
 class AppTextField extends StatelessWidget {
   const AppTextField({
@@ -12,6 +14,7 @@ class AppTextField extends StatelessWidget {
     this.readOnly = false,
     this.prefixIcon,
     this.hintText,
+    this.onChanged,
   });
 
   final TextEditingController controller;
@@ -22,6 +25,7 @@ class AppTextField extends StatelessWidget {
   final bool readOnly;
   final IconData? prefixIcon;
   final String? hintText;
+  final ValueChanged<String>? onChanged;
 
   @override
   Widget build(BuildContext context) => TextFormField(
@@ -29,12 +33,18 @@ class AppTextField extends StatelessWidget {
         decoration: InputDecoration(
           labelText: label,
           hintText: hintText,
-          prefixIcon: prefixIcon == null ? null : Icon(prefixIcon),
-          suffixIcon: readOnly ? const Icon(Icons.lock_outline_rounded, size: 18) : null,
+          prefixIcon: prefixIcon == null
+              ? null
+              : Padding(
+                  padding: const EdgeInsets.only(left: 10, right: 4),
+                  child: Icon(prefixIcon, color: AppColors.secondaryDark),
+                ),
+          suffixIcon: readOnly ? const Icon(Icons.lock_outline_rounded, size: 18, color: AppColors.textMuted) : null,
         ),
         validator: validator,
         keyboardType: keyboardType,
         obscureText: obscureText,
         readOnly: readOnly,
+        onChanged: onChanged,
       );
 }

@@ -13,6 +13,7 @@ import '../crud/crud_repository.dart';
 import '../providers/core_providers.dart';
 import 'app_error_view.dart';
 import 'app_loader.dart';
+import 'tech_background.dart';
 
 /// Página genérica de detalle con diseño tipo ficha móvil/tablet.
 class DynamicCrudDetailPage<T> extends ConsumerStatefulWidget {
@@ -73,6 +74,7 @@ class _DynamicCrudDetailPageState<T> extends ConsumerState<DynamicCrudDetailPage
             slivers: [
               SliverAppBar(
                 pinned: true,
+                foregroundColor: Colors.white,
                 expandedHeight: 210,
                 title: Text(widget.config.title),
                 leading: IconButton(icon: const Icon(Icons.arrow_back_rounded), onPressed: () => context.go('/${widget.config.key}')),
@@ -80,29 +82,31 @@ class _DynamicCrudDetailPageState<T> extends ConsumerState<DynamicCrudDetailPage
                   IconButton(onPressed: () => context.go('/${widget.config.key}/${widget.id}/editar'), icon: const Icon(Icons.edit_rounded), tooltip: 'Editar'),
                 ],
                 flexibleSpace: FlexibleSpaceBar(
-                  background: Container(
-                    decoration: BoxDecoration(
-                      gradient: LinearGradient(colors: [visual.color.withOpacity(0.20), Colors.white], begin: Alignment.topLeft, end: Alignment.bottomRight),
-                    ),
-                    child: SafeArea(
-                      child: Padding(
-                        padding: const EdgeInsets.fromLTRB(20, 58, 20, 16),
-                        child: Row(
-                          children: [
-                            Container(width: 64, height: 64, decoration: BoxDecoration(color: visual.color, borderRadius: BorderRadius.circular(24)), child: Icon(visual.icon, color: Colors.white, size: 34)),
-                            const SizedBox(width: 16),
-                            Expanded(
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                mainAxisAlignment: MainAxisAlignment.center,
-                                children: [
-                                  Text(title == '-' ? widget.config.title : title, maxLines: 2, overflow: TextOverflow.ellipsis, style: Theme.of(context).textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.w900)),
-                                ],
-                              ),
-                            ),
-                          ],
+                  background: TechBackground(
+                    padding: const EdgeInsets.fromLTRB(20, 58, 20, 16),
+                    child: Row(
+                      children: [
+                        Container(
+                          width: 66,
+                          height: 66,
+                          decoration: BoxDecoration(
+                            gradient: LinearGradient(colors: [visual.color, AppColors.tertiary]),
+                            borderRadius: BorderRadius.circular(25),
+                            boxShadow: [BoxShadow(color: visual.color.withOpacity(0.30), blurRadius: 24, offset: const Offset(0, 12))],
+                          ),
+                          child: Icon(visual.icon, color: Colors.white, size: 35),
                         ),
-                      ),
+                        const SizedBox(width: 16),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              Text(title == '-' ? widget.config.title : title, maxLines: 2, overflow: TextOverflow.ellipsis, style: Theme.of(context).textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.w900, color: Colors.white)),
+                            ],
+                          ),
+                        ),
+                      ],
                     ),
                   ),
                 ),
@@ -176,7 +180,7 @@ class _DetailItem extends StatelessWidget {
       child: Container(
         padding: const EdgeInsets.all(16),
         decoration: BoxDecoration(
-          color: color.withOpacity(0.07),
+          gradient: LinearGradient(colors: [Colors.white, color.withOpacity(0.07)]),
           borderRadius: BorderRadius.circular(22),
           border: Border.all(color: color.withOpacity(0.12)),
         ),

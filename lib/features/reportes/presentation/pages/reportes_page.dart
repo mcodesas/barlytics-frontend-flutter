@@ -7,6 +7,7 @@ import '../../../../core/providers/core_providers.dart';
 import '../../../../core/widgets/app_empty_view.dart';
 import '../../../../core/widgets/app_error_view.dart';
 import '../../../../core/widgets/app_loader.dart';
+import '../../../../core/widgets/tech_background.dart';
 
 class ReportesPage extends ConsumerWidget {
   const ReportesPage({super.key});
@@ -28,34 +29,33 @@ class ReportesPage extends ConsumerWidget {
         slivers: [
           SliverAppBar(
             pinned: true,
+            foregroundColor: Colors.white,
             expandedHeight: 210,
             title: const Text('Reportes'),
             flexibleSpace: FlexibleSpaceBar(
-              background: Container(
-                decoration: BoxDecoration(
-                  gradient: LinearGradient(colors: [visual.color.withOpacity(0.18), Colors.white], begin: Alignment.topLeft, end: Alignment.bottomRight),
-                ),
-                child: SafeArea(
-                  child: Padding(
-                    padding: const EdgeInsets.fromLTRB(20, 58, 20, 16),
-                    child: Row(
-                      children: [
-                        Container(width: 64, height: 64, decoration: BoxDecoration(color: visual.color, borderRadius: BorderRadius.circular(24)), child: Icon(visual.icon, color: Colors.white, size: 34)),
-                        const SizedBox(width: 16),
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            mainAxisAlignment: MainAxisAlignment.center,
-                            children: [
-                              Text('Reportes e indicadores', style: Theme.of(context).textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.w900)),
-                              const SizedBox(height: 6),
-                              const Text('Consulta información operativa de ventas, pagos e inventario.', style: TextStyle(color: AppColors.textSecondary, fontWeight: FontWeight.w700)),
-                            ],
-                          ),
-                        ),
-                      ],
+              background: TechBackground(
+                padding: const EdgeInsets.fromLTRB(20, 58, 20, 16),
+                child: Row(
+                  children: [
+                    Container(
+                      width: 66,
+                      height: 66,
+                      decoration: BoxDecoration(gradient: LinearGradient(colors: [visual.color, AppColors.tertiary]), borderRadius: BorderRadius.circular(25)),
+                      child: Icon(visual.icon, color: Colors.white, size: 34),
                     ),
-                  ),
+                    const SizedBox(width: 16),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Text('Reportes e indicadores', style: Theme.of(context).textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.w900, color: Colors.white)),
+                          const SizedBox(height: 6),
+                          Text('Consulta información operativa de ventas, pagos e inventario.', style: TextStyle(color: Colors.white.withOpacity(0.76), fontWeight: FontWeight.w700)),
+                        ],
+                      ),
+                    ),
+                  ],
                 ),
               ),
             ),
@@ -100,7 +100,7 @@ class _ReportCard extends StatelessWidget {
             decoration: BoxDecoration(borderRadius: BorderRadius.circular(28), border: Border.all(color: AppColors.border), gradient: LinearGradient(colors: [Colors.white, color.withOpacity(0.06)])),
             child: Row(
               children: [
-                Container(width: 58, height: 58, decoration: BoxDecoration(color: color.withOpacity(0.14), borderRadius: BorderRadius.circular(20)), child: Icon(Icons.query_stats_rounded, color: color, size: 30)),
+                Container(width: 58, height: 58, decoration: BoxDecoration(gradient: LinearGradient(colors: [color, AppColors.tertiary]), borderRadius: BorderRadius.circular(20)), child: const Icon(Icons.query_stats_rounded, color: Colors.white, size: 30)),
                 const SizedBox(width: 16),
                 Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisAlignment: MainAxisAlignment.center, children: [
                   Text(title, maxLines: 2, overflow: TextOverflow.ellipsis, style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 16)),

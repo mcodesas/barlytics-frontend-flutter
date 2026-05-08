@@ -28,15 +28,15 @@ class ModuleVisuals {
       case 'sucursales':
         return const ModuleVisual(icon: Icons.location_city_rounded, color: AppColors.info, description: 'Sedes o puntos de operación');
       case 'productos':
-        return const ModuleVisual(icon: Icons.local_bar_rounded, color: Color(0xFFE11D48), description: 'Productos disponibles para venta');
+        return const ModuleVisual(icon: Icons.local_bar_rounded, color: Color(0xFF38BDF8), description: 'Productos disponibles para venta');
       case 'inventario':
         return const ModuleVisual(icon: Icons.inventory_2_rounded, color: AppColors.success, description: 'Stock y existencias por sucursal');
       case 'movimientos':
         return const ModuleVisual(icon: Icons.swap_horiz_rounded, color: Color(0xFF0D9488), description: 'Entradas, salidas y ajustes');
       case 'mesas':
-        return const ModuleVisual(icon: Icons.table_restaurant_rounded, color: Color(0xFFCA8A04), description: 'Mesas y estado operativo');
+        return const ModuleVisual(icon: Icons.table_restaurant_rounded, color: Color(0xFF0EA5E9), description: 'Mesas y estado operativo');
       case 'ventas':
-        return const ModuleVisual(icon: Icons.point_of_sale_rounded, color: Color(0xFFEA580C), description: 'Consumos y ventas por mesa');
+        return const ModuleVisual(icon: Icons.point_of_sale_rounded, color: Color(0xFF2563EB), description: 'Consumos y ventas por mesa');
       case 'cuentas_venta':
         return const ModuleVisual(icon: Icons.receipt_long_rounded, color: Color(0xFF4F46E5), description: 'Cuentas asociadas a ventas');
       case 'detalle_cuenta_venta':
@@ -46,7 +46,7 @@ class ModuleVisuals {
       case 'medios_pago':
         return const ModuleVisual(icon: Icons.credit_card_rounded, color: Color(0xFF10B981), description: 'Medios de pago aceptados');
       case 'precios':
-        return const ModuleVisual(icon: Icons.sell_rounded, color: Color(0xFFF59E0B), description: 'Precios vigentes e históricos');
+        return const ModuleVisual(icon: Icons.sell_rounded, color: Color(0xFF06B6D4), description: 'Precios vigentes e históricos');
       case 'marcas':
         return const ModuleVisual(icon: Icons.verified_rounded, color: Color(0xFF6366F1), description: 'Marcas y fabricantes');
       case 'tipos_producto':
@@ -60,7 +60,7 @@ class ModuleVisuals {
       case 'ciudades':
         return const ModuleVisual(icon: Icons.location_on_rounded, color: Color(0xFF14B8A6), description: 'Ciudades y municipios');
       case 'monedas':
-        return const ModuleVisual(icon: Icons.attach_money_rounded, color: Color(0xFF65A30D), description: 'Monedas de operación');
+        return const ModuleVisual(icon: Icons.attach_money_rounded, color: Color(0xFF14B8A6), description: 'Monedas de operación');
       case 'menus':
         return const ModuleVisual(icon: Icons.menu_open_rounded, color: Color(0xFF475569), description: 'Menús funcionales');
       case 'opciones_menu':
@@ -68,7 +68,7 @@ class ModuleVisuals {
       case 'zonas_horarias':
         return const ModuleVisual(icon: Icons.schedule_rounded, color: Color(0xFF0891B2), description: 'Zonas horarias del sistema');
       case 'reportes':
-        return const ModuleVisual(icon: Icons.query_stats_rounded, color: Color(0xFFDB2777), description: 'Indicadores y reportes operativos');
+        return const ModuleVisual(icon: Icons.query_stats_rounded, color: Color(0xFF8B5CF6), description: 'Indicadores y reportes operativos');
       default:
         return const ModuleVisual(icon: Icons.apps_rounded, color: AppColors.secondary, description: 'Módulo operativo');
     }
