@@ -38,6 +38,17 @@ class AuthRepositoryImpl implements AuthRepository {
   }
 
   @override
+  Future<void> requestPasswordRecovery(String email) => _remote.requestPasswordRecovery(email);
+
+  @override
+  Future<void> validatePasswordRecoveryCode(String code) => _remote.validatePasswordRecoveryCode(code);
+
+  @override
+  Future<void> resetPassword({required String code, required String newPassword, required String confirmPassword}) {
+    return _remote.resetPassword(code: code, newPassword: newPassword, confirmPassword: confirmPassword);
+  }
+
+  @override
   Future<List<String>> getStoredRoles() async {
     final raw = await _storage.read(StorageKeys.roles);
     if (raw == null || raw.trim().isEmpty) return const <String>[];

@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../../features/auth/presentation/pages/login_page.dart';
+import '../../features/auth/presentation/pages/forgot_password_page.dart';
+import '../../features/auth/presentation/pages/reset_password_page.dart';
 import '../../features/auth/presentation/providers/auth_provider.dart';
 import '../../features/home/presentation/pages/home_page.dart';
 import '../../features/profile/presentation/pages/profile_page.dart';
@@ -84,18 +86,32 @@ import '../../features/zonas_horarias/presentation/pages/zonas_horarias_form_pag
 import '../../features/zonas_horarias/presentation/pages/zonas_horarias_detail_page.dart';
 
 final appRouterProvider = Provider<GoRouter>((ref) {
-  final authState = ref.watch(authControllerProvider);
   return GoRouter(
-    initialLocation: '/login',
+    initialLocation: _resolveInitialLocation(),
     refreshListenable: _RouterRefresh(ref),
     redirect: (context, state) {
-      final loggingIn = state.matchedLocation == '/login';
-      if (!authState.authenticated && !loggingIn) return '/login';
-      if (authState.authenticated && loggingIn) return '/home';
+      final authState = ref.read(authControllerProvider);
+      final path = state.uri.path;
+      final matchedLocation = state.matchedLocation;
+      final isLoginRoute = path == '/login' || matchedLocation == '/login';
+      final isForgotPasswordRoute = path == '/forgot-password' || matchedLocation == '/forgot-password';
+      final isResetPasswordRoute = path == '/reset-password' || matchedLocation == '/reset-password';
+      final isPublicRoute = isLoginRoute || isForgotPasswordRoute || isResetPasswordRoute;
+
+      if (!authState.authenticated && !isPublicRoute) return '/login';
+
+      // Login y olvidé contraseña no se muestran cuando ya hay sesión activa.
+      // Reset password sí se permite porque puede abrirse desde un enlace externo.
+      // No se usa Uri.base dentro del redirect para no forzar de nuevo #/login en web.
+      if (authState.authenticated && (isLoginRoute || isForgotPasswordRoute)) return '/home';
+
       return null;
     },
     routes: [
+      GoRoute(path: '/', redirect: (context, state) => _normalizedHashPublicLocation(Uri.base) ?? '/login'),
       GoRoute(path: '/login', builder: (context, state) => const LoginPage()),
+      GoRoute(path: '/forgot-password', builder: (context, state) => const ForgotPasswordPage()),
+      GoRoute(path: '/reset-password', builder: (context, state) => ResetPasswordPage(code: _recoveryCodeFromState(state))),
       GoRoute(path: '/home', builder: (context, state) => const HomePage()),
       GoRoute(path: '/profile', builder: (context, state) => AppScaffold(child: const ProfilePage())),
       GoRoute(path: '/reportes', builder: (context, state) => AppScaffold(child: const ReportesPage())),
@@ -345,6 +361,50 @@ final appRouterProvider = Provider<GoRouter>((ref) {
     ],
   );
 });
+
+
+String _resolveInitialLocation() {
+  final normalizedHashLocation = _normalizedHashPublicLocation(Uri.base);
+  if (normalizedHashLocation != null) return normalizedHashLocation;
+
+  final currentUri = Uri.base;
+  if (currentUri.path == '/reset-password') {
+    return currentUri.hasQuery ? '/reset-password?${currentUri.query}' : '/reset-password';
+  }
+  if (currentUri.path == '/forgot-password') return '/forgot-password';
+  if (currentUri.path == '/login') return '/login';
+
+  return '/login';
+}
+
+String? _normalizedHashPublicLocation(Uri uri) {
+  final fragment = uri.fragment.trim();
+  if (fragment.isEmpty) return null;
+
+  final parsedFragment = Uri.tryParse(fragment.startsWith('/') ? fragment : '/$fragment');
+  if (parsedFragment == null) return null;
+
+  if (parsedFragment.path == '/reset-password') {
+    return parsedFragment.hasQuery ? '/reset-password?${parsedFragment.query}' : '/reset-password';
+  }
+  if (parsedFragment.path == '/forgot-password') return '/forgot-password';
+  if (parsedFragment.path == '/login') return '/login';
+
+  return null;
+}
+
+String _recoveryCodeFromState(GoRouterState state) {
+  final queryCode = state.uri.queryParameters['code'];
+  if (queryCode != null && queryCode.trim().isNotEmpty) return queryCode;
+
+  final fragment = Uri.base.fragment.trim();
+  if (fragment.isEmpty) return '';
+
+  final parsedFragment = Uri.tryParse(fragment.startsWith('/') ? fragment : '/$fragment');
+  if (parsedFragment == null) return '';
+
+  return parsedFragment.queryParameters['code'] ?? '';
+}
 
 class _RouterRefresh extends ChangeNotifier {
   _RouterRefresh(this.ref) {

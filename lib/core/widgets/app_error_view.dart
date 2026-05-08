@@ -18,22 +18,23 @@ class AppErrorView extends StatelessWidget {
           padding: const EdgeInsets.all(28),
           decoration: BoxDecoration(
             color: Colors.white,
-            borderRadius: BorderRadius.circular(28),
+            borderRadius: BorderRadius.circular(30),
             border: Border.all(color: AppColors.dangerSoft),
+            boxShadow: [BoxShadow(color: AppColors.danger.withOpacity(0.08), blurRadius: 24, offset: const Offset(0, 14))],
           ),
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
               Container(
-                width: 74,
-                height: 74,
-                decoration: const BoxDecoration(color: AppColors.dangerSoft, shape: BoxShape.circle),
+                width: 76,
+                height: 76,
+                decoration: BoxDecoration(color: AppColors.dangerSoft, borderRadius: BorderRadius.circular(26)),
                 child: const Icon(Icons.error_outline_rounded, size: 38, color: AppColors.danger),
               ),
               const SizedBox(height: 16),
               Text('Algo salió mal', style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w900)),
               const SizedBox(height: 8),
-              Text(message, textAlign: TextAlign.center, style: const TextStyle(color: AppColors.textSecondary)),
+              Text(message, textAlign: TextAlign.center, style: const TextStyle(color: AppColors.textSecondary, fontWeight: FontWeight.w600)),
               if (onRetry != null) ...[
                 const SizedBox(height: 20),
                 FilledButton.icon(onPressed: onRetry, icon: const Icon(Icons.refresh_rounded), label: const Text('Reintentar')),

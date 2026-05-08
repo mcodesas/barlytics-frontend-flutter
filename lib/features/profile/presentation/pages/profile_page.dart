@@ -9,6 +9,7 @@ import '../../../../core/providers/core_providers.dart';
 import '../../../../core/widgets/app_button.dart';
 import '../../../../core/widgets/app_loader.dart';
 import '../../../../core/widgets/lookup_dropdown.dart';
+import '../../../../core/widgets/tech_background.dart';
 
 class ProfilePage extends ConsumerStatefulWidget {
   const ProfilePage({super.key});
@@ -286,37 +287,39 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
 
   Widget _header(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.all(18),
+      padding: const EdgeInsets.all(1.2),
       decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(24),
-        border: Border.all(color: AppColors.border),
+        borderRadius: BorderRadius.circular(30),
+        gradient: AppColors.bluePurpleGradient,
+        boxShadow: [BoxShadow(color: AppColors.secondary.withOpacity(0.12), blurRadius: 24, offset: const Offset(0, 14))],
       ),
-      child: Row(
-        children: [
-          Container(
-            width: 52,
-            height: 52,
-            decoration: BoxDecoration(color: AppColors.primary.withOpacity(0.12), borderRadius: BorderRadius.circular(18)),
-            child: const Icon(Icons.person_rounded, color: AppColors.primary),
-          ),
-          const SizedBox(width: 14),
-          const Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text('Mi perfil', style: TextStyle(fontSize: 24, fontWeight: FontWeight.w900, color: AppColors.textPrimary)),
-                SizedBox(height: 2),
-                Text('Actualiza tus datos personales y revisa tu acceso al sistema', style: TextStyle(fontWeight: FontWeight.w700, color: AppColors.textSecondary)),
-              ],
+      child: Container(
+        padding: const EdgeInsets.all(18),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(29),
+        ),
+        child: Row(
+          children: [
+            const TechBrandMark(icon: Icons.person_rounded, size: 54),
+            const SizedBox(width: 14),
+            const Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text('Mi perfil', style: TextStyle(fontSize: 24, fontWeight: FontWeight.w900, color: AppColors.textPrimary)),
+                  SizedBox(height: 2),
+                  Text('Actualiza tus datos personales y revisa tu acceso al sistema', style: TextStyle(fontWeight: FontWeight.w700, color: AppColors.textSecondary)),
+                ],
+              ),
             ),
-          ),
-          OutlinedButton.icon(
-            onPressed: () => context.go('/home'),
-            icon: const Icon(Icons.arrow_back_rounded),
-            label: const Text('Atrás'),
-          ),
-        ],
+            OutlinedButton.icon(
+              onPressed: () => context.go('/home'),
+              icon: const Icon(Icons.arrow_back_rounded),
+              label: const Text('Atrás'),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -400,7 +403,7 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
         child: TextFormField(
           controller: controller,
           obscureText: obscure,
-          decoration: InputDecoration(labelText: label, border: const OutlineInputBorder()),
+          decoration: InputDecoration(labelText: label, prefixIcon: Icon(obscure ? Icons.lock_outline_rounded : Icons.edit_outlined)),
           validator: (value) {
             if (required && (value == null || value.trim().isEmpty)) return 'Campo obligatorio';
             if (email && value != null && value.trim().isNotEmpty) {

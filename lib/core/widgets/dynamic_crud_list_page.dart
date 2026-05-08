@@ -20,6 +20,7 @@ import 'app_empty_view.dart';
 import 'app_error_view.dart';
 import 'app_loader.dart';
 import 'confirmation_dialog.dart';
+import 'tech_background.dart';
 
 /// Página genérica para listar registros CRUD con experiencia responsive.
 class DynamicCrudListPage<T> extends ConsumerStatefulWidget {
@@ -133,6 +134,7 @@ class _DynamicCrudListPageState<T> extends ConsumerState<DynamicCrudListPage<T>>
         slivers: [
           SliverAppBar(
             pinned: true,
+            foregroundColor: Colors.white,
             expandedHeight: 218,
             title: Text(widget.config.title),
             actions: [
@@ -198,63 +200,63 @@ class _ModuleHeader extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      decoration: BoxDecoration(
-        gradient: LinearGradient(
-          colors: [visual.color.withOpacity(0.18), AppColors.accentSoft, Colors.white],
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-        ),
-      ),
-      child: SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.fromLTRB(20, 58, 20, 16),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
+    return TechBackground(
+      padding: const EdgeInsets.fromLTRB(20, 58, 20, 16),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
             children: [
-              Row(
-                children: [
-                  Container(
-                    width: 58,
-                    height: 58,
-                    decoration: BoxDecoration(color: visual.color, borderRadius: BorderRadius.circular(22), boxShadow: [BoxShadow(color: visual.color.withOpacity(0.25), blurRadius: 22, offset: const Offset(0, 10))]),
-                    child: Icon(visual.icon, color: Colors.white, size: 30),
-                  ),
-                  const SizedBox(width: 14),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(title, maxLines: 1, overflow: TextOverflow.ellipsis, style: Theme.of(context).textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.w900)),
-                        const SizedBox(height: 2),
-                        Text(subtitle, maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(color: AppColors.textSecondary, fontWeight: FontWeight.w700)),
-                      ],
-                    ),
-                  ),
-                  _CountPill(label: '$visible/$total', color: visual.color),
-                ],
+              Container(
+                width: 60,
+                height: 60,
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(colors: [visual.color, AppColors.tertiary]),
+                  borderRadius: BorderRadius.circular(23),
+                  boxShadow: [BoxShadow(color: visual.color.withOpacity(0.32), blurRadius: 24, offset: const Offset(0, 12))],
+                ),
+                child: Icon(visual.icon, color: Colors.white, size: 31),
               ),
-              const SizedBox(height: 14),
-              TextField(
-                controller: searchController,
-                onChanged: onSearchChanged,
-                decoration: InputDecoration(
-                  hintText: 'Buscar por nombre, código, estado o referencia...',
-                  prefixIcon: const Icon(Icons.search_rounded),
-                  suffixIcon: searchController.text.isEmpty
-                      ? null
-                      : IconButton(
-                          icon: const Icon(Icons.close_rounded),
-                          onPressed: () {
-                            searchController.clear();
-                            onSearchChanged('');
-                          },
-                        ),
+              const SizedBox(width: 14),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(title, maxLines: 1, overflow: TextOverflow.ellipsis, style: Theme.of(context).textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.w900, color: Colors.white)),
+                    const SizedBox(height: 3),
+                    Text(subtitle, maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(color: Colors.white.withOpacity(0.74), fontWeight: FontWeight.w700)),
+                  ],
                 ),
               ),
+              _CountPill(label: '$visible/$total', color: AppColors.accent),
             ],
           ),
-        ),
+          const SizedBox(height: 16),
+          Container(
+            decoration: BoxDecoration(
+              color: Colors.white.withOpacity(0.95),
+              borderRadius: BorderRadius.circular(22),
+              boxShadow: [BoxShadow(color: AppColors.primaryDark.withOpacity(0.16), blurRadius: 22, offset: const Offset(0, 12))],
+            ),
+            child: TextField(
+              controller: searchController,
+              onChanged: onSearchChanged,
+              decoration: InputDecoration(
+                hintText: 'Buscar por nombre, código, estado o referencia...',
+                prefixIcon: const Icon(Icons.search_rounded),
+                suffixIcon: searchController.text.isEmpty
+                    ? null
+                    : IconButton(
+                        icon: const Icon(Icons.close_rounded),
+                        onPressed: () {
+                          searchController.clear();
+                          onSearchChanged('');
+                        },
+                      ),
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }

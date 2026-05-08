@@ -8,6 +8,7 @@ import '../../../../core/widgets/app_error_view.dart';
 import '../../../../core/widgets/app_loader.dart';
 import '../../../../core/widgets/app_scaffold.dart';
 import '../../../../core/widgets/responsive_layout.dart';
+import '../../../../core/widgets/tech_background.dart';
 import '../../../auth/presentation/providers/auth_provider.dart';
 import '../../../navigation/data/models/user_menu_item.dart';
 import '../../../navigation/presentation/providers/user_menu_provider.dart';
@@ -22,57 +23,64 @@ class HomePage extends ConsumerWidget {
 
     return AppScaffold(
       child: Scaffold(
+        backgroundColor: AppColors.background,
         body: CustomScrollView(
           slivers: [
             SliverAppBar(
               pinned: true,
-              expandedHeight: 210,
+              expandedHeight: 238,
               title: const Text('Inicio'),
+              foregroundColor: Colors.white,
               flexibleSpace: FlexibleSpaceBar(
-                background: Container(
-                  decoration: const BoxDecoration(
-                    gradient: LinearGradient(
-                      colors: [Color(0xFFEFF6FF), Color(0xFFFFF7ED), Color(0xFFF5F3FF)],
-                      begin: Alignment.topLeft,
-                      end: Alignment.bottomRight,
-                    ),
-                  ),
-                  child: SafeArea(
-                    child: Padding(
-                      padding: const EdgeInsets.fromLTRB(20, 56, 20, 20),
-                      child: Row(
-                        children: [
-                          Expanded(
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              mainAxisAlignment: MainAxisAlignment.center,
-                              children: [
-                                Text('Hola, bienvenido a BarLytics', style: Theme.of(context).textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.w900)),
-                                const SizedBox(height: 8),
-                                const Text('Opera tu bar, inventario, ventas y pagos desde cualquier dispositivo.', style: TextStyle(color: AppColors.textSecondary, fontWeight: FontWeight.w600)),
-                              ],
-                            ),
-                          ),
-                          if (MediaQuery.sizeOf(context).width >= 700)
+                background: TechBackground(
+                  padding: const EdgeInsets.fromLTRB(22, 58, 22, 22),
+                  child: Row(
+                    children: [
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
                             Container(
-                              width: 112,
-                              height: 112,
+                              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
                               decoration: BoxDecoration(
-                                gradient: const LinearGradient(colors: [AppColors.accent, AppColors.tertiary]),
-                                borderRadius: BorderRadius.circular(34),
-                                boxShadow: [BoxShadow(color: AppColors.accent.withOpacity(0.20), blurRadius: 28, offset: const Offset(0, 14))],
+                                color: Colors.white.withOpacity(0.12),
+                                borderRadius: BorderRadius.circular(999),
+                                border: Border.all(color: Colors.white.withOpacity(0.14)),
                               ),
-                              child: const Icon(Icons.local_bar_rounded, color: Colors.white, size: 56),
+                              child: const Text('Dashboard operativo', style: TextStyle(color: Colors.white, fontWeight: FontWeight.w800)),
                             ),
-                        ],
+                            const SizedBox(height: 14),
+                            Text(
+                              'Hola, bienvenido a BarLytics',
+                              style: Theme.of(context).textTheme.headlineMedium?.copyWith(color: Colors.white, fontWeight: FontWeight.w900),
+                            ),
+                            const SizedBox(height: 8),
+                            Text(
+                              'Opera tu bar, inventario, ventas y pagos desde cualquier dispositivo.',
+                              style: TextStyle(color: Colors.white.withOpacity(0.78), fontWeight: FontWeight.w700, height: 1.35),
+                            ),
+                          ],
+                        ),
                       ),
-                    ),
+                      if (MediaQuery.sizeOf(context).width >= 700)
+                        Container(
+                          width: 118,
+                          height: 118,
+                          decoration: BoxDecoration(
+                            gradient: AppColors.bluePurpleGradient,
+                            borderRadius: BorderRadius.circular(36),
+                            boxShadow: [BoxShadow(color: AppColors.accent.withOpacity(0.28), blurRadius: 32, offset: const Offset(0, 16))],
+                          ),
+                          child: const Icon(Icons.insights_rounded, color: Colors.white, size: 58),
+                        ),
+                    ],
                   ),
                 ),
               ),
             ),
             SliverPadding(
-              padding: const EdgeInsets.all(16),
+              padding: const EdgeInsets.all(18),
               sliver: SliverList(
                 delegate: SliverChildListDelegate([
                   menuAsync.when(
@@ -80,11 +88,11 @@ class HomePage extends ConsumerWidget {
                     error: (_, __) => _QuickStats(modulesCount: 0, rolesCount: authState.roles.length),
                     data: (items) => _QuickStats(modulesCount: items.length, rolesCount: authState.roles.length),
                   ),
-                  const SizedBox(height: 18),
+                  const SizedBox(height: 22),
                   Text('Módulos disponibles para tu rol', style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w900)),
                   const SizedBox(height: 8),
-                  const Text('Estas opciones vienen desde la base de datos según los roles asignados a tu usuario.', style: TextStyle(color: AppColors.textSecondary, fontWeight: FontWeight.w600)),
-                  const SizedBox(height: 14),
+                  const Text('Estas opciones vienen desde la base de datos según los roles asignados a tu usuario.', style: TextStyle(color: AppColors.textSecondary, fontWeight: FontWeight.w700)),
+                  const SizedBox(height: 16),
                   menuAsync.when(
                     loading: () => const Padding(
                       padding: EdgeInsets.symmetric(vertical: 32),
@@ -101,12 +109,13 @@ class HomePage extends ConsumerWidget {
                           padding: const EdgeInsets.all(22),
                           decoration: BoxDecoration(
                             color: Colors.white,
-                            borderRadius: BorderRadius.circular(28),
+                            borderRadius: BorderRadius.circular(30),
                             border: Border.all(color: AppColors.border),
+                            boxShadow: [BoxShadow(color: AppColors.secondary.withOpacity(0.06), blurRadius: 18, offset: const Offset(0, 10))],
                           ),
                           child: const Row(
                             children: [
-                              Icon(Icons.lock_outline_rounded, color: AppColors.primary),
+                              Icon(Icons.lock_outline_rounded, color: AppColors.secondaryDark),
                               SizedBox(width: 12),
                               Expanded(
                                 child: Text(
@@ -143,8 +152,8 @@ class _QuickStats extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => Wrap(
-        spacing: 12,
-        runSpacing: 12,
+        spacing: 14,
+        runSpacing: 14,
         children: [
           _StatCard(title: 'Módulos autorizados', value: modulesCount.toString(), icon: Icons.dashboard_customize_rounded, color: AppColors.secondary),
           _StatCard(title: 'Roles activos', value: rolesCount.toString(), icon: Icons.admin_panel_settings_rounded, color: AppColors.tertiary),
@@ -162,17 +171,26 @@ class _StatCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => SizedBox(
-        width: MediaQuery.sizeOf(context).width < 600 ? double.infinity : 220,
+        width: MediaQuery.sizeOf(context).width < 600 ? double.infinity : 230,
         child: Container(
           padding: const EdgeInsets.all(18),
           decoration: BoxDecoration(
             color: Colors.white,
-            borderRadius: BorderRadius.circular(26),
+            borderRadius: BorderRadius.circular(28),
             border: Border.all(color: AppColors.border),
+            boxShadow: [BoxShadow(color: color.withOpacity(0.08), blurRadius: 22, offset: const Offset(0, 12))],
           ),
           child: Row(
             children: [
-              Container(width: 52, height: 52, decoration: BoxDecoration(color: color.withOpacity(0.14), borderRadius: BorderRadius.circular(18)), child: Icon(icon, color: color)),
+              Container(
+                width: 54,
+                height: 54,
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(colors: [color, AppColors.tertiary]),
+                  borderRadius: BorderRadius.circular(20),
+                ),
+                child: Icon(icon, color: Colors.white),
+              ),
               const SizedBox(width: 14),
               Expanded(
                 child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
@@ -197,8 +215,8 @@ class _Grid extends StatelessWidget {
         physics: const NeverScrollableScrollPhysics(),
         crossAxisCount: columns,
         childAspectRatio: columns == 1 ? 3.7 : 2.2,
-        mainAxisSpacing: 12,
-        crossAxisSpacing: 12,
+        mainAxisSpacing: 14,
+        crossAxisSpacing: 14,
         children: [
           for (final item in items) _ModuleCard(item: item),
         ],
@@ -214,20 +232,26 @@ class _ModuleCard extends StatelessWidget {
     final visual = ModuleVisuals.byKey(item.keyName);
     return Material(
       color: Colors.white,
-      borderRadius: BorderRadius.circular(28),
+      borderRadius: BorderRadius.circular(30),
       child: InkWell(
-        borderRadius: BorderRadius.circular(28),
+        borderRadius: BorderRadius.circular(30),
         onTap: () => context.go(item.path),
         child: Container(
           padding: const EdgeInsets.all(18),
           decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(28),
+            borderRadius: BorderRadius.circular(30),
             border: Border.all(color: AppColors.border),
-            gradient: LinearGradient(colors: [Colors.white, visual.color.withOpacity(0.06)], begin: Alignment.topLeft, end: Alignment.bottomRight),
+            gradient: LinearGradient(colors: [Colors.white, AppColors.surfaceAlt, visual.color.withOpacity(0.07)], begin: Alignment.topLeft, end: Alignment.bottomRight),
+            boxShadow: [BoxShadow(color: visual.color.withOpacity(0.08), blurRadius: 20, offset: const Offset(0, 12))],
           ),
           child: Row(
             children: [
-              Container(width: 56, height: 56, decoration: BoxDecoration(color: visual.color.withOpacity(0.14), borderRadius: BorderRadius.circular(20)), child: Icon(visual.icon, color: visual.color, size: 28)),
+              Container(
+                width: 58,
+                height: 58,
+                decoration: BoxDecoration(gradient: LinearGradient(colors: [visual.color, AppColors.tertiary]), borderRadius: BorderRadius.circular(22)),
+                child: Icon(visual.icon, color: Colors.white, size: 28),
+              ),
               const SizedBox(width: 16),
               Expanded(
                 child: Column(
