@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 
-/// Botón principal reutilizable con apariencia móvil/tablet.
+import '../../app/theme/app_colors.dart';
+
+/// Botón principal reutilizable con gradiente tecnológico.
 class AppButton extends StatelessWidget {
   const AppButton({
     super.key,
@@ -17,6 +19,7 @@ class AppButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final disabled = loading || onPressed == null;
     final child = loading
         ? const SizedBox(
             width: 20,
@@ -28,27 +31,41 @@ class AppButton extends StatelessWidget {
             mainAxisSize: MainAxisSize.min,
             children: [
               if (icon != null) ...[
-                Icon(icon, size: 20),
-                const SizedBox(width: 8),
+                Icon(icon, size: 20, color: Colors.white),
+                const SizedBox(width: 9),
               ],
-              Text(label),
+              Text(label, style: const TextStyle(color: Colors.white)),
             ],
           );
 
-    return DecoratedBox(
-      decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(18),
-        boxShadow: [
-          BoxShadow(
-            color: Theme.of(context).colorScheme.primary.withOpacity(0.18),
-            blurRadius: 18,
-            offset: const Offset(0, 10),
+    return Opacity(
+      opacity: disabled ? 0.62 : 1,
+      child: DecoratedBox(
+        decoration: BoxDecoration(
+          gradient: disabled ? null : AppColors.bluePurpleGradient,
+          color: disabled ? AppColors.textMuted : null,
+          borderRadius: BorderRadius.circular(20),
+          boxShadow: disabled
+              ? const []
+              : [
+                  BoxShadow(
+                    color: AppColors.secondary.withOpacity(0.28),
+                    blurRadius: 24,
+                    offset: const Offset(0, 12),
+                  ),
+                ],
+        ),
+        child: FilledButton(
+          style: FilledButton.styleFrom(
+            backgroundColor: Colors.transparent,
+            disabledBackgroundColor: Colors.transparent,
+            shadowColor: Colors.transparent,
+            foregroundColor: Colors.white,
+            minimumSize: const Size.fromHeight(54),
           ),
-        ],
-      ),
-      child: FilledButton(
-        onPressed: loading ? null : onPressed,
-        child: child,
+          onPressed: disabled ? null : onPressed,
+          child: child,
+        ),
       ),
     );
   }

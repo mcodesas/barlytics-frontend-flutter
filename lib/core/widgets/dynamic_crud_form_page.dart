@@ -18,6 +18,7 @@ import 'app_button.dart';
 import 'app_loader.dart';
 import 'app_text_field.dart';
 import 'lookup_dropdown.dart';
+import 'tech_background.dart';
 
 final Map<String, List<CrudLookupOption>> _lookupCache = <String, List<CrudLookupOption>>{};
 
@@ -162,35 +163,38 @@ class _DynamicCrudFormPageState<T> extends ConsumerState<DynamicCrudFormPage<T>>
         slivers: [
           SliverAppBar(
             pinned: true,
+            foregroundColor: Colors.white,
             expandedHeight: 190,
             title: Text(isEditing ? 'Editar ${widget.config.title}' : 'Crear ${widget.config.title}'),
             leading: IconButton(icon: const Icon(Icons.arrow_back_rounded), onPressed: () => context.go('/${widget.config.key}')),
             flexibleSpace: FlexibleSpaceBar(
-              background: Container(
-                decoration: BoxDecoration(
-                  gradient: LinearGradient(colors: [visual.color.withOpacity(0.18), Colors.white], begin: Alignment.topLeft, end: Alignment.bottomRight),
-                ),
-                child: SafeArea(
-                  child: Padding(
-                    padding: const EdgeInsets.fromLTRB(20, 58, 20, 16),
-                    child: Row(
-                      children: [
-                        Container(width: 58, height: 58, decoration: BoxDecoration(color: visual.color, borderRadius: BorderRadius.circular(22)), child: Icon(visual.icon, color: Colors.white, size: 30)),
-                        const SizedBox(width: 14),
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            mainAxisAlignment: MainAxisAlignment.center,
-                            children: [
-                              Text(isEditing ? 'Editar registro' : 'Nuevo registro', style: Theme.of(context).textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.w900)),
-                              const SizedBox(height: 4),
-                              Text('Completa la información de ${widget.config.title.toLowerCase()}.', style: const TextStyle(color: AppColors.textSecondary, fontWeight: FontWeight.w700)),
-                            ],
-                          ),
-                        ),
-                      ],
+              background: TechBackground(
+                padding: const EdgeInsets.fromLTRB(20, 58, 20, 16),
+                child: Row(
+                  children: [
+                    Container(
+                      width: 60,
+                      height: 60,
+                      decoration: BoxDecoration(
+                        gradient: LinearGradient(colors: [visual.color, AppColors.tertiary]),
+                        borderRadius: BorderRadius.circular(23),
+                        boxShadow: [BoxShadow(color: visual.color.withOpacity(0.30), blurRadius: 24, offset: const Offset(0, 12))],
+                      ),
+                      child: Icon(visual.icon, color: Colors.white, size: 31),
                     ),
-                  ),
+                    const SizedBox(width: 14),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Text(isEditing ? 'Editar registro' : 'Nuevo registro', style: Theme.of(context).textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.w900, color: Colors.white)),
+                          const SizedBox(height: 4),
+                          Text('Completa la información de ${widget.config.title.toLowerCase()}.', style: TextStyle(color: Colors.white.withOpacity(0.76), fontWeight: FontWeight.w700)),
+                        ],
+                      ),
+                    ),
+                  ],
                 ),
               ),
             ),
@@ -361,7 +365,7 @@ class _WizardStepsTabs extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(6),
       decoration: BoxDecoration(
-        color: AppColors.surfaceAlt,
+        gradient: AppColors.softTechGradient,
         borderRadius: BorderRadius.circular(24),
         border: Border.all(color: Colors.black.withOpacity(0.05)),
       ),
@@ -376,7 +380,8 @@ class _WizardStepsTabs extends StatelessWidget {
               duration: const Duration(milliseconds: 180),
               padding: EdgeInsets.symmetric(horizontal: compact ? 12 : 16, vertical: 12),
               decoration: BoxDecoration(
-                color: selected ? Theme.of(context).colorScheme.primary : Colors.transparent,
+                gradient: selected ? AppColors.bluePurpleGradient : null,
+                color: selected ? null : Colors.transparent,
                 borderRadius: BorderRadius.circular(18),
               ),
               child: Row(

@@ -8,21 +8,12 @@ import '../../features/auth/presentation/providers/auth_provider.dart';
 import '../../features/navigation/data/models/user_menu_item.dart';
 import '../../features/navigation/presentation/providers/user_menu_provider.dart';
 import '../utils/responsive_utils.dart';
+import 'tech_background.dart';
 
-/// Controlador compartido para conservar la posición del menú lateral.
-///
-/// GoRouter reconstruye el AppScaffold al cambiar de módulo; por eso la lista
-/// del menú perdía su offset y volvía al inicio. Estos controladores viven
-/// durante toda la sesión de la aplicación y permiten que el usuario mantenga
-/// el menú exactamente donde lo dejó.
 final ScrollController _desktopNavigationScrollController = ScrollController();
 final ScrollController _mobileNavigationScrollController = ScrollController();
 
-/// Scaffold principal con navegación adaptable.
-///
-/// Las opciones del menú ya no están quemadas: se consultan al backend desde
-/// MENUS, OPCIONMENU y ROLES, usando los roles devueltos por el login. El
-/// dispositivo solo cambia la presentación visual, no las funcionalidades.
+/// Scaffold principal con navegación adaptable y diseño tecnológico unificado.
 class AppScaffold extends ConsumerWidget {
   const AppScaffold({super.key, required this.child});
   final Widget child;
@@ -33,11 +24,14 @@ class AppScaffold extends ConsumerWidget {
 
     if (isDesktop) {
       return Scaffold(
-        body: Row(
-          children: [
-            _SideNavigation(onLogout: () => _logout(context, ref)),
-            Expanded(child: child),
-          ],
+        body: Container(
+          decoration: const BoxDecoration(gradient: AppColors.softTechGradient),
+          child: Row(
+            children: [
+              _SideNavigation(onLogout: () => _logout(context, ref)),
+              Expanded(child: child),
+            ],
+          ),
         ),
       );
     }
@@ -45,14 +39,9 @@ class AppScaffold extends ConsumerWidget {
     return Scaffold(
       appBar: AppBar(
         title: const Text('BarLytics'),
+        foregroundColor: Colors.white,
         flexibleSpace: Container(
-          decoration: const BoxDecoration(
-            gradient: LinearGradient(
-              colors: [Color(0xFFEFF6FF), Color(0xFFFFF7ED)],
-              begin: Alignment.topLeft,
-              end: Alignment.bottomRight,
-            ),
-          ),
+          decoration: const BoxDecoration(gradient: AppColors.techGradient),
         ),
       ),
       drawer: Drawer(child: _DrawerContent(onLogout: () => _logout(context, ref))),
@@ -76,44 +65,44 @@ class _SideNavigation extends ConsumerWidget {
     final menuAsync = ref.watch(userMenuProvider);
 
     return Container(
-      width: 304,
-      decoration: const BoxDecoration(
-        gradient: LinearGradient(
-          colors: [AppColors.primaryDark, AppColors.primary, Color(0xFF1E3A8A)],
-          begin: Alignment.topCenter,
-          end: Alignment.bottomCenter,
-        ),
-      ),
-      child: SafeArea(
-        child: Column(
-          children: [
-            const _BrandHeader(dark: true),
-            Expanded(
-              child: ListView(
-                key: const PageStorageKey<String>('desktop-main-navigation-scroll'),
-                controller: _desktopNavigationScrollController,
-                primary: false,
-                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-                children: [
-                  _NavTile(title: 'Inicio', keyName: 'home', path: '/home', dark: true),
-                  _NavTile(title: 'Mi perfil', keyName: 'usuarios', path: '/profile', dark: true),
-                  const SizedBox(height: 8),
-                  const _NavSectionLabel('Opciones autorizadas'),
-                  ..._authorizedMenuWidgets(
-                    context: context,
-                    ref: ref,
-                    menuAsync: menuAsync,
-                    dark: true,
+      width: 312,
+      decoration: const BoxDecoration(gradient: AppColors.techGradient),
+      child: Stack(
+        children: [
+          const Positioned(top: -80, right: -90, child: GlowCircle(size: 240, opacity: 0.20)),
+          const Positioned(bottom: -90, left: -120, child: GlowCircle(size: 300, opacity: 0.14)),
+          SafeArea(
+            child: Column(
+              children: [
+                const _BrandHeader(dark: true),
+                Expanded(
+                  child: ListView(
+                    key: const PageStorageKey<String>('desktop-main-navigation-scroll'),
+                    controller: _desktopNavigationScrollController,
+                    primary: false,
+                    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                    children: [
+                      _NavTile(title: 'Inicio', keyName: 'home', path: '/home', dark: true),
+                      _NavTile(title: 'Mi perfil', keyName: 'usuarios', path: '/profile', dark: true),
+                      const SizedBox(height: 8),
+                      const _NavSectionLabel('Opciones autorizadas'),
+                      ..._authorizedMenuWidgets(
+                        context: context,
+                        ref: ref,
+                        menuAsync: menuAsync,
+                        dark: true,
+                      ),
+                    ],
                   ),
-                ],
-              ),
+                ),
+                Padding(
+                  padding: const EdgeInsets.all(14),
+                  child: _LogoutTile(onLogout: onLogout, dark: true),
+                ),
+              ],
             ),
-            Padding(
-              padding: const EdgeInsets.all(14),
-              child: _LogoutTile(onLogout: onLogout, dark: true),
-            ),
-          ],
-        ),
+          ),
+        ],
       ),
     );
   }
@@ -127,33 +116,36 @@ class _DrawerContent extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final menuAsync = ref.watch(userMenuProvider);
 
-    return Column(
-      children: [
-        const _BrandHeader(dark: false),
-        Expanded(
-          child: ListView(
-            key: const PageStorageKey<String>('mobile-main-navigation-scroll'),
-            controller: _mobileNavigationScrollController,
-            primary: false,
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-            children: [
-              _NavTile(title: 'Inicio', keyName: 'home', path: '/home'),
-              _NavTile(title: 'Mi perfil', keyName: 'usuarios', path: '/profile'),
-              const Divider(),
-              ..._authorizedMenuWidgets(
-                context: context,
-                ref: ref,
-                menuAsync: menuAsync,
-                dark: false,
-              ),
-            ],
+    return Container(
+      decoration: const BoxDecoration(gradient: AppColors.softTechGradient),
+      child: Column(
+        children: [
+          const _BrandHeader(dark: false),
+          Expanded(
+            child: ListView(
+              key: const PageStorageKey<String>('mobile-main-navigation-scroll'),
+              controller: _mobileNavigationScrollController,
+              primary: false,
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+              children: [
+                _NavTile(title: 'Inicio', keyName: 'home', path: '/home'),
+                _NavTile(title: 'Mi perfil', keyName: 'usuarios', path: '/profile'),
+                const Divider(),
+                ..._authorizedMenuWidgets(
+                  context: context,
+                  ref: ref,
+                  menuAsync: menuAsync,
+                  dark: false,
+                ),
+              ],
+            ),
           ),
-        ),
-        Padding(
-          padding: const EdgeInsets.all(12),
-          child: _LogoutTile(onLogout: onLogout),
-        ),
-      ],
+          Padding(
+            padding: const EdgeInsets.all(12),
+            child: _LogoutTile(onLogout: onLogout),
+          ),
+        ],
+      ),
     );
   }
 }
@@ -184,8 +176,8 @@ List<Widget> _authorizedMenuWidgets({
         padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 6),
         child: OutlinedButton.icon(
           style: OutlinedButton.styleFrom(
-            foregroundColor: dark ? Colors.white : AppColors.primary,
-            side: BorderSide(color: dark ? Colors.white54 : AppColors.primary.withOpacity(0.35)),
+            foregroundColor: dark ? Colors.white : AppColors.secondaryDark,
+            side: BorderSide(color: dark ? Colors.white54 : AppColors.secondary.withOpacity(0.35)),
           ),
           onPressed: () => ref.invalidate(userMenuProvider),
           icon: const Icon(Icons.refresh_rounded),
@@ -228,21 +220,16 @@ class _BrandHeader extends StatelessWidget {
         margin: const EdgeInsets.all(14),
         padding: const EdgeInsets.all(18),
         decoration: BoxDecoration(
-          color: dark ? Colors.white.withOpacity(0.10) : AppColors.surfaceAlt,
-          borderRadius: BorderRadius.circular(28),
-          border: Border.all(color: dark ? Colors.white.withOpacity(0.12) : AppColors.border),
+          color: dark ? Colors.white.withOpacity(0.10) : Colors.white,
+          borderRadius: BorderRadius.circular(30),
+          border: Border.all(color: dark ? Colors.white.withOpacity(0.16) : AppColors.border),
+          boxShadow: [
+            if (!dark) BoxShadow(color: AppColors.secondary.withOpacity(0.10), blurRadius: 22, offset: const Offset(0, 12)),
+          ],
         ),
         child: Row(
           children: [
-            Container(
-              width: 54,
-              height: 54,
-              decoration: const BoxDecoration(
-                gradient: LinearGradient(colors: [AppColors.accent, AppColors.tertiary]),
-                shape: BoxShape.circle,
-              ),
-              child: const Icon(Icons.local_bar_rounded, color: Colors.white, size: 28),
-            ),
+            const TechBrandMark(size: 56, icon: Icons.analytics_rounded),
             const SizedBox(width: 14),
             Expanded(
               child: Column(
@@ -258,8 +245,8 @@ class _BrandHeader extends StatelessWidget {
                   ),
                   const SizedBox(height: 4),
                   Text(
-                    'Gestión para bares',
-                    style: TextStyle(color: dark ? Colors.white70 : AppColors.textSecondary, fontWeight: FontWeight.w600),
+                    'Gestión inteligente para bares',
+                    style: TextStyle(color: dark ? Colors.white70 : AppColors.textSecondary, fontWeight: FontWeight.w700),
                   ),
                 ],
               ),
@@ -278,7 +265,7 @@ class _NavSectionLabel extends StatelessWidget {
         padding: const EdgeInsets.fromLTRB(14, 14, 14, 8),
         child: Text(
           text.toUpperCase(),
-          style: TextStyle(color: Colors.white.withOpacity(0.55), fontWeight: FontWeight.w900, letterSpacing: 1.1, fontSize: 11),
+          style: TextStyle(color: Colors.white.withOpacity(0.58), fontWeight: FontWeight.w900, letterSpacing: 1.1, fontSize: 11),
         ),
       );
 }
@@ -299,22 +286,16 @@ class _NavTile extends StatelessWidget {
     final foreground = dark ? Colors.white : AppColors.textPrimary;
 
     return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 3),
+      padding: const EdgeInsets.symmetric(vertical: 4),
       child: Material(
-        color: selected ? (dark ? Colors.white.withOpacity(0.16) : visual.color.withOpacity(0.10)) : Colors.transparent,
-        borderRadius: BorderRadius.circular(18),
+        color: selected ? (dark ? Colors.white.withOpacity(0.15) : AppColors.secondary.withOpacity(0.10)) : Colors.transparent,
+        borderRadius: BorderRadius.circular(20),
         child: InkWell(
-          borderRadius: BorderRadius.circular(18),
+          borderRadius: BorderRadius.circular(20),
           onTap: () {
             final router = GoRouter.of(context);
             final shouldCloseDrawer = Scaffold.maybeOf(context)?.isDrawerOpen ?? false;
-
-            // En móvil el menú vive dentro de un Drawer. Primero lo cerramos y
-            // luego navegamos, manteniendo el offset del ScrollController.
-            if (shouldCloseDrawer) {
-              Navigator.of(context).pop();
-            }
-
+            if (shouldCloseDrawer) Navigator.of(context).pop();
             router.go(path);
           },
           child: Padding(
@@ -322,10 +303,15 @@ class _NavTile extends StatelessWidget {
             child: Row(
               children: [
                 Container(
-                  width: 36,
-                  height: 36,
-                  decoration: BoxDecoration(color: dark ? Colors.white.withOpacity(0.14) : visual.color.withOpacity(0.14), borderRadius: BorderRadius.circular(14)),
-                  child: Icon(visual.icon, size: 20, color: dark ? Colors.white : visual.color),
+                  width: 38,
+                  height: 38,
+                  decoration: BoxDecoration(
+                    gradient: selected ? AppColors.bluePurpleGradient : null,
+                    color: selected ? null : (dark ? Colors.white.withOpacity(0.12) : visual.color.withOpacity(0.12)),
+                    borderRadius: BorderRadius.circular(15),
+                    border: Border.all(color: dark ? Colors.white.withOpacity(0.08) : Colors.transparent),
+                  ),
+                  child: Icon(visual.icon, size: 20, color: selected || dark ? Colors.white : visual.color),
                 ),
                 const SizedBox(width: 12),
                 Expanded(
@@ -336,7 +322,7 @@ class _NavTile extends StatelessWidget {
                     style: TextStyle(color: foreground, fontWeight: selected ? FontWeight.w900 : FontWeight.w700),
                   ),
                 ),
-                if (selected) Icon(Icons.circle, color: dark ? AppColors.accent : visual.color, size: 8),
+                if (selected) Icon(Icons.circle, color: dark ? AppColors.accent : AppColors.secondary, size: 8),
               ],
             ),
           ),
@@ -372,28 +358,22 @@ class _MenuMessage extends StatelessWidget {
         margin: const EdgeInsets.symmetric(horizontal: 6, vertical: 8),
         padding: const EdgeInsets.all(14),
         decoration: BoxDecoration(
-          color: dark ? Colors.white.withOpacity(0.10) : AppColors.surfaceAlt,
-          borderRadius: BorderRadius.circular(18),
+          color: dark ? Colors.white.withOpacity(0.10) : Colors.white,
+          borderRadius: BorderRadius.circular(20),
           border: Border.all(color: dark ? Colors.white24 : AppColors.border),
         ),
         child: Row(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Icon(icon, color: dark ? Colors.white70 : AppColors.primary, size: 22),
+            Icon(icon, color: dark ? AppColors.accent : AppColors.secondaryDark, size: 22),
             const SizedBox(width: 10),
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(
-                    title,
-                    style: TextStyle(color: dark ? Colors.white : AppColors.textPrimary, fontWeight: FontWeight.w900),
-                  ),
+                  Text(title, style: TextStyle(color: dark ? Colors.white : AppColors.textPrimary, fontWeight: FontWeight.w900)),
                   const SizedBox(height: 4),
-                  Text(
-                    message,
-                    style: TextStyle(color: dark ? Colors.white70 : AppColors.textSecondary, fontSize: 12, height: 1.25),
-                  ),
+                  Text(message, style: TextStyle(color: dark ? Colors.white70 : AppColors.textSecondary, fontSize: 12, height: 1.25)),
                 ],
               ),
             ),
@@ -410,9 +390,9 @@ class _LogoutTile extends StatelessWidget {
   @override
   Widget build(BuildContext context) => Material(
         color: dark ? Colors.white.withOpacity(0.10) : AppColors.dangerSoft,
-        borderRadius: BorderRadius.circular(18),
+        borderRadius: BorderRadius.circular(20),
         child: ListTile(
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
           leading: Icon(Icons.logout_rounded, color: dark ? Colors.white : AppColors.danger),
           title: Text('Cerrar sesión', style: TextStyle(color: dark ? Colors.white : AppColors.danger, fontWeight: FontWeight.w900)),
           onTap: onLogout,

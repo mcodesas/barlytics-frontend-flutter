@@ -45,8 +45,18 @@ class ApiClient {
     } on DioException catch (e) {
       final body = e.response?.data;
       if (body is Map<String, dynamic>) {
-        final message = body['message']?.toString() ?? 'Error de servidor';
-        throw ApiException(message, code: body['code']?.toString(), statusCode: e.response?.statusCode);
+        final errors = body['errors'];
+        String? detailMessage;
+        String? detailCode;
+        if (errors is List && errors.isNotEmpty && errors.first is Map) {
+          final firstError = Map<String, dynamic>.from(errors.first as Map);
+          detailMessage = firstError['message']?.toString();
+          detailCode = firstError['code']?.toString();
+        }
+        final message = (detailMessage != null && detailMessage.trim().isNotEmpty)
+            ? detailMessage
+            : body['message']?.toString() ?? 'Error de servidor';
+        throw ApiException(message, code: detailCode ?? body['code']?.toString(), statusCode: e.response?.statusCode);
       }
       throw NetworkException(e.message ?? 'No fue posible conectar con el backend', statusCode: e.response?.statusCode);
     }

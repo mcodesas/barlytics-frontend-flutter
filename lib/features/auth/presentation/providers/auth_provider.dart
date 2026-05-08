@@ -81,6 +81,42 @@ class AuthController extends StateNotifier<AuthState> {
     }
   }
 
+  Future<bool> requestPasswordRecovery(String email) async {
+    state = state.copyWith(loading: true);
+    try {
+      await _repository.requestPasswordRecovery(email);
+      state = state.copyWith(loading: false);
+      return true;
+    } catch (error) {
+      state = state.copyWith(loading: false, failure: ErrorMapper.map(error));
+      return false;
+    }
+  }
+
+  Future<bool> validatePasswordRecoveryCode(String code) async {
+    state = state.copyWith(loading: true);
+    try {
+      await _repository.validatePasswordRecoveryCode(code);
+      state = state.copyWith(loading: false);
+      return true;
+    } catch (error) {
+      state = state.copyWith(loading: false, failure: ErrorMapper.map(error));
+      return false;
+    }
+  }
+
+  Future<bool> resetPassword({required String code, required String newPassword, required String confirmPassword}) async {
+    state = state.copyWith(loading: true);
+    try {
+      await _repository.resetPassword(code: code, newPassword: newPassword, confirmPassword: confirmPassword);
+      state = state.copyWith(loading: false);
+      return true;
+    } catch (error) {
+      state = state.copyWith(loading: false, failure: ErrorMapper.map(error));
+      return false;
+    }
+  }
+
   Future<void> logout() async {
     await _logout();
     state = const AuthState();
