@@ -134,6 +134,10 @@ class _LoginPageState extends ConsumerState<LoginPage> {
     final raw = failure.message.trim();
     final lower = raw.toLowerCase();
 
+    if (lower.contains('bloque') || lower.contains('intentos de ingreso') || lower.contains('intentos fallidos')) {
+      return raw.isEmpty ? 'Por intentos de ingreso fallidos se bloqueó la cuenta. Use la opción Olvidé mi contraseña para desbloquearla.' : raw;
+    }
+
     if (lower.contains('solicitó cambio de contraseña') || lower.contains('recuperación') || lower.contains('recuperacion')) {
       return raw;
     }
