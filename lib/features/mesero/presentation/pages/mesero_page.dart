@@ -1,17 +1,21 @@
 import 'dart:convert';
-
+import 'dart:typed_data';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter/services.dart';
+import 'package:pdf/pdf.dart';
+import 'package:pdf/widgets.dart' as pw;
 
 import '../../../../app/theme/app_colors.dart';
 import '../../../../app/theme/app_palette.dart';
 import '../../../../core/providers/core_providers.dart';
 import '../../../../core/utils/currency_utils.dart';
+import '../../../../core/utils/file_download_helper.dart';
 import '../../../../core/widgets/app_empty_view.dart';
 import '../../../../core/widgets/app_error_view.dart';
 import '../../../../core/widgets/app_loader.dart';
+import '../../../../core/widgets/tech_background.dart';
 import '../../../auth/presentation/providers/auth_provider.dart';
 import '../../data/datasources/mesero_remote_datasource.dart';
 import '../../data/models/mesero_models.dart';
@@ -123,6 +127,7 @@ class MeseroPage extends ConsumerStatefulWidget {
 }
 
 class _MeseroPageState extends ConsumerState<MeseroPage> {
+  AppPalette get palette => ref.watch(selectedAppPaletteProvider);
   late MeseroRemoteDataSource _dataSource;
   late Future<void> _future;
   List<MeseroMesaResumenModel> _mesas = const [];
@@ -141,6 +146,10 @@ class _MeseroPageState extends ConsumerState<MeseroPage> {
   Future<List<MeseroVentaModel>>? _historialVentasFuture;
   List<MeseroVentaModel> _historialVentas = const [];
   DateTime? _historialDiaFiltro;
+  Future<CierreCajaResumenModel>? _cierreCajaFuture;
+  DateTime? _cierreCajaFechaFiltro;
+  final Map<String, double> _baseInicialCierrePorFecha = <String, double>{};
+  final TextEditingController _cierreCajaObservacionController = TextEditingController();
 
   @override
   void initState() {
@@ -158,6 +167,7 @@ class _MeseroPageState extends ConsumerState<MeseroPage> {
   @override
   void dispose() {
     _productoFiltroController.dispose();
+    _cierreCajaObservacionController.dispose();
     super.dispose();
   }
 
@@ -200,6 +210,23 @@ class _MeseroPageState extends ConsumerState<MeseroPage> {
     setState(() {
       _historialVentasFuture = future;
     });
+    await future;
+  }
+
+  String _fechaIso(DateTime value) => '${value.year.toString().padLeft(4, '0')}-${value.month.toString().padLeft(2, '0')}-${value.day.toString().padLeft(2, '0')}';
+
+  DateTime get _fechaCierreActual {
+    final today = DateTime.now();
+    return _cierreCajaFechaFiltro ?? DateTime(today.year, today.month, today.day);
+  }
+
+  Future<CierreCajaResumenModel> _cargarCierreCaja() {
+    return _dataSource.consultarCierreCaja(fecha: _fechaIso(_fechaCierreActual));
+  }
+
+  Future<void> _reloadCierreCaja() async {
+    final future = _cargarCierreCaja();
+    setState(() => _cierreCajaFuture = future);
     await future;
   }
 
@@ -475,7 +502,6 @@ class _MeseroPageState extends ConsumerState<MeseroPage> {
   }
 
   Widget _buildAgregarProductosFloatingAction(MeseroCuentaModel cuenta) {
-    final palette = ref.watch(selectedAppPaletteProvider);
     final cuentaId = cuenta.cuentaId;
     final descripcion = (cuenta.descripcion ?? '').trim();
     final enabled = !_processing && cuentaId != null;
@@ -493,8 +519,8 @@ class _MeseroPageState extends ConsumerState<MeseroPage> {
             descripcion.isEmpty ? 'Agregar productos' : 'Agregar a ${_cuentaNombreVisible(cuenta)}',
             overflow: TextOverflow.ellipsis,
           ),
-          backgroundColor: enabled ? palette.secondary : palette.textSecondary.withOpacity(0.45),
-          foregroundColor: palette.onTitle,
+          backgroundColor: enabled ? Theme.of(context).colorScheme.secondary : AppColors.textSecondary.withOpacity(0.45),
+          foregroundColor: Theme.of(context).colorScheme.onSecondary,
         ),
       ),
     );
@@ -512,7 +538,7 @@ class _MeseroPageState extends ConsumerState<MeseroPage> {
         if (snapshot.hasError) return AppErrorView(message: snapshot.error.toString(), onRetry: _reload);
 
         final isCajero = _isCajeroOperativo();
-        final selectedMode = !isCajero && rawSelectedMode == MeseroPageMode.historial
+        final selectedMode = !isCajero && (rawSelectedMode == MeseroPageMode.historial || rawSelectedMode == MeseroPageMode.cierreCaja)
             ? MeseroPageMode.resumen
             : rawSelectedMode;
 
@@ -608,6 +634,11 @@ class _MeseroPageState extends ConsumerState<MeseroPage> {
             padding: const EdgeInsets.fromLTRB(24, 0, 24, 0),
             sliver: SliverToBoxAdapter(child: _buildHistorialVentas()),
           )
+        else if (selectedMode == MeseroPageMode.cierreCaja)
+          SliverPadding(
+            padding: const EdgeInsets.fromLTRB(24, 0, 24, 0),
+            sliver: SliverToBoxAdapter(child: _buildCierreCaja()),
+          )
         else
           SliverPadding(
             padding: const EdgeInsets.fromLTRB(24, 0, 24, 0),
@@ -652,12 +683,12 @@ class _MeseroPageState extends ConsumerState<MeseroPage> {
                         ? 2
                         : 1;
             final childAspectRatio = availableWidth >= 1100
-                ? 1.72
+                ? 1.52
                 : availableWidth >= 720
-                    ? 1.62
+                    ? 1.42
                     : availableWidth >= 460
-                        ? 1.55
-                        : 2.05;
+                        ? 1.32
+                        : 1.75;
 
             return SliverGrid(
               delegate: SliverChildBuilderDelegate(
@@ -705,12 +736,12 @@ class _MeseroPageState extends ConsumerState<MeseroPage> {
                     ? 2
                     : 1;
         final childAspectRatio = availableWidth >= 1100
-            ? 1.72
+            ? 1.52
             : availableWidth >= 720
-                ? 1.62
+                ? 1.42
                 : availableWidth >= 460
-                    ? 1.55
-                    : 2.05;
+                    ? 1.32
+                    : 1.75;
 
         return Column(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -922,6 +953,7 @@ class _MeseroPageState extends ConsumerState<MeseroPage> {
   }
 
   Widget _buildHistorialVentas() {
+    final palette = ref.watch(selectedAppPaletteProvider);
     _historialVentasFuture ??= _cargarHistorialVentas();
 
     return FutureBuilder<List<MeseroVentaModel>>(
@@ -967,7 +999,7 @@ class _MeseroPageState extends ConsumerState<MeseroPage> {
                 Expanded(
                   child: Text(
                     'Historial de ventas',
-                    style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w900),
+                    style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w900, color: palette.textPrimary),
                   ),
                 ),
                 OutlinedButton.icon(
@@ -980,7 +1012,7 @@ class _MeseroPageState extends ConsumerState<MeseroPage> {
             const SizedBox(height: 8),
             Text(
               'Consulta las ventas por mesa y abre el detalle para ver qué se vendió, cómo se pagó y cuántas cuentas/cuotas tuvo la venta.',
-              style: TextStyle(color: ref.watch(selectedAppPaletteProvider).textSecondary, fontWeight: FontWeight.w600),
+              style: TextStyle(color: palette.textSecondary, fontWeight: FontWeight.w700),
             ),
             const SizedBox(height: 14),
             _buildHistorialDiaFilterBar(totalVentas: ventas.length, ventasMostradas: ventasFiltradas.length),
@@ -1035,7 +1067,6 @@ class _MeseroPageState extends ConsumerState<MeseroPage> {
   }
 
   Widget _buildPantallaDetalleVenta(MeseroVentaModel venta) {
-    final palette = ref.watch(selectedAppPaletteProvider);
     final descripcion = (venta.mesaDescripcion ?? '').trim();
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -1076,7 +1107,6 @@ class _MeseroPageState extends ConsumerState<MeseroPage> {
   }
 
   Widget _buildPantallaAgregarProductos(MeseroVentaModel venta, MeseroCuentaModel cuenta) {
-    final palette = ref.watch(selectedAppPaletteProvider);
     final descripcionVenta = (venta.mesaDescripcion ?? '').trim();
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -1135,7 +1165,6 @@ class _MeseroPageState extends ConsumerState<MeseroPage> {
   }
 
   Widget _buildVentaActiva(MeseroVentaModel venta) {
-    final palette = ref.watch(selectedAppPaletteProvider);
     final cuentas = venta.cuentas;
     MeseroCuentaModel? cuentaSeleccionada;
     for (final cuenta in cuentas) {
@@ -1168,10 +1197,10 @@ class _MeseroPageState extends ConsumerState<MeseroPage> {
         const SizedBox(height: 18),
         Container(
           decoration: BoxDecoration(
-            gradient: palette.glassGradient,
+            color: Colors.white,
             borderRadius: BorderRadius.circular(28),
-            border: Border.all(color: palette.translucentBorder),
-            boxShadow: [BoxShadow(color: palette.cardShadow, blurRadius: 28, offset: const Offset(0, 14))],
+            border: Border.all(color: palette.cardBorder),
+            boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.06), blurRadius: 28, offset: const Offset(0, 14))],
           ),
           padding: const EdgeInsets.all(20),
           child: Column(
@@ -1197,7 +1226,7 @@ class _MeseroPageState extends ConsumerState<MeseroPage> {
                       children: [
                         Text(
                           'Cuentas de la venta',
-                          style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w900),
+                          style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w900, color: palette.textPrimary),
                         ),
                         const SizedBox(height: 10),
                         Wrap(
@@ -1230,9 +1259,9 @@ class _MeseroPageState extends ConsumerState<MeseroPage> {
                 },
               ),
               const SizedBox(height: 8),
-              Text(
+              const Text(
                 'Cada cuenta puede tener una descripción para recordar a quién pertenece. Selecciona una cuenta y asigna sus productos.',
-                style: TextStyle(color: palette.textSecondary, fontWeight: FontWeight.w600),
+                style: TextStyle(color: AppColors.textSecondary),
               ),
               const SizedBox(height: 16),
               if (cuentas.isEmpty)
@@ -1272,23 +1301,22 @@ class _MeseroPageState extends ConsumerState<MeseroPage> {
 
 
   Widget _buildAgregarProductosCallToAction(MeseroCuentaModel? cuentaSeleccionada) {
-    final palette = ref.watch(selectedAppPaletteProvider);
     final cuentaValida = cuentaSeleccionada?.cuentaId != null;
 
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.all(18),
       decoration: BoxDecoration(
-        gradient: palette.glassGradient,
+        color: AppColors.surfaceAlt,
         borderRadius: BorderRadius.circular(22),
-        border: Border.all(color: palette.translucentBorder),
+        border: Border.all(color: palette.cardBorder),
       ),
       child: LayoutBuilder(
         builder: (context, constraints) {
           final title = Row(
             mainAxisSize: MainAxisSize.min,
             children: [
-              Icon(Icons.add_shopping_cart_rounded, color: palette.secondary),
+              const Icon(Icons.add_shopping_cart_rounded, color: AppColors.secondaryDark),
               const SizedBox(width: 10),
               Flexible(
                 child: Column(
@@ -1354,16 +1382,15 @@ class _MeseroPageState extends ConsumerState<MeseroPage> {
   }
 
   Widget _buildPestanaAgregarProductos(MeseroCuentaModel cuenta) {
-    final palette = ref.watch(selectedAppPaletteProvider);
     final productos = _productosOrdenadosPorPedido(_productosFiltrados, cuenta);
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
-        gradient: palette.glassGradient,
+        color: Colors.white,
         borderRadius: BorderRadius.circular(24),
-        border: Border.all(color: palette.translucentBorder),
-        boxShadow: [BoxShadow(color: palette.cardShadow, blurRadius: 24, offset: const Offset(0, 12))],
+        border: Border.all(color: AppColors.secondary.withOpacity(0.22)),
+        boxShadow: [BoxShadow(color: AppColors.secondary.withOpacity(0.10), blurRadius: 24, offset: const Offset(0, 12))],
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -1386,18 +1413,18 @@ class _MeseroPageState extends ConsumerState<MeseroPage> {
               width: double.infinity,
               padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
               decoration: BoxDecoration(
-                color: palette.mutedSurface,
+                color: AppColors.surfaceAlt,
                 borderRadius: BorderRadius.circular(18),
-                border: Border.all(color: palette.translucentBorder),
+                border: Border.all(color: AppColors.border),
               ),
-              child: Row(
+              child: const Row(
                 children: [
-                  Icon(Icons.trending_up_rounded, color: palette.secondary),
-                  const SizedBox(width: 10),
+                  Icon(Icons.trending_up_rounded, color: AppColors.secondaryDark),
+                  SizedBox(width: 10),
                   Expanded(
                     child: Text(
                       'Lista ordenada por cantidad pedida en esta venta. Los productos más solicitados aparecen primero.',
-                      style: TextStyle(color: palette.textSecondary, fontWeight: FontWeight.w700),
+                      style: TextStyle(color: AppColors.textSecondary, fontWeight: FontWeight.w700),
                     ),
                   ),
                 ],
@@ -1577,6 +1604,7 @@ class _MeseroPageState extends ConsumerState<MeseroPage> {
         );
       }
       final future = _load();
+      ref.read(meseroSelectedModeProvider.notifier).state = MeseroPageMode.mesas;
       setState(() {
         _ventaActiva = venta;
         _mostrandoDetalleVenta = true;
@@ -1635,7 +1663,6 @@ class _MeseroPageState extends ConsumerState<MeseroPage> {
     if (cuentaId == null) return;
 
     final controller = TextEditingController();
-    final palette = ref.read(selectedAppPaletteProvider);
     try {
       final productoSeleccionado = await showModalBottomSheet<MeseroProductoModel>(
         context: context,
@@ -1743,7 +1770,7 @@ class _MeseroPageState extends ConsumerState<MeseroPage> {
                                 ),
                                 title: Text(
                                   producto.nombre ?? 'Producto ${producto.prodId ?? '-'}',
-                                  style: const TextStyle(fontWeight: FontWeight.w900),
+                                  style: TextStyle(fontWeight: FontWeight.w900, color: palette.textPrimary),
                                 ),
                                 subtitle: Text(
                                   producto.descripcion ?? 'Sin descripción',
@@ -2233,12 +2260,831 @@ class _MeseroPageState extends ConsumerState<MeseroPage> {
       if (mounted) setState(() => _processing = false);
     }
   }
+
+  double _baseInicialCierreActual(CierreCajaResumenModel cierre) {
+    final fecha = cierre.fecha ?? _fechaIso(_fechaCierreActual);
+    return _baseInicialCierrePorFecha[fecha] ?? cierre.valorBase ?? 0;
+  }
+
+  Future<void> _registrarBaseInicialCierreCaja(CierreCajaResumenModel cierre) async {
+    final fecha = cierre.fecha ?? _fechaIso(_fechaCierreActual);
+    final controller = TextEditingController(text: _formatCurrencyInputAmount(_baseInicialCierreActual(cierre)));
+    try {
+      final confirmado = await showDialog<bool>(
+        context: context,
+        builder: (context) {
+          final palette = ref.watch(selectedAppPaletteProvider);
+          return AlertDialog(
+            backgroundColor: palette.surface,
+            title: Text('Registrar base inicial', style: TextStyle(color: palette.textPrimary, fontWeight: FontWeight.w900)),
+            content: SizedBox(
+              width: 460,
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'La base es el dinero que recibe la caja al iniciar el turno para poder dar vueltas. Al final, esa base ya está incluida dentro del efectivo contado, por eso se resta en el cruce.',
+                    style: TextStyle(color: palette.textSecondary, fontWeight: FontWeight.w600),
+                  ),
+                  const SizedBox(height: 14),
+                  TextField(
+                    controller: controller,
+                    keyboardType: TextInputType.number,
+                    inputFormatters: _currencyInputFormatters,
+                    decoration: InputDecoration(
+                      labelText: 'Base inicial recibida',
+                      helperText: 'Ejemplo: efectivo entregado al cajero al comenzar el turno.',
+                      prefixIcon: const Icon(Icons.savings_rounded),
+                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(16)),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            actions: [
+              TextButton(onPressed: () => Navigator.of(context).pop(false), child: const Text('Cancelar')),
+              FilledButton.icon(
+                onPressed: () => Navigator.of(context).pop(true),
+                icon: const Icon(Icons.save_rounded),
+                label: const Text('Guardar base'),
+              ),
+            ],
+          );
+        },
+      );
+      if (confirmado != true) return;
+      final valorBase = _parseCurrencyInput(controller.text);
+      setState(() => _baseInicialCierrePorFecha[fecha] = valorBase);
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Base inicial registrada: ${CurrencyUtils.format(valorBase)}')));
+    } finally {
+      controller.dispose();
+    }
+  }
+
+  Future<void> _seleccionarFechaCierreCaja() async {
+    final picked = await showDatePicker(
+      context: context,
+      initialDate: _fechaCierreActual,
+      firstDate: DateTime.now().subtract(const Duration(days: 365)),
+      lastDate: DateTime.now().add(const Duration(days: 1)),
+      helpText: 'Seleccionar día de cierre',
+    );
+    if (picked == null) return;
+    setState(() {
+      _cierreCajaFechaFiltro = DateTime(picked.year, picked.month, picked.day);
+      _cierreCajaFuture = _cargarCierreCaja();
+    });
+  }
+
+  Future<void> _descargarReporteCierreCaja(CierreCajaResumenModel cierre) async {
+    try {
+      final fecha = cierre.fecha ?? _fechaIso(_fechaCierreActual);
+      final bytes = await _crearPdfCierreCaja(cierre);
+      final fileName = 'cierre-caja-$fecha.pdf';
+      await downloadBytesFile(
+        fileName: fileName,
+        bytes: bytes,
+        mimeType: 'application/pdf',
+      );
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Reporte PDF generado: $fileName')));
+    } catch (error) {
+      if (!mounted) return;
+      await Clipboard.setData(ClipboardData(text: 'No fue posible generar el PDF. Error: $error'));
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('No fue posible generar el PDF. Se copió el error al portapapeles.')));
+    }
+  }
+
+  Future<void> _registrarCierreCaja(CierreCajaResumenModel cierre) async {
+    final esModificacion = cierre.cerrado == true && cierre.cierreCajaId != null;
+    final controllers = <int, TextEditingController>{};
+    for (final medio in cierre.mediosPago) {
+      final id = medio.medioPagoId;
+      if (id != null) {
+        controllers[id] = TextEditingController(text: _formatCurrencyInputAmount(medio.valorEntregado ?? medio.totalSistema ?? 0));
+      }
+    }
+    final baseController = TextEditingController(text: _formatCurrencyInputAmount(_baseInicialCierreActual(cierre)));
+    final gastos = <({TextEditingController descripcion, TextEditingController valor})>[
+      for (final gasto in cierre.gastos)
+        (
+          descripcion: TextEditingController(text: gasto.descripcion ?? ''),
+          valor: TextEditingController(text: _formatCurrencyInputAmount(gasto.valor ?? 0)),
+        ),
+    ];
+    if (gastos.isEmpty) {
+      gastos.add((descripcion: TextEditingController(), valor: TextEditingController(text: '0')));
+    }
+    _cierreCajaObservacionController.text = cierre.observacion ?? '';
+
+    final confirmado = await showDialog<bool>(
+      context: context,
+      builder: (context) {
+        final palette = ref.watch(selectedAppPaletteProvider);
+        return StatefulBuilder(
+          builder: (context, setDialogState) => AlertDialog(
+            backgroundColor: palette.surface,
+            title: Text(esModificacion ? 'Modificar cierre de caja' : 'Registrar cierre de caja', style: TextStyle(color: palette.textPrimary, fontWeight: FontWeight.w900)),
+            content: SizedBox(
+              width: 680,
+              child: SingleChildScrollView(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Registra el conteo físico y los gastos del turno. Recuerda: la base inicial ya viene dentro del efectivo contado al final, por eso el cruce contable es entregado + gastos - base inicial.',
+                      style: TextStyle(color: palette.textSecondary, fontWeight: FontWeight.w600),
+                    ),
+                    const SizedBox(height: 16),
+                    Text('Conteo por medio de pago', style: TextStyle(color: palette.textPrimary, fontWeight: FontWeight.w900)),
+                    const SizedBox(height: 10),
+                    for (final medio in cierre.mediosPago) ...[
+                      Row(
+                        children: [
+                          Expanded(child: Text(medio.medioPagoNombre ?? 'Medio ${medio.medioPagoId ?? '-'}', style: TextStyle(color: palette.textPrimary, fontWeight: FontWeight.w900))),
+                          Text('Sistema: ${CurrencyUtils.format(medio.totalSistema)}', style: TextStyle(color: palette.textSecondary, fontWeight: FontWeight.w700)),
+                        ],
+                      ),
+                      const SizedBox(height: 6),
+                      TextField(
+                        controller: controllers[medio.medioPagoId],
+                        keyboardType: TextInputType.number,
+                        inputFormatters: _currencyInputFormatters,
+                        decoration: InputDecoration(
+                          labelText: 'Valor entregado',
+                          helperText: 'Dinero/soporte entregado para este medio de pago',
+                          border: OutlineInputBorder(borderRadius: BorderRadius.circular(16)),
+                        ),
+                      ),
+                      const SizedBox(height: 12),
+                    ],
+                    const SizedBox(height: 8),
+                    Text('Base inicial recibida', style: TextStyle(color: palette.textPrimary, fontWeight: FontWeight.w900)),
+                    const SizedBox(height: 6),
+                    TextField(
+                      controller: baseController,
+                      keyboardType: TextInputType.number,
+                      inputFormatters: _currencyInputFormatters,
+                      decoration: InputDecoration(
+                        labelText: 'Valor de base recibida al iniciar turno',
+                        helperText: 'Ejemplo: efectivo que recibió la caja al iniciar el turno para dar vueltas.',
+                        border: OutlineInputBorder(borderRadius: BorderRadius.circular(16)),
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+                    Row(
+                      children: [
+                        Expanded(child: Text('Gastos del turno', style: TextStyle(color: palette.textPrimary, fontWeight: FontWeight.w900))),
+                        TextButton.icon(
+                          onPressed: () => setDialogState(() => gastos.add((descripcion: TextEditingController(), valor: TextEditingController(text: '0')))),
+                          icon: const Icon(Icons.add_rounded),
+                          label: const Text('Agregar gasto'),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 8),
+                    for (var i = 0; i < gastos.length; i++) ...[
+                      Container(
+                        padding: const EdgeInsets.all(12),
+                        margin: const EdgeInsets.only(bottom: 10),
+                        decoration: BoxDecoration(
+                          color: palette.glassSurface,
+                          borderRadius: BorderRadius.circular(18),
+                          border: Border.all(color: palette.translucentBorder),
+                        ),
+                        child: Column(
+                          children: [
+                            TextField(
+                              controller: gastos[i].descripcion,
+                              decoration: InputDecoration(
+                                labelText: 'Descripción del gasto',
+                                hintText: 'Ejemplo: Soflán, domicilios, hielo, transporte',
+                                border: OutlineInputBorder(borderRadius: BorderRadius.circular(16)),
+                              ),
+                            ),
+                            const SizedBox(height: 10),
+                            Row(
+                              children: [
+                                Expanded(
+                                  child: TextField(
+                                    controller: gastos[i].valor,
+                                    keyboardType: TextInputType.number,
+                                    inputFormatters: _currencyInputFormatters,
+                                    decoration: InputDecoration(
+                                      labelText: 'Valor del gasto',
+                                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(16)),
+                                    ),
+                                  ),
+                                ),
+                                const SizedBox(width: 8),
+                                IconButton.filledTonal(
+                                  onPressed: gastos.length == 1
+                                      ? null
+                                      : () => setDialogState(() {
+                                            gastos[i].descripcion.dispose();
+                                            gastos[i].valor.dispose();
+                                            gastos.removeAt(i);
+                                          }),
+                                  icon: const Icon(Icons.delete_outline_rounded),
+                                ),
+                              ],
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                    const SizedBox(height: 8),
+                    TextField(
+                      controller: _cierreCajaObservacionController,
+                      maxLines: 3,
+                      decoration: InputDecoration(
+                        labelText: 'Observación general opcional',
+                        border: OutlineInputBorder(borderRadius: BorderRadius.circular(16)),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+            actions: [
+              TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Cancelar')),
+              FilledButton.icon(onPressed: () => Navigator.pop(context, true), icon: const Icon(Icons.point_of_sale_rounded), label: Text(esModificacion ? 'Guardar cambios' : 'Cerrar caja')),
+            ],
+          ),
+        );
+      },
+    );
+
+    if (confirmado != true) {
+      for (final controller in controllers.values) {
+        controller.dispose();
+      }
+      baseController.dispose();
+      for (final gasto in gastos) {
+        gasto.descripcion.dispose();
+        gasto.valor.dispose();
+      }
+      return;
+    }
+
+    setState(() => _processing = true);
+    try {
+      final medios = cierre.mediosPago
+          .where((medio) => medio.medioPagoId != null)
+          .map((medio) => {
+                'medioPagoId': medio.medioPagoId,
+                'valorEntregado': _parseCurrencyInput(controllers[medio.medioPagoId]?.text ?? '0'),
+              })
+          .toList(growable: false);
+      final gastosRequest = gastos
+          .map((gasto) => {
+                'descripcion': gasto.descripcion.text.trim(),
+                'valor': _parseCurrencyInput(gasto.valor.text),
+              })
+          .where((gasto) => (gasto['descripcion']?.toString().trim().isNotEmpty ?? false) || ((gasto['valor'] as num?) ?? 0) > 0)
+          .toList(growable: false);
+      final valorBase = _parseCurrencyInput(baseController.text);
+      if (esModificacion) {
+        await _dataSource.actualizarCierreCaja(
+          cierreCajaId: cierre.cierreCajaId!,
+          fecha: cierre.fecha ?? _fechaIso(_fechaCierreActual),
+          mediosPago: medios,
+          valorBase: valorBase,
+          gastos: gastosRequest,
+          observacion: _cierreCajaObservacionController.text,
+        );
+      } else {
+        await _dataSource.registrarCierreCaja(
+          fecha: cierre.fecha ?? _fechaIso(_fechaCierreActual),
+          mediosPago: medios,
+          valorBase: valorBase,
+          gastos: gastosRequest,
+          observacion: _cierreCajaObservacionController.text,
+        );
+      }
+      await _reloadCierreCaja();
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(esModificacion ? 'Cierre de caja modificado correctamente.' : 'Cierre de caja registrado correctamente.')));
+    } catch (error) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(error.toString())));
+    } finally {
+      for (final controller in controllers.values) {
+        controller.dispose();
+      }
+      baseController.dispose();
+      for (final gasto in gastos) {
+        gasto.descripcion.dispose();
+        gasto.valor.dispose();
+      }
+      if (mounted) setState(() => _processing = false);
+    }
+  }
+
+  Widget _buildCierreCaja() {
+    _cierreCajaFuture ??= _cargarCierreCaja();
+    final palette = ref.watch(selectedAppPaletteProvider);
+    return FutureBuilder<CierreCajaResumenModel>(
+      future: _cierreCajaFuture,
+      builder: (context, snapshot) {
+        if (snapshot.connectionState == ConnectionState.waiting) {
+          return const AppLoader(message: 'Calculando cierre de caja...');
+        }
+        if (snapshot.hasError) {
+          return AppErrorView(message: snapshot.error.toString(), onRetry: _reloadCierreCaja);
+        }
+        final cierre = snapshot.data ?? const CierreCajaResumenModel();
+        final cerrado = cierre.cerrado == true;
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Container(
+              padding: const EdgeInsets.all(18),
+              decoration: BoxDecoration(
+                color: palette.glassSurface,
+                borderRadius: BorderRadius.circular(26),
+                border: Border.all(color: palette.translucentBorder),
+              ),
+              child: Wrap(
+                spacing: 12,
+                runSpacing: 12,
+                crossAxisAlignment: WrapCrossAlignment.center,
+                children: [
+                  _SmallInfoPill(icon: Icons.calendar_month_rounded, text: cierre.fecha ?? _fechaIso(_fechaCierreActual)),
+                  _SmallInfoPill(icon: Icons.receipt_long_rounded, text: '${cierre.ventasIncluidas ?? 0} ventas'),
+                  _SmallInfoPill(icon: cerrado ? Icons.verified_rounded : Icons.pending_actions_rounded, text: cerrado ? 'Cerrado' : 'Pendiente'),
+                  OutlinedButton.icon(
+                    onPressed: cerrado ? null : () => _registrarBaseInicialCierreCaja(cierre),
+                    icon: const Icon(Icons.savings_rounded),
+                    label: Text('Base inicial: ${CurrencyUtils.format(_baseInicialCierreActual(cierre))}'),
+                  ),
+                  OutlinedButton.icon(onPressed: _seleccionarFechaCierreCaja, icon: const Icon(Icons.edit_calendar_rounded), label: const Text('Cambiar día')),
+                  OutlinedButton.icon(onPressed: _reloadCierreCaja, icon: const Icon(Icons.refresh_rounded), label: const Text('Actualizar')),
+                  FilledButton.icon(onPressed: () => _descargarReporteCierreCaja(cierre), icon: const Icon(Icons.picture_as_pdf_rounded), label: const Text('Descargar PDF')),
+                  if (!cerrado)
+                    FilledButton.icon(onPressed: cierre.ventas.isEmpty || _processing ? null : () => _registrarCierreCaja(cierre), icon: const Icon(Icons.point_of_sale_rounded), label: const Text('Registrar cierre')),
+                  if (cerrado)
+                    FilledButton.icon(onPressed: _processing ? null : () => _registrarCierreCaja(cierre), icon: const Icon(Icons.edit_note_rounded), label: const Text('Modificar cierre')),
+                ],
+              ),
+            ),
+            const SizedBox(height: 16),
+            LayoutBuilder(
+              builder: (context, constraints) {
+                final narrow = constraints.maxWidth < 760;
+                final cards = [
+                  _CierreMetricCard(icon: Icons.payments_rounded, label: 'Total vendido', value: CurrencyUtils.format(cierre.totalVendido)),
+                  _CierreMetricCard(icon: Icons.receipt_long_rounded, label: 'Ventas sin propina', value: CurrencyUtils.format(cierre.totalVentasSinPropina ?? ((cierre.totalVendido ?? 0) - (cierre.totalPropinas ?? 0)))),
+                  _CierreMetricCard(icon: Icons.volunteer_activism_rounded, label: 'Propinas', value: CurrencyUtils.format(cierre.totalPropinas)),
+                  _CierreMetricCard(icon: Icons.account_balance_wallet_rounded, label: 'Entregado medios', value: CurrencyUtils.format(cierre.totalEntregado)),
+                  _CierreMetricCard(icon: Icons.savings_rounded, label: 'Base inicial recibida', value: CurrencyUtils.format(_baseInicialCierreActual(cierre))),
+                  _CierreMetricCard(icon: Icons.shopping_bag_rounded, label: 'Gastos', value: CurrencyUtils.format(cierre.totalGastos)),
+                  _CierreMetricCard(icon: Icons.calculate_rounded, label: 'Total cruce', value: CurrencyUtils.format(cierre.totalCruce ?? ((cierre.totalEntregado ?? 0) + (cierre.totalGastos ?? 0) - _baseInicialCierreActual(cierre)))),
+                  _CierreMetricCard(icon: Icons.compare_arrows_rounded, label: 'Diferencia', value: CurrencyUtils.format(cierre.diferencia)),
+                ];
+                final columns = constraints.maxWidth >= 1180 ? 3 : 2;
+                final cardWidth = narrow ? constraints.maxWidth : (constraints.maxWidth - (12 * (columns - 1))) / columns;
+                return Wrap(
+                  spacing: 12,
+                  runSpacing: 12,
+                  children: cards.map((card) => SizedBox(width: cardWidth, child: card)).toList(growable: false),
+                );
+              },
+            ),
+            const SizedBox(height: 16),
+            _CierreSection(
+              title: 'Medios de pago',
+              subtitle: 'Control contable: valor recibido por sistema, valor entregado y diferencia por medio.',
+              child: _CierreMediosPagoTable(items: cierre.mediosPago),
+            ),
+            const SizedBox(height: 16),
+            _CierreSection(
+              title: 'Base inicial y gastos del turno',
+              subtitle: 'La base inicial se resta porque está incluida en el efectivo contado; los gastos se suman para reconstruir el dinero de la venta.',
+              child: _CierreGastosTable(items: cierre.gastos, valorBase: _baseInicialCierreActual(cierre), totalGastos: cierre.totalGastos),
+            ),
+            const SizedBox(height: 16),
+            _CierreSection(
+              title: 'Productos vendidos',
+              subtitle: 'Cantidad, valor unitario promedio y valor total por producto vendido.',
+              child: _CierreProductosTable(items: cierre.productos),
+            ),
+            const SizedBox(height: 16),
+            _CierreSection(
+              title: 'Ventas incluidas en el cierre',
+              subtitle: 'Estas ventas quedan relacionadas al cierre de caja registrado.',
+              child: _CierreVentasTable(items: cierre.ventas),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+}
+
+
+
+Future<Uint8List> _crearPdfCierreCaja(CierreCajaResumenModel cierre) async {
+  final pdf = pw.Document();
+  final fecha = cierre.fecha ?? '';
+  final ventasSinPropina = cierre.totalVentasSinPropina ?? ((cierre.totalVendido ?? 0) - (cierre.totalPropinas ?? 0));
+
+  pw.Widget sectionTitle(String title) => pw.Container(
+        margin: const pw.EdgeInsets.only(top: 14, bottom: 8),
+        padding: const pw.EdgeInsets.symmetric(horizontal: 10, vertical: 7),
+        decoration: pw.BoxDecoration(
+          color: PdfColor.fromHex('#EEF2FF'),
+          borderRadius: pw.BorderRadius.circular(8),
+        ),
+        child: pw.Text(title, style: pw.TextStyle(fontSize: 13, fontWeight: pw.FontWeight.bold, color: PdfColor.fromHex('#111827'))),
+      );
+
+  pw.Widget summaryBox(String label, String value) => pw.Container(
+        padding: const pw.EdgeInsets.all(9),
+        decoration: pw.BoxDecoration(
+          border: pw.Border.all(color: PdfColor.fromHex('#CBD5E1')),
+          borderRadius: pw.BorderRadius.circular(8),
+        ),
+        child: pw.Column(crossAxisAlignment: pw.CrossAxisAlignment.start, children: [
+          pw.Text(label, style: pw.TextStyle(fontSize: 8, color: PdfColor.fromHex('#64748B'))),
+          pw.SizedBox(height: 3),
+          pw.Text(value, style: pw.TextStyle(fontSize: 11, fontWeight: pw.FontWeight.bold, color: PdfColor.fromHex('#0F172A'))),
+        ]),
+      );
+
+  pdf.addPage(
+    pw.MultiPage(
+      pageFormat: PdfPageFormat.a4,
+      margin: const pw.EdgeInsets.all(28),
+      build: (context) => [
+        pw.Container(
+          width: double.infinity,
+          padding: const pw.EdgeInsets.all(16),
+          decoration: pw.BoxDecoration(
+            color: PdfColor.fromHex('#0F172A'),
+            borderRadius: pw.BorderRadius.circular(12),
+          ),
+          child: pw.Column(crossAxisAlignment: pw.CrossAxisAlignment.start, children: [
+            pw.Text('BarLytics - Cierre de caja', style: pw.TextStyle(color: PdfColors.white, fontSize: 18, fontWeight: pw.FontWeight.bold)),
+            pw.SizedBox(height: 4),
+            pw.Text('Fecha: $fecha    Estado: ${cierre.cerrado == true ? 'CERRADO' : 'PENDIENTE'}    Ventas incluidas: ${cierre.ventasIncluidas ?? 0}', style: const pw.TextStyle(color: PdfColors.white, fontSize: 10)),
+          ]),
+        ),
+        pw.SizedBox(height: 14),
+        pw.Table(
+          columnWidths: {0: pw.FlexColumnWidth(), 1: pw.FlexColumnWidth(), 2: pw.FlexColumnWidth()},
+          children: [
+            pw.TableRow(children: [
+              summaryBox('Total vendido', CurrencyUtils.format(cierre.totalVendido)),
+              summaryBox('Ventas sin propina', CurrencyUtils.format(ventasSinPropina)),
+              summaryBox('Propinas', CurrencyUtils.format(cierre.totalPropinas)),
+            ]),
+            pw.TableRow(children: [
+              summaryBox('Entregado medios', CurrencyUtils.format(cierre.totalEntregado)),
+              summaryBox('Base inicial', CurrencyUtils.format(cierre.valorBase)),
+              summaryBox('Gastos', CurrencyUtils.format(cierre.totalGastos)),
+            ]),
+            pw.TableRow(children: [
+              summaryBox('Total cruce', CurrencyUtils.format(cierre.totalCruce ?? ((cierre.totalEntregado ?? 0) + (cierre.totalGastos ?? 0) - (cierre.valorBase ?? 0)))),
+              summaryBox('Diferencia', CurrencyUtils.format(cierre.diferencia)),
+              summaryBox('Fecha registro', cierre.fechaRegistro ?? '-'),
+            ]),
+          ],
+        ),
+        pw.SizedBox(height: 8),
+        pw.Text('Formula de cruce: total contado por medios + gastos - base inicial = dinero real de ventas. Diferencia = cruce - total vendido.', style: const pw.TextStyle(fontSize: 8)),
+        sectionTitle('1. Medios de pago - recibido, entregado y diferencia'),
+        pw.Table.fromTextArray(
+          headerDecoration: pw.BoxDecoration(color: PdfColor.fromHex('#E2E8F0')),
+          headerStyle: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 8),
+          cellStyle: const pw.TextStyle(fontSize: 8),
+          cellAlignment: pw.Alignment.centerLeft,
+          headers: const ['Recibido sistema', 'Entregado', 'Diferencia', 'Medio'],
+          data: cierre.mediosPago.map((m) => [
+            CurrencyUtils.format(m.totalSistema),
+            CurrencyUtils.format(m.valorEntregado),
+            CurrencyUtils.format(m.diferencia),
+            m.medioPagoNombre ?? '-',
+          ]).toList(),
+        ),
+        sectionTitle('2. Base inicial y gastos del turno'),
+        pw.Table.fromTextArray(
+          headerDecoration: pw.BoxDecoration(color: PdfColor.fromHex('#E2E8F0')),
+          headerStyle: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 8),
+          cellStyle: const pw.TextStyle(fontSize: 8),
+          cellAlignment: pw.Alignment.centerLeft,
+          headers: const ['Valor', 'Concepto', 'Descripción'],
+          data: [
+            [CurrencyUtils.format(cierre.valorBase), 'Base inicial recibida', 'Dinero recibido al iniciar el turno; se resta porque está incluido en el efectivo contado'],
+            ...cierre.gastos.map((g) => [CurrencyUtils.format(g.valor), 'Gasto', g.descripcion ?? '-']),
+          ],
+        ),
+        sectionTitle('3. Productos vendidos'),
+        pw.Table.fromTextArray(
+          headerDecoration: pw.BoxDecoration(color: PdfColor.fromHex('#E2E8F0')),
+          headerStyle: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 8),
+          cellStyle: const pw.TextStyle(fontSize: 8),
+          cellAlignment: pw.Alignment.centerLeft,
+          headers: const ['Total producto', 'Valor unidad', 'Cantidad', 'Producto'],
+          data: cierre.productos.map((p) => [
+            CurrencyUtils.format(p.totalVenta),
+            CurrencyUtils.format(p.valorUnitario),
+            _formatCantidadGeneral(p.cantidad ?? 0),
+            p.productoNombre ?? '-',
+          ]).toList(),
+        ),
+        sectionTitle('4. Ventas incluidas en el cierre'),
+        pw.Table.fromTextArray(
+          headerDecoration: pw.BoxDecoration(color: PdfColor.fromHex('#E2E8F0')),
+          headerStyle: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 8),
+          cellStyle: const pw.TextStyle(fontSize: 8),
+          cellAlignment: pw.Alignment.centerLeft,
+          headers: const ['Total', 'Propina', 'Venta sin propina', 'Venta', 'Mesa', 'Fecha'],
+          data: cierre.ventas.map((v) => [
+            CurrencyUtils.format(v.total),
+            CurrencyUtils.format(v.propina),
+            CurrencyUtils.format(v.subtotalVenta),
+            '#${v.ventaId ?? '-'}',
+            'Mesa ${v.mesaNumero ?? v.mesaId ?? '-'}',
+            v.fecha ?? '-',
+          ]).toList(),
+        ),
+        if ((cierre.observacion ?? '').trim().isNotEmpty) ...[
+          sectionTitle('Observaciones'),
+          pw.Text(cierre.observacion!, style: const pw.TextStyle(fontSize: 9)),
+        ],
+      ],
+    ),
+  );
+  return pdf.save();
+}
+
+class _CierreMetricCard extends ConsumerWidget {
+  const _CierreMetricCard({required this.icon, required this.label, required this.value});
+  final IconData icon;
+  final String label;
+  final String value;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final palette = ref.watch(selectedAppPaletteProvider);
+    return Container(
+      padding: const EdgeInsets.all(18),
+      decoration: BoxDecoration(
+        color: palette.surface.withOpacity(palette.darkBackground ? 0.82 : 0.96),
+        borderRadius: BorderRadius.circular(24),
+        border: Border.all(color: palette.cardBorder),
+        boxShadow: [BoxShadow(color: palette.cardShadow, blurRadius: 18, offset: const Offset(0, 10))],
+      ),
+      child: Row(
+        children: [
+          Container(
+            width: 42,
+            height: 42,
+            decoration: BoxDecoration(color: palette.secondary.withOpacity(0.14), borderRadius: BorderRadius.circular(16)),
+            child: Icon(icon, color: palette.secondary),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(label, style: TextStyle(color: palette.textSecondary, fontWeight: FontWeight.w700)),
+                const SizedBox(height: 4),
+                Text(value, style: Theme.of(context).textTheme.titleLarge?.copyWith(color: palette.textPrimary, fontWeight: FontWeight.w900)),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _CierreSection extends ConsumerWidget {
+  const _CierreSection({required this.title, required this.subtitle, required this.child});
+  final String title;
+  final String subtitle;
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final palette = ref.watch(selectedAppPaletteProvider);
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(18),
+      decoration: BoxDecoration(
+        color: palette.surface.withOpacity(palette.darkBackground ? 0.86 : 0.98),
+        borderRadius: BorderRadius.circular(28),
+        border: Border.all(color: palette.cardBorder),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(title, style: Theme.of(context).textTheme.titleLarge?.copyWith(color: palette.textPrimary, fontWeight: FontWeight.w900)),
+          const SizedBox(height: 4),
+          Text(subtitle, style: TextStyle(color: palette.textSecondary, fontWeight: FontWeight.w600)),
+          const SizedBox(height: 14),
+          child,
+        ],
+      ),
+    );
+  }
+}
+
+
+class _CierreGastosTable extends ConsumerWidget {
+  const _CierreGastosTable({required this.items, this.valorBase, this.totalGastos});
+  final List<CierreCajaGastoModel> items;
+  final double? valorBase;
+  final double? totalGastos;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final palette = ref.watch(selectedAppPaletteProvider);
+    final rows = <({String concepto, String descripcion, double valor})>[
+      (concepto: 'Base inicial recibida', descripcion: 'Dinero recibido al iniciar el turno; se resta del conteo final', valor: valorBase ?? 0),
+      for (final item in items) (concepto: 'Gasto', descripcion: item.descripcion ?? '-', valor: item.valor ?? 0),
+    ];
+    if (rows.length == 1 && (valorBase ?? 0) == 0) {
+      return Text('No hay base inicial ni gastos registrados para este cierre.', style: TextStyle(color: palette.textSecondary));
+    }
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        SingleChildScrollView(
+          scrollDirection: Axis.horizontal,
+          child: DataTable(
+            headingRowColor: WidgetStateProperty.all(palette.secondary.withOpacity(0.10)),
+            columns: const [
+              DataColumn(label: Text('Valor')),
+              DataColumn(label: Text('Concepto')),
+              DataColumn(label: Text('Descripción')),
+            ],
+            rows: rows.map((item) => DataRow(cells: [
+              DataCell(Text(CurrencyUtils.format(item.valor), style: TextStyle(color: palette.textPrimary, fontWeight: FontWeight.w900))),
+              DataCell(Text(item.concepto)),
+              DataCell(Text(item.descripcion)),
+            ])).toList(growable: false),
+          ),
+        ),
+        const SizedBox(height: 10),
+        Text('Total gastos: ${CurrencyUtils.format(totalGastos)}', style: TextStyle(color: palette.textPrimary, fontWeight: FontWeight.w900)),
+      ],
+    );
+  }
+}
+
+class _CierreMediosPagoTable extends ConsumerWidget {
+  const _CierreMediosPagoTable({required this.items});
+  final List<CierreCajaMedioPagoModel> items;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final palette = ref.watch(selectedAppPaletteProvider);
+    if (items.isEmpty) return Text('No hay pagos registrados para este día.', style: TextStyle(color: palette.textSecondary));
+    return SingleChildScrollView(
+      scrollDirection: Axis.horizontal,
+      child: DataTable(
+        headingRowColor: WidgetStateProperty.all(palette.secondary.withOpacity(0.10)),
+        columns: const [
+          DataColumn(label: Text('Recibido sistema')),
+          DataColumn(label: Text('Entregado')),
+          DataColumn(label: Text('Diferencia')),
+          DataColumn(label: Text('Medio')),
+        ],
+        rows: items.map((item) => DataRow(cells: [
+          DataCell(Text(CurrencyUtils.format(item.totalSistema), style: TextStyle(color: palette.textPrimary, fontWeight: FontWeight.w800))),
+          DataCell(Text(CurrencyUtils.format(item.valorEntregado), style: TextStyle(color: palette.textPrimary, fontWeight: FontWeight.w800))),
+          DataCell(Text(CurrencyUtils.format(item.diferencia), style: TextStyle(color: palette.textPrimary, fontWeight: FontWeight.w800))),
+          DataCell(Text(item.medioPagoNombre ?? '-')),
+        ])).toList(),
+      ),
+    );
+  }
+}
+
+class _CierreProductosTable extends ConsumerWidget {
+  const _CierreProductosTable({required this.items});
+  final List<CierreCajaProductoModel> items;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final palette = ref.watch(selectedAppPaletteProvider);
+    if (items.isEmpty) return Text('No hay productos vendidos para este cierre.', style: TextStyle(color: palette.textSecondary));
+    return SingleChildScrollView(
+      scrollDirection: Axis.horizontal,
+      child: DataTable(
+        headingRowColor: WidgetStateProperty.all(palette.secondary.withOpacity(0.10)),
+        columns: const [
+          DataColumn(label: Text('Total producto')),
+          DataColumn(label: Text('Valor unidad')),
+          DataColumn(label: Text('Cantidad')),
+          DataColumn(label: Text('Producto')),
+        ],
+        rows: items.map((item) => DataRow(cells: [
+          DataCell(Text(CurrencyUtils.format(item.totalVenta), style: TextStyle(color: palette.textPrimary, fontWeight: FontWeight.w800))),
+          DataCell(Text(CurrencyUtils.format(item.valorUnitario), style: TextStyle(color: palette.textPrimary, fontWeight: FontWeight.w800))),
+          DataCell(Text(_formatCantidadGeneral(item.cantidad ?? 0))),
+          DataCell(Text(item.productoNombre ?? '-')),
+        ])).toList(),
+      ),
+    );
+  }
+}
+
+class _CierreVentasTable extends ConsumerWidget {
+  const _CierreVentasTable({required this.items});
+  final List<CierreCajaVentaIncluidaModel> items;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final palette = ref.watch(selectedAppPaletteProvider);
+    if (items.isEmpty) return Text('No hay ventas finalizadas pendientes de cierre para este día.', style: TextStyle(color: palette.textSecondary));
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        if (constraints.maxWidth < 720) {
+          return Column(
+            children: items.map((item) {
+              return Container(
+                width: double.infinity,
+                margin: const EdgeInsets.only(bottom: 10),
+                padding: const EdgeInsets.all(14),
+                decoration: BoxDecoration(
+                  color: palette.glassSurface,
+                  borderRadius: BorderRadius.circular(18),
+                  border: Border.all(color: palette.translucentBorder),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        Expanded(child: Text('Venta #${item.ventaId ?? '-'}', style: TextStyle(color: palette.textPrimary, fontWeight: FontWeight.w900))),
+                        Text(CurrencyUtils.format(item.total), style: TextStyle(color: palette.secondary, fontWeight: FontWeight.w900)),
+                      ],
+                    ),
+                    const SizedBox(height: 6),
+                    Text('Mesa ${item.mesaNumero ?? item.mesaId ?? '-'} - ${item.fecha ?? '-'}', style: TextStyle(color: palette.textSecondary, fontWeight: FontWeight.w700)),
+                    const SizedBox(height: 8),
+                    Wrap(
+                      spacing: 8,
+                      runSpacing: 8,
+                      children: [
+                        _SmallInfoPill(icon: Icons.receipt_rounded, text: 'Venta: ${CurrencyUtils.format(item.subtotalVenta)}'),
+                        _SmallInfoPill(icon: Icons.volunteer_activism_rounded, text: 'Propina: ${CurrencyUtils.format(item.propina)}'),
+                        _SmallInfoPill(icon: Icons.payments_rounded, text: 'Total: ${CurrencyUtils.format(item.total)}'),
+                      ],
+                    ),
+                  ],
+                ),
+              );
+            }).toList(growable: false),
+          );
+        }
+        return SingleChildScrollView(
+          scrollDirection: Axis.horizontal,
+          child: DataTable(
+            headingRowColor: WidgetStateProperty.all(palette.secondary.withOpacity(0.10)),
+            columns: const [
+              DataColumn(label: Text('Total')),
+              DataColumn(label: Text('Propina')),
+              DataColumn(label: Text('Venta sin propina')),
+              DataColumn(label: Text('Venta')),
+              DataColumn(label: Text('Mesa')),
+              DataColumn(label: Text('Fecha')),
+            ],
+            rows: items.map((item) => DataRow(cells: [
+              DataCell(Text(CurrencyUtils.format(item.total), style: TextStyle(color: palette.textPrimary, fontWeight: FontWeight.w800))),
+              DataCell(Text(CurrencyUtils.format(item.propina), style: TextStyle(color: palette.textPrimary, fontWeight: FontWeight.w800))),
+              DataCell(Text(CurrencyUtils.format(item.subtotalVenta), style: TextStyle(color: palette.textPrimary, fontWeight: FontWeight.w800))),
+              DataCell(Text('#${item.ventaId ?? '-'}')),
+              DataCell(Text('Mesa ${item.mesaNumero ?? item.mesaId ?? '-'}')),
+              DataCell(Text(item.fecha ?? '-')),
+            ])).toList(),
+          ),
+        );
+      },
+    );
+  }
 }
 
 class _Header extends ConsumerWidget {
   const _Header({required this.mode, required this.isCajero});
   final MeseroPageMode mode;
   final bool isCajero;
+
+  IconData _headerIcon(MeseroPageMode value) => switch (value) {
+        MeseroPageMode.mesas => Icons.table_bar_rounded,
+        MeseroPageMode.productos => Icons.inventory_2_rounded,
+        MeseroPageMode.resumen => Icons.dashboard_customize_rounded,
+        MeseroPageMode.historial => Icons.receipt_long_rounded,
+        MeseroPageMode.cierreCaja => Icons.point_of_sale_rounded,
+      };
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -2253,22 +3099,49 @@ class _Header extends ConsumerWidget {
       MeseroPageMode.productos => ('Productos disponibles', 'Busca productos por nombre, tipo de producto, marca, código o precio.'),
       MeseroPageMode.resumen => ('Resumen por mesa', 'Total pendiente de cada mesa y ventas abiertas de la sucursal.'),
       MeseroPageMode.historial => ('Historial de ventas', 'Ventas registradas por mesa con su descripción operativa.'),
+      MeseroPageMode.cierreCaja => ('Cierre de caja', 'Cuadra ventas del día, medios de pago, productos vendidos y ventas incluidas.'),
     };
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.all(24),
       decoration: BoxDecoration(
-        gradient: palette.mainGradient,
+        gradient: LinearGradient(
+          colors: palette.darkBackground
+              ? [palette.glassSurface, palette.secondary.withOpacity(0.18), palette.accent.withOpacity(0.10)]
+              : [palette.surface.withOpacity(0.84), palette.accent.withOpacity(0.20), palette.secondary.withOpacity(0.12)],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
         borderRadius: BorderRadius.circular(30),
-        border: Border.all(color: palette.glassBorder),
-        boxShadow: [BoxShadow(color: palette.secondary.withOpacity(0.24), blurRadius: 34, offset: const Offset(0, 18))],
+        border: Border.all(color: palette.translucentBorder.withOpacity(0.95)),
+        boxShadow: [
+          BoxShadow(color: palette.secondary.withOpacity(0.18), blurRadius: 30, offset: const Offset(0, 18)),
+          BoxShadow(color: palette.accent.withOpacity(0.14), blurRadius: 44, offset: const Offset(0, 0)),
+        ],
       ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
+      child: Row(
         children: [
-          Text(data.$1, style: Theme.of(context).textTheme.headlineSmall?.copyWith(color: palette.onTitle, fontWeight: FontWeight.w900)),
-          const SizedBox(height: 8),
-          Text(data.$2, style: TextStyle(color: palette.onTitle.withOpacity(0.76), fontWeight: FontWeight.w600)),
+          Container(
+            width: 56,
+            height: 56,
+            decoration: BoxDecoration(
+              gradient: palette.mainGradient,
+              borderRadius: BorderRadius.circular(18),
+              boxShadow: [BoxShadow(color: palette.accent.withOpacity(0.22), blurRadius: 18, offset: const Offset(0, 10))],
+            ),
+            child: Icon(_headerIcon(mode), color: palette.onTitle, size: 26),
+          ),
+          const SizedBox(width: 18),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(data.$1, style: Theme.of(context).textTheme.headlineSmall?.copyWith(color: palette.textPrimary, fontWeight: FontWeight.w900)),
+                const SizedBox(height: 8),
+                Text(data.$2, style: TextStyle(color: palette.textSecondary, fontWeight: FontWeight.w700)),
+              ],
+            ),
+          ),
         ],
       ),
     );
@@ -2376,16 +3249,17 @@ class _MesaCard extends ConsumerWidget {
         : abierta
             ? 'Continuar venta'
             : 'Abrir venta';
-    final accentColor = inactiva
+    final statusColor = inactiva
         ? palette.textSecondary
         : abierta
             ? palette.secondary
             : palette.accent;
+    final accentColor = statusColor;
     final softColor = inactiva
-        ? palette.mutedSurface
+        ? palette.textSecondary.withOpacity(0.16)
         : abierta
-            ? palette.secondary.withOpacity(0.14)
-            : palette.accent.withOpacity(0.14);
+            ? palette.secondary.withOpacity(0.16)
+            : palette.accent.withOpacity(0.16);
 
     return LayoutBuilder(
       builder: (context, constraints) {
@@ -2394,9 +3268,9 @@ class _MesaCard extends ConsumerWidget {
         final padding = veryTight ? 6.0 : (compact ? 7.0 : 10.0);
         final tableBoxSize = veryTight ? 30.0 : (compact ? 36.0 : 44.0);
         final radius = compact ? 20.0 : 24.0;
-        final showDescription = descripcion.isNotEmpty && !compact && !veryTight && constraints.maxHeight >= 170;
-        final showMetrics = !veryTight && constraints.maxHeight >= 172 && constraints.maxWidth >= 260;
-        final showActions = (!veryTight && constraints.maxHeight >= 164 && constraints.maxWidth >= 260) || constraints.maxWidth >= 335;
+        final showDescription = descripcion.isNotEmpty && !compact && !veryTight && constraints.maxHeight >= 186;
+        final showMetrics = !veryTight && constraints.maxHeight >= 178;
+        final showActions = !veryTight && constraints.maxHeight >= 180;
         final cuentas = mesa.numeroCuentas ?? 0;
         final pendiente = mesa.totalPendiente ?? 0;
 
@@ -2411,9 +3285,9 @@ class _MesaCard extends ConsumerWidget {
               child: Container(
                 clipBehavior: Clip.antiAlias,
                 decoration: BoxDecoration(
-                  gradient: palette.glassGradient,
+                  color: palette.surface.withOpacity(palette.darkBackground ? 0.88 : 0.96),
                   borderRadius: BorderRadius.circular(radius),
-                  border: Border.all(color: palette.translucentBorder),
+                  border: Border.all(color: Color.lerp(palette.translucentBorder, accentColor, abierta ? 0.42 : 0.26) ?? accentColor.withOpacity(0.24)),
                   boxShadow: [
                     BoxShadow(
                       color: accentColor.withOpacity(abierta ? 0.13 : 0.08),
@@ -2428,11 +3302,7 @@ class _MesaCard extends ConsumerWidget {
                     Container(
                       height: veryTight ? 4 : 5,
                       decoration: BoxDecoration(
-                        gradient: LinearGradient(
-                          colors: [accentColor.withOpacity(0.95), accentColor.withOpacity(0.35)],
-                          begin: Alignment.centerLeft,
-                          end: Alignment.centerRight,
-                        ),
+                        color: accentColor.withOpacity(palette.darkBackground ? 0.72 : 0.82),
                       ),
                     ),
                     Expanded(
@@ -2468,6 +3338,7 @@ class _MesaCard extends ConsumerWidget {
                                         style: Theme.of(context).textTheme.titleMedium?.copyWith(
                                               fontWeight: FontWeight.w900,
                                               fontSize: veryTight ? 13.5 : (compact ? 15 : 18),
+                                              color: palette.textPrimary,
                                             ),
                                       ),
                                       const SizedBox(height: 3),
@@ -2494,7 +3365,7 @@ class _MesaCard extends ConsumerWidget {
                                           tooltip: 'Eliminar o inactivar mesa',
                                           icon: Icons.delete_outline_rounded,
                                           onPressed: onDelete ?? onEdit,
-                                          color: Colors.redAccent,
+                                          color: AppColors.danger,
                                           compact: compact,
                                         ),
                                     ],
@@ -2541,9 +3412,9 @@ class _MesaCard extends ConsumerWidget {
                               width: double.infinity,
                               padding: EdgeInsets.symmetric(horizontal: compact ? 8 : 10, vertical: veryTight ? 5 : (compact ? 6 : 7)),
                               decoration: BoxDecoration(
-                                color: inactiva ? palette.mutedSurface : accentColor.withOpacity(0.11),
+                                color: inactiva ? palette.glassSurface : accentColor.withOpacity(palette.darkBackground ? 0.18 : 0.13),
                                 borderRadius: BorderRadius.circular(14),
-                                border: Border.all(color: accentColor.withOpacity(0.16)),
+                                border: Border.all(color: Color.lerp(palette.translucentBorder, accentColor, 0.35) ?? accentColor.withOpacity(0.22)),
                               ),
                               child: Row(
                                 mainAxisAlignment: MainAxisAlignment.center,
@@ -2664,11 +3535,7 @@ class _MesaNumberPhotoBadge extends StatelessWidget {
             )
           : DecoratedBox(
               decoration: BoxDecoration(
-                gradient: LinearGradient(
-                  colors: [backgroundColor, backgroundColor.withOpacity(0.48)],
-                  begin: Alignment.topLeft,
-                  end: Alignment.bottomRight,
-                ),
+                color: backgroundColor,
               ),
               child: FittedBox(
                 fit: BoxFit.scaleDown,
@@ -2752,9 +3619,11 @@ class _MesaCardMetricBox extends ConsumerWidget {
       constraints: BoxConstraints(minHeight: compact ? 36 : 46),
       padding: EdgeInsets.symmetric(horizontal: compact ? 6 : 9, vertical: compact ? 5 : 8),
       decoration: BoxDecoration(
-        color: emphasize ? palette.secondary.withOpacity(0.10) : palette.mutedSurface,
+        color: emphasize
+            ? palette.secondary.withOpacity(palette.darkBackground ? 0.16 : 0.10)
+            : palette.background.withOpacity(palette.darkBackground ? 0.42 : 0.68),
         borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: emphasize ? palette.secondary.withOpacity(0.24) : palette.translucentBorder),
+        border: Border.all(color: emphasize ? Color.lerp(palette.translucentBorder, palette.secondary, 0.42)! : palette.translucentBorder),
       ),
       child: Row(
         children: [
@@ -2799,7 +3668,11 @@ class _MiniMesaMetric extends ConsumerWidget {
     final palette = ref.watch(selectedAppPaletteProvider);
     return Container(
         padding: EdgeInsets.symmetric(horizontal: compact ? 7 : 9, vertical: compact ? 4 : 6),
-        decoration: BoxDecoration(color: palette.mutedSurface, borderRadius: BorderRadius.circular(999), border: Border.all(color: palette.translucentBorder)),
+        decoration: BoxDecoration(
+          color: palette.glassSurface,
+          borderRadius: BorderRadius.circular(999),
+          border: Border.all(color: palette.translucentBorder),
+        ),
         child: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
@@ -2855,7 +3728,7 @@ class _ResumenMesaTile extends ConsumerWidget {
         ? palette.textSecondary
         : abierta
             ? palette.secondary
-            : AppColors.success;
+            : palette.accent;
 
     return Material(
       color: Colors.transparent,
@@ -2865,9 +3738,9 @@ class _ResumenMesaTile extends ConsumerWidget {
         child: Ink(
           padding: const EdgeInsets.all(16),
           decoration: BoxDecoration(
-            color: palette.surface.withOpacity(palette.darkBackground ? 0.88 : 0.94),
+            color: palette.surface.withOpacity(palette.darkBackground ? 0.88 : 0.96),
             borderRadius: BorderRadius.circular(24),
-            border: Border.all(color: accent.withOpacity(0.22)),
+            border: Border.all(color: Color.lerp(palette.translucentBorder, accent, 0.30) ?? accent.withOpacity(0.22)),
             boxShadow: [BoxShadow(color: palette.cardShadow, blurRadius: 22, offset: const Offset(0, 12))],
           ),
           child: Row(
@@ -2993,16 +3866,16 @@ class _SummaryBanner extends ConsumerWidget {
                     width: 52,
                     height: 52,
                     decoration: BoxDecoration(color: Colors.white.withOpacity(0.16), borderRadius: BorderRadius.circular(20), border: Border.all(color: Colors.white24)),
-                    child: Icon(Icons.dashboard_customize_rounded, color: palette.onTitle),
+                    child: const Icon(Icons.dashboard_customize_rounded, color: Colors.white),
                   ),
                   const SizedBox(width: 14),
-                  Expanded(
+                  const Expanded(
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Text('Resumen vendedor', style: TextStyle(color: palette.onTitle, fontWeight: FontWeight.w900, fontSize: 21)),
-                        const SizedBox(height: 4),
-                        Text('Mesas, productos y saldos visibles para operar ventas.', style: TextStyle(color: palette.onTitle.withOpacity(0.76), fontWeight: FontWeight.w700)),
+                        Text('Resumen vendedor', style: TextStyle(color: Colors.white, fontWeight: FontWeight.w900, fontSize: 21)),
+                        SizedBox(height: 4),
+                        Text('Mesas, productos y saldos visibles para operar ventas.', style: TextStyle(color: Colors.white70, fontWeight: FontWeight.w700)),
                       ],
                     ),
                   ),
@@ -3042,7 +3915,7 @@ class _SummaryBanner extends ConsumerWidget {
   }
 }
 
-class _ResumenBannerMetric extends ConsumerWidget {
+class _ResumenBannerMetric extends StatelessWidget {
   const _ResumenBannerMetric({required this.icon, required this.label, required this.value});
 
   final IconData icon;
@@ -3050,9 +3923,7 @@ class _ResumenBannerMetric extends ConsumerWidget {
   final String value;
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final palette = ref.watch(selectedAppPaletteProvider);
-    return Container(
+  Widget build(BuildContext context) => Container(
         width: 198,
         padding: const EdgeInsets.all(14),
         decoration: BoxDecoration(
@@ -3062,46 +3933,42 @@ class _ResumenBannerMetric extends ConsumerWidget {
         ),
         child: Row(
           children: [
-            Icon(icon, color: palette.onTitle, size: 22),
+            Icon(icon, color: Colors.white, size: 22),
             const SizedBox(width: 10),
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(label, maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(color: palette.onTitle.withOpacity(0.72), fontSize: 11, fontWeight: FontWeight.w800)),
+                  Text(label, maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(color: Colors.white.withOpacity(0.72), fontSize: 11, fontWeight: FontWeight.w800)),
                   const SizedBox(height: 3),
-                  Text(value, maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(color: palette.onTitle, fontWeight: FontWeight.w900, fontSize: 15)),
+                  Text(value, maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w900, fontSize: 15)),
                 ],
               ),
             ),
           ],
         ),
       );
-  }
 }
 
-class _ResumenFeaturePill extends ConsumerWidget {
+class _ResumenFeaturePill extends StatelessWidget {
   const _ResumenFeaturePill({required this.icon, required this.text});
 
   final IconData icon;
   final String text;
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final palette = ref.watch(selectedAppPaletteProvider);
-    return Container(
+  Widget build(BuildContext context) => Container(
         padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
         decoration: BoxDecoration(color: Colors.white.withOpacity(0.12), borderRadius: BorderRadius.circular(999), border: Border.all(color: Colors.white.withOpacity(0.18))),
         child: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(icon, size: 15, color: palette.onTitle),
+            Icon(icon, size: 15, color: Colors.white),
             const SizedBox(width: 6),
-            Text(text, style: TextStyle(color: palette.onTitle, fontWeight: FontWeight.w800, fontSize: 12)),
+            Text(text, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w800, fontSize: 12)),
           ],
         ),
       );
-  }
 }
 
 class _ResumenMiniMetric extends StatelessWidget {
@@ -3178,13 +4045,9 @@ class _VentaInfoPanel extends ConsumerWidget {
       width: double.infinity,
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
-        gradient: LinearGradient(
-          colors: [palette.secondary.withOpacity(0.13), palette.accent.withOpacity(0.10), palette.glassSurface],
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-        ),
+        color: palette.surface.withOpacity(palette.darkBackground ? 0.88 : 0.96),
         borderRadius: BorderRadius.circular(28),
-        border: Border.all(color: palette.translucentBorder),
+        border: Border.all(color: AppColors.border),
       ),
       child: LayoutBuilder(
         builder: (context, constraints) {
@@ -3255,9 +4118,9 @@ class _SmallInfoPill extends ConsumerWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 9),
       decoration: BoxDecoration(
-        color: palette.surface.withOpacity(palette.darkBackground ? 0.82 : 0.90),
+        color: palette.background.withOpacity(palette.darkBackground ? 0.44 : 0.72),
         borderRadius: BorderRadius.circular(999),
-        border: Border.all(color: palette.cardBorder),
+        border: Border.all(color: palette.translucentBorder),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
@@ -3283,7 +4146,7 @@ class _CuentaSelectorCard extends ConsumerWidget {
     final palette = ref.watch(selectedAppPaletteProvider);
     final descripcion = (cuenta.descripcion ?? '').trim();
     return Material(
-      color: selected ? palette.secondary.withOpacity(0.10) : palette.mutedSurface,
+      color: selected ? palette.secondary.withOpacity(0.12) : palette.background.withOpacity(palette.darkBackground ? 0.48 : 0.70),
       borderRadius: BorderRadius.circular(20),
       child: InkWell(
         borderRadius: BorderRadius.circular(20),
@@ -3293,7 +4156,7 @@ class _CuentaSelectorCard extends ConsumerWidget {
           padding: const EdgeInsets.all(16),
           decoration: BoxDecoration(
             borderRadius: BorderRadius.circular(20),
-            border: Border.all(color: selected ? palette.secondary : palette.translucentBorder, width: selected ? 2 : 1),
+            border: Border.all(color: selected ? palette.secondary : palette.cardBorder, width: selected ? 2 : 1),
           ),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -3341,7 +4204,7 @@ class _CuentaSelectorCard extends ConsumerWidget {
 }
 
 
-class _CuentasTabMenu extends ConsumerWidget {
+class _CuentasTabMenu extends StatelessWidget {
   const _CuentasTabMenu({
     required this.cuentas,
     required this.selectedCuentaId,
@@ -3355,8 +4218,7 @@ class _CuentasTabMenu extends ConsumerWidget {
   final ValueChanged<MeseroCuentaModel>? onDeleteEmptyAccount;
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final palette = ref.watch(selectedAppPaletteProvider);
+  Widget build(BuildContext context) {
     return LayoutBuilder(
       builder: (context, constraints) {
         final compact = constraints.maxWidth < 620;
@@ -3369,12 +4231,12 @@ class _CuentasTabMenu extends ConsumerWidget {
         final columns = cuentas.isEmpty ? 1 : (cuentas.length < maxColumns ? cuentas.length : maxColumns);
 
         final barDecoration = BoxDecoration(
-          gradient: palette.glassGradient,
+          color: Colors.white,
           borderRadius: BorderRadius.circular(compact ? 22 : 24),
-          border: Border.all(color: palette.translucentBorder),
+          border: Border.all(color: AppColors.border),
           boxShadow: [
             BoxShadow(
-              color: palette.cardShadow,
+              color: Colors.black.withOpacity(0.045),
               blurRadius: 22,
               offset: const Offset(0, 10),
             ),
@@ -3424,7 +4286,7 @@ class _CuentasTabMenu extends ConsumerWidget {
   }
 }
 
-class _CuentaSelectorTab extends ConsumerWidget {
+class _CuentaSelectorTab extends StatelessWidget {
   const _CuentaSelectorTab({
     required this.cuenta,
     required this.selected,
@@ -3442,13 +4304,12 @@ class _CuentaSelectorTab extends ConsumerWidget {
   final bool compact;
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final palette = ref.watch(selectedAppPaletteProvider);
+  Widget build(BuildContext context) {
     final saldo = cuenta.saldoPendiente ?? 0;
     final pagada = cuenta.pagada == true;
-    final colorActivo = palette.secondary;
-    final colorInactivo = palette.textSecondary;
-    final colorEstado = pagada ? palette.accent : palette.secondary;
+    final colorActivo = AppColors.secondaryDark;
+    final colorInactivo = AppColors.textSecondary;
+    final colorEstado = pagada ? AppColors.success : AppColors.secondaryDark;
     final icon = pagada ? Icons.check_circle_rounded : Icons.receipt_long_rounded;
     final estado = pagada ? 'Pagada' : CurrencyUtils.format(saldo);
 
@@ -3505,7 +4366,7 @@ class _CuentaSelectorTab extends ConsumerWidget {
                       overflow: TextOverflow.ellipsis,
                       textAlign: TextAlign.center,
                       style: TextStyle(
-                        color: selected ? colorActivo : palette.textPrimary,
+                        color: selected ? colorActivo : AppColors.textPrimary,
                         fontWeight: FontWeight.w900,
                         fontSize: compact ? 11 : 13,
                       ),
@@ -3538,11 +4399,11 @@ class _CuentaSelectorTab extends ConsumerWidget {
                         width: compact ? 24 : 26,
                         height: compact ? 24 : 26,
                         decoration: BoxDecoration(
-                          color: Colors.redAccent.withOpacity(0.10),
+                          color: AppColors.danger.withOpacity(0.10),
                           borderRadius: BorderRadius.circular(999),
-                          border: Border.all(color: Colors.redAccent.withOpacity(0.24)),
+                          border: Border.all(color: AppColors.danger.withOpacity(0.24)),
                         ),
-                        child: Icon(Icons.close_rounded, size: compact ? 15 : 16, color: Colors.redAccent),
+                        child: Icon(Icons.close_rounded, size: compact ? 15 : 16, color: AppColors.danger),
                       ),
                     ),
                   ),
@@ -3564,7 +4425,11 @@ class _TotalPill extends ConsumerWidget {
     final palette = ref.watch(selectedAppPaletteProvider);
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-      decoration: BoxDecoration(color: palette.secondary.withOpacity(0.10), borderRadius: BorderRadius.circular(999), border: Border.all(color: palette.secondary.withOpacity(0.18))),
+      decoration: BoxDecoration(
+        color: palette.secondary.withOpacity(palette.darkBackground ? 0.20 : 0.12),
+        borderRadius: BorderRadius.circular(999),
+        border: Border.all(color: palette.secondary.withOpacity(0.22)),
+      ),
       child: Text(CurrencyUtils.format(total), style: TextStyle(color: palette.secondary, fontWeight: FontWeight.w900)),
     );
   }
@@ -3596,9 +4461,9 @@ class _CuentaDetalle extends ConsumerWidget {
       width: double.infinity,
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        gradient: palette.glassGradient,
+        color: palette.surface.withOpacity(palette.darkBackground ? 0.86 : 0.94),
         borderRadius: BorderRadius.circular(24),
-        border: Border.all(color: palette.translucentBorder),
+        border: Border.all(color: palette.cardBorder),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -3689,10 +4554,13 @@ class _CuentaDetalleHeader extends ConsumerWidget {
       width: double.infinity,
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        gradient: palette.glassGradient,
+        gradient: LinearGradient(
+          colors: [palette.primary.withOpacity(0.18), palette.secondary.withOpacity(0.12), palette.surface.withOpacity(0.78)],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
         borderRadius: BorderRadius.circular(22),
-        border: Border.all(color: palette.translucentBorder),
-        boxShadow: [BoxShadow(color: palette.cardShadow, blurRadius: 22, offset: const Offset(0, 10))],
+        border: Border.all(color: AppColors.border),
       ),
       child: LayoutBuilder(
         builder: (context, constraints) {
@@ -3702,11 +4570,7 @@ class _CuentaDetalleHeader extends ConsumerWidget {
               Container(
                 width: 42,
                 height: 42,
-                decoration: BoxDecoration(
-                  color: palette.secondary.withOpacity(0.12),
-                  borderRadius: BorderRadius.circular(14),
-                  border: Border.all(color: palette.cardBorder),
-                ),
+                decoration: BoxDecoration(color: palette.surface.withOpacity(0.88), borderRadius: BorderRadius.circular(14), border: Border.all(color: palette.cardBorder)),
                 child: Icon(Icons.person_pin_circle_rounded, color: palette.secondary),
               ),
               const SizedBox(width: 12),
@@ -3716,7 +4580,7 @@ class _CuentaDetalleHeader extends ConsumerWidget {
                   children: [
                     Text(
                       'Cuenta seleccionada',
-                      style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w900, color: palette.textPrimary),
+                      style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w900),
                     ),
                     const SizedBox(height: 2),
                     Text(
@@ -3733,11 +4597,7 @@ class _CuentaDetalleHeader extends ConsumerWidget {
 
           final totalBox = Container(
             padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-            decoration: BoxDecoration(
-              color: palette.surface.withOpacity(palette.darkBackground ? 0.80 : 0.92),
-              borderRadius: BorderRadius.circular(16),
-              border: Border.all(color: palette.cardBorder),
-            ),
+            decoration: BoxDecoration(color: palette.surface.withOpacity(0.90), borderRadius: BorderRadius.circular(16), border: Border.all(color: palette.cardBorder)),
             child: Column(
               crossAxisAlignment: compact ? CrossAxisAlignment.start : CrossAxisAlignment.end,
               children: [
@@ -3759,7 +4619,7 @@ class _CuentaDetalleHeader extends ConsumerWidget {
   }
 }
 
-class _CuentaSectionCard extends ConsumerWidget {
+class _CuentaSectionCard extends StatelessWidget {
   const _CuentaSectionCard({
     required this.icon,
     required this.title,
@@ -3773,16 +4633,15 @@ class _CuentaSectionCard extends ConsumerWidget {
   final Widget child;
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final palette = ref.watch(selectedAppPaletteProvider);
+  Widget build(BuildContext context) {
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
-        gradient: palette.glassGradient,
+        color: Colors.white,
         borderRadius: BorderRadius.circular(22),
-        border: Border.all(color: palette.translucentBorder),
-        boxShadow: [BoxShadow(color: palette.cardShadow, blurRadius: 18, offset: const Offset(0, 8))],
+        border: Border.all(color: AppColors.border),
+        boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.025), blurRadius: 16, offset: const Offset(0, 8))],
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -3793,24 +4652,24 @@ class _CuentaSectionCard extends ConsumerWidget {
               Container(
                 width: 36,
                 height: 36,
-                decoration: BoxDecoration(color: palette.secondary.withOpacity(0.12), borderRadius: BorderRadius.circular(13)),
-                child: Icon(icon, color: palette.secondary, size: 20),
+                decoration: BoxDecoration(color: AppColors.secondary.withOpacity(0.10), borderRadius: BorderRadius.circular(13)),
+                child: Icon(icon, color: AppColors.secondaryDark, size: 20),
               ),
               const SizedBox(width: 10),
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(title, style: Theme.of(context).textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w900, color: palette.textPrimary)),
+                    Text(title, style: Theme.of(context).textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w900)),
                     const SizedBox(height: 2),
-                    Text(description, style: TextStyle(color: palette.textSecondary, fontSize: 12, fontWeight: FontWeight.w600)),
+                    Text(description, style: const TextStyle(color: AppColors.textSecondary, fontSize: 12, fontWeight: FontWeight.w600)),
                   ],
                 ),
               ),
             ],
           ),
           const SizedBox(height: 12),
-          Divider(height: 1, color: palette.cardBorder),
+          const Divider(height: 1),
           const SizedBox(height: 12),
           child,
         ],
@@ -3831,7 +4690,7 @@ class _CuentaEmptySection extends ConsumerWidget {
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 16),
-      decoration: BoxDecoration(color: palette.mutedSurface, borderRadius: BorderRadius.circular(16), border: Border.all(color: palette.cardBorder)),
+      decoration: BoxDecoration(color: palette.background.withOpacity(palette.darkBackground ? 0.50 : 0.68), borderRadius: BorderRadius.circular(16), border: Border.all(color: palette.cardBorder)),
       child: Row(
         children: [
           Icon(icon, color: palette.textSecondary),
@@ -3856,7 +4715,7 @@ class _CuentaPagoRegistradoTile extends ConsumerWidget {
       margin: const EdgeInsets.only(bottom: 10),
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
-        color: palette.mutedSurface,
+        color: palette.background.withOpacity(palette.darkBackground ? 0.50 : 0.68),
         borderRadius: BorderRadius.circular(16),
         border: Border.all(color: palette.cardBorder),
       ),
@@ -3866,8 +4725,8 @@ class _CuentaPagoRegistradoTile extends ConsumerWidget {
           Container(
             width: 40,
             height: 40,
-            decoration: BoxDecoration(color: palette.accent.withOpacity(0.16), borderRadius: BorderRadius.circular(14)),
-            child: Icon(Icons.payments_rounded, color: palette.accent, size: 22),
+            decoration: BoxDecoration(color: AppColors.successSoft.withOpacity(0.85), borderRadius: BorderRadius.circular(14)),
+            child: const Icon(Icons.payments_rounded, color: AppColors.success, size: 22),
           ),
           const SizedBox(width: 12),
           Expanded(
@@ -3891,12 +4750,13 @@ class _CuentaPagoRegistradoTile extends ConsumerWidget {
             ),
           ),
           const SizedBox(width: 12),
-          Text(CurrencyUtils.format(pago.valor), style: TextStyle(fontWeight: FontWeight.w900, fontSize: 15, color: palette.textPrimary)),
+          Text(CurrencyUtils.format(pago.valor), style: TextStyle(fontWeight: FontWeight.w900, fontSize: 15, color: palette.secondary)),
         ],
       ),
     );
   }
 }
+
 
 class _CuentaProductosTabla extends ConsumerWidget {
   const _CuentaProductosTabla({
@@ -4011,7 +4871,7 @@ class _CuentaProductosTabla extends ConsumerWidget {
                   child: Icon(
                     pagado ? Icons.lock_rounded : Icons.lock_open_rounded,
                     size: 18,
-                    color: pagado ? palette.textSecondary : palette.secondary,
+                    color: pagado ? AppColors.textSecondary : AppColors.secondaryDark,
                   ),
                 ),
                 const SizedBox(width: 8),
@@ -4020,7 +4880,7 @@ class _CuentaProductosTabla extends ConsumerWidget {
                     producto.productoNombre ?? 'Producto ${producto.productoId ?? '-'}',
                     maxLines: 2,
                     overflow: TextOverflow.ellipsis,
-                    style: TextStyle(fontWeight: FontWeight.w800, color: palette.textPrimary),
+                    style: const TextStyle(fontWeight: FontWeight.w800),
                   ),
                 ),
               ],
@@ -4071,15 +4931,14 @@ class _CuentaProductosTabla extends ConsumerWidget {
   }
 }
 
-class _CuentaTotalesBajoTabla extends ConsumerWidget {
+class _CuentaTotalesBajoTabla extends StatelessWidget {
   const _CuentaTotalesBajoTabla({required this.cuenta, this.compact = false});
 
   final MeseroCuentaModel cuenta;
   final bool compact;
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final palette = ref.watch(selectedAppPaletteProvider);
+  Widget build(BuildContext context) {
     final saldo = cuenta.saldoPendiente ?? 0;
     final items = [
       _CuentaResumenDato(
@@ -4117,9 +4976,9 @@ class _CuentaTotalesBajoTabla extends ConsumerWidget {
       margin: const EdgeInsets.only(top: 12),
       padding: EdgeInsets.all(compact ? 12 : 14),
       decoration: BoxDecoration(
-        color: palette.mutedSurface,
+        color: AppColors.surfaceAlt,
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: palette.cardBorder),
+        border: Border.all(color: AppColors.border),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -4130,16 +4989,16 @@ class _CuentaTotalesBajoTabla extends ConsumerWidget {
                 width: 32,
                 height: 32,
                 decoration: BoxDecoration(
-                  color: palette.secondary.withOpacity(0.12),
+                  color: AppColors.secondary.withOpacity(0.10),
                   borderRadius: BorderRadius.circular(12),
                 ),
-                child: Icon(Icons.summarize_rounded, color: palette.secondary, size: 18),
+                child: const Icon(Icons.summarize_rounded, color: AppColors.secondaryDark, size: 18),
               ),
               const SizedBox(width: 10),
               Expanded(
                 child: Text(
                   'Totales de la cuenta',
-                  style: Theme.of(context).textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w900, color: palette.textPrimary),
+                  style: Theme.of(context).textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w900),
                 ),
               ),
             ],
@@ -4171,7 +5030,7 @@ class _CuentaTotalesBajoTabla extends ConsumerWidget {
   }
 }
 
-class _CuentaResumenDato extends ConsumerWidget {
+class _CuentaResumenDato extends StatelessWidget {
   const _CuentaResumenDato({
     required this.icon,
     required this.label,
@@ -4189,26 +5048,25 @@ class _CuentaResumenDato extends ConsumerWidget {
   final bool danger;
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final palette = ref.watch(selectedAppPaletteProvider);
+  Widget build(BuildContext context) {
     final Color accentColor = danger
         ? AppColors.danger
         : strong || highlighted
-            ? palette.secondary
-            : palette.textSecondary;
+            ? AppColors.secondaryDark
+            : AppColors.textSecondary;
 
     return Container(
       constraints: const BoxConstraints(minHeight: 72),
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
       decoration: BoxDecoration(
-        color: palette.surface.withOpacity(palette.darkBackground ? 0.80 : 0.92),
+        color: Colors.white,
         borderRadius: BorderRadius.circular(14),
         border: Border.all(
           color: danger
               ? AppColors.danger.withOpacity(0.24)
               : highlighted || strong
-                  ? palette.secondary.withOpacity(0.28)
-                  : palette.cardBorder,
+                  ? AppColors.secondary.withOpacity(0.24)
+                  : AppColors.border,
         ),
       ),
       child: Row(
@@ -4218,7 +5076,7 @@ class _CuentaResumenDato extends ConsumerWidget {
             width: 28,
             height: 28,
             decoration: BoxDecoration(
-              color: accentColor.withOpacity(0.12),
+              color: accentColor.withOpacity(0.10),
               borderRadius: BorderRadius.circular(10),
             ),
             child: Icon(icon, size: 16, color: accentColor),
@@ -4233,7 +5091,7 @@ class _CuentaResumenDato extends ConsumerWidget {
                   label,
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
-                  style: TextStyle(fontSize: 11, fontWeight: FontWeight.w800, color: palette.textSecondary),
+                  style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w800, color: AppColors.textSecondary),
                 ),
                 const SizedBox(height: 4),
                 Text(
@@ -4243,7 +5101,7 @@ class _CuentaResumenDato extends ConsumerWidget {
                   style: TextStyle(
                     fontSize: strong ? 15 : 14,
                     fontWeight: FontWeight.w900,
-                    color: danger ? AppColors.danger : strong || highlighted ? palette.secondary : palette.textPrimary,
+                    color: danger ? AppColors.danger : strong || highlighted ? AppColors.secondaryDark : AppColors.textPrimary,
                   ),
                 ),
               ],
@@ -4287,7 +5145,7 @@ class _CuentaProductoMobileRow extends StatelessWidget {
               Icon(
                 pagado ? Icons.lock_rounded : Icons.lock_open_rounded,
                 size: 19,
-                color: pagado ? palette.textSecondary : palette.secondary,
+                color: pagado ? AppColors.textSecondary : AppColors.secondaryDark,
               ),
               const SizedBox(width: 8),
               Expanded(
@@ -4295,7 +5153,7 @@ class _CuentaProductoMobileRow extends StatelessWidget {
                   producto.productoNombre ?? 'Producto ${producto.productoId ?? '-'}',
                   maxLines: 3,
                   overflow: TextOverflow.ellipsis,
-                  style: TextStyle(fontWeight: FontWeight.w900, color: palette.textPrimary),
+                  style: const TextStyle(fontWeight: FontWeight.w900),
                 ),
               ),
               const SizedBox(width: 8),
@@ -4315,26 +5173,33 @@ class _CuentaProductoMobileRow extends StatelessWidget {
           const SizedBox(height: 10),
           LayoutBuilder(
             builder: (context, constraints) {
-              final stacked = constraints.maxWidth < 260;
-              final mover = OutlinedButton.icon(
+              Widget moveButton = OutlinedButton.icon(
                 onPressed: puedeMover ? () => onMoverProducto!(producto) : null,
-                icon: const Icon(Icons.swap_horiz_rounded, size: 18),
+                icon: const Icon(Icons.swap_horiz_rounded, size: 17),
                 label: const Text('Mover'),
-                style: OutlinedButton.styleFrom(foregroundColor: palette.secondary, side: BorderSide(color: palette.secondary.withOpacity(0.35))),
               );
-              final eliminar = OutlinedButton.icon(
+              Widget deleteButton = OutlinedButton.icon(
                 onPressed: puedeEliminar ? () => onEliminarProducto!(producto) : null,
-                icon: const Icon(Icons.delete_outline_rounded, size: 18),
+                icon: const Icon(Icons.delete_outline_rounded, size: 17),
                 label: const Text('Eliminar'),
-                style: OutlinedButton.styleFrom(foregroundColor: palette.accent, side: BorderSide(color: palette.accent.withOpacity(0.35))),
               );
-              if (stacked) {
+              if (constraints.maxWidth < 230) {
                 return Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [mover, const SizedBox(height: 8), eliminar],
+                  children: [
+                    moveButton,
+                    const SizedBox(height: 8),
+                    deleteButton,
+                  ],
                 );
               }
-              return Wrap(spacing: 8, runSpacing: 8, children: [mover, eliminar]);
+              return Row(
+                children: [
+                  Expanded(child: moveButton),
+                  const SizedBox(width: 8),
+                  Expanded(child: deleteButton),
+                ],
+              );
             },
           ),
         ],
@@ -4343,28 +5208,26 @@ class _CuentaProductoMobileRow extends StatelessWidget {
   }
 }
 
-class _EstadoPagoChip extends ConsumerWidget {
+class _EstadoPagoChip extends StatelessWidget {
   const _EstadoPagoChip({required this.pagado});
 
   final bool pagado;
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final palette = ref.watch(selectedAppPaletteProvider);
-    final color = pagado ? palette.accent : palette.secondary;
+  Widget build(BuildContext context) {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 5),
       decoration: BoxDecoration(
-        color: color.withOpacity(0.14),
+        color: pagado ? AppColors.success.withOpacity(0.12) : AppColors.warning.withOpacity(0.14),
         borderRadius: BorderRadius.circular(999),
-        border: Border.all(color: color.withOpacity(0.32)),
+        border: Border.all(color: pagado ? AppColors.success.withOpacity(0.28) : AppColors.warning.withOpacity(0.32)),
       ),
       child: Text(
         pagado ? 'Pagado' : 'Pendiente',
         style: TextStyle(
           fontSize: 11,
           fontWeight: FontWeight.w900,
-          color: color,
+          color: pagado ? AppColors.success : AppColors.warning,
         ),
       ),
     );
@@ -4411,14 +5274,14 @@ class _CuentaProductoValueCell extends ConsumerWidget {
         style: TextStyle(
           fontSize: 13,
           fontWeight: strong ? FontWeight.w900 : FontWeight.w700,
-          color: strong ? palette.secondary : palette.textSecondary,
+          color: strong ? palette.textPrimary : palette.textSecondary,
         ),
       ),
     );
   }
 }
 
-class _CuentaDetalleAccionesPago extends ConsumerWidget {
+class _CuentaDetalleAccionesPago extends StatelessWidget {
   const _CuentaDetalleAccionesPago({
     required this.cuenta,
     this.onPagarCuenta,
@@ -4432,15 +5295,14 @@ class _CuentaDetalleAccionesPago extends ConsumerWidget {
   final VoidCallback? onLimpiarVentaSinConsumos;
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final palette = ref.watch(selectedAppPaletteProvider);
+  Widget build(BuildContext context) {
     final saldo = cuenta.saldoPendiente ?? 0;
     final acciones = <Widget>[
       _CuentaActionButton(
         icon: Icons.payments_rounded,
         title: 'Pagar cuenta',
         subtitle: saldo > 0.009 ? CurrencyUtils.format(saldo) : 'Nuevo pago',
-        colors: [palette.secondary, palette.accent],
+        colors: const [AppColors.secondaryDark, AppColors.secondary],
         onTap: onPagarCuenta,
         compact: true,
       ),
@@ -4448,7 +5310,7 @@ class _CuentaDetalleAccionesPago extends ConsumerWidget {
         icon: Icons.check_circle_rounded,
         title: 'Finalizar venta',
         subtitle: onFinalizarVenta == null ? 'Pendiente' : 'Cerrar venta',
-        colors: [palette.accent, palette.secondary],
+        colors: const [AppColors.success, AppColors.primary],
         onTap: onFinalizarVenta,
         compact: true,
       ),
@@ -4457,7 +5319,7 @@ class _CuentaDetalleAccionesPago extends ConsumerWidget {
           icon: Icons.event_available_rounded,
           title: 'Liberar mesa',
           subtitle: 'Sin consumos',
-          colors: [palette.primary, palette.secondary],
+          colors: const [AppColors.warning, AppColors.danger],
           onTap: onLimpiarVentaSinConsumos,
           compact: true,
         ),
@@ -4684,7 +5546,7 @@ class _ProductoCatalogoTableRow extends ConsumerWidget {
                         producto.nombre ?? 'Producto ${producto.prodId ?? '-'}',
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
-                        style: TextStyle(fontWeight: FontWeight.w900, color: palette.textPrimary),
+                        style: const TextStyle(fontWeight: FontWeight.w900),
                       ),
                       if (descripcion.isNotEmpty) ...[
                         const SizedBox(height: 3),
@@ -4743,7 +5605,7 @@ class _ProductoCatalogoMobileRow extends ConsumerWidget {
                   producto.nombre ?? 'Producto ${producto.prodId ?? '-'}',
                   maxLines: 2,
                   overflow: TextOverflow.ellipsis,
-                  style: TextStyle(fontWeight: FontWeight.w900, color: palette.textPrimary),
+                  style: const TextStyle(fontWeight: FontWeight.w900),
                 ),
                 if (descripcion.isNotEmpty) ...[
                   const SizedBox(height: 4),
@@ -4774,7 +5636,7 @@ class _ProductoCatalogoMobileRow extends ConsumerWidget {
   }
 }
 
-class _ProductoCard extends StatelessWidget {
+class _ProductoCard extends ConsumerWidget {
   const _ProductoCard({required this.producto, this.actionLabel, this.onAction});
 
   final MeseroProductoModel producto;
@@ -4782,7 +5644,8 @@ class _ProductoCard extends StatelessWidget {
   final VoidCallback? onAction;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    final palette = ref.watch(selectedAppPaletteProvider);
     final tipo = (producto.tipoProductoNombre ?? '').trim().isNotEmpty
         ? producto.tipoProductoNombre!.trim()
         : (producto.tipoProductoId == null ? 'Sin tipo' : 'Tipo ${producto.tipoProductoId}');
@@ -4814,12 +5677,12 @@ class _ProductoCard extends StatelessWidget {
               producto.descripcion ?? '',
               maxLines: 2,
               overflow: TextOverflow.ellipsis,
-              style: const TextStyle(color: AppColors.textSecondary),
+              style: TextStyle(color: palette.textSecondary),
             ),
             const SizedBox(height: 12),
             Row(
               children: [
-                Expanded(child: Text(CurrencyUtils.format(producto.precioVenta), style: const TextStyle(fontWeight: FontWeight.w900))),
+                Expanded(child: Text(CurrencyUtils.format(producto.precioVenta), style: TextStyle(fontWeight: FontWeight.w900, color: palette.secondary))),
                 if (actionLabel != null)
                   FilledButton.icon(
                     onPressed: onAction,
@@ -4901,7 +5764,7 @@ class _IrACuentaDespuesAgregarSwitch extends StatelessWidget {
   }
 }
 
-class _AgregarProductosList extends StatelessWidget {
+class _AgregarProductosList extends ConsumerWidget {
   const _AgregarProductosList({
     required this.productos,
     required this.processing,
@@ -4917,13 +5780,15 @@ class _AgregarProductosList extends StatelessWidget {
   final ValueChanged<MeseroProductoModel>? onAgregar;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    final palette = ref.watch(selectedAppPaletteProvider);
     return Container(
       width: double.infinity,
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: palette.surface.withOpacity(palette.darkBackground ? 0.90 : 0.96),
         borderRadius: BorderRadius.circular(18),
-        border: Border.all(color: AppColors.border),
+        border: Border.all(color: palette.cardBorder),
+        boxShadow: [BoxShadow(color: palette.cardShadow, blurRadius: 18, offset: const Offset(0, 8))],
       ),
       child: ClipRRect(
         borderRadius: BorderRadius.circular(18),
@@ -4952,7 +5817,7 @@ class _AgregarProductosList extends StatelessWidget {
                 width: tableWidth,
                 child: Column(
                   children: [
-                    _buildHeader(),
+                    _buildHeader(palette),
                     ...productos.asMap().entries.map((entry) {
                       final producto = entry.value;
                       return _AgregarProductoTableRow(
@@ -4973,13 +5838,13 @@ class _AgregarProductosList extends StatelessWidget {
     );
   }
 
-  Widget _buildHeader() {
+  Widget _buildHeader(AppPalette palette) {
     return Container(
       height: 46,
       padding: const EdgeInsets.symmetric(horizontal: 12),
-      decoration: const BoxDecoration(
-        color: AppColors.surfaceAlt,
-        border: Border(bottom: BorderSide(color: AppColors.border)),
+      decoration: BoxDecoration(
+        color: palette.background.withOpacity(palette.darkBackground ? 0.52 : 0.70),
+        border: Border(bottom: BorderSide(color: palette.cardBorder)),
       ),
       child: const Row(
         children: [
@@ -4996,7 +5861,7 @@ class _AgregarProductosList extends StatelessWidget {
   }
 }
 
-class _AgregarProductoTableRow extends StatelessWidget {
+class _AgregarProductoTableRow extends ConsumerWidget {
   const _AgregarProductoTableRow({
     required this.producto,
     required this.posicion,
@@ -5012,7 +5877,8 @@ class _AgregarProductoTableRow extends StatelessWidget {
   final VoidCallback? onAgregar;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    final palette = ref.watch(selectedAppPaletteProvider);
     final tipo = (producto.tipoProductoNombre ?? '').trim().isNotEmpty
         ? producto.tipoProductoNombre!.trim()
         : (producto.tipoProductoId == null ? 'Sin tipo' : 'Tipo ${producto.tipoProductoId}');
@@ -5023,13 +5889,13 @@ class _AgregarProductoTableRow extends StatelessWidget {
     final yaPedido = cantidadVenta > 0.009;
 
     return Material(
-      color: Colors.white,
+      color: Colors.transparent,
       child: InkWell(
         onTap: onAgregar,
         child: Container(
           constraints: const BoxConstraints(minHeight: 62),
           padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 9),
-          decoration: const BoxDecoration(border: Border(bottom: BorderSide(color: AppColors.border))),
+          decoration: BoxDecoration(border: Border(bottom: BorderSide(color: palette.cardBorder))),
           child: Row(
             children: [
               SizedBox(
@@ -5041,11 +5907,11 @@ class _AgregarProductoTableRow extends StatelessWidget {
                     height: 38,
                     alignment: Alignment.center,
                     decoration: BoxDecoration(
-                      color: yaPedido ? AppColors.secondary.withOpacity(0.14) : AppColors.surfaceAlt,
+                      color: yaPedido ? palette.secondary.withOpacity(0.14) : palette.background.withOpacity(palette.darkBackground ? 0.45 : 0.70),
                       borderRadius: BorderRadius.circular(14),
-                      border: Border.all(color: yaPedido ? AppColors.secondary.withOpacity(0.32) : AppColors.border),
+                      border: Border.all(color: yaPedido ? palette.secondary.withOpacity(0.32) : palette.cardBorder),
                     ),
-                    child: Text('#$posicion', style: TextStyle(color: yaPedido ? AppColors.secondaryDark : AppColors.textSecondary, fontWeight: FontWeight.w900, fontSize: 12)),
+                    child: Text('#$posicion', style: TextStyle(color: yaPedido ? palette.secondary : palette.textSecondary, fontWeight: FontWeight.w900, fontSize: 12)),
                   ),
                 ),
               ),
@@ -5059,7 +5925,7 @@ class _AgregarProductoTableRow extends StatelessWidget {
                       producto.nombre ?? 'Producto ${producto.prodId ?? '-'}',
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(fontWeight: FontWeight.w900),
+                      style: TextStyle(fontWeight: FontWeight.w900, color: palette.textPrimary),
                     ),
                     const SizedBox(height: 4),
                     Wrap(
@@ -5072,8 +5938,8 @@ class _AgregarProductoTableRow extends StatelessWidget {
                           _PedidoTag(
                             icon: Icons.notes_rounded,
                             text: descripcion.length > 36 ? '${descripcion.substring(0, 36)}...' : descripcion,
-                            color: AppColors.surfaceAlt,
-                            borderColor: AppColors.border,
+                            color: palette.background.withOpacity(palette.darkBackground ? 0.48 : 0.70),
+                            borderColor: palette.cardBorder,
                           ),
                       ],
                     ),
@@ -5106,7 +5972,7 @@ class _AgregarProductoTableRow extends StatelessWidget {
   }
 }
 
-class _AgregarProductoMobileRow extends StatelessWidget {
+class _AgregarProductoMobileRow extends ConsumerWidget {
   const _AgregarProductoMobileRow({
     required this.producto,
     required this.posicion,
@@ -5122,7 +5988,8 @@ class _AgregarProductoMobileRow extends StatelessWidget {
   final VoidCallback? onAgregar;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    final palette = ref.watch(selectedAppPaletteProvider);
     final tipo = (producto.tipoProductoNombre ?? '').trim().isNotEmpty
         ? producto.tipoProductoNombre!.trim()
         : (producto.tipoProductoId == null ? 'Sin tipo' : 'Tipo ${producto.tipoProductoId}');
@@ -5131,13 +5998,13 @@ class _AgregarProductoMobileRow extends StatelessWidget {
         : (producto.marcaId == null ? 'Sin marca' : 'Marca ${producto.marcaId}');
 
     return Material(
-      color: Colors.white,
+      color: Colors.transparent,
       child: InkWell(
         onTap: onAgregar,
         child: Container(
           width: double.infinity,
           padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 11),
-          decoration: const BoxDecoration(border: Border(bottom: BorderSide(color: AppColors.border))),
+          decoration: BoxDecoration(border: Border(bottom: BorderSide(color: palette.cardBorder))),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
@@ -5149,11 +6016,11 @@ class _AgregarProductoMobileRow extends StatelessWidget {
                     height: 34,
                     alignment: Alignment.center,
                     decoration: BoxDecoration(
-                      color: cantidadVenta > 0.009 ? AppColors.secondary.withOpacity(0.14) : AppColors.surfaceAlt,
+                      color: cantidadVenta > 0.009 ? palette.secondary.withOpacity(0.14) : palette.background.withOpacity(palette.darkBackground ? 0.45 : 0.70),
                       borderRadius: BorderRadius.circular(12),
-                      border: Border.all(color: cantidadVenta > 0.009 ? AppColors.secondary.withOpacity(0.32) : AppColors.border),
+                      border: Border.all(color: cantidadVenta > 0.009 ? palette.secondary.withOpacity(0.32) : palette.cardBorder),
                     ),
-                    child: Text('#$posicion', style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 11, color: AppColors.secondaryDark)),
+                    child: Text('#$posicion', style: TextStyle(fontWeight: FontWeight.w900, fontSize: 11, color: palette.secondary)),
                   ),
                   const SizedBox(width: 8),
                   _ProductImageThumb(value: producto.foto, size: 42),
@@ -5166,7 +6033,7 @@ class _AgregarProductoMobileRow extends StatelessWidget {
                           producto.nombre ?? 'Producto ${producto.prodId ?? '-'}',
                           maxLines: 2,
                           overflow: TextOverflow.ellipsis,
-                          style: const TextStyle(fontWeight: FontWeight.w900),
+                          style: TextStyle(fontWeight: FontWeight.w900, color: palette.textPrimary),
                         ),
                         const SizedBox(height: 6),
                         Wrap(
@@ -5207,7 +6074,7 @@ class _AgregarProductoMobileRow extends StatelessWidget {
   }
 }
 
-class _MobileMiniMetric extends ConsumerWidget {
+class _MobileMiniMetric extends StatelessWidget {
   const _MobileMiniMetric({required this.label, required this.value, this.alignEnd = false});
 
   final String label;
@@ -5215,20 +6082,19 @@ class _MobileMiniMetric extends ConsumerWidget {
   final bool alignEnd;
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final palette = ref.watch(selectedAppPaletteProvider);
+  Widget build(BuildContext context) {
     return Column(
       crossAxisAlignment: alignEnd ? CrossAxisAlignment.end : CrossAxisAlignment.start,
       children: [
-        Text(label, style: TextStyle(color: palette.textSecondary, fontWeight: FontWeight.w700, fontSize: 11)),
+        Text(label, style: const TextStyle(color: AppColors.textSecondary, fontWeight: FontWeight.w700, fontSize: 11)),
         const SizedBox(height: 2),
-        Text(value, textAlign: alignEnd ? TextAlign.right : TextAlign.left, style: TextStyle(fontWeight: FontWeight.w900, fontSize: 13, color: palette.textPrimary)),
+        Text(value, textAlign: alignEnd ? TextAlign.right : TextAlign.left, style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 13)),
       ],
     );
   }
 }
 
-class _PedidoTag extends StatelessWidget {
+class _PedidoTag extends ConsumerWidget {
   const _PedidoTag({required this.icon, required this.text, required this.color, required this.borderColor});
 
   final IconData icon;
@@ -5237,39 +6103,14 @@ class _PedidoTag extends StatelessWidget {
   final Color borderColor;
 
   @override
-  Widget build(BuildContext context) => Container(
-        padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 6),
-        decoration: BoxDecoration(
-          color: color,
-          borderRadius: BorderRadius.circular(999),
-          border: Border.all(color: borderColor),
-        ),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(icon, size: 14, color: AppColors.secondaryDark),
-            const SizedBox(width: 5),
-            Text(text, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w800, color: AppColors.textSecondary)),
-          ],
-        ),
-      );
-}
-
-class _ProductoTag extends ConsumerWidget {
-  const _ProductoTag({required this.icon, required this.text});
-
-  final IconData icon;
-  final String text;
-
-  @override
   Widget build(BuildContext context, WidgetRef ref) {
     final palette = ref.watch(selectedAppPaletteProvider);
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 6),
       decoration: BoxDecoration(
-        color: palette.mutedSurface,
+        color: color.withOpacity(palette.darkBackground ? 0.72 : 0.95),
         borderRadius: BorderRadius.circular(999),
-        border: Border.all(color: palette.cardBorder),
+        border: Border.all(color: borderColor.withOpacity(0.86)),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
@@ -5282,6 +6123,35 @@ class _ProductoTag extends ConsumerWidget {
     );
   }
 }
+
+class _ProductoTag extends ConsumerWidget {
+  const _ProductoTag({required this.icon, required this.text});
+
+  final IconData icon;
+  final String text;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final palette = ref.watch(selectedAppPaletteProvider);
+    return Container(
+        padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 6),
+        decoration: BoxDecoration(
+          color: palette.surface.withOpacity(palette.darkBackground ? 0.72 : 0.88),
+          borderRadius: BorderRadius.circular(999),
+          border: Border.all(color: palette.cardBorder),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(icon, size: 14, color: palette.secondary),
+            const SizedBox(width: 5),
+            Text(text, style: TextStyle(fontSize: 12, fontWeight: FontWeight.w800, color: palette.textSecondary)),
+          ],
+        ),
+      );
+  }
+}
+
 
 String _formatCantidadGeneral(num? value) {
   if (value == null) return '0';
@@ -5328,13 +6198,14 @@ List<_FacturaProductoAgrupado> _agruparProductosFactura(Iterable<MeseroDetallePr
   return values;
 }
 
-class _DetalleHistorialVentaPage extends StatelessWidget {
+class _DetalleHistorialVentaPage extends ConsumerWidget {
   const _DetalleHistorialVentaPage({required this.venta});
 
   final MeseroVentaModel venta;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    final palette = ref.watch(selectedAppPaletteProvider);
     final descripcion = (venta.mesaDescripcion ?? '').trim();
     final productos = _agruparProductosFactura(venta.cuentas.expand((cuenta) => cuenta.productos));
     final pagos = venta.cuentas.expand((cuenta) => cuenta.pagos.map((pago) => (cuenta: cuenta, pago: pago))).toList(growable: false);
@@ -5343,364 +6214,123 @@ class _DetalleHistorialVentaPage extends StatelessWidget {
     final totalCambio = pagos.fold<double>(0, (sum, item) => sum + (item.pago.cambio ?? 0));
 
     return Scaffold(
+      backgroundColor: Colors.transparent,
       appBar: AppBar(
         title: Text('Detalle venta #${venta.ventaId ?? '-'}'),
         centerTitle: false,
+        foregroundColor: palette.onTitle,
+        flexibleSpace: Container(decoration: BoxDecoration(gradient: palette.mainGradient)),
       ),
-      body: SafeArea(
-        child: SingleChildScrollView(
-          padding: const EdgeInsets.fromLTRB(20, 16, 20, 28),
-          child: Center(
-            child: ConstrainedBox(
-              constraints: const BoxConstraints(maxWidth: 1040),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  _buildHeader(context, descripcion, pagos.length),
-                  const SizedBox(height: 16),
-                  _buildResumen(context, totalProductos, totalPropina, totalCambio, pagos.length),
-                  const SizedBox(height: 16),
-                  _buildProductosVendidos(context, productos),
-                  const SizedBox(height: 16),
-                  _buildPagos(context, pagos),
-                  const SizedBox(height: 16),
-                  _buildCuentas(context),
-                ],
-              ),
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildHeader(BuildContext context, String descripcion, int pagosRegistrados) {
-    final palette = ProviderScope.containerOf(context).read(selectedAppPaletteProvider);
-    final compact = MediaQuery.sizeOf(context).width < 760;
-    final title = Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          'Detalle de venta',
-          style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w900, color: AppColors.textPrimary),
-        ),
-        const SizedBox(height: 6),
-        Text(
-          descripcion.isEmpty ? 'Venta registrada sin descripción de mesa.' : descripcion,
-          style: TextStyle(color: palette.textSecondary, fontWeight: FontWeight.w700),
-        ),
-      ],
-    );
-    final details = Wrap(
-      spacing: 8,
-      runSpacing: 8,
-      children: [
-        _SmallInfoPill(icon: Icons.table_restaurant_rounded, text: 'Mesa ${venta.mesaNumero ?? venta.mesaId ?? '-'}'),
-        _SmallInfoPill(icon: Icons.confirmation_number_rounded, text: 'Venta #${venta.ventaId ?? '-'}'),
-        _SmallInfoPill(icon: Icons.call_split_rounded, text: '${venta.cuentas.length} cuentas'),
-        _SmallInfoPill(icon: Icons.payments_rounded, text: '$pagosRegistrados pagos'),
-      ],
-    );
-
-    return Container(
-      padding: const EdgeInsets.fromLTRB(22, 20, 22, 18),
-      decoration: BoxDecoration(
-        gradient: AppColors.softTechGradient,
-        borderRadius: BorderRadius.circular(28),
-        border: Border(bottom: BorderSide(color: AppColors.border.withOpacity(0.9))),
-      ),
-      child: compact
-          ? Column(crossAxisAlignment: CrossAxisAlignment.start, children: [title, const SizedBox(height: 12), details])
-          : Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Container(
-                  width: 46,
-                  height: 46,
-                  decoration: BoxDecoration(color: Colors.white.withOpacity(0.90), borderRadius: BorderRadius.circular(16), border: Border.all(color: AppColors.border)),
-                  child: const Icon(Icons.receipt_long_rounded, color: AppColors.secondaryDark),
-                ),
-                const SizedBox(width: 14),
-                Expanded(child: title),
-                const SizedBox(width: 12),
-                Flexible(child: Align(alignment: Alignment.topRight, child: details)),
-              ],
-            ),
-    );
-  }
-
-  Widget _buildResumen(BuildContext context, double totalProductos, double totalPropina, double totalCambio, int pagosRegistrados) {
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(color: AppColors.surfaceAlt, borderRadius: BorderRadius.circular(22), border: Border.all(color: AppColors.border)),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
+      body: Stack(
         children: [
-          Row(
-            children: [
-              const Icon(Icons.summarize_rounded, color: AppColors.secondaryDark),
-              const SizedBox(width: 10),
-              Expanded(child: Text('Resumen de la venta', style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w900))),
-            ],
-          ),
-          const SizedBox(height: 12),
-          _detalleLinea('Fecha', (venta.fecha ?? '').trim().isEmpty ? '-' : venta.fecha!),
-          _detalleLinea('Estado', venta.estado ?? '-'),
-          _detalleLinea('Cuentas / cuotas', venta.cuentas.length.toString()),
-          _detalleLinea('Pagos registrados', pagosRegistrados.toString()),
-          const Divider(height: 18),
-          _detalleLinea('Subtotal productos', CurrencyUtils.format(totalProductos)),
-          _detalleLinea('Propina', CurrencyUtils.format(totalPropina)),
-          _detalleLinea('Total venta', CurrencyUtils.format(venta.total), destacado: true),
-          _detalleLinea('Total pagado', CurrencyUtils.format(venta.totalPagado)),
-          if (totalCambio > 0) _detalleLinea('Vueltas entregadas', CurrencyUtils.format(totalCambio)),
-          _detalleLinea('Saldo pendiente', CurrencyUtils.format(venta.saldoPendiente), destacado: true, danger: (venta.saldoPendiente ?? 0) > 0.009),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildProductosVendidos(BuildContext context, List<_FacturaProductoAgrupado> productos) {
-    final compact = MediaQuery.sizeOf(context).width < 760;
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(22), border: Border.all(color: AppColors.border)),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              const Icon(Icons.shopping_cart_checkout_rounded, color: AppColors.secondaryDark),
-              const SizedBox(width: 10),
-              Expanded(child: Text('Lo vendido', style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w900))),
-            ],
-          ),
-          const SizedBox(height: 12),
-          if (productos.isEmpty)
-            const Text('Esta venta no tiene productos registrados.', style: TextStyle(color: AppColors.textSecondary, fontWeight: FontWeight.w700))
-          else if (compact)
-            Column(children: productos.map(_productoMovil).toList(growable: false))
-          else
-            _productosTabla(productos),
-        ],
-      ),
-    );
-  }
-
-  Widget _productosTabla(List<_FacturaProductoAgrupado> productos) {
-    return Column(
-      children: [
-        Container(
-          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-          decoration: BoxDecoration(color: AppColors.surfaceAlt, borderRadius: BorderRadius.circular(14)),
-          child: const Row(
-            children: [
-              SizedBox(width: 82, child: Text('Cant.', style: TextStyle(fontWeight: FontWeight.w900, color: AppColors.textSecondary))),
-              Expanded(flex: 4, child: Text('Producto', style: TextStyle(fontWeight: FontWeight.w900, color: AppColors.textSecondary))),
-              Expanded(flex: 2, child: Text('Precio', textAlign: TextAlign.right, style: TextStyle(fontWeight: FontWeight.w900, color: AppColors.textSecondary))),
-              SizedBox(width: 18),
-              Expanded(flex: 2, child: Text('Total', textAlign: TextAlign.right, style: TextStyle(fontWeight: FontWeight.w900, color: AppColors.textSecondary))),
-            ],
-          ),
-        ),
-        const SizedBox(height: 6),
-        ...productos.map((producto) => Container(
-              margin: const EdgeInsets.only(bottom: 6),
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
-              decoration: BoxDecoration(color: AppColors.background.withOpacity(0.55), borderRadius: BorderRadius.circular(14), border: Border.all(color: AppColors.border.withOpacity(0.75))),
-              child: Row(
-                children: [
-                  SizedBox(width: 82, child: Text(_formatCantidadGeneral(producto.cantidad), style: const TextStyle(fontWeight: FontWeight.w900))),
-                  Expanded(flex: 4, child: Text(producto.nombre, style: const TextStyle(fontWeight: FontWeight.w800))),
-                  Expanded(flex: 2, child: Text(CurrencyUtils.format(producto.precioUnitario), textAlign: TextAlign.right, style: const TextStyle(fontWeight: FontWeight.w700, color: AppColors.textSecondary))),
-                  const SizedBox(width: 18),
-                  Expanded(flex: 2, child: Text(CurrencyUtils.format(producto.total), textAlign: TextAlign.right, style: const TextStyle(fontWeight: FontWeight.w900))),
-                ],
-              ),
-            )),
-      ],
-    );
-  }
-
-  Widget _productoMovil(_FacturaProductoAgrupado producto) {
-    return Container(
-      width: double.infinity,
-      margin: const EdgeInsets.only(bottom: 8),
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(color: AppColors.background.withOpacity(0.65), borderRadius: BorderRadius.circular(16), border: Border.all(color: AppColors.border)),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(producto.nombre, style: const TextStyle(fontWeight: FontWeight.w900)),
-          const SizedBox(height: 8),
-          Row(
-            children: [
-              Expanded(child: _miniDato('Cantidad', _formatCantidadGeneral(producto.cantidad))),
-              Expanded(child: _miniDato('Precio', CurrencyUtils.format(producto.precioUnitario))),
-              Expanded(child: _miniDato('Total', CurrencyUtils.format(producto.total), alignEnd: true)),
-            ],
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildPagos(BuildContext context, List<({MeseroCuentaModel cuenta, MeseroPagoModel pago})> pagos) {
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(22), border: Border.all(color: AppColors.border)),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              const Icon(Icons.payments_rounded, color: AppColors.secondaryDark),
-              const SizedBox(width: 10),
-              Expanded(child: Text('Cómo se pagó', style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w900))),
-            ],
-          ),
-          const SizedBox(height: 12),
-          if (pagos.isEmpty)
-            const Text('No hay pagos registrados para esta venta.', style: TextStyle(color: AppColors.textSecondary, fontWeight: FontWeight.w700))
-          else
-            Column(
-              children: pagos.map((item) {
-                final pago = item.pago;
-                final cuenta = item.cuenta;
-                return Container(
-                  width: double.infinity,
-                  margin: const EdgeInsets.only(bottom: 8),
-                  padding: const EdgeInsets.all(12),
-                  decoration: BoxDecoration(color: AppColors.background.withOpacity(0.65), borderRadius: BorderRadius.circular(16), border: Border.all(color: AppColors.border)),
+          const Positioned.fill(child: AppPageBackground()),
+          SafeArea(
+            child: SingleChildScrollView(
+              padding: const EdgeInsets.fromLTRB(20, 16, 20, 28),
+              child: Center(
+                child: ConstrainedBox(
+                  constraints: const BoxConstraints(maxWidth: 1040),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Row(
-                        children: [
-                          Expanded(
-                            child: Text(
-                              pago.medioPagoNombre ?? 'Medio ${pago.medioPagoId ?? '-'}',
-                              style: const TextStyle(fontWeight: FontWeight.w900),
-                            ),
-                          ),
-                          Text(CurrencyUtils.format(pago.valor), style: const TextStyle(fontWeight: FontWeight.w900)),
-                        ],
+                      TechGlassTitlePanel(
+                        title: 'Detalle de venta',
+                        subtitle: descripcion.isEmpty ? 'Venta registrada sin descripción de mesa.' : descripcion,
+                        icon: Icons.receipt_long_rounded,
+                        trailing: Wrap(
+                          spacing: 8,
+                          runSpacing: 8,
+                          children: [
+                            _SmallInfoPill(icon: Icons.table_restaurant_rounded, text: 'Mesa ${venta.mesaNumero ?? venta.mesaId ?? '-'}'),
+                            _SmallInfoPill(icon: Icons.confirmation_number_rounded, text: 'Venta #${venta.ventaId ?? '-'}'),
+                            _SmallInfoPill(icon: Icons.call_split_rounded, text: '${venta.cuentas.length} cuentas'),
+                            _SmallInfoPill(icon: Icons.payments_rounded, text: '${pagos.length} pagos'),
+                          ],
+                        ),
                       ),
-                      const SizedBox(height: 8),
-                      Wrap(
-                        spacing: 8,
-                        runSpacing: 8,
-                        children: [
-                          _SmallInfoPill(icon: Icons.receipt_long_rounded, text: _cuentaNombreVisible(cuenta)),
-                          if ((pago.fecha ?? '').trim().isNotEmpty) _SmallInfoPill(icon: Icons.event_rounded, text: pago.fecha!),
-                          if ((pago.valorRecibido ?? 0) > 0) _SmallInfoPill(icon: Icons.input_rounded, text: 'Recibido ${CurrencyUtils.format(pago.valorRecibido)}'),
-                          if ((pago.cambio ?? 0) > 0) _SmallInfoPill(icon: Icons.reply_rounded, text: 'Vueltas ${CurrencyUtils.format(pago.cambio)}'),
-                        ],
+                      const SizedBox(height: 16),
+                      _historialSection(
+                        context,
+                        palette,
+                        icon: Icons.summarize_rounded,
+                        title: 'Resumen de la venta',
+                        child: Column(
+                          children: [
+                            _detalleLinea(palette, 'Fecha', (venta.fecha ?? '').trim().isEmpty ? '-' : venta.fecha!),
+                            _detalleLinea(palette, 'Estado', venta.estado ?? '-'),
+                            _detalleLinea(palette, 'Cuentas / cuotas', venta.cuentas.length.toString()),
+                            _detalleLinea(palette, 'Pagos registrados', pagos.length.toString()),
+                            Divider(height: 18, color: palette.cardBorder),
+                            _detalleLinea(palette, 'Subtotal productos', CurrencyUtils.format(totalProductos)),
+                            _detalleLinea(palette, 'Propina', CurrencyUtils.format(totalPropina)),
+                            _detalleLinea(palette, 'Total venta', CurrencyUtils.format(venta.total), destacado: true),
+                            _detalleLinea(palette, 'Total pagado', CurrencyUtils.format(venta.totalPagado)),
+                            if (totalCambio > 0) _detalleLinea(palette, 'Vueltas entregadas', CurrencyUtils.format(totalCambio)),
+                            _detalleLinea(palette, 'Saldo pendiente', CurrencyUtils.format(venta.saldoPendiente), destacado: true, danger: (venta.saldoPendiente ?? 0) > 0.009),
+                          ],
+                        ),
                       ),
-                    ],
-                  ),
-                );
-              }).toList(growable: false),
-            ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildCuentas(BuildContext context) {
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(color: AppColors.surfaceAlt, borderRadius: BorderRadius.circular(22), border: Border.all(color: AppColors.border)),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              const Icon(Icons.call_split_rounded, color: AppColors.secondaryDark),
-              const SizedBox(width: 10),
-              Expanded(child: Text('Cuentas / cuotas de la venta', style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w900))),
-            ],
-          ),
-          const SizedBox(height: 12),
-          ...venta.cuentas.map((cuenta) {
-            final descripcion = (cuenta.descripcion ?? '').trim();
-            return Padding(
-              padding: const EdgeInsets.only(bottom: 8),
-              child: InkWell(
-                borderRadius: BorderRadius.circular(16),
-                onTap: () => Navigator.of(context).push(
-                  MaterialPageRoute(
-                    fullscreenDialog: true,
-                    builder: (_) => _HistorialCuentaDetallePage(venta: venta, cuenta: cuenta),
-                  ),
-                ),
-                child: Container(
-                  width: double.infinity,
-                  padding: const EdgeInsets.all(12),
-                  decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(16), border: Border.all(color: AppColors.border)),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Row(
-                        children: [
-                          Expanded(
-                            child: Text(
-                              _cuentaEtiquetaVisible(cuenta),
-                              style: const TextStyle(fontWeight: FontWeight.w900),
-                            ),
-                          ),
-                          const SizedBox(width: 8),
-                          const Icon(Icons.chevron_right_rounded, color: AppColors.secondaryDark),
-                        ],
+                      const SizedBox(height: 16),
+                      _historialSection(
+                        context,
+                        palette,
+                        icon: Icons.shopping_cart_checkout_rounded,
+                        title: 'Lo vendido',
+                        child: productos.isEmpty
+                            ? Text('Esta venta no tiene productos registrados.', style: TextStyle(color: palette.textSecondary, fontWeight: FontWeight.w700))
+                            : Column(children: productos.map((producto) => _productoHistorialTile(palette, producto)).toList(growable: false)),
                       ),
-                      const SizedBox(height: 8),
-                      Wrap(
-                        spacing: 8,
-                        runSpacing: 8,
-                        children: [
-                          _SmallInfoPill(icon: Icons.shopping_bag_rounded, text: '${cuenta.productos.length} productos'),
-                          _SmallInfoPill(icon: Icons.payments_rounded, text: 'Total ${CurrencyUtils.format(cuenta.total)}'),
-                          _SmallInfoPill(icon: Icons.account_balance_wallet_rounded, text: 'Pagado ${CurrencyUtils.format(cuenta.totalPagado)}'),
-                          _SmallInfoPill(
-                            icon: cuenta.pagada == true ? Icons.check_circle_rounded : Icons.pending_actions_rounded,
-                            text: cuenta.pagada == true ? 'Pagada' : 'Saldo ${CurrencyUtils.format(cuenta.saldoPendiente)}',
-                          ),
-                        ],
+                      const SizedBox(height: 16),
+                      _historialSection(
+                        context,
+                        palette,
+                        icon: Icons.payments_rounded,
+                        title: 'Cómo se pagó',
+                        child: pagos.isEmpty
+                            ? Text('No hay pagos registrados para esta venta.', style: TextStyle(color: palette.textSecondary, fontWeight: FontWeight.w700))
+                            : Column(
+                                children: pagos.map((item) => _pagoHistorialTile(palette, item.cuenta, item.pago)).toList(growable: false),
+                              ),
+                      ),
+                      const SizedBox(height: 16),
+                      _historialSection(
+                        context,
+                        palette,
+                        icon: Icons.call_split_rounded,
+                        title: 'Cuentas / cuotas de la venta',
+                        child: Column(
+                          children: venta.cuentas
+                              .map(
+                                (cuenta) => Padding(
+                                  padding: const EdgeInsets.only(bottom: 8),
+                                  child: InkWell(
+                                    borderRadius: BorderRadius.circular(16),
+                                    onTap: () => Navigator.of(context).push(MaterialPageRoute(fullscreenDialog: true, builder: (_) => _HistorialCuentaDetallePage(venta: venta, cuenta: cuenta))),
+                                    child: Container(
+                                      width: double.infinity,
+                                      padding: const EdgeInsets.all(12),
+                                      decoration: _historialInnerDecoration(palette),
+                                      child: Row(
+                                        children: [
+                                          Expanded(child: Text(_cuentaEtiquetaVisible(cuenta), style: TextStyle(fontWeight: FontWeight.w900, color: palette.textPrimary))),
+                                          const SizedBox(width: 8),
+                                          _SmallInfoPill(icon: Icons.payments_rounded, text: CurrencyUtils.format(cuenta.total)),
+                                          Icon(Icons.chevron_right_rounded, color: palette.secondary),
+                                        ],
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                              )
+                              .toList(growable: false),
+                        ),
                       ),
                     ],
                   ),
                 ),
               ),
-            );
-          }),
-        ],
-      ),
-    );
-  }
-
-  Widget _miniDato(String label, String value, {bool alignEnd = false}) {
-    return Column(
-      crossAxisAlignment: alignEnd ? CrossAxisAlignment.end : CrossAxisAlignment.start,
-      children: [
-        Text(label, style: const TextStyle(color: AppColors.textSecondary, fontWeight: FontWeight.w700, fontSize: 12)),
-        const SizedBox(height: 2),
-        Text(value, textAlign: alignEnd ? TextAlign.right : TextAlign.left, style: const TextStyle(fontWeight: FontWeight.w900)),
-      ],
-    );
-  }
-
-  Widget _detalleLinea(String label, String value, {bool destacado = false, bool danger = false}) {
-    final color = danger ? AppColors.danger : AppColors.textPrimary;
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 4),
-      child: Row(
-        children: [
-          Expanded(child: Text(label, style: TextStyle(color: danger ? AppColors.danger : AppColors.textSecondary, fontWeight: destacado ? FontWeight.w900 : FontWeight.w700))),
-          Text(value, style: TextStyle(color: color, fontWeight: destacado ? FontWeight.w900 : FontWeight.w800, fontSize: destacado ? 16 : 14)),
+            ),
+          ),
         ],
       ),
     );
@@ -5721,253 +6351,189 @@ class _HistorialCuentaDetallePage extends ConsumerWidget {
     final cambioTotal = cuenta.pagos.fold<double>(0, (sum, pago) => sum + (pago.cambio ?? 0));
 
     return Scaffold(
+      backgroundColor: Colors.transparent,
       appBar: AppBar(
         title: Text(_cuentaNombreVisible(cuenta)),
         centerTitle: false,
+        foregroundColor: palette.onTitle,
+        flexibleSpace: Container(decoration: BoxDecoration(gradient: palette.mainGradient)),
       ),
-      body: SafeArea(
-        child: SingleChildScrollView(
-          padding: const EdgeInsets.all(20),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Container(
-                width: double.infinity,
-                padding: const EdgeInsets.all(20),
-                decoration: BoxDecoration(
-                  gradient: AppColors.softTechGradient,
-                  borderRadius: BorderRadius.circular(26),
-                  border: Border.all(color: AppColors.border),
-                ),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      'Detalle de cuenta pagada',
-                      style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w900),
-                    ),
-                    const SizedBox(height: 8),
-                    Text(
-                      descripcion.isEmpty ? 'Cuenta sin descripción.' : descripcion,
-                      style: TextStyle(color: palette.textSecondary, fontWeight: FontWeight.w700),
-                    ),
-                    const SizedBox(height: 14),
-                    Wrap(
-                      spacing: 8,
-                      runSpacing: 8,
-                      children: [
-                        _SmallInfoPill(icon: Icons.table_restaurant_rounded, text: 'Mesa ${venta.mesaNumero ?? venta.mesaId ?? '-'}'),
-                        _SmallInfoPill(icon: Icons.confirmation_number_rounded, text: 'Venta #${venta.ventaId ?? '-'}'),
-                        _SmallInfoPill(icon: Icons.receipt_long_rounded, text: _cuentaNombreVisible(cuenta)),
-                        _SmallInfoPill(
-                          icon: cuenta.pagada == true ? Icons.check_circle_rounded : Icons.pending_actions_rounded,
-                          text: cuenta.pagada == true ? 'Pagada' : 'Saldo ${CurrencyUtils.format(cuenta.saldoPendiente)}',
-                        ),
-                      ],
-                    ),
-                  ],
-                ),
-              ),
-              const SizedBox(height: 16),
-              _buildResumenCuenta(context, cambioTotal),
-              const SizedBox(height: 16),
-              _buildProductosCuenta(context, productos),
-              const SizedBox(height: 16),
-              _buildPagosCuenta(context, cambioTotal),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildResumenCuenta(BuildContext context, double cambioTotal) {
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(color: AppColors.surfaceAlt, borderRadius: BorderRadius.circular(22), border: Border.all(color: AppColors.border)),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
+      body: Stack(
         children: [
-          Row(
-            children: [
-              const Icon(Icons.summarize_rounded, color: AppColors.secondaryDark),
-              const SizedBox(width: 10),
-              Expanded(child: Text('Resumen de la cuenta', style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w900))),
-            ],
-          ),
-          const SizedBox(height: 12),
-          _lineaResumen('Subtotal productos', CurrencyUtils.format(cuenta.subtotalProductos)),
-          _lineaResumen('Propina', CurrencyUtils.format(cuenta.propina)),
-          _lineaResumen('Total cuenta', CurrencyUtils.format(cuenta.total), destacado: true),
-          _lineaResumen('Total pagado', CurrencyUtils.format(cuenta.totalPagado)),
-          if (cambioTotal > 0) _lineaResumen('Vueltas entregadas', CurrencyUtils.format(cambioTotal)),
-          _lineaResumen('Saldo pendiente', CurrencyUtils.format(cuenta.saldoPendiente), destacado: true, danger: (cuenta.saldoPendiente ?? 0) > 0.009),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildProductosCuenta(BuildContext context, List<_FacturaProductoAgrupado> productos) {
-    final compact = MediaQuery.sizeOf(context).width < 720;
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(22), border: Border.all(color: AppColors.border)),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              const Icon(Icons.shopping_cart_checkout_rounded, color: AppColors.secondaryDark),
-              const SizedBox(width: 10),
-              Expanded(child: Text('Productos de esta cuenta', style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w900))),
-            ],
-          ),
-          const SizedBox(height: 12),
-          if (productos.isEmpty)
-            const Text('Esta cuenta no tiene productos registrados.', style: TextStyle(color: AppColors.textSecondary, fontWeight: FontWeight.w700))
-          else if (compact)
-            Column(children: productos.map(_productoMovil).toList(growable: false))
-          else
-            Column(
-              children: [
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-                  decoration: BoxDecoration(color: AppColors.surfaceAlt, borderRadius: BorderRadius.circular(14)),
-                  child: const Row(
-                    children: [
-                      SizedBox(width: 82, child: Text('Cant.', style: TextStyle(fontWeight: FontWeight.w900, color: AppColors.textSecondary))),
-                      Expanded(flex: 4, child: Text('Producto', style: TextStyle(fontWeight: FontWeight.w900, color: AppColors.textSecondary))),
-                      Expanded(flex: 2, child: Text('Precio', textAlign: TextAlign.right, style: TextStyle(fontWeight: FontWeight.w900, color: AppColors.textSecondary))),
-                      SizedBox(width: 18),
-                      Expanded(flex: 2, child: Text('Total', textAlign: TextAlign.right, style: TextStyle(fontWeight: FontWeight.w900, color: AppColors.textSecondary))),
-                    ],
-                  ),
-                ),
-                const SizedBox(height: 6),
-                ...productos.map((producto) => Container(
-                      margin: const EdgeInsets.only(bottom: 6),
-                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
-                      decoration: BoxDecoration(color: AppColors.background.withOpacity(0.55), borderRadius: BorderRadius.circular(14), border: Border.all(color: AppColors.border.withOpacity(0.75))),
-                      child: Row(
-                        children: [
-                          SizedBox(width: 82, child: Text(_formatCantidadGeneral(producto.cantidad), style: const TextStyle(fontWeight: FontWeight.w900))),
-                          Expanded(flex: 4, child: Text(producto.nombre, style: const TextStyle(fontWeight: FontWeight.w800))),
-                          Expanded(flex: 2, child: Text(CurrencyUtils.format(producto.precioUnitario), textAlign: TextAlign.right, style: const TextStyle(fontWeight: FontWeight.w700, color: AppColors.textSecondary))),
-                          const SizedBox(width: 18),
-                          Expanded(flex: 2, child: Text(CurrencyUtils.format(producto.total), textAlign: TextAlign.right, style: const TextStyle(fontWeight: FontWeight.w900))),
-                        ],
-                      ),
-                    )),
-              ],
-            ),
-        ],
-      ),
-    );
-  }
-
-  Widget _productoMovil(_FacturaProductoAgrupado producto) {
-    return Container(
-      width: double.infinity,
-      margin: const EdgeInsets.only(bottom: 8),
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(color: AppColors.background.withOpacity(0.65), borderRadius: BorderRadius.circular(16), border: Border.all(color: AppColors.border)),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(producto.nombre, style: const TextStyle(fontWeight: FontWeight.w900)),
-          const SizedBox(height: 8),
-          Row(
-            children: [
-              Expanded(child: _miniDato('Cantidad', _formatCantidadGeneral(producto.cantidad))),
-              Expanded(child: _miniDato('Precio', CurrencyUtils.format(producto.precioUnitario))),
-              Expanded(child: _miniDato('Total', CurrencyUtils.format(producto.total), alignEnd: true)),
-            ],
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildPagosCuenta(BuildContext context, double cambioTotal) {
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(22), border: Border.all(color: AppColors.border)),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              const Icon(Icons.payments_rounded, color: AppColors.secondaryDark),
-              const SizedBox(width: 10),
-              Expanded(child: Text('Pagos de esta cuenta', style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w900))),
-            ],
-          ),
-          const SizedBox(height: 12),
-          if (cuenta.pagos.isEmpty)
-            const Text('No hay pagos registrados para esta cuenta.', style: TextStyle(color: AppColors.textSecondary, fontWeight: FontWeight.w700))
-          else
-            ...cuenta.pagos.map((pago) => Container(
-                  width: double.infinity,
-                  margin: const EdgeInsets.only(bottom: 8),
-                  padding: const EdgeInsets.all(12),
-                  decoration: BoxDecoration(color: AppColors.background.withOpacity(0.65), borderRadius: BorderRadius.circular(16), border: Border.all(color: AppColors.border)),
+          const Positioned.fill(child: AppPageBackground()),
+          SafeArea(
+            child: SingleChildScrollView(
+              padding: const EdgeInsets.all(20),
+              child: Center(
+                child: ConstrainedBox(
+                  constraints: const BoxConstraints(maxWidth: 980),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Row(
-                        children: [
-                          Expanded(child: Text(pago.medioPagoNombre ?? 'Medio ${pago.medioPagoId ?? '-'}', style: const TextStyle(fontWeight: FontWeight.w900))),
-                          Text(CurrencyUtils.format(pago.valor), style: const TextStyle(fontWeight: FontWeight.w900)),
-                        ],
+                      TechGlassTitlePanel(
+                        title: 'Detalle de cuenta pagada',
+                        subtitle: descripcion.isEmpty ? 'Cuenta sin descripción.' : descripcion,
+                        icon: Icons.person_pin_circle_rounded,
+                        trailing: Wrap(
+                          spacing: 8,
+                          runSpacing: 8,
+                          children: [
+                            _SmallInfoPill(icon: Icons.table_restaurant_rounded, text: 'Mesa ${venta.mesaNumero ?? venta.mesaId ?? '-'}'),
+                            _SmallInfoPill(icon: Icons.receipt_long_rounded, text: _cuentaNombreVisible(cuenta)),
+                            _SmallInfoPill(icon: cuenta.pagada == true ? Icons.check_circle_rounded : Icons.pending_actions_rounded, text: cuenta.pagada == true ? 'Pagada' : 'Saldo ${CurrencyUtils.format(cuenta.saldoPendiente)}'),
+                          ],
+                        ),
                       ),
-                      const SizedBox(height: 8),
-                      Wrap(
-                        spacing: 8,
-                        runSpacing: 8,
-                        children: [
-                          if ((pago.fecha ?? '').trim().isNotEmpty) _SmallInfoPill(icon: Icons.event_rounded, text: pago.fecha!),
-                          if ((pago.valorRecibido ?? 0) > 0) _SmallInfoPill(icon: Icons.input_rounded, text: 'Recibido ${CurrencyUtils.format(pago.valorRecibido)}'),
-                          if ((pago.cambio ?? 0) > 0) _SmallInfoPill(icon: Icons.reply_rounded, text: 'Vueltas ${CurrencyUtils.format(pago.cambio)}'),
-                        ],
+                      const SizedBox(height: 16),
+                      _historialSection(
+                        context,
+                        palette,
+                        icon: Icons.summarize_rounded,
+                        title: 'Resumen de la cuenta',
+                        child: Column(
+                          children: [
+                            _detalleLinea(palette, 'Subtotal productos', CurrencyUtils.format(cuenta.subtotalProductos)),
+                            _detalleLinea(palette, 'Propina', CurrencyUtils.format(cuenta.propina)),
+                            _detalleLinea(palette, 'Total cuenta', CurrencyUtils.format(cuenta.total), destacado: true),
+                            _detalleLinea(palette, 'Total pagado', CurrencyUtils.format(cuenta.totalPagado)),
+                            if (cambioTotal > 0) _detalleLinea(palette, 'Vueltas entregadas', CurrencyUtils.format(cambioTotal)),
+                            _detalleLinea(palette, 'Saldo pendiente', CurrencyUtils.format(cuenta.saldoPendiente), destacado: true, danger: (cuenta.saldoPendiente ?? 0) > 0.009),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(height: 16),
+                      _historialSection(
+                        context,
+                        palette,
+                        icon: Icons.shopping_cart_checkout_rounded,
+                        title: 'Productos de esta cuenta',
+                        child: productos.isEmpty
+                            ? Text('Esta cuenta no tiene productos registrados.', style: TextStyle(color: palette.textSecondary, fontWeight: FontWeight.w700))
+                            : Column(children: productos.map((producto) => _productoHistorialTile(palette, producto)).toList(growable: false)),
+                      ),
+                      const SizedBox(height: 16),
+                      _historialSection(
+                        context,
+                        palette,
+                        icon: Icons.payments_rounded,
+                        title: 'Pagos de esta cuenta',
+                        child: cuenta.pagos.isEmpty
+                            ? Text('No hay pagos registrados para esta cuenta.', style: TextStyle(color: palette.textSecondary, fontWeight: FontWeight.w700))
+                            : Column(children: cuenta.pagos.map((pago) => _pagoHistorialTile(palette, cuenta, pago)).toList(growable: false)),
                       ),
                     ],
                   ),
-                )),
-          if (cambioTotal > 0) ...[
-            const SizedBox(height: 8),
-            _lineaResumen('Total vueltas', CurrencyUtils.format(cambioTotal), destacado: true),
-          ],
+                ),
+              ),
+            ),
+          ),
         ],
       ),
     );
   }
+}
 
-  Widget _miniDato(String label, String value, {bool alignEnd = false}) {
-    return Column(
-      crossAxisAlignment: alignEnd ? CrossAxisAlignment.end : CrossAxisAlignment.start,
+Widget _historialSection(BuildContext context, AppPalette palette, {required IconData icon, required String title, required Widget child}) {
+  return Container(
+    width: double.infinity,
+    padding: const EdgeInsets.all(16),
+    decoration: BoxDecoration(
+      color: palette.surface.withOpacity(palette.darkBackground ? 0.86 : 0.92),
+      borderRadius: BorderRadius.circular(22),
+      border: Border.all(color: palette.cardBorder),
+      boxShadow: [BoxShadow(color: palette.cardShadow, blurRadius: 20, offset: const Offset(0, 10))],
+    ),
+    child: Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(label, style: const TextStyle(color: AppColors.textSecondary, fontWeight: FontWeight.w700, fontSize: 12)),
-        const SizedBox(height: 2),
-        Text(value, textAlign: alignEnd ? TextAlign.right : TextAlign.left, style: const TextStyle(fontWeight: FontWeight.w900)),
+        Row(
+          children: [
+            Icon(icon, color: palette.secondary),
+            const SizedBox(width: 10),
+            Expanded(child: Text(title, style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w900, color: palette.textPrimary))),
+          ],
+        ),
+        const SizedBox(height: 12),
+        child,
       ],
-    );
-  }
+    ),
+  );
+}
 
-  Widget _lineaResumen(String label, String value, {bool destacado = false, bool danger = false}) {
-    final color = danger ? AppColors.danger : AppColors.textPrimary;
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 4),
-      child: Row(
-        children: [
-          Expanded(child: Text(label, style: TextStyle(color: danger ? AppColors.danger : AppColors.textSecondary, fontWeight: destacado ? FontWeight.w900 : FontWeight.w700))),
-          Text(value, style: TextStyle(color: color, fontWeight: destacado ? FontWeight.w900 : FontWeight.w800, fontSize: destacado ? 16 : 14)),
-        ],
-      ),
+BoxDecoration _historialInnerDecoration(AppPalette palette) => BoxDecoration(
+      color: palette.background.withOpacity(palette.darkBackground ? 0.50 : 0.60),
+      borderRadius: BorderRadius.circular(16),
+      border: Border.all(color: palette.cardBorder),
     );
-  }
+
+Widget _productoHistorialTile(AppPalette palette, _FacturaProductoAgrupado producto) {
+  return Container(
+    width: double.infinity,
+    margin: const EdgeInsets.only(bottom: 8),
+    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+    decoration: _historialInnerDecoration(palette),
+    child: LayoutBuilder(
+      builder: (context, constraints) {
+        final compact = constraints.maxWidth < 620;
+        final name = Text(producto.nombre, maxLines: 2, overflow: TextOverflow.ellipsis, style: TextStyle(fontWeight: FontWeight.w900, color: palette.textPrimary));
+        final data = Wrap(
+          spacing: 12,
+          runSpacing: 8,
+          children: [
+            _SmallInfoPill(icon: Icons.numbers_rounded, text: 'Cant. ${_formatCantidadGeneral(producto.cantidad)}'),
+            _SmallInfoPill(icon: Icons.sell_rounded, text: CurrencyUtils.format(producto.precioUnitario)),
+            _SmallInfoPill(icon: Icons.payments_rounded, text: CurrencyUtils.format(producto.total)),
+          ],
+        );
+        if (compact) return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [name, const SizedBox(height: 10), data]);
+        return Row(children: [Expanded(child: name), const SizedBox(width: 12), data]);
+      },
+    ),
+  );
+}
+
+Widget _pagoHistorialTile(AppPalette palette, MeseroCuentaModel cuenta, MeseroPagoModel pago) {
+  return Container(
+    width: double.infinity,
+    margin: const EdgeInsets.only(bottom: 8),
+    padding: const EdgeInsets.all(12),
+    decoration: _historialInnerDecoration(palette),
+    child: Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            Expanded(child: Text(pago.medioPagoNombre ?? 'Medio ${pago.medioPagoId ?? '-'}', style: TextStyle(fontWeight: FontWeight.w900, color: palette.textPrimary))),
+            Text(CurrencyUtils.format(pago.valor), style: TextStyle(fontWeight: FontWeight.w900, color: palette.secondary)),
+          ],
+        ),
+        const SizedBox(height: 8),
+        Wrap(
+          spacing: 8,
+          runSpacing: 8,
+          children: [
+            _SmallInfoPill(icon: Icons.receipt_long_rounded, text: _cuentaNombreVisible(cuenta)),
+            if ((pago.fecha ?? '').trim().isNotEmpty) _SmallInfoPill(icon: Icons.event_rounded, text: pago.fecha!),
+            if ((pago.valorRecibido ?? 0) > 0) _SmallInfoPill(icon: Icons.input_rounded, text: 'Recibido ${CurrencyUtils.format(pago.valorRecibido)}'),
+            if ((pago.cambio ?? 0) > 0) _SmallInfoPill(icon: Icons.reply_rounded, text: 'Vueltas ${CurrencyUtils.format(pago.cambio)}'),
+          ],
+        ),
+      ],
+    ),
+  );
+}
+
+Widget _detalleLinea(AppPalette palette, String label, String value, {bool destacado = false, bool danger = false}) {
+  final color = danger ? AppColors.danger : (destacado ? palette.secondary : palette.textPrimary);
+  return Padding(
+    padding: const EdgeInsets.symmetric(vertical: 4),
+    child: Row(
+      children: [
+        Expanded(child: Text(label, style: TextStyle(color: danger ? AppColors.danger : palette.textSecondary, fontWeight: destacado ? FontWeight.w900 : FontWeight.w700))),
+        Text(value, textAlign: TextAlign.right, style: TextStyle(color: color, fontWeight: destacado ? FontWeight.w900 : FontWeight.w800, fontSize: destacado ? 16 : 14)),
+      ],
+    ),
+  );
 }
 
 class _HistorialMesaSection extends ConsumerWidget {
@@ -5985,9 +6551,9 @@ class _HistorialMesaSection extends ConsumerWidget {
       width: double.infinity,
       padding: const EdgeInsets.all(18),
       decoration: BoxDecoration(
-        gradient: palette.glassGradient,
+        color: palette.surface.withOpacity(palette.darkBackground ? 0.86 : 0.92),
         borderRadius: BorderRadius.circular(24),
-        border: Border.all(color: palette.translucentBorder),
+        border: Border.all(color: palette.cardBorder),
         boxShadow: [BoxShadow(color: palette.cardShadow, blurRadius: 18, offset: const Offset(0, 8))],
       ),
       child: Column(
@@ -5995,9 +6561,7 @@ class _HistorialMesaSection extends ConsumerWidget {
         children: [
           Row(
             children: [
-              Expanded(
-                child: Text(mesa, style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w900, color: palette.textPrimary)),
-              ),
+              Expanded(child: Text(mesa, style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w900, color: palette.textPrimary))),
               _SmallInfoPill(icon: Icons.receipt_long_rounded, text: '${ventas.length} ventas'),
               const SizedBox(width: 8),
               _TotalPill(total: total),
@@ -6007,32 +6571,50 @@ class _HistorialMesaSection extends ConsumerWidget {
           ...ventas.map(
             (venta) => Container(
               margin: const EdgeInsets.only(bottom: 10),
-              decoration: BoxDecoration(
-                color: palette.mutedSurface,
-                borderRadius: BorderRadius.circular(18),
-                border: Border.all(color: palette.cardBorder),
-              ),
-              child: ListTile(
-                leading: Icon(Icons.point_of_sale_rounded, color: palette.secondary),
-                title: Text('Venta #${venta.ventaId ?? '-'}', style: TextStyle(fontWeight: FontWeight.w900, color: palette.textPrimary)),
-                subtitle: Text([
-                  if ((venta.fecha ?? '').trim().isNotEmpty) venta.fecha!,
-                  'Estado: ${venta.estado ?? '-'}',
-                  '${venta.cuentas.length} cuentas',
-                ].join(' · '), style: TextStyle(color: palette.textSecondary, fontWeight: FontWeight.w600)),
-                trailing: Wrap(
-                  spacing: 10,
-                  crossAxisAlignment: WrapCrossAlignment.center,
-                  children: [
-                    Text(CurrencyUtils.format(venta.total), style: TextStyle(fontWeight: FontWeight.w900, color: palette.textPrimary)),
-                    OutlinedButton.icon(
-                      onPressed: () => onVerDetalle(venta),
-                      icon: const Icon(Icons.visibility_rounded),
-                      label: const Text('Ver detalle'),
-                      style: OutlinedButton.styleFrom(foregroundColor: palette.secondary, side: BorderSide(color: palette.secondary.withOpacity(0.35))),
-                    ),
-                  ],
-                ),
+              decoration: _historialInnerDecoration(palette),
+              child: LayoutBuilder(
+                builder: (context, constraints) {
+                  final compact = constraints.maxWidth < 700;
+                  final title = Row(
+                    children: [
+                      Icon(Icons.point_of_sale_rounded, color: palette.secondary),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text('Venta #${venta.ventaId ?? '-'}', style: TextStyle(fontWeight: FontWeight.w900, color: palette.textPrimary)),
+                            const SizedBox(height: 3),
+                            Text([
+                              if ((venta.fecha ?? '').trim().isNotEmpty) venta.fecha!,
+                              'Estado: ${venta.estado ?? '-'}',
+                              '${venta.cuentas.length} cuentas',
+                            ].join(' · '), maxLines: 2, overflow: TextOverflow.ellipsis, style: TextStyle(color: palette.textSecondary, fontWeight: FontWeight.w700)),
+                          ],
+                        ),
+                      ),
+                    ],
+                  );
+                  final actions = Wrap(
+                    spacing: 10,
+                    runSpacing: 8,
+                    crossAxisAlignment: WrapCrossAlignment.center,
+                    children: [
+                      Text(CurrencyUtils.format(venta.total), style: TextStyle(fontWeight: FontWeight.w900, color: palette.secondary)),
+                      OutlinedButton.icon(
+                        onPressed: () => onVerDetalle(venta),
+                        icon: const Icon(Icons.visibility_rounded),
+                        label: const Text('Ver detalle'),
+                      ),
+                    ],
+                  );
+                  return Padding(
+                    padding: const EdgeInsets.all(12),
+                    child: compact
+                        ? Column(crossAxisAlignment: CrossAxisAlignment.start, children: [title, const SizedBox(height: 12), actions])
+                        : Row(children: [Expanded(child: title), const SizedBox(width: 12), actions]),
+                  );
+                },
               ),
             ),
           ),
@@ -6156,6 +6738,9 @@ class _PagarCuentaDialog extends StatefulWidget {
 }
 
 class _PagarCuentaDialogState extends State<_PagarCuentaDialog> {
+  AppPalette get _palette => ProviderScope.containerOf(context).read(selectedAppPaletteProvider);
+  AppPalette get palette => _palette;
+
   final _formKey = GlobalKey<FormState>();
   late final TextEditingController _propinaController;
   late final List<_PagoFormRowData> _pagos;
@@ -6438,13 +7023,14 @@ class _PagarCuentaDialogState extends State<_PagarCuentaDialog> {
   }
 
   Widget _buildBarraAccionesPantalla() {
+    final palette = _palette;
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
       decoration: BoxDecoration(
-        color: Colors.white,
-        border: Border(top: BorderSide(color: AppColors.border.withOpacity(0.95))),
-        boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.08), blurRadius: 18, offset: const Offset(0, -6))],
+        color: palette.surface.withOpacity(palette.darkBackground ? 0.94 : 0.98),
+        border: Border(top: BorderSide(color: palette.cardBorder)),
+        boxShadow: [BoxShadow(color: palette.cardShadow, blurRadius: 18, offset: const Offset(0, -6))],
       ),
       child: Row(
         children: [
@@ -6474,11 +7060,14 @@ class _PagarCuentaDialogState extends State<_PagarCuentaDialog> {
     final descripcion = (widget.cuenta.descripcion ?? '').trim();
 
     if (widget.mostrarComoPagina) {
+      final palette = _palette;
       return Scaffold(
-        backgroundColor: AppColors.background,
+        backgroundColor: Colors.transparent,
         appBar: AppBar(
           title: const Text('Pagar cuenta'),
           centerTitle: false,
+          foregroundColor: palette.onTitle,
+          flexibleSpace: Container(decoration: BoxDecoration(gradient: palette.mainGradient)),
         ),
         body: SafeArea(
           child: Column(
@@ -6498,12 +7087,14 @@ class _PagarCuentaDialogState extends State<_PagarCuentaDialog> {
       );
     }
 
+    final palette = _palette;
     return AlertDialog(
+      backgroundColor: palette.surface.withOpacity(palette.darkBackground ? 0.96 : 0.99),
       insetPadding: const EdgeInsets.symmetric(horizontal: 18, vertical: 18),
       titlePadding: EdgeInsets.zero,
       contentPadding: const EdgeInsets.fromLTRB(22, 16, 22, 0),
       actionsPadding: const EdgeInsets.fromLTRB(22, 12, 22, 18),
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(28)),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(28), side: BorderSide(color: palette.cardBorder)),
       title: _buildDialogHeader(descripcion),
       content: SizedBox(
         width: 920,
@@ -6522,14 +7113,14 @@ class _PagarCuentaDialogState extends State<_PagarCuentaDialog> {
 
 
   Widget _buildDialogHeader(String descripcion) {
-    final palette = ProviderScope.containerOf(context).read(selectedAppPaletteProvider);
+    final palette = _palette;
     final compact = MediaQuery.sizeOf(context).width < 760;
     final title = Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text(
           'Factura de cobro',
-          style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w900, color: AppColors.textPrimary),
+          style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w900, color: palette.textPrimary),
         ),
         const SizedBox(height: 6),
         Text(
@@ -6551,9 +7142,9 @@ class _PagarCuentaDialogState extends State<_PagarCuentaDialog> {
     return Container(
       padding: const EdgeInsets.fromLTRB(22, 20, 22, 18),
       decoration: BoxDecoration(
-        gradient: AppColors.softTechGradient,
+        gradient: LinearGradient(colors: [palette.primary.withOpacity(0.18), palette.secondary.withOpacity(0.12), palette.surface.withOpacity(0.88)]),
         borderRadius: BorderRadius.circular(28),
-        border: Border(bottom: BorderSide(color: AppColors.border.withOpacity(0.9))),
+        border: Border(bottom: BorderSide(color: palette.cardBorder)),
       ),
       child: compact
           ? Column(crossAxisAlignment: CrossAxisAlignment.start, children: [title, const SizedBox(height: 12), details])
@@ -6563,8 +7154,8 @@ class _PagarCuentaDialogState extends State<_PagarCuentaDialog> {
                 Container(
                   width: 46,
                   height: 46,
-                  decoration: BoxDecoration(color: Colors.white.withOpacity(0.90), borderRadius: BorderRadius.circular(16), border: Border.all(color: AppColors.border)),
-                  child: const Icon(Icons.receipt_long_rounded, color: AppColors.secondaryDark),
+                  decoration: BoxDecoration(color: palette.surface.withOpacity(0.90), borderRadius: BorderRadius.circular(16), border: Border.all(color: palette.cardBorder)),
+                  child: Icon(Icons.receipt_long_rounded, color: palette.secondary),
                 ),
                 const SizedBox(width: 14),
                 Expanded(child: title),
@@ -6576,30 +7167,31 @@ class _PagarCuentaDialogState extends State<_PagarCuentaDialog> {
   }
 
   Widget _buildProductosFactura(BuildContext context) {
+    final palette = _palette;
     final productos = _productosAgrupadosFactura;
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: palette.surface.withOpacity(palette.darkBackground ? 0.90 : 0.96),
         borderRadius: BorderRadius.circular(22),
-        border: Border.all(color: AppColors.border),
-        boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.035), blurRadius: 18, offset: const Offset(0, 8))],
+        border: Border.all(color: palette.cardBorder),
+        boxShadow: [BoxShadow(color: palette.cardShadow, blurRadius: 18, offset: const Offset(0, 8))],
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
             children: [
-              const Icon(Icons.shopping_cart_checkout_rounded, color: AppColors.secondaryDark),
+              Icon(Icons.shopping_cart_checkout_rounded, color: palette.secondary),
               const SizedBox(width: 10),
               Expanded(child: Text('Productos nuevos por cobrar', style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w900))),
-              Text(CurrencyUtils.format(_subtotalProductos), style: const TextStyle(fontWeight: FontWeight.w900, color: AppColors.secondaryDark)),
+              Text(CurrencyUtils.format(_subtotalProductos), style: TextStyle(fontWeight: FontWeight.w900, color: palette.secondary)),
             ],
           ),
           const SizedBox(height: 12),
           if (productos.isEmpty)
-            const Text('No hay productos nuevos pendientes por cobrar en esta cuenta.', style: TextStyle(color: AppColors.textSecondary, fontWeight: FontWeight.w700))
+            Text('No hay productos nuevos pendientes por cobrar en esta cuenta.', style: TextStyle(color: palette.textSecondary, fontWeight: FontWeight.w700))
           else if (MediaQuery.sizeOf(context).width < 760)
             _buildProductosMovil(productos)
           else
@@ -6610,18 +7202,19 @@ class _PagarCuentaDialogState extends State<_PagarCuentaDialog> {
   }
 
   Widget _buildProductosTabla(List<_FacturaProductoAgrupado> productos) {
+    final palette = _palette;
     return Column(
       children: [
         Container(
           padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-          decoration: BoxDecoration(color: AppColors.surfaceAlt, borderRadius: BorderRadius.circular(14)),
-          child: const Row(
+          decoration: BoxDecoration(color: palette.background.withOpacity(palette.darkBackground ? 0.55 : 0.70), borderRadius: BorderRadius.circular(14), border: Border.all(color: palette.cardBorder)),
+          child: Row(
             children: [
-              SizedBox(width: 82, child: Text('Cant.', style: TextStyle(fontWeight: FontWeight.w900, color: AppColors.textSecondary))),
-              Expanded(flex: 4, child: Text('Producto', style: TextStyle(fontWeight: FontWeight.w900, color: AppColors.textSecondary))),
-              Expanded(flex: 2, child: Text('Precio', textAlign: TextAlign.right, style: TextStyle(fontWeight: FontWeight.w900, color: AppColors.textSecondary))),
-              SizedBox(width: 18),
-              Expanded(flex: 2, child: Text('Total', textAlign: TextAlign.right, style: TextStyle(fontWeight: FontWeight.w900, color: AppColors.textSecondary))),
+              SizedBox(width: 82, child: Text('Cant.', style: TextStyle(fontWeight: FontWeight.w900, color: palette.textSecondary))),
+              Expanded(flex: 4, child: Text('Producto', style: TextStyle(fontWeight: FontWeight.w900, color: palette.textSecondary))),
+              Expanded(flex: 2, child: Text('Precio', textAlign: TextAlign.right, style: TextStyle(fontWeight: FontWeight.w900, color: palette.textSecondary))),
+              const SizedBox(width: 18),
+              Expanded(flex: 2, child: Text('Total', textAlign: TextAlign.right, style: TextStyle(fontWeight: FontWeight.w900, color: palette.textSecondary))),
             ],
           ),
         ),
@@ -6631,14 +7224,14 @@ class _PagarCuentaDialogState extends State<_PagarCuentaDialog> {
           return Container(
             margin: const EdgeInsets.only(bottom: 6),
             padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
-            decoration: BoxDecoration(color: AppColors.background.withOpacity(0.55), borderRadius: BorderRadius.circular(14), border: Border.all(color: AppColors.border.withOpacity(0.75))),
+            decoration: BoxDecoration(color: palette.background.withOpacity(palette.darkBackground ? 0.40 : 0.58), borderRadius: BorderRadius.circular(14), border: Border.all(color: palette.cardBorder)),
             child: Row(
               children: [
-                SizedBox(width: 82, child: Text(_formatCantidad(producto.cantidad), style: const TextStyle(fontWeight: FontWeight.w900))),
-                Expanded(flex: 4, child: Text(nombre, style: const TextStyle(fontWeight: FontWeight.w800))),
-                Expanded(flex: 2, child: Text(CurrencyUtils.format(producto.precioUnitario), textAlign: TextAlign.right, style: const TextStyle(fontWeight: FontWeight.w700, color: AppColors.textSecondary))),
+                SizedBox(width: 82, child: Text(_formatCantidad(producto.cantidad), style: TextStyle(fontWeight: FontWeight.w900, color: palette.textPrimary))),
+                Expanded(flex: 4, child: Text(nombre, style: TextStyle(fontWeight: FontWeight.w800, color: palette.textPrimary))),
+                Expanded(flex: 2, child: Text(CurrencyUtils.format(producto.precioUnitario), textAlign: TextAlign.right, style: TextStyle(fontWeight: FontWeight.w800, color: palette.textSecondary))),
                 const SizedBox(width: 18),
-                Expanded(flex: 2, child: Text(CurrencyUtils.format(producto.total), textAlign: TextAlign.right, style: const TextStyle(fontWeight: FontWeight.w900))),
+                Expanded(flex: 2, child: Text(CurrencyUtils.format(producto.total), textAlign: TextAlign.right, style: TextStyle(fontWeight: FontWeight.w900, color: palette.secondary))),
               ],
             ),
           );
@@ -6679,9 +7272,9 @@ class _PagarCuentaDialogState extends State<_PagarCuentaDialog> {
     return Column(
       crossAxisAlignment: alignEnd ? CrossAxisAlignment.end : CrossAxisAlignment.start,
       children: [
-        Text(label, style: const TextStyle(color: AppColors.textSecondary, fontWeight: FontWeight.w700, fontSize: 12)),
+        Text(label, style: TextStyle(color: palette.textSecondary, fontWeight: FontWeight.w700, fontSize: 12)),
         const SizedBox(height: 2),
-        Text(value, textAlign: alignEnd ? TextAlign.right : TextAlign.left, style: const TextStyle(fontWeight: FontWeight.w900)),
+        Text(value, textAlign: alignEnd ? TextAlign.right : TextAlign.left, style: TextStyle(fontWeight: FontWeight.w900, color: palette.textPrimary)),
       ],
     );
   }
@@ -7141,16 +7734,16 @@ class _MoverProductoCuentaDialogState extends State<_MoverProductoCuentaDialog> 
   }
 }
 
-class _CantidadProductoDialog extends StatefulWidget {
+class _CantidadProductoDialog extends ConsumerStatefulWidget {
   const _CantidadProductoDialog({required this.producto});
 
   final MeseroProductoModel producto;
 
   @override
-  State<_CantidadProductoDialog> createState() => _CantidadProductoDialogState();
+  ConsumerState<_CantidadProductoDialog> createState() => _CantidadProductoDialogState();
 }
 
-class _CantidadProductoDialogState extends State<_CantidadProductoDialog> {
+class _CantidadProductoDialogState extends ConsumerState<_CantidadProductoDialog> {
   final _formKey = GlobalKey<FormState>();
   late final TextEditingController _cantidadController;
 
@@ -7180,15 +7773,16 @@ class _CantidadProductoDialogState extends State<_CantidadProductoDialog> {
 
   @override
   Widget build(BuildContext context) {
-    final palette = ProviderScope.containerOf(context).read(selectedAppPaletteProvider);
+    final palette = ref.watch(selectedAppPaletteProvider);
     final producto = widget.producto;
     final cantidad = _parseCantidad(_cantidadController.text);
     final precio = producto.precioVenta ?? 0;
     final total = cantidad * precio;
 
     return AlertDialog(
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
-      title: const Text('Cantidad del producto'),
+      backgroundColor: palette.surface.withOpacity(palette.darkBackground ? 0.96 : 0.99),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24), side: BorderSide(color: palette.cardBorder)),
+      title: Text('Cantidad del producto', style: TextStyle(color: palette.textPrimary, fontWeight: FontWeight.w900)),
       content: SizedBox(
         width: 420,
         child: Form(
@@ -7206,7 +7800,7 @@ class _CantidadProductoDialogState extends State<_CantidadProductoDialog> {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Text(producto.nombre ?? 'Producto ${producto.prodId ?? '-'}', style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 17)),
+                        Text(producto.nombre ?? 'Producto ${producto.prodId ?? '-'}', style: TextStyle(fontWeight: FontWeight.w900, fontSize: 17, color: palette.textPrimary)),
                         const SizedBox(height: 6),
                         Text(
                           producto.descripcion ?? 'Sin descripción',
@@ -7221,7 +7815,7 @@ class _CantidadProductoDialogState extends State<_CantidadProductoDialog> {
               Container(
                 width: double.infinity,
                 padding: const EdgeInsets.all(12),
-                decoration: BoxDecoration(color: AppColors.surfaceAlt, borderRadius: BorderRadius.circular(16), border: Border.all(color: AppColors.border)),
+                decoration: BoxDecoration(color: palette.background.withOpacity(palette.darkBackground ? 0.50 : 0.68), borderRadius: BorderRadius.circular(16), border: Border.all(color: palette.cardBorder)),
                 child: Row(
                   children: [
                     Expanded(child: _datoCantidadDialog('Precio unitario', CurrencyUtils.format(precio))),
@@ -7266,9 +7860,9 @@ class _CantidadProductoDialogState extends State<_CantidadProductoDialog> {
                 ],
               ),
               const SizedBox(height: 8),
-              const Text(
+              Text(
                 'Selecciona la cantidad completa para no tener que agregar el mismo producto uno por uno.',
-                style: TextStyle(color: AppColors.textSecondary, fontWeight: FontWeight.w600),
+                style: TextStyle(color: palette.textSecondary, fontWeight: FontWeight.w600),
               ),
             ],
           ),
@@ -7289,12 +7883,13 @@ class _CantidadProductoDialogState extends State<_CantidadProductoDialog> {
   }
 
   Widget _datoCantidadDialog(String label, String value, {bool alignEnd = false}) {
+    final palette = ref.watch(selectedAppPaletteProvider);
     return Column(
       crossAxisAlignment: alignEnd ? CrossAxisAlignment.end : CrossAxisAlignment.start,
       children: [
-        Text(label, style: const TextStyle(color: AppColors.textSecondary, fontWeight: FontWeight.w700, fontSize: 12)),
+        Text(label, style: TextStyle(color: palette.textSecondary, fontWeight: FontWeight.w700, fontSize: 12)),
         const SizedBox(height: 2),
-        Text(value, textAlign: alignEnd ? TextAlign.right : TextAlign.left, style: const TextStyle(fontWeight: FontWeight.w900)),
+        Text(value, textAlign: alignEnd ? TextAlign.right : TextAlign.left, style: TextStyle(fontWeight: FontWeight.w900, color: palette.textPrimary)),
       ],
     );
   }

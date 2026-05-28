@@ -218,6 +218,68 @@ class MeseroRemoteDataSource {
     return response.data!;
   }
 
+  Future<CierreCajaResumenModel> consultarCierreCaja({String? fecha}) async {
+    final response = await _apiClient.get<CierreCajaResumenModel>(
+      ApiPaths.meseroCierreCajaResumen,
+      (json) => CierreCajaResumenModel.fromJson(Map<String, dynamic>.from(json as Map)),
+      queryParameters: fecha == null ? null : {'fecha': fecha},
+    );
+    return response.data!;
+  }
+
+  Future<CierreCajaResumenModel> registrarCierreCaja({
+    required String fecha,
+    required List<Map<String, dynamic>> mediosPago,
+    double valorBase = 0,
+    List<Map<String, dynamic>> gastos = const <Map<String, dynamic>>[],
+    String? observacion,
+  }) async {
+    final response = await _apiClient.post<CierreCajaResumenModel>(
+      ApiPaths.meseroCierreCaja,
+      {
+        'fecha': fecha,
+        'mediosPago': mediosPago,
+        'valorBase': valorBase,
+        'gastos': gastos,
+        if ((observacion ?? '').trim().isNotEmpty) 'observacion': observacion!.trim(),
+      },
+      (json) => CierreCajaResumenModel.fromJson(Map<String, dynamic>.from(json as Map)),
+    );
+    return response.data!;
+  }
+
+
+  Future<CierreCajaResumenModel> actualizarCierreCaja({
+    required int cierreCajaId,
+    required String fecha,
+    required List<Map<String, dynamic>> mediosPago,
+    double valorBase = 0,
+    List<Map<String, dynamic>> gastos = const <Map<String, dynamic>>[],
+    String? observacion,
+  }) async {
+    final response = await _apiClient.put<CierreCajaResumenModel>(
+      ApiPaths.meseroCierreCajaById(cierreCajaId),
+      {
+        'fecha': fecha,
+        'mediosPago': mediosPago,
+        'valorBase': valorBase,
+        'gastos': gastos,
+        if ((observacion ?? '').trim().isNotEmpty) 'observacion': observacion!.trim(),
+      },
+      (json) => CierreCajaResumenModel.fromJson(Map<String, dynamic>.from(json as Map)),
+    );
+    return response.data!;
+  }
+
+  Future<String> descargarReporteCierreCaja({String? fecha}) async {
+    final response = await _apiClient.get<String>(
+      ApiPaths.meseroCierreCajaReporte,
+      (json) => json?.toString() ?? '',
+      queryParameters: fecha == null ? null : {'fecha': fecha},
+    );
+    return response.data ?? '';
+  }
+
   Map<String, String> _accountDescriptionsToJson(Map<int, String> values) {
     return values.map((key, value) => MapEntry(key.toString(), value.trim()));
   }

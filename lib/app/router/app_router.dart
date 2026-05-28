@@ -87,17 +87,6 @@ import '../../features/zonas_horarias/presentation/pages/zonas_horarias_list_pag
 import '../../features/zonas_horarias/presentation/pages/zonas_horarias_form_page.dart';
 import '../../features/zonas_horarias/presentation/pages/zonas_horarias_detail_page.dart';
 
-bool _isOperationalRole(String role) {
-  final normalized = role.toUpperCase();
-  return normalized.contains('MESERO') ||
-      normalized.contains('MESER') ||
-      normalized.contains('CAJERO') ||
-      normalized.contains('CAJER') ||
-      normalized.contains('VENDEDOR') ||
-      normalized.contains('VENTA') ||
-      normalized.contains('SELLER');
-}
-
 final appRouterProvider = Provider<GoRouter>((ref) {
   return GoRouter(
     initialLocation: _resolveInitialLocation(),
@@ -117,7 +106,10 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       // Reset password sí se permite porque puede abrirse desde un enlace externo.
       // No se usa Uri.base dentro del redirect para no forzar de nuevo #/login en web.
       if (authState.authenticated && (isLoginRoute || isForgotPasswordRoute)) {
-        final isOperativoMesa = authState.roles.any(_isOperationalRole);
+        final isOperativoMesa = authState.roles.any((role) {
+          final normalized = role.toUpperCase();
+          return normalized.contains('MESERO') || normalized.contains('CAJERO');
+        });
         return isOperativoMesa ? '/mesero' : '/home';
       }
 
@@ -135,6 +127,7 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       GoRoute(path: '/mesero/productos', builder: (context, state) => AppScaffold(child: const MeseroPage(initialMode: MeseroPageMode.productos))),
       GoRoute(path: '/mesero/resumen', builder: (context, state) => AppScaffold(child: const MeseroPage(initialMode: MeseroPageMode.resumen))),
       GoRoute(path: '/mesero/historial', builder: (context, state) => AppScaffold(child: const MeseroPage(initialMode: MeseroPageMode.historial))),
+      GoRoute(path: '/mesero/cierre-caja', builder: (context, state) => AppScaffold(child: const MeseroPage(initialMode: MeseroPageMode.cierreCaja))),
 
       GoRoute(
         path: '/ciudades',

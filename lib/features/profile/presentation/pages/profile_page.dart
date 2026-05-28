@@ -6,6 +6,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../../app/theme/app_colors.dart';
+import '../../../../app/theme/app_palette.dart';
 import '../../../../core/constants/api_paths.dart';
 import '../../../../core/crud/crud_field.dart';
 import '../../../../core/providers/core_providers.dart';
@@ -217,6 +218,7 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
   @override
   Widget build(BuildContext context) {
     if (_loading) return const AppLoader();
+    final palette = ref.watch(selectedAppPaletteProvider);
     return SingleChildScrollView(
       padding: const EdgeInsets.all(16),
       child: Center(
@@ -224,66 +226,64 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
           constraints: const BoxConstraints(maxWidth: 1000),
           child: Column(
             children: [
-              _header(context),
+              _header(context, palette),
               const SizedBox(height: 16),
-              Card(
-                child: Padding(
-                  padding: const EdgeInsets.all(20),
-                  child: Form(
-                    key: _formKey,
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.stretch,
-                      children: [
-                        const Text('Información personal', style: TextStyle(fontSize: 22, fontWeight: FontWeight.w900)),
-                        const SizedBox(height: 16),
-                        _ProfileImageField(controller: _photo),
-                        const SizedBox(height: 16),
-                        Wrap(spacing: 16, runSpacing: 16, children: [
-                          _field(_firstName, 'Primer nombre'),
-                          _field(_secondName, 'Segundo nombre', required: false),
-                          _field(_firstLastName, 'Primer apellido'),
-                          _field(_secondLastName, 'Segundo apellido'),
-                          _field(_email, 'Correo', email: true),
-                          _lookup(_countryId, _countryField, _countries, onChanged: () {
-                            _regionId.clear();
-                            _cityId.clear();
-                            setState(() {});
-                          }),
-                          _lookup(_regionId, _regionField, _filteredRegions, onChanged: () {
-                            _cityId.clear();
-                            setState(() {});
-                          }),
-                          _lookup(_cityId, _cityField, _filteredCities),
-                          _field(_address, 'Dirección', required: false),
-                          _field(_phone, 'Teléfono', required: false),
-                          _field(_phone2, 'Teléfono secundario', required: false),
-                        ]),
-                        const SizedBox(height: 20),
-                        AppButton(label: 'Guardar perfil', icon: Icons.save_rounded, loading: _saving, onPressed: _saveProfile),
-                      ],
-                    ),
+              TechGlassPanel(
+                dark: palette.darkBackground,
+                padding: const EdgeInsets.all(20),
+                child: Form(
+                  key: _formKey,
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      Text('Información personal', style: TextStyle(fontSize: 22, fontWeight: FontWeight.w900, color: palette.textPrimary)),
+                      const SizedBox(height: 16),
+                      _ProfileImageField(controller: _photo),
+                      const SizedBox(height: 16),
+                      Wrap(spacing: 16, runSpacing: 16, children: [
+                        _field(_firstName, 'Primer nombre'),
+                        _field(_secondName, 'Segundo nombre', required: false),
+                        _field(_firstLastName, 'Primer apellido'),
+                        _field(_secondLastName, 'Segundo apellido'),
+                        _field(_email, 'Correo', email: true),
+                        _lookup(_countryId, _countryField, _countries, onChanged: () {
+                          _regionId.clear();
+                          _cityId.clear();
+                          setState(() {});
+                        }),
+                        _lookup(_regionId, _regionField, _filteredRegions, onChanged: () {
+                          _cityId.clear();
+                          setState(() {});
+                        }),
+                        _lookup(_cityId, _cityField, _filteredCities),
+                        _field(_address, 'Dirección', required: false),
+                        _field(_phone, 'Teléfono', required: false),
+                        _field(_phone2, 'Teléfono secundario', required: false),
+                      ]),
+                      const SizedBox(height: 20),
+                      AppButton(label: 'Guardar perfil', icon: Icons.save_rounded, loading: _saving, onPressed: _saveProfile),
+                    ],
                   ),
                 ),
               ),
               const SizedBox(height: 16),
-              _securityInfo(),
+              _securityInfo(palette),
               const SizedBox(height: 16),
-              Card(
-                child: Padding(
-                  padding: const EdgeInsets.all(20),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                    children: [
-                      const Text('Cambiar contraseña', style: TextStyle(fontSize: 22, fontWeight: FontWeight.w900)),
-                      const SizedBox(height: 16),
-                      Wrap(spacing: 16, runSpacing: 16, children: [
-                        _field(_currentPassword, 'Contraseña actual', obscure: true),
-                        _field(_newPassword, 'Nueva contraseña', obscure: true),
-                      ]),
-                      const SizedBox(height: 20),
-                      AppButton(label: 'Cambiar contraseña', icon: Icons.lock_reset_rounded, loading: _saving, onPressed: _changePassword),
-                    ],
-                  ),
+              TechGlassPanel(
+                dark: palette.darkBackground,
+                padding: const EdgeInsets.all(20),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    Text('Cambiar contraseña', style: TextStyle(fontSize: 22, fontWeight: FontWeight.w900, color: palette.textPrimary)),
+                    const SizedBox(height: 16),
+                    Wrap(spacing: 16, runSpacing: 16, children: [
+                      _field(_currentPassword, 'Contraseña actual', obscure: true),
+                      _field(_newPassword, 'Nueva contraseña', obscure: true),
+                    ]),
+                    const SizedBox(height: 20),
+                    AppButton(label: 'Cambiar contraseña', icon: Icons.lock_reset_rounded, loading: _saving, onPressed: _changePassword),
+                  ],
                 ),
               ),
             ],
@@ -293,41 +293,15 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
     );
   }
 
-  Widget _header(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.all(1.2),
-      decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(30),
-        gradient: AppColors.bluePurpleGradient,
-        boxShadow: [BoxShadow(color: AppColors.secondary.withOpacity(0.12), blurRadius: 24, offset: const Offset(0, 14))],
-      ),
-      child: Container(
-        padding: const EdgeInsets.all(18),
-        decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(29),
-        ),
-        child: Row(
-          children: [
-            const TechBrandMark(icon: Icons.person_rounded, size: 54),
-            const SizedBox(width: 14),
-            const Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text('Mi perfil', style: TextStyle(fontSize: 24, fontWeight: FontWeight.w900, color: AppColors.textPrimary)),
-                  SizedBox(height: 2),
-                  Text('Actualiza tus datos personales y revisa tu acceso al sistema', style: TextStyle(fontWeight: FontWeight.w700, color: AppColors.textSecondary)),
-                ],
-              ),
-            ),
-            OutlinedButton.icon(
-              onPressed: () => context.go('/home'),
-              icon: const Icon(Icons.arrow_back_rounded),
-              label: const Text('Atrás'),
-            ),
-          ],
-        ),
+  Widget _header(BuildContext context, AppPalette palette) {
+    return TechGlassTitlePanel(
+      title: 'Mi perfil',
+      subtitle: 'Actualiza tus datos personales y revisa tu acceso al sistema',
+      icon: Icons.person_rounded,
+      trailing: OutlinedButton.icon(
+        onPressed: () => context.go('/home'),
+        icon: const Icon(Icons.arrow_back_rounded),
+        label: const Text('Atrás'),
       ),
     );
   }
@@ -340,41 +314,45 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
     return parts.isEmpty ? 'No definida' : parts.join(' - ');
   }
 
-  Widget _securityInfo() {
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(20),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            const Text('Empresa, tipo de usuario y roles', style: TextStyle(fontSize: 22, fontWeight: FontWeight.w900)),
-            const SizedBox(height: 12),
-            Container(
-              padding: const EdgeInsets.all(14),
-              decoration: BoxDecoration(color: AppColors.surfaceAlt, borderRadius: BorderRadius.circular(18)),
+  Widget _securityInfo(AppPalette palette) {
+    return TechGlassPanel(
+      dark: palette.darkBackground,
+      padding: const EdgeInsets.all(20),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Text('Empresa, tipo de usuario y roles', style: TextStyle(fontSize: 22, fontWeight: FontWeight.w900, color: palette.textPrimary)),
+          const SizedBox(height: 12),
+          Container(
+            padding: const EdgeInsets.all(14),
+            decoration: BoxDecoration(
+              color: palette.surface.withOpacity(palette.darkBackground ? 0.72 : 0.86),
+              borderRadius: BorderRadius.circular(18),
+              border: Border.all(color: palette.cardBorder),
+            ),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  const Text('Empresa', style: TextStyle(fontWeight: FontWeight.w900, color: AppColors.textSecondary)),
+                  Text('Empresa', style: TextStyle(fontWeight: FontWeight.w900, color: palette.textSecondary)),
                   const SizedBox(height: 4),
                   Text(
                     _companyLabel,
-                    style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w900),
+                    style: TextStyle(fontSize: 16, fontWeight: FontWeight.w900, color: palette.textPrimary),
                   ),
                   const SizedBox(height: 14),
-                  const Text('Tipo de usuario', style: TextStyle(fontWeight: FontWeight.w900, color: AppColors.textSecondary)),
+                  Text('Tipo de usuario', style: TextStyle(fontWeight: FontWeight.w900, color: palette.textSecondary)),
                   const SizedBox(height: 4),
                   Text(
                     [_tipoUsuarioNombre, _tipoUsuarioDescripcion].where((item) => item != null && item!.trim().isNotEmpty).join(' - ').isEmpty
                         ? 'No definido'
                         : [_tipoUsuarioNombre, _tipoUsuarioDescripcion].where((item) => item != null && item!.trim().isNotEmpty).join(' - '),
-                    style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w900),
+                    style: TextStyle(fontSize: 16, fontWeight: FontWeight.w900, color: palette.textPrimary),
                   ),
                   const SizedBox(height: 14),
-                  const Text('Roles asignados', style: TextStyle(fontWeight: FontWeight.w900, color: AppColors.textSecondary)),
+                  Text('Roles asignados', style: TextStyle(fontWeight: FontWeight.w900, color: palette.textSecondary)),
                   const SizedBox(height: 8),
                   _roles.isEmpty
-                      ? const Text('No tienes roles asignados', style: TextStyle(color: AppColors.textSecondary, fontWeight: FontWeight.w700))
+                      ? Text('No tienes roles asignados', style: TextStyle(color: palette.textSecondary, fontWeight: FontWeight.w700))
                       : Wrap(
                           spacing: 8,
                           runSpacing: 8,
@@ -383,13 +361,12 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
                 ],
               ),
             ),
-            const SizedBox(height: 8),
-            const Text(
-              'Estos datos son solo de consulta. Los roles y el tipo de usuario los administra un usuario con permisos de seguridad.',
-              style: TextStyle(color: AppColors.textSecondary, fontWeight: FontWeight.w700),
-            ),
-          ],
-        ),
+          const SizedBox(height: 8),
+          Text(
+            'Estos datos son solo de consulta. Los roles y el tipo de usuario los administra un usuario con permisos de seguridad.',
+            style: TextStyle(color: palette.textSecondary, fontWeight: FontWeight.w700),
+          ),
+        ],
       ),
     );
   }
@@ -465,16 +442,16 @@ class _LookupWithCallbackState extends State<_LookupWithCallback> {
   }
 }
 
-class _ProfileImageField extends StatefulWidget {
+class _ProfileImageField extends ConsumerStatefulWidget {
   const _ProfileImageField({required this.controller});
 
   final TextEditingController controller;
 
   @override
-  State<_ProfileImageField> createState() => _ProfileImageFieldState();
+  ConsumerState<_ProfileImageField> createState() => _ProfileImageFieldState();
 }
 
-class _ProfileImageFieldState extends State<_ProfileImageField> {
+class _ProfileImageFieldState extends ConsumerState<_ProfileImageField> {
   Future<void> _pick() async {
     final result = await FilePicker.platform.pickFiles(type: FileType.image, allowMultiple: false, withData: true);
     final file = result?.files.single;
@@ -492,13 +469,14 @@ class _ProfileImageFieldState extends State<_ProfileImageField> {
 
   @override
   Widget build(BuildContext context) {
+    final palette = ref.watch(selectedAppPaletteProvider);
     final value = widget.controller.text.trim();
     return Container(
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
-        color: AppColors.surfaceAlt,
+        color: palette.surface.withOpacity(palette.darkBackground ? 0.72 : 0.88),
         borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: AppColors.border),
+        border: Border.all(color: palette.cardBorder),
       ),
       child: Row(
         children: [
@@ -509,19 +487,19 @@ class _ProfileImageFieldState extends State<_ProfileImageField> {
                     width: 76,
                     height: 76,
                     alignment: Alignment.center,
-                    color: Colors.white,
-                    child: const Icon(Icons.person_rounded, size: 42, color: AppColors.textSecondary),
+                    color: palette.background.withOpacity(0.72),
+                    child: Icon(Icons.person_rounded, size: 42, color: palette.textSecondary),
                   )
                 : _ProfileImagePreview(value: value),
           ),
           const SizedBox(width: 14),
-          const Expanded(
+          Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text('Foto de perfil', style: TextStyle(fontWeight: FontWeight.w900, color: AppColors.textPrimary)),
-                SizedBox(height: 4),
-                Text('Carga una foto para identificar mejor al usuario.', style: TextStyle(color: AppColors.textSecondary, fontWeight: FontWeight.w700)),
+                Text('Foto de perfil', style: TextStyle(fontWeight: FontWeight.w900, color: palette.textPrimary)),
+                const SizedBox(height: 4),
+                Text('Carga una foto para identificar mejor al usuario.', style: TextStyle(color: palette.textSecondary, fontWeight: FontWeight.w700)),
               ],
             ),
           ),

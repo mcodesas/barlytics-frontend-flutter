@@ -1,7 +1,11 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-/// Botón principal reutilizable con gradiente sincronizado con la paleta activa.
-class AppButton extends StatelessWidget {
+import '../../app/theme/app_colors.dart';
+import '../../app/theme/app_palette.dart';
+
+/// Botón principal reutilizable con gradiente tecnológico.
+class AppButton extends ConsumerWidget {
   const AppButton({
     super.key,
     required this.label,
@@ -16,29 +20,24 @@ class AppButton extends StatelessWidget {
   final IconData? icon;
 
   @override
-  Widget build(BuildContext context) {
-    final scheme = Theme.of(context).colorScheme;
+  Widget build(BuildContext context, WidgetRef ref) {
     final disabled = loading || onPressed == null;
-    final gradient = LinearGradient(
-      colors: [scheme.primary, scheme.secondary, scheme.tertiary],
-      begin: Alignment.topLeft,
-      end: Alignment.bottomRight,
-    );
+    final palette = ref.watch(selectedAppPaletteProvider);
     final child = loading
-        ? SizedBox(
+        ? const SizedBox(
             width: 20,
             height: 20,
-            child: CircularProgressIndicator(strokeWidth: 2.4, color: scheme.onPrimary),
+            child: CircularProgressIndicator(strokeWidth: 2.4, color: Colors.white),
           )
         : Row(
             mainAxisAlignment: MainAxisAlignment.center,
             mainAxisSize: MainAxisSize.min,
             children: [
               if (icon != null) ...[
-                Icon(icon, size: 20, color: scheme.onPrimary),
+                Icon(icon, size: 20, color: Colors.white),
                 const SizedBox(width: 9),
               ],
-              Text(label, style: TextStyle(color: scheme.onPrimary, fontWeight: FontWeight.w900)),
+              Text(label, style: const TextStyle(color: Colors.white)),
             ],
           );
 
@@ -46,15 +45,13 @@ class AppButton extends StatelessWidget {
       opacity: disabled ? 0.62 : 1,
       child: DecoratedBox(
         decoration: BoxDecoration(
-          gradient: disabled ? null : gradient,
-          color: disabled ? scheme.onSurface.withOpacity(0.28) : null,
+          color: disabled ? AppColors.textMuted : palette.actionColor,
           borderRadius: BorderRadius.circular(20),
-          border: Border.all(color: Colors.white.withOpacity(disabled ? 0.08 : 0.18)),
           boxShadow: disabled
               ? const []
               : [
                   BoxShadow(
-                    color: scheme.secondary.withOpacity(0.30),
+                    color: palette.actionColor.withOpacity(0.30),
                     blurRadius: 24,
                     offset: const Offset(0, 12),
                   ),
@@ -65,7 +62,7 @@ class AppButton extends StatelessWidget {
             backgroundColor: Colors.transparent,
             disabledBackgroundColor: Colors.transparent,
             shadowColor: Colors.transparent,
-            foregroundColor: scheme.onPrimary,
+            foregroundColor: Colors.white,
             minimumSize: const Size.fromHeight(54),
           ),
           onPressed: disabled ? null : onPressed,
