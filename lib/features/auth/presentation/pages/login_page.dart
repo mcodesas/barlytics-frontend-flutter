@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
-import '../../../../app/theme/app_colors.dart';
 import '../../../../app/theme/app_palette.dart';
 import '../../../../core/errors/failure.dart';
 import '../../../../core/utils/validators.dart';
@@ -173,11 +172,13 @@ class _LoginPageState extends ConsumerState<LoginPage> {
   }
 }
 
-class _LoginHero extends StatelessWidget {
+class _LoginHero extends ConsumerWidget {
   const _LoginHero();
 
   @override
-  Widget build(BuildContext context) => Padding(
+  Widget build(BuildContext context, WidgetRef ref) {
+    final palette = ref.watch(selectedAppPaletteProvider);
+    return Padding(
         padding: const EdgeInsets.all(24),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -190,32 +191,32 @@ class _LoginHero extends StatelessWidget {
                 borderRadius: BorderRadius.circular(999),
                 border: Border.all(color: Colors.white.withOpacity(0.16)),
               ),
-              child: const Text(
+              child: Text(
                 'Plataforma inteligente para bares',
-                style: TextStyle(color: Colors.white, fontWeight: FontWeight.w800),
+                style: TextStyle(color: palette.onTitle, fontWeight: FontWeight.w800),
               ),
             ),
             const SizedBox(height: 24),
             RichText(
-              text: const TextSpan(
-                style: TextStyle(fontSize: 52, height: 1.02, fontWeight: FontWeight.w900, color: Colors.white),
+              text: TextSpan(
+                style: TextStyle(fontSize: 52, height: 1.02, fontWeight: FontWeight.w900, color: palette.onTitle),
                 children: [
-                  TextSpan(text: 'Controla ventas,\n'),
-                  TextSpan(text: 'inventario y mesas\n'),
-                  TextSpan(text: 'en tiempo real.', style: TextStyle(color: AppColors.accent)),
+                  const TextSpan(text: 'Controla ventas,\n'),
+                  const TextSpan(text: 'inventario y mesas\n'),
+                  TextSpan(text: 'en tiempo real.', style: TextStyle(color: palette.accent)),
                 ],
               ),
             ),
             const SizedBox(height: 22),
             Text(
               'Una experiencia moderna, segura y disponible para todos los dispositivos soportados.',
-              style: TextStyle(color: Colors.white.withOpacity(0.74), fontSize: 17, height: 1.5, fontWeight: FontWeight.w600),
+              style: TextStyle(color: palette.onTitle.withOpacity(0.78), fontSize: 17, height: 1.5, fontWeight: FontWeight.w600),
             ),
             const SizedBox(height: 28),
-            Wrap(
+            const Wrap(
               spacing: 12,
               runSpacing: 12,
-              children: const [
+              children: [
                 _HeroMetric(icon: Icons.point_of_sale_rounded, label: 'POS'),
                 _HeroMetric(icon: Icons.inventory_2_rounded, label: 'Inventario'),
                 _HeroMetric(icon: Icons.insights_rounded, label: 'Analítica'),
@@ -224,15 +225,18 @@ class _LoginHero extends StatelessWidget {
           ],
         ),
       );
+  }
 }
 
-class _HeroMetric extends StatelessWidget {
+class _HeroMetric extends ConsumerWidget {
   const _HeroMetric({required this.icon, required this.label});
   final IconData icon;
   final String label;
 
   @override
-  Widget build(BuildContext context) => Container(
+  Widget build(BuildContext context, WidgetRef ref) {
+    final palette = ref.watch(selectedAppPaletteProvider);
+    return Container(
         padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
         decoration: BoxDecoration(
           color: Colors.white.withOpacity(0.10),
@@ -242,59 +246,67 @@ class _HeroMetric extends StatelessWidget {
         child: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(icon, color: AppColors.accent, size: 20),
+            Icon(icon, color: palette.accent, size: 20),
             const SizedBox(width: 8),
-            Text(label, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w800)),
+            Text(label, style: TextStyle(color: palette.onTitle, fontWeight: FontWeight.w800)),
           ],
         ),
       );
+  }
 }
 
-class _LoginAlert extends StatelessWidget {
+class _LoginAlert extends ConsumerWidget {
   const _LoginAlert({required this.message});
   final String message;
 
   @override
-  Widget build(BuildContext context) => Container(
-        padding: const EdgeInsets.all(14),
-        decoration: BoxDecoration(
-          color: AppColors.dangerSoft,
-          borderRadius: BorderRadius.circular(18),
-          border: Border.all(color: AppColors.danger.withOpacity(0.22)),
-        ),
-        child: Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const Icon(Icons.warning_amber_rounded, color: AppColors.danger),
-            const SizedBox(width: 10),
-            Expanded(child: Text(message, style: const TextStyle(color: AppColors.danger, fontWeight: FontWeight.w800))),
-          ],
-        ),
-      );
+  Widget build(BuildContext context, WidgetRef ref) {
+    final palette = ref.watch(selectedAppPaletteProvider);
+    final danger = Colors.redAccent;
+    return Container(
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: danger.withOpacity(palette.darkBackground ? 0.14 : 0.10),
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: danger.withOpacity(0.28)),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(Icons.warning_amber_rounded, color: danger),
+          const SizedBox(width: 10),
+          Expanded(child: Text(message, style: TextStyle(color: danger, fontWeight: FontWeight.w800))),
+        ],
+      ),
+    );
+  }
 }
 
-class _SecurityNote extends StatelessWidget {
+class _SecurityNote extends ConsumerWidget {
   const _SecurityNote();
 
   @override
-  Widget build(BuildContext context) => Container(
-        padding: const EdgeInsets.all(14),
-        decoration: BoxDecoration(
-          color: AppColors.surfaceAlt,
-          borderRadius: BorderRadius.circular(18),
-          border: Border.all(color: AppColors.border),
-        ),
-        child: const Row(
-          children: [
-            Icon(Icons.verified_user_rounded, color: AppColors.secondaryDark),
-            SizedBox(width: 10),
-            Expanded(
-              child: Text(
-                'Tus credenciales viajan de forma segura y se protegen con token de sesión.',
-                style: TextStyle(color: AppColors.textSecondary, fontWeight: FontWeight.w700),
-              ),
+  Widget build(BuildContext context, WidgetRef ref) {
+    final palette = ref.watch(selectedAppPaletteProvider);
+    return Container(
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        gradient: palette.glassGradient,
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: palette.translucentBorder),
+      ),
+      child: Row(
+        children: [
+          Icon(Icons.verified_user_rounded, color: palette.secondary),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Text(
+              'Tus credenciales viajan de forma segura y se protegen con token de sesión.',
+              style: TextStyle(color: palette.textSecondary, fontWeight: FontWeight.w700),
             ),
-          ],
-        ),
-      );
+          ),
+        ],
+      ),
+    );
+  }
 }

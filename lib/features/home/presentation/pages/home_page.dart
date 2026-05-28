@@ -35,7 +35,7 @@ class HomePage extends ConsumerWidget {
             SliverAppBar(
               pinned: true,
               expandedHeight: 238,
-              title: const Text('Inicio'),
+              title: Text('Inicio', style: TextStyle(color: palette.onTitle, fontWeight: FontWeight.w900)),
               foregroundColor: palette.onTitle,
               backgroundColor: palette.titleBackground,
               surfaceTintColor: Colors.transparent,
@@ -58,20 +58,20 @@ class HomePage extends ConsumerWidget {
                               ),
                               child: Text(
                                 isOperational ? 'Dashboard ${isCajero ? 'de caja' : 'de vendedor'}' : 'Dashboard administrativo',
-                                style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w800),
+                                style: TextStyle(color: palette.onTitle, fontWeight: FontWeight.w800),
                               ),
                             ),
                             const SizedBox(height: 14),
                             Text(
                               'Hola, bienvenido a BarLytics',
-                              style: Theme.of(context).textTheme.headlineMedium?.copyWith(color: Colors.white, fontWeight: FontWeight.w900),
+                              style: Theme.of(context).textTheme.headlineMedium?.copyWith(color: palette.onTitle, fontWeight: FontWeight.w900),
                             ),
                             const SizedBox(height: 8),
                             Text(
                               isOperational
                                   ? 'Aquí tienes solamente las funciones habilitadas para tu rol operativo.'
                                   : 'Opera tu bar, inventario, ventas y pagos desde cualquier dispositivo.',
-                              style: TextStyle(color: Colors.white.withOpacity(0.78), fontWeight: FontWeight.w700, height: 1.35),
+                              style: TextStyle(color: palette.onTitle.withOpacity(0.78), fontWeight: FontWeight.w700, height: 1.35),
                             ),
                           ],
                         ),
@@ -86,7 +86,7 @@ class HomePage extends ConsumerWidget {
                             border: Border.all(color: Colors.white.withOpacity(0.16)),
                             boxShadow: [BoxShadow(color: palette.accent.withOpacity(0.28), blurRadius: 32, offset: const Offset(0, 16))],
                           ),
-                          child: Icon(isOperational ? Icons.point_of_sale_rounded : Icons.insights_rounded, color: Colors.white, size: 58),
+                          child: Icon(isOperational ? Icons.point_of_sale_rounded : Icons.insights_rounded, color: palette.onTitle, size: 58),
                         ),
                     ],
                   ),
@@ -248,10 +248,10 @@ class _StatCard extends ConsumerWidget {
       child: Container(
         padding: const EdgeInsets.all(18),
         decoration: BoxDecoration(
-          color: palette.surface.withOpacity(palette.darkBackground ? 0.92 : 0.98),
+          gradient: palette.glassGradient,
           borderRadius: BorderRadius.circular(28),
-          border: Border.all(color: palette.cardBorder),
-          boxShadow: [BoxShadow(color: color.withOpacity(0.12), blurRadius: 22, offset: const Offset(0, 12))],
+          border: Border.all(color: palette.translucentBorder),
+          boxShadow: [BoxShadow(color: color.withOpacity(0.14), blurRadius: 24, offset: const Offset(0, 14))],
         ),
         child: Row(
           children: [
@@ -305,9 +305,10 @@ class _ModuleCard extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final visual = ModuleVisuals.byKey(item.keyName);
     final palette = ref.watch(selectedAppPaletteProvider);
+    final accentColor = Color.lerp(visual.color, palette.secondary, 0.58) ?? palette.secondary;
 
     return Material(
-      color: palette.surface.withOpacity(palette.darkBackground ? 0.92 : 0.98),
+      color: Colors.transparent,
       borderRadius: BorderRadius.circular(30),
       child: InkWell(
         borderRadius: BorderRadius.circular(30),
@@ -316,24 +317,24 @@ class _ModuleCard extends ConsumerWidget {
           padding: const EdgeInsets.all(18),
           decoration: BoxDecoration(
             borderRadius: BorderRadius.circular(30),
-            border: Border.all(color: palette.cardBorder),
+            border: Border.all(color: palette.translucentBorder),
             gradient: LinearGradient(
               colors: [
-                palette.surface.withOpacity(palette.darkBackground ? 0.88 : 0.98),
-                palette.background.withOpacity(palette.darkBackground ? 0.62 : 0.72),
-                visual.color.withOpacity(0.08),
+                palette.glassSurface,
+                palette.background.withOpacity(palette.darkBackground ? 0.66 : 0.70),
+                accentColor.withOpacity(palette.darkBackground ? 0.18 : 0.12),
               ],
               begin: Alignment.topLeft,
               end: Alignment.bottomRight,
             ),
-            boxShadow: [BoxShadow(color: visual.color.withOpacity(0.10), blurRadius: 20, offset: const Offset(0, 12))],
+            boxShadow: [BoxShadow(color: accentColor.withOpacity(0.14), blurRadius: 24, offset: const Offset(0, 14))],
           ),
           child: Row(
             children: [
               Container(
                 width: 58,
                 height: 58,
-                decoration: BoxDecoration(gradient: LinearGradient(colors: [visual.color, palette.secondary]), borderRadius: BorderRadius.circular(22)),
+                decoration: BoxDecoration(gradient: LinearGradient(colors: [palette.secondary, palette.accent]), borderRadius: BorderRadius.circular(22), border: Border.all(color: Colors.white.withOpacity(0.18))),
                 child: Icon(visual.icon, color: Colors.white, size: 28),
               ),
               const SizedBox(width: 16),
@@ -348,7 +349,7 @@ class _ModuleCard extends ConsumerWidget {
                   ],
                 ),
               ),
-              Icon(Icons.chevron_right_rounded, color: visual.color),
+              Icon(Icons.chevron_right_rounded, color: accentColor),
             ],
           ),
         ),
@@ -390,9 +391,9 @@ class _EmptyRoleModulesCard extends StatelessWidget {
         width: double.infinity,
         padding: const EdgeInsets.all(22),
         decoration: BoxDecoration(
-          color: palette.surface.withOpacity(palette.darkBackground ? 0.92 : 0.98),
+          gradient: palette.glassGradient,
           borderRadius: BorderRadius.circular(30),
-          border: Border.all(color: palette.cardBorder),
+          border: Border.all(color: palette.translucentBorder),
           boxShadow: [BoxShadow(color: palette.cardShadow, blurRadius: 18, offset: const Offset(0, 10))],
         ),
         child: Row(

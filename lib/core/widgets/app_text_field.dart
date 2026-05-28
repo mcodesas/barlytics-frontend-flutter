@@ -1,7 +1,5 @@
 import 'package:flutter/material.dart';
 
-import '../../app/theme/app_colors.dart';
-
 /// Campo de texto estándar de la aplicación.
 class AppTextField extends StatelessWidget {
   const AppTextField({
@@ -28,23 +26,28 @@ class AppTextField extends StatelessWidget {
   final ValueChanged<String>? onChanged;
 
   @override
-  Widget build(BuildContext context) => TextFormField(
-        controller: controller,
-        decoration: InputDecoration(
-          labelText: label,
-          hintText: hintText,
-          prefixIcon: prefixIcon == null
-              ? null
-              : Padding(
-                  padding: const EdgeInsets.only(left: 10, right: 4),
-                  child: Icon(prefixIcon, color: AppColors.secondaryDark),
-                ),
-          suffixIcon: readOnly ? const Icon(Icons.lock_outline_rounded, size: 18, color: AppColors.textMuted) : null,
-        ),
-        validator: validator,
-        keyboardType: keyboardType,
-        obscureText: obscureText,
-        readOnly: readOnly,
-        onChanged: onChanged,
-      );
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    return TextFormField(
+      controller: controller,
+      style: TextStyle(color: scheme.onSurface, fontWeight: FontWeight.w700),
+      cursorColor: scheme.secondary,
+      decoration: InputDecoration(
+        labelText: label,
+        hintText: hintText,
+        prefixIcon: prefixIcon == null
+            ? null
+            : Padding(
+                padding: const EdgeInsets.only(left: 10, right: 4),
+                child: Icon(prefixIcon, color: scheme.secondary),
+              ),
+        suffixIcon: readOnly ? Icon(Icons.lock_outline_rounded, size: 18, color: scheme.onSurface.withOpacity(0.48)) : null,
+      ),
+      validator: validator,
+      keyboardType: keyboardType,
+      obscureText: obscureText,
+      readOnly: readOnly,
+      onChanged: onChanged,
+    );
+  }
 }

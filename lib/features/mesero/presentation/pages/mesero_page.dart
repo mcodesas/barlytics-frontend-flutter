@@ -475,6 +475,7 @@ class _MeseroPageState extends ConsumerState<MeseroPage> {
   }
 
   Widget _buildAgregarProductosFloatingAction(MeseroCuentaModel cuenta) {
+    final palette = ref.watch(selectedAppPaletteProvider);
     final cuentaId = cuenta.cuentaId;
     final descripcion = (cuenta.descripcion ?? '').trim();
     final enabled = !_processing && cuentaId != null;
@@ -492,8 +493,8 @@ class _MeseroPageState extends ConsumerState<MeseroPage> {
             descripcion.isEmpty ? 'Agregar productos' : 'Agregar a ${_cuentaNombreVisible(cuenta)}',
             overflow: TextOverflow.ellipsis,
           ),
-          backgroundColor: enabled ? Theme.of(context).colorScheme.secondary : AppColors.textSecondary.withOpacity(0.45),
-          foregroundColor: Theme.of(context).colorScheme.onSecondary,
+          backgroundColor: enabled ? palette.secondary : palette.textSecondary.withOpacity(0.45),
+          foregroundColor: palette.onTitle,
         ),
       ),
     );
@@ -977,9 +978,9 @@ class _MeseroPageState extends ConsumerState<MeseroPage> {
               ],
             ),
             const SizedBox(height: 8),
-            const Text(
+            Text(
               'Consulta las ventas por mesa y abre el detalle para ver qué se vendió, cómo se pagó y cuántas cuentas/cuotas tuvo la venta.',
-              style: TextStyle(color: AppColors.textSecondary, fontWeight: FontWeight.w600),
+              style: TextStyle(color: ref.watch(selectedAppPaletteProvider).textSecondary, fontWeight: FontWeight.w600),
             ),
             const SizedBox(height: 14),
             _buildHistorialDiaFilterBar(totalVentas: ventas.length, ventasMostradas: ventasFiltradas.length),
@@ -1034,6 +1035,7 @@ class _MeseroPageState extends ConsumerState<MeseroPage> {
   }
 
   Widget _buildPantallaDetalleVenta(MeseroVentaModel venta) {
+    final palette = ref.watch(selectedAppPaletteProvider);
     final descripcion = (venta.mesaDescripcion ?? '').trim();
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -1060,7 +1062,7 @@ class _MeseroPageState extends ConsumerState<MeseroPage> {
                   const SizedBox(height: 4),
                   Text(
                     descripcion.isEmpty ? 'Selecciona la cuenta y agrega los productos pedidos.' : descripcion,
-                    style: const TextStyle(color: AppColors.textSecondary, fontWeight: FontWeight.w600),
+                    style: TextStyle(color: palette.textSecondary, fontWeight: FontWeight.w600),
                   ),
                 ],
               ),
@@ -1074,6 +1076,7 @@ class _MeseroPageState extends ConsumerState<MeseroPage> {
   }
 
   Widget _buildPantallaAgregarProductos(MeseroVentaModel venta, MeseroCuentaModel cuenta) {
+    final palette = ref.watch(selectedAppPaletteProvider);
     final descripcionVenta = (venta.mesaDescripcion ?? '').trim();
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -1109,7 +1112,7 @@ class _MeseroPageState extends ConsumerState<MeseroPage> {
                     'Mesa ${venta.mesaNumero ?? '-'} · ${_cuentaEtiquetaVisible(cuenta)}',
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(color: AppColors.textSecondary, fontWeight: FontWeight.w700),
+                    style: TextStyle(color: palette.textSecondary, fontWeight: FontWeight.w700),
                   ),
                   if (descripcionVenta.isNotEmpty) ...[
                     const SizedBox(height: 2),
@@ -1117,7 +1120,7 @@ class _MeseroPageState extends ConsumerState<MeseroPage> {
                       descripcionVenta,
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(color: AppColors.textSecondary, fontWeight: FontWeight.w600),
+                      style: TextStyle(color: palette.textSecondary, fontWeight: FontWeight.w600),
                     ),
                   ],
                 ],
@@ -1132,6 +1135,7 @@ class _MeseroPageState extends ConsumerState<MeseroPage> {
   }
 
   Widget _buildVentaActiva(MeseroVentaModel venta) {
+    final palette = ref.watch(selectedAppPaletteProvider);
     final cuentas = venta.cuentas;
     MeseroCuentaModel? cuentaSeleccionada;
     for (final cuenta in cuentas) {
@@ -1164,10 +1168,10 @@ class _MeseroPageState extends ConsumerState<MeseroPage> {
         const SizedBox(height: 18),
         Container(
           decoration: BoxDecoration(
-            color: Colors.white,
+            gradient: palette.glassGradient,
             borderRadius: BorderRadius.circular(28),
-            border: Border.all(color: AppColors.border),
-            boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.06), blurRadius: 28, offset: const Offset(0, 14))],
+            border: Border.all(color: palette.translucentBorder),
+            boxShadow: [BoxShadow(color: palette.cardShadow, blurRadius: 28, offset: const Offset(0, 14))],
           ),
           padding: const EdgeInsets.all(20),
           child: Column(
@@ -1226,9 +1230,9 @@ class _MeseroPageState extends ConsumerState<MeseroPage> {
                 },
               ),
               const SizedBox(height: 8),
-              const Text(
+              Text(
                 'Cada cuenta puede tener una descripción para recordar a quién pertenece. Selecciona una cuenta y asigna sus productos.',
-                style: TextStyle(color: AppColors.textSecondary),
+                style: TextStyle(color: palette.textSecondary, fontWeight: FontWeight.w600),
               ),
               const SizedBox(height: 16),
               if (cuentas.isEmpty)
@@ -1268,22 +1272,23 @@ class _MeseroPageState extends ConsumerState<MeseroPage> {
 
 
   Widget _buildAgregarProductosCallToAction(MeseroCuentaModel? cuentaSeleccionada) {
+    final palette = ref.watch(selectedAppPaletteProvider);
     final cuentaValida = cuentaSeleccionada?.cuentaId != null;
 
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.all(18),
       decoration: BoxDecoration(
-        color: AppColors.surfaceAlt,
+        gradient: palette.glassGradient,
         borderRadius: BorderRadius.circular(22),
-        border: Border.all(color: AppColors.border),
+        border: Border.all(color: palette.translucentBorder),
       ),
       child: LayoutBuilder(
         builder: (context, constraints) {
           final title = Row(
             mainAxisSize: MainAxisSize.min,
             children: [
-              const Icon(Icons.add_shopping_cart_rounded, color: AppColors.secondaryDark),
+              Icon(Icons.add_shopping_cart_rounded, color: palette.secondary),
               const SizedBox(width: 10),
               Flexible(
                 child: Column(
@@ -1301,7 +1306,7 @@ class _MeseroPageState extends ConsumerState<MeseroPage> {
                           : _cuentaEtiquetaVisible(cuentaSeleccionada),
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(color: AppColors.textSecondary, fontWeight: FontWeight.w600),
+                      style: TextStyle(color: palette.textSecondary, fontWeight: FontWeight.w600),
                     ),
                   ],
                 ),
@@ -1349,15 +1354,16 @@ class _MeseroPageState extends ConsumerState<MeseroPage> {
   }
 
   Widget _buildPestanaAgregarProductos(MeseroCuentaModel cuenta) {
+    final palette = ref.watch(selectedAppPaletteProvider);
     final productos = _productosOrdenadosPorPedido(_productosFiltrados, cuenta);
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
-        color: Colors.white,
+        gradient: palette.glassGradient,
         borderRadius: BorderRadius.circular(24),
-        border: Border.all(color: AppColors.secondary.withOpacity(0.22)),
-        boxShadow: [BoxShadow(color: AppColors.secondary.withOpacity(0.10), blurRadius: 24, offset: const Offset(0, 12))],
+        border: Border.all(color: palette.translucentBorder),
+        boxShadow: [BoxShadow(color: palette.cardShadow, blurRadius: 24, offset: const Offset(0, 12))],
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -1380,18 +1386,18 @@ class _MeseroPageState extends ConsumerState<MeseroPage> {
               width: double.infinity,
               padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
               decoration: BoxDecoration(
-                color: AppColors.surfaceAlt,
+                color: palette.mutedSurface,
                 borderRadius: BorderRadius.circular(18),
-                border: Border.all(color: AppColors.border),
+                border: Border.all(color: palette.translucentBorder),
               ),
-              child: const Row(
+              child: Row(
                 children: [
-                  Icon(Icons.trending_up_rounded, color: AppColors.secondaryDark),
-                  SizedBox(width: 10),
+                  Icon(Icons.trending_up_rounded, color: palette.secondary),
+                  const SizedBox(width: 10),
                   Expanded(
                     child: Text(
                       'Lista ordenada por cantidad pedida en esta venta. Los productos más solicitados aparecen primero.',
-                      style: TextStyle(color: AppColors.textSecondary, fontWeight: FontWeight.w700),
+                      style: TextStyle(color: palette.textSecondary, fontWeight: FontWeight.w700),
                     ),
                   ),
                 ],
@@ -1629,6 +1635,7 @@ class _MeseroPageState extends ConsumerState<MeseroPage> {
     if (cuentaId == null) return;
 
     final controller = TextEditingController();
+    final palette = ref.read(selectedAppPaletteProvider);
     try {
       final productoSeleccionado = await showModalBottomSheet<MeseroProductoModel>(
         context: context,
@@ -1693,7 +1700,7 @@ class _MeseroPageState extends ConsumerState<MeseroPage> {
                                   _cuentaEtiquetaVisible(cuenta),
                                   maxLines: 1,
                                   overflow: TextOverflow.ellipsis,
-                                  style: const TextStyle(color: AppColors.textSecondary, fontWeight: FontWeight.w600),
+                                  style: TextStyle(color: palette.textSecondary, fontWeight: FontWeight.w600),
                                 ),
                               ],
                             ),
@@ -2253,7 +2260,8 @@ class _Header extends ConsumerWidget {
       decoration: BoxDecoration(
         gradient: palette.mainGradient,
         borderRadius: BorderRadius.circular(30),
-        boxShadow: [BoxShadow(color: palette.secondary.withOpacity(0.22), blurRadius: 30, offset: const Offset(0, 18))],
+        border: Border.all(color: palette.glassBorder),
+        boxShadow: [BoxShadow(color: palette.secondary.withOpacity(0.24), blurRadius: 34, offset: const Offset(0, 18))],
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -2338,7 +2346,7 @@ class _MesasOperacionResumen extends ConsumerWidget {
   }
 }
 
-class _MesaCard extends StatelessWidget {
+class _MesaCard extends ConsumerWidget {
   const _MesaCard({
     required this.mesa,
     required this.onTap,
@@ -2356,7 +2364,8 @@ class _MesaCard extends StatelessWidget {
   final VoidCallback? onDelete;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    final palette = ref.watch(selectedAppPaletteProvider);
     final abierta = mesa.ventaId != null;
     final descripcion = (mesa.mesaDescripcion ?? '').trim();
     final estadoMesa = (mesa.estadoMesa ?? '').trim();
@@ -2367,21 +2376,16 @@ class _MesaCard extends StatelessWidget {
         : abierta
             ? 'Continuar venta'
             : 'Abrir venta';
-    final statusColor = inactiva
-        ? AppColors.textSecondary
-        : abierta
-            ? AppColors.secondaryDark
-            : AppColors.success;
     final accentColor = inactiva
-        ? AppColors.textSecondary
+        ? palette.textSecondary
         : abierta
-            ? AppColors.secondaryDark
-            : AppColors.success;
+            ? palette.secondary
+            : palette.accent;
     final softColor = inactiva
-        ? AppColors.border.withOpacity(0.60)
+        ? palette.mutedSurface
         : abierta
-            ? AppColors.secondary.withOpacity(0.13)
-            : AppColors.successSoft;
+            ? palette.secondary.withOpacity(0.14)
+            : palette.accent.withOpacity(0.14);
 
     return LayoutBuilder(
       builder: (context, constraints) {
@@ -2391,8 +2395,8 @@ class _MesaCard extends StatelessWidget {
         final tableBoxSize = veryTight ? 30.0 : (compact ? 36.0 : 44.0);
         final radius = compact ? 20.0 : 24.0;
         final showDescription = descripcion.isNotEmpty && !compact && !veryTight && constraints.maxHeight >= 170;
-        final showMetrics = !veryTight && constraints.maxHeight >= 142;
-        final showActions = !veryTight || constraints.maxWidth >= 235;
+        final showMetrics = !veryTight && constraints.maxHeight >= 172 && constraints.maxWidth >= 260;
+        final showActions = (!veryTight && constraints.maxHeight >= 164 && constraints.maxWidth >= 260) || constraints.maxWidth >= 335;
         final cuentas = mesa.numeroCuentas ?? 0;
         final pendiente = mesa.totalPendiente ?? 0;
 
@@ -2407,9 +2411,9 @@ class _MesaCard extends StatelessWidget {
               child: Container(
                 clipBehavior: Clip.antiAlias,
                 decoration: BoxDecoration(
-                  color: Colors.white,
+                  gradient: palette.glassGradient,
                   borderRadius: BorderRadius.circular(radius),
-                  border: Border.all(color: accentColor.withOpacity(abierta ? 0.28 : 0.18)),
+                  border: Border.all(color: palette.translucentBorder),
                   boxShadow: [
                     BoxShadow(
                       color: accentColor.withOpacity(abierta ? 0.13 : 0.08),
@@ -2447,7 +2451,7 @@ class _MesaCard extends StatelessWidget {
                                   radius: veryTight ? 12 : 15,
                                   accentColor: accentColor,
                                   backgroundColor: softColor,
-                                  textColor: AppColors.textPrimary,
+                                  textColor: palette.textPrimary,
                                   compact: compact,
                                   veryTight: veryTight,
                                 ),
@@ -2490,7 +2494,7 @@ class _MesaCard extends StatelessWidget {
                                           tooltip: 'Eliminar o inactivar mesa',
                                           icon: Icons.delete_outline_rounded,
                                           onPressed: onDelete ?? onEdit,
-                                          color: AppColors.danger,
+                                          color: Colors.redAccent,
                                           compact: compact,
                                         ),
                                     ],
@@ -2503,7 +2507,7 @@ class _MesaCard extends StatelessWidget {
                                 descripcion,
                                 maxLines: 1,
                                 overflow: TextOverflow.ellipsis,
-                                style: const TextStyle(color: AppColors.textSecondary, fontWeight: FontWeight.w700),
+                                style: TextStyle(color: palette.textSecondary, fontWeight: FontWeight.w700),
                               ),
                             ],
                             if (showMetrics) ...[
@@ -2537,7 +2541,7 @@ class _MesaCard extends StatelessWidget {
                               width: double.infinity,
                               padding: EdgeInsets.symmetric(horizontal: compact ? 8 : 10, vertical: veryTight ? 5 : (compact ? 6 : 7)),
                               decoration: BoxDecoration(
-                                color: inactiva ? AppColors.border.withOpacity(0.55) : accentColor.withOpacity(0.11),
+                                color: inactiva ? palette.mutedSurface : accentColor.withOpacity(0.11),
                                 borderRadius: BorderRadius.circular(14),
                                 border: Border.all(color: accentColor.withOpacity(0.16)),
                               ),
@@ -2548,7 +2552,7 @@ class _MesaCard extends StatelessWidget {
                                   Icon(
                                     abierta ? Icons.point_of_sale_rounded : Icons.add_business_rounded,
                                     size: veryTight ? 12 : (compact ? 14 : 15),
-                                    color: inactiva ? AppColors.textSecondary : accentColor,
+                                    color: inactiva ? palette.textSecondary : accentColor,
                                   ),
                                   const SizedBox(width: 6),
                                   Flexible(
@@ -2558,7 +2562,7 @@ class _MesaCard extends StatelessWidget {
                                       overflow: TextOverflow.ellipsis,
                                       textAlign: TextAlign.center,
                                       style: TextStyle(
-                                        color: inactiva ? AppColors.textSecondary : accentColor,
+                                        color: inactiva ? palette.textSecondary : accentColor,
                                         fontWeight: FontWeight.w900,
                                         fontSize: veryTight ? 10 : (compact ? 11 : 12.2),
                                       ),
@@ -2661,7 +2665,7 @@ class _MesaNumberPhotoBadge extends StatelessWidget {
           : DecoratedBox(
               decoration: BoxDecoration(
                 gradient: LinearGradient(
-                  colors: [backgroundColor, Colors.white.withOpacity(0.82)],
+                  colors: [backgroundColor, backgroundColor.withOpacity(0.48)],
                   begin: Alignment.topLeft,
                   end: Alignment.bottomRight,
                 ),
@@ -2691,7 +2695,7 @@ class _MesaNumberPhotoBadge extends StatelessWidget {
   }
 }
 
-class _MesaIconAction extends StatelessWidget {
+class _MesaIconAction extends ConsumerWidget {
   const _MesaIconAction({
     required this.tooltip,
     required this.icon,
@@ -2707,7 +2711,8 @@ class _MesaIconAction extends StatelessWidget {
   final Color? color;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    final palette = ref.watch(selectedAppPaletteProvider);
     final size = compact ? 28.0 : 32.0;
     return SizedBox(
       width: size,
@@ -2716,7 +2721,7 @@ class _MesaIconAction extends StatelessWidget {
         padding: EdgeInsets.zero,
         tooltip: tooltip,
         iconSize: compact ? 16 : 18,
-        color: color ?? AppColors.textSecondary,
+        color: color ?? palette.textSecondary,
         icon: Icon(icon),
         onPressed: onPressed,
       ),
@@ -2724,7 +2729,7 @@ class _MesaIconAction extends StatelessWidget {
   }
 }
 
-class _MesaCardMetricBox extends StatelessWidget {
+class _MesaCardMetricBox extends ConsumerWidget {
   const _MesaCardMetricBox({
     required this.label,
     required this.value,
@@ -2740,19 +2745,20 @@ class _MesaCardMetricBox extends StatelessWidget {
   final bool emphasize;
 
   @override
-  Widget build(BuildContext context) {
-    final color = emphasize ? AppColors.secondaryDark : AppColors.textPrimary;
+  Widget build(BuildContext context, WidgetRef ref) {
+    final palette = ref.watch(selectedAppPaletteProvider);
+    final color = emphasize ? palette.secondary : palette.textPrimary;
     return Container(
       constraints: BoxConstraints(minHeight: compact ? 36 : 46),
       padding: EdgeInsets.symmetric(horizontal: compact ? 6 : 9, vertical: compact ? 5 : 8),
       decoration: BoxDecoration(
-        color: emphasize ? AppColors.secondary.withOpacity(0.09) : AppColors.background,
+        color: emphasize ? palette.secondary.withOpacity(0.10) : palette.mutedSurface,
         borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: emphasize ? AppColors.secondary.withOpacity(0.18) : AppColors.border),
+        border: Border.all(color: emphasize ? palette.secondary.withOpacity(0.24) : palette.translucentBorder),
       ),
       child: Row(
         children: [
-          Icon(icon, size: compact ? 13 : 16, color: emphasize ? AppColors.secondaryDark : AppColors.textSecondary),
+          Icon(icon, size: compact ? 13 : 16, color: emphasize ? palette.secondary : palette.textSecondary),
           SizedBox(width: compact ? 5 : 6),
           Expanded(
             child: Column(
@@ -2763,7 +2769,7 @@ class _MesaCardMetricBox extends StatelessWidget {
                   label,
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
-                  style: TextStyle(fontSize: compact ? 9 : 10, color: AppColors.textSecondary, fontWeight: FontWeight.w700),
+                  style: TextStyle(fontSize: compact ? 9 : 10, color: palette.textSecondary, fontWeight: FontWeight.w700),
                 ),
                 const SizedBox(height: 1),
                 Text(
@@ -2781,7 +2787,7 @@ class _MesaCardMetricBox extends StatelessWidget {
   }
 }
 
-class _MiniMesaMetric extends StatelessWidget {
+class _MiniMesaMetric extends ConsumerWidget {
   const _MiniMesaMetric({required this.icon, required this.text, this.compact = false});
 
   final IconData icon;
@@ -2789,18 +2795,21 @@ class _MiniMesaMetric extends StatelessWidget {
   final bool compact;
 
   @override
-  Widget build(BuildContext context) => Container(
+  Widget build(BuildContext context, WidgetRef ref) {
+    final palette = ref.watch(selectedAppPaletteProvider);
+    return Container(
         padding: EdgeInsets.symmetric(horizontal: compact ? 7 : 9, vertical: compact ? 4 : 6),
-        decoration: BoxDecoration(color: Colors.white.withOpacity(0.80), borderRadius: BorderRadius.circular(999), border: Border.all(color: AppColors.border)),
+        decoration: BoxDecoration(color: palette.mutedSurface, borderRadius: BorderRadius.circular(999), border: Border.all(color: palette.translucentBorder)),
         child: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(icon, size: compact ? 12 : 14, color: AppColors.secondaryDark),
+            Icon(icon, size: compact ? 12 : 14, color: palette.secondary),
             SizedBox(width: compact ? 4 : 5),
-            Text(text, style: TextStyle(fontSize: compact ? 10.8 : 12, fontWeight: FontWeight.w800, color: AppColors.textPrimary)),
+            Text(text, style: TextStyle(fontSize: compact ? 10.8 : 12, fontWeight: FontWeight.w800, color: palette.textPrimary)),
           ],
         ),
       );
+  }
 }
 
 class _MesaStatusBadge extends ConsumerWidget {
@@ -2984,16 +2993,16 @@ class _SummaryBanner extends ConsumerWidget {
                     width: 52,
                     height: 52,
                     decoration: BoxDecoration(color: Colors.white.withOpacity(0.16), borderRadius: BorderRadius.circular(20), border: Border.all(color: Colors.white24)),
-                    child: const Icon(Icons.dashboard_customize_rounded, color: Colors.white),
+                    child: Icon(Icons.dashboard_customize_rounded, color: palette.onTitle),
                   ),
                   const SizedBox(width: 14),
-                  const Expanded(
+                  Expanded(
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Text('Resumen vendedor', style: TextStyle(color: Colors.white, fontWeight: FontWeight.w900, fontSize: 21)),
-                        SizedBox(height: 4),
-                        Text('Mesas, productos y saldos visibles para operar ventas.', style: TextStyle(color: Colors.white70, fontWeight: FontWeight.w700)),
+                        Text('Resumen vendedor', style: TextStyle(color: palette.onTitle, fontWeight: FontWeight.w900, fontSize: 21)),
+                        const SizedBox(height: 4),
+                        Text('Mesas, productos y saldos visibles para operar ventas.', style: TextStyle(color: palette.onTitle.withOpacity(0.76), fontWeight: FontWeight.w700)),
                       ],
                     ),
                   ),
@@ -3033,7 +3042,7 @@ class _SummaryBanner extends ConsumerWidget {
   }
 }
 
-class _ResumenBannerMetric extends StatelessWidget {
+class _ResumenBannerMetric extends ConsumerWidget {
   const _ResumenBannerMetric({required this.icon, required this.label, required this.value});
 
   final IconData icon;
@@ -3041,7 +3050,9 @@ class _ResumenBannerMetric extends StatelessWidget {
   final String value;
 
   @override
-  Widget build(BuildContext context) => Container(
+  Widget build(BuildContext context, WidgetRef ref) {
+    final palette = ref.watch(selectedAppPaletteProvider);
+    return Container(
         width: 198,
         padding: const EdgeInsets.all(14),
         decoration: BoxDecoration(
@@ -3051,42 +3062,46 @@ class _ResumenBannerMetric extends StatelessWidget {
         ),
         child: Row(
           children: [
-            Icon(icon, color: Colors.white, size: 22),
+            Icon(icon, color: palette.onTitle, size: 22),
             const SizedBox(width: 10),
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(label, maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(color: Colors.white.withOpacity(0.72), fontSize: 11, fontWeight: FontWeight.w800)),
+                  Text(label, maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(color: palette.onTitle.withOpacity(0.72), fontSize: 11, fontWeight: FontWeight.w800)),
                   const SizedBox(height: 3),
-                  Text(value, maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w900, fontSize: 15)),
+                  Text(value, maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(color: palette.onTitle, fontWeight: FontWeight.w900, fontSize: 15)),
                 ],
               ),
             ),
           ],
         ),
       );
+  }
 }
 
-class _ResumenFeaturePill extends StatelessWidget {
+class _ResumenFeaturePill extends ConsumerWidget {
   const _ResumenFeaturePill({required this.icon, required this.text});
 
   final IconData icon;
   final String text;
 
   @override
-  Widget build(BuildContext context) => Container(
+  Widget build(BuildContext context, WidgetRef ref) {
+    final palette = ref.watch(selectedAppPaletteProvider);
+    return Container(
         padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
         decoration: BoxDecoration(color: Colors.white.withOpacity(0.12), borderRadius: BorderRadius.circular(999), border: Border.all(color: Colors.white.withOpacity(0.18))),
         child: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(icon, size: 15, color: Colors.white),
+            Icon(icon, size: 15, color: palette.onTitle),
             const SizedBox(width: 6),
-            Text(text, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w800, fontSize: 12)),
+            Text(text, style: TextStyle(color: palette.onTitle, fontWeight: FontWeight.w800, fontSize: 12)),
           ],
         ),
       );
+  }
 }
 
 class _ResumenMiniMetric extends StatelessWidget {
@@ -3137,7 +3152,7 @@ class _ResumenStatusChip extends StatelessWidget {
       );
 }
 
-class _VentaInfoPanel extends StatelessWidget {
+class _VentaInfoPanel extends ConsumerWidget {
   const _VentaInfoPanel({
     required this.venta,
     this.onModificarDivision,
@@ -3153,7 +3168,8 @@ class _VentaInfoPanel extends StatelessWidget {
   final VoidCallback? onLimpiarVentaSinConsumos;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    final palette = ref.watch(selectedAppPaletteProvider);
     final descripcion = (venta.mesaDescripcion ?? '').trim();
     final cuentas = venta.cuentas.length;
     final productos = venta.cuentas.fold<int>(0, (sum, cuenta) => sum + cuenta.productos.length);
@@ -3163,12 +3179,12 @@ class _VentaInfoPanel extends StatelessWidget {
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
         gradient: LinearGradient(
-          colors: [AppColors.primary.withOpacity(0.12), AppColors.secondary.withOpacity(0.10)],
+          colors: [palette.secondary.withOpacity(0.13), palette.accent.withOpacity(0.10), palette.glassSurface],
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
         ),
         borderRadius: BorderRadius.circular(28),
-        border: Border.all(color: AppColors.border),
+        border: Border.all(color: palette.translucentBorder),
       ),
       child: LayoutBuilder(
         builder: (context, constraints) {
@@ -3183,7 +3199,7 @@ class _VentaInfoPanel extends StatelessWidget {
               const SizedBox(height: 6),
               Text(
                 descripcion.isEmpty ? 'Sin descripción registrada para esta venta.' : descripcion,
-                style: const TextStyle(color: AppColors.textSecondary, fontWeight: FontWeight.w600),
+                style: TextStyle(color: palette.textSecondary, fontWeight: FontWeight.w600),
               ),
             ],
           );
@@ -3255,7 +3271,7 @@ class _SmallInfoPill extends ConsumerWidget {
   }
 }
 
-class _CuentaSelectorCard extends StatelessWidget {
+class _CuentaSelectorCard extends ConsumerWidget {
   const _CuentaSelectorCard({required this.cuenta, required this.selected, required this.onTap});
 
   final MeseroCuentaModel cuenta;
@@ -3263,10 +3279,11 @@ class _CuentaSelectorCard extends StatelessWidget {
   final VoidCallback onTap;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    final palette = ref.watch(selectedAppPaletteProvider);
     final descripcion = (cuenta.descripcion ?? '').trim();
     return Material(
-      color: selected ? AppColors.secondary.withOpacity(0.10) : AppColors.background,
+      color: selected ? palette.secondary.withOpacity(0.10) : palette.mutedSurface,
       borderRadius: BorderRadius.circular(20),
       child: InkWell(
         borderRadius: BorderRadius.circular(20),
@@ -3276,21 +3293,21 @@ class _CuentaSelectorCard extends StatelessWidget {
           padding: const EdgeInsets.all(16),
           decoration: BoxDecoration(
             borderRadius: BorderRadius.circular(20),
-            border: Border.all(color: selected ? AppColors.secondaryDark : AppColors.border, width: selected ? 2 : 1),
+            border: Border.all(color: selected ? palette.secondary : palette.translucentBorder, width: selected ? 2 : 1),
           ),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Row(
                 children: [
-                  Icon(selected ? Icons.radio_button_checked_rounded : Icons.radio_button_unchecked_rounded, color: selected ? AppColors.secondaryDark : AppColors.textSecondary),
+                  Icon(selected ? Icons.radio_button_checked_rounded : Icons.radio_button_unchecked_rounded, color: selected ? palette.secondary : palette.textSecondary),
                   const SizedBox(width: 8),
                   Expanded(
                     child: Text(
                       _cuentaNombreVisible(cuenta),
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 16),
+                      style: TextStyle(fontWeight: FontWeight.w900, fontSize: 16, color: palette.textPrimary),
                     ),
                   ),
                 ],
@@ -3300,7 +3317,7 @@ class _CuentaSelectorCard extends StatelessWidget {
                 descripcion.isEmpty ? 'Sin descripción' : descripcion,
                 maxLines: 2,
                 overflow: TextOverflow.ellipsis,
-                style: TextStyle(color: descripcion.isEmpty ? AppColors.textSecondary.withOpacity(0.75) : AppColors.textSecondary, fontWeight: FontWeight.w600),
+                style: TextStyle(color: descripcion.isEmpty ? palette.textSecondary.withOpacity(0.75) : palette.textSecondary, fontWeight: FontWeight.w600),
               ),
               const SizedBox(height: 12),
               Wrap(
@@ -3324,7 +3341,7 @@ class _CuentaSelectorCard extends StatelessWidget {
 }
 
 
-class _CuentasTabMenu extends StatelessWidget {
+class _CuentasTabMenu extends ConsumerWidget {
   const _CuentasTabMenu({
     required this.cuentas,
     required this.selectedCuentaId,
@@ -3338,7 +3355,8 @@ class _CuentasTabMenu extends StatelessWidget {
   final ValueChanged<MeseroCuentaModel>? onDeleteEmptyAccount;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    final palette = ref.watch(selectedAppPaletteProvider);
     return LayoutBuilder(
       builder: (context, constraints) {
         final compact = constraints.maxWidth < 620;
@@ -3351,12 +3369,12 @@ class _CuentasTabMenu extends StatelessWidget {
         final columns = cuentas.isEmpty ? 1 : (cuentas.length < maxColumns ? cuentas.length : maxColumns);
 
         final barDecoration = BoxDecoration(
-          color: Colors.white,
+          gradient: palette.glassGradient,
           borderRadius: BorderRadius.circular(compact ? 22 : 24),
-          border: Border.all(color: AppColors.border),
+          border: Border.all(color: palette.translucentBorder),
           boxShadow: [
             BoxShadow(
-              color: Colors.black.withOpacity(0.045),
+              color: palette.cardShadow,
               blurRadius: 22,
               offset: const Offset(0, 10),
             ),
@@ -3406,7 +3424,7 @@ class _CuentasTabMenu extends StatelessWidget {
   }
 }
 
-class _CuentaSelectorTab extends StatelessWidget {
+class _CuentaSelectorTab extends ConsumerWidget {
   const _CuentaSelectorTab({
     required this.cuenta,
     required this.selected,
@@ -3424,12 +3442,13 @@ class _CuentaSelectorTab extends StatelessWidget {
   final bool compact;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    final palette = ref.watch(selectedAppPaletteProvider);
     final saldo = cuenta.saldoPendiente ?? 0;
     final pagada = cuenta.pagada == true;
-    final colorActivo = AppColors.secondaryDark;
-    final colorInactivo = AppColors.textSecondary;
-    final colorEstado = pagada ? AppColors.success : AppColors.secondaryDark;
+    final colorActivo = palette.secondary;
+    final colorInactivo = palette.textSecondary;
+    final colorEstado = pagada ? palette.accent : palette.secondary;
     final icon = pagada ? Icons.check_circle_rounded : Icons.receipt_long_rounded;
     final estado = pagada ? 'Pagada' : CurrencyUtils.format(saldo);
 
@@ -3486,7 +3505,7 @@ class _CuentaSelectorTab extends StatelessWidget {
                       overflow: TextOverflow.ellipsis,
                       textAlign: TextAlign.center,
                       style: TextStyle(
-                        color: selected ? colorActivo : AppColors.textPrimary,
+                        color: selected ? colorActivo : palette.textPrimary,
                         fontWeight: FontWeight.w900,
                         fontSize: compact ? 11 : 13,
                       ),
@@ -3519,11 +3538,11 @@ class _CuentaSelectorTab extends StatelessWidget {
                         width: compact ? 24 : 26,
                         height: compact ? 24 : 26,
                         decoration: BoxDecoration(
-                          color: AppColors.danger.withOpacity(0.10),
+                          color: Colors.redAccent.withOpacity(0.10),
                           borderRadius: BorderRadius.circular(999),
-                          border: Border.all(color: AppColors.danger.withOpacity(0.24)),
+                          border: Border.all(color: Colors.redAccent.withOpacity(0.24)),
                         ),
-                        child: Icon(Icons.close_rounded, size: compact ? 15 : 16, color: AppColors.danger),
+                        child: Icon(Icons.close_rounded, size: compact ? 15 : 16, color: Colors.redAccent),
                       ),
                     ),
                   ),
@@ -3536,19 +3555,22 @@ class _CuentaSelectorTab extends StatelessWidget {
   }
 }
 
-class _TotalPill extends StatelessWidget {
+class _TotalPill extends ConsumerWidget {
   const _TotalPill({required this.total});
   final num? total;
 
   @override
-  Widget build(BuildContext context) => Container(
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-        decoration: BoxDecoration(color: AppColors.secondary.withOpacity(0.10), borderRadius: BorderRadius.circular(999)),
-        child: Text(CurrencyUtils.format(total), style: const TextStyle(color: AppColors.secondaryDark, fontWeight: FontWeight.w900)),
-      );
+  Widget build(BuildContext context, WidgetRef ref) {
+    final palette = ref.watch(selectedAppPaletteProvider);
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+      decoration: BoxDecoration(color: palette.secondary.withOpacity(0.10), borderRadius: BorderRadius.circular(999), border: Border.all(color: palette.secondary.withOpacity(0.18))),
+      child: Text(CurrencyUtils.format(total), style: TextStyle(color: palette.secondary, fontWeight: FontWeight.w900)),
+    );
+  }
 }
 
-class _CuentaDetalle extends StatelessWidget {
+class _CuentaDetalle extends ConsumerWidget {
   const _CuentaDetalle({
     required this.cuenta,
     this.onEliminarProducto,
@@ -3566,16 +3588,17 @@ class _CuentaDetalle extends StatelessWidget {
   final VoidCallback? onLimpiarVentaSinConsumos;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    final palette = ref.watch(selectedAppPaletteProvider);
     final nombreCuenta = _cuentaNombreVisible(cuenta);
 
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: AppColors.background,
+        gradient: palette.glassGradient,
         borderRadius: BorderRadius.circular(24),
-        border: Border.all(color: AppColors.border),
+        border: Border.all(color: palette.translucentBorder),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -3653,25 +3676,23 @@ class _CuentaDetalle extends StatelessWidget {
   }
 }
 
-class _CuentaDetalleHeader extends StatelessWidget {
+class _CuentaDetalleHeader extends ConsumerWidget {
   const _CuentaDetalleHeader({required this.nombreCuenta, required this.total});
 
   final String nombreCuenta;
   final num? total;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    final palette = ref.watch(selectedAppPaletteProvider);
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        gradient: LinearGradient(
-          colors: [AppColors.primary.withOpacity(0.12), AppColors.secondary.withOpacity(0.10), Colors.white],
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-        ),
+        gradient: palette.glassGradient,
         borderRadius: BorderRadius.circular(22),
-        border: Border.all(color: AppColors.border),
+        border: Border.all(color: palette.translucentBorder),
+        boxShadow: [BoxShadow(color: palette.cardShadow, blurRadius: 22, offset: const Offset(0, 10))],
       ),
       child: LayoutBuilder(
         builder: (context, constraints) {
@@ -3681,8 +3702,12 @@ class _CuentaDetalleHeader extends StatelessWidget {
               Container(
                 width: 42,
                 height: 42,
-                decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(14), border: Border.all(color: AppColors.border)),
-                child: const Icon(Icons.person_pin_circle_rounded, color: AppColors.secondaryDark),
+                decoration: BoxDecoration(
+                  color: palette.secondary.withOpacity(0.12),
+                  borderRadius: BorderRadius.circular(14),
+                  border: Border.all(color: palette.cardBorder),
+                ),
+                child: Icon(Icons.person_pin_circle_rounded, color: palette.secondary),
               ),
               const SizedBox(width: 12),
               Expanded(
@@ -3691,14 +3716,14 @@ class _CuentaDetalleHeader extends StatelessWidget {
                   children: [
                     Text(
                       'Cuenta seleccionada',
-                      style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w900),
+                      style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w900, color: palette.textPrimary),
                     ),
                     const SizedBox(height: 2),
                     Text(
                       nombreCuenta,
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(color: AppColors.textSecondary, fontWeight: FontWeight.w800),
+                      style: TextStyle(color: palette.textSecondary, fontWeight: FontWeight.w800),
                     ),
                   ],
                 ),
@@ -3708,13 +3733,17 @@ class _CuentaDetalleHeader extends StatelessWidget {
 
           final totalBox = Container(
             padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-            decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(16), border: Border.all(color: AppColors.border)),
+            decoration: BoxDecoration(
+              color: palette.surface.withOpacity(palette.darkBackground ? 0.80 : 0.92),
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(color: palette.cardBorder),
+            ),
             child: Column(
               crossAxisAlignment: compact ? CrossAxisAlignment.start : CrossAxisAlignment.end,
               children: [
-                const Text('Total cuenta', style: TextStyle(color: AppColors.textSecondary, fontSize: 12, fontWeight: FontWeight.w800)),
+                Text('Total cuenta', style: TextStyle(color: palette.textSecondary, fontSize: 12, fontWeight: FontWeight.w800)),
                 const SizedBox(height: 2),
-                Text(CurrencyUtils.format(total), style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 18)),
+                Text(CurrencyUtils.format(total), style: TextStyle(fontWeight: FontWeight.w900, fontSize: 18, color: palette.textPrimary)),
               ],
             ),
           );
@@ -3730,7 +3759,7 @@ class _CuentaDetalleHeader extends StatelessWidget {
   }
 }
 
-class _CuentaSectionCard extends StatelessWidget {
+class _CuentaSectionCard extends ConsumerWidget {
   const _CuentaSectionCard({
     required this.icon,
     required this.title,
@@ -3744,15 +3773,16 @@ class _CuentaSectionCard extends StatelessWidget {
   final Widget child;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    final palette = ref.watch(selectedAppPaletteProvider);
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
-        color: Colors.white,
+        gradient: palette.glassGradient,
         borderRadius: BorderRadius.circular(22),
-        border: Border.all(color: AppColors.border),
-        boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.025), blurRadius: 16, offset: const Offset(0, 8))],
+        border: Border.all(color: palette.translucentBorder),
+        boxShadow: [BoxShadow(color: palette.cardShadow, blurRadius: 18, offset: const Offset(0, 8))],
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -3763,24 +3793,24 @@ class _CuentaSectionCard extends StatelessWidget {
               Container(
                 width: 36,
                 height: 36,
-                decoration: BoxDecoration(color: AppColors.secondary.withOpacity(0.10), borderRadius: BorderRadius.circular(13)),
-                child: Icon(icon, color: AppColors.secondaryDark, size: 20),
+                decoration: BoxDecoration(color: palette.secondary.withOpacity(0.12), borderRadius: BorderRadius.circular(13)),
+                child: Icon(icon, color: palette.secondary, size: 20),
               ),
               const SizedBox(width: 10),
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(title, style: Theme.of(context).textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w900)),
+                    Text(title, style: Theme.of(context).textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w900, color: palette.textPrimary)),
                     const SizedBox(height: 2),
-                    Text(description, style: const TextStyle(color: AppColors.textSecondary, fontSize: 12, fontWeight: FontWeight.w600)),
+                    Text(description, style: TextStyle(color: palette.textSecondary, fontSize: 12, fontWeight: FontWeight.w600)),
                   ],
                 ),
               ),
             ],
           ),
           const SizedBox(height: 12),
-          const Divider(height: 1),
+          Divider(height: 1, color: palette.cardBorder),
           const SizedBox(height: 12),
           child,
         ],
@@ -3789,44 +3819,46 @@ class _CuentaSectionCard extends StatelessWidget {
   }
 }
 
-class _CuentaEmptySection extends StatelessWidget {
+class _CuentaEmptySection extends ConsumerWidget {
   const _CuentaEmptySection({required this.icon, required this.message});
 
   final IconData icon;
   final String message;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    final palette = ref.watch(selectedAppPaletteProvider);
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 16),
-      decoration: BoxDecoration(color: AppColors.surfaceAlt, borderRadius: BorderRadius.circular(16), border: Border.all(color: AppColors.border)),
+      decoration: BoxDecoration(color: palette.mutedSurface, borderRadius: BorderRadius.circular(16), border: Border.all(color: palette.cardBorder)),
       child: Row(
         children: [
-          Icon(icon, color: AppColors.textSecondary),
+          Icon(icon, color: palette.textSecondary),
           const SizedBox(width: 10),
-          Expanded(child: Text(message, style: const TextStyle(color: AppColors.textSecondary, fontWeight: FontWeight.w700))),
+          Expanded(child: Text(message, style: TextStyle(color: palette.textSecondary, fontWeight: FontWeight.w700))),
         ],
       ),
     );
   }
 }
 
-class _CuentaPagoRegistradoTile extends StatelessWidget {
+class _CuentaPagoRegistradoTile extends ConsumerWidget {
   const _CuentaPagoRegistradoTile({required this.pago});
 
   final MeseroPagoModel pago;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    final palette = ref.watch(selectedAppPaletteProvider);
     final tieneRecibido = pago.valorRecibido != null;
     return Container(
       margin: const EdgeInsets.only(bottom: 10),
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
-        color: AppColors.surfaceAlt,
+        color: palette.mutedSurface,
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: AppColors.border),
+        border: Border.all(color: palette.cardBorder),
       ),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -3834,8 +3866,8 @@ class _CuentaPagoRegistradoTile extends StatelessWidget {
           Container(
             width: 40,
             height: 40,
-            decoration: BoxDecoration(color: AppColors.successSoft.withOpacity(0.85), borderRadius: BorderRadius.circular(14)),
-            child: const Icon(Icons.payments_rounded, color: AppColors.success, size: 22),
+            decoration: BoxDecoration(color: palette.accent.withOpacity(0.16), borderRadius: BorderRadius.circular(14)),
+            child: Icon(Icons.payments_rounded, color: palette.accent, size: 22),
           ),
           const SizedBox(width: 12),
           Expanded(
@@ -3846,26 +3878,25 @@ class _CuentaPagoRegistradoTile extends StatelessWidget {
                   pago.medioPagoNombre ?? 'Medio ${pago.medioPagoId ?? '-'}',
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(fontWeight: FontWeight.w900),
+                  style: TextStyle(fontWeight: FontWeight.w900, color: palette.textPrimary),
                 ),
                 const SizedBox(height: 4),
                 Text(
                   tieneRecibido
                       ? 'Recibido: ${CurrencyUtils.format(pago.valorRecibido)} · Vueltas: ${CurrencyUtils.format(pago.cambio ?? 0)}'
                       : 'Pago aplicado a la cuenta',
-                  style: const TextStyle(color: AppColors.textSecondary, fontSize: 12, fontWeight: FontWeight.w700),
+                  style: TextStyle(color: palette.textSecondary, fontSize: 12, fontWeight: FontWeight.w700),
                 ),
               ],
             ),
           ),
           const SizedBox(width: 12),
-          Text(CurrencyUtils.format(pago.valor), style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 15)),
+          Text(CurrencyUtils.format(pago.valor), style: TextStyle(fontWeight: FontWeight.w900, fontSize: 15, color: palette.textPrimary)),
         ],
       ),
     );
   }
 }
-
 
 class _CuentaProductosTabla extends ConsumerWidget {
   const _CuentaProductosTabla({
@@ -3980,7 +4011,7 @@ class _CuentaProductosTabla extends ConsumerWidget {
                   child: Icon(
                     pagado ? Icons.lock_rounded : Icons.lock_open_rounded,
                     size: 18,
-                    color: pagado ? AppColors.textSecondary : AppColors.secondaryDark,
+                    color: pagado ? palette.textSecondary : palette.secondary,
                   ),
                 ),
                 const SizedBox(width: 8),
@@ -3989,7 +4020,7 @@ class _CuentaProductosTabla extends ConsumerWidget {
                     producto.productoNombre ?? 'Producto ${producto.productoId ?? '-'}',
                     maxLines: 2,
                     overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(fontWeight: FontWeight.w800),
+                    style: TextStyle(fontWeight: FontWeight.w800, color: palette.textPrimary),
                   ),
                 ),
               ],
@@ -4040,14 +4071,15 @@ class _CuentaProductosTabla extends ConsumerWidget {
   }
 }
 
-class _CuentaTotalesBajoTabla extends StatelessWidget {
+class _CuentaTotalesBajoTabla extends ConsumerWidget {
   const _CuentaTotalesBajoTabla({required this.cuenta, this.compact = false});
 
   final MeseroCuentaModel cuenta;
   final bool compact;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    final palette = ref.watch(selectedAppPaletteProvider);
     final saldo = cuenta.saldoPendiente ?? 0;
     final items = [
       _CuentaResumenDato(
@@ -4085,9 +4117,9 @@ class _CuentaTotalesBajoTabla extends StatelessWidget {
       margin: const EdgeInsets.only(top: 12),
       padding: EdgeInsets.all(compact ? 12 : 14),
       decoration: BoxDecoration(
-        color: AppColors.surfaceAlt,
+        color: palette.mutedSurface,
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: AppColors.border),
+        border: Border.all(color: palette.cardBorder),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -4098,16 +4130,16 @@ class _CuentaTotalesBajoTabla extends StatelessWidget {
                 width: 32,
                 height: 32,
                 decoration: BoxDecoration(
-                  color: AppColors.secondary.withOpacity(0.10),
+                  color: palette.secondary.withOpacity(0.12),
                   borderRadius: BorderRadius.circular(12),
                 ),
-                child: const Icon(Icons.summarize_rounded, color: AppColors.secondaryDark, size: 18),
+                child: Icon(Icons.summarize_rounded, color: palette.secondary, size: 18),
               ),
               const SizedBox(width: 10),
               Expanded(
                 child: Text(
                   'Totales de la cuenta',
-                  style: Theme.of(context).textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w900),
+                  style: Theme.of(context).textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w900, color: palette.textPrimary),
                 ),
               ),
             ],
@@ -4139,7 +4171,7 @@ class _CuentaTotalesBajoTabla extends StatelessWidget {
   }
 }
 
-class _CuentaResumenDato extends StatelessWidget {
+class _CuentaResumenDato extends ConsumerWidget {
   const _CuentaResumenDato({
     required this.icon,
     required this.label,
@@ -4157,25 +4189,26 @@ class _CuentaResumenDato extends StatelessWidget {
   final bool danger;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    final palette = ref.watch(selectedAppPaletteProvider);
     final Color accentColor = danger
         ? AppColors.danger
         : strong || highlighted
-            ? AppColors.secondaryDark
-            : AppColors.textSecondary;
+            ? palette.secondary
+            : palette.textSecondary;
 
     return Container(
       constraints: const BoxConstraints(minHeight: 72),
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: palette.surface.withOpacity(palette.darkBackground ? 0.80 : 0.92),
         borderRadius: BorderRadius.circular(14),
         border: Border.all(
           color: danger
               ? AppColors.danger.withOpacity(0.24)
               : highlighted || strong
-                  ? AppColors.secondary.withOpacity(0.24)
-                  : AppColors.border,
+                  ? palette.secondary.withOpacity(0.28)
+                  : palette.cardBorder,
         ),
       ),
       child: Row(
@@ -4185,7 +4218,7 @@ class _CuentaResumenDato extends StatelessWidget {
             width: 28,
             height: 28,
             decoration: BoxDecoration(
-              color: accentColor.withOpacity(0.10),
+              color: accentColor.withOpacity(0.12),
               borderRadius: BorderRadius.circular(10),
             ),
             child: Icon(icon, size: 16, color: accentColor),
@@ -4200,7 +4233,7 @@ class _CuentaResumenDato extends StatelessWidget {
                   label,
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w800, color: AppColors.textSecondary),
+                  style: TextStyle(fontSize: 11, fontWeight: FontWeight.w800, color: palette.textSecondary),
                 ),
                 const SizedBox(height: 4),
                 Text(
@@ -4210,7 +4243,7 @@ class _CuentaResumenDato extends StatelessWidget {
                   style: TextStyle(
                     fontSize: strong ? 15 : 14,
                     fontWeight: FontWeight.w900,
-                    color: danger ? AppColors.danger : strong || highlighted ? AppColors.secondaryDark : AppColors.textPrimary,
+                    color: danger ? AppColors.danger : strong || highlighted ? palette.secondary : palette.textPrimary,
                   ),
                 ),
               ],
@@ -4254,7 +4287,7 @@ class _CuentaProductoMobileRow extends StatelessWidget {
               Icon(
                 pagado ? Icons.lock_rounded : Icons.lock_open_rounded,
                 size: 19,
-                color: pagado ? AppColors.textSecondary : AppColors.secondaryDark,
+                color: pagado ? palette.textSecondary : palette.secondary,
               ),
               const SizedBox(width: 8),
               Expanded(
@@ -4262,7 +4295,7 @@ class _CuentaProductoMobileRow extends StatelessWidget {
                   producto.productoNombre ?? 'Producto ${producto.productoId ?? '-'}',
                   maxLines: 3,
                   overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(fontWeight: FontWeight.w900),
+                  style: TextStyle(fontWeight: FontWeight.w900, color: palette.textPrimary),
                 ),
               ),
               const SizedBox(width: 8),
@@ -4280,20 +4313,29 @@ class _CuentaProductoMobileRow extends StatelessWidget {
             ],
           ),
           const SizedBox(height: 10),
-          Row(
-            children: [
-              OutlinedButton.icon(
+          LayoutBuilder(
+            builder: (context, constraints) {
+              final stacked = constraints.maxWidth < 260;
+              final mover = OutlinedButton.icon(
                 onPressed: puedeMover ? () => onMoverProducto!(producto) : null,
                 icon: const Icon(Icons.swap_horiz_rounded, size: 18),
                 label: const Text('Mover'),
-              ),
-              const SizedBox(width: 8),
-              OutlinedButton.icon(
+                style: OutlinedButton.styleFrom(foregroundColor: palette.secondary, side: BorderSide(color: palette.secondary.withOpacity(0.35))),
+              );
+              final eliminar = OutlinedButton.icon(
                 onPressed: puedeEliminar ? () => onEliminarProducto!(producto) : null,
                 icon: const Icon(Icons.delete_outline_rounded, size: 18),
                 label: const Text('Eliminar'),
-              ),
-            ],
+                style: OutlinedButton.styleFrom(foregroundColor: palette.accent, side: BorderSide(color: palette.accent.withOpacity(0.35))),
+              );
+              if (stacked) {
+                return Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [mover, const SizedBox(height: 8), eliminar],
+                );
+              }
+              return Wrap(spacing: 8, runSpacing: 8, children: [mover, eliminar]);
+            },
           ),
         ],
       ),
@@ -4301,53 +4343,56 @@ class _CuentaProductoMobileRow extends StatelessWidget {
   }
 }
 
-class _EstadoPagoChip extends StatelessWidget {
+class _EstadoPagoChip extends ConsumerWidget {
   const _EstadoPagoChip({required this.pagado});
 
   final bool pagado;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    final palette = ref.watch(selectedAppPaletteProvider);
+    final color = pagado ? palette.accent : palette.secondary;
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 5),
       decoration: BoxDecoration(
-        color: pagado ? AppColors.success.withOpacity(0.12) : AppColors.warning.withOpacity(0.14),
+        color: color.withOpacity(0.14),
         borderRadius: BorderRadius.circular(999),
-        border: Border.all(color: pagado ? AppColors.success.withOpacity(0.28) : AppColors.warning.withOpacity(0.32)),
+        border: Border.all(color: color.withOpacity(0.32)),
       ),
       child: Text(
         pagado ? 'Pagado' : 'Pendiente',
         style: TextStyle(
           fontSize: 11,
           fontWeight: FontWeight.w900,
-          color: pagado ? AppColors.success : AppColors.warning,
+          color: color,
         ),
       ),
     );
   }
 }
 
-class _CuentaProductoHeaderCell extends StatelessWidget {
+class _CuentaProductoHeaderCell extends ConsumerWidget {
   const _CuentaProductoHeaderCell(this.text, {this.alignEnd = false});
 
   final String text;
   final bool alignEnd;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    final palette = ref.watch(selectedAppPaletteProvider);
     return Align(
       alignment: alignEnd ? Alignment.centerRight : Alignment.centerLeft,
       child: Text(
         text,
         maxLines: 1,
         overflow: TextOverflow.ellipsis,
-        style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w900, color: AppColors.textSecondary),
+        style: TextStyle(fontSize: 12, fontWeight: FontWeight.w900, color: palette.textSecondary),
       ),
     );
   }
 }
 
-class _CuentaProductoValueCell extends StatelessWidget {
+class _CuentaProductoValueCell extends ConsumerWidget {
   const _CuentaProductoValueCell(this.text, {this.alignEnd = false, this.strong = false});
 
   final String text;
@@ -4355,7 +4400,8 @@ class _CuentaProductoValueCell extends StatelessWidget {
   final bool strong;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    final palette = ref.watch(selectedAppPaletteProvider);
     return Align(
       alignment: alignEnd ? Alignment.centerRight : Alignment.centerLeft,
       child: Text(
@@ -4365,14 +4411,14 @@ class _CuentaProductoValueCell extends StatelessWidget {
         style: TextStyle(
           fontSize: 13,
           fontWeight: strong ? FontWeight.w900 : FontWeight.w700,
-          color: strong ? AppColors.textPrimary : AppColors.textSecondary,
+          color: strong ? palette.secondary : palette.textSecondary,
         ),
       ),
     );
   }
 }
 
-class _CuentaDetalleAccionesPago extends StatelessWidget {
+class _CuentaDetalleAccionesPago extends ConsumerWidget {
   const _CuentaDetalleAccionesPago({
     required this.cuenta,
     this.onPagarCuenta,
@@ -4386,14 +4432,15 @@ class _CuentaDetalleAccionesPago extends StatelessWidget {
   final VoidCallback? onLimpiarVentaSinConsumos;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    final palette = ref.watch(selectedAppPaletteProvider);
     final saldo = cuenta.saldoPendiente ?? 0;
     final acciones = <Widget>[
       _CuentaActionButton(
         icon: Icons.payments_rounded,
         title: 'Pagar cuenta',
         subtitle: saldo > 0.009 ? CurrencyUtils.format(saldo) : 'Nuevo pago',
-        colors: const [AppColors.secondaryDark, AppColors.secondary],
+        colors: [palette.secondary, palette.accent],
         onTap: onPagarCuenta,
         compact: true,
       ),
@@ -4401,7 +4448,7 @@ class _CuentaDetalleAccionesPago extends StatelessWidget {
         icon: Icons.check_circle_rounded,
         title: 'Finalizar venta',
         subtitle: onFinalizarVenta == null ? 'Pendiente' : 'Cerrar venta',
-        colors: const [AppColors.success, AppColors.primary],
+        colors: [palette.accent, palette.secondary],
         onTap: onFinalizarVenta,
         compact: true,
       ),
@@ -4410,7 +4457,7 @@ class _CuentaDetalleAccionesPago extends StatelessWidget {
           icon: Icons.event_available_rounded,
           title: 'Liberar mesa',
           subtitle: 'Sin consumos',
-          colors: const [AppColors.warning, AppColors.danger],
+          colors: [palette.primary, palette.secondary],
           onTap: onLimpiarVentaSinConsumos,
           compact: true,
         ),
@@ -4637,7 +4684,7 @@ class _ProductoCatalogoTableRow extends ConsumerWidget {
                         producto.nombre ?? 'Producto ${producto.prodId ?? '-'}',
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
-                        style: const TextStyle(fontWeight: FontWeight.w900),
+                        style: TextStyle(fontWeight: FontWeight.w900, color: palette.textPrimary),
                       ),
                       if (descripcion.isNotEmpty) ...[
                         const SizedBox(height: 3),
@@ -4696,7 +4743,7 @@ class _ProductoCatalogoMobileRow extends ConsumerWidget {
                   producto.nombre ?? 'Producto ${producto.prodId ?? '-'}',
                   maxLines: 2,
                   overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(fontWeight: FontWeight.w900),
+                  style: TextStyle(fontWeight: FontWeight.w900, color: palette.textPrimary),
                 ),
                 if (descripcion.isNotEmpty) ...[
                   const SizedBox(height: 4),
@@ -4720,7 +4767,7 @@ class _ProductoCatalogoMobileRow extends ConsumerWidget {
             ),
           ),
           const SizedBox(width: 10),
-          Text(CurrencyUtils.format(producto.precioVenta), textAlign: TextAlign.right, style: const TextStyle(fontWeight: FontWeight.w900)),
+          Text(CurrencyUtils.format(producto.precioVenta), textAlign: TextAlign.right, style: TextStyle(fontWeight: FontWeight.w900, color: palette.secondary)),
         ],
       ),
     );
@@ -5160,7 +5207,7 @@ class _AgregarProductoMobileRow extends StatelessWidget {
   }
 }
 
-class _MobileMiniMetric extends StatelessWidget {
+class _MobileMiniMetric extends ConsumerWidget {
   const _MobileMiniMetric({required this.label, required this.value, this.alignEnd = false});
 
   final String label;
@@ -5168,13 +5215,14 @@ class _MobileMiniMetric extends StatelessWidget {
   final bool alignEnd;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    final palette = ref.watch(selectedAppPaletteProvider);
     return Column(
       crossAxisAlignment: alignEnd ? CrossAxisAlignment.end : CrossAxisAlignment.start,
       children: [
-        Text(label, style: const TextStyle(color: AppColors.textSecondary, fontWeight: FontWeight.w700, fontSize: 11)),
+        Text(label, style: TextStyle(color: palette.textSecondary, fontWeight: FontWeight.w700, fontSize: 11)),
         const SizedBox(height: 2),
-        Text(value, textAlign: alignEnd ? TextAlign.right : TextAlign.left, style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 13)),
+        Text(value, textAlign: alignEnd ? TextAlign.right : TextAlign.left, style: TextStyle(fontWeight: FontWeight.w900, fontSize: 13, color: palette.textPrimary)),
       ],
     );
   }
@@ -5207,31 +5255,33 @@ class _PedidoTag extends StatelessWidget {
       );
 }
 
-class _ProductoTag extends StatelessWidget {
+class _ProductoTag extends ConsumerWidget {
   const _ProductoTag({required this.icon, required this.text});
 
   final IconData icon;
   final String text;
 
   @override
-  Widget build(BuildContext context) => Container(
-        padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 6),
-        decoration: BoxDecoration(
-          color: AppColors.surfaceAlt,
-          borderRadius: BorderRadius.circular(999),
-          border: Border.all(color: AppColors.border),
-        ),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(icon, size: 14, color: AppColors.secondaryDark),
-            const SizedBox(width: 5),
-            Text(text, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w800, color: AppColors.textSecondary)),
-          ],
-        ),
-      );
+  Widget build(BuildContext context, WidgetRef ref) {
+    final palette = ref.watch(selectedAppPaletteProvider);
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 6),
+      decoration: BoxDecoration(
+        color: palette.mutedSurface,
+        borderRadius: BorderRadius.circular(999),
+        border: Border.all(color: palette.cardBorder),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 14, color: palette.secondary),
+          const SizedBox(width: 5),
+          Text(text, style: TextStyle(fontSize: 12, fontWeight: FontWeight.w800, color: palette.textSecondary)),
+        ],
+      ),
+    );
+  }
 }
-
 
 String _formatCantidadGeneral(num? value) {
   if (value == null) return '0';
@@ -5325,6 +5375,7 @@ class _DetalleHistorialVentaPage extends StatelessWidget {
   }
 
   Widget _buildHeader(BuildContext context, String descripcion, int pagosRegistrados) {
+    final palette = ProviderScope.containerOf(context).read(selectedAppPaletteProvider);
     final compact = MediaQuery.sizeOf(context).width < 760;
     final title = Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -5336,7 +5387,7 @@ class _DetalleHistorialVentaPage extends StatelessWidget {
         const SizedBox(height: 6),
         Text(
           descripcion.isEmpty ? 'Venta registrada sin descripción de mesa.' : descripcion,
-          style: const TextStyle(color: AppColors.textSecondary, fontWeight: FontWeight.w700),
+          style: TextStyle(color: palette.textSecondary, fontWeight: FontWeight.w700),
         ),
       ],
     );
@@ -5656,14 +5707,15 @@ class _DetalleHistorialVentaPage extends StatelessWidget {
   }
 }
 
-class _HistorialCuentaDetallePage extends StatelessWidget {
+class _HistorialCuentaDetallePage extends ConsumerWidget {
   const _HistorialCuentaDetallePage({required this.venta, required this.cuenta});
 
   final MeseroVentaModel venta;
   final MeseroCuentaModel cuenta;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    final palette = ref.watch(selectedAppPaletteProvider);
     final descripcion = (cuenta.descripcion ?? '').trim();
     final productos = _agruparProductosFactura(cuenta.productos);
     final cambioTotal = cuenta.pagos.fold<double>(0, (sum, pago) => sum + (pago.cambio ?? 0));
@@ -5697,7 +5749,7 @@ class _HistorialCuentaDetallePage extends StatelessWidget {
                     const SizedBox(height: 8),
                     Text(
                       descripcion.isEmpty ? 'Cuenta sin descripción.' : descripcion,
-                      style: const TextStyle(color: AppColors.textSecondary, fontWeight: FontWeight.w700),
+                      style: TextStyle(color: palette.textSecondary, fontWeight: FontWeight.w700),
                     ),
                     const SizedBox(height: 14),
                     Wrap(
@@ -5918,7 +5970,7 @@ class _HistorialCuentaDetallePage extends StatelessWidget {
   }
 }
 
-class _HistorialMesaSection extends StatelessWidget {
+class _HistorialMesaSection extends ConsumerWidget {
   const _HistorialMesaSection({required this.mesa, required this.ventas, required this.onVerDetalle});
 
   final String mesa;
@@ -5926,16 +5978,17 @@ class _HistorialMesaSection extends StatelessWidget {
   final ValueChanged<MeseroVentaModel> onVerDetalle;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    final palette = ref.watch(selectedAppPaletteProvider);
     final total = ventas.fold<double>(0, (sum, venta) => sum + (venta.total ?? 0));
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.all(18),
       decoration: BoxDecoration(
-        color: Colors.white,
+        gradient: palette.glassGradient,
         borderRadius: BorderRadius.circular(24),
-        border: Border.all(color: AppColors.border),
-        boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.04), blurRadius: 18, offset: const Offset(0, 8))],
+        border: Border.all(color: palette.translucentBorder),
+        boxShadow: [BoxShadow(color: palette.cardShadow, blurRadius: 18, offset: const Offset(0, 8))],
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -5943,7 +5996,7 @@ class _HistorialMesaSection extends StatelessWidget {
           Row(
             children: [
               Expanded(
-                child: Text(mesa, style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w900)),
+                child: Text(mesa, style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w900, color: palette.textPrimary)),
               ),
               _SmallInfoPill(icon: Icons.receipt_long_rounded, text: '${ventas.length} ventas'),
               const SizedBox(width: 8),
@@ -5955,27 +6008,28 @@ class _HistorialMesaSection extends StatelessWidget {
             (venta) => Container(
               margin: const EdgeInsets.only(bottom: 10),
               decoration: BoxDecoration(
-                color: AppColors.background,
+                color: palette.mutedSurface,
                 borderRadius: BorderRadius.circular(18),
-                border: Border.all(color: AppColors.border),
+                border: Border.all(color: palette.cardBorder),
               ),
               child: ListTile(
-                leading: const Icon(Icons.point_of_sale_rounded, color: AppColors.secondaryDark),
-                title: Text('Venta #${venta.ventaId ?? '-'}', style: const TextStyle(fontWeight: FontWeight.w900)),
+                leading: Icon(Icons.point_of_sale_rounded, color: palette.secondary),
+                title: Text('Venta #${venta.ventaId ?? '-'}', style: TextStyle(fontWeight: FontWeight.w900, color: palette.textPrimary)),
                 subtitle: Text([
                   if ((venta.fecha ?? '').trim().isNotEmpty) venta.fecha!,
                   'Estado: ${venta.estado ?? '-'}',
                   '${venta.cuentas.length} cuentas',
-                ].join(' · ')),
+                ].join(' · '), style: TextStyle(color: palette.textSecondary, fontWeight: FontWeight.w600)),
                 trailing: Wrap(
                   spacing: 10,
                   crossAxisAlignment: WrapCrossAlignment.center,
                   children: [
-                    Text(CurrencyUtils.format(venta.total), style: const TextStyle(fontWeight: FontWeight.w900)),
+                    Text(CurrencyUtils.format(venta.total), style: TextStyle(fontWeight: FontWeight.w900, color: palette.textPrimary)),
                     OutlinedButton.icon(
                       onPressed: () => onVerDetalle(venta),
                       icon: const Icon(Icons.visibility_rounded),
                       label: const Text('Ver detalle'),
+                      style: OutlinedButton.styleFrom(foregroundColor: palette.secondary, side: BorderSide(color: palette.secondary.withOpacity(0.35))),
                     ),
                   ],
                 ),
@@ -5987,7 +6041,6 @@ class _HistorialMesaSection extends StatelessWidget {
     );
   }
 }
-
 
 bool _esMedioPagoEfectivo(MeseroMedioPagoModel? medio) {
   if (medio == null) return false;
@@ -6469,6 +6522,7 @@ class _PagarCuentaDialogState extends State<_PagarCuentaDialog> {
 
 
   Widget _buildDialogHeader(String descripcion) {
+    final palette = ProviderScope.containerOf(context).read(selectedAppPaletteProvider);
     final compact = MediaQuery.sizeOf(context).width < 760;
     final title = Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -6480,7 +6534,7 @@ class _PagarCuentaDialogState extends State<_PagarCuentaDialog> {
         const SizedBox(height: 6),
         Text(
           descripcion.isEmpty ? 'Registra el pago de la cuenta seleccionada.' : descripcion,
-          style: const TextStyle(color: AppColors.textSecondary, fontWeight: FontWeight.w700),
+          style: TextStyle(color: palette.textSecondary, fontWeight: FontWeight.w700),
         ),
       ],
     );
@@ -7126,6 +7180,7 @@ class _CantidadProductoDialogState extends State<_CantidadProductoDialog> {
 
   @override
   Widget build(BuildContext context) {
+    final palette = ProviderScope.containerOf(context).read(selectedAppPaletteProvider);
     final producto = widget.producto;
     final cantidad = _parseCantidad(_cantidadController.text);
     final precio = producto.precioVenta ?? 0;
@@ -7155,7 +7210,7 @@ class _CantidadProductoDialogState extends State<_CantidadProductoDialog> {
                         const SizedBox(height: 6),
                         Text(
                           producto.descripcion ?? 'Sin descripción',
-                          style: const TextStyle(color: AppColors.textSecondary, fontWeight: FontWeight.w600),
+                          style: TextStyle(color: palette.textSecondary, fontWeight: FontWeight.w600),
                         ),
                       ],
                     ),

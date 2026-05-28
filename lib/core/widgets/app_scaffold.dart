@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
-import '../../app/theme/app_colors.dart';
 import '../../app/theme/app_palette.dart';
 import '../../app/theme/module_visuals.dart';
 import '../../features/auth/presentation/providers/auth_provider.dart';
@@ -75,8 +74,11 @@ class _AppScaffoldState extends ConsumerState<AppScaffold> {
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('BarLytics'),
+        title: Text('BarLytics', style: TextStyle(color: palette.onTitle, fontWeight: FontWeight.w900)),
         foregroundColor: palette.onTitle,
+        backgroundColor: palette.titleBackground,
+        surfaceTintColor: Colors.transparent,
+        iconTheme: IconThemeData(color: palette.onTitle),
         flexibleSpace: Container(decoration: BoxDecoration(gradient: palette.mainGradient)),
       ),
       drawer: Drawer(child: _DrawerContent(onLogout: () => _logout(context), palette: palette)),
@@ -109,28 +111,104 @@ class _PaletteAwareBody extends StatelessWidget {
               scaffoldBackgroundColor: Colors.transparent,
               canvasColor: palette.background,
               cardColor: palette.surface,
+              dividerColor: palette.cardBorder,
+              iconTheme: baseTheme.iconTheme.copyWith(color: palette.secondary),
               colorScheme: baseTheme.colorScheme.copyWith(
                 primary: palette.secondary,
+                onPrimary: palette.onTitle,
                 secondary: palette.accent,
+                onSecondary: palette.onTitle,
+                tertiary: palette.accent,
                 surface: palette.surface,
                 onSurface: palette.textPrimary,
                 background: palette.background,
                 onBackground: palette.textPrimary,
+                outline: palette.cardBorder,
               ),
               appBarTheme: baseTheme.appBarTheme.copyWith(
                 backgroundColor: palette.titleBackground,
-                foregroundColor: palette.titleText,
+                foregroundColor: palette.onTitle,
                 surfaceTintColor: Colors.transparent,
+                iconTheme: IconThemeData(color: palette.onTitle),
+                actionsIconTheme: IconThemeData(color: palette.onTitle),
+                titleTextStyle: TextStyle(color: palette.onTitle, fontWeight: FontWeight.w900, fontSize: 22),
               ),
               inputDecorationTheme: baseTheme.inputDecorationTheme.copyWith(
                 filled: true,
-                fillColor: palette.surface.withOpacity(palette.darkBackground ? 0.88 : 0.96),
-                labelStyle: TextStyle(color: palette.textSecondary, fontWeight: FontWeight.w700),
+                fillColor: palette.mutedSurface,
+                labelStyle: TextStyle(color: palette.textSecondary, fontWeight: FontWeight.w800),
                 hintStyle: TextStyle(color: palette.textSecondary.withOpacity(0.78)),
+                prefixIconColor: palette.secondary,
+                suffixIconColor: palette.textSecondary,
+                enabledBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(20),
+                  borderSide: BorderSide(color: palette.translucentBorder),
+                ),
+                focusedBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(20),
+                  borderSide: BorderSide(color: palette.secondary, width: 1.8),
+                ),
               ),
               textTheme: baseTheme.textTheme.apply(
                 bodyColor: palette.textPrimary,
                 displayColor: palette.textPrimary,
+              ),
+              cardTheme: baseTheme.cardTheme.copyWith(
+                color: palette.glassSurface,
+                surfaceTintColor: Colors.transparent,
+                shadowColor: palette.cardShadow,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(28),
+                  side: BorderSide(color: palette.translucentBorder),
+                ),
+              ),
+              chipTheme: baseTheme.chipTheme.copyWith(
+                backgroundColor: palette.subtleFill,
+                selectedColor: palette.secondary.withOpacity(0.18),
+                labelStyle: TextStyle(color: palette.textPrimary, fontWeight: FontWeight.w800),
+                side: BorderSide(color: palette.translucentBorder),
+              ),
+              dividerTheme: DividerThemeData(color: palette.cardBorder),
+              dataTableTheme: baseTheme.dataTableTheme.copyWith(
+                headingRowColor: MaterialStatePropertyAll(palette.secondary.withOpacity(0.10)),
+                headingTextStyle: TextStyle(color: palette.textPrimary, fontWeight: FontWeight.w900),
+                dataTextStyle: TextStyle(color: palette.textPrimary, fontWeight: FontWeight.w700),
+              ),
+              textButtonTheme: TextButtonThemeData(
+                style: TextButton.styleFrom(foregroundColor: palette.secondary, textStyle: const TextStyle(fontWeight: FontWeight.w800)),
+              ),
+              outlinedButtonTheme: OutlinedButtonThemeData(
+                style: OutlinedButton.styleFrom(
+                  foregroundColor: palette.secondary,
+                  side: BorderSide(color: palette.secondary.withOpacity(0.38)),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
+                  textStyle: const TextStyle(fontWeight: FontWeight.w800),
+                ),
+              ),
+              filledButtonTheme: FilledButtonThemeData(
+                style: FilledButton.styleFrom(
+                  backgroundColor: palette.secondary,
+                  foregroundColor: palette.onTitle,
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+                  textStyle: const TextStyle(fontWeight: FontWeight.w900),
+                ),
+              ),
+              floatingActionButtonTheme: FloatingActionButtonThemeData(
+                backgroundColor: palette.secondary,
+                foregroundColor: palette.onTitle,
+                extendedTextStyle: const TextStyle(fontWeight: FontWeight.w900),
+              ),
+              bottomNavigationBarTheme: BottomNavigationBarThemeData(
+                backgroundColor: palette.surface,
+                selectedItemColor: palette.secondary,
+                unselectedItemColor: palette.textSecondary,
+              ),
+              dialogTheme: DialogThemeData(
+                backgroundColor: palette.glassSurface,
+                surfaceTintColor: Colors.transparent,
+                titleTextStyle: TextStyle(color: palette.textPrimary, fontWeight: FontWeight.w900, fontSize: 20),
+                contentTextStyle: TextStyle(color: palette.textPrimary, fontWeight: FontWeight.w700),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(28), side: BorderSide(color: palette.translucentBorder)),
               ),
             ),
             child: child,
@@ -188,8 +266,11 @@ class _MeseroScaffold extends StatelessWidget {
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('BarLytics Operación'),
+        title: Text('BarLytics Operación', style: TextStyle(color: palette.onTitle, fontWeight: FontWeight.w900)),
         foregroundColor: palette.onTitle,
+        backgroundColor: palette.titleBackground,
+        surfaceTintColor: Colors.transparent,
+        iconTheme: IconThemeData(color: palette.onTitle),
         flexibleSpace: Container(decoration: BoxDecoration(gradient: palette.mainGradient)),
       ),
       drawer: Drawer(child: _MeseroDrawerContent(onLogout: onLogout, palette: palette)),
@@ -225,7 +306,7 @@ class _MeseroSideNavigation extends StatelessWidget {
             SafeArea(
               child: Column(
                 children: [
-                  _NavigationCollapseButton(collapsed: collapsed, onPressed: onToggleCollapsed, dark: true),
+                  _NavigationCollapseButton(collapsed: collapsed, onPressed: onToggleCollapsed, dark: true, palette: palette),
                   if (collapsed) const _CollapsedBrand() else const _BrandHeader(dark: true),
                   Expanded(
                     child: ListView(
@@ -240,7 +321,7 @@ class _MeseroSideNavigation extends StatelessWidget {
                   ),
                   Padding(
                     padding: EdgeInsets.all(collapsed ? 10 : 14),
-                    child: _LogoutTile(onLogout: onLogout, dark: true, compact: collapsed),
+                    child: _LogoutTile(onLogout: onLogout, dark: true, compact: collapsed, palette: palette),
                   ),
                 ],
               ),
@@ -274,7 +355,7 @@ class _MeseroDrawerContent extends StatelessWidget {
             ),
             Padding(
               padding: const EdgeInsets.all(12),
-              child: _LogoutTile(onLogout: onLogout),
+              child: _LogoutTile(onLogout: onLogout, palette: palette),
             ),
           ],
         ),
@@ -370,7 +451,7 @@ class _SideNavigation extends ConsumerWidget {
           SafeArea(
             child: Column(
               children: [
-                _NavigationCollapseButton(collapsed: collapsed, onPressed: onToggleCollapsed, dark: true),
+                _NavigationCollapseButton(collapsed: collapsed, onPressed: onToggleCollapsed, dark: true, palette: palette),
                 if (collapsed) const _CollapsedBrand() else const _BrandHeader(dark: true),
                 Expanded(
                   child: ListView(
@@ -399,7 +480,7 @@ class _SideNavigation extends ConsumerWidget {
                 ),
                 Padding(
                   padding: EdgeInsets.all(collapsed ? 10 : 14),
-                  child: _LogoutTile(onLogout: onLogout, dark: true, compact: collapsed),
+                  child: _LogoutTile(onLogout: onLogout, dark: true, compact: collapsed, palette: palette),
                 ),
               ],
             ),
@@ -448,7 +529,7 @@ class _DrawerContent extends ConsumerWidget {
           ),
           Padding(
             padding: const EdgeInsets.all(12),
-            child: _LogoutTile(onLogout: onLogout),
+            child: _LogoutTile(onLogout: onLogout, palette: palette),
           ),
         ],
       ),
@@ -473,6 +554,7 @@ List<Widget> _authorizedMenuWidgets({
               icon: Icons.hourglass_top_rounded,
               title: 'Cargando menú...',
               message: 'Consultando opciones según tu rol.',
+              palette: palette,
             ),
           ],
     error: (error, _) => compact
@@ -491,6 +573,7 @@ List<Widget> _authorizedMenuWidgets({
               icon: Icons.warning_amber_rounded,
               title: 'No se pudo cargar el menú',
               message: 'Revisa que existan roles, menús y opciones asignadas.',
+              palette: palette,
             ),
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 6),
@@ -515,6 +598,7 @@ List<Widget> _authorizedMenuWidgets({
                   icon: Icons.lock_outline_rounded,
                   title: 'Sin opciones asignadas',
                   message: 'Tu rol aún no tiene opciones de menú configuradas.',
+                  palette: palette,
                 ),
               ];
       }
@@ -615,11 +699,13 @@ class _NavigationCollapseButton extends StatelessWidget {
     required this.collapsed,
     required this.onPressed,
     required this.dark,
+    required this.palette,
   });
 
   final bool collapsed;
   final VoidCallback onPressed;
   final bool dark;
+  final AppPalette palette;
 
   @override
   Widget build(BuildContext context) => Align(
@@ -631,9 +717,9 @@ class _NavigationCollapseButton extends StatelessWidget {
             child: IconButton.filledTonal(
               onPressed: onPressed,
               icon: Icon(collapsed ? Icons.menu_open_rounded : Icons.menu_rounded),
-              color: dark ? Colors.white : AppColors.secondaryDark,
+              color: dark ? palette.onTitle : palette.secondary,
               style: IconButton.styleFrom(
-                backgroundColor: dark ? Colors.white.withOpacity(0.12) : Colors.white,
+                backgroundColor: dark ? Colors.white.withOpacity(0.12) : palette.surface.withOpacity(0.92),
               ),
             ),
           ),
@@ -689,7 +775,7 @@ class _NavTile extends StatelessWidget {
             gradient: selected ? appPalette.mainGradient : null,
             color: selected ? null : (dark ? Colors.white.withOpacity(0.12) : appPalette.secondary.withOpacity(0.12)),
             borderRadius: BorderRadius.circular(15),
-            border: Border.all(color: dark ? Colors.white.withOpacity(0.08) : Colors.transparent),
+            border: Border.all(color: dark ? Colors.white.withOpacity(0.12) : appPalette.translucentBorder),
           ),
           child: Icon(visual.icon, size: small ? 19 : 20, color: selected || dark ? Colors.white : appPalette.secondary),
         );
@@ -697,7 +783,7 @@ class _NavTile extends StatelessWidget {
     final tile = Padding(
       padding: const EdgeInsets.symmetric(vertical: 4),
       child: Material(
-        color: selected ? (dark ? Colors.white.withOpacity(0.15) : appPalette.secondary.withOpacity(0.10)) : Colors.transparent,
+        color: selected ? (dark ? Colors.white.withOpacity(0.16) : appPalette.secondary.withOpacity(0.10)) : (dark ? Colors.transparent : appPalette.surface.withOpacity(0.06)),
         borderRadius: BorderRadius.circular(20),
         child: InkWell(
           borderRadius: BorderRadius.circular(20),
@@ -758,34 +844,38 @@ class _MenuMessage extends StatelessWidget {
     required this.icon,
     required this.title,
     required this.message,
+    required this.palette,
   });
 
   final bool dark;
   final IconData icon;
   final String title;
   final String message;
+  final AppPalette palette;
 
   @override
   Widget build(BuildContext context) => Container(
         margin: const EdgeInsets.symmetric(horizontal: 6, vertical: 8),
         padding: const EdgeInsets.all(14),
         decoration: BoxDecoration(
-          color: dark ? Colors.white.withOpacity(0.10) : Colors.white,
+          gradient: dark ? null : palette.glassGradient,
+          color: dark ? Colors.white.withOpacity(0.10) : null,
           borderRadius: BorderRadius.circular(20),
-          border: Border.all(color: dark ? Colors.white24 : AppColors.border),
+          border: Border.all(color: dark ? Colors.white.withOpacity(0.22) : palette.translucentBorder),
+          boxShadow: [BoxShadow(color: palette.cardShadow, blurRadius: 16, offset: const Offset(0, 8))],
         ),
         child: Row(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Icon(icon, color: dark ? AppColors.accent : AppColors.secondaryDark, size: 22),
+            Icon(icon, color: dark ? palette.accent : palette.secondary, size: 22),
             const SizedBox(width: 10),
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(title, style: TextStyle(color: dark ? Colors.white : AppColors.textPrimary, fontWeight: FontWeight.w900)),
+                  Text(title, style: TextStyle(color: dark ? palette.onTitle : palette.textPrimary, fontWeight: FontWeight.w900)),
                   const SizedBox(height: 4),
-                  Text(message, style: TextStyle(color: dark ? Colors.white70 : AppColors.textSecondary, fontSize: 12, height: 1.25)),
+                  Text(message, style: TextStyle(color: dark ? palette.onTitle.withOpacity(0.76) : palette.textSecondary, fontSize: 12, height: 1.25)),
                 ],
               ),
             ),
@@ -795,36 +885,42 @@ class _MenuMessage extends StatelessWidget {
 }
 
 class _LogoutTile extends StatelessWidget {
-  const _LogoutTile({required this.onLogout, this.dark = false, this.compact = false});
+  const _LogoutTile({required this.onLogout, required this.palette, this.dark = false, this.compact = false});
   final VoidCallback onLogout;
+  final AppPalette palette;
   final bool dark;
   final bool compact;
 
   @override
   Widget build(BuildContext context) {
+    final danger = Colors.redAccent;
     return LayoutBuilder(
       builder: (context, constraints) {
         final effectiveCompact = compact || (constraints.maxWidth.isFinite && constraints.maxWidth < 118);
         final content = Material(
-          color: dark ? Colors.white.withOpacity(0.10) : AppColors.dangerSoft,
-          borderRadius: BorderRadius.circular(20),
+          color: dark ? Colors.white.withOpacity(0.10) : danger.withOpacity(0.10),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(20),
+            side: BorderSide(color: dark ? Colors.white.withOpacity(0.18) : danger.withOpacity(0.22)),
+          ),
+          clipBehavior: Clip.antiAlias,
           child: InkWell(
             borderRadius: BorderRadius.circular(20),
             onTap: onLogout,
             child: Padding(
               padding: EdgeInsets.symmetric(horizontal: effectiveCompact ? 10 : 16, vertical: 12),
               child: effectiveCompact
-                  ? Center(child: Icon(Icons.logout_rounded, color: dark ? Colors.white : AppColors.danger, size: 22))
+                  ? Center(child: Icon(Icons.logout_rounded, color: dark ? palette.onTitle : danger, size: 22))
                   : Row(
                       children: [
-                        Icon(Icons.logout_rounded, color: dark ? Colors.white : AppColors.danger),
+                        Icon(Icons.logout_rounded, color: dark ? palette.onTitle : danger),
                         const SizedBox(width: 10),
                         Expanded(
                           child: Text(
                             'Cerrar sesión',
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
-                            style: TextStyle(color: dark ? Colors.white : AppColors.danger, fontWeight: FontWeight.w900),
+                            style: TextStyle(color: dark ? palette.onTitle : danger, fontWeight: FontWeight.w900),
                           ),
                         ),
                       ],
