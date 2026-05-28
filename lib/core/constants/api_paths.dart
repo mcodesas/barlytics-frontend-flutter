@@ -35,4 +35,22 @@ class ApiPaths {
   static const usuarios = '/api/v1/usuarios';
   static const ventas = '/api/v1/ventas';
   static const zonashorarias = '/api/v1/zonashorarias';
+
+  static const meseroMesas = '/api/v1/mesero/mesas';
+  static const meseroCrearMesa = '/api/v1/mesero/mesas';
+  static const meseroProductos = '/api/v1/mesero/productos';
+  static const meseroMediosPago = '/api/v1/mesero/medios-pago';
+  static const meseroAbrirVenta = '/api/v1/mesero/ventas/abrir';
+  static const meseroHistorialVentas = '/api/v1/mesero/ventas/historial';
+  static String meseroMesa(Object id) => '/api/v1/mesero/mesas/$id';
+  static String meseroVenta(Object id) => '/api/v1/mesero/ventas/$id';
+  static String meseroVentaCuentas(Object id) => '/api/v1/mesero/ventas/$id/cuentas';
+  static String meseroLimpiarVentaSinConsumos(Object id) => '/api/v1/mesero/ventas/$id/cuentas-vacias';
+  static String meseroAgregarProductoCuenta(Object cuentaId) => '/api/v1/mesero/cuentas/$cuentaId/productos';
+  static String meseroEliminarProductoCuenta(Object cuentaId, Object detalleId) => '/api/v1/mesero/cuentas/$cuentaId/productos/$detalleId';
+  static String meseroMoverProductoCuenta(Object cuentaId, Object detalleId, Object cuentaDestinoId) =>
+      '/api/v1/mesero/cuentas/$cuentaId/productos/$detalleId/mover/$cuentaDestinoId';
+  static String meseroPagarCuenta(Object cuentaId) => '/api/v1/mesero/cuentas/$cuentaId/pagos';
+  static String meseroEliminarCuenta(Object cuentaId) => '/api/v1/mesero/cuentas/$cuentaId';
+  static String meseroFinalizarVenta(Object ventaId) => '/api/v1/mesero/ventas/$ventaId/finalizar';
 }

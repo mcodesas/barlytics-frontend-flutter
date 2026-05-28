@@ -1,3 +1,6 @@
+import 'dart:convert';
+
+import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -33,6 +36,7 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
   final _address = TextEditingController();
   final _phone = TextEditingController();
   final _phone2 = TextEditingController();
+  final _photo = TextEditingController();
 
   bool _loading = true;
   bool _saving = false;
@@ -98,6 +102,7 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
     _address.text = data['direccion']?.toString() ?? '';
     _phone.text = data['telefonoPrincipal']?.toString() ?? '';
     _phone2.text = data['telefonoSecundario']?.toString() ?? '';
+    _photo.text = data['foto']?.toString() ?? data['usuaFoto']?.toString() ?? '';
     _tipoUsuarioNombre = data['tipoUsuarioNombre']?.toString();
     _tipoUsuarioDescripcion = data['tipoUsuarioDescripcion']?.toString();
     _empresaNombreComercial = data['empresaNombreComercial']?.toString();
@@ -164,6 +169,7 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
         'direccion': _address.text.trim().isEmpty ? null : _address.text.trim(),
         'telefonoPrincipal': _phone.text.trim().isEmpty ? null : _phone.text.trim(),
         'telefonoSecundario': _phone2.text.trim().isEmpty ? null : _phone2.text.trim(),
+        'foto': _photo.text.trim().isEmpty ? null : _photo.text.trim(),
       }, (json) => json);
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Perfil actualizado correctamente')));
@@ -202,7 +208,7 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
 
   @override
   void dispose() {
-    for (final c in [_currentPassword, _newPassword, _countryId, _regionId, _cityId, _firstName, _secondName, _firstLastName, _secondLastName, _email, _address, _phone, _phone2]) {
+    for (final c in [_currentPassword, _newPassword, _countryId, _regionId, _cityId, _firstName, _secondName, _firstLastName, _secondLastName, _email, _address, _phone, _phone2, _photo]) {
       c.dispose();
     }
     super.dispose();
@@ -229,6 +235,8 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
                       crossAxisAlignment: CrossAxisAlignment.stretch,
                       children: [
                         const Text('Información personal', style: TextStyle(fontSize: 22, fontWeight: FontWeight.w900)),
+                        const SizedBox(height: 16),
+                        _ProfileImageField(controller: _photo),
                         const SizedBox(height: 16),
                         Wrap(spacing: 16, runSpacing: 16, children: [
                           _field(_firstName, 'Primer nombre'),
@@ -454,5 +462,119 @@ class _LookupWithCallbackState extends State<_LookupWithCallback> {
   @override
   Widget build(BuildContext context) {
     return LookupDropdown(controller: widget.controller, field: widget.field, options: widget.options);
+  }
+}
+
+class _ProfileImageField extends StatefulWidget {
+  const _ProfileImageField({required this.controller});
+
+  final TextEditingController controller;
+
+  @override
+  State<_ProfileImageField> createState() => _ProfileImageFieldState();
+}
+
+class _ProfileImageFieldState extends State<_ProfileImageField> {
+  Future<void> _pick() async {
+    final result = await FilePicker.platform.pickFiles(type: FileType.image, allowMultiple: false, withData: true);
+    final file = result?.files.single;
+    final bytes = file?.bytes;
+    if (bytes == null || bytes.isEmpty) return;
+    final ext = (file?.extension ?? 'png').toLowerCase();
+    final mime = ext == 'jpg' || ext == 'jpeg'
+        ? 'image/jpeg'
+        : ext == 'webp'
+            ? 'image/webp'
+            : 'image/png';
+    widget.controller.text = 'data:$mime;base64,${base64Encode(bytes)}';
+    if (mounted) setState(() {});
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final value = widget.controller.text.trim();
+    return Container(
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: AppColors.surfaceAlt,
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: AppColors.border),
+      ),
+      child: Row(
+        children: [
+          ClipRRect(
+            borderRadius: BorderRadius.circular(22),
+            child: value.isEmpty
+                ? Container(
+                    width: 76,
+                    height: 76,
+                    alignment: Alignment.center,
+                    color: Colors.white,
+                    child: const Icon(Icons.person_rounded, size: 42, color: AppColors.textSecondary),
+                  )
+                : _ProfileImagePreview(value: value),
+          ),
+          const SizedBox(width: 14),
+          const Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text('Foto de perfil', style: TextStyle(fontWeight: FontWeight.w900, color: AppColors.textPrimary)),
+                SizedBox(height: 4),
+                Text('Carga una foto para identificar mejor al usuario.', style: TextStyle(color: AppColors.textSecondary, fontWeight: FontWeight.w700)),
+              ],
+            ),
+          ),
+          const SizedBox(width: 12),
+          OutlinedButton.icon(onPressed: _pick, icon: const Icon(Icons.upload_file_rounded), label: const Text('Cargar')),
+          if (value.isNotEmpty) ...[
+            const SizedBox(width: 8),
+            IconButton(
+              tooltip: 'Quitar foto',
+              onPressed: () {
+                widget.controller.clear();
+                setState(() {});
+              },
+              icon: const Icon(Icons.delete_outline_rounded),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
+class _ProfileImagePreview extends StatelessWidget {
+  const _ProfileImagePreview({required this.value});
+
+  final String value;
+
+  @override
+  Widget build(BuildContext context) {
+    final imageValue = value.trim();
+    if (imageValue.isEmpty) {
+      return Container(width: 76, height: 76, alignment: Alignment.center, color: Colors.white, child: const Icon(Icons.person_rounded, color: AppColors.textSecondary));
+    }
+    if (imageValue.startsWith('data:image')) {
+      final commaIndex = imageValue.indexOf(',');
+      if (commaIndex > -1) {
+        try {
+          return Image.memory(base64Decode(imageValue.substring(commaIndex + 1)), width: 76, height: 76, fit: BoxFit.cover);
+        } catch (_) {}
+      }
+    }
+    return Image.network(
+      imageValue,
+      width: 76,
+      height: 76,
+      fit: BoxFit.cover,
+      errorBuilder: (_, __, ___) => Container(
+        width: 76,
+        height: 76,
+        alignment: Alignment.center,
+        color: Colors.white,
+        child: const Icon(Icons.person_rounded, color: AppColors.textSecondary),
+      ),
+    );
   }
 }

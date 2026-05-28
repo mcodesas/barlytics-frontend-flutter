@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
@@ -5,6 +6,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../app/theme/app_colors.dart';
+import '../../app/theme/app_palette.dart';
 import '../../app/theme/module_visuals.dart';
 import '../crud/crud_field.dart';
 import '../crud/crud_field_ordering.dart';
@@ -93,6 +95,7 @@ class _DynamicCrudListPageState<T> extends ConsumerState<DynamicCrudListPage<T>>
     final state = ref.watch(_provider);
     final notifier = ref.read(_provider.notifier);
     final visual = ModuleVisuals.byKey(widget.config.key);
+    final palette = ref.watch(selectedAppPaletteProvider);
     final visibleItems = _filterItems(state.items);
 
     Widget content;
@@ -124,17 +127,24 @@ class _DynamicCrudListPageState<T> extends ConsumerState<DynamicCrudListPage<T>>
     }
 
     return Scaffold(
-      backgroundColor: AppColors.background,
+      backgroundColor: Colors.transparent,
       floatingActionButton: FloatingActionButton.extended(
+        backgroundColor: palette.secondary,
+        foregroundColor: palette.onPrimary,
         onPressed: () => context.go('/${widget.config.key}/nuevo'),
         icon: const Icon(Icons.add_rounded),
         label: const Text('Crear'),
       ),
-      body: CustomScrollView(
-        slivers: [
+      body: Stack(
+        children: [
+          const Positioned.fill(child: AppPageBackground()),
+          CustomScrollView(
+            slivers: [
           SliverAppBar(
             pinned: true,
-            foregroundColor: Colors.white,
+            foregroundColor: palette.onTitle,
+            backgroundColor: Colors.transparent,
+            surfaceTintColor: Colors.transparent,
             expandedHeight: 218,
             title: Text(widget.config.title),
             actions: [
@@ -154,10 +164,13 @@ class _DynamicCrudListPageState<T> extends ConsumerState<DynamicCrudListPage<T>>
                 visible: visibleItems.length,
                 searchController: _searchController,
                 onSearchChanged: (_) => setState(() {}),
+                palette: palette,
               ),
             ),
           ),
-          SliverToBoxAdapter(child: content),
+          SliverToBoxAdapter(child: Padding(padding: const EdgeInsets.all(16), child: content)),
+            ],
+          ),
         ],
       ),
     );
@@ -188,6 +201,7 @@ class _ModuleHeader extends StatelessWidget {
     required this.visible,
     required this.searchController,
     required this.onSearchChanged,
+    required this.palette,
   });
 
   final String title;
@@ -197,6 +211,7 @@ class _ModuleHeader extends StatelessWidget {
   final int visible;
   final TextEditingController searchController;
   final ValueChanged<String> onSearchChanged;
+  final AppPalette palette;
 
   @override
   Widget build(BuildContext context) {
@@ -211,32 +226,32 @@ class _ModuleHeader extends StatelessWidget {
                 width: 60,
                 height: 60,
                 decoration: BoxDecoration(
-                  gradient: LinearGradient(colors: [visual.color, AppColors.tertiary]),
+                  gradient: LinearGradient(colors: [palette.secondary, palette.accent]),
                   borderRadius: BorderRadius.circular(23),
                   boxShadow: [BoxShadow(color: visual.color.withOpacity(0.32), blurRadius: 24, offset: const Offset(0, 12))],
                 ),
-                child: Icon(visual.icon, color: Colors.white, size: 31),
+                child: Icon(visual.icon, color: palette.onTitle, size: 31),
               ),
               const SizedBox(width: 14),
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(title, maxLines: 1, overflow: TextOverflow.ellipsis, style: Theme.of(context).textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.w900, color: Colors.white)),
+                    Text(title, maxLines: 1, overflow: TextOverflow.ellipsis, style: Theme.of(context).textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.w900, color: palette.onTitle)),
                     const SizedBox(height: 3),
-                    Text(subtitle, maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(color: Colors.white.withOpacity(0.74), fontWeight: FontWeight.w700)),
+                    Text(subtitle, maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(color: palette.onTitle.withOpacity(0.78), fontWeight: FontWeight.w700)),
                   ],
                 ),
               ),
-              _CountPill(label: '$visible/$total', color: AppColors.accent),
+              _CountPill(label: '$visible/$total', color: palette.accent),
             ],
           ),
           const SizedBox(height: 16),
           Container(
             decoration: BoxDecoration(
-              color: Colors.white.withOpacity(0.95),
+              color: palette.surface.withOpacity(palette.darkBackground ? 0.92 : 0.96),
               borderRadius: BorderRadius.circular(22),
-              boxShadow: [BoxShadow(color: AppColors.primaryDark.withOpacity(0.16), blurRadius: 22, offset: const Offset(0, 12))],
+              boxShadow: [BoxShadow(color: palette.cardShadow, blurRadius: 22, offset: const Offset(0, 12))],
             ),
             child: TextField(
               controller: searchController,
@@ -321,6 +336,8 @@ class _MobileCards<T> extends StatelessWidget {
               .map((field) => _displayValueOf(config, item, field, lookupLabels))
               .where((value) => value != '-')
               .join('');
+          final imageField = _firstImageField(config);
+          final imageValue = imageField == null ? '' : _displayValueOf(config, item, imageField, lookupLabels);
 
           return Card(
             child: InkWell(
@@ -331,12 +348,14 @@ class _MobileCards<T> extends StatelessWidget {
                 child: Row(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Container(
-                      width: 54,
-                      height: 54,
-                      decoration: BoxDecoration(color: visual.color.withOpacity(0.14), borderRadius: BorderRadius.circular(20)),
-                      child: Icon(visual.icon, color: visual.color, size: 28),
-                    ),
+                    imageValue.trim().isNotEmpty && imageValue != '-'
+                        ? _CrudImageThumb(value: imageValue, size: 58, radius: 20)
+                        : Container(
+                            width: 54,
+                            height: 54,
+                            decoration: BoxDecoration(color: visual.color.withOpacity(0.14), borderRadius: BorderRadius.circular(20)),
+                            child: Icon(visual.icon, color: visual.color, size: 28),
+                          ),
                     const SizedBox(width: 14),
                     Expanded(
                       child: Column(
@@ -374,6 +393,55 @@ class _MobileCards<T> extends StatelessWidget {
           );
         },
       );
+}
+
+
+CrudField? _firstImageField<T>(CrudModuleConfig<T> config) {
+  for (final field in config.fields) {
+    if (field.type == CrudFieldType.image) return field;
+  }
+  return null;
+}
+
+class _CrudImageThumb extends StatelessWidget {
+  const _CrudImageThumb({required this.value, required this.size, required this.radius});
+
+  final String value;
+  final double size;
+  final double radius;
+
+  @override
+  Widget build(BuildContext context) {
+    final imageValue = value.trim();
+    final placeholder = Container(
+      width: size,
+      height: size,
+      alignment: Alignment.center,
+      decoration: BoxDecoration(color: AppColors.surfaceAlt, borderRadius: BorderRadius.circular(radius)),
+      child: const Icon(Icons.image_not_supported_outlined, color: AppColors.textSecondary),
+    );
+
+    if (imageValue.isEmpty) return placeholder;
+
+    if (imageValue.startsWith('data:image')) {
+      final commaIndex = imageValue.indexOf(',');
+      if (commaIndex > -1) {
+        try {
+          return ClipRRect(
+            borderRadius: BorderRadius.circular(radius),
+            child: Image.memory(base64Decode(imageValue.substring(commaIndex + 1)), width: size, height: size, fit: BoxFit.cover),
+          );
+        } catch (_) {
+          return placeholder;
+        }
+      }
+    }
+
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(radius),
+      child: Image.network(imageValue, width: size, height: size, fit: BoxFit.cover, errorBuilder: (_, __, ___) => placeholder),
+    );
+  }
 }
 
 class _MiniChip extends StatelessWidget {
@@ -547,6 +615,7 @@ class _DesktopTableState<T> extends State<_DesktopTable<T>> {
   }
 
   double _columnWidthFor(CrudField field) {
+    if (field.type == CrudFieldType.image) return 96;
     if (field.lookup != null) return 260;
     if (field.type == CrudFieldType.date || field.type == CrudFieldType.dateTime) return 190;
     if (field.type == CrudFieldType.number || field.type == CrudFieldType.decimal) return 150;
@@ -565,6 +634,12 @@ class _ResponsiveCell extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    if (field.type == CrudFieldType.image) {
+      return value.trim().isEmpty || value == '-'
+          ? const Text('Sin foto', style: TextStyle(color: AppColors.textSecondary))
+          : _CrudImageThumb(value: value, size: 54, radius: 16);
+    }
+
     if (field.lookup != null && value != '-') {
       return Align(
         alignment: Alignment.centerLeft,

@@ -7,6 +7,7 @@ class CuentasVentaResponseModel {
     this.cuevTotal,
     this.cuevPropina,
     this.cuevEstado,
+    this.cuevDescripcion,
     this.cuevRegistradoPor,
     this.cuevFechaCambio,
   });
@@ -17,6 +18,7 @@ class CuentasVentaResponseModel {
   final double? cuevTotal;
   final double? cuevPropina;
   final int? cuevEstado;
+  final String? cuevDescripcion;
   final String? cuevRegistradoPor;
   final String? cuevFechaCambio;
 
@@ -27,6 +29,7 @@ class CuentasVentaResponseModel {
       cuevTotal: (json['cuevTotal'] as num?)?.toDouble(),
       cuevPropina: (json['cuevPropina'] as num?)?.toDouble(),
       cuevEstado: (json['cuevEstado'] as num?)?.toInt(),
+      cuevDescripcion: json['cuevDescripcion']?.toString(),
       cuevRegistradoPor: json['cuevRegistradoPor']?.toString(),
       cuevFechaCambio: json['cuevFechaCambio']?.toString(),
   );
@@ -38,6 +41,7 @@ class CuentasVentaResponseModel {
       'cuevTotal': cuevTotal,
       'cuevPropina': cuevPropina,
       'cuevEstado': cuevEstado,
+      'cuevDescripcion': cuevDescripcion,
       'cuevRegistradoPor': cuevRegistradoPor,
       'cuevFechaCambio': cuevFechaCambio,
   };
@@ -45,7 +49,7 @@ class CuentasVentaResponseModel {
   Object? get id => cuveId;
 
   String label() {
-    final values = <Object?>[cuveId, ventId, cuevNumero, cuevTotal];
+    final values = <Object?>[cuveId, ventId, cuevNumero, cuevDescripcion, cuevTotal];
     return values.where((e) => e != null && e.toString().isNotEmpty).join(' · ');
   }
 }

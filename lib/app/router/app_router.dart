@@ -8,6 +8,8 @@ import '../../features/auth/presentation/providers/auth_provider.dart';
 import '../../features/home/presentation/pages/home_page.dart';
 import '../../features/profile/presentation/pages/profile_page.dart';
 import '../../features/reportes/presentation/pages/reportes_page.dart';
+import '../../features/mesero/presentation/pages/mesero_page.dart';
+import '../../features/mesero/presentation/providers/mesero_tab_provider.dart';
 import '../../core/widgets/app_scaffold.dart';
 import 'module_registry.dart';
 import '../../features/ciudades/presentation/pages/ciudades_list_page.dart';
@@ -85,6 +87,17 @@ import '../../features/zonas_horarias/presentation/pages/zonas_horarias_list_pag
 import '../../features/zonas_horarias/presentation/pages/zonas_horarias_form_page.dart';
 import '../../features/zonas_horarias/presentation/pages/zonas_horarias_detail_page.dart';
 
+bool _isOperationalRole(String role) {
+  final normalized = role.toUpperCase();
+  return normalized.contains('MESERO') ||
+      normalized.contains('MESER') ||
+      normalized.contains('CAJERO') ||
+      normalized.contains('CAJER') ||
+      normalized.contains('VENDEDOR') ||
+      normalized.contains('VENTA') ||
+      normalized.contains('SELLER');
+}
+
 final appRouterProvider = Provider<GoRouter>((ref) {
   return GoRouter(
     initialLocation: _resolveInitialLocation(),
@@ -103,7 +116,10 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       // Login y olvidé contraseña no se muestran cuando ya hay sesión activa.
       // Reset password sí se permite porque puede abrirse desde un enlace externo.
       // No se usa Uri.base dentro del redirect para no forzar de nuevo #/login en web.
-      if (authState.authenticated && (isLoginRoute || isForgotPasswordRoute)) return '/home';
+      if (authState.authenticated && (isLoginRoute || isForgotPasswordRoute)) {
+        final isOperativoMesa = authState.roles.any(_isOperationalRole);
+        return isOperativoMesa ? '/mesero' : '/home';
+      }
 
       return null;
     },
@@ -115,6 +131,10 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       GoRoute(path: '/home', builder: (context, state) => const HomePage()),
       GoRoute(path: '/profile', builder: (context, state) => AppScaffold(child: const ProfilePage())),
       GoRoute(path: '/reportes', builder: (context, state) => AppScaffold(child: const ReportesPage())),
+      GoRoute(path: '/mesero', builder: (context, state) => AppScaffold(child: const MeseroPage())),
+      GoRoute(path: '/mesero/productos', builder: (context, state) => AppScaffold(child: const MeseroPage(initialMode: MeseroPageMode.productos))),
+      GoRoute(path: '/mesero/resumen', builder: (context, state) => AppScaffold(child: const MeseroPage(initialMode: MeseroPageMode.resumen))),
+      GoRoute(path: '/mesero/historial', builder: (context, state) => AppScaffold(child: const MeseroPage(initialMode: MeseroPageMode.historial))),
 
       GoRoute(
         path: '/ciudades',

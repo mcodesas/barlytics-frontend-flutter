@@ -5,6 +5,8 @@ class MesasResponseModel {
     this.sucuId,
     this.mesaNumero,
     this.mesaEstado,
+    this.mesaDescripcion,
+    this.mesaFoto,
     this.mesaRegistradoPor,
     this.mesaFechaCambio,
   });
@@ -13,6 +15,8 @@ class MesasResponseModel {
   final int? sucuId;
   final int? mesaNumero;
   final String? mesaEstado;
+  final String? mesaDescripcion;
+  final String? mesaFoto;
   final String? mesaRegistradoPor;
   final String? mesaFechaCambio;
 
@@ -21,6 +25,8 @@ class MesasResponseModel {
       sucuId: (json['sucuId'] as num?)?.toInt(),
       mesaNumero: (json['mesaNumero'] as num?)?.toInt(),
       mesaEstado: json['mesaEstado']?.toString(),
+      mesaDescripcion: json['mesaDescripcion']?.toString(),
+      mesaFoto: json['mesaFoto']?.toString(),
       mesaRegistradoPor: json['mesaRegistradoPor']?.toString(),
       mesaFechaCambio: json['mesaFechaCambio']?.toString(),
   );
@@ -30,6 +36,8 @@ class MesasResponseModel {
       'sucuId': sucuId,
       'mesaNumero': mesaNumero,
       'mesaEstado': mesaEstado,
+      'mesaDescripcion': mesaDescripcion,
+      'mesaFoto': mesaFoto,
       'mesaRegistradoPor': mesaRegistradoPor,
       'mesaFechaCambio': mesaFechaCambio,
   };
@@ -37,7 +45,7 @@ class MesasResponseModel {
   Object? get id => mesaId;
 
   String label() {
-    final values = <Object?>[mesaId, sucuId, mesaNumero, mesaEstado];
+    final values = <Object?>[mesaId, mesaNumero, mesaDescripcion, mesaEstado];
     return values.where((e) => e != null && e.toString().isNotEmpty).join(' · ');
   }
 }

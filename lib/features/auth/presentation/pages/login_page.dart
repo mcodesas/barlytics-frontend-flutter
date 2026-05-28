@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../../app/theme/app_colors.dart';
+import '../../../../app/theme/app_palette.dart';
 import '../../../../core/errors/failure.dart';
 import '../../../../core/utils/validators.dart';
 import '../../../../core/widgets/app_button.dart';
@@ -35,7 +36,17 @@ class _LoginPageState extends ConsumerState<LoginPage> {
     final state = ref.watch(authControllerProvider);
     ref.listen(authControllerProvider, (previous, next) {
       if (next.authenticated) {
-        context.go('/home');
+        final isOperativoMesa = next.roles.any((role) {
+          final normalized = role.toUpperCase();
+          return normalized.contains('MESERO') ||
+              normalized.contains('MESER') ||
+              normalized.contains('CAJERO') ||
+              normalized.contains('CAJER') ||
+              normalized.contains('VENDEDOR') ||
+              normalized.contains('VENTA') ||
+              normalized.contains('SELLER');
+        });
+        context.go(isOperativoMesa ? '/mesero' : '/home');
         return;
       }
       if (next.failure != null) {
@@ -46,86 +57,98 @@ class _LoginPageState extends ConsumerState<LoginPage> {
     final isWide = MediaQuery.sizeOf(context).width >= 900;
 
     return Scaffold(
-      body: TechBackground(
-        child: Center(
-          child: SingleChildScrollView(
-            child: ConstrainedBox(
-              constraints: const BoxConstraints(maxWidth: 1080),
-              child: Row(
-                children: [
-                  if (isWide) const Expanded(child: _LoginHero()),
-                  if (isWide) const SizedBox(width: 30),
-                  Expanded(
-                    child: TechGlassPanel(
-                      maxWidth: 500,
-                      padding: const EdgeInsets.all(28),
-                      child: Form(
-                        key: _formKey,
-                        child: Column(
-                          mainAxisSize: MainAxisSize.min,
-                          crossAxisAlignment: CrossAxisAlignment.stretch,
-                          children: [
-                            const TechSectionTitle(
-                              title: 'BarLytics',
-                              subtitle: 'Acceso seguro a tu operación',
-                              icon: Icons.analytics_rounded,
-                            ),
-                            const SizedBox(height: 26),
-                            AppTextField(
-                              controller: _identifier,
-                              label: 'Correo o identificador',
-                              prefixIcon: Icons.email_outlined,
-                              validator: Validators.required,
-                              onChanged: (_) {
-                                if (_loginErrorMessage != null) setState(() => _loginErrorMessage = null);
-                              },
-                            ),
-                            const SizedBox(height: 16),
-                            AppTextField(
-                              controller: _password,
-                              label: 'Contraseña',
-                              prefixIcon: Icons.lock_outline_rounded,
-                              obscureText: true,
-                              validator: Validators.required,
-                              onChanged: (_) {
-                                if (_loginErrorMessage != null) setState(() => _loginErrorMessage = null);
-                              },
-                            ),
-                            if (_loginErrorMessage != null) ...[
-                              const SizedBox(height: 14),
-                              _LoginAlert(message: _loginErrorMessage!),
-                            ],
-                            Align(
-                              alignment: Alignment.centerRight,
-                              child: TextButton.icon(
-                                onPressed: state.loading ? null : () => context.go('/forgot-password'),
-                                icon: const Icon(Icons.help_outline_rounded, size: 18),
-                                label: const Text('¿Olvidaste tu contraseña?'),
+      body: Stack(
+        children: [
+          Positioned.fill(
+            child: TechBackground(
+              child: Center(
+                child: SingleChildScrollView(
+                  child: ConstrainedBox(
+                    constraints: const BoxConstraints(maxWidth: 1080),
+                    child: Row(
+                      children: [
+                        if (isWide) const Expanded(child: _LoginHero()),
+                        if (isWide) const SizedBox(width: 30),
+                        Expanded(
+                          child: TechGlassPanel(
+                            maxWidth: 500,
+                            padding: const EdgeInsets.all(28),
+                            child: Form(
+                              key: _formKey,
+                              child: Column(
+                                mainAxisSize: MainAxisSize.min,
+                                crossAxisAlignment: CrossAxisAlignment.stretch,
+                                children: [
+                                  const TechSectionTitle(
+                                    title: 'BarLytics',
+                                    subtitle: 'Acceso seguro a tu operación',
+                                    icon: Icons.analytics_rounded,
+                                  ),
+                                  const SizedBox(height: 26),
+                                  AppTextField(
+                                    controller: _identifier,
+                                    label: 'Correo o identificador',
+                                    prefixIcon: Icons.email_outlined,
+                                    validator: Validators.required,
+                                    onChanged: (_) {
+                                      if (_loginErrorMessage != null) setState(() => _loginErrorMessage = null);
+                                    },
+                                  ),
+                                  const SizedBox(height: 16),
+                                  AppTextField(
+                                    controller: _password,
+                                    label: 'Contraseña',
+                                    prefixIcon: Icons.lock_outline_rounded,
+                                    obscureText: true,
+                                    validator: Validators.required,
+                                    onChanged: (_) {
+                                      if (_loginErrorMessage != null) setState(() => _loginErrorMessage = null);
+                                    },
+                                  ),
+                                  if (_loginErrorMessage != null) ...[
+                                    const SizedBox(height: 14),
+                                    _LoginAlert(message: _loginErrorMessage!),
+                                  ],
+                                  Align(
+                                    alignment: Alignment.centerRight,
+                                    child: TextButton.icon(
+                                      onPressed: state.loading ? null : () => context.go('/forgot-password'),
+                                      icon: const Icon(Icons.help_outline_rounded, size: 18),
+                                      label: const Text('¿Olvidaste tu contraseña?'),
+                                    ),
+                                  ),
+                                  const SizedBox(height: 10),
+                                  AppButton(
+                                    label: 'Ingresar',
+                                    icon: Icons.login_rounded,
+                                    loading: state.loading,
+                                    onPressed: () async {
+                                      if (!_formKey.currentState!.validate()) return;
+                                      setState(() => _loginErrorMessage = null);
+                                      await ref.read(authControllerProvider.notifier).login(_identifier.text.trim(), _password.text);
+                                    },
+                                  ),
+                                  const SizedBox(height: 18),
+                                  const _SecurityNote(),
+                                  const SizedBox(height: 10),
+                                  TextButton.icon(
+                                    onPressed: () => showPaletteSettingsDialog(context),
+                                    icon: const Icon(Icons.palette_rounded, size: 18),
+                                    label: const Text('Personalizar colores'),
+                                  ),
+                                ],
                               ),
                             ),
-                            const SizedBox(height: 10),
-                            AppButton(
-                              label: 'Ingresar',
-                              icon: Icons.login_rounded,
-                              loading: state.loading,
-                              onPressed: () async {
-                                if (!_formKey.currentState!.validate()) return;
-                                setState(() => _loginErrorMessage = null);
-                                await ref.read(authControllerProvider.notifier).login(_identifier.text.trim(), _password.text);
-                              },
-                            ),
-                            const SizedBox(height: 18),
-                            const _SecurityNote(),
-                          ],
+                          ),
                         ),
-                      ),
+                      ],
                     ),
                   ),
-                ],
+                ),
               ),
             ),
           ),
-        ),
+        ],
       ),
     );
   }
