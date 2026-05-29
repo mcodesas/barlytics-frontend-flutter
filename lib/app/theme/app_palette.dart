@@ -57,13 +57,30 @@ class AppPalette {
         end: Alignment.bottomRight,
       );
 
-  Color get actionColor => (isDarkHeader || darkBackground) ? titleBackground : secondary;
-  Color get onAction => Colors.white;
   Color get onPrimary => isDarkHeader ? Colors.white : textPrimary;
   Color get onTitle => titleText;
   Color get cardBorder => darkBackground ? Colors.white.withOpacity(0.10) : accent.withOpacity(0.24);
   Color get cardShadow => darkBackground ? Colors.black.withOpacity(0.30) : secondary.withOpacity(0.12);
 
+  /// Color semántico para estados correctos/cuadrados.
+  /// Se mantiene estable para que no dependa de colores fijos en las pantallas.
+  Color get success => darkBackground ? const Color(0xFF34D399) : const Color(0xFF059669);
+
+  /// Color semántico para alertas/diferencias.
+  /// Se usa en cierre de caja cuando hay diferencias o notas contables.
+  Color get warning => darkBackground ? const Color(0xFFFBBF24) : const Color(0xFFD97706);
+
+  /// Color principal para botones y acciones funcionales.
+  /// Se calcula más oscuro/sólido que el acento para que las acciones no queden
+  /// con tonos demasiado claros al cambiar de paleta.
+  Color get actionColor => darkBackground
+      ? _blend(primary, secondary, 0.58)
+      : _blend(primary, secondary, 0.42);
+
+  /// Color del texto/icono sobre botones de acción.
+  Color get onAction => actionColor.computeLuminance() > 0.50
+      ? const Color(0xFF0F172A)
+      : Colors.white;
 
   Color get glassSurface => darkBackground
       ? Colors.white.withOpacity(0.075)

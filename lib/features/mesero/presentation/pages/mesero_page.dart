@@ -2658,7 +2658,7 @@ class _MeseroPageState extends ConsumerState<MeseroPage> {
             _CierreSection(
               title: 'Medios de pago',
               subtitle: 'Control contable: valor recibido por sistema, valor entregado y diferencia por medio.',
-              child: _CierreMediosPagoTable(items: cierre.mediosPago),
+              child: _CierreMediosPagoTable(cierre: cierre, items: cierre.mediosPago),
             ),
             const SizedBox(height: 16),
             _CierreSection(
@@ -2687,6 +2687,37 @@ class _MeseroPageState extends ConsumerState<MeseroPage> {
 }
 
 
+
+
+bool _esMedioEfectivoCierre(String? nombre) {
+  final value = (nombre ?? '').toLowerCase().trim();
+  return value.contains('efectivo') || value.contains('cash');
+}
+
+double _diferenciaMedioCierreAjustada(CierreCajaResumenModel cierre, CierreCajaMedioPagoModel medio) {
+  final sistema = medio.totalSistema ?? 0;
+  final entregado = medio.valorEntregado ?? 0;
+  if (_esMedioEfectivoCierre(medio.medioPagoNombre)) {
+    final base = cierre.valorBase ?? 0;
+    final gastos = cierre.totalGastos ?? 0;
+    return entregado + gastos - base - sistema;
+  }
+  return entregado - sistema;
+}
+
+double _baseAplicadaMedioCierre(CierreCajaResumenModel cierre, CierreCajaMedioPagoModel medio) {
+  if (_esMedioEfectivoCierre(medio.medioPagoNombre)) {
+    return cierre.valorBase ?? 0;
+  }
+  return 0;
+}
+
+String _notaDiferenciaMedioCierre(CierreCajaResumenModel cierre, CierreCajaMedioPagoModel medio) {
+  if (_esMedioEfectivoCierre(medio.medioPagoNombre)) {
+    return 'Efectivo ajustado: contado + gastos - base inicial - recibido sistema';
+  }
+  return 'Entregado - recibido sistema';
+}
 
 Future<Uint8List> _crearPdfCierreCaja(CierreCajaResumenModel cierre) async {
   final pdf = pw.Document();
@@ -2757,17 +2788,18 @@ Future<Uint8List> _crearPdfCierreCaja(CierreCajaResumenModel cierre) async {
         ),
         pw.SizedBox(height: 8),
         pw.Text('Formula de cruce: total contado por medios + gastos - base inicial = dinero real de ventas. Diferencia = cruce - total vendido.', style: const pw.TextStyle(fontSize: 8)),
-        sectionTitle('1. Medios de pago - recibido, entregado y diferencia'),
+        sectionTitle('1. Medios de pago - recibido, contado y diferencia ajustada'),
         pw.Table.fromTextArray(
           headerDecoration: pw.BoxDecoration(color: PdfColor.fromHex('#E2E8F0')),
           headerStyle: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 8),
           cellStyle: const pw.TextStyle(fontSize: 8),
           cellAlignment: pw.Alignment.centerLeft,
-          headers: const ['Recibido sistema', 'Entregado', 'Diferencia', 'Medio'],
+          headers: const ['Valor sistema', 'Valor contado', 'Base descontada', 'Diferencia ajustada', 'Medio'],
           data: cierre.mediosPago.map((m) => [
             CurrencyUtils.format(m.totalSistema),
             CurrencyUtils.format(m.valorEntregado),
-            CurrencyUtils.format(m.diferencia),
+            CurrencyUtils.format(_baseAplicadaMedioCierre(cierre, m)),
+            CurrencyUtils.format(_diferenciaMedioCierreAjustada(cierre, m)),
             m.medioPagoNombre ?? '-',
           ]).toList(),
         ),
@@ -2897,6 +2929,67 @@ class _CierreSection extends ConsumerWidget {
 }
 
 
+class _CierreValueTile extends ConsumerWidget {
+  const _CierreValueTile({
+    required this.label,
+    required this.value,
+    this.icon,
+    this.valueColor,
+    this.description,
+  });
+
+  final String label;
+  final String value;
+  final IconData? icon;
+  final Color? valueColor;
+  final String? description;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final palette = ref.watch(selectedAppPaletteProvider);
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: palette.glassSurface,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: palette.translucentBorder),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          if (icon != null) ...[
+            Container(
+              width: 34,
+              height: 34,
+              decoration: BoxDecoration(
+                color: palette.secondary.withOpacity(0.12),
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: Icon(icon, size: 18, color: palette.secondary),
+            ),
+            const SizedBox(width: 10),
+          ],
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(label, style: TextStyle(color: palette.textSecondary, fontWeight: FontWeight.w800, fontSize: 12)),
+                const SizedBox(height: 3),
+                Text(value, style: TextStyle(color: valueColor ?? palette.textPrimary, fontWeight: FontWeight.w900, fontSize: 15)),
+                if ((description ?? '').trim().isNotEmpty) ...[
+                  const SizedBox(height: 4),
+                  Text(description!, style: TextStyle(color: palette.textSecondary, fontWeight: FontWeight.w600, fontSize: 12)),
+                ],
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
 class _CierreGastosTable extends ConsumerWidget {
   const _CierreGastosTable({required this.items, this.valorBase, this.totalGastos});
   final List<CierreCajaGastoModel> items;
@@ -2913,57 +3006,179 @@ class _CierreGastosTable extends ConsumerWidget {
     if (rows.length == 1 && (valorBase ?? 0) == 0) {
       return Text('No hay base inicial ni gastos registrados para este cierre.', style: TextStyle(color: palette.textSecondary));
     }
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        SingleChildScrollView(
-          scrollDirection: Axis.horizontal,
-          child: DataTable(
-            headingRowColor: WidgetStateProperty.all(palette.secondary.withOpacity(0.10)),
-            columns: const [
-              DataColumn(label: Text('Valor')),
-              DataColumn(label: Text('Concepto')),
-              DataColumn(label: Text('Descripción')),
-            ],
-            rows: rows.map((item) => DataRow(cells: [
-              DataCell(Text(CurrencyUtils.format(item.valor), style: TextStyle(color: palette.textPrimary, fontWeight: FontWeight.w900))),
-              DataCell(Text(item.concepto)),
-              DataCell(Text(item.descripcion)),
-            ])).toList(growable: false),
-          ),
-        ),
-        const SizedBox(height: 10),
-        Text('Total gastos: ${CurrencyUtils.format(totalGastos)}', style: TextStyle(color: palette.textPrimary, fontWeight: FontWeight.w900)),
-      ],
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final narrow = constraints.maxWidth < 760;
+        final content = narrow
+            ? Column(
+                children: rows.map((item) {
+                  return Container(
+                    width: double.infinity,
+                    margin: const EdgeInsets.only(bottom: 10),
+                    padding: const EdgeInsets.all(14),
+                    decoration: BoxDecoration(
+                      color: palette.glassSurface,
+                      borderRadius: BorderRadius.circular(18),
+                      border: Border.all(color: palette.translucentBorder),
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        _CierreValueTile(label: item.concepto, value: CurrencyUtils.format(item.valor), icon: item.concepto == 'Gasto' ? Icons.shopping_bag_rounded : Icons.savings_rounded),
+                        const SizedBox(height: 8),
+                        Text(item.descripcion, style: TextStyle(color: palette.textSecondary, fontWeight: FontWeight.w700)),
+                      ],
+                    ),
+                  );
+                }).toList(growable: false),
+              )
+            : SingleChildScrollView(
+                scrollDirection: Axis.horizontal,
+                child: ConstrainedBox(
+                  constraints: BoxConstraints(minWidth: constraints.maxWidth),
+                  child: DataTable(
+                    headingRowColor: WidgetStateProperty.all(palette.secondary.withOpacity(0.10)),
+                    columnSpacing: 26,
+                    columns: const [
+                      DataColumn(label: Text('Valor')),
+                      DataColumn(label: Text('Concepto')),
+                      DataColumn(label: Text('Descripción')),
+                    ],
+                    rows: rows.map((item) => DataRow(cells: [
+                      DataCell(Text(CurrencyUtils.format(item.valor), style: TextStyle(color: palette.textPrimary, fontWeight: FontWeight.w900))),
+                      DataCell(Text(item.concepto, style: TextStyle(color: palette.textPrimary, fontWeight: FontWeight.w700))),
+                      DataCell(SizedBox(width: 320, child: Text(item.descripcion, overflow: TextOverflow.ellipsis, style: TextStyle(color: palette.textSecondary, fontWeight: FontWeight.w600)))),
+                    ])).toList(growable: false),
+                  ),
+                ),
+              );
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            content,
+            const SizedBox(height: 10),
+            Align(
+              alignment: Alignment.centerRight,
+              child: Text('Total gastos: ${CurrencyUtils.format(totalGastos)}', style: TextStyle(color: palette.textPrimary, fontWeight: FontWeight.w900)),
+            ),
+          ],
+        );
+      },
     );
   }
 }
 
 class _CierreMediosPagoTable extends ConsumerWidget {
-  const _CierreMediosPagoTable({required this.items});
+  const _CierreMediosPagoTable({required this.cierre, required this.items});
+
+  final CierreCajaResumenModel cierre;
   final List<CierreCajaMedioPagoModel> items;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final palette = ref.watch(selectedAppPaletteProvider);
-    if (items.isEmpty) return Text('No hay pagos registrados para este día.', style: TextStyle(color: palette.textSecondary));
-    return SingleChildScrollView(
-      scrollDirection: Axis.horizontal,
-      child: DataTable(
-        headingRowColor: WidgetStateProperty.all(palette.secondary.withOpacity(0.10)),
-        columns: const [
-          DataColumn(label: Text('Recibido sistema')),
-          DataColumn(label: Text('Entregado')),
-          DataColumn(label: Text('Diferencia')),
-          DataColumn(label: Text('Medio')),
-        ],
-        rows: items.map((item) => DataRow(cells: [
-          DataCell(Text(CurrencyUtils.format(item.totalSistema), style: TextStyle(color: palette.textPrimary, fontWeight: FontWeight.w800))),
-          DataCell(Text(CurrencyUtils.format(item.valorEntregado), style: TextStyle(color: palette.textPrimary, fontWeight: FontWeight.w800))),
-          DataCell(Text(CurrencyUtils.format(item.diferencia), style: TextStyle(color: palette.textPrimary, fontWeight: FontWeight.w800))),
-          DataCell(Text(item.medioPagoNombre ?? '-')),
-        ])).toList(),
-      ),
+    if (items.isEmpty) {
+      return Text('No hay pagos registrados para este día.', style: TextStyle(color: palette.textSecondary));
+    }
+
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final narrow = constraints.maxWidth < 860;
+        final body = narrow
+            ? Column(
+                children: items.map((item) {
+                  final baseAplicada = _baseAplicadaMedioCierre(cierre, item);
+                  final diferenciaAjustada = _diferenciaMedioCierreAjustada(cierre, item);
+                  final diferenciaColor = diferenciaAjustada.abs() < 0.01 ? palette.success : palette.warning;
+                  return Container(
+                    width: double.infinity,
+                    margin: const EdgeInsets.only(bottom: 12),
+                    padding: const EdgeInsets.all(14),
+                    decoration: BoxDecoration(
+                      color: palette.glassSurface,
+                      borderRadius: BorderRadius.circular(20),
+                      border: Border.all(color: palette.translucentBorder),
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          children: [
+                            Expanded(child: Text(item.medioPagoNombre ?? '-', style: TextStyle(color: palette.textPrimary, fontWeight: FontWeight.w900, fontSize: 16))),
+                            Icon(_esMedioEfectivoCierre(item.medioPagoNombre) ? Icons.payments_rounded : Icons.account_balance_wallet_rounded, color: palette.secondary),
+                          ],
+                        ),
+                        const SizedBox(height: 10),
+                        Wrap(
+                          spacing: 10,
+                          runSpacing: 10,
+                          children: [
+                            SizedBox(width: constraints.maxWidth > 520 ? (constraints.maxWidth - 34) / 2 : double.infinity, child: _CierreValueTile(label: 'Valor sistema', value: CurrencyUtils.format(item.totalSistema), icon: Icons.receipt_long_rounded)),
+                            SizedBox(width: constraints.maxWidth > 520 ? (constraints.maxWidth - 34) / 2 : double.infinity, child: _CierreValueTile(label: 'Valor contado', value: CurrencyUtils.format(item.valorEntregado), icon: Icons.fact_check_rounded)),
+                            SizedBox(width: constraints.maxWidth > 520 ? (constraints.maxWidth - 34) / 2 : double.infinity, child: _CierreValueTile(label: 'Base descontada', value: CurrencyUtils.format(baseAplicada), icon: Icons.savings_rounded)),
+                            SizedBox(width: constraints.maxWidth > 520 ? (constraints.maxWidth - 34) / 2 : double.infinity, child: _CierreValueTile(label: 'Diferencia ajustada', value: CurrencyUtils.format(diferenciaAjustada), valueColor: diferenciaColor, icon: Icons.compare_arrows_rounded)),
+                          ],
+                        ),
+                        const SizedBox(height: 8),
+                        Text(_notaDiferenciaMedioCierre(cierre, item), style: TextStyle(color: palette.textSecondary, fontWeight: FontWeight.w700)),
+                      ],
+                    ),
+                  );
+                }).toList(growable: false),
+              )
+            : SingleChildScrollView(
+                scrollDirection: Axis.horizontal,
+                child: ConstrainedBox(
+                  constraints: BoxConstraints(minWidth: constraints.maxWidth),
+                  child: DataTable(
+                    headingRowColor: WidgetStateProperty.all(palette.secondary.withOpacity(0.10)),
+                    columnSpacing: 24,
+                    columns: const [
+                      DataColumn(label: Text('Valor sistema')),
+                      DataColumn(label: Text('Valor contado')),
+                      DataColumn(label: Text('Base descontada')),
+                      DataColumn(label: Text('Diferencia ajustada')),
+                      DataColumn(label: Text('Medio')),
+                      DataColumn(label: Text('Cálculo')),
+                    ],
+                    rows: items.map((item) {
+                      final baseAplicada = _baseAplicadaMedioCierre(cierre, item);
+                      final diferenciaAjustada = _diferenciaMedioCierreAjustada(cierre, item);
+                      final diferenciaColor = diferenciaAjustada.abs() < 0.01 ? palette.success : palette.warning;
+                      return DataRow(cells: [
+                        DataCell(Text(CurrencyUtils.format(item.totalSistema), style: TextStyle(color: palette.textPrimary, fontWeight: FontWeight.w800))),
+                        DataCell(Text(CurrencyUtils.format(item.valorEntregado), style: TextStyle(color: palette.textPrimary, fontWeight: FontWeight.w800))),
+                        DataCell(Text(CurrencyUtils.format(baseAplicada), style: TextStyle(color: palette.textPrimary, fontWeight: FontWeight.w800))),
+                        DataCell(Text(CurrencyUtils.format(diferenciaAjustada), style: TextStyle(color: diferenciaColor, fontWeight: FontWeight.w900))),
+                        DataCell(Text(item.medioPagoNombre ?? '-', style: TextStyle(color: palette.textPrimary, fontWeight: FontWeight.w700))),
+                        DataCell(SizedBox(width: 260, child: Text(_notaDiferenciaMedioCierre(cierre, item), overflow: TextOverflow.ellipsis, style: TextStyle(color: palette.textSecondary, fontWeight: FontWeight.w600)))),
+                      ]);
+                    }).toList(),
+                  ),
+                ),
+              );
+
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Container(
+              width: double.infinity,
+              margin: const EdgeInsets.only(bottom: 10),
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+              decoration: BoxDecoration(
+                color: palette.warning.withOpacity(0.08),
+                borderRadius: BorderRadius.circular(14),
+                border: Border.all(color: palette.warning.withOpacity(0.25)),
+              ),
+              child: Text(
+                'Nota: en efectivo la diferencia se ajusta con la base inicial y los gastos. La columna Base descontada muestra cuánto se está restando porque esa base ya viene incluida en el dinero contado al final del turno.',
+                style: TextStyle(color: palette.textSecondary, fontWeight: FontWeight.w700),
+              ),
+            ),
+            body,
+          ],
+        );
+      },
     );
   }
 }
@@ -2976,23 +3191,63 @@ class _CierreProductosTable extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final palette = ref.watch(selectedAppPaletteProvider);
     if (items.isEmpty) return Text('No hay productos vendidos para este cierre.', style: TextStyle(color: palette.textSecondary));
-    return SingleChildScrollView(
-      scrollDirection: Axis.horizontal,
-      child: DataTable(
-        headingRowColor: WidgetStateProperty.all(palette.secondary.withOpacity(0.10)),
-        columns: const [
-          DataColumn(label: Text('Total producto')),
-          DataColumn(label: Text('Valor unidad')),
-          DataColumn(label: Text('Cantidad')),
-          DataColumn(label: Text('Producto')),
-        ],
-        rows: items.map((item) => DataRow(cells: [
-          DataCell(Text(CurrencyUtils.format(item.totalVenta), style: TextStyle(color: palette.textPrimary, fontWeight: FontWeight.w800))),
-          DataCell(Text(CurrencyUtils.format(item.valorUnitario), style: TextStyle(color: palette.textPrimary, fontWeight: FontWeight.w800))),
-          DataCell(Text(_formatCantidadGeneral(item.cantidad ?? 0))),
-          DataCell(Text(item.productoNombre ?? '-')),
-        ])).toList(),
-      ),
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        if (constraints.maxWidth < 760) {
+          return Column(
+            children: items.map((item) {
+              return Container(
+                width: double.infinity,
+                margin: const EdgeInsets.only(bottom: 10),
+                padding: const EdgeInsets.all(14),
+                decoration: BoxDecoration(
+                  color: palette.glassSurface,
+                  borderRadius: BorderRadius.circular(18),
+                  border: Border.all(color: palette.translucentBorder),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(item.productoNombre ?? '-', style: TextStyle(color: palette.textPrimary, fontWeight: FontWeight.w900, fontSize: 15)),
+                    const SizedBox(height: 10),
+                    Wrap(
+                      spacing: 10,
+                      runSpacing: 10,
+                      children: [
+                        SizedBox(width: constraints.maxWidth > 520 ? (constraints.maxWidth - 34) / 2 : double.infinity, child: _CierreValueTile(label: 'Total producto', value: CurrencyUtils.format(item.totalVenta), icon: Icons.attach_money_rounded)),
+                        SizedBox(width: constraints.maxWidth > 520 ? (constraints.maxWidth - 34) / 2 : double.infinity, child: _CierreValueTile(label: 'Valor unidad', value: CurrencyUtils.format(item.valorUnitario), icon: Icons.sell_rounded)),
+                        SizedBox(width: constraints.maxWidth > 520 ? (constraints.maxWidth - 34) / 2 : double.infinity, child: _CierreValueTile(label: 'Cantidad', value: _formatCantidadGeneral(item.cantidad ?? 0), icon: Icons.inventory_2_rounded)),
+                      ],
+                    ),
+                  ],
+                ),
+              );
+            }).toList(growable: false),
+          );
+        }
+        return SingleChildScrollView(
+          scrollDirection: Axis.horizontal,
+          child: ConstrainedBox(
+            constraints: BoxConstraints(minWidth: constraints.maxWidth),
+            child: DataTable(
+              headingRowColor: WidgetStateProperty.all(palette.secondary.withOpacity(0.10)),
+              columnSpacing: 28,
+              columns: const [
+                DataColumn(label: Text('Total producto')),
+                DataColumn(label: Text('Valor unidad')),
+                DataColumn(label: Text('Cantidad')),
+                DataColumn(label: Text('Producto')),
+              ],
+              rows: items.map((item) => DataRow(cells: [
+                DataCell(Text(CurrencyUtils.format(item.totalVenta), style: TextStyle(color: palette.textPrimary, fontWeight: FontWeight.w800))),
+                DataCell(Text(CurrencyUtils.format(item.valorUnitario), style: TextStyle(color: palette.textPrimary, fontWeight: FontWeight.w800))),
+                DataCell(Text(_formatCantidadGeneral(item.cantidad ?? 0), style: TextStyle(color: palette.textPrimary, fontWeight: FontWeight.w700))),
+                DataCell(SizedBox(width: 260, child: Text(item.productoNombre ?? '-', overflow: TextOverflow.ellipsis, style: TextStyle(color: palette.textPrimary, fontWeight: FontWeight.w700)))),
+              ])).toList(),
+            ),
+          ),
+        );
+      },
     );
   }
 }
