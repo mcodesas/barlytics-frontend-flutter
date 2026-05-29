@@ -1,8 +1,12 @@
+import 'dart:convert';
+
+import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../app/theme/app_colors.dart';
+import '../../app/theme/app_palette.dart';
 import '../../app/theme/module_visuals.dart';
 import '../crud/crud_field.dart';
 import '../crud/crud_field_ordering.dart';
@@ -153,17 +157,23 @@ class _DynamicCrudFormPageState<T> extends ConsumerState<DynamicCrudFormPage<T>>
     final state = ref.watch(_provider);
     final notifier = ref.read(_provider.notifier);
     final visual = ModuleVisuals.byKey(widget.config.key);
+    final palette = ref.watch(selectedAppPaletteProvider);
     final isEditing = widget.id != null;
 
-    if (_loadingInitial) return const Scaffold(body: AppLoader());
+    if (_loadingInitial) return const Scaffold(backgroundColor: Colors.transparent, body: AppLoader());
 
     return Scaffold(
-      backgroundColor: AppColors.background,
-      body: CustomScrollView(
-        slivers: [
+      backgroundColor: Colors.transparent,
+      body: Stack(
+        children: [
+          const Positioned.fill(child: AppPageBackground()),
+          CustomScrollView(
+            slivers: [
           SliverAppBar(
             pinned: true,
-            foregroundColor: Colors.white,
+            foregroundColor: palette.onTitle,
+            backgroundColor: Colors.transparent,
+            surfaceTintColor: Colors.transparent,
             expandedHeight: 190,
             title: Text(isEditing ? 'Editar ${widget.config.title}' : 'Crear ${widget.config.title}'),
             leading: IconButton(icon: const Icon(Icons.arrow_back_rounded), onPressed: () => context.go('/${widget.config.key}')),
@@ -176,11 +186,11 @@ class _DynamicCrudFormPageState<T> extends ConsumerState<DynamicCrudFormPage<T>>
                       width: 60,
                       height: 60,
                       decoration: BoxDecoration(
-                        gradient: LinearGradient(colors: [visual.color, AppColors.tertiary]),
+                        gradient: LinearGradient(colors: [palette.secondary, palette.accent]),
                         borderRadius: BorderRadius.circular(23),
                         boxShadow: [BoxShadow(color: visual.color.withOpacity(0.30), blurRadius: 24, offset: const Offset(0, 12))],
                       ),
-                      child: Icon(visual.icon, color: Colors.white, size: 31),
+                      child: Icon(visual.icon, color: palette.onTitle, size: 31),
                     ),
                     const SizedBox(width: 14),
                     Expanded(
@@ -188,9 +198,9 @@ class _DynamicCrudFormPageState<T> extends ConsumerState<DynamicCrudFormPage<T>>
                         crossAxisAlignment: CrossAxisAlignment.start,
                         mainAxisAlignment: MainAxisAlignment.center,
                         children: [
-                          Text(isEditing ? 'Editar registro' : 'Nuevo registro', style: Theme.of(context).textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.w900, color: Colors.white)),
+                          Text(isEditing ? 'Editar registro' : 'Nuevo registro', style: Theme.of(context).textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.w900, color: palette.onTitle)),
                           const SizedBox(height: 4),
-                          Text('Completa la información de ${widget.config.title.toLowerCase()}.', style: TextStyle(color: Colors.white.withOpacity(0.76), fontWeight: FontWeight.w700)),
+                          Text('Completa la información de ${widget.config.title.toLowerCase()}.', style: TextStyle(color: palette.onTitle.withOpacity(0.76), fontWeight: FontWeight.w700)),
                         ],
                       ),
                     ),
@@ -206,6 +216,9 @@ class _DynamicCrudFormPageState<T> extends ConsumerState<DynamicCrudFormPage<T>>
                 child: Padding(
                   padding: const EdgeInsets.all(16),
                   child: Card(
+                    color: palette.surface.withOpacity(palette.darkBackground ? 0.94 : 0.98),
+                    elevation: 0,
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(28), side: BorderSide(color: palette.cardBorder)),
                     child: Padding(
                       padding: const EdgeInsets.all(20),
                       child: Form(
@@ -301,12 +314,23 @@ class _DynamicCrudFormPageState<T> extends ConsumerState<DynamicCrudFormPage<T>>
               ),
             ),
           ),
+            ],
+          ),
         ],
       ),
     );
   }
 
   Widget _buildField(CrudField field) {
+    if (field.type == CrudFieldType.image) {
+      return _ImageField(
+        controller: _controllers[field.name]!,
+        label: field.label,
+        required: field.required,
+        readOnly: field.readOnly,
+      );
+    }
+
     if (field.lookup != null) {
       return LookupDropdown(
         controller: _controllers[field.name]!,
@@ -333,6 +357,7 @@ class _DynamicCrudFormPageState<T> extends ConsumerState<DynamicCrudFormPage<T>>
     if (name.contains('telefono')) return Icons.phone_outlined;
     if (name.contains('direccion')) return Icons.location_on_outlined;
     if (name.contains('fecha')) return Icons.event_outlined;
+    if (field.type == CrudFieldType.image || name.contains('foto') || name.contains('logo')) return Icons.image_rounded;
     if (field.type == CrudFieldType.number || field.type == CrudFieldType.decimal) return Icons.numbers_rounded;
     return Icons.edit_outlined;
   }
@@ -351,6 +376,153 @@ class _DynamicCrudFormPageState<T> extends ConsumerState<DynamicCrudFormPage<T>>
       CrudFieldType.boolean => value == 'true' || value == '1',
       _ => value,
     };
+  }
+}
+
+
+class _ImageField extends StatefulWidget {
+  const _ImageField({
+    required this.controller,
+    required this.label,
+    required this.required,
+    required this.readOnly,
+  });
+
+  final TextEditingController controller;
+  final String label;
+  final bool required;
+  final bool readOnly;
+
+  @override
+  State<_ImageField> createState() => _ImageFieldState();
+}
+
+class _ImageFieldState extends State<_ImageField> {
+  Future<void> _pickImage() async {
+    final result = await FilePicker.platform.pickFiles(
+      type: FileType.image,
+      allowMultiple: false,
+      withData: true,
+    );
+    final file = result?.files.single;
+    final bytes = file?.bytes;
+    if (bytes == null || bytes.isEmpty) return;
+    final ext = (file?.extension ?? 'png').toLowerCase();
+    final mime = ext == 'jpg' || ext == 'jpeg'
+        ? 'image/jpeg'
+        : ext == 'webp'
+            ? 'image/webp'
+            : 'image/png';
+    widget.controller.text = 'data:$mime;base64,${base64Encode(bytes)}';
+    if (mounted) setState(() {});
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final value = widget.controller.text.trim();
+    return FormField<String>(
+      validator: widget.required && value.isEmpty ? (_) => 'Este campo es obligatorio' : null,
+      builder: (state) => Container(
+        padding: const EdgeInsets.all(12),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(18),
+          border: Border.all(color: state.hasError ? AppColors.danger : AppColors.border),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                const Icon(Icons.image_rounded, color: AppColors.secondaryDark),
+                const SizedBox(width: 8),
+                Expanded(child: Text(widget.label, style: const TextStyle(fontWeight: FontWeight.w900))),
+                if (!widget.readOnly)
+                  OutlinedButton.icon(
+                    onPressed: _pickImage,
+                    icon: const Icon(Icons.upload_file_rounded, size: 18),
+                    label: const Text('Cargar'),
+                  ),
+              ],
+            ),
+            const SizedBox(height: 10),
+            if (value.isEmpty)
+              Container(
+                width: double.infinity,
+                height: 104,
+                alignment: Alignment.center,
+                decoration: BoxDecoration(color: AppColors.surfaceAlt, borderRadius: BorderRadius.circular(16)),
+                child: const Text('Sin imagen cargada', style: TextStyle(color: AppColors.textSecondary, fontWeight: FontWeight.w700)),
+              )
+            else
+              ClipRRect(
+                borderRadius: BorderRadius.circular(16),
+                child: _ImagePreview(value: value),
+              ),
+            if (value.isNotEmpty && !widget.readOnly) ...[
+              const SizedBox(height: 8),
+              Align(
+                alignment: Alignment.centerLeft,
+                child: TextButton.icon(
+                  onPressed: () {
+                    widget.controller.clear();
+                    setState(() {});
+                  },
+                  icon: const Icon(Icons.delete_outline_rounded),
+                  label: const Text('Quitar foto'),
+                ),
+              ),
+            ],
+            if (state.hasError) ...[
+              const SizedBox(height: 6),
+              Text(state.errorText ?? '', style: const TextStyle(color: AppColors.danger, fontWeight: FontWeight.w700, fontSize: 12)),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _ImagePreview extends StatelessWidget {
+  const _ImagePreview({required this.value});
+
+  final String value;
+
+  @override
+  Widget build(BuildContext context) {
+    final imageValue = value.trim();
+    if (imageValue.isEmpty) {
+      return Container(
+        width: double.infinity,
+        height: 120,
+        alignment: Alignment.center,
+        color: AppColors.surfaceAlt,
+        child: const Text('Sin imagen cargada', style: TextStyle(color: AppColors.textSecondary)),
+      );
+    }
+    if (imageValue.startsWith('data:image')) {
+      final commaIndex = imageValue.indexOf(',');
+      if (commaIndex > -1) {
+        try {
+          final bytes = base64Decode(imageValue.substring(commaIndex + 1));
+          return Image.memory(bytes, width: double.infinity, height: 150, fit: BoxFit.cover);
+        } catch (_) {}
+      }
+    }
+    return Image.network(
+      imageValue,
+      width: double.infinity,
+      height: 150,
+      fit: BoxFit.cover,
+      errorBuilder: (_, __, ___) => Container(
+        width: double.infinity,
+        height: 120,
+        alignment: Alignment.center,
+        color: AppColors.surfaceAlt,
+        child: const Text('No fue posible previsualizar la imagen', style: TextStyle(color: AppColors.textSecondary)),
+      ),
+    );
   }
 }
 

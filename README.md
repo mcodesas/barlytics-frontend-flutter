@@ -263,3 +263,14 @@ flutter create . --platforms=android,ios,web,windows,macos,linux
 ```
 
 Ese comando no modifica la lógica de `lib/`; solo regenera wrappers nativos según el SDK Flutter instalado.
+
+## Actualización: experiencia visual para usuario MESERO
+
+Se agregó una experiencia específica para usuarios con rol `MESERO`:
+
+- Redirección automática a `/mesero` después del login.
+- Navegación principal mediante barra inferior: Mesas, Productos y Resumen.
+- Menú lateral/drawer limitado a Mi perfil y Cerrar sesión.
+- Pantalla funcional para seleccionar mesa, abrir venta, crear cuentas, asignar productos y ver total pendiente por mesa.
+
+Documentación detallada: `docs/flujo_mesero_ui.md`.

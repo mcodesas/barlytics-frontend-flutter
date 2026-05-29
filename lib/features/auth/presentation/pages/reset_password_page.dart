@@ -41,7 +41,7 @@ class _ResetPasswordPageState extends ConsumerState<ResetPasswordPage> {
     if (widget.code.trim().isEmpty) {
       setState(() {
         _invalid = true;
-        _message = 'El enlace de recuperación no contiene código.';
+        _message = 'El enlace no contiene código.';
       });
       await _showInvalidDialogIfNeeded();
       return;
@@ -52,7 +52,7 @@ class _ResetPasswordPageState extends ConsumerState<ResetPasswordPage> {
     setState(() {
       _validated = ok;
       _invalid = !ok;
-      _message = ok ? null : ref.read(authControllerProvider).failure?.message ?? 'El enlace de recuperación no es válido o expiró.';
+      _message = ok ? null : ref.read(authControllerProvider).failure?.message ?? 'El enlace no es válido o expiró.';
     });
 
     if (!ok) await _showInvalidDialogIfNeeded();
@@ -67,7 +67,7 @@ class _ResetPasswordPageState extends ConsumerState<ResetPasswordPage> {
       builder: (dialogContext) => AlertDialog(
         icon: const TechBrandMark(icon: Icons.link_off_rounded),
         title: const Text('Enlace vencido o no válido'),
-        content: Text(_message ?? 'El código de recuperación expiró. Realice nuevamente el proceso de recuperación de contraseña.'),
+        content: Text(_message ?? 'El enlace expiró. Solicita un nuevo enlace de activación o recuperación de contraseña.'),
         actions: [
           TextButton(
             onPressed: () {
@@ -82,7 +82,7 @@ class _ResetPasswordPageState extends ConsumerState<ResetPasswordPage> {
               context.go('/forgot-password');
             },
             icon: const Icon(Icons.refresh_rounded),
-            label: const Text('Solicitar nuevo enlace'),
+            label: const Text('Solicitar recuperación'),
           ),
         ],
       ),
@@ -126,7 +126,7 @@ class _ResetPasswordPageState extends ConsumerState<ResetPasswordPage> {
             SizedBox(height: 20),
             CircularProgressIndicator(),
             SizedBox(height: 18),
-            Text('Validando enlace de recuperación...', style: TextStyle(fontWeight: FontWeight.w900)),
+            Text('Validando enlace...', style: TextStyle(fontWeight: FontWeight.w900)),
           ],
         ),
       );
@@ -140,7 +140,7 @@ class _ResetPasswordPageState extends ConsumerState<ResetPasswordPage> {
           const TechSectionTitle(
             icon: Icons.link_off_rounded,
             title: 'Enlace no válido',
-            subtitle: 'Debes solicitar nuevamente la recuperación de contraseña.',
+            subtitle: 'Debes solicitar un nuevo enlace de activación o recuperación.',
           ),
           const SizedBox(height: 20),
           Container(
@@ -154,7 +154,7 @@ class _ResetPasswordPageState extends ConsumerState<ResetPasswordPage> {
           ),
           const SizedBox(height: 20),
           AppButton(
-            label: 'Solicitar nuevo enlace',
+            label: 'Solicitar recuperación',
             icon: Icons.refresh_rounded,
             onPressed: () => context.go('/forgot-password'),
           ),
@@ -172,13 +172,13 @@ class _ResetPasswordPageState extends ConsumerState<ResetPasswordPage> {
         children: [
           const TechSectionTitle(
             icon: Icons.lock_reset_rounded,
-            title: 'Nueva contraseña',
-            subtitle: 'Crea una nueva clave para volver a ingresar.',
+            title: 'Crear contraseña',
+            subtitle: 'Registra una clave para activar tu cuenta o recuperar el acceso.',
           ),
           const SizedBox(height: 24),
           AppTextField(
             controller: _newPassword,
-            label: 'Nueva contraseña',
+            label: 'Contraseña',
             prefixIcon: Icons.lock_outline_rounded,
             obscureText: true,
             validator: (value) {
@@ -237,8 +237,8 @@ class _ResetPasswordPageState extends ConsumerState<ResetPasswordPage> {
       barrierDismissible: false,
       builder: (dialogContext) => AlertDialog(
         icon: const TechBrandMark(icon: Icons.verified_user_rounded),
-        title: const Text('Contraseña actualizada'),
-        content: const Text('Tu contraseña fue actualizada correctamente. Ingresa nuevamente con tu nueva clave.'),
+        title: const Text('Contraseña registrada'),
+        content: const Text('Tu contraseña fue registrada correctamente. Ingresa con tu correo y nueva clave.'),
         actions: [
           FilledButton.icon(
             onPressed: () {

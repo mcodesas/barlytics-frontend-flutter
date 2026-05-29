@@ -12,6 +12,9 @@ class LookupDropdown extends StatelessWidget {
     required this.options,
     this.loading = false,
     this.errorMessage,
+    this.enabled = true,
+    this.helperText,
+    this.onSelected,
   });
 
   final TextEditingController controller;
@@ -19,10 +22,14 @@ class LookupDropdown extends StatelessWidget {
   final List<CrudLookupOption> options;
   final bool loading;
   final String? errorMessage;
+  final bool enabled;
+  final String? helperText;
+  final ValueChanged<CrudLookupOption>? onSelected;
 
   @override
   Widget build(BuildContext context) {
     return FormField<String>(
+      key: ValueKey('${field.name}-${controller.text}-${options.length}'),
       initialValue: controller.text,
       validator: field.required
           ? (value) {
@@ -37,19 +44,19 @@ class LookupDropdown extends StatelessWidget {
 
         return InkWell(
           borderRadius: BorderRadius.circular(18),
-          onTap: field.readOnly || loading ? null : () => _openLookupDialog(context, state),
+          onTap: field.readOnly || loading || !enabled ? null : () => _openLookupDialog(context, state),
           child: InputDecorator(
             decoration: InputDecoration(
               labelText: field.label,
               prefixIcon: const Icon(Icons.manage_search_rounded),
               errorText: state.errorText,
-              helperText: errorMessage ?? (loading ? 'Cargando opciones...' : 'Toca para buscar y seleccionar'),
+              helperText: errorMessage ?? helperText ?? (loading ? 'Cargando opciones...' : enabled ? 'Toca para buscar y seleccionar' : 'Selecciona primero el dato anterior'),
               suffixIcon: loading
                   ? const Padding(
                       padding: EdgeInsets.all(12),
                       child: SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2)),
                     )
-                  : const Icon(Icons.keyboard_arrow_down_rounded),
+                  : Icon(enabled ? Icons.keyboard_arrow_down_rounded : Icons.lock_outline_rounded),
             ),
             child: Text(
               displayValue.isEmpty ? 'Seleccione una opción' : displayValue,
@@ -151,6 +158,7 @@ class LookupDropdown extends StatelessWidget {
     final selectedId = selected.id?.toString() ?? '';
     controller.text = selectedId;
     fieldState.didChange(selectedId);
+    onSelected?.call(selected);
   }
 }
 

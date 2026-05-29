@@ -7,6 +7,7 @@ class ProductosResponseModel {
     this.mrcaId,
     this.prodNombre,
     this.prodDescripcion,
+    this.prodFoto,
     this.prodCreadoPor,
     this.prodFechaCambio,
   });
@@ -17,6 +18,7 @@ class ProductosResponseModel {
   final int? mrcaId;
   final String? prodNombre;
   final String? prodDescripcion;
+  final String? prodFoto;
   final String? prodCreadoPor;
   final String? prodFechaCambio;
 
@@ -27,6 +29,7 @@ class ProductosResponseModel {
       mrcaId: (json['mrcaId'] as num?)?.toInt(),
       prodNombre: json['prodNombre']?.toString(),
       prodDescripcion: json['prodDescripcion']?.toString(),
+      prodFoto: json['prodFoto']?.toString(),
       prodCreadoPor: json['prodCreadoPor']?.toString(),
       prodFechaCambio: json['prodFechaCambio']?.toString(),
   );
@@ -38,6 +41,7 @@ class ProductosResponseModel {
       'mrcaId': mrcaId,
       'prodNombre': prodNombre,
       'prodDescripcion': prodDescripcion,
+      'prodFoto': prodFoto,
       'prodCreadoPor': prodCreadoPor,
       'prodFechaCambio': prodFechaCambio,
   };

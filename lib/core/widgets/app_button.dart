@@ -1,9 +1,11 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../app/theme/app_colors.dart';
+import '../../app/theme/app_palette.dart';
 
 /// Botón principal reutilizable con gradiente tecnológico.
-class AppButton extends StatelessWidget {
+class AppButton extends ConsumerWidget {
   const AppButton({
     super.key,
     required this.label,
@@ -18,8 +20,9 @@ class AppButton extends StatelessWidget {
   final IconData? icon;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final disabled = loading || onPressed == null;
+    final palette = ref.watch(selectedAppPaletteProvider);
     final child = loading
         ? const SizedBox(
             width: 20,
@@ -42,14 +45,13 @@ class AppButton extends StatelessWidget {
       opacity: disabled ? 0.62 : 1,
       child: DecoratedBox(
         decoration: BoxDecoration(
-          gradient: disabled ? null : AppColors.bluePurpleGradient,
-          color: disabled ? AppColors.textMuted : null,
+          color: disabled ? AppColors.textMuted : palette.actionColor,
           borderRadius: BorderRadius.circular(20),
           boxShadow: disabled
               ? const []
               : [
                   BoxShadow(
-                    color: AppColors.secondary.withOpacity(0.28),
+                    color: palette.actionColor.withOpacity(0.30),
                     blurRadius: 24,
                     offset: const Offset(0, 12),
                   ),

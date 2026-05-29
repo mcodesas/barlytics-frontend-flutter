@@ -7,6 +7,7 @@ class ProductosRequestModel {
     this.tpprId,
     this.prodId,
     this.sucuId,
+    this.prodFoto,
   });
 
   final int? mrcaId;
@@ -15,6 +16,7 @@ class ProductosRequestModel {
   final int? tpprId;
   final int? prodId;
   final int? sucuId;
+  final String? prodFoto;
 
   factory ProductosRequestModel.fromJson(Map<String, dynamic> json) => ProductosRequestModel(
       mrcaId: (json['mrcaId'] as num?)?.toInt(),
@@ -23,6 +25,7 @@ class ProductosRequestModel {
       tpprId: (json['tpprId'] as num?)?.toInt(),
       prodId: (json['prodId'] as num?)?.toInt(),
       sucuId: (json['sucuId'] as num?)?.toInt(),
+      prodFoto: json['prodFoto']?.toString(),
   );
 
   Map<String, dynamic> toJson() => <String, dynamic>{
@@ -32,5 +35,6 @@ class ProductosRequestModel {
       if (tpprId != null) 'tpprId': tpprId,
       if (prodId != null) 'prodId': prodId,
       if (sucuId != null) 'sucuId': sucuId,
+      if (prodFoto != null) 'prodFoto': prodFoto,
   };
 }
