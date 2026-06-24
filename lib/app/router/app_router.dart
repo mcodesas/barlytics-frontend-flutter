@@ -108,9 +108,16 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       if (authState.authenticated && (isLoginRoute || isForgotPasswordRoute)) {
         final isOperativoMesa = authState.roles.any((role) {
           final normalized = role.toUpperCase();
-          return normalized.contains('MESERO') || normalized.contains('CAJERO');
+          return normalized.contains('MESERO') || normalized.contains('CAJERO') || normalized.contains('INVENTARIO') || normalized.contains('INVENTORY') || normalized.contains('BODEGA') || normalized.contains('ALMACEN') || normalized.contains('ALMACÉN');
         });
-        return isOperativoMesa ? '/mesero' : '/home';
+        if (isOperativoMesa) {
+          final isInventario = authState.roles.any((role) {
+            final normalized = role.toUpperCase();
+            return normalized.contains('INVENTARIO') || normalized.contains('INVENTORY') || normalized.contains('BODEGA') || normalized.contains('ALMACEN') || normalized.contains('ALMACÉN');
+          });
+          return isInventario ? '/productos' : '/mesero';
+        }
+        return '/home';
       }
 
       return null;

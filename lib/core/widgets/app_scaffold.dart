@@ -15,7 +15,16 @@ import 'tech_background.dart';
 final ScrollController _desktopNavigationScrollController = ScrollController();
 final ScrollController _mobileNavigationScrollController = ScrollController();
 
-bool _isOperationalRole(String role) {
+bool _isInventoryRole(String role) {
+  final normalized = role.toUpperCase();
+  return normalized.contains('INVENTARIO') ||
+      normalized.contains('INVENTORY') ||
+      normalized.contains('BODEGA') ||
+      normalized.contains('ALMACEN') ||
+      normalized.contains('ALMACÉN');
+}
+
+bool _isMesaCashierSellerRole(String role) {
   final normalized = role.toUpperCase();
   return normalized.contains('MESER') ||
       normalized.contains('CAJER') ||
@@ -23,6 +32,8 @@ bool _isOperationalRole(String role) {
       normalized.contains('VENTA') ||
       normalized.contains('SELLER');
 }
+
+bool _isOperationalRole(String role) => _isMesaCashierSellerRole(role) || _isInventoryRole(role);
 
 /// Scaffold principal con navegación adaptable y diseño tecnológico unificado.
 class AppScaffold extends ConsumerStatefulWidget {
@@ -42,15 +53,17 @@ class _AppScaffoldState extends ConsumerState<AppScaffold> {
     final isDesktop = ResponsiveUtils.isDesktop(context);
     final palette = ref.watch(selectedAppPaletteProvider);
     final roles = ref.watch(authControllerProvider).roles;
-    final isOperativoMesa = roles.any(_isOperationalRole);
+    final isOperativo = roles.any(_isOperationalRole);
+    final isInventario = roles.any(_isInventoryRole);
 
-    if (isOperativoMesa) {
+    if (isOperativo) {
       return _MeseroScaffold(
         child: widget.child,
         onLogout: () => _logout(context),
         collapsed: _operationalMenuCollapsed,
         onToggleCollapsed: () => setState(() => _operationalMenuCollapsed = !_operationalMenuCollapsed),
         palette: palette,
+        bottomMenuType: isInventario ? _OperationalBottomMenuType.inventory : _OperationalBottomMenuType.mesa,
       );
     }
 
@@ -172,6 +185,8 @@ class _PaletteAwareBody extends StatelessWidget {
   }
 }
 
+enum _OperationalBottomMenuType { mesa, inventory }
+
 class _MeseroScaffold extends StatelessWidget {
   const _MeseroScaffold({
     required this.child,
@@ -179,6 +194,7 @@ class _MeseroScaffold extends StatelessWidget {
     required this.collapsed,
     required this.onToggleCollapsed,
     required this.palette,
+    required this.bottomMenuType,
   });
 
   final Widget child;
@@ -186,6 +202,7 @@ class _MeseroScaffold extends StatelessWidget {
   final bool collapsed;
   final VoidCallback onToggleCollapsed;
   final AppPalette palette;
+  final _OperationalBottomMenuType bottomMenuType;
 
   @override
   Widget build(BuildContext context) {
@@ -207,7 +224,7 @@ class _MeseroScaffold extends StatelessWidget {
                 child: Column(
                   children: [
                     Expanded(child: _PaletteAwareBody(child: child, palette: palette)),
-                    const _MeseroBottomNavigation(),
+                    _OperationalBottomNavigation(type: bottomMenuType),
                   ],
                 ),
               ),
@@ -225,7 +242,7 @@ class _MeseroScaffold extends StatelessWidget {
       ),
       drawer: Drawer(child: _MeseroDrawerContent(onLogout: onLogout, palette: palette)),
       body: _PaletteAwareBody(child: child, palette: palette),
-      bottomNavigationBar: const _MeseroBottomNavigation(),
+      bottomNavigationBar: _OperationalBottomNavigation(type: bottomMenuType),
     );
   }
 }
@@ -312,11 +329,17 @@ class _MeseroDrawerContent extends StatelessWidget {
       );
 }
 
-class _MeseroBottomNavigation extends ConsumerWidget {
-  const _MeseroBottomNavigation();
+class _OperationalBottomNavigation extends ConsumerWidget {
+  const _OperationalBottomNavigation({required this.type});
+
+  final _OperationalBottomMenuType type;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    if (type == _OperationalBottomMenuType.inventory) {
+      return _InventoryBottomNavigation();
+    }
+
     final rawSelectedMode = ref.watch(meseroSelectedModeProvider);
     final palette = ref.watch(selectedAppPaletteProvider);
     final roles = ref.watch(authControllerProvider).roles;
@@ -368,6 +391,86 @@ class _MeseroBottomNavigation extends ConsumerWidget {
             }
           },
           items: [for (final entry in entries) entry.item],
+        ),
+      ),
+    );
+  }
+}
+
+
+class _InventoryBottomNavigation extends ConsumerWidget {
+  const _InventoryBottomNavigation();
+
+  static const _items = <({String label, IconData icon, String path})>[
+    (label: 'Productos', icon: Icons.inventory_2_rounded, path: '/productos'),
+    (label: 'Inventario', icon: Icons.fact_check_rounded, path: '/inventario'),
+    (label: 'Precios', icon: Icons.price_change_rounded, path: '/precios'),
+    (label: 'Tipos', icon: Icons.category_rounded, path: '/tipos_producto'),
+    (label: 'Marcas', icon: Icons.sell_rounded, path: '/marcas'),
+    (label: 'Movimientos', icon: Icons.sync_alt_rounded, path: '/movimientos'),
+    (label: 'Pagos', icon: Icons.payments_rounded, path: '/medios_pago'),
+    (label: 'Reportes', icon: Icons.analytics_rounded, path: '/reportes'),
+  ];
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final palette = ref.watch(selectedAppPaletteProvider);
+    final currentPath = GoRouterState.of(context).uri.path;
+    var selectedIndex = _items.indexWhere((item) => currentPath == item.path || currentPath.startsWith('${item.path}/'));
+    if (selectedIndex < 0) selectedIndex = 0;
+
+    final width = MediaQuery.sizeOf(context).width;
+    final isCompact = width < 640;
+
+    return Container(
+      decoration: BoxDecoration(
+        color: palette.surface.withOpacity(palette.darkBackground ? 0.96 : 0.99),
+        border: Border(top: BorderSide(color: palette.cardBorder.withOpacity(0.70))),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(palette.darkBackground ? 0.24 : 0.11),
+            blurRadius: 24,
+            offset: const Offset(0, -8),
+          ),
+        ],
+      ),
+      child: SafeArea(
+        top: false,
+        child: BottomNavigationBar(
+          currentIndex: selectedIndex,
+          type: BottomNavigationBarType.fixed,
+          backgroundColor: Colors.transparent,
+          elevation: 0,
+          selectedItemColor: palette.secondary,
+          unselectedItemColor: palette.textSecondary.withOpacity(0.86),
+          selectedFontSize: isCompact ? 10.5 : 12,
+          unselectedFontSize: isCompact ? 10 : 11.5,
+          iconSize: isCompact ? 22 : 24,
+          selectedLabelStyle: const TextStyle(fontWeight: FontWeight.w900, height: 1.15),
+          unselectedLabelStyle: const TextStyle(fontWeight: FontWeight.w700, height: 1.15),
+          showSelectedLabels: true,
+          showUnselectedLabels: true,
+          onTap: (index) => context.go(_items[index].path),
+          items: [
+            for (final item in _items)
+              BottomNavigationBarItem(
+                icon: Padding(
+                  padding: const EdgeInsets.only(bottom: 3),
+                  child: Icon(item.icon),
+                ),
+                activeIcon: Container(
+                  margin: const EdgeInsets.only(bottom: 3),
+                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 5),
+                  decoration: BoxDecoration(
+                    color: palette.secondary.withOpacity(palette.darkBackground ? 0.22 : 0.14),
+                    borderRadius: BorderRadius.circular(18),
+                    border: Border.all(color: palette.secondary.withOpacity(0.28)),
+                  ),
+                  child: Icon(item.icon),
+                ),
+                label: item.label,
+              ),
+          ],
         ),
       ),
     );

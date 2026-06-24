@@ -8,6 +8,10 @@ class ProductosRequestModel {
     this.prodId,
     this.sucuId,
     this.prodFoto,
+    this.prodFechaVencimiento,
+    this.prodCompraPorCantidad,
+    this.prodCantidadCompra,
+    this.prodPresentacionCompra,
   });
 
   final int? mrcaId;
@@ -17,24 +21,36 @@ class ProductosRequestModel {
   final int? prodId;
   final int? sucuId;
   final String? prodFoto;
+  final String? prodFechaVencimiento;
+  final int? prodCompraPorCantidad;
+  final double? prodCantidadCompra;
+  final String? prodPresentacionCompra;
 
   factory ProductosRequestModel.fromJson(Map<String, dynamic> json) => ProductosRequestModel(
-      mrcaId: (json['mrcaId'] as num?)?.toInt(),
-      prodDescripcion: json['prodDescripcion']?.toString(),
-      prodNombre: json['prodNombre']?.toString(),
-      tpprId: (json['tpprId'] as num?)?.toInt(),
-      prodId: (json['prodId'] as num?)?.toInt(),
-      sucuId: (json['sucuId'] as num?)?.toInt(),
-      prodFoto: json['prodFoto']?.toString(),
-  );
+        mrcaId: (json['mrcaId'] as num?)?.toInt(),
+        prodDescripcion: json['prodDescripcion']?.toString(),
+        prodNombre: json['prodNombre']?.toString(),
+        tpprId: (json['tpprId'] as num?)?.toInt(),
+        prodId: (json['prodId'] as num?)?.toInt(),
+        sucuId: (json['sucuId'] as num?)?.toInt(),
+        prodFoto: json['prodFoto']?.toString(),
+        prodFechaVencimiento: json['prodFechaVencimiento']?.toString(),
+        prodCompraPorCantidad: (json['prodCompraPorCantidad'] as num?)?.toInt(),
+        prodCantidadCompra: (json['prodCantidadCompra'] as num?)?.toDouble(),
+        prodPresentacionCompra: json['prodPresentacionCompra']?.toString(),
+      );
 
   Map<String, dynamic> toJson() => <String, dynamic>{
-      if (mrcaId != null) 'mrcaId': mrcaId,
-      if (prodDescripcion != null) 'prodDescripcion': prodDescripcion,
-      if (prodNombre != null) 'prodNombre': prodNombre,
-      if (tpprId != null) 'tpprId': tpprId,
-      if (prodId != null) 'prodId': prodId,
-      if (sucuId != null) 'sucuId': sucuId,
-      if (prodFoto != null) 'prodFoto': prodFoto,
-  };
+        if (mrcaId != null) 'mrcaId': mrcaId,
+        if (prodDescripcion != null) 'prodDescripcion': prodDescripcion,
+        if (prodNombre != null) 'prodNombre': prodNombre,
+        if (tpprId != null) 'tpprId': tpprId,
+        if (prodId != null) 'prodId': prodId,
+        if (sucuId != null) 'sucuId': sucuId,
+        if (prodFoto != null) 'prodFoto': prodFoto,
+        if (prodFechaVencimiento != null) 'prodFechaVencimiento': prodFechaVencimiento,
+        if (prodCompraPorCantidad != null) 'prodCompraPorCantidad': prodCompraPorCantidad,
+        if (prodCantidadCompra != null) 'prodCantidadCompra': prodCantidadCompra,
+        if (prodPresentacionCompra != null) 'prodPresentacionCompra': prodPresentacionCompra,
+      };
 }

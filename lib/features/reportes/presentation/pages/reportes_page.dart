@@ -18,6 +18,9 @@ class ReportesPage extends ConsumerWidget {
     'Stock actual': '/api/v1/reportes/stock-actual',
     'Productos más vendidos': '/api/v1/reportes/productos-mas-vendidos',
     'Movimientos de inventario': '/api/v1/reportes/movimientos-inventario',
+    'Cruce inventario vs ventas': '/api/v1/reportes/inventario/cruce-ventas',
+    'Productos desfalcados': '/api/v1/reportes/inventario/productos-desfalcados',
+    'Desfalcos por persona': '/api/v1/reportes/inventario/productos-desfalcados/persona',
   };
 
   @override
@@ -115,6 +118,18 @@ class _ReportCard extends StatelessWidget {
       );
 }
 
+String _reportPathWithDefaultDates(String path) {
+  final today = DateTime.now();
+  final date = "${today.year.toString().padLeft(4, '0')}-${today.month.toString().padLeft(2, '0')}-${today.day.toString().padLeft(2, '0')}";
+  final needsDates = path.contains('/ventas') ||
+      path.contains('/productos-mas-vendidos') ||
+      path.contains('/movimientos-inventario') ||
+      path.contains('/inventario/cruce-ventas') ||
+      path.contains('/inventario/productos-desfalcados');
+  if (!needsDates || path.contains('?')) return path;
+  return '$path?inicio=$date&fin=$date';
+}
+
 class _ReporteDetail extends ConsumerWidget {
   const _ReporteDetail({required this.title, required this.path, required this.color});
   final String title;
@@ -128,7 +143,7 @@ class _ReporteDetail extends ConsumerWidget {
       backgroundColor: AppColors.background,
       appBar: AppBar(title: Text(title)),
       body: FutureBuilder(
-        future: api.get<List<dynamic>>(path, (json) => json is List ? json : <dynamic>[]),
+        future: api.get<List<dynamic>>(_reportPathWithDefaultDates(path), (json) => json is List ? json : <dynamic>[]),
         builder: (context, snapshot) {
           if (snapshot.connectionState != ConnectionState.done) return const AppLoader();
           if (snapshot.hasError) return AppErrorView(message: snapshot.error.toString());

@@ -4274,6 +4274,7 @@ class _ResumenStatusChip extends StatelessWidget {
       );
 }
 
+
 class _VentaInfoPanel extends ConsumerWidget {
   const _VentaInfoPanel({
     required this.venta,
@@ -4296,67 +4297,227 @@ class _VentaInfoPanel extends ConsumerWidget {
     final cuentas = venta.cuentas.length;
     final productos = venta.cuentas.fold<int>(0, (sum, cuenta) => sum + cuenta.productos.length);
     final saldo = venta.saldoPendiente ?? 0;
+    final pagada = venta.pagada == true || saldo <= 0.009;
+
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
-        color: palette.surface.withOpacity(palette.darkBackground ? 0.88 : 0.96),
+        gradient: LinearGradient(
+          colors: [
+            palette.surface.withOpacity(palette.darkBackground ? 0.92 : 0.98),
+            palette.secondary.withOpacity(palette.darkBackground ? 0.16 : 0.07),
+          ],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
         borderRadius: BorderRadius.circular(28),
-        border: Border.all(color: AppColors.border),
+        border: Border.all(color: palette.cardBorder),
+        boxShadow: [BoxShadow(color: palette.cardShadow, blurRadius: 24, offset: const Offset(0, 12))],
       ),
       child: LayoutBuilder(
         builder: (context, constraints) {
-          final narrow = constraints.maxWidth < 720;
-          final title = Column(
+          final compact = constraints.maxWidth < 720;
+          final header = Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text(
-                'Mesa ${venta.mesaNumero ?? '-'} · Venta #${venta.ventaId ?? '-'}',
-                style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w900),
-              ),
-              const SizedBox(height: 6),
-              Text(
-                descripcion.isEmpty ? 'Sin descripción registrada para esta venta.' : descripcion,
-                style: TextStyle(color: palette.textSecondary, fontWeight: FontWeight.w600),
-              ),
-            ],
-          );
-          final actions = Wrap(
-            spacing: 10,
-            runSpacing: 10,
-            crossAxisAlignment: WrapCrossAlignment.center,
-            children: [
-              _SmallInfoPill(icon: Icons.receipt_long_rounded, text: '$cuentas cuentas'),
-              _SmallInfoPill(icon: Icons.shopping_bag_rounded, text: '$productos productos'),
-              _TotalPill(total: venta.total),
-              _SmallInfoPill(icon: Icons.account_balance_wallet_rounded, text: 'Pagado ${CurrencyUtils.format(venta.totalPagado)}'),
-              _SmallInfoPill(icon: Icons.pending_actions_rounded, text: 'Saldo ${CurrencyUtils.format(saldo)}'),
-              if (onModificarDivision != null)
-                FilledButton.tonalIcon(
-                  onPressed: onModificarDivision,
-                  icon: const Icon(Icons.groups_2_rounded),
-                  label: const Text('Modificar cuentas'),
-                  style: FilledButton.styleFrom(
-                    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 11),
-                    textStyle: const TextStyle(fontWeight: FontWeight.w800),
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-                  ),
+              Container(
+                width: 50,
+                height: 50,
+                decoration: BoxDecoration(
+                  color: palette.secondary.withOpacity(0.14),
+                  borderRadius: BorderRadius.circular(18),
                 ),
+                child: Icon(Icons.table_restaurant_rounded, color: palette.secondary, size: 26),
+              ),
+              const SizedBox(width: 14),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Mesa ${venta.mesaNumero ?? '-'}',
+                      style: Theme.of(context).textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.w900, color: palette.textPrimary),
+                    ),
+                    const SizedBox(height: 3),
+                    Text(
+                      'Venta #${venta.ventaId ?? '-'}${descripcion.isEmpty ? '' : ' · $descripcion'}',
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(color: palette.textSecondary, fontWeight: FontWeight.w700),
+                    ),
+                  ],
+                ),
+              ),
             ],
           );
 
-          if (narrow) {
+          final total = Column(
+            crossAxisAlignment: compact ? CrossAxisAlignment.start : CrossAxisAlignment.end,
+            children: [
+              Text('Total venta', style: TextStyle(color: palette.textSecondary, fontSize: 12, fontWeight: FontWeight.w800)),
+              const SizedBox(height: 3),
+              Text(
+                CurrencyUtils.format(venta.total),
+                style: TextStyle(color: palette.secondary, fontSize: compact ? 24 : 28, fontWeight: FontWeight.w900),
+              ),
+              const SizedBox(height: 5),
+              _ResumenEstadoVentaChip(label: pagada ? 'Pagada' : 'Saldo pendiente', danger: !pagada),
+            ],
+          );
+
+          final resumen = _VentaResumenInline(
+            items: [
+              _VentaResumenItem(label: 'Cuentas', value: '$cuentas'),
+              _VentaResumenItem(label: 'Productos', value: '$productos'),
+              _VentaResumenItem(label: 'Pagado', value: CurrencyUtils.format(venta.totalPagado)),
+              _VentaResumenItem(label: 'Saldo', value: CurrencyUtils.format(saldo), danger: saldo > 0.009),
+            ],
+          );
+
+          final modificarButton = onModificarDivision == null
+              ? null
+              : TextButton.icon(
+                  onPressed: onModificarDivision,
+                  icon: const Icon(Icons.groups_2_rounded),
+                  label: const Text('Modificar cuentas'),
+                  style: TextButton.styleFrom(
+                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                    textStyle: const TextStyle(fontWeight: FontWeight.w900),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                  ),
+                );
+
+          if (compact) {
             return Column(
               crossAxisAlignment: CrossAxisAlignment.start,
-              children: [title, const SizedBox(height: 16), actions],
+              children: [
+                header,
+                const SizedBox(height: 16),
+                total,
+                const SizedBox(height: 14),
+                Divider(height: 1, color: palette.cardBorder),
+                const SizedBox(height: 12),
+                resumen,
+                if (modificarButton != null) ...[
+                  const SizedBox(height: 10),
+                  modificarButton,
+                ],
+              ],
             );
           }
-          return Row(
+
+          return Column(
             crossAxisAlignment: CrossAxisAlignment.start,
-            children: [Expanded(child: title), const SizedBox(width: 16), Flexible(child: actions)],
+            children: [
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Expanded(child: header),
+                  const SizedBox(width: 20),
+                  total,
+                ],
+              ),
+              const SizedBox(height: 16),
+              Divider(height: 1, color: palette.cardBorder),
+              const SizedBox(height: 12),
+              Row(
+                children: [
+                  Expanded(child: resumen),
+                  if (modificarButton != null) ...[
+                    const SizedBox(width: 12),
+                    modificarButton,
+                  ],
+                ],
+              ),
+            ],
           );
         },
       ),
+    );
+  }
+}
+
+class _ResumenEstadoVentaChip extends ConsumerWidget {
+  const _ResumenEstadoVentaChip({required this.label, required this.danger});
+
+  final String label;
+  final bool danger;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final palette = ref.watch(selectedAppPaletteProvider);
+    final color = danger ? AppColors.warning : AppColors.success;
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Icon(danger ? Icons.pending_actions_rounded : Icons.check_circle_rounded, color: color, size: 16),
+        const SizedBox(width: 5),
+        Text(label, style: TextStyle(color: danger ? color : (palette.darkBackground ? color : AppColors.success), fontWeight: FontWeight.w900, fontSize: 12)),
+      ],
+    );
+  }
+}
+
+class _VentaResumenItem {
+  const _VentaResumenItem({required this.label, required this.value, this.danger = false});
+
+  final String label;
+  final String value;
+  final bool danger;
+}
+
+class _VentaResumenInline extends ConsumerWidget {
+  const _VentaResumenInline({required this.items});
+
+  final List<_VentaResumenItem> items;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final palette = ref.watch(selectedAppPaletteProvider);
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final compact = constraints.maxWidth < 560;
+        if (compact) {
+          return Wrap(
+            spacing: 16,
+            runSpacing: 10,
+            children: items.map((item) => _VentaResumenText(item: item)).toList(growable: false),
+          );
+        }
+        return IntrinsicHeight(
+          child: Row(
+            children: [
+              for (var i = 0; i < items.length; i++) ...[
+                if (i > 0)
+                  VerticalDivider(width: 28, thickness: 1, color: palette.cardBorder),
+                Expanded(child: _VentaResumenText(item: items[i])),
+              ],
+            ],
+          ),
+        );
+      },
+    );
+  }
+}
+
+class _VentaResumenText extends ConsumerWidget {
+  const _VentaResumenText({required this.item});
+
+  final _VentaResumenItem item;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final palette = ref.watch(selectedAppPaletteProvider);
+    final color = item.danger ? AppColors.danger : palette.textPrimary;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Text(item.label, maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(color: palette.textSecondary, fontSize: 11, fontWeight: FontWeight.w800)),
+        const SizedBox(height: 3),
+        Text(item.value, maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(color: color, fontWeight: FontWeight.w900, fontSize: 14)),
+      ],
     );
   }
 }
@@ -4690,6 +4851,7 @@ class _TotalPill extends ConsumerWidget {
   }
 }
 
+
 class _CuentaDetalle extends ConsumerWidget {
   const _CuentaDetalle({
     required this.cuenta,
@@ -4709,49 +4871,37 @@ class _CuentaDetalle extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final palette = ref.watch(selectedAppPaletteProvider);
     final nombreCuenta = _cuentaNombreVisible(cuenta);
 
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: palette.surface.withOpacity(palette.darkBackground ? 0.86 : 0.94),
-        borderRadius: BorderRadius.circular(24),
-        border: Border.all(color: palette.cardBorder),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          _CuentaDetalleHeader(nombreCuenta: nombreCuenta, total: cuenta.total),
-          const SizedBox(height: 16),
-          _CuentaSectionCard(
-            icon: Icons.restaurant_menu_rounded,
-            title: 'Productos solicitados',
-            description: 'Consumo de esta cuenta y totales debajo de la tabla.',
-            child: _buildProductosCuenta(),
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        _CuentaDetalleHeader(nombreCuenta: nombreCuenta, cuenta: cuenta),
+        const SizedBox(height: 16),
+        _CuentaSectionCard(
+          icon: Icons.restaurant_menu_rounded,
+          title: 'Productos solicitados',
+          description: 'Consumo de esta cuenta.',
+          child: _buildProductosCuenta(),
+        ),
+        _CuentaSectionCard(
+          icon: Icons.receipt_long_rounded,
+          title: 'Pagos registrados',
+          description: 'Pagos aplicados a esta cuenta.',
+          child: _buildPagosRegistrados(context),
+        ),
+        _CuentaSectionCard(
+          icon: Icons.point_of_sale_rounded,
+          title: 'Acciones de caja',
+          description: 'Cobrar, finalizar o liberar la mesa.',
+          child: _CuentaDetalleAccionesPago(
+            cuenta: cuenta,
+            onPagarCuenta: onPagarCuenta,
+            onFinalizarVenta: onFinalizarVenta,
+            onLimpiarVentaSinConsumos: onLimpiarVentaSinConsumos,
           ),
-          const SizedBox(height: 14),
-          _CuentaSectionCard(
-            icon: Icons.receipt_long_rounded,
-            title: 'Pagos registrados',
-            description: 'Pagos aplicados a esta cuenta.',
-            child: _buildPagosRegistrados(context),
-          ),
-          const SizedBox(height: 14),
-          _CuentaSectionCard(
-            icon: Icons.point_of_sale_rounded,
-            title: 'Acciones de caja',
-            description: 'Cobrar, finalizar o liberar la mesa.',
-            child: _CuentaDetalleAccionesPago(
-              cuenta: cuenta,
-              onPagarCuenta: onPagarCuenta,
-              onFinalizarVenta: onFinalizarVenta,
-              onLimpiarVentaSinConsumos: onLimpiarVentaSinConsumos,
-            ),
-          ),
-        ],
-      ),
+        ),
+      ],
     );
   }
 
@@ -4791,41 +4941,41 @@ class _CuentaDetalle extends ConsumerWidget {
     }
 
     return Column(
-      children: cuenta.pagos.map((pago) => _CuentaPagoRegistradoTile(pago: pago)).toList(growable: false),
+      children: [
+        for (var i = 0; i < cuenta.pagos.length; i++)
+          _CuentaPagoRegistradoTile(pago: cuenta.pagos[i], last: i == cuenta.pagos.length - 1),
+      ],
     );
   }
 }
 
+
 class _CuentaDetalleHeader extends ConsumerWidget {
-  const _CuentaDetalleHeader({required this.nombreCuenta, required this.total});
+  const _CuentaDetalleHeader({required this.nombreCuenta, required this.cuenta});
 
   final String nombreCuenta;
-  final num? total;
+  final MeseroCuentaModel cuenta;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final palette = ref.watch(selectedAppPaletteProvider);
+    final saldo = cuenta.saldoPendiente ?? 0;
     return Container(
       width: double.infinity,
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        gradient: LinearGradient(
-          colors: [palette.primary.withOpacity(0.18), palette.secondary.withOpacity(0.12), palette.surface.withOpacity(0.78)],
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-        ),
-        borderRadius: BorderRadius.circular(22),
-        border: Border.all(color: AppColors.border),
-      ),
+      padding: const EdgeInsets.fromLTRB(2, 2, 2, 14),
+      decoration: BoxDecoration(border: Border(bottom: BorderSide(color: palette.cardBorder))),
       child: LayoutBuilder(
         builder: (context, constraints) {
-          final compact = constraints.maxWidth < 560;
+          final compact = constraints.maxWidth < 640;
           final title = Row(
             children: [
               Container(
                 width: 42,
                 height: 42,
-                decoration: BoxDecoration(color: palette.surface.withOpacity(0.88), borderRadius: BorderRadius.circular(14), border: Border.all(color: palette.cardBorder)),
+                decoration: BoxDecoration(
+                  color: palette.secondary.withOpacity(0.12),
+                  borderRadius: BorderRadius.circular(15),
+                ),
                 child: Icon(Icons.person_pin_circle_rounded, color: palette.secondary),
               ),
               const SizedBox(width: 12),
@@ -4833,48 +4983,88 @@ class _CuentaDetalleHeader extends ConsumerWidget {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(
-                      'Cuenta seleccionada',
-                      style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w900),
-                    ),
+                    Text('Cuenta seleccionada', style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w900, color: palette.textPrimary)),
                     const SizedBox(height: 2),
-                    Text(
-                      nombreCuenta,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: TextStyle(color: palette.textSecondary, fontWeight: FontWeight.w800),
-                    ),
+                    Text(nombreCuenta, maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(color: palette.textSecondary, fontWeight: FontWeight.w800)),
                   ],
                 ),
               ),
             ],
           );
 
-          final totalBox = Container(
-            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-            decoration: BoxDecoration(color: palette.surface.withOpacity(0.90), borderRadius: BorderRadius.circular(16), border: Border.all(color: palette.cardBorder)),
-            child: Column(
-              crossAxisAlignment: compact ? CrossAxisAlignment.start : CrossAxisAlignment.end,
-              children: [
-                Text('Total cuenta', style: TextStyle(color: palette.textSecondary, fontSize: 12, fontWeight: FontWeight.w800)),
-                const SizedBox(height: 2),
-                Text(CurrencyUtils.format(total), style: TextStyle(fontWeight: FontWeight.w900, fontSize: 18, color: palette.textPrimary)),
-              ],
-            ),
+          final summary = _CuentaMiniResumen(
+            items: [
+              _CuentaMiniResumenItem(label: 'Total', value: CurrencyUtils.format(cuenta.total), strong: true),
+              _CuentaMiniResumenItem(label: 'Pagado', value: CurrencyUtils.format(cuenta.totalPagado)),
+              _CuentaMiniResumenItem(label: 'Saldo', value: CurrencyUtils.format(saldo), danger: saldo > 0.009),
+            ],
           );
 
           if (compact) {
-            return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [title, const SizedBox(height: 12), totalBox]);
+            return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [title, const SizedBox(height: 12), summary]);
           }
 
-          return Row(children: [Expanded(child: title), const SizedBox(width: 16), totalBox]);
+          return Row(crossAxisAlignment: CrossAxisAlignment.center, children: [Expanded(child: title), const SizedBox(width: 18), SizedBox(width: 370, child: summary)]);
         },
       ),
     );
   }
 }
 
-class _CuentaSectionCard extends StatelessWidget {
+class _CuentaMiniResumenItem {
+  const _CuentaMiniResumenItem({required this.label, required this.value, this.strong = false, this.danger = false});
+
+  final String label;
+  final String value;
+  final bool strong;
+  final bool danger;
+}
+
+class _CuentaMiniResumen extends ConsumerWidget {
+  const _CuentaMiniResumen({required this.items});
+
+  final List<_CuentaMiniResumenItem> items;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final palette = ref.watch(selectedAppPaletteProvider);
+    return IntrinsicHeight(
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.end,
+        children: [
+          for (var i = 0; i < items.length; i++) ...[
+            if (i > 0) VerticalDivider(width: 22, color: palette.cardBorder),
+            Expanded(child: _CuentaMiniResumenText(item: items[i])),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
+class _CuentaMiniResumenText extends ConsumerWidget {
+  const _CuentaMiniResumenText({required this.item});
+
+  final _CuentaMiniResumenItem item;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final palette = ref.watch(selectedAppPaletteProvider);
+    final color = item.danger ? AppColors.danger : item.strong ? palette.secondary : palette.textPrimary;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.end,
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Text(item.label, maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(color: palette.textSecondary, fontSize: 11, fontWeight: FontWeight.w800)),
+        const SizedBox(height: 3),
+        Text(item.value, maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(color: color, fontWeight: FontWeight.w900, fontSize: item.strong ? 16 : 14)),
+      ],
+    );
+  }
+}
+
+
+class _CuentaSectionCard extends ConsumerWidget {
   const _CuentaSectionCard({
     required this.icon,
     required this.title,
@@ -4888,45 +5078,39 @@ class _CuentaSectionCard extends StatelessWidget {
   final Widget child;
 
   @override
-  Widget build(BuildContext context) {
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.all(14),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(22),
-        border: Border.all(color: AppColors.border),
-        boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.025), blurRadius: 16, offset: const Offset(0, 8))],
-      ),
+  Widget build(BuildContext context, WidgetRef ref) {
+    final palette = ref.watch(selectedAppPaletteProvider);
+    return Padding(
+      padding: const EdgeInsets.only(top: 16),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Container(
-                width: 36,
-                height: 36,
-                decoration: BoxDecoration(color: AppColors.secondary.withOpacity(0.10), borderRadius: BorderRadius.circular(13)),
-                child: Icon(icon, color: AppColors.secondaryDark, size: 20),
+                width: 4,
+                height: 28,
+                decoration: BoxDecoration(color: palette.secondary, borderRadius: BorderRadius.circular(999)),
               ),
               const SizedBox(width: 10),
+              Icon(icon, color: palette.secondary, size: 20),
+              const SizedBox(width: 8),
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(title, style: Theme.of(context).textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w900)),
-                    const SizedBox(height: 2),
-                    Text(description, style: const TextStyle(color: AppColors.textSecondary, fontSize: 12, fontWeight: FontWeight.w600)),
+                    Text(title, style: Theme.of(context).textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w900, color: palette.textPrimary)),
+                    const SizedBox(height: 1),
+                    Text(description, style: TextStyle(color: palette.textSecondary, fontSize: 12, fontWeight: FontWeight.w600)),
                   ],
                 ),
               ),
             ],
           ),
           const SizedBox(height: 12),
-          const Divider(height: 1),
-          const SizedBox(height: 12),
           child,
+          const SizedBox(height: 2),
+          Divider(height: 22, color: palette.cardBorder),
         ],
       ),
     );
@@ -4957,33 +5141,25 @@ class _CuentaEmptySection extends ConsumerWidget {
   }
 }
 
+
 class _CuentaPagoRegistradoTile extends ConsumerWidget {
-  const _CuentaPagoRegistradoTile({required this.pago});
+  const _CuentaPagoRegistradoTile({required this.pago, this.last = false});
 
   final MeseroPagoModel pago;
+  final bool last;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final palette = ref.watch(selectedAppPaletteProvider);
     final tieneRecibido = pago.valorRecibido != null;
     return Container(
-      margin: const EdgeInsets.only(bottom: 10),
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        color: palette.background.withOpacity(palette.darkBackground ? 0.50 : 0.68),
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: palette.cardBorder),
-      ),
+      padding: EdgeInsets.fromLTRB(0, 10, 0, last ? 4 : 10),
+      decoration: BoxDecoration(border: last ? null : Border(bottom: BorderSide(color: palette.cardBorder))),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Container(
-            width: 40,
-            height: 40,
-            decoration: BoxDecoration(color: AppColors.successSoft.withOpacity(0.85), borderRadius: BorderRadius.circular(14)),
-            child: const Icon(Icons.payments_rounded, color: AppColors.success, size: 22),
-          ),
-          const SizedBox(width: 12),
+          Icon(Icons.payments_rounded, color: AppColors.success, size: 22),
+          const SizedBox(width: 10),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -4994,10 +5170,10 @@ class _CuentaPagoRegistradoTile extends ConsumerWidget {
                   overflow: TextOverflow.ellipsis,
                   style: TextStyle(fontWeight: FontWeight.w900, color: palette.textPrimary),
                 ),
-                const SizedBox(height: 4),
+                const SizedBox(height: 3),
                 Text(
                   tieneRecibido
-                      ? 'Recibido: ${CurrencyUtils.format(pago.valorRecibido)} · Vueltas: ${CurrencyUtils.format(pago.cambio ?? 0)}'
+                      ? 'Recibido ${CurrencyUtils.format(pago.valorRecibido)} · Vueltas ${CurrencyUtils.format(pago.cambio ?? 0)}'
                       : 'Pago aplicado a la cuenta',
                   style: TextStyle(color: palette.textSecondary, fontSize: 12, fontWeight: FontWeight.w700),
                 ),
@@ -5011,7 +5187,6 @@ class _CuentaPagoRegistradoTile extends ConsumerWidget {
     );
   }
 }
-
 
 class _CuentaProductosTabla extends ConsumerWidget {
   const _CuentaProductosTabla({
@@ -5186,108 +5361,86 @@ class _CuentaProductosTabla extends ConsumerWidget {
   }
 }
 
-class _CuentaTotalesBajoTabla extends StatelessWidget {
+
+class _CuentaTotalesBajoTabla extends ConsumerWidget {
   const _CuentaTotalesBajoTabla({required this.cuenta, this.compact = false});
 
   final MeseroCuentaModel cuenta;
   final bool compact;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    final palette = ref.watch(selectedAppPaletteProvider);
     final saldo = cuenta.saldoPendiente ?? 0;
     final items = [
-      _CuentaResumenDato(
-        icon: Icons.restaurant_menu_rounded,
-        label: 'Productos',
-        value: CurrencyUtils.format(cuenta.subtotalProductos),
-      ),
-      _CuentaResumenDato(
-        icon: Icons.volunteer_activism_rounded,
-        label: 'Propina',
-        value: CurrencyUtils.format(cuenta.propina),
-      ),
-      _CuentaResumenDato(
-        icon: Icons.payments_rounded,
-        label: 'Pagado',
-        value: CurrencyUtils.format(cuenta.totalPagado),
-        highlighted: true,
-      ),
-      _CuentaResumenDato(
-        icon: Icons.account_balance_wallet_rounded,
-        label: 'Saldo',
-        value: CurrencyUtils.format(cuenta.saldoPendiente),
-        danger: saldo > 0.009,
-      ),
-      _CuentaResumenDato(
-        icon: Icons.receipt_long_rounded,
-        label: 'Total',
-        value: CurrencyUtils.format(cuenta.total),
-        strong: true,
-      ),
+      _CuentaResumenDato(label: 'Productos', value: CurrencyUtils.format(cuenta.subtotalProductos)),
+      _CuentaResumenDato(label: 'Propina', value: CurrencyUtils.format(cuenta.propina)),
+      _CuentaResumenDato(label: 'Pagado', value: CurrencyUtils.format(cuenta.totalPagado), highlighted: true),
+      _CuentaResumenDato(label: 'Saldo', value: CurrencyUtils.format(cuenta.saldoPendiente), danger: saldo > 0.009),
+      _CuentaResumenDato(label: 'Total', value: CurrencyUtils.format(cuenta.total), strong: true),
     ];
 
     return Container(
       width: double.infinity,
-      margin: const EdgeInsets.only(top: 12),
-      padding: EdgeInsets.all(compact ? 12 : 14),
+      margin: const EdgeInsets.only(top: 10),
+      padding: EdgeInsets.symmetric(horizontal: compact ? 12 : 14, vertical: compact ? 12 : 13),
       decoration: BoxDecoration(
-        color: AppColors.surfaceAlt,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: AppColors.border),
+        color: palette.background.withOpacity(palette.darkBackground ? 0.36 : 0.55),
+        borderRadius: BorderRadius.circular(15),
+        border: Border.all(color: palette.cardBorder),
       ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          final useWrap = compact || constraints.maxWidth < 760;
+          final title = Row(
+            mainAxisSize: MainAxisSize.min,
             children: [
-              Container(
-                width: 32,
-                height: 32,
-                decoration: BoxDecoration(
-                  color: AppColors.secondary.withOpacity(0.10),
-                  borderRadius: BorderRadius.circular(12),
+              Icon(Icons.summarize_rounded, color: palette.secondary, size: 18),
+              const SizedBox(width: 7),
+              Text('Totales de cuenta', style: TextStyle(color: palette.textPrimary, fontWeight: FontWeight.w900)),
+            ],
+          );
+
+          if (useWrap) {
+            return Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                title,
+                const SizedBox(height: 10),
+                Wrap(
+                  spacing: 18,
+                  runSpacing: 10,
+                  children: items.map((item) => SizedBox(width: 132, child: item)).toList(growable: false),
                 ),
-                child: const Icon(Icons.summarize_rounded, color: AppColors.secondaryDark, size: 18),
-              ),
-              const SizedBox(width: 10),
+              ],
+            );
+          }
+
+          return Row(
+            children: [
+              SizedBox(width: 160, child: title),
               Expanded(
-                child: Text(
-                  'Totales de la cuenta',
-                  style: Theme.of(context).textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w900),
+                child: IntrinsicHeight(
+                  child: Row(
+                    children: [
+                      for (var i = 0; i < items.length; i++) ...[
+                        if (i > 0) VerticalDivider(width: 24, color: palette.cardBorder),
+                        Expanded(child: items[i]),
+                      ],
+                    ],
+                  ),
                 ),
               ),
             ],
-          ),
-          const SizedBox(height: 12),
-          LayoutBuilder(
-            builder: (context, constraints) {
-              final available = constraints.maxWidth.isFinite ? constraints.maxWidth : 680.0;
-              final columns = compact ? 2 : available >= 900 ? 5 : available >= 700 ? 3 : 2;
-              final spacing = compact ? 8.0 : 10.0;
-              final itemWidth = (available - (spacing * (columns - 1))) / columns;
-              return Wrap(
-                spacing: spacing,
-                runSpacing: spacing,
-                children: items
-                    .map(
-                      (item) => SizedBox(
-                        width: itemWidth,
-                        child: item,
-                      ),
-                    )
-                    .toList(growable: false),
-              );
-            },
-          ),
-        ],
+          );
+        },
       ),
     );
   }
 }
 
-class _CuentaResumenDato extends StatelessWidget {
+class _CuentaResumenDato extends ConsumerWidget {
   const _CuentaResumenDato({
-    required this.icon,
     required this.label,
     required this.value,
     this.highlighted = false,
@@ -5295,7 +5448,6 @@ class _CuentaResumenDato extends StatelessWidget {
     this.danger = false,
   });
 
-  final IconData icon;
   final String label;
   final String value;
   final bool highlighted;
@@ -5303,67 +5455,27 @@ class _CuentaResumenDato extends StatelessWidget {
   final bool danger;
 
   @override
-  Widget build(BuildContext context) {
-    final Color accentColor = danger
+  Widget build(BuildContext context, WidgetRef ref) {
+    final palette = ref.watch(selectedAppPaletteProvider);
+    final Color valueColor = danger
         ? AppColors.danger
         : strong || highlighted
-            ? AppColors.secondaryDark
-            : AppColors.textSecondary;
+            ? palette.secondary
+            : palette.textPrimary;
 
-    return Container(
-      constraints: const BoxConstraints(minHeight: 72),
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(
-          color: danger
-              ? AppColors.danger.withOpacity(0.24)
-              : highlighted || strong
-                  ? AppColors.secondary.withOpacity(0.24)
-                  : AppColors.border,
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Text(label, maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(fontSize: 11, fontWeight: FontWeight.w800, color: palette.textSecondary)),
+        const SizedBox(height: 4),
+        Text(
+          value,
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+          style: TextStyle(fontSize: strong ? 15 : 14, fontWeight: FontWeight.w900, color: valueColor),
         ),
-      ),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Container(
-            width: 28,
-            height: 28,
-            decoration: BoxDecoration(
-              color: accentColor.withOpacity(0.10),
-              borderRadius: BorderRadius.circular(10),
-            ),
-            child: Icon(icon, size: 16, color: accentColor),
-          ),
-          const SizedBox(width: 9),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Text(
-                  label,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w800, color: AppColors.textSecondary),
-                ),
-                const SizedBox(height: 4),
-                Text(
-                  value,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: TextStyle(
-                    fontSize: strong ? 15 : 14,
-                    fontWeight: FontWeight.w900,
-                    color: danger ? AppColors.danger : strong || highlighted ? AppColors.secondaryDark : AppColors.textPrimary,
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ],
-      ),
+      ],
     );
   }
 }
@@ -5536,6 +5648,7 @@ class _CuentaProductoValueCell extends ConsumerWidget {
   }
 }
 
+
 class _CuentaDetalleAccionesPago extends StatelessWidget {
   const _CuentaDetalleAccionesPago({
     required this.cuenta,
@@ -5559,7 +5672,6 @@ class _CuentaDetalleAccionesPago extends StatelessWidget {
         subtitle: saldo > 0.009 ? CurrencyUtils.format(saldo) : 'Nuevo pago',
         colors: const [AppColors.secondaryDark, AppColors.secondary],
         onTap: onPagarCuenta,
-        compact: true,
       ),
       _CuentaActionButton(
         icon: Icons.check_circle_rounded,
@@ -5567,7 +5679,6 @@ class _CuentaDetalleAccionesPago extends StatelessWidget {
         subtitle: onFinalizarVenta == null ? 'Pendiente' : 'Cerrar venta',
         colors: const [AppColors.success, AppColors.primary],
         onTap: onFinalizarVenta,
-        compact: true,
       ),
       if (onLimpiarVentaSinConsumos != null)
         _CuentaActionButton(
@@ -5576,47 +5687,36 @@ class _CuentaDetalleAccionesPago extends StatelessWidget {
           subtitle: 'Sin consumos',
           colors: const [AppColors.warning, AppColors.danger],
           onTap: onLimpiarVentaSinConsumos,
-          compact: true,
         ),
     ];
 
     return LayoutBuilder(
       builder: (context, constraints) {
-        final usarColumna = constraints.maxWidth < 520;
+        final usarColumna = constraints.maxWidth < 560;
         if (usarColumna) {
-          return Align(
-            alignment: Alignment.centerRight,
-            child: ConstrainedBox(
-              constraints: const BoxConstraints(maxWidth: 360),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  for (var i = 0; i < acciones.length; i++) ...[
-                    if (i > 0) const SizedBox(height: 8),
-                    acciones[i],
-                  ],
-                ],
-              ),
-            ),
+          return Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              for (var i = 0; i < acciones.length; i++) ...[
+                if (i > 0) const SizedBox(height: 8),
+                acciones[i],
+              ],
+            ],
           );
         }
 
-        return Align(
-          alignment: Alignment.centerRight,
-          child: Wrap(
-            alignment: WrapAlignment.end,
-            spacing: 8,
-            runSpacing: 8,
-            children: acciones.map((accion) => SizedBox(width: 190, child: accion)).toList(growable: false),
-          ),
+        return Wrap(
+          alignment: WrapAlignment.end,
+          spacing: 10,
+          runSpacing: 10,
+          children: acciones.map((accion) => SizedBox(width: 190, child: accion)).toList(growable: false),
         );
       },
     );
   }
 }
 
-class _CuentaActionButton extends StatelessWidget {
+class _CuentaActionButton extends ConsumerWidget {
   const _CuentaActionButton({
     required this.icon,
     required this.title,
@@ -5634,65 +5734,39 @@ class _CuentaActionButton extends StatelessWidget {
   final bool compact;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    final palette = ref.watch(selectedAppPaletteProvider);
     final enabled = onTap != null;
-    final gradientColors = enabled ? colors : [AppColors.textSecondary.withOpacity(0.38), AppColors.textSecondary.withOpacity(0.26)];
-    final radius = compact ? 15.0 : 20.0;
-    final iconSize = compact ? 29.0 : 42.0;
-    final contentPadding = compact ? const EdgeInsets.symmetric(horizontal: 12, vertical: 10) : const EdgeInsets.all(16);
-    final titleFontSize = compact ? 13.0 : 15.0;
-    final subtitleFontSize = compact ? 10.2 : 12.0;
+    final color = enabled ? colors.last : palette.textSecondary;
 
-    return Material(
-      color: Colors.transparent,
-      borderRadius: BorderRadius.circular(radius),
-      child: InkWell(
-        borderRadius: BorderRadius.circular(radius),
-        onTap: onTap,
-        child: Ink(
-          padding: contentPadding,
-          decoration: BoxDecoration(
-            gradient: LinearGradient(colors: gradientColors, begin: Alignment.topLeft, end: Alignment.bottomRight),
-            borderRadius: BorderRadius.circular(radius),
-            boxShadow: enabled
-                ? [BoxShadow(color: colors.first.withOpacity(0.18), blurRadius: compact ? 12 : 20, offset: Offset(0, compact ? 6 : 10))]
-                : const [],
+    return OutlinedButton(
+      onPressed: onTap,
+      style: OutlinedButton.styleFrom(
+        foregroundColor: color,
+        side: BorderSide(color: enabled ? color.withOpacity(0.42) : palette.cardBorder),
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 11),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+        textStyle: const TextStyle(fontWeight: FontWeight.w900),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 20, color: color),
+          const SizedBox(width: 9),
+          Expanded(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(title, maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(color: enabled ? palette.textPrimary : palette.textSecondary, fontWeight: FontWeight.w900, fontSize: 13)),
+                const SizedBox(height: 2),
+                Text(subtitle, maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(color: palette.textSecondary, fontWeight: FontWeight.w700, fontSize: 11)),
+              ],
+            ),
           ),
-          child: Row(
-            children: [
-              Container(
-                width: iconSize,
-                height: iconSize,
-                decoration: BoxDecoration(color: Colors.white.withOpacity(enabled ? 0.22 : 0.14), borderRadius: BorderRadius.circular(compact ? 10 : 14)),
-                child: Icon(icon, color: Colors.white, size: compact ? 18 : 24),
-              ),
-              SizedBox(width: compact ? 9 : 12),
-              Expanded(
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      title,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: TextStyle(color: Colors.white, fontWeight: FontWeight.w900, fontSize: titleFontSize),
-                    ),
-                    SizedBox(height: compact ? 2 : 2),
-                    Text(
-                      subtitle,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: TextStyle(color: Colors.white.withOpacity(0.86), fontWeight: FontWeight.w700, fontSize: subtitleFontSize),
-                    ),
-                  ],
-                ),
-              ),
-              SizedBox(width: compact ? 5 : 8),
-              Icon(enabled ? Icons.arrow_forward_rounded : Icons.lock_outline_rounded, color: Colors.white, size: compact ? 18 : 24),
-            ],
-          ),
-        ),
+          const SizedBox(width: 8),
+          Icon(enabled ? Icons.arrow_forward_rounded : Icons.lock_outline_rounded, size: 18, color: color),
+        ],
       ),
     );
   }
