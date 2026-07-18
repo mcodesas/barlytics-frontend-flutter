@@ -15,6 +15,9 @@ import 'tech_background.dart';
 final ScrollController _desktopNavigationScrollController = ScrollController();
 final ScrollController _mobileNavigationScrollController = ScrollController();
 
+/// Controla la visibilidad del menú lateral operativo en escritorio.
+final operationalMenuOpenProvider = StateProvider<bool>((ref) => false);
+
 bool _isInventoryRole(String role) {
   final normalized = role.toUpperCase();
   return normalized.contains('INVENTARIO') ||
@@ -46,7 +49,6 @@ class AppScaffold extends ConsumerStatefulWidget {
 
 class _AppScaffoldState extends ConsumerState<AppScaffold> {
   bool _mainMenuCollapsed = true;
-  bool _operationalMenuCollapsed = true;
 
   @override
   Widget build(BuildContext context) {
@@ -55,31 +57,102 @@ class _AppScaffoldState extends ConsumerState<AppScaffold> {
     final roles = ref.watch(authControllerProvider).roles;
     final isOperativo = roles.any(_isOperationalRole);
     final isInventario = roles.any(_isInventoryRole);
+    final operationalMenuOpen = ref.watch(operationalMenuOpenProvider);
+    final pageTitle = _resolveCurrentPageTitle(
+      context,
+      ref,
+      isOperativo: isOperativo,
+      isInventario: isInventario,
+    );
+    final pageSubtitle = _resolveCurrentPageSubtitle(
+      context,
+      ref,
+      isOperativo: isOperativo,
+      isInventario: isInventario,
+    );
+    final pageEyebrow = _resolveCurrentPageEyebrow(
+      context,
+      ref,
+      isOperativo: isOperativo,
+      isInventario: isInventario,
+    );
+    final pageStatusText = _resolveCurrentPageStatusText(
+      context,
+      ref,
+      isOperativo: isOperativo,
+      isInventario: isInventario,
+    );
+    final pageIcon = _resolveCurrentPageIcon(
+      context,
+      ref,
+      isOperativo: isOperativo,
+      isInventario: isInventario,
+    );
 
     if (isOperativo) {
       return _MeseroScaffold(
         child: widget.child,
         onLogout: () => _logout(context),
-        collapsed: _operationalMenuCollapsed,
-        onToggleCollapsed: () => setState(() => _operationalMenuCollapsed = !_operationalMenuCollapsed),
+        collapsed: !operationalMenuOpen,
+        onToggleCollapsed: () {
+          ref.read(operationalMenuOpenProvider.notifier).state = !operationalMenuOpen;
+        },
         palette: palette,
+        pageTitle: pageTitle,
+        pageSubtitle: pageSubtitle,
+        pageEyebrow: pageEyebrow,
+        pageStatusText: pageStatusText,
+        pageIcon: pageIcon,
         bottomMenuType: isInventario ? _OperationalBottomMenuType.inventory : _OperationalBottomMenuType.mesa,
       );
     }
 
     if (isDesktop) {
       return Scaffold(
-        body: Container(
-          decoration: BoxDecoration(gradient: palette.softGradient),
-          child: Row(
+        body: SafeArea(
+          child: Stack(
             children: [
-              _SideNavigation(
-                onLogout: () => _logout(context),
-                collapsed: _mainMenuCollapsed,
-                onToggleCollapsed: () => setState(() => _mainMenuCollapsed = !_mainMenuCollapsed),
-                palette: palette,
+              Positioned.fill(
+                child: Column(
+                  children: [
+                    _PageTopBar(
+                      title: pageTitle,
+                      subtitle: pageSubtitle,
+                      eyebrow: pageEyebrow,
+                      statusText: pageStatusText,
+                      leadingContentIcon: pageIcon,
+                      palette: palette,
+                      menuOpen: !_mainMenuCollapsed,
+                      onMenuPressed: () => setState(() => _mainMenuCollapsed = !_mainMenuCollapsed),
+                    ),
+                    Expanded(child: _PaletteAwareBody(child: widget.child, palette: palette)),
+                  ],
+                ),
               ),
-              Expanded(child: _PaletteAwareBody(child: widget.child, palette: palette)),
+              if (!_mainMenuCollapsed) ...[
+                Positioned(
+                  top: _PageTopBar.height,
+                  left: 0,
+                  right: 0,
+                  bottom: 0,
+                  child: GestureDetector(
+                    behavior: HitTestBehavior.opaque,
+                    onTap: () => setState(() => _mainMenuCollapsed = true),
+                    child: ColoredBox(color: Colors.black.withOpacity(0.30)),
+                  ),
+                ),
+                Positioned(
+                  top: _PageTopBar.height,
+                  left: 0,
+                  bottom: 0,
+                  child: _SideNavigation(
+                    onLogout: () => _logout(context),
+                    collapsed: false,
+                    onToggleCollapsed: () => setState(() => _mainMenuCollapsed = true),
+                    palette: palette,
+                  ),
+                ),
+              ],
             ],
           ),
         ),
@@ -87,13 +160,26 @@ class _AppScaffoldState extends ConsumerState<AppScaffold> {
     }
 
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('BarLytics'),
-        foregroundColor: palette.onTitle,
-        flexibleSpace: Container(decoration: BoxDecoration(gradient: palette.mainGradient)),
-      ),
       drawer: Drawer(child: _DrawerContent(onLogout: () => _logout(context), palette: palette)),
-      body: _PaletteAwareBody(child: widget.child, palette: palette),
+      body: SafeArea(
+        child: Column(
+          children: [
+            Builder(
+              builder: (scaffoldContext) => _PageTopBar(
+                title: pageTitle,
+                subtitle: pageSubtitle,
+                eyebrow: pageEyebrow,
+                statusText: pageStatusText,
+                leadingContentIcon: pageIcon,
+                palette: palette,
+                menuOpen: false,
+                onMenuPressed: () => Scaffold.of(scaffoldContext).openDrawer(),
+              ),
+            ),
+            Expanded(child: _PaletteAwareBody(child: widget.child, palette: palette)),
+          ],
+        ),
+      ),
     );
   }
 
@@ -101,6 +187,408 @@ class _AppScaffoldState extends ConsumerState<AppScaffold> {
     await ref.read(authControllerProvider.notifier).logout();
     ref.invalidate(userMenuProvider);
     if (context.mounted) context.go('/login');
+  }
+}
+
+String _resolveCurrentPageTitle(
+  BuildContext context,
+  WidgetRef ref, {
+  required bool isOperativo,
+  required bool isInventario,
+}) {
+  final path = GoRouterState.of(context).uri.path;
+
+  if (isOperativo && !isInventario && path.startsWith('/mesero')) {
+    final mode = ref.watch(meseroSelectedModeProvider);
+    return switch (mode) {
+      MeseroPageMode.mesas => 'Mesas y caja',
+      MeseroPageMode.productos => 'Productos',
+      MeseroPageMode.resumen => 'Resumen del salón',
+      MeseroPageMode.historial => 'Historial de ventas',
+      MeseroPageMode.cierreCaja => 'Cierre de caja',
+    };
+  }
+
+  const routeTitles = <String, String>{
+    '/home': 'Inicio',
+    '/profile': 'Mi perfil',
+    '/reportes': 'Reportes',
+    '/productos': 'Productos',
+    '/inventario': 'Inventario',
+    '/precios': 'Precios',
+    '/tipos_producto': 'Tipos de producto',
+    '/marcas': 'Marcas',
+    '/movimientos': 'Movimientos',
+    '/medios_pago': 'Medios de pago',
+    '/usuarios': 'Usuarios',
+    '/roles': 'Roles',
+    '/empresas': 'Empresas',
+    '/sucursales': 'Sucursales',
+    '/ventas': 'Ventas',
+    '/regiones': 'Regiones',
+    '/zonas_horarias': 'Zonas horarias',
+  };
+
+  String? bestStaticTitle;
+  var bestStaticLength = -1;
+  for (final entry in routeTitles.entries) {
+    if ((path == entry.key || path.startsWith('${entry.key}/')) && entry.key.length > bestStaticLength) {
+      bestStaticTitle = entry.value;
+      bestStaticLength = entry.key.length;
+    }
+  }
+  if (bestStaticTitle != null) return bestStaticTitle;
+
+  final authorizedItems = ref.watch(userMenuProvider).maybeWhen(
+        data: (items) => items,
+        orElse: () => const <UserMenuItem>[],
+      );
+  UserMenuItem? bestItem;
+  for (final item in authorizedItems) {
+    if (path == item.path || path.startsWith('${item.path}/')) {
+      if (bestItem == null || item.path.length > bestItem.path.length) bestItem = item;
+    }
+  }
+  if (bestItem != null && bestItem.title.trim().isNotEmpty) return bestItem.title.trim();
+
+  final segments = path.split('/').where((part) => part.isNotEmpty).toList(growable: false);
+  if (segments.isEmpty) return 'Inicio';
+  final firstSegment = segments.first;
+  return firstSegment
+      .replaceAll('_', ' ')
+      .replaceAll('-', ' ')
+      .split(' ')
+      .where((word) => word.isNotEmpty)
+      .map((word) => '${word[0].toUpperCase()}${word.substring(1)}')
+      .join(' ');
+}
+
+String? _resolveCurrentPageSubtitle(
+  BuildContext context,
+  WidgetRef ref, {
+  required bool isOperativo,
+  required bool isInventario,
+}) {
+  final path = GoRouterState.of(context).uri.path;
+  if (isOperativo && !isInventario && path.startsWith('/mesero')) {
+    final mode = ref.watch(meseroSelectedModeProvider);
+    return switch (mode) {
+      MeseroPageMode.mesas => 'Consulta el salón, continúa ventas y registra pagos rápidamente.',
+      MeseroPageMode.productos => 'Consulta bebidas y productos disponibles para la venta.',
+      MeseroPageMode.resumen => 'Revisa ventas abiertas, mesas disponibles y saldos pendientes.',
+      MeseroPageMode.historial => 'Consulta ventas cerradas, productos y pagos registrados.',
+      MeseroPageMode.cierreCaja => 'Cuadra las ventas y medios de pago del turno actual.',
+    };
+  }
+  if (isInventario) return 'Gestiona inventario, movimientos y trazabilidad del stock.';
+  return null;
+}
+
+String? _resolveCurrentPageEyebrow(
+  BuildContext context,
+  WidgetRef ref, {
+  required bool isOperativo,
+  required bool isInventario,
+}) {
+  final path = GoRouterState.of(context).uri.path;
+  if (isOperativo && !isInventario && path.startsWith('/mesero')) {
+    final mode = ref.watch(meseroSelectedModeProvider);
+    return switch (mode) {
+      MeseroPageMode.mesas => 'Operación principal',
+      MeseroPageMode.productos => 'Catálogo activo',
+      MeseroPageMode.resumen => 'Vista general',
+      MeseroPageMode.historial => 'Trazabilidad',
+      MeseroPageMode.cierreCaja => 'Control del turno',
+    };
+  }
+  if (isInventario) return 'Operación de inventario';
+  return null;
+}
+
+String? _resolveCurrentPageStatusText(
+  BuildContext context,
+  WidgetRef ref, {
+  required bool isOperativo,
+  required bool isInventario,
+}) {
+  final path = GoRouterState.of(context).uri.path;
+  if (isOperativo && path.startsWith('/mesero')) {
+    return isInventario ? 'Stock activo' : 'Caja activa';
+  }
+  return null;
+}
+
+IconData? _resolveCurrentPageIcon(
+  BuildContext context,
+  WidgetRef ref, {
+  required bool isOperativo,
+  required bool isInventario,
+}) {
+  final path = GoRouterState.of(context).uri.path;
+  if (isOperativo && !isInventario && path.startsWith('/mesero')) {
+    final mode = ref.watch(meseroSelectedModeProvider);
+    return switch (mode) {
+      MeseroPageMode.mesas => Icons.table_bar_rounded,
+      MeseroPageMode.productos => Icons.inventory_2_rounded,
+      MeseroPageMode.resumen => Icons.dashboard_customize_rounded,
+      MeseroPageMode.historial => Icons.receipt_long_rounded,
+      MeseroPageMode.cierreCaja => Icons.point_of_sale_rounded,
+    };
+  }
+  if (isInventario) return Icons.inventory_rounded;
+  return null;
+}
+
+class _PageTopBar extends StatelessWidget {
+  const _PageTopBar({
+    required this.title,
+    required this.palette,
+    required this.menuOpen,
+    required this.onMenuPressed,
+    this.subtitle,
+    this.eyebrow,
+    this.statusText,
+    this.leadingContentIcon,
+  });
+
+  static const double height = 102;
+
+  final String title;
+  final String? subtitle;
+  final String? eyebrow;
+  final String? statusText;
+  final IconData? leadingContentIcon;
+  final AppPalette palette;
+  final bool menuOpen;
+  final VoidCallback onMenuPressed;
+
+  @override
+  Widget build(BuildContext context) {
+    final compact = MediaQuery.sizeOf(context).width < 780;
+    final showRichHeader = subtitle != null || eyebrow != null || statusText != null || leadingContentIcon != null;
+
+    return Container(
+      height: height,
+      padding: EdgeInsets.fromLTRB(compact ? 12 : 16, 12, compact ? 12 : 16, 10),
+      decoration: BoxDecoration(
+        color: palette.surface.withOpacity(palette.darkBackground ? 0.985 : 0.99),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(palette.darkBackground ? 0.16 : 0.07),
+            blurRadius: 18,
+            offset: const Offset(0, 7),
+          ),
+        ],
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.center,
+        children: [
+          _TopBarIconButton(
+            semanticLabel: menuOpen ? 'Ocultar menú' : 'Mostrar menú',
+            icon: menuOpen ? Icons.close_rounded : Icons.menu_rounded,
+            onTap: onMenuPressed,
+            palette: palette,
+          ),
+          SizedBox(width: compact ? 12 : 14),
+          Expanded(
+            child: Container(
+              height: compact ? 68 : 76,
+              padding: EdgeInsets.symmetric(horizontal: compact ? 14 : 18, vertical: compact ? 10 : 12),
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(26),
+                gradient: LinearGradient(
+                  colors: [
+                    palette.surface.withOpacity(palette.darkBackground ? 0.86 : 0.92),
+                    Color.lerp(palette.surface, palette.primary, 0.08)?.withOpacity(palette.darkBackground ? 0.84 : 0.90) ?? palette.surface,
+                    Color.lerp(palette.surface, palette.secondary, 0.08)?.withOpacity(palette.darkBackground ? 0.84 : 0.90) ?? palette.surface,
+                  ],
+                  begin: Alignment.centerLeft,
+                  end: Alignment.centerRight,
+                ),
+                border: Border.all(color: palette.secondary.withOpacity(0.18), width: 1.15),
+                boxShadow: [
+                  BoxShadow(
+                    color: palette.secondary.withOpacity(0.08),
+                    blurRadius: 18,
+                    offset: const Offset(0, 8),
+                  ),
+                ],
+              ),
+              child: Row(
+                children: [
+                  if (leadingContentIcon != null) ...[
+                    Container(
+                      width: compact ? 40 : 46,
+                      height: compact ? 40 : 46,
+                      decoration: BoxDecoration(
+                        gradient: LinearGradient(
+                          colors: [palette.primary, palette.secondary],
+                          begin: Alignment.topLeft,
+                          end: Alignment.bottomRight,
+                        ),
+                        borderRadius: BorderRadius.circular(15),
+                        boxShadow: [
+                          BoxShadow(color: palette.secondary.withOpacity(0.14), blurRadius: 16, offset: const Offset(0, 8)),
+                        ],
+                      ),
+                      child: Icon(leadingContentIcon, color: palette.onPrimary, size: compact ? 21 : 23),
+                    ),
+                    SizedBox(width: compact ? 10 : 14),
+                  ],
+                  Expanded(
+                    child: showRichHeader
+                        ? Column(
+                            mainAxisSize: MainAxisSize.min,
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Row(
+                                children: [
+                                  if (!compact && (eyebrow ?? '').trim().isNotEmpty) ...[
+                                    Container(
+                                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                                      decoration: BoxDecoration(
+                                        color: palette.secondary.withOpacity(0.10),
+                                        borderRadius: BorderRadius.circular(999),
+                                        border: Border.all(color: palette.secondary.withOpacity(0.16)),
+                                      ),
+                                      child: Text(
+                                        eyebrow!.toUpperCase(),
+                                        style: TextStyle(
+                                          color: palette.secondary,
+                                          fontWeight: FontWeight.w900,
+                                          fontSize: 10.2,
+                                          letterSpacing: 0.55,
+                                        ),
+                                      ),
+                                    ),
+                                    const SizedBox(width: 10),
+                                  ],
+                                  Expanded(
+                                    child: Text(
+                                      title,
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
+                                      textAlign: TextAlign.left,
+                                      style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                                            color: palette.textPrimary,
+                                            fontWeight: FontWeight.w900,
+                                            fontSize: compact ? 20.5 : 23,
+                                            letterSpacing: -0.35,
+                                            height: 1,
+                                          ),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                              if ((subtitle ?? '').trim().isNotEmpty) ...[
+                                const SizedBox(height: 6),
+                                Text(
+                                  subtitle!,
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  textAlign: TextAlign.left,
+                                  style: TextStyle(
+                                    color: palette.textSecondary,
+                                    fontWeight: FontWeight.w700,
+                                    fontSize: compact ? 11.8 : 12.6,
+                                    height: 1.15,
+                                  ),
+                                ),
+                              ],
+                            ],
+                          )
+                        : Text(
+                            title,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            textAlign: TextAlign.left,
+                            style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                                  color: palette.textPrimary,
+                                  fontWeight: FontWeight.w900,
+                                  fontSize: compact ? 20.5 : 23,
+                                  letterSpacing: -0.35,
+                                  height: 1,
+                                ),
+                          ),
+                  ),
+                  if ((statusText ?? '').trim().isNotEmpty && !compact) ...[
+                    const SizedBox(width: 12),
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                      decoration: BoxDecoration(
+                        color: palette.primary.withOpacity(0.10),
+                        borderRadius: BorderRadius.circular(999),
+                        border: Border.all(color: palette.primary.withOpacity(0.18)),
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Container(width: 8, height: 8, decoration: BoxDecoration(color: palette.primary, shape: BoxShape.circle)),
+                          const SizedBox(width: 8),
+                          Text(statusText!, style: TextStyle(color: palette.textPrimary, fontWeight: FontWeight.w800, fontSize: 12.2)),
+                        ],
+                      ),
+                    ),
+                  ],
+                ],
+              ),
+            ),
+          ),
+          SizedBox(width: compact ? 10 : 12),
+          _TopBarIconButton(
+            semanticLabel: 'Abrir mi perfil',
+            icon: Icons.account_circle_rounded,
+            onTap: () => context.go('/profile'),
+            palette: palette,
+            accent: true,
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _TopBarIconButton extends StatelessWidget {
+  const _TopBarIconButton({
+    required this.semanticLabel,
+    required this.icon,
+    required this.onTap,
+    required this.palette,
+    this.accent = false,
+  });
+
+  final String semanticLabel;
+  final IconData icon;
+  final VoidCallback onTap;
+  final AppPalette palette;
+  final bool accent;
+
+  @override
+  Widget build(BuildContext context) {
+    return Semantics(
+      button: true,
+      label: semanticLabel,
+      child: Material(
+        color: accent
+            ? palette.secondary.withOpacity(palette.darkBackground ? 0.16 : 0.11)
+            : palette.background.withOpacity(palette.darkBackground ? 0.46 : 0.78),
+        shape: const CircleBorder(),
+        clipBehavior: Clip.antiAlias,
+        child: InkWell(
+          onTap: onTap,
+          child: SizedBox(
+            width: 46,
+            height: 46,
+            child: Icon(
+              icon,
+              color: accent ? palette.secondary : palette.textPrimary,
+              size: accent ? 30 : 24,
+            ),
+          ),
+        ),
+      ),
+    );
   }
 }
 
@@ -187,6 +675,90 @@ class _PaletteAwareBody extends StatelessWidget {
 
 enum _OperationalBottomMenuType { mesa, inventory }
 
+class _DesktopMenuLauncher extends StatelessWidget {
+  const _DesktopMenuLauncher({required this.palette, required this.onPressed});
+
+  final AppPalette palette;
+  final VoidCallback onPressed;
+
+  @override
+  Widget build(BuildContext context) {
+    return Semantics(
+      button: true,
+      label: 'Mostrar menú',
+      child: Material(
+        color: palette.surface.withOpacity(0.96),
+        elevation: 12,
+        shadowColor: Colors.black.withOpacity(0.34),
+        borderRadius: BorderRadius.circular(16),
+        clipBehavior: Clip.antiAlias,
+        child: InkWell(
+          onTap: onPressed,
+          child: Container(
+            width: 52,
+            height: 52,
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(color: palette.cardBorder),
+            ),
+            child: Icon(Icons.menu_rounded, color: palette.secondary, size: 27),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class AppMenuToggleButton extends ConsumerWidget {
+  const AppMenuToggleButton({super.key, this.size = 44});
+
+  final double size;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final palette = ref.watch(selectedAppPaletteProvider);
+    final menuOpen = ref.watch(operationalMenuOpenProvider);
+    final isDesktop = ResponsiveUtils.isDesktop(context);
+
+    return Semantics(
+      button: true,
+      label: menuOpen ? 'Ocultar menú' : 'Mostrar menú',
+      child: Material(
+        color: palette.background.withOpacity(palette.darkBackground ? 0.48 : 0.78),
+        borderRadius: BorderRadius.circular(14),
+        clipBehavior: Clip.antiAlias,
+        child: InkWell(
+          onTap: () {
+            if (isDesktop) {
+              ref.read(operationalMenuOpenProvider.notifier).state = !menuOpen;
+              return;
+            }
+            Scaffold.maybeOf(context)?.openDrawer();
+          },
+          child: Container(
+            width: size,
+            height: size,
+            alignment: Alignment.center,
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(14),
+              border: Border.all(
+                color: menuOpen
+                    ? palette.secondary.withOpacity(0.42)
+                    : palette.cardBorder,
+              ),
+            ),
+            child: Icon(
+              menuOpen ? Icons.close_rounded : Icons.menu_rounded,
+              color: menuOpen ? palette.secondary : palette.textPrimary,
+              size: size * 0.56,
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
 class _MeseroScaffold extends StatelessWidget {
   const _MeseroScaffold({
     required this.child,
@@ -194,6 +766,11 @@ class _MeseroScaffold extends StatelessWidget {
     required this.collapsed,
     required this.onToggleCollapsed,
     required this.palette,
+    required this.pageTitle,
+    required this.pageSubtitle,
+    required this.pageEyebrow,
+    required this.pageStatusText,
+    required this.pageIcon,
     required this.bottomMenuType,
   });
 
@@ -202,6 +779,11 @@ class _MeseroScaffold extends StatelessWidget {
   final bool collapsed;
   final VoidCallback onToggleCollapsed;
   final AppPalette palette;
+  final String pageTitle;
+  final String? pageSubtitle;
+  final String? pageEyebrow;
+  final String? pageStatusText;
+  final IconData? pageIcon;
   final _OperationalBottomMenuType bottomMenuType;
 
   @override
@@ -210,24 +792,51 @@ class _MeseroScaffold extends StatelessWidget {
 
     if (isDesktop) {
       return Scaffold(
-        body: Container(
-          decoration: BoxDecoration(gradient: palette.softGradient),
-          child: Row(
+        body: SafeArea(
+          child: Stack(
             children: [
-              _MeseroSideNavigation(
-                onLogout: onLogout,
-                collapsed: collapsed,
-                onToggleCollapsed: onToggleCollapsed,
-                palette: palette,
-              ),
-              Expanded(
+              Positioned.fill(
                 child: Column(
                   children: [
+                    _PageTopBar(
+                      title: pageTitle,
+                      subtitle: pageSubtitle,
+                      eyebrow: pageEyebrow,
+                      statusText: pageStatusText,
+                      leadingContentIcon: pageIcon,
+                      palette: palette,
+                      menuOpen: !collapsed,
+                      onMenuPressed: onToggleCollapsed,
+                    ),
                     Expanded(child: _PaletteAwareBody(child: child, palette: palette)),
                     _OperationalBottomNavigation(type: bottomMenuType),
                   ],
                 ),
               ),
+              if (!collapsed) ...[
+                Positioned(
+                  top: _PageTopBar.height,
+                  left: 0,
+                  right: 0,
+                  bottom: 0,
+                  child: GestureDetector(
+                    behavior: HitTestBehavior.opaque,
+                    onTap: onToggleCollapsed,
+                    child: ColoredBox(color: Colors.black.withOpacity(0.30)),
+                  ),
+                ),
+                Positioned(
+                  top: _PageTopBar.height,
+                  left: 0,
+                  bottom: 0,
+                  child: _MeseroSideNavigation(
+                    onLogout: onLogout,
+                    collapsed: false,
+                    onToggleCollapsed: onToggleCollapsed,
+                    palette: palette,
+                  ),
+                ),
+              ],
             ],
           ),
         ),
@@ -235,13 +844,26 @@ class _MeseroScaffold extends StatelessWidget {
     }
 
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('BarLytics Operación'),
-        foregroundColor: palette.onTitle,
-        flexibleSpace: Container(decoration: BoxDecoration(gradient: palette.mainGradient)),
-      ),
       drawer: Drawer(child: _MeseroDrawerContent(onLogout: onLogout, palette: palette)),
-      body: _PaletteAwareBody(child: child, palette: palette),
+      body: SafeArea(
+        child: Column(
+          children: [
+            Builder(
+              builder: (scaffoldContext) => _PageTopBar(
+                title: pageTitle,
+                subtitle: pageSubtitle,
+                eyebrow: pageEyebrow,
+                statusText: pageStatusText,
+                leadingContentIcon: pageIcon,
+                palette: palette,
+                menuOpen: false,
+                onMenuPressed: () => Scaffold.of(scaffoldContext).openDrawer(),
+              ),
+            ),
+            Expanded(child: _PaletteAwareBody(child: child, palette: palette)),
+          ],
+        ),
+      ),
       bottomNavigationBar: _OperationalBottomNavigation(type: bottomMenuType),
     );
   }
@@ -264,8 +886,19 @@ class _MeseroSideNavigation extends StatelessWidget {
   Widget build(BuildContext context) => AnimatedContainer(
         duration: const Duration(milliseconds: 220),
         curve: Curves.easeOutCubic,
-        width: collapsed ? 92 : 280,
-        decoration: BoxDecoration(gradient: palette.mainGradient),
+        width: 280,
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            colors: [
+              palette.surface,
+              Color.lerp(palette.surface, palette.primary, 0.18) ?? palette.surface,
+              palette.surface,
+            ],
+            begin: Alignment.topCenter,
+            end: Alignment.bottomCenter,
+          ),
+          border: Border(right: BorderSide(color: palette.cardBorder)),
+        ),
         child: Stack(
           children: [
             Positioned(top: -70, right: -100, child: GlowCircle(size: 240, opacity: 0.18, color: palette.accent)),
@@ -497,7 +1130,7 @@ class _SideNavigation extends ConsumerWidget {
     return AnimatedContainer(
       duration: const Duration(milliseconds: 220),
       curve: Curves.easeOutCubic,
-      width: collapsed ? 92 : 312,
+      width: 312,
       decoration: BoxDecoration(gradient: palette.mainGradient),
       child: Stack(
         children: [
@@ -763,10 +1396,10 @@ class _NavigationCollapseButton extends StatelessWidget {
         child: Padding(
           padding: const EdgeInsets.fromLTRB(10, 10, 10, 0),
           child: Tooltip(
-            message: collapsed ? 'Abrir menú' : 'Encoger menú',
+            message: collapsed ? 'Abrir menú' : 'Ocultar menú',
             child: IconButton.filledTonal(
               onPressed: onPressed,
-              icon: Icon(collapsed ? Icons.menu_open_rounded : Icons.menu_rounded),
+              icon: Icon(collapsed ? Icons.menu_open_rounded : Icons.close_rounded),
               color: dark ? Colors.white : AppColors.secondaryDark,
               style: IconButton.styleFrom(
                 backgroundColor: dark ? Colors.white.withOpacity(0.12) : Colors.white,

@@ -38,7 +38,7 @@ class AppPalette {
   final bool darkBackground;
 
   LinearGradient get mainGradient => LinearGradient(
-        colors: [titleBackground, secondary, accent],
+        colors: [primary, secondary, accent],
         begin: Alignment.topLeft,
         end: Alignment.bottomRight,
       );
@@ -51,13 +51,17 @@ class AppPalette {
 
   LinearGradient get pageGradient => LinearGradient(
         colors: darkBackground
-            ? [background, _blend(background, primary, 0.36), _blend(background, secondary, 0.18)]
-            : [background, _blend(background, accent, 0.10), _blend(background, surface, 0.50)],
+            ? [
+                background,
+                _blend(background, primary, 0.16),
+                _blend(background, secondary, 0.08),
+              ]
+            : [background, _blend(background, accent, 0.08), _blend(background, surface, 0.44)],
         begin: Alignment.topLeft,
         end: Alignment.bottomRight,
       );
 
-  Color get onPrimary => isDarkHeader ? Colors.white : textPrimary;
+  Color get onPrimary => primary.computeLuminance() > 0.55 ? const Color(0xFF06111F) : Colors.white;
   Color get onTitle => titleText;
   Color get cardBorder => darkBackground ? Colors.white.withOpacity(0.10) : accent.withOpacity(0.24);
   Color get cardShadow => darkBackground ? Colors.black.withOpacity(0.30) : secondary.withOpacity(0.12);
@@ -133,7 +137,7 @@ class AppPalette {
 }
 
 const List<AppPalette> appPalettes = <AppPalette>[
-  AppPalette(id: 'executive_ink', name: 'Ejecutivo tinta', primary: Color(0xFF0F172A), secondary: Color(0xFF1D4ED8), accent: Color(0xFF38BDF8), background: Color(0xFFF6F8FC), surface: Color(0xFFFFFFFF), titleBackground: Color(0xFF0F172A), titleText: Color(0xFFFFFFFF), textPrimary: Color(0xFF111827), textSecondary: Color(0xFF64748B), isDarkHeader: true, darkBackground: false),
+  AppPalette(id: 'barlytics_mint', name: 'BarLytics menta', primary: Color(0xFF21E6BE), secondary: Color(0xFF38BDF8), accent: Color(0xFFFFC857), background: Color(0xFF061723), surface: Color(0xFF0B2634), titleBackground: Color(0xFF0D3142), titleText: Color(0xFFF8FAFC), textPrimary: Color(0xFFF8FAFC), textSecondary: Color(0xFFCBD5E1), isDarkHeader: true, darkBackground: true),
   AppPalette(id: 'emerald_pos', name: 'Caja esmeralda', primary: Color(0xFF064E3B), secondary: Color(0xFF047857), accent: Color(0xFF34D399), background: Color(0xFFF1F8F5), surface: Color(0xFFFFFFFF), titleBackground: Color(0xFF064E3B), titleText: Color(0xFFFFFFFF), textPrimary: Color(0xFF052E2B), textSecondary: Color(0xFF4B635E), isDarkHeader: true, darkBackground: false),
   AppPalette(id: 'amber_lounge', name: 'Lounge ámbar', primary: Color(0xFF422006), secondary: Color(0xFFB45309), accent: Color(0xFFF59E0B), background: Color(0xFFFFF7E6), surface: Color(0xFFFFFCF5), titleBackground: Color(0xFF78350F), titleText: Color(0xFFFFFBEB), textPrimary: Color(0xFF2F1A04), textSecondary: Color(0xFF7C5A2A), isDarkHeader: true, darkBackground: false),
   AppPalette(id: 'graphite_cyan', name: 'Grafito cian', primary: Color(0xFF111827), secondary: Color(0xFF0E7490), accent: Color(0xFF22D3EE), background: Color(0xFFF2FBFC), surface: Color(0xFFFFFFFF), titleBackground: Color(0xFF111827), titleText: Color(0xFFE0F2FE), textPrimary: Color(0xFF111827), textSecondary: Color(0xFF52616B), isDarkHeader: true, darkBackground: false),
@@ -171,8 +175,8 @@ class AppPaletteController extends StateNotifier<AppPalette> {
     _load();
   }
 
-  static const String _idKey = 'barlytics.palette.id';
-  static const String _customKey = 'barlytics.palette.custom.enabled';
+  static const String _idKey = 'barlytics.palette.v2.id';
+  static const String _customKey = 'barlytics.palette.v2.custom.enabled';
   static const String _primaryKey = 'barlytics.palette.custom.primary';
   static const String _secondaryKey = 'barlytics.palette.custom.secondary';
   static const String _accentKey = 'barlytics.palette.custom.accent';
@@ -220,8 +224,8 @@ class AppPaletteController extends StateNotifier<AppPalette> {
     bool autoTitleText = false,
   }) async {
     final nextDark = darkBackground ?? state.darkBackground;
-    final nextBackground = background ?? (darkBackground == null ? state.background : (nextDark ? const Color(0xFF111827) : const Color(0xFFF8FAFC)));
-    final nextSurface = surface ?? (darkBackground == null ? state.surface : (nextDark ? const Color(0xFF1F2937) : Colors.white));
+    final nextBackground = background ?? (darkBackground == null ? state.background : (nextDark ? const Color(0xFF061723) : const Color(0xFFF8FAFC)));
+    final nextSurface = surface ?? (darkBackground == null ? state.surface : (nextDark ? const Color(0xFF0B2634) : Colors.white));
     final nextTextPrimary = textPrimary ?? (darkBackground == null ? state.textPrimary : (nextDark ? const Color(0xFFF8FAFC) : const Color(0xFF0F172A)));
     final nextTextSecondary = textSecondary ?? (darkBackground == null ? state.textSecondary : (nextDark ? const Color(0xFFCBD5E1) : const Color(0xFF64748B)));
 
@@ -346,144 +350,195 @@ class PaletteSettingsPanel extends ConsumerWidget {
     final selected = ref.watch(selectedAppPaletteProvider);
     final controller = ref.read(selectedAppPaletteProvider.notifier);
 
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        return SingleChildScrollView(
-          primary: false,
-          padding: const EdgeInsets.all(14),
-          child: ConstrainedBox(
-            constraints: BoxConstraints(minWidth: constraints.maxWidth - 28),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
+    return SingleChildScrollView(
+      primary: false,
+      padding: const EdgeInsets.all(14),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Container(
+                width: 42,
+                height: 42,
+                decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(14),
+                  gradient: selected.mainGradient,
+                ),
+                child: Icon(Icons.palette_outlined, color: selected.onPrimary),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Icon(Icons.tune_rounded, color: selected.secondary),
-                    const SizedBox(width: 8),
-                    Expanded(
-                      child: Text(
-                        'Personalizar vista',
-                        style: TextStyle(color: selected.textPrimary, fontWeight: FontWeight.w900),
+                    Text(
+                      'Tema y colores',
+                      style: TextStyle(
+                        color: selected.textPrimary,
+                        fontSize: 16,
+                        fontWeight: FontWeight.w900,
                       ),
                     ),
-                    if (onHide != null)
-                      IconButton(
-                        tooltip: 'Ocultar',
-                        onPressed: onHide,
-                        icon: const Icon(Icons.visibility_off_rounded),
+                    const SizedBox(height: 2),
+                    Text(
+                      'Personaliza la apariencia',
+                      style: TextStyle(
                         color: selected.textSecondary,
+                        fontSize: 12,
+                        fontWeight: FontWeight.w700,
                       ),
-                    if (onClose != null)
-                      IconButton(
-                        tooltip: 'Cerrar',
-                        onPressed: onClose,
-                        icon: const Icon(Icons.close_rounded),
-                        color: selected.textSecondary,
-                      ),
+                    ),
                   ],
                 ),
-                const SizedBox(height: 10),
-                Text(
-                  'Paletas rápidas',
-                  style: TextStyle(color: selected.textSecondary, fontSize: 12, fontWeight: FontWeight.w900),
-                ),
-                const SizedBox(height: 8),
-                Wrap(
-                  spacing: 10,
-                  runSpacing: 10,
-                  children: [
-                    for (final palette in appPalettes)
-                      _PaletteOption(
-                        palette: palette,
-                        selected: palette.id == selected.id,
-                        onTap: () => controller.select(palette),
-                      ),
-                  ],
-                ),
-                const Divider(height: 22),
-                SwitchListTile.adaptive(
-                  contentPadding: EdgeInsets.zero,
-                  dense: true,
-                  value: selected.darkBackground,
-                  activeColor: selected.secondary,
-                  title: Text('Fondo oscuro', style: TextStyle(color: selected.textPrimary, fontWeight: FontWeight.w900)),
-                  subtitle: Text(
-                    'Cambia fondo, tarjetas y contraste de letras.',
-                    style: TextStyle(color: selected.textSecondary, fontSize: 12, fontWeight: FontWeight.w700),
-                  ),
-                  onChanged: (value) => controller.customize(darkBackground: value),
-                ),
-                const SizedBox(height: 8),
-                _ColorSection(
-                  title: 'Fondo de páginas',
-                  colors: selected.darkBackground ? _darkBackgroundColors : _lightBackgroundColors,
-                  selected: selected.background,
-                  textColor: selected.textPrimary,
-                  onColor: (color) => controller.customize(background: color),
-                ),
-                _ColorSection(
-                  title: 'Fondo de tarjetas',
-                  colors: selected.darkBackground ? _darkBackgroundColors : _lightBackgroundColors,
-                  selected: selected.surface,
-                  textColor: selected.textPrimary,
-                  onColor: (color) => controller.customize(surface: color),
-                ),
-                _ColorSection(
-                  title: 'Fondos de títulos',
-                  colors: _titleColors,
-                  selected: selected.titleBackground,
-                  textColor: selected.textPrimary,
-                  onColor: (color) => controller.customize(titleBackground: color, autoTitleText: true),
-                ),
-                _ColorSection(
-                  title: 'Color principal',
-                  colors: _actionColors,
-                  selected: selected.secondary,
-                  textColor: selected.textPrimary,
-                  onColor: (color) => controller.customize(secondary: color),
-                ),
-                _ColorSection(
-                  title: 'Color de acento',
-                  colors: _actionColors,
-                  selected: selected.accent,
-                  textColor: selected.textPrimary,
-                  onColor: (color) => controller.customize(accent: color),
-                ),
-                _ColorSection(
-                  title: 'Color de letras',
-                  colors: selected.darkBackground ? _darkTextColors : _lightTextColors,
-                  selected: selected.textPrimary,
-                  textColor: selected.textPrimary,
-                  onColor: (color) => controller.customize(textPrimary: color),
-                ),
-                _ColorSection(
-                  title: 'Color de títulos',
-                  colors: _titleTextColors,
-                  selected: selected.titleText,
-                  textColor: selected.textPrimary,
-                  onColor: (color) => controller.customize(titleText: color),
-                ),
-                _ColorSection(
-                  title: 'Color de subtítulos',
-                  colors: selected.darkBackground ? _darkSecondaryTextColors : _lightSecondaryTextColors,
-                  selected: selected.textSecondary,
-                  textColor: selected.textPrimary,
-                  onColor: (color) => controller.customize(textSecondary: color),
-                ),
-                Align(
-                  alignment: Alignment.centerRight,
-                  child: TextButton.icon(
-                    onPressed: controller.reset,
-                    icon: const Icon(Icons.restart_alt_rounded, size: 18),
-                    label: const Text('Restablecer'),
+              ),
+              if (onHide != null)
+                Semantics(
+                  button: true,
+                  label: 'Ocultar personalización',
+                  child: IconButton(
+                    onPressed: onHide,
+                    icon: const Icon(Icons.visibility_off_rounded),
+                    color: selected.textSecondary,
                   ),
                 ),
-              ],
+              if (onClose != null)
+                Semantics(
+                  button: true,
+                  label: 'Cerrar personalización',
+                  child: IconButton(
+                    onPressed: onClose,
+                    icon: const Icon(Icons.close_rounded),
+                    color: selected.textSecondary,
+                  ),
+                ),
+            ],
+          ),
+          const SizedBox(height: 16),
+          Text(
+            'Paletas rápidas',
+            style: TextStyle(
+              color: selected.textSecondary,
+              fontSize: 12,
+              fontWeight: FontWeight.w900,
             ),
           ),
-        );
-      },
+          const SizedBox(height: 8),
+          Wrap(
+            spacing: 10,
+            runSpacing: 10,
+            children: [
+              for (final palette in appPalettes)
+                _PaletteOption(
+                  palette: palette,
+                  selected: palette.id == selected.id,
+                  onTap: () => controller.select(palette),
+                ),
+            ],
+          ),
+          const Divider(height: 22),
+          SwitchListTile.adaptive(
+            contentPadding: EdgeInsets.zero,
+            dense: true,
+            value: selected.darkBackground,
+            activeColor: selected.primary,
+            title: Text(
+              'Fondo oscuro',
+              style: TextStyle(
+                color: selected.textPrimary,
+                fontWeight: FontWeight.w900,
+              ),
+            ),
+            subtitle: Text(
+              'Cambia fondo, tarjetas y contraste de letras.',
+              style: TextStyle(
+                color: selected.textSecondary,
+                fontSize: 12,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+            onChanged: (value) => controller.customize(darkBackground: value),
+          ),
+          const SizedBox(height: 8),
+          _ColorSection(
+            title: 'Fondo de páginas',
+            colors: selected.darkBackground ? _darkBackgroundColors : _lightBackgroundColors,
+            selected: selected.background,
+            textColor: selected.textPrimary,
+            onColor: (color) => controller.customize(background: color),
+          ),
+          _ColorSection(
+            title: 'Fondo de tarjetas',
+            colors: selected.darkBackground ? _darkBackgroundColors : _lightBackgroundColors,
+            selected: selected.surface,
+            textColor: selected.textPrimary,
+            onColor: (color) => controller.customize(surface: color),
+          ),
+          _ColorSection(
+            title: 'Fondos de títulos',
+            colors: _titleColors,
+            selected: selected.titleBackground,
+            textColor: selected.textPrimary,
+            onColor: (color) => controller.customize(
+              titleBackground: color,
+              autoTitleText: true,
+            ),
+          ),
+          _ColorSection(
+            title: 'Color principal',
+            colors: _actionColors,
+            selected: selected.primary,
+            textColor: selected.textPrimary,
+            onColor: (color) => controller.customize(primary: color),
+          ),
+          _ColorSection(
+            title: 'Color secundario',
+            colors: _actionColors,
+            selected: selected.secondary,
+            textColor: selected.textPrimary,
+            onColor: (color) => controller.customize(secondary: color),
+          ),
+          _ColorSection(
+            title: 'Color de acento',
+            colors: _actionColors,
+            selected: selected.accent,
+            textColor: selected.textPrimary,
+            onColor: (color) => controller.customize(accent: color),
+          ),
+          _ColorSection(
+            title: 'Color de letras',
+            colors: selected.darkBackground ? _darkTextColors : _lightTextColors,
+            selected: selected.textPrimary,
+            textColor: selected.textPrimary,
+            onColor: (color) => controller.customize(textPrimary: color),
+          ),
+          _ColorSection(
+            title: 'Color de títulos',
+            colors: _titleTextColors,
+            selected: selected.titleText,
+            textColor: selected.textPrimary,
+            onColor: (color) => controller.customize(titleText: color),
+          ),
+          _ColorSection(
+            title: 'Color de subtítulos',
+            colors: selected.darkBackground
+                ? _darkSecondaryTextColors
+                : _lightSecondaryTextColors,
+            selected: selected.textSecondary,
+            textColor: selected.textPrimary,
+            onColor: (color) => controller.customize(textSecondary: color),
+          ),
+          Align(
+            alignment: Alignment.centerRight,
+            child: TextButton.icon(
+              onPressed: controller.reset,
+              icon: const Icon(Icons.restart_alt_rounded, size: 18),
+              label: const Text('Restablecer'),
+            ),
+          ),
+        ],
+      ),
     );
   }
 }
@@ -492,7 +547,8 @@ class PaletteFloatingButton extends ConsumerStatefulWidget {
   const PaletteFloatingButton({super.key});
 
   @override
-  ConsumerState<PaletteFloatingButton> createState() => _PaletteFloatingButtonState();
+  ConsumerState<PaletteFloatingButton> createState() =>
+      _PaletteFloatingButtonState();
 }
 
 class _PaletteFloatingButtonState extends ConsumerState<PaletteFloatingButton> {
@@ -505,17 +561,17 @@ class _PaletteFloatingButtonState extends ConsumerState<PaletteFloatingButton> {
   Widget build(BuildContext context) {
     final selected = ref.watch(selectedAppPaletteProvider);
     final media = MediaQuery.sizeOf(context);
-    final padding = MediaQuery.paddingOf(context);
-    final topOffset = padding.top + 72;
-    final rightOffset = media.width < 380 ? 12.0 : 16.0;
+    final safePadding = MediaQuery.paddingOf(context);
+    final rightOffset = media.width < 380 ? 12.0 : 18.0;
+    final bottomOffset = safePadding.bottom + 18.0;
 
     if (_hidden) {
       return Positioned(
         right: 8,
-        top: padding.top + 74,
+        bottom: safePadding.bottom + 18,
         child: _buildFloatingCircle(
           selected: selected,
-          tooltip: 'Mostrar personalización',
+          semanticsLabel: 'Mostrar personalización',
           icon: Icons.tune_rounded,
           onTap: () => setState(() => _hidden = false),
         ),
@@ -525,22 +581,22 @@ class _PaletteFloatingButtonState extends ConsumerState<PaletteFloatingButton> {
     if (!_open) {
       return Positioned(
         right: rightOffset,
-        top: topOffset,
+        bottom: bottomOffset,
         child: _buildFloatingCircle(
           selected: selected,
-          tooltip: 'Personalizar colores',
-          icon: Icons.tune_rounded,
+          semanticsLabel: 'Personalizar colores',
+          icon: Icons.palette_outlined,
           onTap: () => setState(() => _open = true),
         ),
       );
     }
 
     final panelWidth = _resolvePanelWidth(media.width);
-    final panelHeight = _resolvePanelHeight(media.height, topOffset);
+    final panelHeight = _resolvePanelHeight(media.height, safePadding);
 
     return Positioned(
       right: rightOffset,
-      top: topOffset,
+      bottom: bottomOffset,
       child: SizedBox(
         width: panelWidth,
         height: panelHeight,
@@ -555,7 +611,13 @@ class _PaletteFloatingButtonState extends ConsumerState<PaletteFloatingButton> {
               borderRadius: BorderRadius.circular(26),
               border: Border.all(color: selected.cardBorder),
             ),
-            child: _buildPanel(selected),
+            child: PaletteSettingsPanel(
+              onHide: () => setState(() {
+                _hidden = true;
+                _open = false;
+              }),
+              onClose: () => setState(() => _open = false),
+            ),
           ),
         ),
       ),
@@ -564,59 +626,58 @@ class _PaletteFloatingButtonState extends ConsumerState<PaletteFloatingButton> {
 
   double _resolvePanelWidth(double screenWidth) {
     final available = screenWidth - 24;
-    if (available <= 280) return available < 220 ? 220 : available;
+    if (available <= 280) return available.clamp(220.0, 360.0).toDouble();
     if (screenWidth < 420) return available;
     return 360;
   }
 
-  double _resolvePanelHeight(double screenHeight, double topOffset) {
-    final available = screenHeight - topOffset - 18;
-    if (available <= 280) return screenHeight * 0.72;
-    if (available > 650) return 650;
-    return available;
+  double _resolvePanelHeight(double screenHeight, EdgeInsets safePadding) {
+    final available = screenHeight - safePadding.top - safePadding.bottom - 36;
+    if (available <= 300) return available.clamp(260.0, 650.0).toDouble();
+    return available.clamp(300.0, 650.0).toDouble();
   }
 
   Widget _buildFloatingCircle({
     required AppPalette selected,
-    required String tooltip,
+    required String semanticsLabel,
     required IconData icon,
     required VoidCallback onTap,
   }) {
-    return SizedBox(
-      width: _buttonSize,
-      height: _buttonSize,
-      child: Tooltip(
-        message: tooltip,
-        child: Material(
-          color: selected.surface.withOpacity(selected.darkBackground ? 0.96 : 0.99),
-          shape: CircleBorder(side: BorderSide(color: selected.cardBorder)),
-          elevation: 10,
-          shadowColor: selected.cardShadow,
-          clipBehavior: Clip.antiAlias,
-          child: InkWell(
-            onTap: onTap,
-            child: Center(child: Icon(icon, color: selected.secondary)),
+    return Semantics(
+      button: true,
+      label: semanticsLabel,
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          onTap: onTap,
+          customBorder: const CircleBorder(),
+          child: Container(
+            width: _buttonSize,
+            height: _buttonSize,
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              gradient: selected.mainGradient,
+              border: Border.all(color: selected.textPrimary.withOpacity(0.16)),
+              boxShadow: [
+                BoxShadow(
+                  color: selected.primary.withOpacity(0.34),
+                  blurRadius: 28,
+                  offset: const Offset(0, 12),
+                ),
+              ],
+            ),
+            child: Icon(icon, color: selected.onPrimary),
           ),
         ),
       ),
     );
   }
-
-  Widget _buildPanel(AppPalette selected) {
-    return PaletteSettingsPanel(
-      onHide: () => setState(() {
-        _hidden = true;
-        _open = false;
-      }),
-      onClose: () => setState(() => _open = false),
-    );
-  }
 }
 
 const _lightBackgroundColors = [Color(0xFFF8FAFC), Color(0xFFF2F7FF), Color(0xFFF0F9FF), Color(0xFFEFF6FF), Color(0xFFFFF7E6), Color(0xFFFFFBEB), Color(0xFFF0FDF4), Color(0xFFF0FDFA), Color(0xFFFFF1F2), Color(0xFFFDF2F8), Color(0xFFF5F3FF), Color(0xFFFAF5FF), Color(0xFFFFF7ED), Color(0xFFECFCCB), Color(0xFFE2E8F0)];
-const _darkBackgroundColors = [Color(0xFF020617), Color(0xFF030712), Color(0xFF111827), Color(0xFF160B24), Color(0xFF1C1917), Color(0xFF052E2B), Color(0xFF022C22), Color(0xFF172554), Color(0xFF1E1B4B), Color(0xFF082F49), Color(0xFF23030A), Color(0xFF18181B), Color(0xFF020F08)];
-const _titleColors = [Color(0xFF020617), Color(0xFF111827), Color(0xFF1C1917), Color(0xFF064E3B), Color(0xFF312E81), Color(0xFF450A0A), Color(0xFF082F49), Color(0xFF022C22), Color(0xFFEFF6FF), Color(0xFFE0F2FE), Color(0xFFFFFBEB), Color(0xFFECFCCB), Color(0xFFF3E8FF), Color(0xFFFCE7F3), Color(0xFFE2E8F0)];
-const _actionColors = [Color(0xFF2563EB), Color(0xFF0284C7), Color(0xFF06B6D4), Color(0xFF0F766E), Color(0xFF059669), Color(0xFF65A30D), Color(0xFF7C3AED), Color(0xFF9333EA), Color(0xFF4F46E5), Color(0xFFEC4899), Color(0xFFDB2777), Color(0xFFF59E0B), Color(0xFFD97706), Color(0xFFEA580C), Color(0xFFDC2626), Color(0xFF475569)];
+const _darkBackgroundColors = [Color(0xFF061723), Color(0xFF0B2634), Color(0xFF0D3142), Color(0xFF123D4F), Color(0xFF020617), Color(0xFF030712), Color(0xFF111827), Color(0xFF160B24), Color(0xFF1C1917), Color(0xFF052E2B), Color(0xFF022C22), Color(0xFF172554), Color(0xFF1E1B4B), Color(0xFF082F49), Color(0xFF23030A), Color(0xFF18181B), Color(0xFF020F08)];
+const _titleColors = [Color(0xFF0D3142), Color(0xFF123D4F), Color(0xFF155B66), Color(0xFF020617), Color(0xFF111827), Color(0xFF1C1917), Color(0xFF064E3B), Color(0xFF312E81), Color(0xFF450A0A), Color(0xFF082F49), Color(0xFF022C22), Color(0xFFEFF6FF), Color(0xFFE0F2FE), Color(0xFFFFFBEB), Color(0xFFECFCCB), Color(0xFFF3E8FF), Color(0xFFFCE7F3), Color(0xFFE2E8F0)];
+const _actionColors = [Color(0xFF21E6BE), Color(0xFF38BDF8), Color(0xFFFFC857), Color(0xFF2563EB), Color(0xFF0284C7), Color(0xFF06B6D4), Color(0xFF0F766E), Color(0xFF059669), Color(0xFF65A30D), Color(0xFF7C3AED), Color(0xFF9333EA), Color(0xFF4F46E5), Color(0xFFEC4899), Color(0xFFDB2777), Color(0xFFF59E0B), Color(0xFFD97706), Color(0xFFEA580C), Color(0xFFDC2626), Color(0xFF475569)];
 const _lightTextColors = [Color(0xFF0F172A), Color(0xFF1C1917), Color(0xFF052E2B), Color(0xFF042F2E), Color(0xFF312E81), Color(0xFF581C87), Color(0xFF831843), Color(0xFF7C2D12), Color(0xFF365314), Color(0xFF374151)];
 const _lightSecondaryTextColors = [Color(0xFF64748B), Color(0xFF78716C), Color(0xFF6B7280), Color(0xFF475569), Color(0xFF4B5563), Color(0xFF0F766E), Color(0xFF7E22CE), Color(0xFF9D174D), Color(0xFF854D0E)];
 const _titleTextColors = [Colors.white, Color(0xFF0F172A), Color(0xFF111827), Color(0xFFFFFBEB), Color(0xFFE0F2FE), Color(0xFFECFDF5), Color(0xFFFDE68A), Color(0xFFFDF2F8), Color(0xFFF3E8FF), Color(0xFFDCFCE7)];

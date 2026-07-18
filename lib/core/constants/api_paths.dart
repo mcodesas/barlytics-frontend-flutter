@@ -51,6 +51,8 @@ class ApiPaths {
   static String meseroVentaCuentas(Object id) => '/api/v1/mesero/ventas/$id/cuentas';
   static String meseroLimpiarVentaSinConsumos(Object id) => '/api/v1/mesero/ventas/$id/cuentas-vacias';
   static String meseroAgregarProductoCuenta(Object cuentaId) => '/api/v1/mesero/cuentas/$cuentaId/productos';
+  static String meseroActualizarCantidadProductoCuenta(Object cuentaId, Object detalleId) =>
+      '/api/v1/mesero/cuentas/$cuentaId/productos/$detalleId/cantidad';
   static String meseroEliminarProductoCuenta(Object cuentaId, Object detalleId) => '/api/v1/mesero/cuentas/$cuentaId/productos/$detalleId';
   static String meseroMoverProductoCuenta(Object cuentaId, Object detalleId, Object cuentaDestinoId) =>
       '/api/v1/mesero/cuentas/$cuentaId/productos/$detalleId/mover/$cuentaDestinoId';

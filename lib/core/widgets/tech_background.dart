@@ -21,14 +21,54 @@ class TechBackground extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final palette = ref.watch(selectedAppPaletteProvider);
+    final backgroundGradient = RadialGradient(
+      center: const Alignment(-0.55, -0.85),
+      radius: 1.45,
+      colors: palette.darkBackground
+          ? [
+              Color.lerp(const Color(0xFF155B66), palette.primary, 0.22)!,
+              Color.lerp(const Color(0xFF082B3A), palette.secondary, 0.10)!,
+              Color.lerp(const Color(0xFF061723), palette.primary, 0.05)!,
+            ]
+          : [
+              Color.lerp(const Color(0xFFE7F8F5), palette.primary, 0.10)!,
+              const Color(0xFFF4F8FB),
+              Color.lerp(Colors.white, palette.secondary, 0.05)!,
+            ],
+    );
+
     return Container(
-      decoration: BoxDecoration(gradient: palette.mainGradient),
+      decoration: BoxDecoration(gradient: backgroundGradient),
       child: Stack(
         children: [
-          Positioned(top: -120, right: -90, child: GlowCircle(size: 320, opacity: 0.22, color: palette.accent)),
-          Positioned(bottom: -140, left: -110, child: GlowCircle(size: 360, opacity: 0.16, color: palette.secondary)),
-          Positioned(top: 140, left: -80, child: GlowCircle(size: 190, opacity: 0.12, color: palette.accent)),
-          if (showPattern) Positioned.fill(child: _AnalyticsPattern(palette: palette)),
+          Positioned(
+            top: -95,
+            right: -70,
+            child: GlowCircle(
+              size: 270,
+              opacity: palette.darkBackground ? 0.24 : 0.13,
+              color: palette.primary,
+            ),
+          ),
+          Positioned(
+            bottom: -130,
+            left: -85,
+            child: GlowCircle(
+              size: 320,
+              opacity: palette.darkBackground ? 0.18 : 0.10,
+              color: palette.secondary,
+            ),
+          ),
+          Positioned(
+            top: 130,
+            left: -65,
+            child: GlowCircle(
+              size: 190,
+              opacity: palette.darkBackground ? 0.14 : 0.10,
+              color: palette.accent,
+            ),
+          ),
+          if (showPattern) Positioned.fill(child: _BarMoodPattern(palette: palette)),
           SafeArea(child: Padding(padding: padding, child: child)),
         ],
       ),
@@ -56,95 +96,204 @@ class GlowCircle extends StatelessWidget {
       );
 }
 
-class _AnalyticsPattern extends StatelessWidget {
-  const _AnalyticsPattern({required this.palette});
+class _BarMoodPattern extends StatelessWidget {
+  const _BarMoodPattern({required this.palette});
 
   final AppPalette palette;
 
   @override
   Widget build(BuildContext context) => IgnorePointer(
-        child: CustomPaint(painter: _AnalyticsPatternPainter(palette)),
+        child: CustomPaint(painter: _BarMoodPatternPainter(palette)),
       );
 }
 
-class _AnalyticsPatternPainter extends CustomPainter {
-  const _AnalyticsPatternPainter(this.palette);
+class _BarMoodPatternPainter extends CustomPainter {
+  const _BarMoodPatternPainter(this.palette);
 
   final AppPalette palette;
 
   @override
   void paint(Canvas canvas, Size size) {
-    final dotPaint = Paint()..color = Colors.white.withOpacity(0.045);
+    final dotPaint = Paint()..color = Colors.white.withOpacity(0.04);
     for (double x = 36; x < size.width; x += 34) {
       for (double y = 38; y < size.height; y += 34) {
-        canvas.drawCircle(Offset(x, y), 1.3, dotPaint);
+        canvas.drawCircle(Offset(x, y), 1.2, dotPaint);
       }
     }
 
-    final barPaint = Paint()..color = palette.secondary.withOpacity(0.11);
-    final baseY = size.height * 0.24;
-    for (int i = 0; i < 14; i++) {
-      final height = 28.0 + (i % 5) * 13.0 + i * 1.5;
-      final left = size.width - 420 + i * 24.0;
-      if (left < 0 || left > size.width) continue;
-      canvas.drawRRect(
-        RRect.fromRectAndRadius(Rect.fromLTWH(left, baseY - height, 12, height), const Radius.circular(8)),
-        barPaint,
-      );
-    }
-
-    final linePaint = Paint()
-      ..color = palette.accent.withOpacity(0.18)
-      ..strokeWidth = 2
+    final guidePaint = Paint()
+      ..color = Colors.white.withOpacity(0.05)
+      ..strokeWidth = 1.15
       ..style = PaintingStyle.stroke;
-    final path = Path()
-      ..moveTo(size.width - 430, baseY - 20)
-      ..cubicTo(size.width - 330, baseY - 98, size.width - 260, baseY + 24, size.width - 180, baseY - 54)
-      ..cubicTo(size.width - 120, baseY - 116, size.width - 70, baseY - 92, size.width - 24, baseY - 152);
-    canvas.drawPath(path, linePaint);
-
-    final circuitPaint = Paint()
-      ..color = Colors.white.withOpacity(0.055)
-      ..strokeWidth = 1.2
-      ..style = PaintingStyle.stroke;
-    for (double x = 64; x < size.width; x += 148) {
-      final y = 86.0 + (x % 210);
+    for (double x = 54; x < size.width; x += 186) {
+      final y = 86.0 + (x % 180);
       final path = Path()
         ..moveTo(x, y)
-        ..lineTo(x + 46, y)
-        ..lineTo(x + 46, y + 28)
-        ..lineTo(x + 94, y + 28);
-      canvas.drawPath(path, circuitPaint);
-      canvas.drawCircle(Offset(x + 100, y + 28), 3, Paint()..color = palette.accent.withOpacity(0.12));
+        ..lineTo(x + 68, y)
+        ..lineTo(x + 108, y + 34)
+        ..lineTo(x + 158, y + 34);
+      canvas.drawPath(path, guidePaint);
+      canvas.drawCircle(Offset(x + 164, y + 34), 3, Paint()..color = palette.accent.withOpacity(0.15));
     }
 
-    final iconPaint = Paint()..color = Colors.white.withOpacity(0.080);
-    final icons = <IconData>[
-      Icons.local_bar_rounded,
-      Icons.point_of_sale_rounded,
-      Icons.qr_code_2_rounded,
-      Icons.analytics_rounded,
-      Icons.wifi_tethering_rounded,
-      Icons.memory_rounded,
-      Icons.hub_rounded,
-      Icons.grid_view_rounded,
-      Icons.sports_bar_rounded,
-      Icons.terminal_rounded,
+    _drawBackBar(canvas, size);
+    _drawServiceFlow(canvas, size);
+    _drawCounterArc(canvas, size);
+    _drawBottomIconRow(canvas, size);
+  }
+
+  void _drawBackBar(Canvas canvas, Size size) {
+    final shelfPaint = Paint()..color = palette.secondary.withOpacity(0.10);
+    final shelfTop = size.height * 0.22;
+    final shelfLeft = size.width * 0.66;
+    final shelfWidth = size.width * 0.22;
+
+    canvas.drawRRect(
+      RRect.fromRectAndRadius(Rect.fromLTWH(shelfLeft, shelfTop, shelfWidth, 5), const Radius.circular(4)),
+      shelfPaint,
+    );
+    canvas.drawRRect(
+      RRect.fromRectAndRadius(Rect.fromLTWH(shelfLeft + 32, shelfTop + 58, shelfWidth - 32, 5), const Radius.circular(4)),
+      shelfPaint,
+    );
+
+    _drawBottle(canvas, Offset(shelfLeft + 16, shelfTop - 18), 0.92);
+    _drawBottle(canvas, Offset(shelfLeft + 80, shelfTop - 14), 0.78);
+    _drawBottle(canvas, Offset(shelfLeft + 56, shelfTop + 40), 0.84);
+    _drawBottle(canvas, Offset(shelfLeft + 126, shelfTop + 34), 0.74);
+  }
+
+  void _drawServiceFlow(Canvas canvas, Size size) {
+    final linePaint = Paint()
+      ..color = palette.accent.withOpacity(0.17)
+      ..strokeWidth = 1.8
+      ..style = PaintingStyle.stroke;
+    final path = Path()
+      ..moveTo(size.width * 0.18, size.height * 0.78)
+      ..lineTo(size.width * 0.28, size.height * 0.78)
+      ..lineTo(size.width * 0.36, size.height * 0.70)
+      ..lineTo(size.width * 0.50, size.height * 0.70)
+      ..lineTo(size.width * 0.58, size.height * 0.61)
+      ..lineTo(size.width * 0.75, size.height * 0.61)
+      ..lineTo(size.width * 0.84, size.height * 0.69)
+      ..lineTo(size.width * 0.93, size.height * 0.69);
+    canvas.drawPath(path, linePaint);
+
+    final nodePaint = Paint()..color = palette.secondary.withOpacity(0.20);
+    for (final point in <Offset>[
+      Offset(size.width * 0.18, size.height * 0.78),
+      Offset(size.width * 0.36, size.height * 0.70),
+      Offset(size.width * 0.58, size.height * 0.61),
+      Offset(size.width * 0.84, size.height * 0.69),
+    ]) {
+      canvas.drawCircle(point, 4.2, nodePaint);
+    }
+
+    _drawGlass(canvas, Offset(size.width * 0.14, size.height * 0.71), 0.94);
+    _drawBeer(canvas, Offset(size.width * 0.31, size.height * 0.63), 0.84);
+    _drawCocktail(canvas, Offset(size.width * 0.54, size.height * 0.54), 0.88);
+  }
+
+  void _drawCounterArc(Canvas canvas, Size size) {
+    final counterPaint = Paint()
+      ..color = Colors.white.withOpacity(0.05)
+      ..strokeWidth = 1.1
+      ..style = PaintingStyle.stroke;
+    final arcRect = Rect.fromLTWH(size.width * 0.03, size.height * 0.76, size.width * 0.26, size.height * 0.18);
+    canvas.drawArc(arcRect, 0.2, 2.6, false, counterPaint);
+  }
+
+  void _drawBottomIconRow(Canvas canvas, Size size) {
+    final iconColor = Colors.white.withOpacity(0.07);
+    final items = <(IconData, double)>[
+      (Icons.table_restaurant_rounded, 0.18),
+      (Icons.receipt_long_rounded, 0.34),
+      (Icons.point_of_sale_rounded, 0.52),
+      (Icons.inventory_2_rounded, 0.70),
+      (Icons.insights_rounded, 0.86),
     ];
-    final safeIconWidth = size.width.clamp(160.0, 1200.0);
-    for (int i = 0; i < icons.length; i++) {
-      final builder = ui.ParagraphBuilder(ui.ParagraphStyle(textAlign: TextAlign.center, fontSize: 24 + (i % 3) * 3))
-        ..pushStyle(TextStyle(color: iconPaint.color, fontFamily: icons[i].fontFamily, package: icons[i].fontPackage).getTextStyle())
-        ..addText(String.fromCharCode(icons[i].codePoint));
+
+    for (final item in items) {
+      final builder = ui.ParagraphBuilder(ui.ParagraphStyle(textAlign: TextAlign.center, fontSize: 24))
+        ..pushStyle(TextStyle(color: iconColor, fontFamily: item.$1.fontFamily, package: item.$1.fontPackage).getTextStyle())
+        ..addText(String.fromCharCode(item.$1.codePoint));
       final paragraph = builder.build()..layout(const ui.ParagraphConstraints(width: 40));
-      final dx = 36.0 + ((i * 118.0) % safeIconWidth);
-      final dy = size.height - 96.0 - (i % 4) * 54.0;
-      canvas.drawParagraph(paragraph, Offset(dx, dy));
+      canvas.drawParagraph(paragraph, Offset(size.width * item.$2 - 20, size.height - 78));
     }
   }
 
+  void _drawBottle(Canvas canvas, Offset origin, double scale) {
+    final outline = Paint()
+      ..color = palette.secondary.withOpacity(0.18)
+      ..strokeWidth = 1.5
+      ..style = PaintingStyle.stroke;
+    final glow = Paint()..color = palette.accent.withOpacity(0.12);
+
+    final body = Rect.fromLTWH(origin.dx, origin.dy, 24 * scale, 64 * scale);
+    canvas.drawRRect(RRect.fromRectAndRadius(body, Radius.circular(9 * scale)), outline);
+    canvas.drawRRect(
+      RRect.fromRectAndRadius(Rect.fromLTWH(origin.dx + 7 * scale, origin.dy - 14 * scale, 10 * scale, 18 * scale), Radius.circular(4 * scale)),
+      outline,
+    );
+    canvas.drawRRect(
+      RRect.fromRectAndRadius(Rect.fromLTWH(origin.dx + 4 * scale, origin.dy + 22 * scale, 16 * scale, 16 * scale), Radius.circular(5 * scale)),
+      glow,
+    );
+  }
+
+  void _drawGlass(Canvas canvas, Offset origin, double scale) {
+    final outline = Paint()
+      ..color = palette.accent.withOpacity(0.16)
+      ..strokeWidth = 1.6
+      ..style = PaintingStyle.stroke;
+    final path = Path()
+      ..moveTo(origin.dx, origin.dy)
+      ..lineTo(origin.dx + 34 * scale, origin.dy)
+      ..lineTo(origin.dx + 24 * scale, origin.dy + 30 * scale)
+      ..lineTo(origin.dx + 10 * scale, origin.dy + 30 * scale)
+      ..close();
+    canvas.drawPath(path, outline);
+    canvas.drawLine(Offset(origin.dx + 17 * scale, origin.dy + 30 * scale), Offset(origin.dx + 17 * scale, origin.dy + 50 * scale), outline);
+    canvas.drawLine(Offset(origin.dx + 4 * scale, origin.dy + 50 * scale), Offset(origin.dx + 30 * scale, origin.dy + 50 * scale), outline);
+    canvas.drawCircle(Offset(origin.dx + 28 * scale, origin.dy + 6 * scale), 2.4 * scale, Paint()..color = palette.secondary.withOpacity(0.18));
+  }
+
+  void _drawCocktail(Canvas canvas, Offset origin, double scale) {
+    final outline = Paint()
+      ..color = palette.secondary.withOpacity(0.16)
+      ..strokeWidth = 1.5
+      ..style = PaintingStyle.stroke;
+    final liquid = Paint()..color = palette.accent.withOpacity(0.10);
+    final bowl = Path()
+      ..moveTo(origin.dx, origin.dy)
+      ..lineTo(origin.dx + 30 * scale, origin.dy)
+      ..lineTo(origin.dx + 16 * scale, origin.dy + 20 * scale)
+      ..close();
+    canvas.drawPath(bowl, outline);
+    canvas.drawPath(bowl, liquid);
+    canvas.drawLine(Offset(origin.dx + 15 * scale, origin.dy + 20 * scale), Offset(origin.dx + 15 * scale, origin.dy + 43 * scale), outline);
+    canvas.drawLine(Offset(origin.dx + 3 * scale, origin.dy + 43 * scale), Offset(origin.dx + 27 * scale, origin.dy + 43 * scale), outline);
+    canvas.drawLine(Offset(origin.dx + 21 * scale, origin.dy - 10 * scale), Offset(origin.dx + 34 * scale, origin.dy + 4 * scale), outline);
+    canvas.drawCircle(Offset(origin.dx + 35 * scale, origin.dy + 5 * scale), 3.2 * scale, outline);
+  }
+
+  void _drawBeer(Canvas canvas, Offset origin, double scale) {
+    final outline = Paint()
+      ..color = palette.secondary.withOpacity(0.16)
+      ..strokeWidth = 1.6
+      ..style = PaintingStyle.stroke;
+    final foam = Paint()..color = Colors.white.withOpacity(0.10);
+    final mug = RRect.fromRectAndRadius(Rect.fromLTWH(origin.dx, origin.dy + 8 * scale, 28 * scale, 34 * scale), Radius.circular(8 * scale));
+    canvas.drawRRect(mug, outline);
+    final handleRect = Rect.fromLTWH(origin.dx + 21 * scale, origin.dy + 12 * scale, 18 * scale, 22 * scale);
+    canvas.drawArc(handleRect, -1.1, 2.3, false, outline);
+    canvas.drawCircle(Offset(origin.dx + 8 * scale, origin.dy + 8 * scale), 6 * scale, foam);
+    canvas.drawCircle(Offset(origin.dx + 15 * scale, origin.dy + 4 * scale), 7 * scale, foam);
+    canvas.drawCircle(Offset(origin.dx + 22 * scale, origin.dy + 8 * scale), 6 * scale, foam);
+  }
+
   @override
-  bool shouldRepaint(covariant _AnalyticsPatternPainter oldDelegate) => oldDelegate.palette.id != palette.id;
+  bool shouldRepaint(covariant _BarMoodPatternPainter oldDelegate) => oldDelegate.palette.id != palette.id;
 }
 
 /// Tarjeta tipo glass con borde transparente, inspirada en el diseño del login.
@@ -209,7 +358,7 @@ class TechGlassPanel extends ConsumerWidget {
 }
 
 class TechBrandMark extends ConsumerWidget {
-  const TechBrandMark({super.key, this.size = 58, this.icon = Icons.analytics_rounded});
+  const TechBrandMark({super.key, this.size = 58, this.icon = Icons.local_bar_rounded});
 
   final double size;
   final IconData icon;
@@ -288,7 +437,7 @@ class TechGlassTitlePanel extends ConsumerWidget {
     super.key,
     required this.title,
     required this.subtitle,
-    this.icon = Icons.analytics_rounded,
+    this.icon = Icons.local_bar_rounded,
     this.trailing,
     this.padding = const EdgeInsets.all(22),
   });
@@ -403,67 +552,71 @@ class _PagePatternPainter extends CustomPainter {
 
   @override
   void paint(Canvas canvas, Size size) {
-    final baseOpacity = palette.darkBackground ? 0.12 : 0.06;
-    final dotPaint = Paint()..color = palette.secondary.withOpacity(baseOpacity);
-    for (double x = 24; x < size.width; x += 38) {
-      for (double y = 24; y < size.height; y += 38) {
-        canvas.drawCircle(Offset(x, y), 1.2, dotPaint);
+    final dotPaint = Paint()
+      ..color = palette.secondary.withOpacity(palette.darkBackground ? 0.075 : 0.045);
+    for (double x = 28; x < size.width; x += 42) {
+      for (double y = 28; y < size.height; y += 42) {
+        canvas.drawCircle(Offset(x, y), 1.05, dotPaint);
       }
     }
 
-    final linePaint = Paint()
-      ..color = palette.accent.withOpacity(palette.darkBackground ? 0.14 : 0.08)
-      ..strokeWidth = 1.4
+    final accentPaint = Paint()
+      ..color = palette.accent.withOpacity(palette.darkBackground ? 0.075 : 0.045)
+      ..strokeWidth = 1.1
       ..style = PaintingStyle.stroke;
-    for (double y = 90; y < size.height; y += 150) {
-      final path = Path()
-        ..moveTo(-20, y)
-        ..cubicTo(size.width * 0.25, y - 40, size.width * 0.55, y + 54, size.width + 20, y - 10);
-      canvas.drawPath(path, linePaint);
-    }
 
-    final circuitPaint = Paint()
-      ..color = palette.secondary.withOpacity(palette.darkBackground ? 0.10 : 0.055)
-      ..strokeWidth = 1
-      ..style = PaintingStyle.stroke;
-    for (double x = 42; x < size.width; x += 170) {
-      for (double y = 58; y < size.height; y += 210) {
-        final path = Path()
-          ..moveTo(x, y)
-          ..lineTo(x + 34, y)
-          ..lineTo(x + 34, y + 34)
-          ..lineTo(x + 82, y + 34);
-        canvas.drawPath(path, circuitPaint);
-        canvas.drawRRect(RRect.fromRectAndRadius(Rect.fromLTWH(x + 86, y + 26, 18, 18), const Radius.circular(5)), circuitPaint);
-      }
-    }
-
-    final icons = <IconData>[
-      Icons.local_bar_rounded,
-      Icons.point_of_sale_rounded,
-      Icons.qr_code_2_rounded,
-      Icons.inventory_2_rounded,
-      Icons.analytics_rounded,
-      Icons.table_bar_rounded,
-      Icons.memory_rounded,
-      Icons.router_rounded,
-      Icons.hub_rounded,
-      Icons.data_object_rounded,
-      Icons.terminal_rounded,
-      Icons.grid_view_rounded,
+    final motifs = <Offset>[
+      Offset(size.width * 0.18, size.height * 0.24),
+      Offset(size.width * 0.72, size.height * 0.30),
+      Offset(size.width * 0.34, size.height * 0.72),
+      Offset(size.width * 0.82, size.height * 0.76),
     ];
-    final iconColor = palette.textSecondary.withOpacity(palette.darkBackground ? 0.12 : 0.08);
-    for (int i = 0; i < icons.length; i++) {
-      final builder = ui.ParagraphBuilder(ui.ParagraphStyle(textAlign: TextAlign.center, fontSize: 28))
-        ..pushStyle(TextStyle(color: iconColor, fontFamily: icons[i].fontFamily, package: icons[i].fontPackage).getTextStyle())
-        ..addText(String.fromCharCode(icons[i].codePoint));
-      final paragraph = builder.build()..layout(const ui.ParagraphConstraints(width: 40));
-      final dx = (i * 148.0 + 48) % (size.width + 40);
-      final dy = 86.0 + (i % 6) * 112.0;
-      canvas.drawParagraph(paragraph, Offset(dx, dy));
+
+    for (final origin in motifs) {
+      final path = Path()
+        ..moveTo(origin.dx - 44, origin.dy)
+        ..lineTo(origin.dx - 12, origin.dy)
+        ..lineTo(origin.dx + 8, origin.dy + 18)
+        ..lineTo(origin.dx + 44, origin.dy + 18);
+      canvas.drawPath(path, accentPaint);
+      canvas.drawCircle(Offset(origin.dx + 49, origin.dy + 18), 2.4, accentPaint);
+    }
+
+    final icons = <(IconData, double, double)>[
+      (Icons.table_restaurant_rounded, 0.13, 0.80),
+      (Icons.receipt_long_rounded, 0.36, 0.84),
+      (Icons.point_of_sale_rounded, 0.58, 0.80),
+      (Icons.inventory_2_rounded, 0.80, 0.84),
+    ];
+
+    for (final item in icons) {
+      _drawGlyph(
+        canvas,
+        item.$1,
+        Offset(size.width * item.$2 - 15, size.height * item.$3 - 15),
+        24,
+      );
     }
   }
 
-  @override
+  void _drawGlyph(Canvas canvas, IconData icon, Offset offset, double fontSize) {
+    final color = palette.textSecondary.withOpacity(palette.darkBackground ? 0.075 : 0.055);
+    final builder = ui.ParagraphBuilder(
+      ui.ParagraphStyle(textAlign: TextAlign.center, fontSize: fontSize),
+    )
+      ..pushStyle(
+        TextStyle(
+          color: color,
+          fontFamily: icon.fontFamily,
+          package: icon.fontPackage,
+        ).getTextStyle(),
+      )
+      ..addText(String.fromCharCode(icon.codePoint));
+    final paragraph = builder.build()
+      ..layout(ui.ParagraphConstraints(width: fontSize + 12));
+    canvas.drawParagraph(paragraph, offset);
+  }
+
+@override
   bool shouldRepaint(covariant _PagePatternPainter oldDelegate) => oldDelegate.palette != palette;
 }
