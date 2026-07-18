@@ -42,16 +42,19 @@ class MeseroMedioPagoModel {
     this.medioPagoId,
     this.nombre,
     this.descripcion,
+    this.qr,
   });
 
   final int? medioPagoId;
   final String? nombre;
   final String? descripcion;
+  final String? qr;
 
   factory MeseroMedioPagoModel.fromJson(Map<String, dynamic> json) => MeseroMedioPagoModel(
         medioPagoId: (json['medioPagoId'] as num?)?.toInt(),
         nombre: json['nombre']?.toString(),
         descripcion: json['descripcion']?.toString(),
+        qr: json['qr']?.toString(),
       );
 }
 

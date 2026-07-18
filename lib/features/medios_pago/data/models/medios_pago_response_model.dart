@@ -5,6 +5,7 @@ class MediosPagoResponseModel {
     this.mepaNombre,
     this.mepaDescripcion,
     this.mepaEstado,
+    this.mepaQr,
     this.mepaRegistradoPor,
     this.mepaFechaCambio,
   });
@@ -13,6 +14,7 @@ class MediosPagoResponseModel {
   final String? mepaNombre;
   final String? mepaDescripcion;
   final int? mepaEstado;
+  final String? mepaQr;
   final String? mepaRegistradoPor;
   final String? mepaFechaCambio;
 
@@ -21,6 +23,7 @@ class MediosPagoResponseModel {
       mepaNombre: json['mepaNombre']?.toString(),
       mepaDescripcion: json['mepaDescripcion']?.toString(),
       mepaEstado: (json['mepaEstado'] as num?)?.toInt(),
+      mepaQr: json['mepaQr']?.toString(),
       mepaRegistradoPor: json['mepaRegistradoPor']?.toString(),
       mepaFechaCambio: json['mepaFechaCambio']?.toString(),
   );
@@ -30,6 +33,7 @@ class MediosPagoResponseModel {
       'mepaNombre': mepaNombre,
       'mepaDescripcion': mepaDescripcion,
       'mepaEstado': mepaEstado,
+      'mepaQr': mepaQr,
       'mepaRegistradoPor': mepaRegistradoPor,
       'mepaFechaCambio': mepaFechaCambio,
   };

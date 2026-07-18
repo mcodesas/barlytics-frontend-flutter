@@ -8651,12 +8651,9 @@ int _prioridadMedioPago(MeseroMedioPagoModel medio) {
   return 20;
 }
 
-String? _assetQrMedioPago(MeseroMedioPagoModel? medio) {
-  if (medio == null) return null;
-  final texto = _textoMedioPago(medio);
-  if (texto.contains('nequi')) return 'assets/payment_qr/nequi.png';
-  if (texto.contains('daviplata')) return 'assets/payment_qr/daviplata.png';
-  return null;
+String? _qrMedioPago(MeseroMedioPagoModel? medio) {
+  final qr = (medio?.qr ?? '').trim();
+  return qr.isEmpty ? null : qr;
 }
 
 String _nombreQrMedioPago(MeseroMedioPagoModel medio) {
@@ -9850,8 +9847,8 @@ class _PagarCuentaDialogState extends State<_PagarCuentaDialog> {
 
   Widget _buildQrMedioPago(MeseroMedioPagoModel medio) {
     final palette = _palette;
-    final asset = _assetQrMedioPago(medio);
-    if (asset == null) return const SizedBox.shrink();
+    final qrValue = _qrMedioPago(medio);
+    if (qrValue == null) return const SizedBox.shrink();
     final nombre = _nombreQrMedioPago(medio);
 
     return Container(
@@ -9865,10 +9862,13 @@ class _PagarCuentaDialogState extends State<_PagarCuentaDialog> {
       child: LayoutBuilder(
         builder: (context, constraints) {
           final compact = constraints.maxWidth < 520;
+          final qrSize = compact
+              ? (constraints.maxWidth - 28).clamp(230.0, 310.0).toDouble()
+              : 270.0;
           final qr = Container(
-            width: compact ? 190 : 178,
-            height: compact ? 190 : 178,
-            padding: const EdgeInsets.all(10),
+            width: qrSize,
+            height: qrSize,
+            padding: const EdgeInsets.all(12),
             decoration: BoxDecoration(
               color: Colors.white,
               borderRadius: BorderRadius.circular(18),
@@ -9876,21 +9876,12 @@ class _PagarCuentaDialogState extends State<_PagarCuentaDialog> {
             ),
             child: ClipRRect(
               borderRadius: BorderRadius.circular(10),
-              child: Image.asset(
-                asset,
+              child: _BarlyticsImage(
+                value: qrValue,
+                width: qrSize - 24,
+                height: qrSize - 24,
+                radius: 10,
                 fit: BoxFit.contain,
-                errorBuilder: (context, error, stackTrace) => Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    Icon(Icons.qr_code_2_rounded, size: 68, color: palette.secondary),
-                    const SizedBox(height: 8),
-                    Text(
-                      'QR no configurado',
-                      textAlign: TextAlign.center,
-                      style: TextStyle(color: palette.textPrimary, fontWeight: FontWeight.w900),
-                    ),
-                  ],
-                ),
               ),
             ),
           );
@@ -10063,7 +10054,7 @@ class _PagarCuentaDialogState extends State<_PagarCuentaDialog> {
           Text('Medio de pago', style: TextStyle(color: palette.textPrimary, fontWeight: FontWeight.w900, fontSize: 12)),
           const SizedBox(height: 8),
           _buildSelectorVisualMedioPago(pago),
-          if (medioSeleccionado != null && _assetQrMedioPago(medioSeleccionado) != null) ...[
+          if (medioSeleccionado != null && _qrMedioPago(medioSeleccionado) != null) ...[
             const SizedBox(height: 12),
             _buildQrMedioPago(medioSeleccionado),
           ],
@@ -11924,12 +11915,19 @@ class _LocalImagePickerFieldState extends State<_LocalImagePickerField> {
 }
 
 class _BarlyticsImage extends StatelessWidget {
-  const _BarlyticsImage({required this.value, required this.width, required this.height, this.radius = 0});
+  const _BarlyticsImage({
+    required this.value,
+    required this.width,
+    required this.height,
+    this.radius = 0,
+    this.fit = BoxFit.cover,
+  });
 
   final String value;
   final double width;
   final double height;
   final double radius;
+  final BoxFit fit;
 
   @override
   Widget build(BuildContext context) {
@@ -11946,13 +11944,13 @@ class _BarlyticsImage extends StatelessWidget {
       final index = imageValue.indexOf(',');
       if (index > -1) {
         try {
-          return Image.memory(base64Decode(imageValue.substring(index + 1)), width: width, height: height, fit: BoxFit.cover);
+          return Image.memory(base64Decode(imageValue.substring(index + 1)), width: width, height: height, fit: fit);
         } catch (_) {
           return fallback;
         }
       }
     }
-    return Image.network(imageValue, width: width, height: height, fit: BoxFit.cover, errorBuilder: (_, __, ___) => fallback);
+    return Image.network(imageValue, width: width, height: height, fit: fit, errorBuilder: (_, __, ___) => fallback);
   }
 }
 
