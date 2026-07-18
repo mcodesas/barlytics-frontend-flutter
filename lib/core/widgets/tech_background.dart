@@ -2,7 +2,6 @@ import 'dart:ui' as ui;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../../app/theme/app_colors.dart';
 import '../../app/theme/app_palette.dart';
 
 /// Fondo tecnológico reutilizable para mantener una identidad visual unificada.
@@ -65,7 +64,7 @@ class TechBackground extends ConsumerWidget {
             child: GlowCircle(
               size: 190,
               opacity: palette.darkBackground ? 0.14 : 0.10,
-              color: palette.accent,
+              color: palette.primary,
             ),
           ),
           if (showPattern) Positioned.fill(child: _BarMoodPattern(palette: palette)),
@@ -90,7 +89,7 @@ class GlowCircle extends StatelessWidget {
         decoration: BoxDecoration(
           shape: BoxShape.circle,
           gradient: RadialGradient(
-            colors: [(color ?? AppColors.accent).withOpacity(opacity), Colors.transparent],
+            colors: [(color ?? const Color(0xFF38BDF8)).withOpacity(opacity), Colors.transparent],
           ),
         ),
       );
@@ -133,7 +132,7 @@ class _BarMoodPatternPainter extends CustomPainter {
         ..lineTo(x + 108, y + 34)
         ..lineTo(x + 158, y + 34);
       canvas.drawPath(path, guidePaint);
-      canvas.drawCircle(Offset(x + 164, y + 34), 3, Paint()..color = palette.accent.withOpacity(0.15));
+      canvas.drawCircle(Offset(x + 164, y + 34), 3, Paint()..color = palette.secondary.withOpacity(0.15));
     }
 
     _drawBackBar(canvas, size);
@@ -165,7 +164,7 @@ class _BarMoodPatternPainter extends CustomPainter {
 
   void _drawServiceFlow(Canvas canvas, Size size) {
     final linePaint = Paint()
-      ..color = palette.accent.withOpacity(0.17)
+      ..color = palette.secondary.withOpacity(0.17)
       ..strokeWidth = 1.8
       ..style = PaintingStyle.stroke;
     final path = Path()
@@ -227,7 +226,7 @@ class _BarMoodPatternPainter extends CustomPainter {
       ..color = palette.secondary.withOpacity(0.18)
       ..strokeWidth = 1.5
       ..style = PaintingStyle.stroke;
-    final glow = Paint()..color = palette.accent.withOpacity(0.12);
+    final glow = Paint()..color = palette.secondary.withOpacity(0.12);
 
     final body = Rect.fromLTWH(origin.dx, origin.dy, 24 * scale, 64 * scale);
     canvas.drawRRect(RRect.fromRectAndRadius(body, Radius.circular(9 * scale)), outline);
@@ -243,7 +242,7 @@ class _BarMoodPatternPainter extends CustomPainter {
 
   void _drawGlass(Canvas canvas, Offset origin, double scale) {
     final outline = Paint()
-      ..color = palette.accent.withOpacity(0.16)
+      ..color = palette.secondary.withOpacity(0.16)
       ..strokeWidth = 1.6
       ..style = PaintingStyle.stroke;
     final path = Path()
@@ -263,7 +262,7 @@ class _BarMoodPatternPainter extends CustomPainter {
       ..color = palette.secondary.withOpacity(0.16)
       ..strokeWidth = 1.5
       ..style = PaintingStyle.stroke;
-    final liquid = Paint()..color = palette.accent.withOpacity(0.10);
+    final liquid = Paint()..color = palette.secondary.withOpacity(0.10);
     final bowl = Path()
       ..moveTo(origin.dx, origin.dy)
       ..lineTo(origin.dx + 30 * scale, origin.dy)
@@ -333,7 +332,7 @@ class TechGlassPanel extends ConsumerWidget {
             offset: const Offset(0, 24),
           ),
           BoxShadow(
-            color: palette.accent.withOpacity(0.14),
+            color: palette.secondary.withOpacity(0.14),
             blurRadius: 46,
             offset: const Offset(0, 0),
           ),
@@ -371,9 +370,9 @@ class TechBrandMark extends ConsumerWidget {
       height: size,
       decoration: BoxDecoration(
         shape: BoxShape.circle,
-        gradient: palette.mainGradient,
+        gradient: LinearGradient(colors: [palette.primary, palette.secondary]),
         boxShadow: [
-          BoxShadow(color: palette.accent.withOpacity(0.28), blurRadius: 22, offset: const Offset(0, 8)),
+          BoxShadow(color: palette.secondary.withOpacity(0.28), blurRadius: 22, offset: const Offset(0, 8)),
         ],
       ),
       child: Icon(icon, color: palette.onPrimary, size: size * 0.52),
@@ -457,13 +456,13 @@ class TechGlassTitlePanel extends ConsumerWidget {
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(31),
         gradient: LinearGradient(
-          colors: [palette.accent.withOpacity(0.95), palette.secondary.withOpacity(0.88), palette.primary.withOpacity(0.74)],
+          colors: [palette.secondary.withOpacity(0.95), palette.secondary.withOpacity(0.88), palette.primary.withOpacity(0.74)],
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
         ),
         boxShadow: [
           BoxShadow(color: palette.secondary.withOpacity(0.24), blurRadius: 32, offset: const Offset(0, 16)),
-          BoxShadow(color: palette.accent.withOpacity(0.16), blurRadius: 46, offset: const Offset(0, 0)),
+          BoxShadow(color: palette.secondary.withOpacity(0.16), blurRadius: 46, offset: const Offset(0, 0)),
         ],
       ),
       child: ClipRRect(
@@ -529,7 +528,7 @@ class AppPageBackground extends ConsumerWidget {
       decoration: BoxDecoration(gradient: palette.pageGradient),
       child: Stack(
         children: [
-          Positioned(top: -120, right: -110, child: GlowCircle(size: 320, opacity: palette.darkBackground ? 0.18 : 0.10, color: palette.accent)),
+          Positioned(top: -120, right: -110, child: GlowCircle(size: 320, opacity: palette.darkBackground ? 0.18 : 0.10, color: palette.primary)),
           Positioned(bottom: -150, left: -120, child: GlowCircle(size: 360, opacity: palette.darkBackground ? 0.16 : 0.08, color: palette.secondary)),
           Positioned.fill(child: _PagePattern(palette: palette)),
         ],
@@ -561,7 +560,7 @@ class _PagePatternPainter extends CustomPainter {
     }
 
     final accentPaint = Paint()
-      ..color = palette.accent.withOpacity(palette.darkBackground ? 0.075 : 0.045)
+      ..color = palette.secondary.withOpacity(palette.darkBackground ? 0.075 : 0.045)
       ..strokeWidth = 1.1
       ..style = PaintingStyle.stroke;
 

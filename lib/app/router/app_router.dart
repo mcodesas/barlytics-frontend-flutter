@@ -32,8 +32,6 @@ import '../../features/marcas/presentation/pages/marcas_list_page.dart';
 import '../../features/marcas/presentation/pages/marcas_form_page.dart';
 import '../../features/marcas/presentation/pages/marcas_detail_page.dart';
 import '../../features/medios_pago/presentation/pages/medios_pago_list_page.dart';
-import '../../features/medios_pago/presentation/pages/medios_pago_form_page.dart';
-import '../../features/medios_pago/presentation/pages/medios_pago_detail_page.dart';
 import '../../features/menus/presentation/pages/menus_list_page.dart';
 import '../../features/menus/presentation/pages/menus_form_page.dart';
 import '../../features/menus/presentation/pages/menus_detail_page.dart';
@@ -200,11 +198,6 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       GoRoute(
         path: '/medios_pago',
         builder: (context, state) => AppScaffold(child: const MediosPagoListPage()),
-        routes: [
-          GoRoute(path: 'nuevo', builder: (context, state) => AppScaffold(child: const MediosPagoFormPage())),
-          GoRoute(path: ':id', builder: (context, state) => AppScaffold(child: MediosPagoDetailPage(id: state.pathParameters['id']!))),
-          GoRoute(path: ':id/editar', builder: (context, state) => AppScaffold(child: MediosPagoFormPage(id: state.pathParameters['id']))),
-        ],
       ),
 
       GoRoute(

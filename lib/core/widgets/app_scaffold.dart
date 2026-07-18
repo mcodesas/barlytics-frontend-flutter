@@ -190,6 +190,64 @@ class _AppScaffoldState extends ConsumerState<AppScaffold> {
   }
 }
 
+class _PageMetadata {
+  const _PageMetadata({
+    required this.title,
+    required this.subtitle,
+    required this.icon,
+    this.eyebrow = 'Administración',
+    this.statusText,
+  });
+
+  final String title;
+  final String subtitle;
+  final IconData icon;
+  final String eyebrow;
+  final String? statusText;
+}
+
+const Map<String, _PageMetadata> _pageMetadata = <String, _PageMetadata>{
+  '/home': _PageMetadata(title: 'Inicio', subtitle: 'Accede rápidamente a los módulos habilitados para tu usuario.', icon: Icons.home_rounded, eyebrow: 'BarLytics'),
+  '/profile': _PageMetadata(title: 'Mi perfil', subtitle: 'Consulta y actualiza la información de tu cuenta.', icon: Icons.account_circle_rounded, eyebrow: 'Cuenta'),
+  '/usuarios': _PageMetadata(title: 'Usuarios', subtitle: 'Administra usuarios, sucursales asignadas, estados y roles.', icon: Icons.people_alt_rounded),
+  '/roles': _PageMetadata(title: 'Roles', subtitle: 'Define perfiles de acceso y responsabilidades dentro del sistema.', icon: Icons.admin_panel_settings_rounded),
+  '/menus': _PageMetadata(title: 'Menús', subtitle: 'Organiza los módulos disponibles dentro de la navegación.', icon: Icons.menu_book_rounded),
+  '/opciones_menu': _PageMetadata(title: 'Opciones de menú', subtitle: 'Configura las opciones y permisos visibles para cada rol.', icon: Icons.rule_folder_rounded),
+  '/empresas': _PageMetadata(title: 'Empresas', subtitle: 'Administra los negocios registrados y su información principal.', icon: Icons.domain_rounded),
+  '/sucursales': _PageMetadata(title: 'Sucursales', subtitle: 'Gestiona sedes, ubicación, moneda y operación por sucursal.', icon: Icons.store_rounded),
+  '/parametros': _PageMetadata(title: 'Parámetros', subtitle: 'Centraliza configuraciones funcionales por empresa o sucursal.', icon: Icons.tune_rounded),
+  '/medios_pago': _PageMetadata(title: 'Medios de pago', subtitle: 'Activa medios de pago y configura el QR de cada sucursal.', icon: Icons.payments_rounded),
+  '/productos': _PageMetadata(title: 'Productos', subtitle: 'Administra el catálogo disponible para venta e inventario.', icon: Icons.inventory_2_rounded),
+  '/inventario': _PageMetadata(title: 'Inventario', subtitle: 'Consulta existencias y disponibilidad por sucursal.', icon: Icons.fact_check_rounded),
+  '/precios': _PageMetadata(title: 'Precios', subtitle: 'Gestiona valores de compra, venta e impuestos vigentes.', icon: Icons.price_change_rounded),
+  '/tipos_producto': _PageMetadata(title: 'Tipos de producto', subtitle: 'Clasifica el catálogo para facilitar búsqueda y operación.', icon: Icons.category_rounded),
+  '/marcas': _PageMetadata(title: 'Marcas', subtitle: 'Administra las marcas asociadas al catálogo de productos.', icon: Icons.sell_rounded),
+  '/movimientos': _PageMetadata(title: 'Movimientos', subtitle: 'Consulta entradas, salidas y ajustes de inventario.', icon: Icons.sync_alt_rounded),
+  '/mesas': _PageMetadata(title: 'Mesas', subtitle: 'Configura mesas, estado, descripción e imagen por sucursal.', icon: Icons.table_restaurant_rounded),
+  '/ventas': _PageMetadata(title: 'Ventas', subtitle: 'Consulta documentos de venta y su estado operativo.', icon: Icons.receipt_long_rounded),
+  '/cuentas_venta': _PageMetadata(title: 'Cuentas de venta', subtitle: 'Consulta las cuentas asociadas a cada venta.', icon: Icons.receipt_rounded),
+  '/detalle_cuenta_venta': _PageMetadata(title: 'Detalle de cuentas', subtitle: 'Consulta productos y valores registrados por cuenta.', icon: Icons.list_alt_rounded),
+  '/pagos': _PageMetadata(title: 'Pagos', subtitle: 'Consulta pagos aplicados a las cuentas de venta.', icon: Icons.account_balance_wallet_rounded),
+  '/reportes': _PageMetadata(title: 'Reportes', subtitle: 'Analiza información operativa y resultados del negocio.', icon: Icons.analytics_rounded, eyebrow: 'Analítica'),
+  '/paises': _PageMetadata(title: 'Países', subtitle: 'Administra el catálogo geográfico de países.', icon: Icons.public_rounded, eyebrow: 'Configuración'),
+  '/regiones': _PageMetadata(title: 'Regiones', subtitle: 'Administra regiones y su relación geográfica.', icon: Icons.map_rounded, eyebrow: 'Configuración'),
+  '/ciudades': _PageMetadata(title: 'Ciudades', subtitle: 'Administra ciudades, códigos y zonas horarias.', icon: Icons.location_city_rounded, eyebrow: 'Configuración'),
+  '/zonas_horarias': _PageMetadata(title: 'Zonas horarias', subtitle: 'Configura zonas horarias usadas por empresas y sucursales.', icon: Icons.schedule_rounded, eyebrow: 'Configuración'),
+  '/monedas': _PageMetadata(title: 'Monedas', subtitle: 'Administra monedas, símbolos y precisión decimal.', icon: Icons.currency_exchange_rounded, eyebrow: 'Configuración'),
+};
+
+_PageMetadata? _metadataForPath(String path) {
+  _PageMetadata? result;
+  var bestLength = -1;
+  for (final entry in _pageMetadata.entries) {
+    if ((path == entry.key || path.startsWith('${entry.key}/')) && entry.key.length > bestLength) {
+      result = entry.value;
+      bestLength = entry.key.length;
+    }
+  }
+  return result;
+}
+
 String _resolveCurrentPageTitle(
   BuildContext context,
   WidgetRef ref, {
@@ -209,35 +267,8 @@ String _resolveCurrentPageTitle(
     };
   }
 
-  const routeTitles = <String, String>{
-    '/home': 'Inicio',
-    '/profile': 'Mi perfil',
-    '/reportes': 'Reportes',
-    '/productos': 'Productos',
-    '/inventario': 'Inventario',
-    '/precios': 'Precios',
-    '/tipos_producto': 'Tipos de producto',
-    '/marcas': 'Marcas',
-    '/movimientos': 'Movimientos',
-    '/medios_pago': 'Medios de pago',
-    '/usuarios': 'Usuarios',
-    '/roles': 'Roles',
-    '/empresas': 'Empresas',
-    '/sucursales': 'Sucursales',
-    '/ventas': 'Ventas',
-    '/regiones': 'Regiones',
-    '/zonas_horarias': 'Zonas horarias',
-  };
-
-  String? bestStaticTitle;
-  var bestStaticLength = -1;
-  for (final entry in routeTitles.entries) {
-    if ((path == entry.key || path.startsWith('${entry.key}/')) && entry.key.length > bestStaticLength) {
-      bestStaticTitle = entry.value;
-      bestStaticLength = entry.key.length;
-    }
-  }
-  if (bestStaticTitle != null) return bestStaticTitle;
+  final metadata = _metadataForPath(path);
+  if (metadata != null) return metadata.title;
 
   final authorizedItems = ref.watch(userMenuProvider).maybeWhen(
         data: (items) => items,
@@ -281,7 +312,7 @@ String? _resolveCurrentPageSubtitle(
     };
   }
   if (isInventario) return 'Gestiona inventario, movimientos y trazabilidad del stock.';
-  return null;
+  return _metadataForPath(path)?.subtitle;
 }
 
 String? _resolveCurrentPageEyebrow(
@@ -302,7 +333,7 @@ String? _resolveCurrentPageEyebrow(
     };
   }
   if (isInventario) return 'Operación de inventario';
-  return null;
+  return _metadataForPath(path)?.eyebrow;
 }
 
 String? _resolveCurrentPageStatusText(
@@ -313,9 +344,9 @@ String? _resolveCurrentPageStatusText(
 }) {
   final path = GoRouterState.of(context).uri.path;
   if (isOperativo && path.startsWith('/mesero')) {
-    return isInventario ? 'Stock activo' : 'Caja activa';
+    return isInventario ? 'Stock activo' : null;
   }
-  return null;
+  return _metadataForPath(path)?.statusText;
 }
 
 IconData? _resolveCurrentPageIcon(
@@ -336,7 +367,7 @@ IconData? _resolveCurrentPageIcon(
     };
   }
   if (isInventario) return Icons.inventory_rounded;
-  return null;
+  return _metadataForPath(path)?.icon;
 }
 
 class _PageTopBar extends StatelessWidget {
@@ -611,8 +642,8 @@ class _PaletteAwareBody extends StatelessWidget {
               canvasColor: palette.background,
               cardColor: palette.surface,
               colorScheme: baseTheme.colorScheme.copyWith(
-                primary: palette.secondary,
-                secondary: palette.accent,
+                primary: palette.primary,
+                secondary: palette.secondary,
                 surface: palette.surface,
                 onSurface: palette.textPrimary,
                 background: palette.background,
@@ -901,7 +932,7 @@ class _MeseroSideNavigation extends StatelessWidget {
         ),
         child: Stack(
           children: [
-            Positioned(top: -70, right: -100, child: GlowCircle(size: 240, opacity: 0.18, color: palette.accent)),
+            Positioned(top: -70, right: -100, child: GlowCircle(size: 240, opacity: 0.18, color: palette.primary)),
             Positioned(bottom: -90, left: -120, child: GlowCircle(size: 280, opacity: 0.12, color: palette.secondary)),
             SafeArea(
               child: Column(
@@ -938,24 +969,35 @@ class _MeseroDrawerContent extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => Container(
-        decoration: BoxDecoration(gradient: palette.softGradient),
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            colors: [
+              palette.surface,
+              Color.lerp(palette.surface, palette.primary, 0.18) ?? palette.surface,
+              Color.lerp(palette.surface, palette.secondary, 0.10) ?? palette.surface,
+              palette.surface,
+            ],
+            begin: Alignment.topCenter,
+            end: Alignment.bottomCenter,
+          ),
+        ),
         child: Column(
           children: [
-            const _BrandHeader(dark: false),
+            const _BrandHeader(dark: true),
             Expanded(
               child: ListView(
                 primary: false,
                 padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
                 children: [
-                  _NavTile(title: 'Inicio', keyName: 'home', path: '/home', palette: palette),
-                  _NavTile(title: 'Apariencia', keyName: 'parametros', path: '__appearance__', palette: palette, onTap: () => showPaletteSettingsDialog(context)),
-                  _NavTile(title: 'Mi perfil', keyName: 'usuarios', path: '/profile', palette: palette),
+                  _NavTile(title: 'Inicio', keyName: 'home', path: '/home', dark: true, palette: palette),
+                  _NavTile(title: 'Apariencia', keyName: 'parametros', path: '__appearance__', dark: true, palette: palette, onTap: () => showPaletteSettingsDialog(context)),
+                  _NavTile(title: 'Mi perfil', keyName: 'usuarios', path: '/profile', dark: true, palette: palette),
                 ],
               ),
             ),
             Padding(
               padding: const EdgeInsets.all(12),
-              child: _LogoutTile(onLogout: onLogout),
+              child: _LogoutTile(onLogout: onLogout, dark: true),
             ),
           ],
         ),
@@ -1131,10 +1173,22 @@ class _SideNavigation extends ConsumerWidget {
       duration: const Duration(milliseconds: 220),
       curve: Curves.easeOutCubic,
       width: 312,
-      decoration: BoxDecoration(gradient: palette.mainGradient),
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          colors: [
+            palette.surface,
+            Color.lerp(palette.surface, palette.primary, 0.18) ?? palette.surface,
+            Color.lerp(palette.surface, palette.secondary, 0.10) ?? palette.surface,
+            palette.surface,
+          ],
+          begin: Alignment.topCenter,
+          end: Alignment.bottomCenter,
+        ),
+        border: Border(right: BorderSide(color: palette.cardBorder)),
+      ),
       child: Stack(
         children: [
-          Positioned(top: -80, right: -90, child: GlowCircle(size: 240, opacity: 0.20, color: palette.accent)),
+          Positioned(top: -80, right: -90, child: GlowCircle(size: 240, opacity: 0.20, color: palette.primary)),
           Positioned(bottom: -90, left: -120, child: GlowCircle(size: 300, opacity: 0.14, color: palette.secondary)),
           SafeArea(
             child: Column(
@@ -1189,10 +1243,21 @@ class _DrawerContent extends ConsumerWidget {
     final menuAsync = ref.watch(userMenuProvider);
 
     return Container(
-      decoration: BoxDecoration(gradient: palette.softGradient),
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          colors: [
+            palette.surface,
+            Color.lerp(palette.surface, palette.primary, 0.18) ?? palette.surface,
+            Color.lerp(palette.surface, palette.secondary, 0.10) ?? palette.surface,
+            palette.surface,
+          ],
+          begin: Alignment.topCenter,
+          end: Alignment.bottomCenter,
+        ),
+      ),
       child: Column(
         children: [
-          const _BrandHeader(dark: false),
+          const _BrandHeader(dark: true),
           Expanded(
             child: ListView(
               key: const PageStorageKey<String>('mobile-main-navigation-scroll'),
@@ -1200,15 +1265,16 @@ class _DrawerContent extends ConsumerWidget {
               primary: false,
               padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
               children: [
-                _NavTile(title: 'Inicio', keyName: 'home', path: '/home', palette: palette),
-                _NavTile(title: 'Apariencia', keyName: 'parametros', path: '__appearance__', palette: palette, onTap: () => showPaletteSettingsDialog(context)),
-                _NavTile(title: 'Mi perfil', keyName: 'usuarios', path: '/profile', palette: palette),
-                const Divider(),
+                _NavTile(title: 'Inicio', keyName: 'home', path: '/home', dark: true, palette: palette),
+                _NavTile(title: 'Apariencia', keyName: 'parametros', path: '__appearance__', dark: true, palette: palette, onTap: () => showPaletteSettingsDialog(context)),
+                _NavTile(title: 'Mi perfil', keyName: 'usuarios', path: '/profile', dark: true, palette: palette),
+                const SizedBox(height: 8),
+                const _NavSectionLabel('Opciones autorizadas'),
                 ..._authorizedMenuWidgets(
                   context: context,
                   ref: ref,
                   menuAsync: menuAsync,
-                  dark: false,
+                  dark: true,
                   compact: false,
                   palette: palette,
                 ),
@@ -1217,7 +1283,7 @@ class _DrawerContent extends ConsumerWidget {
           ),
           Padding(
             padding: const EdgeInsets.all(12),
-            child: _LogoutTile(onLogout: onLogout),
+            child: _LogoutTile(onLogout: onLogout, dark: true),
           ),
         ],
       ),
@@ -1455,7 +1521,13 @@ class _NavTile extends StatelessWidget {
           width: small ? 36 : 38,
           height: small ? 36 : 38,
           decoration: BoxDecoration(
-            gradient: selected ? appPalette.mainGradient : null,
+            gradient: selected
+                ? LinearGradient(
+                    colors: [appPalette.primary, appPalette.secondary],
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                  )
+                : null,
             color: selected ? null : (dark ? Colors.white.withOpacity(0.12) : appPalette.secondary.withOpacity(0.12)),
             borderRadius: BorderRadius.circular(15),
             border: Border.all(color: dark ? Colors.white.withOpacity(0.08) : Colors.transparent),
@@ -1466,7 +1538,7 @@ class _NavTile extends StatelessWidget {
     final tile = Padding(
       padding: const EdgeInsets.symmetric(vertical: 4),
       child: Material(
-        color: selected ? (dark ? Colors.white.withOpacity(0.15) : appPalette.secondary.withOpacity(0.10)) : Colors.transparent,
+        color: selected ? (dark ? appPalette.secondary.withOpacity(0.18) : appPalette.secondary.withOpacity(0.10)) : Colors.transparent,
         borderRadius: BorderRadius.circular(20),
         child: InkWell(
           borderRadius: BorderRadius.circular(20),
@@ -1499,7 +1571,7 @@ class _NavTile extends StatelessWidget {
                               style: TextStyle(color: foreground, fontWeight: selected ? FontWeight.w900 : FontWeight.w700),
                             ),
                           ),
-                          if (selected) Icon(Icons.circle, color: dark ? appPalette.accent : appPalette.secondary, size: 8),
+                          if (selected) Icon(Icons.circle, color: appPalette.secondary, size: 8),
                         ],
                       ),
               );
@@ -1546,7 +1618,7 @@ class _MenuMessage extends StatelessWidget {
         child: Row(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Icon(icon, color: dark ? AppColors.accent : AppColors.secondaryDark, size: 22),
+            Icon(icon, color: dark ? AppColors.secondary : AppColors.secondaryDark, size: 22),
             const SizedBox(width: 10),
             Expanded(
               child: Column(

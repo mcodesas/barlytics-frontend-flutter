@@ -169,42 +169,19 @@ class _DynamicCrudFormPageState<T> extends ConsumerState<DynamicCrudFormPage<T>>
           const Positioned.fill(child: AppPageBackground()),
           CustomScrollView(
             slivers: [
-          SliverAppBar(
-            pinned: true,
-            foregroundColor: palette.onTitle,
-            backgroundColor: Colors.transparent,
-            surfaceTintColor: Colors.transparent,
-            expandedHeight: 190,
-            title: Text(isEditing ? 'Editar ${widget.config.title}' : 'Crear ${widget.config.title}'),
-            leading: IconButton(icon: const Icon(Icons.arrow_back_rounded), onPressed: () => context.go('/${widget.config.key}')),
-            flexibleSpace: FlexibleSpaceBar(
-              background: TechBackground(
-                padding: const EdgeInsets.fromLTRB(20, 58, 20, 16),
-                child: Row(
-                  children: [
-                    Container(
-                      width: 60,
-                      height: 60,
-                      decoration: BoxDecoration(
-                        gradient: LinearGradient(colors: [palette.secondary, palette.accent]),
-                        borderRadius: BorderRadius.circular(23),
-                        boxShadow: [BoxShadow(color: visual.color.withOpacity(0.30), blurRadius: 24, offset: const Offset(0, 12))],
-                      ),
-                      child: Icon(visual.icon, color: palette.onTitle, size: 31),
-                    ),
-                    const SizedBox(width: 14),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          Text(isEditing ? 'Editar registro' : 'Nuevo registro', style: Theme.of(context).textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.w900, color: palette.onTitle)),
-                          const SizedBox(height: 4),
-                          Text('Completa la información de ${widget.config.title.toLowerCase()}.', style: TextStyle(color: palette.onTitle.withOpacity(0.76), fontWeight: FontWeight.w700)),
-                        ],
-                      ),
-                    ),
-                  ],
+          SliverPadding(
+            padding: const EdgeInsets.fromLTRB(16, 16, 16, 0),
+            sliver: SliverToBoxAdapter(
+              child: Center(
+                child: ConstrainedBox(
+                  constraints: const BoxConstraints(maxWidth: 980),
+                  child: _FormContextHeader(
+                    title: isEditing ? 'Editar registro' : 'Nuevo registro',
+                    subtitle: 'Completa la información de ${widget.config.title.toLowerCase()}.',
+                    icon: visual.icon,
+                    palette: palette,
+                    onBack: () => context.go('/${widget.config.key}'),
+                  ),
                 ),
               ),
             ),
@@ -234,14 +211,15 @@ class _DynamicCrudFormPageState<T> extends ConsumerState<DynamicCrudFormPage<T>>
                                   _WizardStepsTabs(
                                     steps: widget.wizardSteps!,
                                     currentStep: widget.currentWizardStep,
+                                    palette: palette,
                                   ),
                                   const SizedBox(height: 22),
                                   Text(
                                     widget.currentWizardStep == 0
                                         ? 'Paso 1: registra primero los datos principales. Al guardar continuarás con la creación de sucursales.'
                                         : 'Continúa completando los pasos del proceso.',
-                                    style: const TextStyle(
-                                      color: AppColors.textSecondary,
+                                    style: TextStyle(
+                                      color: palette.textSecondary,
                                       fontWeight: FontWeight.w700,
                                     ),
                                   ),
@@ -264,44 +242,52 @@ class _DynamicCrudFormPageState<T> extends ConsumerState<DynamicCrudFormPage<T>>
                                   ),
                                 ],
                                 const SizedBox(height: 22),
-                                Row(
-                                  children: [
-                                    Expanded(
-                                      child: OutlinedButton.icon(
-                                        onPressed: state.loading ? null : () => context.go('/${widget.config.key}'),
-                                        icon: const Icon(Icons.close_rounded),
-                                        label: const Text('Cancelar'),
-                                      ),
-                                    ),
-                                    const SizedBox(width: 12),
-                                    Expanded(
-                                      child: AppButton(
-                                        label: widget.wizardSteps != null && widget.id == null ? 'Guardar y continuar' : 'Guardar',
-                                        icon: Icons.save_rounded,
-                                        loading: state.loading,
-                                        onPressed: () async {
-                                          if (!_formKey.currentState!.validate()) return;
-                                          final body = <String, dynamic>{};
-                                          for (final field in widget.config.formFields) {
-                                            if (crudIsTechnicalIdField(widget.config, field)) continue;
-                                            final text = _controllers[field.name]!.text.trim();
-                                            body[field.name] = _parse(text, field.type);
+                                LayoutBuilder(
+                                  builder: (context, actionConstraints) {
+                                    final cancelButton = OutlinedButton.icon(
+                                      onPressed: state.loading ? null : () => context.go('/${widget.config.key}'),
+                                      icon: const Icon(Icons.close_rounded),
+                                      label: const Text('Cancelar'),
+                                    );
+                                    final saveButton = AppButton(
+                                      label: widget.wizardSteps != null && widget.id == null ? 'Guardar y continuar' : 'Guardar',
+                                      icon: Icons.save_rounded,
+                                      loading: state.loading,
+                                      onPressed: () async {
+                                        if (!_formKey.currentState!.validate()) return;
+                                        final body = <String, dynamic>{};
+                                        for (final field in widget.config.formFields) {
+                                          if (crudIsTechnicalIdField(widget.config, field)) continue;
+                                          final text = _controllers[field.name]!.text.trim();
+                                          body[field.name] = field.type == CrudFieldType.image ? text : _parse(text, field.type);
+                                        }
+                                        final saved = await notifier.saveAndReturn(id: widget.id, body: body);
+                                        if (!context.mounted) return;
+                                        final ok = saved != null;
+                                        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(ok ? 'Registro guardado correctamente' : 'No fue posible guardar')));
+                                        if (ok) {
+                                          if (widget.onSaved != null) {
+                                            widget.onSaved!(context, saved);
+                                          } else {
+                                            context.go('/${widget.config.key}');
                                           }
-                                          final saved = await notifier.saveAndReturn(id: widget.id, body: body);
-                                          if (!context.mounted) return;
-                                          final ok = saved != null;
-                                          ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(ok ? 'Registro guardado correctamente' : 'No fue posible guardar')));
-                                          if (ok) {
-                                            if (widget.onSaved != null) {
-                                              widget.onSaved!(context, saved);
-                                            } else {
-                                              context.go('/${widget.config.key}');
-                                            }
-                                          }
-                                        },
-                                      ),
-                                    ),
-                                  ],
+                                        }
+                                      },
+                                    );
+                                    if (actionConstraints.maxWidth < 520) {
+                                      return Column(
+                                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                                        children: [cancelButton, const SizedBox(height: 10), saveButton],
+                                      );
+                                    }
+                                    return Row(
+                                      children: [
+                                        Expanded(child: cancelButton),
+                                        const SizedBox(width: 12),
+                                        Expanded(child: saveButton),
+                                      ],
+                                    );
+                                  },
                                 ),
                               ],
                             );
@@ -322,12 +308,23 @@ class _DynamicCrudFormPageState<T> extends ConsumerState<DynamicCrudFormPage<T>>
   }
 
   Widget _buildField(CrudField field) {
+    final palette = ref.watch(selectedAppPaletteProvider);
+    if (field.type == CrudFieldType.boolean) {
+      return _BooleanField(
+        controller: _controllers[field.name]!,
+        label: field.label,
+        readOnly: field.readOnly,
+        palette: palette,
+      );
+    }
+
     if (field.type == CrudFieldType.image) {
       return _ImageField(
         controller: _controllers[field.name]!,
         label: field.label,
         required: field.required,
         readOnly: field.readOnly,
+        palette: palette,
       );
     }
 
@@ -373,12 +370,120 @@ class _DynamicCrudFormPageState<T> extends ConsumerState<DynamicCrudFormPage<T>>
     return switch (type) {
       CrudFieldType.number => int.tryParse(value),
       CrudFieldType.decimal => double.tryParse(value.replaceAll(',', '.')),
-      CrudFieldType.boolean => value == 'true' || value == '1',
+      CrudFieldType.boolean => (value == 'true' || value == '1') ? 1 : 0,
       _ => value,
     };
   }
 }
 
+
+
+class _FormContextHeader extends StatelessWidget {
+  const _FormContextHeader({
+    required this.title,
+    required this.subtitle,
+    required this.icon,
+    required this.palette,
+    required this.onBack,
+  });
+
+  final String title;
+  final String subtitle;
+  final IconData icon;
+  final AppPalette palette;
+  final VoidCallback onBack;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: palette.surface.withOpacity(palette.darkBackground ? 0.94 : 0.985),
+        borderRadius: BorderRadius.circular(26),
+        border: Border.all(color: palette.secondary.withOpacity(0.15)),
+      ),
+      child: Row(
+        children: [
+          IconButton.filledTonal(onPressed: onBack, icon: const Icon(Icons.arrow_back_rounded), tooltip: 'Volver'),
+          const SizedBox(width: 10),
+          Container(
+            width: 48,
+            height: 48,
+            decoration: BoxDecoration(
+              gradient: LinearGradient(colors: [palette.primary, palette.secondary]),
+              borderRadius: BorderRadius.circular(16),
+            ),
+            child: Icon(icon, color: palette.onPrimary, size: 25),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(title, style: TextStyle(color: palette.textPrimary, fontWeight: FontWeight.w900, fontSize: 18)),
+                const SizedBox(height: 3),
+                Text(subtitle, maxLines: 2, overflow: TextOverflow.ellipsis, style: TextStyle(color: palette.textSecondary, fontWeight: FontWeight.w700, fontSize: 12.5)),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _BooleanField extends StatelessWidget {
+  const _BooleanField({
+    required this.controller,
+    required this.label,
+    required this.readOnly,
+    required this.palette,
+  });
+
+  final TextEditingController controller;
+  final String label;
+  final bool readOnly;
+  final AppPalette palette;
+
+  @override
+  Widget build(BuildContext context) {
+    return ValueListenableBuilder<TextEditingValue>(
+      valueListenable: controller,
+      builder: (context, value, _) {
+        final normalized = value.text.trim().toLowerCase();
+        final active = normalized == '1' || normalized == 'true';
+        return Container(
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+          decoration: BoxDecoration(
+            color: active ? AppColors.success.withOpacity(0.08) : palette.background.withOpacity(palette.darkBackground ? 0.42 : 0.72),
+            borderRadius: BorderRadius.circular(18),
+            border: Border.all(
+              color: active ? AppColors.success.withOpacity(0.28) : palette.cardBorder,
+            ),
+          ),
+          child: SwitchListTile.adaptive(
+            contentPadding: EdgeInsets.zero,
+            value: active,
+            onChanged: readOnly
+                ? null
+                : (newValue) {
+                    controller.text = newValue ? '1' : '0';
+                  },
+            title: Text(label, style: const TextStyle(fontWeight: FontWeight.w900)),
+            subtitle: Text(
+              active ? 'Disponible para cobros de esta sucursal' : 'No se mostrará al momento de pagar en esta sucursal',
+              style: TextStyle(color: palette.textSecondary, fontWeight: FontWeight.w600),
+            ),
+            secondary: Icon(
+              active ? Icons.check_circle_rounded : Icons.pause_circle_outline_rounded,
+              color: active ? AppColors.success : palette.textSecondary,
+            ),
+          ),
+        );
+      },
+    );
+  }
+}
 
 class _ImageField extends StatefulWidget {
   const _ImageField({
@@ -386,12 +491,14 @@ class _ImageField extends StatefulWidget {
     required this.label,
     required this.required,
     required this.readOnly,
+    required this.palette,
   });
 
   final TextEditingController controller;
   final String label;
   final bool required;
   final bool readOnly;
+  final AppPalette palette;
 
   @override
   State<_ImageField> createState() => _ImageFieldState();
@@ -425,16 +532,16 @@ class _ImageFieldState extends State<_ImageField> {
       builder: (state) => Container(
         padding: const EdgeInsets.all(12),
         decoration: BoxDecoration(
-          color: Colors.white,
+          color: widget.palette.background.withOpacity(widget.palette.darkBackground ? 0.42 : 0.72),
           borderRadius: BorderRadius.circular(18),
-          border: Border.all(color: state.hasError ? AppColors.danger : AppColors.border),
+          border: Border.all(color: state.hasError ? AppColors.danger : widget.palette.cardBorder),
         ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Row(
               children: [
-                const Icon(Icons.image_rounded, color: AppColors.secondaryDark),
+                Icon(Icons.image_rounded, color: widget.palette.secondary),
                 const SizedBox(width: 8),
                 Expanded(child: Text(widget.label, style: const TextStyle(fontWeight: FontWeight.w900))),
                 if (!widget.readOnly)
@@ -451,13 +558,13 @@ class _ImageFieldState extends State<_ImageField> {
                 width: double.infinity,
                 height: 104,
                 alignment: Alignment.center,
-                decoration: BoxDecoration(color: AppColors.surfaceAlt, borderRadius: BorderRadius.circular(16)),
-                child: const Text('Sin imagen cargada', style: TextStyle(color: AppColors.textSecondary, fontWeight: FontWeight.w700)),
+                decoration: BoxDecoration(color: widget.palette.surface.withOpacity(0.72), borderRadius: BorderRadius.circular(16)),
+                child: Text('Sin imagen cargada', style: TextStyle(color: widget.palette.textSecondary, fontWeight: FontWeight.w700)),
               )
             else
               ClipRRect(
                 borderRadius: BorderRadius.circular(16),
-                child: _ImagePreview(value: value),
+                child: _ImagePreview(value: value, palette: widget.palette),
               ),
             if (value.isNotEmpty && !widget.readOnly) ...[
               const SizedBox(height: 8),
@@ -485,9 +592,10 @@ class _ImageFieldState extends State<_ImageField> {
 }
 
 class _ImagePreview extends StatelessWidget {
-  const _ImagePreview({required this.value});
+  const _ImagePreview({required this.value, required this.palette});
 
   final String value;
+  final AppPalette palette;
 
   @override
   Widget build(BuildContext context) {
@@ -497,8 +605,8 @@ class _ImagePreview extends StatelessWidget {
         width: double.infinity,
         height: 120,
         alignment: Alignment.center,
-        color: AppColors.surfaceAlt,
-        child: const Text('Sin imagen cargada', style: TextStyle(color: AppColors.textSecondary)),
+        color: palette.surface.withOpacity(0.72),
+        child: Text('Sin imagen cargada', style: TextStyle(color: palette.textSecondary)),
       );
     }
     if (imageValue.startsWith('data:image')) {
@@ -519,27 +627,28 @@ class _ImagePreview extends StatelessWidget {
         width: double.infinity,
         height: 120,
         alignment: Alignment.center,
-        color: AppColors.surfaceAlt,
-        child: const Text('No fue posible previsualizar la imagen', style: TextStyle(color: AppColors.textSecondary)),
+        color: palette.surface.withOpacity(0.72),
+        child: Text('No fue posible previsualizar la imagen', style: TextStyle(color: palette.textSecondary)),
       ),
     );
   }
 }
 
 class _WizardStepsTabs extends StatelessWidget {
-  const _WizardStepsTabs({required this.steps, required this.currentStep});
+  const _WizardStepsTabs({required this.steps, required this.currentStep, required this.palette});
 
   final List<String> steps;
   final int currentStep;
+  final AppPalette palette;
 
   @override
   Widget build(BuildContext context) {
     return Container(
       padding: const EdgeInsets.all(6),
       decoration: BoxDecoration(
-        gradient: AppColors.softTechGradient,
+        gradient: palette.glassGradient,
         borderRadius: BorderRadius.circular(24),
-        border: Border.all(color: Colors.black.withOpacity(0.05)),
+        border: Border.all(color: palette.cardBorder),
       ),
       child: LayoutBuilder(
         builder: (context, constraints) {
@@ -552,7 +661,7 @@ class _WizardStepsTabs extends StatelessWidget {
               duration: const Duration(milliseconds: 180),
               padding: EdgeInsets.symmetric(horizontal: compact ? 12 : 16, vertical: 12),
               decoration: BoxDecoration(
-                gradient: selected ? AppColors.bluePurpleGradient : null,
+                gradient: selected ? LinearGradient(colors: [palette.primary, palette.secondary]) : null,
                 color: selected ? null : Colors.transparent,
                 borderRadius: BorderRadius.circular(18),
               ),
@@ -564,10 +673,10 @@ class _WizardStepsTabs extends StatelessWidget {
                     icon,
                     size: 20,
                     color: selected
-                        ? Colors.white
+                        ? palette.onPrimary
                         : completed
                             ? AppColors.success
-                            : AppColors.textSecondary,
+                            : palette.textSecondary,
                   ),
                   const SizedBox(width: 8),
                   Flexible(
@@ -576,7 +685,7 @@ class _WizardStepsTabs extends StatelessWidget {
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                       style: TextStyle(
-                        color: selected ? Colors.white : AppColors.textPrimary,
+                        color: selected ? palette.onPrimary : palette.textPrimary,
                         fontWeight: FontWeight.w900,
                       ),
                     ),

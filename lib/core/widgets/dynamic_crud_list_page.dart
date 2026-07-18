@@ -115,6 +115,7 @@ class _DynamicCrudListPageState<T> extends ConsumerState<DynamicCrudListPage<T>>
               items: visibleItems,
               lookupLabels: _lookupLabels,
               visual: visual,
+              palette: palette,
               onDelete: (id) async => _delete(context, notifier, id),
             )
           : _MobileCards(
@@ -122,54 +123,49 @@ class _DynamicCrudListPageState<T> extends ConsumerState<DynamicCrudListPage<T>>
               items: visibleItems,
               lookupLabels: _lookupLabels,
               visual: visual,
+              palette: palette,
               onDelete: (id) async => _delete(context, notifier, id),
             );
     }
 
     return Scaffold(
       backgroundColor: Colors.transparent,
-      floatingActionButton: FloatingActionButton.extended(
-        backgroundColor: palette.secondary,
-        foregroundColor: palette.onPrimary,
-        onPressed: () => context.go('/${widget.config.key}/nuevo'),
-        icon: const Icon(Icons.add_rounded),
-        label: const Text('Crear'),
-      ),
+      floatingActionButton: widget.config.allowCreate
+          ? FloatingActionButton.extended(
+              backgroundColor: palette.actionColor,
+              foregroundColor: palette.onAction,
+              onPressed: () => context.go('/${widget.config.key}/nuevo'),
+              icon: const Icon(Icons.add_rounded),
+              label: const Text('Crear'),
+            )
+          : null,
       body: Stack(
         children: [
           const Positioned.fill(child: AppPageBackground()),
-          CustomScrollView(
-            slivers: [
-          SliverAppBar(
-            pinned: true,
-            foregroundColor: palette.onTitle,
-            backgroundColor: Colors.transparent,
-            surfaceTintColor: Colors.transparent,
-            expandedHeight: 218,
-            title: Text(widget.config.title),
-            actions: [
-              if (_loadingLookups)
-                const Padding(
-                  padding: EdgeInsets.symmetric(horizontal: 16),
-                  child: SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2)),
+          RefreshIndicator(
+            onRefresh: () => _refresh(notifier),
+            child: CustomScrollView(
+              slivers: [
+                SliverPadding(
+                  padding: const EdgeInsets.fromLTRB(16, 16, 16, 0),
+                  sliver: SliverToBoxAdapter(
+                    child: _ModuleHeader(
+                      title: widget.config.title,
+                      subtitle: visual.description,
+                      visual: visual,
+                      total: state.items.length,
+                      visible: visibleItems.length,
+                      searchController: _searchController,
+                      onSearchChanged: (_) => setState(() {}),
+                      onRefresh: () => _refresh(notifier),
+                      loading: _loadingLookups || state.loading,
+                      palette: palette,
+                    ),
+                  ),
                 ),
-              IconButton(onPressed: () => _refresh(notifier), icon: const Icon(Icons.refresh_rounded), tooltip: 'Actualizar'),
-            ],
-            flexibleSpace: FlexibleSpaceBar(
-              background: _ModuleHeader(
-                title: widget.config.title,
-                subtitle: visual.description,
-                visual: visual,
-                total: state.items.length,
-                visible: visibleItems.length,
-                searchController: _searchController,
-                onSearchChanged: (_) => setState(() {}),
-                palette: palette,
-              ),
+                SliverToBoxAdapter(child: Padding(padding: const EdgeInsets.all(16), child: content)),
+              ],
             ),
-          ),
-          SliverToBoxAdapter(child: Padding(padding: const EdgeInsets.all(16), child: content)),
-            ],
           ),
         ],
       ),
@@ -201,6 +197,8 @@ class _ModuleHeader extends StatelessWidget {
     required this.visible,
     required this.searchController,
     required this.onSearchChanged,
+    required this.onRefresh,
+    required this.loading,
     required this.palette,
   });
 
@@ -211,67 +209,86 @@ class _ModuleHeader extends StatelessWidget {
   final int visible;
   final TextEditingController searchController;
   final ValueChanged<String> onSearchChanged;
+  final VoidCallback onRefresh;
+  final bool loading;
   final AppPalette palette;
 
   @override
   Widget build(BuildContext context) {
-    return TechBackground(
-      padding: const EdgeInsets.fromLTRB(20, 58, 20, 16),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Container(
-                width: 60,
-                height: 60,
-                decoration: BoxDecoration(
-                  gradient: LinearGradient(colors: [palette.secondary, palette.accent]),
-                  borderRadius: BorderRadius.circular(23),
-                  boxShadow: [BoxShadow(color: visual.color.withOpacity(0.32), blurRadius: 24, offset: const Offset(0, 12))],
-                ),
-                child: Icon(visual.icon, color: palette.onTitle, size: 31),
-              ),
-              const SizedBox(width: 14),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(title, maxLines: 1, overflow: TextOverflow.ellipsis, style: Theme.of(context).textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.w900, color: palette.onTitle)),
-                    const SizedBox(height: 3),
-                    Text(subtitle, maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(color: palette.onTitle.withOpacity(0.78), fontWeight: FontWeight.w700)),
-                  ],
-                ),
-              ),
-              _CountPill(label: '$visible/$total', color: palette.accent),
-            ],
+    return Center(
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: 1180),
+        child: Container(
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            color: palette.surface.withOpacity(palette.darkBackground ? 0.94 : 0.985),
+            borderRadius: BorderRadius.circular(26),
+            border: Border.all(color: palette.secondary.withOpacity(0.15)),
+            boxShadow: [BoxShadow(color: palette.cardShadow, blurRadius: 22, offset: const Offset(0, 10))],
           ),
-          const SizedBox(height: 16),
-          Container(
-            decoration: BoxDecoration(
-              color: palette.surface.withOpacity(palette.darkBackground ? 0.92 : 0.96),
-              borderRadius: BorderRadius.circular(22),
-              boxShadow: [BoxShadow(color: palette.cardShadow, blurRadius: 22, offset: const Offset(0, 12))],
-            ),
-            child: TextField(
-              controller: searchController,
-              onChanged: onSearchChanged,
-              decoration: InputDecoration(
-                hintText: 'Buscar por nombre, código, estado o referencia...',
-                prefixIcon: const Icon(Icons.search_rounded),
-                suffixIcon: searchController.text.isEmpty
-                    ? null
-                    : IconButton(
-                        icon: const Icon(Icons.close_rounded),
-                        onPressed: () {
-                          searchController.clear();
-                          onSearchChanged('');
-                        },
-                      ),
-              ),
-            ),
+          child: LayoutBuilder(
+            builder: (context, constraints) {
+              final compact = constraints.maxWidth < 700;
+              final info = Row(
+                children: [
+                  Container(
+                    width: 48,
+                    height: 48,
+                    decoration: BoxDecoration(
+                      gradient: LinearGradient(colors: [palette.primary, palette.secondary]),
+                      borderRadius: BorderRadius.circular(16),
+                    ),
+                    child: Icon(visual.icon, color: palette.onPrimary, size: 25),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text('Administración de ${title.toLowerCase()}', maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(color: palette.textPrimary, fontWeight: FontWeight.w900, fontSize: 17)),
+                        const SizedBox(height: 3),
+                        Text(subtitle, maxLines: compact ? 2 : 1, overflow: TextOverflow.ellipsis, style: TextStyle(color: palette.textSecondary, fontWeight: FontWeight.w700, fontSize: 12.5)),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(width: 10),
+                  _CountPill(label: '$visible/$total', color: palette.secondary),
+                  const SizedBox(width: 6),
+                  IconButton.filledTonal(
+                    onPressed: loading ? null : onRefresh,
+                    icon: loading
+                        ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2))
+                        : const Icon(Icons.refresh_rounded),
+                    tooltip: 'Actualizar',
+                  ),
+                ],
+              );
+
+              final search = TextField(
+                controller: searchController,
+                onChanged: onSearchChanged,
+                decoration: InputDecoration(
+                  hintText: 'Buscar por nombre, código, estado o referencia...',
+                  prefixIcon: const Icon(Icons.search_rounded),
+                  suffixIcon: searchController.text.isEmpty
+                      ? null
+                      : IconButton(
+                          icon: const Icon(Icons.close_rounded),
+                          onPressed: () {
+                            searchController.clear();
+                            onSearchChanged('');
+                          },
+                        ),
+                ),
+              );
+
+              if (compact) {
+                return Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [info, const SizedBox(height: 14), search]);
+              }
+              return Row(children: [Expanded(flex: 5, child: info), const SizedBox(width: 16), Expanded(flex: 4, child: search)]);
+            },
           ),
-        ],
+        ),
       ),
     );
   }
@@ -311,6 +328,7 @@ class _MobileCards<T> extends StatelessWidget {
     required this.items,
     required this.lookupLabels,
     required this.visual,
+    required this.palette,
     required this.onDelete,
   });
 
@@ -318,6 +336,7 @@ class _MobileCards<T> extends StatelessWidget {
   final List<T> items;
   final Map<String, Map<String, String>> lookupLabels;
   final ModuleVisual visual;
+  final AppPalette palette;
   final Future<void> Function(Object id) onDelete;
 
   @override
@@ -340,6 +359,9 @@ class _MobileCards<T> extends StatelessWidget {
           final imageValue = imageField == null ? '' : _displayValueOf(config, item, imageField, lookupLabels);
 
           return Card(
+            color: palette.surface.withOpacity(palette.darkBackground ? 0.94 : 0.985),
+            elevation: 0,
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24), side: BorderSide(color: palette.cardBorder)),
             child: InkWell(
               borderRadius: BorderRadius.circular(24),
               onTap: () => context.go('/${config.key}/$id'),
@@ -349,25 +371,25 @@ class _MobileCards<T> extends StatelessWidget {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     imageValue.trim().isNotEmpty && imageValue != '-'
-                        ? _CrudImageThumb(value: imageValue, size: 58, radius: 20)
+                        ? _CrudImageThumb(value: imageValue, size: 58, radius: 20, palette: palette)
                         : Container(
                             width: 54,
                             height: 54,
-                            decoration: BoxDecoration(color: visual.color.withOpacity(0.14), borderRadius: BorderRadius.circular(20)),
-                            child: Icon(visual.icon, color: visual.color, size: 28),
+                            decoration: BoxDecoration(color: palette.secondary.withOpacity(0.13), borderRadius: BorderRadius.circular(20)),
+                            child: Icon(visual.icon, color: palette.secondary, size: 28),
                           ),
                     const SizedBox(width: 14),
                     Expanded(
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Text(title.isEmpty ? config.title : title, maxLines: 2, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w900)),
+                          Text(title.isEmpty ? config.title : title, maxLines: 2, overflow: TextOverflow.ellipsis, style: TextStyle(fontSize: 16, fontWeight: FontWeight.w900, color: palette.textPrimary)),
                           const SizedBox(height: 8),
                           Wrap(
                             spacing: 6,
                             runSpacing: 6,
                             children: [
-                              for (final field in summaryFields.skip(1).take(4)) _MiniChip(label: _displayValueOf(config, item, field, lookupLabels), color: AppColors.textSecondary),
+                              for (final field in summaryFields.skip(1).take(4)) _MiniChip(label: _displayValueOf(config, item, field, lookupLabels), color: palette.textSecondary),
                             ],
                           ),
                         ],
@@ -380,10 +402,11 @@ class _MobileCards<T> extends StatelessWidget {
                         if (value == 'edit') context.go('/${config.key}/$id/editar');
                         if (value == 'delete') onDelete(id);
                       },
-                      itemBuilder: (_) => const [
-                        PopupMenuItem(value: 'detail', child: Text('Ver detalle')),
-                        PopupMenuItem(value: 'edit', child: Text('Editar')),
-                        PopupMenuItem(value: 'delete', child: Text('Eliminar/Inactivar')),
+                      itemBuilder: (_) => [
+                        const PopupMenuItem(value: 'detail', child: Text('Ver detalle')),
+                        const PopupMenuItem(value: 'edit', child: Text('Editar configuración')),
+                        if (config.allowDelete)
+                          const PopupMenuItem(value: 'delete', child: Text('Eliminar/Inactivar')),
                       ],
                     ),
                   ],
@@ -404,11 +427,12 @@ CrudField? _firstImageField<T>(CrudModuleConfig<T> config) {
 }
 
 class _CrudImageThumb extends StatelessWidget {
-  const _CrudImageThumb({required this.value, required this.size, required this.radius});
+  const _CrudImageThumb({required this.value, required this.size, required this.radius, required this.palette});
 
   final String value;
   final double size;
   final double radius;
+  final AppPalette palette;
 
   @override
   Widget build(BuildContext context) {
@@ -417,8 +441,8 @@ class _CrudImageThumb extends StatelessWidget {
       width: size,
       height: size,
       alignment: Alignment.center,
-      decoration: BoxDecoration(color: AppColors.surfaceAlt, borderRadius: BorderRadius.circular(radius)),
-      child: const Icon(Icons.image_not_supported_outlined, color: AppColors.textSecondary),
+      decoration: BoxDecoration(color: palette.background.withOpacity(palette.darkBackground ? 0.45 : 0.72), borderRadius: BorderRadius.circular(radius)),
+      child: Icon(Icons.image_not_supported_outlined, color: palette.textSecondary),
     );
 
     if (imageValue.isEmpty) return placeholder;
@@ -464,6 +488,7 @@ class _DesktopTable<T> extends StatefulWidget {
     required this.items,
     required this.lookupLabels,
     required this.visual,
+    required this.palette,
     required this.onDelete,
   });
 
@@ -471,6 +496,7 @@ class _DesktopTable<T> extends StatefulWidget {
   final List<T> items;
   final Map<String, Map<String, String>> lookupLabels;
   final ModuleVisual visual;
+  final AppPalette palette;
   final Future<void> Function(Object id) onDelete;
 
   @override
@@ -504,12 +530,12 @@ class _DesktopTableState<T> extends State<_DesktopTable<T>> {
           return Container(
             width: double.infinity,
             decoration: BoxDecoration(
-              color: Colors.white,
+              color: widget.palette.surface.withOpacity(widget.palette.darkBackground ? 0.94 : 0.985),
               borderRadius: BorderRadius.circular(28),
-              border: Border.all(color: AppColors.border),
+              border: Border.all(color: widget.palette.cardBorder),
               boxShadow: [
                 BoxShadow(
-                  color: Colors.black.withOpacity(0.04),
+                  color: widget.palette.cardShadow,
                   blurRadius: 24,
                   offset: const Offset(0, 12),
                 ),
@@ -535,13 +561,14 @@ class _DesktopTableState<T> extends State<_DesktopTable<T>> {
                       horizontalMargin: 18,
                       columnSpacing: 18,
                       showCheckboxColumn: false,
-                      headingTextStyle: const TextStyle(
+                      headingRowColor: WidgetStatePropertyAll(widget.palette.secondary.withOpacity(widget.palette.darkBackground ? 0.12 : 0.07)),
+                      headingTextStyle: TextStyle(
                         fontWeight: FontWeight.w900,
-                        color: AppColors.textPrimary,
+                        color: widget.palette.textPrimary,
                       ),
-                      dataTextStyle: const TextStyle(
+                      dataTextStyle: TextStyle(
                         fontWeight: FontWeight.w600,
-                        color: AppColors.textPrimary,
+                        color: widget.palette.textPrimary,
                       ),
                       columns: [
                         for (final field in columns)
@@ -571,7 +598,8 @@ class _DesktopTableState<T> extends State<_DesktopTable<T>> {
                                     child: _ResponsiveCell(
                                       value: _displayValueOf(widget.config, item, field, widget.lookupLabels),
                                       field: field,
-                                      color: widget.visual.color,
+                                      color: widget.palette.secondary,
+                                      palette: widget.palette,
                                     ),
                                   ),
                                 ),
@@ -582,20 +610,21 @@ class _DesktopTableState<T> extends State<_DesktopTable<T>> {
                                     mainAxisSize: MainAxisSize.min,
                                     children: [
                                       _ActionIcon(
-                                        color: widget.visual.color,
+                                        color: widget.palette.secondary,
                                         icon: Icons.visibility_rounded,
                                         onPressed: () => context.go('/${widget.config.key}/${_valueOf(widget.config, item, widget.config.idField)}'),
                                       ),
                                       _ActionIcon(
-                                        color: AppColors.warning,
+                                        color: widget.palette.primary,
                                         icon: Icons.edit_rounded,
                                         onPressed: () => context.go('/${widget.config.key}/${_valueOf(widget.config, item, widget.config.idField)}/editar'),
                                       ),
-                                      _ActionIcon(
-                                        color: AppColors.danger,
-                                        icon: Icons.delete_outline_rounded,
-                                        onPressed: () => widget.onDelete(_valueOf(widget.config, item, widget.config.idField) ?? ''),
-                                      ),
+                                      if (widget.config.allowDelete)
+                                        _ActionIcon(
+                                          color: AppColors.danger,
+                                          icon: Icons.delete_outline_rounded,
+                                          onPressed: () => widget.onDelete(_valueOf(widget.config, item, widget.config.idField) ?? ''),
+                                        ),
                                     ],
                                   ),
                                 ),
@@ -626,18 +655,19 @@ class _DesktopTableState<T> extends State<_DesktopTable<T>> {
 }
 
 class _ResponsiveCell extends StatelessWidget {
-  const _ResponsiveCell({required this.value, required this.field, required this.color});
+  const _ResponsiveCell({required this.value, required this.field, required this.color, required this.palette});
 
   final String value;
   final CrudField field;
   final Color color;
+  final AppPalette palette;
 
   @override
   Widget build(BuildContext context) {
     if (field.type == CrudFieldType.image) {
       return value.trim().isEmpty || value == '-'
-          ? const Text('Sin foto', style: TextStyle(color: AppColors.textSecondary))
-          : _CrudImageThumb(value: value, size: 54, radius: 16);
+          ? Text('Sin foto', style: TextStyle(color: palette.textSecondary))
+          : _CrudImageThumb(value: value, size: 54, radius: 16, palette: palette);
     }
 
     if (field.lookup != null && value != '-') {

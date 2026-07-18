@@ -161,125 +161,19 @@ class ProductosDetailPage extends ConsumerWidget {
                 ),
                 SliverPadding(
                   padding: const EdgeInsets.fromLTRB(16, 16, 16, 110),
-                  sliver: SliverList(
-                    delegate: SliverChildListDelegate([
-                      _SectionCard(
-                        palette: palette,
-                        title: 'Información general',
-                        icon: Icons.info_outline_rounded,
-                        child: _SimpleInfoList(
-                          palette: palette,
-                          rows: [
-                            _InfoItem('Producto', _value(producto.prodNombre)),
-                            _InfoItem(
-                              'Descripción',
-                              _value(
-                                producto.prodDescripcion,
-                                fallback: 'Sin descripción registrada.',
-                              ),
-                            ),
-                            _InfoItem('Sucursal', sucursalNombre),
-                            _InfoItem(
-                              'Fecha de vencimiento',
-                              _date(producto.prodFechaVencimiento),
-                            ),
-                            _InfoItem(
-                              'Marca',
-                              marca?.mrcaNombre ?? 'Marca no definida',
-                            ),
-                            _InfoItem(
-                              'Tipo de producto',
-                              tipo?.tpprNombre ?? 'Tipo no definido',
-                            ),
-                          ],
-                        ),
-                      ),
-                      const SizedBox(height: 14),
-                      _SectionCard(
-                        palette: palette,
-                        title: 'Inventario',
-                        icon: Icons.inventory_rounded,
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            _InventoryOverview(
-                              palette: palette,
-                              total: cantidadInventario,
-                              records: inventarios.length,
-                              sucursalNombre: sucursalNombre,
-                            ),
-                            const SizedBox(height: 14),
-                            Text(
-                              'Historial de inventario',
-                              style: TextStyle(
-                                fontSize: 16,
-                                fontWeight: FontWeight.w900,
-                                color: palette.textPrimary,
-                              ),
-                            ),
-                            const SizedBox(height: 10),
-                            inventarios.isEmpty
-                                ? _EmptyMiniMessage(
-                                    palette: palette,
-                                    text: 'Este producto todavía no tiene inventario registrado.',
-                                  )
-                                : _InventoryHistoryTable(
-                                    palette: palette,
-                                    items: inventarios,
-                                    sucursalNombre: sucursalNombre,
-                                  ),
-                          ],
-                        ),
-                      ),
-                      const SizedBox(height: 14),
-                      _SectionCard(
-                        palette: palette,
-                        title: 'Precio activo',
-                        icon: Icons.local_offer_rounded,
-                        trailing: precioActivo == null
-                            ? _StatusPill(
-                                text: 'Sin precio activo',
-                                active: false,
-                                palette: palette,
-                              )
-                            : _StatusPill(
-                                text: 'Activo',
-                                active: true,
-                                palette: palette,
-                              ),
-                        child: precioActivo == null
-                            ? _EmptyMiniMessage(
-                                palette: palette,
-                                text: 'No se encontró un precio activo para este producto.',
-                              )
-                            : _ActivePriceSummary(
-                                palette: palette,
-                                price: precioActivo,
-                              ),
-                      ),
-                      const SizedBox(height: 14),
-                      _SectionCard(
-                        palette: palette,
-                        title: 'Historial de precios',
-                        icon: Icons.history_rounded,
-                        child: precios.isEmpty
-                            ? _EmptyMiniMessage(
-                                palette: palette,
-                                text: 'No hay historial de precios registrado.',
-                              )
-                            : _PriceHistoryTable(
-                                palette: palette,
-                                prices: precios,
-                              ),
-                      ),
-                      if (loading) ...[
-                        const SizedBox(height: 14),
-                        LinearProgressIndicator(
-                          color: palette.secondary,
-                          backgroundColor: palette.background,
-                        ),
-                      ],
-                    ]),
+                  sliver: SliverToBoxAdapter(
+                    child: _ProductDetailBody(
+                      producto: producto,
+                      marca: marca,
+                      tipo: tipo,
+                      sucursalNombre: sucursalNombre,
+                      inventarios: inventarios,
+                      cantidadInventario: cantidadInventario,
+                      precios: precios,
+                      precioActivo: precioActivo,
+                      loading: loading,
+                      palette: palette,
+                    ),
                   ),
                 ),
               ],
@@ -302,6 +196,358 @@ class ProductosDetailPage extends ConsumerWidget {
   }
 }
 
+
+class _ProductDetailBody extends StatelessWidget {
+  const _ProductDetailBody({
+    required this.producto,
+    required this.marca,
+    required this.tipo,
+    required this.sucursalNombre,
+    required this.inventarios,
+    required this.cantidadInventario,
+    required this.precios,
+    required this.precioActivo,
+    required this.loading,
+    required this.palette,
+  });
+
+  final ProductosResponseModel producto;
+  final MarcasResponseModel? marca;
+  final TiposProductoResponseModel? tipo;
+  final String sucursalNombre;
+  final List<InventarioResponseModel> inventarios;
+  final double cantidadInventario;
+  final List<PreciosResponseModel> precios;
+  final PreciosResponseModel? precioActivo;
+  final bool loading;
+  final AppPalette palette;
+
+  @override
+  Widget build(BuildContext context) {
+    final sale = precioActivo?.precValorVenta ?? 0;
+    final purchase = precioActivo?.precValorCompra ?? 0;
+    final utility = sale - purchase;
+    final margin = sale > 0 ? (utility / sale) * 100 : 0.0;
+
+    final infoCard = _SectionCard(
+      palette: palette,
+      title: 'Ficha del producto',
+      icon: Icons.info_outline_rounded,
+      child: _SimpleInfoList(
+        palette: palette,
+        rows: [
+          _InfoItem('Producto', _value(producto.prodNombre)),
+          _InfoItem('Descripción', _value(producto.prodDescripcion, fallback: 'Sin descripción registrada.')),
+          _InfoItem('Sucursal', sucursalNombre),
+          _InfoItem('Marca', marca?.mrcaNombre ?? 'Marca no definida'),
+          _InfoItem('Tipo de producto', tipo?.tpprNombre ?? 'Tipo no definido'),
+          _InfoItem('Fecha de vencimiento', _date(producto.prodFechaVencimiento)),
+          _InfoItem(
+            'Compra por presentación',
+            (producto.prodCompraPorCantidad ?? 0) == 1
+                ? '${_number(producto.prodCantidadCompra ?? 0)} unidades · ${_value(producto.prodPresentacionCompra, fallback: 'Presentación')}'
+                : 'Compra por unidad',
+          ),
+          _InfoItem('Última modificación', _date(producto.prodFechaCambio)),
+        ],
+      ),
+    );
+
+    final inventoryCard = _SectionCard(
+      palette: palette,
+      title: 'Inventario',
+      icon: Icons.inventory_rounded,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          _InventoryOverview(
+            palette: palette,
+            total: cantidadInventario,
+            records: inventarios.length,
+            sucursalNombre: sucursalNombre,
+          ),
+          const SizedBox(height: 16),
+          Text('Movimientos recientes', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w900, color: palette.textPrimary)),
+          const SizedBox(height: 10),
+          inventarios.isEmpty
+              ? _EmptyMiniMessage(palette: palette, text: 'Este producto todavía no tiene inventario registrado.')
+              : _InventoryHistoryTable(palette: palette, items: inventarios, sucursalNombre: sucursalNombre),
+        ],
+      ),
+    );
+
+    final activePriceCard = _SectionCard(
+      palette: palette,
+      title: 'Precio y rentabilidad',
+      icon: Icons.local_offer_rounded,
+      trailing: precioActivo == null
+          ? _StatusPill(text: 'Sin precio activo', active: false, palette: palette)
+          : _StatusPill(text: 'Activo', active: true, palette: palette),
+      child: precioActivo == null
+          ? _EmptyMiniMessage(palette: palette, text: 'No se encontró un precio activo para este producto.')
+          : Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                _ActivePriceSummary(palette: palette, price: precioActivo!),
+                const SizedBox(height: 14),
+                _ProfitabilitySummary(
+                  palette: palette,
+                  utility: utility,
+                  margin: margin,
+                  sale: sale,
+                  purchase: purchase,
+                ),
+              ],
+            ),
+    );
+
+    final historyCard = _SectionCard(
+      palette: palette,
+      title: 'Historial de precios',
+      icon: Icons.history_rounded,
+      child: precios.isEmpty
+          ? _EmptyMiniMessage(palette: palette, text: 'No hay historial de precios registrado.')
+          : _PriceHistoryTable(palette: palette, prices: precios),
+    );
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        _ProductQuickSummary(
+          palette: palette,
+          inventory: cantidadInventario,
+          salesYesterday: producto.ventasAyer ?? 0,
+          salePrice: precioActivo?.precValorVenta,
+          margin: precioActivo == null ? null : margin,
+          expirationDate: producto.prodFechaVencimiento,
+        ),
+        const SizedBox(height: 14),
+        LayoutBuilder(
+          builder: (context, constraints) {
+            if (constraints.maxWidth < 980) {
+              return Column(
+                children: [
+                  infoCard,
+                  const SizedBox(height: 14),
+                  activePriceCard,
+                  const SizedBox(height: 14),
+                  inventoryCard,
+                  const SizedBox(height: 14),
+                  historyCard,
+                ],
+              );
+            }
+
+            return Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Expanded(
+                  flex: 6,
+                  child: Column(children: [infoCard, const SizedBox(height: 14), inventoryCard]),
+                ),
+                const SizedBox(width: 14),
+                Expanded(
+                  flex: 5,
+                  child: Column(children: [activePriceCard, const SizedBox(height: 14), historyCard]),
+                ),
+              ],
+            );
+          },
+        ),
+        if (loading) ...[
+          const SizedBox(height: 14),
+          LinearProgressIndicator(color: palette.secondary, backgroundColor: palette.background),
+        ],
+      ],
+    );
+  }
+}
+
+class _ProductQuickSummary extends StatelessWidget {
+  const _ProductQuickSummary({
+    required this.palette,
+    required this.inventory,
+    required this.salesYesterday,
+    required this.salePrice,
+    required this.margin,
+    required this.expirationDate,
+  });
+
+  final AppPalette palette;
+  final double inventory;
+  final double salesYesterday;
+  final double? salePrice;
+  final double? margin;
+  final String? expirationDate;
+
+  @override
+  Widget build(BuildContext context) {
+    final expiration = _expirationSummary(expirationDate, palette);
+    final metrics = [
+      _DetailMetric(icon: Icons.inventory_2_rounded, label: 'Inventario actual', value: '${_number(inventory)} unidades', color: inventory <= 0 ? Colors.redAccent : palette.secondary),
+      _DetailMetric(icon: Icons.trending_up_rounded, label: 'Vendido ayer', value: '${_number(salesYesterday)} unidades', color: Colors.greenAccent.shade400),
+      _DetailMetric(icon: Icons.payments_rounded, label: 'Precio de venta', value: salePrice == null ? 'Sin precio' : _money(salePrice), color: palette.secondary),
+      _DetailMetric(icon: Icons.analytics_rounded, label: 'Margen estimado', value: margin == null ? 'Sin cálculo' : '${_number(margin!)}%', color: (margin ?? 0) >= 0 ? Colors.greenAccent.shade400 : Colors.redAccent),
+      _DetailMetric(icon: expiration.icon, label: 'Vencimiento', value: expiration.label, color: expiration.color),
+    ];
+
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final columns = constraints.maxWidth >= 1100
+            ? 5
+            : constraints.maxWidth >= 720
+                ? 3
+                : 2;
+        const gap = 10.0;
+        final width = (constraints.maxWidth - gap * (columns - 1)) / columns;
+        return Wrap(
+          spacing: gap,
+          runSpacing: gap,
+          children: [for (final metric in metrics) SizedBox(width: width, child: _DetailMetricCard(metric: metric, palette: palette))],
+        );
+      },
+    );
+  }
+}
+
+class _DetailMetric {
+  const _DetailMetric({required this.icon, required this.label, required this.value, required this.color});
+  final IconData icon;
+  final String label;
+  final String value;
+  final Color color;
+}
+
+class _DetailMetricCard extends StatelessWidget {
+  const _DetailMetricCard({required this.metric, required this.palette});
+  final _DetailMetric metric;
+  final AppPalette palette;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      constraints: const BoxConstraints(minHeight: 96),
+      padding: const EdgeInsets.all(13),
+      decoration: BoxDecoration(
+        color: palette.surface.withOpacity(palette.darkBackground ? 0.94 : 0.985),
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: palette.cardBorder),
+        boxShadow: [BoxShadow(color: palette.cardShadow.withOpacity(0.45), blurRadius: 16, offset: const Offset(0, 8))],
+      ),
+      child: Row(
+        children: [
+          Container(
+            width: 42,
+            height: 42,
+            decoration: BoxDecoration(color: metric.color.withOpacity(0.14), borderRadius: BorderRadius.circular(14)),
+            child: Icon(metric.icon, color: metric.color, size: 21),
+          ),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Text(metric.label, maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(color: palette.textSecondary, fontWeight: FontWeight.w700, fontSize: 10.5)),
+                const SizedBox(height: 4),
+                Text(metric.value, maxLines: 2, overflow: TextOverflow.ellipsis, style: TextStyle(color: palette.textPrimary, fontWeight: FontWeight.w900, fontSize: 13)),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _ProfitabilitySummary extends StatelessWidget {
+  const _ProfitabilitySummary({
+    required this.palette,
+    required this.utility,
+    required this.margin,
+    required this.sale,
+    required this.purchase,
+  });
+
+  final AppPalette palette;
+  final double utility;
+  final double margin;
+  final double sale;
+  final double purchase;
+
+  @override
+  Widget build(BuildContext context) {
+    final positive = utility >= 0;
+    final color = positive ? Colors.greenAccent.shade400 : Colors.redAccent;
+    return Container(
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: color.withOpacity(0.08),
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: color.withOpacity(0.22)),
+      ),
+      child: Column(
+        children: [
+          _ProfitRow(label: 'Costo unitario', value: _money(purchase), palette: palette),
+          const SizedBox(height: 8),
+          _ProfitRow(label: 'Precio de venta', value: _money(sale), palette: palette),
+          Divider(height: 20, color: palette.cardBorder),
+          _ProfitRow(label: 'Utilidad estimada', value: _money(utility), palette: palette, valueColor: color, strong: true),
+          const SizedBox(height: 8),
+          _ProfitRow(label: 'Margen estimado', value: '${_number(margin)}%', palette: palette, valueColor: color, strong: true),
+        ],
+      ),
+    );
+  }
+}
+
+class _ProfitRow extends StatelessWidget {
+  const _ProfitRow({required this.label, required this.value, required this.palette, this.valueColor, this.strong = false});
+  final String label;
+  final String value;
+  final AppPalette palette;
+  final Color? valueColor;
+  final bool strong;
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      children: [
+        Expanded(child: Text(label, style: TextStyle(color: palette.textSecondary, fontWeight: FontWeight.w700))),
+        const SizedBox(width: 12),
+        Text(value, style: TextStyle(color: valueColor ?? palette.textPrimary, fontWeight: strong ? FontWeight.w900 : FontWeight.w800)),
+      ],
+    );
+  }
+}
+
+class _ExpirationSummary {
+  const _ExpirationSummary({required this.label, required this.icon, required this.color});
+  final String label;
+  final IconData icon;
+  final Color color;
+}
+
+_ExpirationSummary _expirationSummary(String? value, AppPalette palette) {
+  if (value == null || value.trim().isEmpty) {
+    return _ExpirationSummary(label: 'No aplica', icon: Icons.event_available_rounded, color: palette.textSecondary);
+  }
+  final parsed = DateTime.tryParse(value);
+  if (parsed == null) {
+    return _ExpirationSummary(label: value, icon: Icons.event_rounded, color: palette.secondary);
+  }
+  final now = DateTime.now();
+  final today = DateTime(now.year, now.month, now.day);
+  final target = DateTime(parsed.year, parsed.month, parsed.day);
+  final days = target.difference(today).inDays;
+  if (days < 0) {
+    return const _ExpirationSummary(label: 'Vencido', icon: Icons.event_busy_rounded, color: Colors.redAccent);
+  }
+  if (days <= 30) {
+    return _ExpirationSummary(label: '$days días', icon: Icons.schedule_rounded, color: palette.primary);
+  }
+  return _ExpirationSummary(label: _date(value), icon: Icons.event_rounded, color: palette.secondary);
+}
 
 class _HeaderBackButton extends StatelessWidget {
   const _HeaderBackButton({required this.onPressed});
@@ -356,95 +602,128 @@ class _ProductHeader extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final title = _value(producto.prodNombre, fallback: 'Producto sin nombre');
+    final stockColor = cantidadInventario <= 0
+        ? Colors.redAccent
+        : cantidadInventario <= 5
+            ? palette.primary
+            : Colors.greenAccent.shade400;
+    final stockText = cantidadInventario <= 0
+        ? 'Sin stock'
+        : cantidadInventario <= 5
+            ? 'Stock bajo'
+            : 'Disponible';
 
     return TechBackground(
       padding: const EdgeInsets.fromLTRB(20, 72, 20, 18),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.end,
-        children: [
-          _ProductImage(value: producto.prodFoto, size: 102),
-          if ((marca?.mrcaLogo ?? '').trim().isNotEmpty) ...[
-            const SizedBox(width: 10),
-            _BrandLogo(value: marca?.mrcaLogo),
-          ],
-          const SizedBox(width: 16),
-          Expanded(
-            child: Column(
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          final compact = constraints.maxWidth < 720;
+          final image = Stack(
+            clipBehavior: Clip.none,
+            children: [
+              _ProductImage(value: producto.prodFoto, size: compact ? 112 : 124),
+              Positioned(
+                right: -4,
+                bottom: -4,
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 6),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF071A1C),
+                    borderRadius: BorderRadius.circular(999),
+                    border: Border.all(color: stockColor.withOpacity(0.72)),
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(Icons.circle, size: 8, color: stockColor),
+                      const SizedBox(width: 5),
+                      Text(stockText, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w900, fontSize: 10)),
+                    ],
+                  ),
+                ),
+              ),
+            ],
+          );
+
+          final details = Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Expanded(
+                    child: Text(
+                      title,
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+                            color: Colors.white,
+                            fontWeight: FontWeight.w900,
+                          ),
+                    ),
+                  ),
+                  if (!compact) ...[
+                    const SizedBox(width: 10),
+                    _HeaderActions(palette: palette, onEdit: onEdit, onRefresh: onRefresh),
+                  ],
+                ],
+              ),
+              const SizedBox(height: 6),
+              Text(
+                _value(producto.prodDescripcion, fallback: 'Sin descripción registrada.'),
+                maxLines: compact ? 3 : 2,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(color: Colors.white.withOpacity(0.80), fontWeight: FontWeight.w700, height: 1.35),
+              ),
+              const SizedBox(height: 12),
+              Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                children: [
+                  _HeaderChip(icon: Icons.inventory_2_rounded, text: '${_number(cantidadInventario)} unidades'),
+                  _HeaderChip(icon: Icons.storefront_rounded, text: sucursalNombre),
+                  _HeaderChip(icon: Icons.sell_rounded, text: marca?.mrcaNombre ?? 'Marca no definida'),
+                  _HeaderChip(icon: Icons.category_rounded, text: tipo?.tpprNombre ?? 'Tipo no definido'),
+                  if (precioActivo != null)
+                    _HeaderChip(icon: Icons.payments_rounded, text: _money(precioActivo!.precValorVenta)),
+                ],
+              ),
+              if (compact) ...[
+                const SizedBox(height: 12),
+                _HeaderActions(palette: palette, onEdit: onEdit, onRefresh: onRefresh),
+              ],
+            ],
+          );
+
+          if (compact) {
+            return Column(
               crossAxisAlignment: CrossAxisAlignment.start,
-              mainAxisAlignment: MainAxisAlignment.end,
               children: [
                 Row(
                   crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Expanded(
-                      child: Text(
-                        title,
-                        maxLines: 2,
-                        overflow: TextOverflow.ellipsis,
-                        style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-                              color: Colors.white,
-                              fontWeight: FontWeight.w900,
-                            ),
-                      ),
-                    ),
-                    const SizedBox(width: 10),
-                    _HeaderActions(
-                      palette: palette,
-                      onEdit: onEdit,
-                      onRefresh: onRefresh,
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 8),
-                Text(
-                  _value(
-                    producto.prodDescripcion,
-                    fallback: 'Sin descripción registrada.',
-                  ),
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
-                  style: TextStyle(
-                    color: Colors.white.withOpacity(0.80),
-                    fontWeight: FontWeight.w700,
-                  ),
-                ),
-                const SizedBox(height: 12),
-                Wrap(
-                  spacing: 8,
-                  runSpacing: 8,
-                  children: [
-                    _HeaderChip(
-                      icon: Icons.inventory_2_rounded,
-                      text: '${_number(cantidadInventario)} unidades',
-                    ),
-                    _HeaderChip(
-                      icon: Icons.storefront_rounded,
-                      text: sucursalNombre,
-                    ),
-                    _HeaderChip(
-                      icon: Icons.sell_rounded,
-                      text: marca?.mrcaNombre ?? 'Marca no definida',
-                    ),
-                    _HeaderChip(
-                      icon: Icons.category_rounded,
-                      text: tipo?.tpprNombre ?? 'Tipo no definido',
-                    ),
-                    if (precioActivo != null)
-                      _HeaderChip(
-                        icon: Icons.payments_rounded,
-                        text: _money(precioActivo!.precValorVenta),
-                      ),
-                  ],
+                  children: [image, const SizedBox(width: 16), Expanded(child: details)],
                 ),
               ],
-            ),
-          ),
-        ],
+            );
+          }
+
+          return Row(
+            crossAxisAlignment: CrossAxisAlignment.end,
+            children: [
+              image,
+              if ((marca?.mrcaLogo ?? '').trim().isNotEmpty) ...[
+                const SizedBox(width: 10),
+                _BrandLogo(value: marca?.mrcaLogo),
+              ],
+              const SizedBox(width: 18),
+              Expanded(child: details),
+            ],
+          );
+        },
       ),
     );
   }
 }
-
 
 class _HeaderActions extends StatelessWidget {
   const _HeaderActions({

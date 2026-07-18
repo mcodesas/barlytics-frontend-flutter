@@ -173,6 +173,13 @@ class _ProductosFormPageState extends ConsumerState<ProductosFormPage> {
       sucursalesState.items.where((item) => item.sucuId == _sucursalId),
     );
     final sucursalNombre = sucursal?.sucuNombre ?? 'Sucursal asignada ${_sucursalId ?? '-'}';
+    final tipoSeleccionado = _firstOrNull(tiposState.items.where((item) => item.tpprId == _tipoId));
+    final marcaSeleccionada = _firstOrNull(marcasState.items.where((item) => item.mrcaId == _marcaId));
+    final inventarioActual = _editingId == null
+        ? 0.0
+        : inventarioState.items
+            .where((item) => item.prodId == _editingId && item.sucuId == _sucursalId)
+            .fold<double>(0, (total, item) => total + (item.invtCantidad ?? 0));
 
     return Scaffold(
       backgroundColor: Colors.transparent,
@@ -195,34 +202,68 @@ class _ProductosFormPageState extends ConsumerState<ProductosFormPage> {
                   sliver: SliverToBoxAdapter(
                     child: Column(
                       children: [
-                        _StepShell(
-                          palette: palette,
-                          title: _titleForStep(_currentStep),
-                          subtitle: _subtitleForStep(_currentStep),
-                          child: IndexedStack(
-                            index: _currentStep,
-                            children: [
-                              _buildGeneralStep(
-                                palette,
-                                tiposState.items,
-                                marcasState.items,
-                                sucursalNombre,
+                        LayoutBuilder(
+                          builder: (context, constraints) {
+                            final form = _StepShell(
+                              palette: palette,
+                              title: _titleForStep(_currentStep),
+                              subtitle: _subtitleForStep(_currentStep),
+                              child: IndexedStack(
+                                index: _currentStep,
+                                children: [
+                                  _buildGeneralStep(
+                                    palette,
+                                    tiposState.items,
+                                    marcasState.items,
+                                    sucursalNombre,
+                                  ),
+                                  _buildPriceStep(palette),
+                                  _buildInventoryStep(
+                                    palette,
+                                    sucursalNombre,
+                                    inventarioState.items,
+                                  ),
+                                  _buildConfirmationStep(
+                                    palette,
+                                    tiposState.items,
+                                    marcasState.items,
+                                    sucursalNombre,
+                                    inventarioState.items,
+                                  ),
+                                ],
                               ),
-                              _buildPriceStep(palette),
-                              _buildInventoryStep(
-                                palette,
-                                sucursalNombre,
-                                inventarioState.items,
-                              ),
-                              _buildConfirmationStep(
-                                palette,
-                                tiposState.items,
-                                marcasState.items,
-                                sucursalNombre,
-                                inventarioState.items,
-                              ),
-                            ],
-                          ),
+                            );
+                            final overview = _ProductDraftOverview(
+                              palette: palette,
+                              image: _fotoController.text,
+                              name: _nombreController.text,
+                              description: _descripcionController.text,
+                              typeName: tipoSeleccionado?.tpprNombre ?? 'Tipo pendiente',
+                              brandName: marcaSeleccionada?.mrcaNombre ?? 'Marca pendiente',
+                              branchName: sucursalNombre,
+                              purchasePrice: _parseDouble(_valorCompraController.text),
+                              salePrice: _parseDouble(_valorVentaController.text),
+                              currentInventory: inventarioActual,
+                              inventoryToAdd: _registrarInventario ? _parseDouble(_inventarioCantidadController.text) : null,
+                              expirationDate: _fechaVencimiento,
+                              currentStep: _currentStep,
+                            );
+
+                            if (constraints.maxWidth >= 1120) {
+                              return Row(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Expanded(flex: 7, child: form),
+                                  const SizedBox(width: 16),
+                                  SizedBox(width: 330, child: overview),
+                                ],
+                              );
+                            }
+                            return Column(
+                              crossAxisAlignment: CrossAxisAlignment.stretch,
+                              children: [overview, const SizedBox(height: 14), form],
+                            );
+                          },
                         ),
                         const SizedBox(height: 14),
                         _NavigationButtons(
@@ -261,6 +302,7 @@ class _ProductosFormPageState extends ConsumerState<ProductosFormPage> {
             child: _ProductImagePicker(
               palette: palette,
               controller: _fotoController,
+              onChanged: () => setState(() {}),
             ),
           );
           final fields = Column(
@@ -271,6 +313,7 @@ class _ProductosFormPageState extends ConsumerState<ProductosFormPage> {
                 label: 'Nombre del producto',
                 icon: Icons.local_bar_rounded,
                 validator: _required,
+                onChanged: (_) => setState(() {}),
               ),
               const SizedBox(height: 12),
               _FormTextField(
@@ -280,6 +323,7 @@ class _ProductosFormPageState extends ConsumerState<ProductosFormPage> {
                 icon: Icons.description_rounded,
                 validator: _required,
                 maxLines: 3,
+                onChanged: (_) => setState(() {}),
               ),
               const SizedBox(height: 12),
               _DateField(
@@ -1003,6 +1047,208 @@ class _ProductosFormPageState extends ConsumerState<ProductosFormPage> {
   }
 }
 
+class _ProductDraftOverview extends StatelessWidget {
+  const _ProductDraftOverview({
+    required this.palette,
+    required this.image,
+    required this.name,
+    required this.description,
+    required this.typeName,
+    required this.brandName,
+    required this.branchName,
+    required this.purchasePrice,
+    required this.salePrice,
+    required this.currentInventory,
+    required this.inventoryToAdd,
+    required this.expirationDate,
+    required this.currentStep,
+  });
+
+  final AppPalette palette;
+  final String image;
+  final String name;
+  final String description;
+  final String typeName;
+  final String brandName;
+  final String branchName;
+  final double? purchasePrice;
+  final double? salePrice;
+  final double currentInventory;
+  final double? inventoryToAdd;
+  final DateTime? expirationDate;
+  final int currentStep;
+
+  @override
+  Widget build(BuildContext context) {
+    final productName = name.trim().isEmpty ? 'Nuevo producto' : name.trim();
+    final productDescription = description.trim().isEmpty
+        ? 'La descripción aparecerá aquí mientras completas el formulario.'
+        : description.trim();
+    final purchase = purchasePrice ?? 0;
+    final sale = salePrice ?? 0;
+    final utility = sale - purchase;
+    final margin = sale > 0 ? (utility / sale) * 100 : 0.0;
+    final finalInventory = currentInventory + (inventoryToAdd ?? 0);
+
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          colors: [
+            palette.surface.withOpacity(palette.darkBackground ? 0.96 : 0.99),
+            palette.secondary.withOpacity(palette.darkBackground ? 0.10 : 0.05),
+          ],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+        borderRadius: BorderRadius.circular(26),
+        border: Border.all(color: palette.secondary.withOpacity(0.18)),
+        boxShadow: [BoxShadow(color: palette.cardShadow, blurRadius: 20, offset: const Offset(0, 10))],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Container(
+                width: 38,
+                height: 38,
+                decoration: BoxDecoration(
+                  color: palette.secondary.withOpacity(0.14),
+                  borderRadius: BorderRadius.circular(13),
+                ),
+                child: Icon(Icons.preview_rounded, color: palette.secondary),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text('Vista previa', style: TextStyle(color: palette.textPrimary, fontWeight: FontWeight.w900, fontSize: 16)),
+                    Text('Paso ${currentStep + 1} de 4', style: TextStyle(color: palette.textSecondary, fontWeight: FontWeight.w700, fontSize: 12)),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          ClipRRect(
+            borderRadius: BorderRadius.circular(20),
+            child: SizedBox(height: 190, child: _ImagePreview(value: image, palette: palette)),
+          ),
+          const SizedBox(height: 12),
+          Text(
+            productName,
+            maxLines: 2,
+            overflow: TextOverflow.ellipsis,
+            style: TextStyle(color: palette.textPrimary, fontWeight: FontWeight.w900, fontSize: 19),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            '$brandName · $typeName',
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: TextStyle(color: palette.secondary, fontWeight: FontWeight.w800, fontSize: 12),
+          ),
+          const SizedBox(height: 7),
+          Text(
+            productDescription,
+            maxLines: 3,
+            overflow: TextOverflow.ellipsis,
+            style: TextStyle(color: palette.textSecondary, fontWeight: FontWeight.w600, height: 1.35),
+          ),
+          const SizedBox(height: 12),
+          _DraftInfoRow(icon: Icons.storefront_rounded, label: branchName, palette: palette),
+          const SizedBox(height: 8),
+          _DraftInfoRow(
+            icon: Icons.event_rounded,
+            label: expirationDate == null ? 'Sin fecha de vencimiento' : 'Vence ${_formatDate(expirationDate)}',
+            palette: palette,
+          ),
+          const SizedBox(height: 12),
+          LayoutBuilder(
+            builder: (context, constraints) {
+              final metrics = [
+                _DraftMetric(label: 'Compra', value: _money(purchase), color: palette.textPrimary),
+                _DraftMetric(label: 'Venta', value: _money(sale), color: palette.secondary),
+                _DraftMetric(label: 'Margen', value: '${_formatNumber(margin)}%', color: utility >= 0 ? Colors.greenAccent.shade400 : Colors.redAccent),
+                _DraftMetric(label: 'Inventario', value: _formatNumber(finalInventory), color: palette.textPrimary),
+              ];
+              final columns = constraints.maxWidth >= 300 ? 2 : 1;
+              const gap = 8.0;
+              final width = (constraints.maxWidth - gap * (columns - 1)) / columns;
+              return Wrap(
+                spacing: gap,
+                runSpacing: gap,
+                children: [for (final metric in metrics) SizedBox(width: width, child: _DraftMetricCard(metric: metric, palette: palette))],
+              );
+            },
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _DraftInfoRow extends StatelessWidget {
+  const _DraftInfoRow({required this.icon, required this.label, required this.palette});
+  final IconData icon;
+  final String label;
+  final AppPalette palette;
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      children: [
+        Icon(icon, size: 17, color: palette.secondary),
+        const SizedBox(width: 7),
+        Expanded(
+          child: Text(
+            label,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: TextStyle(color: palette.textSecondary, fontWeight: FontWeight.w700, fontSize: 12),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _DraftMetric {
+  const _DraftMetric({required this.label, required this.value, required this.color});
+  final String label;
+  final String value;
+  final Color color;
+}
+
+class _DraftMetricCard extends StatelessWidget {
+  const _DraftMetricCard({required this.metric, required this.palette});
+  final _DraftMetric metric;
+  final AppPalette palette;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(10),
+      decoration: BoxDecoration(
+        color: palette.darkBackground ? Colors.white.withOpacity(0.045) : palette.background.withOpacity(0.62),
+        borderRadius: BorderRadius.circular(15),
+        border: Border.all(color: palette.cardBorder),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(metric.label, style: TextStyle(color: palette.textSecondary, fontWeight: FontWeight.w700, fontSize: 10)),
+          const SizedBox(height: 3),
+          Text(metric.value, maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(color: metric.color, fontWeight: FontWeight.w900, fontSize: 13)),
+        ],
+      ),
+    );
+  }
+}
+
 class _WizardHeader extends StatelessWidget {
   const _WizardHeader({
     required this.palette,
@@ -1043,6 +1289,16 @@ class _WizardHeader extends StatelessWidget {
           ),
           const SizedBox(height: 12),
           _WizardStepIndicator(currentStep: currentStep),
+          const SizedBox(height: 12),
+          ClipRRect(
+            borderRadius: BorderRadius.circular(999),
+            child: LinearProgressIndicator(
+              minHeight: 6,
+              value: (currentStep + 1) / 4,
+              color: Colors.white,
+              backgroundColor: Colors.white.withOpacity(0.16),
+            ),
+          ),
         ],
       ),
     );
@@ -1132,10 +1388,11 @@ class _StepShell extends StatelessWidget {
 }
 
 class _ProductImagePicker extends StatefulWidget {
-  const _ProductImagePicker({required this.palette, required this.controller});
+  const _ProductImagePicker({required this.palette, required this.controller, this.onChanged});
 
   final AppPalette palette;
   final TextEditingController controller;
+  final VoidCallback? onChanged;
 
   @override
   State<_ProductImagePicker> createState() => _ProductImagePickerState();
@@ -1155,6 +1412,7 @@ class _ProductImagePickerState extends State<_ProductImagePicker> {
             : 'image/png';
     widget.controller.text = 'data:$mime;base64,${base64Encode(bytes)}';
     setState(() {});
+    widget.onChanged?.call();
   }
 
   @override
@@ -1193,6 +1451,7 @@ class _ProductImagePickerState extends State<_ProductImagePicker> {
                   onPressed: () {
                     widget.controller.clear();
                     setState(() {});
+                    widget.onChanged?.call();
                   },
                   icon: const Icon(Icons.delete_outline_rounded),
                 ),
@@ -1508,6 +1767,8 @@ class _PricePreview extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final utility = venta - costoUnitarioCompra;
+    final margin = venta > 0 ? (utility / venta) * 100 : 0.0;
     return _SummaryPanel(
       palette: palette,
       rows: [
@@ -1520,6 +1781,8 @@ class _PricePreview extends StatelessWidget {
         ),
         _SummaryRow('Costo unitario compra', _money(costoUnitarioCompra)),
         _SummaryRow('Venta', _money(venta)),
+        _SummaryRow('Utilidad estimada', _money(utility)),
+        _SummaryRow('Margen estimado', '${_formatNumber(margin)}%'),
         _SummaryRow('Impuesto', aplicaImpuesto ? '${_formatNumber(porcentaje)}% = ${_money(impuesto)}' : 'No aplica'),
         _SummaryRow('Venta + impuesto', aplicaImpuesto ? _money(totalConImpuesto) : _money(venta)),
       ],
@@ -1733,7 +1996,7 @@ class _WizardActionButton extends StatelessWidget {
       height: 58,
       child: DecoratedBox(
         decoration: BoxDecoration(
-          gradient: LinearGradient(colors: [palette.secondary, palette.accent]),
+          gradient: LinearGradient(colors: [palette.primary, palette.secondary]),
           borderRadius: BorderRadius.circular(20),
           boxShadow: [BoxShadow(color: palette.cardShadow, blurRadius: 18, offset: const Offset(0, 8))],
         ),
