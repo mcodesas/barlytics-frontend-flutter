@@ -1,0 +1,152 @@
+# Endpoints detectados
+
+- `GET` `/api/v1/zonashorarias/:id` — Consulta un registro por identificador
+- `PUT` `/api/v1/zonashorarias/:id` — Actualiza un registro existente
+- `DELETE` `/api/v1/zonashorarias/:id` — Elimina o inactiva un registro
+- `GET` `/api/v1/zonashorarias` — Lista registros del módulo
+- `POST` `/api/v1/zonashorarias` — Crea un registro en el módulo Zonas horarias
+- `GET` `/api/v1/ventas/:id` — Consulta un registro por identificador
+- `PUT` `/api/v1/ventas/:id` — Actualiza un registro existente
+- `DELETE` `/api/v1/ventas/:id` — Elimina o inactiva un registro
+- `GET` `/api/v1/ventas/mesa/:mesaId/activa` — find Active By Mesa
+- `GET` `/api/v1/ventas/mesa/:mesaId` — find By Mesa
+- `GET` `/api/v1/ventas` — Lista registros del módulo
+- `POST` `/api/v1/ventas` — Crea un registro en el módulo Ventas
+- `GET` `/api/v1/usuarios/:id` — Consulta un registro por identificador
+- `PUT` `/api/v1/usuarios/:id` — Actualiza un registro existente
+- `DELETE` `/api/v1/usuarios/:id` — Elimina o inactiva un registro
+- `GET` `/api/v1/usuarios/email/:email` — find By Email
+- `GET` `/api/v1/usuarios` — Lista registros del módulo
+- `POST` `/api/v1/usuarios` — Crea un registro en el módulo Usuarios
+- `GET` `/api/v1/tiposproducto/:id` — Consulta un registro por identificador
+- `PUT` `/api/v1/tiposproducto/:id` — Actualiza un registro existente
+- `DELETE` `/api/v1/tiposproducto/:id` — Elimina o inactiva un registro
+- `GET` `/api/v1/tiposproducto` — Lista registros del módulo
+- `POST` `/api/v1/tiposproducto` — Crea un registro en el módulo Tipos de producto
+- `GET` `/api/v1/sucursales/:id` — Consulta un registro por identificador
+- `PUT` `/api/v1/sucursales/:id` — Actualiza un registro existente
+- `DELETE` `/api/v1/sucursales/:id` — Elimina o inactiva un registro
+- `GET` `/api/v1/sucursales/empresa/:empresaId` — Lista sucursales por empresa
+- `GET` `/api/v1/sucursales` — Lista registros del módulo
+- `POST` `/api/v1/sucursales` — Crea un registro en el módulo Sucursales
+- `GET` `/api/v1/roles/:id` — Consulta un registro por identificador
+- `PUT` `/api/v1/roles/:id` — Actualiza un registro existente
+- `DELETE` `/api/v1/roles/:id` — Elimina o inactiva un registro
+- `GET` `/api/v1/roles` — Lista registros del módulo
+- `POST` `/api/v1/roles` — Crea un registro en el módulo Roles
+- `GET` `/api/v1/regiones/:id` — Consulta un registro por identificador
+- `PUT` `/api/v1/regiones/:id` — Actualiza un registro existente
+- `DELETE` `/api/v1/regiones/:id` — Elimina o inactiva un registro
+- `GET` `/api/v1/regiones/pais/:paisId` — find By Pais
+- `GET` `/api/v1/regiones` — Lista registros del módulo
+- `POST` `/api/v1/regiones` — Crea un registro en el módulo Regiones
+- `GET` `/api/v1/productos/:id` — Consulta un registro por identificador
+- `PUT` `/api/v1/productos/:id` — Actualiza un registro existente
+- `DELETE` `/api/v1/productos/:id` — Elimina o inactiva un registro
+- `GET` `/api/v1/productos/sucursal/:sucursalId` — find By Sucursal
+- `GET` `/api/v1/productos` — Lista registros del módulo
+- `POST` `/api/v1/productos` — Crea un registro en el módulo Productos
+- `GET` `/api/v1/precios/:id` — Consulta un registro por identificador
+- `PUT` `/api/v1/precios/:id` — Actualiza un registro existente
+- `DELETE` `/api/v1/precios/:id` — Elimina o inactiva un registro
+- `GET` `/api/v1/precios/producto/:productoId/sucursal/:sucursalId/vigente` — find Current
+- `GET` `/api/v1/precios/producto/:productoId/sucursal/:sucursalId/historial` — history
+- `GET` `/api/v1/precios` — Lista registros del módulo
+- `POST` `/api/v1/precios` — Crea un registro en el módulo Precios
+- `GET` `/api/v1/parametros/:id` — Consulta un registro por identificador
+- `PUT` `/api/v1/parametros/:id` — Actualiza un registro existente
+- `DELETE` `/api/v1/parametros/:id` — Elimina o inactiva un registro
+- `GET` `/api/v1/parametros/codigo/:codigo` — Consulta parámetro por código respetando jerarquía sucursal, empresa y global
+- `GET` `/api/v1/parametros` — Lista registros del módulo
+- `POST` `/api/v1/parametros` — Crea un registro en el módulo Parámetros
+- `GET` `/api/v1/paises/:id` — Consulta un registro por identificador
+- `PUT` `/api/v1/paises/:id` — Actualiza un registro existente
+- `DELETE` `/api/v1/paises/:id` — Elimina o inactiva un registro
+- `GET` `/api/v1/paises` — Lista registros del módulo
+- `POST` `/api/v1/paises` — Crea un registro en el módulo Países
+- `GET` `/api/v1/pagos/:id` — Consulta un registro por identificador
+- `PUT` `/api/v1/pagos/:id` — Actualiza un registro existente
+- `DELETE` `/api/v1/pagos/:id` — Elimina o inactiva un registro
+- `GET` `/api/v1/pagos/cuenta/:parentId` — find By Parent
+- `GET` `/api/v1/pagos` — Lista registros del módulo
+- `POST` `/api/v1/pagos` — Crea un registro en el módulo Pagos
+- `GET` `/api/v1/opcionesmenu/:id` — Consulta un registro por identificador
+- `PUT` `/api/v1/opcionesmenu/:id` — Actualiza un registro existente
+- `DELETE` `/api/v1/opcionesmenu/:id` — Elimina o inactiva un registro
+- `GET` `/api/v1/opcionesmenu` — Lista registros del módulo
+- `POST` `/api/v1/opcionesmenu` — Crea un registro en el módulo Opciones de menú
+- `GET` `/api/v1/movimientos/:id` — Consulta un registro por identificador
+- `PUT` `/api/v1/movimientos/:id` — Actualiza un registro existente
+- `DELETE` `/api/v1/movimientos/:id` — Elimina o inactiva un registro
+- `GET` `/api/v1/movimientos/sucursal/:sucursalId` — find By Sucursal 1
+- `GET` `/api/v1/movimientos/producto/:productoId/sucursal/:sucursalId` — find By Producto Sucursal
+- `GET` `/api/v1/movimientos` — Lista registros del módulo
+- `POST` `/api/v1/movimientos` — Crea un registro en el módulo Movimientos
+- `GET` `/api/v1/monedas/:id` — Consulta un registro por identificador
+- `PUT` `/api/v1/monedas/:id` — Actualiza un registro existente
+- `DELETE` `/api/v1/monedas/:id` — Elimina o inactiva un registro
+- `GET` `/api/v1/monedas` — Lista registros del módulo
+- `POST` `/api/v1/monedas` — Crea un registro en el módulo Monedas
+- `GET` `/api/v1/mesas/:id` — Consulta un registro por identificador
+- `PUT` `/api/v1/mesas/:id` — Actualiza un registro existente
+- `DELETE` `/api/v1/mesas/:id` — Elimina o inactiva un registro
+- `GET` `/api/v1/mesas/sucursal/:sucursalId` — find By Sucursal 2
+- `GET` `/api/v1/mesas` — Lista registros del módulo
+- `POST` `/api/v1/mesas` — Crea un registro en el módulo Mesas
+- `GET` `/api/v1/menus/:id` — Consulta un registro por identificador
+- `PUT` `/api/v1/menus/:id` — Actualiza un registro existente
+- `DELETE` `/api/v1/menus/:id` — Elimina o inactiva un registro
+- `GET` `/api/v1/menus` — Lista registros del módulo
+- `POST` `/api/v1/menus` — Crea un registro en el módulo Menús
+- `GET` `/api/v1/mediospago/:id` — Consulta un registro por identificador
+- `PUT` `/api/v1/mediospago/:id` — Actualiza un registro existente
+- `DELETE` `/api/v1/mediospago/:id` — Elimina o inactiva un registro
+- `GET` `/api/v1/mediospago` — Lista registros del módulo
+- `POST` `/api/v1/mediospago` — Crea un registro en el módulo Medios de pago
+- `GET` `/api/v1/marcas/:id` — Consulta un registro por identificador
+- `PUT` `/api/v1/marcas/:id` — Actualiza un registro existente
+- `DELETE` `/api/v1/marcas/:id` — Elimina o inactiva un registro
+- `GET` `/api/v1/marcas` — Lista registros del módulo
+- `POST` `/api/v1/marcas` — Crea un registro en el módulo Marcas
+- `GET` `/api/v1/inventario/:id` — Consulta un registro por identificador
+- `PUT` `/api/v1/inventario/:id` — Actualiza un registro existente
+- `DELETE` `/api/v1/inventario/:id` — Elimina o inactiva un registro
+- `GET` `/api/v1/inventario/sucursal/:sucursalId` — find By Sucursal 3
+- `GET` `/api/v1/inventario/producto/:productoId/sucursal/:sucursalId` — find By Producto Sucursal 1
+- `GET` `/api/v1/inventario` — Lista registros del módulo
+- `POST` `/api/v1/inventario` — Crea un registro en el módulo Inventario
+- `GET` `/api/v1/empresas/:id` — Consulta un registro por identificador
+- `PUT` `/api/v1/empresas/:id` — Actualiza un registro existente
+- `DELETE` `/api/v1/empresas/:id` — Elimina o inactiva un registro
+- `GET` `/api/v1/empresas` — Lista registros del módulo
+- `POST` `/api/v1/empresas` — Crea un registro en el módulo Empresas
+- `GET` `/api/v1/detallecuentaventa/:id` — Consulta un registro por identificador
+- `PUT` `/api/v1/detallecuentaventa/:id` — Actualiza un registro existente
+- `DELETE` `/api/v1/detallecuentaventa/:id` — Elimina o inactiva un registro
+- `GET` `/api/v1/detallecuentaventa/cuenta/:parentId` — find By Parent 1
+- `GET` `/api/v1/detallecuentaventa` — Lista registros del módulo
+- `POST` `/api/v1/detallecuentaventa` — Crea un registro en el módulo Detalle cuenta venta
+- `GET` `/api/v1/cuentasventa/:id` — Consulta un registro por identificador
+- `PUT` `/api/v1/cuentasventa/:id` — Actualiza un registro existente
+- `DELETE` `/api/v1/cuentasventa/:id` — Elimina o inactiva un registro
+- `GET` `/api/v1/cuentasventa/venta/:parentId` — find By Parent 2
+- `GET` `/api/v1/cuentasventa` — Lista registros del módulo
+- `POST` `/api/v1/cuentasventa` — Crea un registro en el módulo Cuentas de venta
+- `GET` `/api/v1/ciudades/:id` — Consulta un registro por identificador
+- `PUT` `/api/v1/ciudades/:id` — Actualiza un registro existente
+- `DELETE` `/api/v1/ciudades/:id` — Elimina o inactiva un registro
+- `GET` `/api/v1/ciudades/region/:regionId` — find By Region
+- `GET` `/api/v1/ciudades` — Lista registros del módulo
+- `POST` `/api/v1/ciudades` — Crea un registro en el módulo Ciudades
+- `POST` `/api/v1/auth/recover-password` — Recupera contraseña asignando una nueva contraseña
+- `POST` `/api/v1/auth/logout` — Registra cierre de sesión
+- `POST` `/api/v1/auth/login` — Inicia sesión y genera JWT
+- `POST` `/api/v1/auth/change-password` — Cambia contraseña del usuario autenticado
+- `GET` `/api/v1/auth/me` — Consulta el usuario autenticado
+- `GET` `/api/v1/reportes/ventas/medio-pago` — ventas Medio Pago
+- `GET` `/api/v1/reportes/ventas` — Reporte de ventas por fecha
+- `GET` `/api/v1/reportes/stock-actual` — stock Actual
+- `GET` `/api/v1/reportes/productos-mas-vendidos` — productos Mas Vendidos
+- `GET` `/api/v1/reportes/movimientos-inventario` — movimientos Inventario
+- `GET` `/api/v1/me` — Consulta los datos del usuario autenticado
+- `GET` `/api/v1/health` — Verifica que el backend esté activo

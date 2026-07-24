@@ -1,0 +1,1666 @@
+﻿id,title,body,labels,assignees,milestone,status,priority,module,epic,type,estimate,bucket,acceptance_criteria
+1,Crear proyecto base Flutter multiplataforma,"## Objetivo
+Crear el proyecto Flutter inicial preparado para Android, iOS, iPadOS, Web y futuro escritorio.
+
+## Alcance funcional
+- Implementar la funcionalidad en Flutter.
+- Mantener compatibilidad multiplataforma desde el inicio.
+- Consumir los endpoints definidos por el backend Spring Boot cuando aplique.
+- Respetar sesión, permisos, empresa y sucursal activa.
+- Mostrar mensajes claros de éxito, validación y error.
+
+## Consideraciones multiplataforma
+- Mobile: diseño compacto, navegación simple y controles táctiles.
+- Tablet/iPad: layout intermedio con mayor espacio visual.
+- Web/Desktop: tablas, filtros y paneles amplios cuando aplique.
+- Todos los perfiles pueden usar todos los dispositivos; el rol define permisos y el dispositivo define layout.
+
+## Criterios de aceptación
+- El proyecto Flutter ejecuta en Android y Web.
+- El proyecto queda preparado para iOS/iPadOS desde Mac.
+- La estructura modular queda creada.
+- No se bloquea ningún perfil por dispositivo.","frontend,flutter,multiplataforma,responsive,modulo:core,epica:base-flutter",,Frontend Flutter MVP,Todo,Alta,core,base-flutter,Historia funcional,8,Base Flutter multiplataforma,El proyecto Flutter ejecuta en Android y Web. | El proyecto queda preparado para iOS/iPadOS desde Mac. | La estructura modular queda creada. | No se bloquea ningún perfil por dispositivo.
+2,Definir arquitectura frontend Flutter modular,"## Objetivo
+Definir estructura lib/core y lib/features con separación data, domain y presentation.
+
+## Alcance funcional
+- Implementar la funcionalidad en Flutter.
+- Mantener compatibilidad multiplataforma desde el inicio.
+- Consumir los endpoints definidos por el backend Spring Boot cuando aplique.
+- Respetar sesión, permisos, empresa y sucursal activa.
+- Mostrar mensajes claros de éxito, validación y error.
+
+## Consideraciones multiplataforma
+- Mobile: diseño compacto, navegación simple y controles táctiles.
+- Tablet/iPad: layout intermedio con mayor espacio visual.
+- Web/Desktop: tablas, filtros y paneles amplios cuando aplique.
+- Todos los perfiles pueden usar todos los dispositivos; el rol define permisos y el dispositivo define layout.
+
+## Criterios de aceptación
+- Existe estructura core y features.
+- Cada módulo tiene data/domain/presentation.
+- No se mezcla lógica de presentación con consumo API.
+- La arquitectura queda documentada.","frontend,flutter,multiplataforma,responsive,modulo:core,epica:base-flutter",,Frontend Flutter MVP,Todo,Alta,core,base-flutter,Historia funcional,8,Base Flutter multiplataforma,Existe estructura core y features. | Cada módulo tiene data/domain/presentation. | No se mezcla lógica de presentación con consumo API. | La arquitectura queda documentada.
+3,Definir estrategia responsive y breakpoints,"## Objetivo
+Definir breakpoints mobile, tablet y desktop/web para toda la aplicación.
+
+## Alcance funcional
+- Implementar la funcionalidad en Flutter.
+- Mantener compatibilidad multiplataforma desde el inicio.
+- Consumir los endpoints definidos por el backend Spring Boot cuando aplique.
+- Respetar sesión, permisos, empresa y sucursal activa.
+- Mostrar mensajes claros de éxito, validación y error.
+
+## Consideraciones multiplataforma
+- Mobile: diseño compacto, navegación simple y controles táctiles.
+- Tablet/iPad: layout intermedio con mayor espacio visual.
+- Web/Desktop: tablas, filtros y paneles amplios cuando aplique.
+- Todos los perfiles pueden usar todos los dispositivos; el rol define permisos y el dispositivo define layout.
+
+## Criterios de aceptación
+- Se definen breakpoints mobile < 600, tablet 600-1024 y desktop >= 1024.
+- Las pantallas usan reglas comunes de tamaño.
+- El dispositivo no restringe permisos.
+- La guía queda disponible para nuevos módulos.","frontend,flutter,multiplataforma,responsive,modulo:core,epica:layout-adaptativo",,Frontend Flutter MVP,Todo,Alta,core,layout-adaptativo,Historia funcional,5,Base Flutter multiplataforma,"Se definen breakpoints mobile < 600, tablet 600-1024 y desktop >= 1024. | Las pantallas usan reglas comunes de tamaño. | El dispositivo no restringe permisos. | La guía queda disponible para nuevos módulos."
+4,Crear componentes base de layout adaptativo,"## Objetivo
+Crear ResponsiveBuilder, AdaptiveScaffold y layouts base para móvil, tablet y web.
+
+## Alcance funcional
+- Implementar la funcionalidad en Flutter.
+- Mantener compatibilidad multiplataforma desde el inicio.
+- Consumir los endpoints definidos por el backend Spring Boot cuando aplique.
+- Respetar sesión, permisos, empresa y sucursal activa.
+- Mostrar mensajes claros de éxito, validación y error.
+
+## Consideraciones multiplataforma
+- Mobile: diseño compacto, navegación simple y controles táctiles.
+- Tablet/iPad: layout intermedio con mayor espacio visual.
+- Web/Desktop: tablas, filtros y paneles amplios cuando aplique.
+- Todos los perfiles pueden usar todos los dispositivos; el rol define permisos y el dispositivo define layout.
+
+## Criterios de aceptación
+- Existe ResponsiveBuilder reutilizable.
+- Existe AdaptiveScaffold.
+- Se puede renderizar mobile/tablet/desktop.
+- No se duplica lógica de negocio por dispositivo.","frontend,flutter,multiplataforma,responsive,modulo:core,epica:layout-adaptativo",,Frontend Flutter MVP,Todo,Alta,core,layout-adaptativo,Historia funcional,8,Base Flutter multiplataforma,Existe ResponsiveBuilder reutilizable. | Existe AdaptiveScaffold. | Se puede renderizar mobile/tablet/desktop. | No se duplica lógica de negocio por dispositivo.
+5,Definir experiencia visual por dispositivo,"## Objetivo
+Definir lineamientos visuales para mobile, tablet/iPad y web/desktop.
+
+## Alcance funcional
+- Implementar la funcionalidad en Flutter.
+- Mantener compatibilidad multiplataforma desde el inicio.
+- Consumir los endpoints definidos por el backend Spring Boot cuando aplique.
+- Respetar sesión, permisos, empresa y sucursal activa.
+- Mostrar mensajes claros de éxito, validación y error.
+
+## Consideraciones multiplataforma
+- Mobile: diseño compacto, navegación simple y controles táctiles.
+- Tablet/iPad: layout intermedio con mayor espacio visual.
+- Web/Desktop: tablas, filtros y paneles amplios cuando aplique.
+- Todos los perfiles pueden usar todos los dispositivos; el rol define permisos y el dispositivo define layout.
+
+## Criterios de aceptación
+- Mobile usa navegación compacta.
+- Tablet usa navegación lateral o layout dividido.
+- Web usa sidebar, tablas y filtros amplios.
+- Los mismos permisos se respetan en todos los dispositivos.","frontend,flutter,multiplataforma,responsive,modulo:core,epica:layout-adaptativo",,Frontend Flutter MVP,Todo,Media,core,layout-adaptativo,Historia funcional,5,Base Flutter multiplataforma,"Mobile usa navegación compacta. | Tablet usa navegación lateral o layout dividido. | Web usa sidebar, tablas y filtros amplios. | Los mismos permisos se respetan en todos los dispositivos."
+6,Configurar cliente HTTP Dio para consumo de APIs,"## Objetivo
+Configurar Dio como cliente HTTP central para consumir las APIs Spring Boot.
+
+## Alcance funcional
+- Implementar la funcionalidad en Flutter.
+- Mantener compatibilidad multiplataforma desde el inicio.
+- Consumir los endpoints definidos por el backend Spring Boot cuando aplique.
+- Respetar sesión, permisos, empresa y sucursal activa.
+- Mostrar mensajes claros de éxito, validación y error.
+
+## Consideraciones multiplataforma
+- Mobile: diseño compacto, navegación simple y controles táctiles.
+- Tablet/iPad: layout intermedio con mayor espacio visual.
+- Web/Desktop: tablas, filtros y paneles amplios cuando aplique.
+- Todos los perfiles pueden usar todos los dispositivos; el rol define permisos y el dispositivo define layout.
+
+## Criterios de aceptación
+- Todas las llamadas salen por un cliente HTTP centralizado.
+- Se envía JWT automáticamente cuando existe sesión.
+- Se manejan timeouts y errores HTTP.
+- La base URL es configurable por ambiente.","frontend,flutter,multiplataforma,responsive,modulo:api,epica:integracion-backend,api-integration",,Frontend Flutter MVP,Todo,Alta,api,integracion-backend,Historia funcional,8,Comunicación con backend,Todas las llamadas salen por un cliente HTTP centralizado. | Se envía JWT automáticamente cuando existe sesión. | Se manejan timeouts y errores HTTP. | La base URL es configurable por ambiente.
+7,Crear modelo estándar de respuesta API,"## Objetivo
+Mapear en Flutter la respuesta estándar del backend: success, message, data, errors y paginación.
+
+## Alcance funcional
+- Implementar la funcionalidad en Flutter.
+- Mantener compatibilidad multiplataforma desde el inicio.
+- Consumir los endpoints definidos por el backend Spring Boot cuando aplique.
+- Respetar sesión, permisos, empresa y sucursal activa.
+- Mostrar mensajes claros de éxito, validación y error.
+
+## Consideraciones multiplataforma
+- Mobile: diseño compacto, navegación simple y controles táctiles.
+- Tablet/iPad: layout intermedio con mayor espacio visual.
+- Web/Desktop: tablas, filtros y paneles amplios cuando aplique.
+- Todos los perfiles pueden usar todos los dispositivos; el rol define permisos y el dispositivo define layout.
+
+## Criterios de aceptación
+- Existe ApiResponse<T>.
+- Existe ApiError.
+- Existe PaginatedResponse<T>.
+- Las respuestas exitosas y de error se parsean correctamente.","frontend,flutter,multiplataforma,responsive,modulo:api,epica:integracion-backend,api-integration",,Frontend Flutter MVP,Todo,Alta,api,integracion-backend,Historia funcional,5,Comunicación con backend,Existe ApiResponse<T>. | Existe ApiError. | Existe PaginatedResponse<T>. | Las respuestas exitosas y de error se parsean correctamente.
+8,Crear manejo global de errores frontend,"## Objetivo
+Centralizar manejo de 401, 403, 404, 409, 422, 500, timeout y sin conexión.
+
+## Alcance funcional
+- Implementar la funcionalidad en Flutter.
+- Mantener compatibilidad multiplataforma desde el inicio.
+- Consumir los endpoints definidos por el backend Spring Boot cuando aplique.
+- Respetar sesión, permisos, empresa y sucursal activa.
+- Mostrar mensajes claros de éxito, validación y error.
+
+## Consideraciones multiplataforma
+- Mobile: diseño compacto, navegación simple y controles táctiles.
+- Tablet/iPad: layout intermedio con mayor espacio visual.
+- Web/Desktop: tablas, filtros y paneles amplios cuando aplique.
+- Todos los perfiles pueden usar todos los dispositivos; el rol define permisos y el dispositivo define layout.
+
+## Criterios de aceptación
+- 401 redirige a login o renovación de sesión.
+- 403 muestra mensaje de permisos.
+- Errores de validación se muestran claros.
+- No se muestran errores técnicos crudos al usuario.","frontend,flutter,multiplataforma,responsive,modulo:api,epica:integracion-backend,api-integration",,Frontend Flutter MVP,Todo,Alta,api,integracion-backend,Historia funcional,8,Comunicación con backend,401 redirige a login o renovación de sesión. | 403 muestra mensaje de permisos. | Errores de validación se muestran claros. | No se muestran errores técnicos crudos al usuario.
+9,Crear almacenamiento seguro de sesión,"## Objetivo
+Guardar token, usuario, permisos, menú, empresa y sucursal activa de forma segura.
+
+## Alcance funcional
+- Implementar la funcionalidad en Flutter.
+- Mantener compatibilidad multiplataforma desde el inicio.
+- Consumir los endpoints definidos por el backend Spring Boot cuando aplique.
+- Respetar sesión, permisos, empresa y sucursal activa.
+- Mostrar mensajes claros de éxito, validación y error.
+
+## Consideraciones multiplataforma
+- Mobile: diseño compacto, navegación simple y controles táctiles.
+- Tablet/iPad: layout intermedio con mayor espacio visual.
+- Web/Desktop: tablas, filtros y paneles amplios cuando aplique.
+- Todos los perfiles pueden usar todos los dispositivos; el rol define permisos y el dispositivo define layout.
+
+## Criterios de aceptación
+- JWT se almacena de forma segura.
+- Logout limpia la información local.
+- La sesión se restaura al abrir la app.
+- Funciona en móvil y web con estrategia adecuada.","frontend,flutter,multiplataforma,responsive,modulo:auth,epica:seguridad-sesion,security",,Frontend Flutter MVP,Todo,Alta,auth,seguridad-sesion,Historia funcional,8,Comunicación con backend,JWT se almacena de forma segura. | Logout limpia la información local. | La sesión se restaura al abrir la app. | Funciona en móvil y web con estrategia adecuada.
+10,Configurar ambientes frontend,"## Objetivo
+Configurar ambientes local, dev, qa y prod para consumir diferentes URLs de backend.
+
+## Alcance funcional
+- Implementar la funcionalidad en Flutter.
+- Mantener compatibilidad multiplataforma desde el inicio.
+- Consumir los endpoints definidos por el backend Spring Boot cuando aplique.
+- Respetar sesión, permisos, empresa y sucursal activa.
+- Mostrar mensajes claros de éxito, validación y error.
+
+## Consideraciones multiplataforma
+- Mobile: diseño compacto, navegación simple y controles táctiles.
+- Tablet/iPad: layout intermedio con mayor espacio visual.
+- Web/Desktop: tablas, filtros y paneles amplios cuando aplique.
+- Todos los perfiles pueden usar todos los dispositivos; el rol define permisos y el dispositivo define layout.
+
+## Criterios de aceptación
+- Existe configuración local/dev/qa/prod.
+- La URL no se cambia quemando código.
+- Se puede ejecutar contra backend local.
+- Se documenta cómo cambiar ambiente.","frontend,flutter,multiplataforma,responsive,modulo:core,epica:base-flutter",,Frontend Flutter MVP,Todo,Media,core,base-flutter,Historia funcional,5,Comunicación con backend,Existe configuración local/dev/qa/prod. | La URL no se cambia quemando código. | Se puede ejecutar contra backend local. | Se documenta cómo cambiar ambiente.
+11,Crear pantalla de login,"## Objetivo
+Implementar login de usuario desde cualquier dispositivo usando endpoint de autenticación.
+
+Endpoint relacionado: POST /api/v1/auth/login
+
+## Alcance funcional
+- Implementar la funcionalidad en Flutter.
+- Mantener compatibilidad multiplataforma desde el inicio.
+- Consumir los endpoints definidos por el backend Spring Boot cuando aplique.
+- Respetar sesión, permisos, empresa y sucursal activa.
+- Mostrar mensajes claros de éxito, validación y error.
+
+## Consideraciones multiplataforma
+- Mobile: diseño compacto, navegación simple y controles táctiles.
+- Tablet/iPad: layout intermedio con mayor espacio visual.
+- Web/Desktop: tablas, filtros y paneles amplios cuando aplique.
+- Todos los perfiles pueden usar todos los dispositivos; el rol define permisos y el dispositivo define layout.
+
+## Criterios de aceptación
+- Funciona desde mobile, tablet y web.
+- Muestra mensajes claros de backend.
+- Respeta permisos y sesión.
+- La navegación queda protegida cuando aplica.","frontend,flutter,multiplataforma,responsive,modulo:auth,epica:seguridad-sesion,security,api-integration",,Frontend Flutter MVP,Todo,Alta,auth,seguridad-sesion,Historia funcional,5,"Seguridad, sesión y permisos","Funciona desde mobile, tablet y web. | Muestra mensajes claros de backend. | Respeta permisos y sesión. | La navegación queda protegida cuando aplica."
+12,Crear flujo de sesión autenticada,"## Objetivo
+Proteger rutas internas validando token, sesión y permisos.
+
+Endpoint relacionado: GET /api/v1/me
+
+## Alcance funcional
+- Implementar la funcionalidad en Flutter.
+- Mantener compatibilidad multiplataforma desde el inicio.
+- Consumir los endpoints definidos por el backend Spring Boot cuando aplique.
+- Respetar sesión, permisos, empresa y sucursal activa.
+- Mostrar mensajes claros de éxito, validación y error.
+
+## Consideraciones multiplataforma
+- Mobile: diseño compacto, navegación simple y controles táctiles.
+- Tablet/iPad: layout intermedio con mayor espacio visual.
+- Web/Desktop: tablas, filtros y paneles amplios cuando aplique.
+- Todos los perfiles pueden usar todos los dispositivos; el rol define permisos y el dispositivo define layout.
+
+## Criterios de aceptación
+- Funciona desde mobile, tablet y web.
+- Muestra mensajes claros de backend.
+- Respeta permisos y sesión.
+- La navegación queda protegida cuando aplica.","frontend,flutter,multiplataforma,responsive,modulo:auth,epica:seguridad-sesion,security,api-integration",,Frontend Flutter MVP,Todo,Alta,auth,seguridad-sesion,Historia funcional,5,"Seguridad, sesión y permisos","Funciona desde mobile, tablet y web. | Muestra mensajes claros de backend. | Respeta permisos y sesión. | La navegación queda protegida cuando aplica."
+13,Crear consulta de usuario autenticado,"## Objetivo
+Consumir endpoint /me para cargar usuario, roles, empresa, sucursales y permisos.
+
+Endpoint relacionado: GET /api/v1/me
+
+## Alcance funcional
+- Implementar la funcionalidad en Flutter.
+- Mantener compatibilidad multiplataforma desde el inicio.
+- Consumir los endpoints definidos por el backend Spring Boot cuando aplique.
+- Respetar sesión, permisos, empresa y sucursal activa.
+- Mostrar mensajes claros de éxito, validación y error.
+
+## Consideraciones multiplataforma
+- Mobile: diseño compacto, navegación simple y controles táctiles.
+- Tablet/iPad: layout intermedio con mayor espacio visual.
+- Web/Desktop: tablas, filtros y paneles amplios cuando aplique.
+- Todos los perfiles pueden usar todos los dispositivos; el rol define permisos y el dispositivo define layout.
+
+## Criterios de aceptación
+- Funciona desde mobile, tablet y web.
+- Muestra mensajes claros de backend.
+- Respeta permisos y sesión.
+- La navegación queda protegida cuando aplica.","frontend,flutter,multiplataforma,responsive,modulo:auth,epica:seguridad-sesion,security,api-integration",,Frontend Flutter MVP,Todo,Alta,auth,seguridad-sesion,Historia funcional,5,"Seguridad, sesión y permisos","Funciona desde mobile, tablet y web. | Muestra mensajes claros de backend. | Respeta permisos y sesión. | La navegación queda protegida cuando aplica."
+14,Crear consulta y renderizado de menú dinámico,"## Objetivo
+Consumir menú del backend y renderizar opciones según rol/permisos.
+
+Endpoint relacionado: GET /api/v1/me/menu
+
+## Alcance funcional
+- Implementar la funcionalidad en Flutter.
+- Mantener compatibilidad multiplataforma desde el inicio.
+- Consumir los endpoints definidos por el backend Spring Boot cuando aplique.
+- Respetar sesión, permisos, empresa y sucursal activa.
+- Mostrar mensajes claros de éxito, validación y error.
+
+## Consideraciones multiplataforma
+- Mobile: diseño compacto, navegación simple y controles táctiles.
+- Tablet/iPad: layout intermedio con mayor espacio visual.
+- Web/Desktop: tablas, filtros y paneles amplios cuando aplique.
+- Todos los perfiles pueden usar todos los dispositivos; el rol define permisos y el dispositivo define layout.
+
+## Criterios de aceptación
+- Funciona desde mobile, tablet y web.
+- Muestra mensajes claros de backend.
+- Respeta permisos y sesión.
+- La navegación queda protegida cuando aplica.","frontend,flutter,multiplataforma,responsive,modulo:auth,epica:seguridad-sesion,security,api-integration",,Frontend Flutter MVP,Todo,Alta,auth,seguridad-sesion,Historia funcional,5,"Seguridad, sesión y permisos","Funciona desde mobile, tablet y web. | Muestra mensajes claros de backend. | Respeta permisos y sesión. | La navegación queda protegida cuando aplica."
+15,Crear control visual por permisos,"## Objetivo
+Mostrar u ocultar botones y acciones según permisos del usuario.
+
+Endpoint relacionado: GET /api/v1/me/permissions
+
+## Alcance funcional
+- Implementar la funcionalidad en Flutter.
+- Mantener compatibilidad multiplataforma desde el inicio.
+- Consumir los endpoints definidos por el backend Spring Boot cuando aplique.
+- Respetar sesión, permisos, empresa y sucursal activa.
+- Mostrar mensajes claros de éxito, validación y error.
+
+## Consideraciones multiplataforma
+- Mobile: diseño compacto, navegación simple y controles táctiles.
+- Tablet/iPad: layout intermedio con mayor espacio visual.
+- Web/Desktop: tablas, filtros y paneles amplios cuando aplique.
+- Todos los perfiles pueden usar todos los dispositivos; el rol define permisos y el dispositivo define layout.
+
+## Criterios de aceptación
+- Funciona desde mobile, tablet y web.
+- Muestra mensajes claros de backend.
+- Respeta permisos y sesión.
+- La navegación queda protegida cuando aplica.","frontend,flutter,multiplataforma,responsive,modulo:auth,epica:seguridad-sesion,security,api-integration",,Frontend Flutter MVP,Todo,Media,auth,seguridad-sesion,Historia funcional,5,"Seguridad, sesión y permisos","Funciona desde mobile, tablet y web. | Muestra mensajes claros de backend. | Respeta permisos y sesión. | La navegación queda protegida cuando aplica."
+16,Crear funcionalidad de logout,"## Objetivo
+Cerrar sesión limpiando token y contexto local.
+
+Endpoint relacionado: POST /api/v1/auth/logout
+
+## Alcance funcional
+- Implementar la funcionalidad en Flutter.
+- Mantener compatibilidad multiplataforma desde el inicio.
+- Consumir los endpoints definidos por el backend Spring Boot cuando aplique.
+- Respetar sesión, permisos, empresa y sucursal activa.
+- Mostrar mensajes claros de éxito, validación y error.
+
+## Consideraciones multiplataforma
+- Mobile: diseño compacto, navegación simple y controles táctiles.
+- Tablet/iPad: layout intermedio con mayor espacio visual.
+- Web/Desktop: tablas, filtros y paneles amplios cuando aplique.
+- Todos los perfiles pueden usar todos los dispositivos; el rol define permisos y el dispositivo define layout.
+
+## Criterios de aceptación
+- Funciona desde mobile, tablet y web.
+- Muestra mensajes claros de backend.
+- Respeta permisos y sesión.
+- La navegación queda protegida cuando aplica.","frontend,flutter,multiplataforma,responsive,modulo:auth,epica:seguridad-sesion,security,api-integration",,Frontend Flutter MVP,Todo,Media,auth,seguridad-sesion,Historia funcional,5,"Seguridad, sesión y permisos","Funciona desde mobile, tablet y web. | Muestra mensajes claros de backend. | Respeta permisos y sesión. | La navegación queda protegida cuando aplica."
+17,Crear flujo de recuperación de contraseña,"## Objetivo
+Permitir solicitar recuperación y restablecer contraseña.
+
+Endpoint relacionado: POST /api/v1/auth/forgot-password y POST /api/v1/auth/reset-password
+
+## Alcance funcional
+- Implementar la funcionalidad en Flutter.
+- Mantener compatibilidad multiplataforma desde el inicio.
+- Consumir los endpoints definidos por el backend Spring Boot cuando aplique.
+- Respetar sesión, permisos, empresa y sucursal activa.
+- Mostrar mensajes claros de éxito, validación y error.
+
+## Consideraciones multiplataforma
+- Mobile: diseño compacto, navegación simple y controles táctiles.
+- Tablet/iPad: layout intermedio con mayor espacio visual.
+- Web/Desktop: tablas, filtros y paneles amplios cuando aplique.
+- Todos los perfiles pueden usar todos los dispositivos; el rol define permisos y el dispositivo define layout.
+
+## Criterios de aceptación
+- Funciona desde mobile, tablet y web.
+- Muestra mensajes claros de backend.
+- Respeta permisos y sesión.
+- La navegación queda protegida cuando aplica.","frontend,flutter,multiplataforma,responsive,modulo:auth,epica:seguridad-sesion,security,api-integration",,Frontend Flutter MVP,Todo,Media,auth,seguridad-sesion,Historia funcional,5,"Seguridad, sesión y permisos","Funciona desde mobile, tablet y web. | Muestra mensajes claros de backend. | Respeta permisos y sesión. | La navegación queda protegida cuando aplica."
+18,Crear flujo de cambio de contraseña,"## Objetivo
+Permitir cambio de contraseña desde sesión autenticada.
+
+Endpoint relacionado: PUT /api/v1/auth/change-password
+
+## Alcance funcional
+- Implementar la funcionalidad en Flutter.
+- Mantener compatibilidad multiplataforma desde el inicio.
+- Consumir los endpoints definidos por el backend Spring Boot cuando aplique.
+- Respetar sesión, permisos, empresa y sucursal activa.
+- Mostrar mensajes claros de éxito, validación y error.
+
+## Consideraciones multiplataforma
+- Mobile: diseño compacto, navegación simple y controles táctiles.
+- Tablet/iPad: layout intermedio con mayor espacio visual.
+- Web/Desktop: tablas, filtros y paneles amplios cuando aplique.
+- Todos los perfiles pueden usar todos los dispositivos; el rol define permisos y el dispositivo define layout.
+
+## Criterios de aceptación
+- Funciona desde mobile, tablet y web.
+- Muestra mensajes claros de backend.
+- Respeta permisos y sesión.
+- La navegación queda protegida cuando aplica.","frontend,flutter,multiplataforma,responsive,modulo:auth,epica:seguridad-sesion,security,api-integration",,Frontend Flutter MVP,Todo,Media,auth,seguridad-sesion,Historia funcional,5,"Seguridad, sesión y permisos","Funciona desde mobile, tablet y web. | Muestra mensajes claros de backend. | Respeta permisos y sesión. | La navegación queda protegida cuando aplica."
+19,Crear pantalla de selección de empresa y sucursal,"## Objetivo
+Permitir seleccionar empresa/sucursal activa al iniciar sesión.
+
+## Alcance funcional
+- Implementar la funcionalidad en Flutter.
+- Mantener compatibilidad multiplataforma desde el inicio.
+- Consumir los endpoints definidos por el backend Spring Boot cuando aplique.
+- Respetar sesión, permisos, empresa y sucursal activa.
+- Mostrar mensajes claros de éxito, validación y error.
+
+## Consideraciones multiplataforma
+- Mobile: diseño compacto, navegación simple y controles táctiles.
+- Tablet/iPad: layout intermedio con mayor espacio visual.
+- Web/Desktop: tablas, filtros y paneles amplios cuando aplique.
+- Todos los perfiles pueden usar todos los dispositivos; el rol define permisos y el dispositivo define layout.
+
+## Criterios de aceptación
+- Funciona en mobile, tablet y web.
+- Respeta permisos del usuario.
+- Usa sucursal activa cuando aplica.
+- La experiencia visual se adapta al tamaño de pantalla.","frontend,flutter,multiplataforma,responsive,modulo:sucursales,epica:contexto-sucursal",,Frontend Flutter MVP,Todo,Alta,sucursales,contexto-sucursal,Historia funcional,5,Contexto empresa y sucursal,"Funciona en mobile, tablet y web. | Respeta permisos del usuario. | Usa sucursal activa cuando aplica. | La experiencia visual se adapta al tamaño de pantalla."
+20,Crear componente visual de contexto actual,"## Objetivo
+Mostrar empresa, sucursal, usuario y rol activo en la interfaz.
+
+## Alcance funcional
+- Implementar la funcionalidad en Flutter.
+- Mantener compatibilidad multiplataforma desde el inicio.
+- Consumir los endpoints definidos por el backend Spring Boot cuando aplique.
+- Respetar sesión, permisos, empresa y sucursal activa.
+- Mostrar mensajes claros de éxito, validación y error.
+
+## Consideraciones multiplataforma
+- Mobile: diseño compacto, navegación simple y controles táctiles.
+- Tablet/iPad: layout intermedio con mayor espacio visual.
+- Web/Desktop: tablas, filtros y paneles amplios cuando aplique.
+- Todos los perfiles pueden usar todos los dispositivos; el rol define permisos y el dispositivo define layout.
+
+## Criterios de aceptación
+- Funciona en mobile, tablet y web.
+- Respeta permisos del usuario.
+- Usa sucursal activa cuando aplica.
+- La experiencia visual se adapta al tamaño de pantalla.","frontend,flutter,multiplataforma,responsive,modulo:sucursales,epica:contexto-sucursal",,Frontend Flutter MVP,Todo,Media,sucursales,contexto-sucursal,Historia funcional,5,Contexto empresa y sucursal,"Funciona en mobile, tablet y web. | Respeta permisos del usuario. | Usa sucursal activa cuando aplica. | La experiencia visual se adapta al tamaño de pantalla."
+21,Crear layout principal adaptativo,"## Objetivo
+Crear shell con bottom navigation en mobile, navigation rail en tablet y sidebar en web.
+
+## Alcance funcional
+- Implementar la funcionalidad en Flutter.
+- Mantener compatibilidad multiplataforma desde el inicio.
+- Consumir los endpoints definidos por el backend Spring Boot cuando aplique.
+- Respetar sesión, permisos, empresa y sucursal activa.
+- Mostrar mensajes claros de éxito, validación y error.
+
+## Consideraciones multiplataforma
+- Mobile: diseño compacto, navegación simple y controles táctiles.
+- Tablet/iPad: layout intermedio con mayor espacio visual.
+- Web/Desktop: tablas, filtros y paneles amplios cuando aplique.
+- Todos los perfiles pueden usar todos los dispositivos; el rol define permisos y el dispositivo define layout.
+
+## Criterios de aceptación
+- Funciona en mobile, tablet y web.
+- Respeta permisos del usuario.
+- Usa sucursal activa cuando aplica.
+- La experiencia visual se adapta al tamaño de pantalla.","frontend,flutter,multiplataforma,responsive,modulo:core,epica:layout-adaptativo",,Frontend Flutter MVP,Todo,Alta,core,layout-adaptativo,Historia funcional,8,Shell principal y navegación,"Funciona en mobile, tablet y web. | Respeta permisos del usuario. | Usa sucursal activa cuando aplica. | La experiencia visual se adapta al tamaño de pantalla."
+22,Configurar rutas protegidas con GoRouter,"## Objetivo
+Configurar rutas públicas, privadas, permisos y deep links web.
+
+## Alcance funcional
+- Implementar la funcionalidad en Flutter.
+- Mantener compatibilidad multiplataforma desde el inicio.
+- Consumir los endpoints definidos por el backend Spring Boot cuando aplique.
+- Respetar sesión, permisos, empresa y sucursal activa.
+- Mostrar mensajes claros de éxito, validación y error.
+
+## Consideraciones multiplataforma
+- Mobile: diseño compacto, navegación simple y controles táctiles.
+- Tablet/iPad: layout intermedio con mayor espacio visual.
+- Web/Desktop: tablas, filtros y paneles amplios cuando aplique.
+- Todos los perfiles pueden usar todos los dispositivos; el rol define permisos y el dispositivo define layout.
+
+## Criterios de aceptación
+- Funciona en mobile, tablet y web.
+- Respeta permisos del usuario.
+- Usa sucursal activa cuando aplica.
+- La experiencia visual se adapta al tamaño de pantalla.","frontend,flutter,multiplataforma,responsive,modulo:core,epica:navegacion",,Frontend Flutter MVP,Todo,Alta,core,navegacion,Historia funcional,8,Shell principal y navegación,"Funciona en mobile, tablet y web. | Respeta permisos del usuario. | Usa sucursal activa cuando aplica. | La experiencia visual se adapta al tamaño de pantalla."
+23,Crear dashboard inicial por permisos,"## Objetivo
+Mostrar resumen inicial según rol/permisos del usuario.
+
+## Alcance funcional
+- Implementar la funcionalidad en Flutter.
+- Mantener compatibilidad multiplataforma desde el inicio.
+- Consumir los endpoints definidos por el backend Spring Boot cuando aplique.
+- Respetar sesión, permisos, empresa y sucursal activa.
+- Mostrar mensajes claros de éxito, validación y error.
+
+## Consideraciones multiplataforma
+- Mobile: diseño compacto, navegación simple y controles táctiles.
+- Tablet/iPad: layout intermedio con mayor espacio visual.
+- Web/Desktop: tablas, filtros y paneles amplios cuando aplique.
+- Todos los perfiles pueden usar todos los dispositivos; el rol define permisos y el dispositivo define layout.
+
+## Criterios de aceptación
+- Funciona en mobile, tablet y web.
+- Respeta permisos del usuario.
+- Usa sucursal activa cuando aplica.
+- La experiencia visual se adapta al tamaño de pantalla.","frontend,flutter,multiplataforma,responsive,modulo:dashboard,epica:dashboard",,Frontend Flutter MVP,Todo,Media,dashboard,dashboard,Historia funcional,5,Shell principal y navegación,"Funciona en mobile, tablet y web. | Respeta permisos del usuario. | Usa sucursal activa cuando aplica. | La experiencia visual se adapta al tamaño de pantalla."
+24,Crear módulo visual de empresas,"## Objetivo
+Implementar pantallas de listado, creación, edición y detalle cuando aplique.
+
+Endpoints relacionados: GET/POST/PUT/PATCH /api/v1/companies
+
+## Alcance funcional
+- Implementar la funcionalidad en Flutter.
+- Mantener compatibilidad multiplataforma desde el inicio.
+- Consumir los endpoints definidos por el backend Spring Boot cuando aplique.
+- Respetar sesión, permisos, empresa y sucursal activa.
+- Mostrar mensajes claros de éxito, validación y error.
+
+## Consideraciones multiplataforma
+- Mobile: diseño compacto, navegación simple y controles táctiles.
+- Tablet/iPad: layout intermedio con mayor espacio visual.
+- Web/Desktop: tablas, filtros y paneles amplios cuando aplique.
+- Todos los perfiles pueden usar todos los dispositivos; el rol define permisos y el dispositivo define layout.
+
+## Criterios de aceptación
+- El listado funciona con filtros o búsqueda cuando aplique.
+- Los formularios validan campos obligatorios.
+- La UI respeta permisos del usuario.
+- Funciona en mobile, tablet y web.","frontend,flutter,multiplataforma,responsive,modulo:empresas,epica:empresas,api-integration",,Frontend Flutter MVP,Todo,Media,empresas,empresas,Historia funcional,8,"Empresas, sucursales y usuarios","El listado funciona con filtros o búsqueda cuando aplique. | Los formularios validan campos obligatorios. | La UI respeta permisos del usuario. | Funciona en mobile, tablet y web."
+25,Crear módulo visual de sucursales,"## Objetivo
+Implementar pantallas de listado, creación, edición y detalle cuando aplique.
+
+Endpoints relacionados: GET/POST/PUT/PATCH /api/v1/branches
+
+## Alcance funcional
+- Implementar la funcionalidad en Flutter.
+- Mantener compatibilidad multiplataforma desde el inicio.
+- Consumir los endpoints definidos por el backend Spring Boot cuando aplique.
+- Respetar sesión, permisos, empresa y sucursal activa.
+- Mostrar mensajes claros de éxito, validación y error.
+
+## Consideraciones multiplataforma
+- Mobile: diseño compacto, navegación simple y controles táctiles.
+- Tablet/iPad: layout intermedio con mayor espacio visual.
+- Web/Desktop: tablas, filtros y paneles amplios cuando aplique.
+- Todos los perfiles pueden usar todos los dispositivos; el rol define permisos y el dispositivo define layout.
+
+## Criterios de aceptación
+- El listado funciona con filtros o búsqueda cuando aplique.
+- Los formularios validan campos obligatorios.
+- La UI respeta permisos del usuario.
+- Funciona en mobile, tablet y web.","frontend,flutter,multiplataforma,responsive,modulo:sucursales,epica:sucursales,api-integration",,Frontend Flutter MVP,Todo,Media,sucursales,sucursales,Historia funcional,8,"Empresas, sucursales y usuarios","El listado funciona con filtros o búsqueda cuando aplique. | Los formularios validan campos obligatorios. | La UI respeta permisos del usuario. | Funciona en mobile, tablet y web."
+26,Crear módulo visual de usuarios,"## Objetivo
+Implementar pantallas de listado, creación, edición y detalle cuando aplique.
+
+Endpoints relacionados: GET/POST/PUT/PATCH /api/v1/users
+
+## Alcance funcional
+- Implementar la funcionalidad en Flutter.
+- Mantener compatibilidad multiplataforma desde el inicio.
+- Consumir los endpoints definidos por el backend Spring Boot cuando aplique.
+- Respetar sesión, permisos, empresa y sucursal activa.
+- Mostrar mensajes claros de éxito, validación y error.
+
+## Consideraciones multiplataforma
+- Mobile: diseño compacto, navegación simple y controles táctiles.
+- Tablet/iPad: layout intermedio con mayor espacio visual.
+- Web/Desktop: tablas, filtros y paneles amplios cuando aplique.
+- Todos los perfiles pueden usar todos los dispositivos; el rol define permisos y el dispositivo define layout.
+
+## Criterios de aceptación
+- El listado funciona con filtros o búsqueda cuando aplique.
+- Los formularios validan campos obligatorios.
+- La UI respeta permisos del usuario.
+- Funciona en mobile, tablet y web.","frontend,flutter,multiplataforma,responsive,modulo:usuarios,epica:usuarios,api-integration",,Frontend Flutter MVP,Todo,Media,usuarios,usuarios,Historia funcional,8,"Empresas, sucursales y usuarios","El listado funciona con filtros o búsqueda cuando aplique. | Los formularios validan campos obligatorios. | La UI respeta permisos del usuario. | Funciona en mobile, tablet y web."
+27,Crear módulo visual de roles y permisos,"## Objetivo
+Implementar pantallas de listado, creación, edición y detalle cuando aplique.
+
+Endpoints relacionados: GET/POST /api/v1/roles y POST /api/v1/users/{id}/roles
+
+## Alcance funcional
+- Implementar la funcionalidad en Flutter.
+- Mantener compatibilidad multiplataforma desde el inicio.
+- Consumir los endpoints definidos por el backend Spring Boot cuando aplique.
+- Respetar sesión, permisos, empresa y sucursal activa.
+- Mostrar mensajes claros de éxito, validación y error.
+
+## Consideraciones multiplataforma
+- Mobile: diseño compacto, navegación simple y controles táctiles.
+- Tablet/iPad: layout intermedio con mayor espacio visual.
+- Web/Desktop: tablas, filtros y paneles amplios cuando aplique.
+- Todos los perfiles pueden usar todos los dispositivos; el rol define permisos y el dispositivo define layout.
+
+## Criterios de aceptación
+- El listado funciona con filtros o búsqueda cuando aplique.
+- Los formularios validan campos obligatorios.
+- La UI respeta permisos del usuario.
+- Funciona en mobile, tablet y web.","frontend,flutter,multiplataforma,responsive,modulo:roles,epica:usuarios-roles,api-integration",,Frontend Flutter MVP,Todo,Media,roles,usuarios-roles,Historia funcional,5,"Empresas, sucursales y usuarios","El listado funciona con filtros o búsqueda cuando aplique. | Los formularios validan campos obligatorios. | La UI respeta permisos del usuario. | Funciona en mobile, tablet y web."
+28,Crear módulo visual de parámetros,"## Objetivo
+Implementar pantallas de listado, creación, edición y detalle cuando aplique.
+
+Endpoints relacionados: GET/POST/PUT/PATCH /api/v1/parameters
+
+## Alcance funcional
+- Implementar la funcionalidad en Flutter.
+- Mantener compatibilidad multiplataforma desde el inicio.
+- Consumir los endpoints definidos por el backend Spring Boot cuando aplique.
+- Respetar sesión, permisos, empresa y sucursal activa.
+- Mostrar mensajes claros de éxito, validación y error.
+
+## Consideraciones multiplataforma
+- Mobile: diseño compacto, navegación simple y controles táctiles.
+- Tablet/iPad: layout intermedio con mayor espacio visual.
+- Web/Desktop: tablas, filtros y paneles amplios cuando aplique.
+- Todos los perfiles pueden usar todos los dispositivos; el rol define permisos y el dispositivo define layout.
+
+## Criterios de aceptación
+- El listado funciona con filtros o búsqueda cuando aplique.
+- Los formularios validan campos obligatorios.
+- La UI respeta permisos del usuario.
+- Funciona en mobile, tablet y web.","frontend,flutter,multiplataforma,responsive,modulo:parámetros,epica:parametros,api-integration",,Frontend Flutter MVP,Todo,Media,parámetros,parametros,Historia funcional,5,Catálogos y parámetros,"El listado funciona con filtros o búsqueda cuando aplique. | Los formularios validan campos obligatorios. | La UI respeta permisos del usuario. | Funciona en mobile, tablet y web."
+29,Crear módulo de catálogos geográficos,"## Objetivo
+Implementar pantallas de listado, creación, edición y detalle cuando aplique.
+
+Endpoints relacionados: GET /timezones, /countries, /regions, /cities
+
+## Alcance funcional
+- Implementar la funcionalidad en Flutter.
+- Mantener compatibilidad multiplataforma desde el inicio.
+- Consumir los endpoints definidos por el backend Spring Boot cuando aplique.
+- Respetar sesión, permisos, empresa y sucursal activa.
+- Mostrar mensajes claros de éxito, validación y error.
+
+## Consideraciones multiplataforma
+- Mobile: diseño compacto, navegación simple y controles táctiles.
+- Tablet/iPad: layout intermedio con mayor espacio visual.
+- Web/Desktop: tablas, filtros y paneles amplios cuando aplique.
+- Todos los perfiles pueden usar todos los dispositivos; el rol define permisos y el dispositivo define layout.
+
+## Criterios de aceptación
+- El listado funciona con filtros o búsqueda cuando aplique.
+- Los formularios validan campos obligatorios.
+- La UI respeta permisos del usuario.
+- Funciona en mobile, tablet y web.","frontend,flutter,multiplataforma,responsive,modulo:catalogos,epica:catalogos,api-integration",,Frontend Flutter MVP,Todo,Media,catalogos,catalogos,Historia funcional,5,Catálogos y parámetros,"El listado funciona con filtros o búsqueda cuando aplique. | Los formularios validan campos obligatorios. | La UI respeta permisos del usuario. | Funciona en mobile, tablet y web."
+30,Crear módulo visual de medios de pago,"## Objetivo
+Implementar pantallas de listado, creación, edición y detalle cuando aplique.
+
+Endpoints relacionados: GET/POST/PUT/PATCH /api/v1/payment-methods
+
+## Alcance funcional
+- Implementar la funcionalidad en Flutter.
+- Mantener compatibilidad multiplataforma desde el inicio.
+- Consumir los endpoints definidos por el backend Spring Boot cuando aplique.
+- Respetar sesión, permisos, empresa y sucursal activa.
+- Mostrar mensajes claros de éxito, validación y error.
+
+## Consideraciones multiplataforma
+- Mobile: diseño compacto, navegación simple y controles táctiles.
+- Tablet/iPad: layout intermedio con mayor espacio visual.
+- Web/Desktop: tablas, filtros y paneles amplios cuando aplique.
+- Todos los perfiles pueden usar todos los dispositivos; el rol define permisos y el dispositivo define layout.
+
+## Criterios de aceptación
+- El listado funciona con filtros o búsqueda cuando aplique.
+- Los formularios validan campos obligatorios.
+- La UI respeta permisos del usuario.
+- Funciona en mobile, tablet y web.","frontend,flutter,multiplataforma,responsive,modulo:pagos,epica:pagos,api-integration",,Frontend Flutter MVP,Todo,Media,pagos,pagos,Historia funcional,5,Catálogos y parámetros,"El listado funciona con filtros o búsqueda cuando aplique. | Los formularios validan campos obligatorios. | La UI respeta permisos del usuario. | Funciona en mobile, tablet y web."
+31,Crear módulo visual de marcas,"## Objetivo
+Implementar pantallas de listado, creación, edición y detalle cuando aplique.
+
+Endpoints relacionados: GET/POST/PUT /api/v1/brands
+
+## Alcance funcional
+- Implementar la funcionalidad en Flutter.
+- Mantener compatibilidad multiplataforma desde el inicio.
+- Consumir los endpoints definidos por el backend Spring Boot cuando aplique.
+- Respetar sesión, permisos, empresa y sucursal activa.
+- Mostrar mensajes claros de éxito, validación y error.
+
+## Consideraciones multiplataforma
+- Mobile: diseño compacto, navegación simple y controles táctiles.
+- Tablet/iPad: layout intermedio con mayor espacio visual.
+- Web/Desktop: tablas, filtros y paneles amplios cuando aplique.
+- Todos los perfiles pueden usar todos los dispositivos; el rol define permisos y el dispositivo define layout.
+
+## Criterios de aceptación
+- El listado funciona con filtros o búsqueda cuando aplique.
+- Los formularios validan campos obligatorios.
+- La UI respeta permisos del usuario.
+- Funciona en mobile, tablet y web.","frontend,flutter,multiplataforma,responsive,modulo:productos,epica:productos-precios,api-integration",,Frontend Flutter MVP,Todo,Media,productos,productos-precios,Historia funcional,5,"Productos, marcas y precios","El listado funciona con filtros o búsqueda cuando aplique. | Los formularios validan campos obligatorios. | La UI respeta permisos del usuario. | Funciona en mobile, tablet y web."
+32,Crear módulo visual de tipos de producto,"## Objetivo
+Implementar pantallas de listado, creación, edición y detalle cuando aplique.
+
+Endpoints relacionados: GET/POST/PUT /api/v1/product-types
+
+## Alcance funcional
+- Implementar la funcionalidad en Flutter.
+- Mantener compatibilidad multiplataforma desde el inicio.
+- Consumir los endpoints definidos por el backend Spring Boot cuando aplique.
+- Respetar sesión, permisos, empresa y sucursal activa.
+- Mostrar mensajes claros de éxito, validación y error.
+
+## Consideraciones multiplataforma
+- Mobile: diseño compacto, navegación simple y controles táctiles.
+- Tablet/iPad: layout intermedio con mayor espacio visual.
+- Web/Desktop: tablas, filtros y paneles amplios cuando aplique.
+- Todos los perfiles pueden usar todos los dispositivos; el rol define permisos y el dispositivo define layout.
+
+## Criterios de aceptación
+- El listado funciona con filtros o búsqueda cuando aplique.
+- Los formularios validan campos obligatorios.
+- La UI respeta permisos del usuario.
+- Funciona en mobile, tablet y web.","frontend,flutter,multiplataforma,responsive,modulo:productos,epica:productos-precios,api-integration",,Frontend Flutter MVP,Todo,Media,productos,productos-precios,Historia funcional,5,"Productos, marcas y precios","El listado funciona con filtros o búsqueda cuando aplique. | Los formularios validan campos obligatorios. | La UI respeta permisos del usuario. | Funciona en mobile, tablet y web."
+33,Crear módulo visual de productos,"## Objetivo
+Implementar pantallas de listado, creación, edición y detalle cuando aplique.
+
+Endpoints relacionados: GET /branches/{branchId}/products, POST/PUT /products
+
+## Alcance funcional
+- Implementar la funcionalidad en Flutter.
+- Mantener compatibilidad multiplataforma desde el inicio.
+- Consumir los endpoints definidos por el backend Spring Boot cuando aplique.
+- Respetar sesión, permisos, empresa y sucursal activa.
+- Mostrar mensajes claros de éxito, validación y error.
+
+## Consideraciones multiplataforma
+- Mobile: diseño compacto, navegación simple y controles táctiles.
+- Tablet/iPad: layout intermedio con mayor espacio visual.
+- Web/Desktop: tablas, filtros y paneles amplios cuando aplique.
+- Todos los perfiles pueden usar todos los dispositivos; el rol define permisos y el dispositivo define layout.
+
+## Criterios de aceptación
+- El listado funciona con filtros o búsqueda cuando aplique.
+- Los formularios validan campos obligatorios.
+- La UI respeta permisos del usuario.
+- Funciona en mobile, tablet y web.","frontend,flutter,multiplataforma,responsive,modulo:productos,epica:productos-precios,api-integration",,Frontend Flutter MVP,Todo,Alta,productos,productos-precios,Historia funcional,8,"Productos, marcas y precios","El listado funciona con filtros o búsqueda cuando aplique. | Los formularios validan campos obligatorios. | La UI respeta permisos del usuario. | Funciona en mobile, tablet y web."
+34,Crear módulo visual de precios,"## Objetivo
+Implementar pantallas de listado, creación, edición y detalle cuando aplique.
+
+Endpoints relacionados: POST /prices, GET /products/{id}/current-price y /prices
+
+## Alcance funcional
+- Implementar la funcionalidad en Flutter.
+- Mantener compatibilidad multiplataforma desde el inicio.
+- Consumir los endpoints definidos por el backend Spring Boot cuando aplique.
+- Respetar sesión, permisos, empresa y sucursal activa.
+- Mostrar mensajes claros de éxito, validación y error.
+
+## Consideraciones multiplataforma
+- Mobile: diseño compacto, navegación simple y controles táctiles.
+- Tablet/iPad: layout intermedio con mayor espacio visual.
+- Web/Desktop: tablas, filtros y paneles amplios cuando aplique.
+- Todos los perfiles pueden usar todos los dispositivos; el rol define permisos y el dispositivo define layout.
+
+## Criterios de aceptación
+- El listado funciona con filtros o búsqueda cuando aplique.
+- Los formularios validan campos obligatorios.
+- La UI respeta permisos del usuario.
+- Funciona en mobile, tablet y web.","frontend,flutter,multiplataforma,responsive,modulo:precios,epica:productos-precios,api-integration",,Frontend Flutter MVP,Todo,Alta,precios,productos-precios,Historia funcional,8,"Productos, marcas y precios","El listado funciona con filtros o búsqueda cuando aplique. | Los formularios validan campos obligatorios. | La UI respeta permisos del usuario. | Funciona en mobile, tablet y web."
+35,Crear pantalla de inventario actual por sucursal,"## Objetivo
+Implementar funcionalidad de inventario integrada con backend.
+
+Endpoint relacionado: GET /api/v1/branches/{branchId}/inventory
+
+## Alcance funcional
+- Implementar la funcionalidad en Flutter.
+- Mantener compatibilidad multiplataforma desde el inicio.
+- Consumir los endpoints definidos por el backend Spring Boot cuando aplique.
+- Respetar sesión, permisos, empresa y sucursal activa.
+- Mostrar mensajes claros de éxito, validación y error.
+
+## Consideraciones multiplataforma
+- Mobile: diseño compacto, navegación simple y controles táctiles.
+- Tablet/iPad: layout intermedio con mayor espacio visual.
+- Web/Desktop: tablas, filtros y paneles amplios cuando aplique.
+- Todos los perfiles pueden usar todos los dispositivos; el rol define permisos y el dispositivo define layout.
+
+## Criterios de aceptación
+- Usa sucursal activa.
+- Muestra datos actualizados después de guardar.
+- Muestra errores de stock o validación enviados por backend.
+- Mobile usa listas/tarjetas y web usa tablas/filtros.","frontend,flutter,multiplataforma,responsive,modulo:inventario,epica:inventario,api-integration",,Frontend Flutter MVP,Todo,Alta,inventario,inventario,Historia funcional,8,Inventario,Usa sucursal activa. | Muestra datos actualizados después de guardar. | Muestra errores de stock o validación enviados por backend. | Mobile usa listas/tarjetas y web usa tablas/filtros.
+36,Crear flujo de inventario inicial,"## Objetivo
+Implementar funcionalidad de inventario integrada con backend.
+
+Endpoint relacionado: POST /api/v1/inventory/initial-stock
+
+## Alcance funcional
+- Implementar la funcionalidad en Flutter.
+- Mantener compatibilidad multiplataforma desde el inicio.
+- Consumir los endpoints definidos por el backend Spring Boot cuando aplique.
+- Respetar sesión, permisos, empresa y sucursal activa.
+- Mostrar mensajes claros de éxito, validación y error.
+
+## Consideraciones multiplataforma
+- Mobile: diseño compacto, navegación simple y controles táctiles.
+- Tablet/iPad: layout intermedio con mayor espacio visual.
+- Web/Desktop: tablas, filtros y paneles amplios cuando aplique.
+- Todos los perfiles pueden usar todos los dispositivos; el rol define permisos y el dispositivo define layout.
+
+## Criterios de aceptación
+- Usa sucursal activa.
+- Muestra datos actualizados después de guardar.
+- Muestra errores de stock o validación enviados por backend.
+- Mobile usa listas/tarjetas y web usa tablas/filtros.","frontend,flutter,multiplataforma,responsive,modulo:inventario,epica:inventario,api-integration",,Frontend Flutter MVP,Todo,Media,inventario,inventario,Historia funcional,5,Inventario,Usa sucursal activa. | Muestra datos actualizados después de guardar. | Muestra errores de stock o validación enviados por backend. | Mobile usa listas/tarjetas y web usa tablas/filtros.
+37,Crear flujo de entrada de inventario,"## Objetivo
+Implementar funcionalidad de inventario integrada con backend.
+
+Endpoint relacionado: POST /api/v1/inventory/entries
+
+## Alcance funcional
+- Implementar la funcionalidad en Flutter.
+- Mantener compatibilidad multiplataforma desde el inicio.
+- Consumir los endpoints definidos por el backend Spring Boot cuando aplique.
+- Respetar sesión, permisos, empresa y sucursal activa.
+- Mostrar mensajes claros de éxito, validación y error.
+
+## Consideraciones multiplataforma
+- Mobile: diseño compacto, navegación simple y controles táctiles.
+- Tablet/iPad: layout intermedio con mayor espacio visual.
+- Web/Desktop: tablas, filtros y paneles amplios cuando aplique.
+- Todos los perfiles pueden usar todos los dispositivos; el rol define permisos y el dispositivo define layout.
+
+## Criterios de aceptación
+- Usa sucursal activa.
+- Muestra datos actualizados después de guardar.
+- Muestra errores de stock o validación enviados por backend.
+- Mobile usa listas/tarjetas y web usa tablas/filtros.","frontend,flutter,multiplataforma,responsive,modulo:inventario,epica:inventario,api-integration",,Frontend Flutter MVP,Todo,Alta,inventario,inventario,Historia funcional,5,Inventario,Usa sucursal activa. | Muestra datos actualizados después de guardar. | Muestra errores de stock o validación enviados por backend. | Mobile usa listas/tarjetas y web usa tablas/filtros.
+38,Crear flujo de salida de inventario,"## Objetivo
+Implementar funcionalidad de inventario integrada con backend.
+
+Endpoint relacionado: POST /api/v1/inventory/outputs
+
+## Alcance funcional
+- Implementar la funcionalidad en Flutter.
+- Mantener compatibilidad multiplataforma desde el inicio.
+- Consumir los endpoints definidos por el backend Spring Boot cuando aplique.
+- Respetar sesión, permisos, empresa y sucursal activa.
+- Mostrar mensajes claros de éxito, validación y error.
+
+## Consideraciones multiplataforma
+- Mobile: diseño compacto, navegación simple y controles táctiles.
+- Tablet/iPad: layout intermedio con mayor espacio visual.
+- Web/Desktop: tablas, filtros y paneles amplios cuando aplique.
+- Todos los perfiles pueden usar todos los dispositivos; el rol define permisos y el dispositivo define layout.
+
+## Criterios de aceptación
+- Usa sucursal activa.
+- Muestra datos actualizados después de guardar.
+- Muestra errores de stock o validación enviados por backend.
+- Mobile usa listas/tarjetas y web usa tablas/filtros.","frontend,flutter,multiplataforma,responsive,modulo:inventario,epica:inventario,api-integration",,Frontend Flutter MVP,Todo,Alta,inventario,inventario,Historia funcional,5,Inventario,Usa sucursal activa. | Muestra datos actualizados después de guardar. | Muestra errores de stock o validación enviados por backend. | Mobile usa listas/tarjetas y web usa tablas/filtros.
+39,Crear pantalla de movimientos de inventario,"## Objetivo
+Implementar funcionalidad de inventario integrada con backend.
+
+Endpoint relacionado: GET /api/v1/inventory/movements
+
+## Alcance funcional
+- Implementar la funcionalidad en Flutter.
+- Mantener compatibilidad multiplataforma desde el inicio.
+- Consumir los endpoints definidos por el backend Spring Boot cuando aplique.
+- Respetar sesión, permisos, empresa y sucursal activa.
+- Mostrar mensajes claros de éxito, validación y error.
+
+## Consideraciones multiplataforma
+- Mobile: diseño compacto, navegación simple y controles táctiles.
+- Tablet/iPad: layout intermedio con mayor espacio visual.
+- Web/Desktop: tablas, filtros y paneles amplios cuando aplique.
+- Todos los perfiles pueden usar todos los dispositivos; el rol define permisos y el dispositivo define layout.
+
+## Criterios de aceptación
+- Usa sucursal activa.
+- Muestra datos actualizados después de guardar.
+- Muestra errores de stock o validación enviados por backend.
+- Mobile usa listas/tarjetas y web usa tablas/filtros.","frontend,flutter,multiplataforma,responsive,modulo:inventario,epica:inventario,api-integration",,Frontend Flutter MVP,Todo,Media,inventario,inventario,Historia funcional,8,Inventario,Usa sucursal activa. | Muestra datos actualizados después de guardar. | Muestra errores de stock o validación enviados por backend. | Mobile usa listas/tarjetas y web usa tablas/filtros.
+40,Crear pantalla de stock bajo,"## Objetivo
+Implementar funcionalidad de inventario integrada con backend.
+
+Endpoint relacionado: GET /api/v1/inventory/low-stock
+
+## Alcance funcional
+- Implementar la funcionalidad en Flutter.
+- Mantener compatibilidad multiplataforma desde el inicio.
+- Consumir los endpoints definidos por el backend Spring Boot cuando aplique.
+- Respetar sesión, permisos, empresa y sucursal activa.
+- Mostrar mensajes claros de éxito, validación y error.
+
+## Consideraciones multiplataforma
+- Mobile: diseño compacto, navegación simple y controles táctiles.
+- Tablet/iPad: layout intermedio con mayor espacio visual.
+- Web/Desktop: tablas, filtros y paneles amplios cuando aplique.
+- Todos los perfiles pueden usar todos los dispositivos; el rol define permisos y el dispositivo define layout.
+
+## Criterios de aceptación
+- Usa sucursal activa.
+- Muestra datos actualizados después de guardar.
+- Muestra errores de stock o validación enviados por backend.
+- Mobile usa listas/tarjetas y web usa tablas/filtros.","frontend,flutter,multiplataforma,responsive,modulo:inventario,epica:inventario,api-integration",,Frontend Flutter MVP,Todo,Media,inventario,inventario,Historia funcional,5,Inventario,Usa sucursal activa. | Muestra datos actualizados después de guardar. | Muestra errores de stock o validación enviados por backend. | Mobile usa listas/tarjetas y web usa tablas/filtros.
+41,Crear pantalla de mesas por sucursal,"## Objetivo
+Implementar administración y visualización de mesas.
+
+Endpoint relacionado: GET /api/v1/branches/{branchId}/tables
+
+## Alcance funcional
+- Implementar la funcionalidad en Flutter.
+- Mantener compatibilidad multiplataforma desde el inicio.
+- Consumir los endpoints definidos por el backend Spring Boot cuando aplique.
+- Respetar sesión, permisos, empresa y sucursal activa.
+- Mostrar mensajes claros de éxito, validación y error.
+
+## Consideraciones multiplataforma
+- Mobile: diseño compacto, navegación simple y controles táctiles.
+- Tablet/iPad: layout intermedio con mayor espacio visual.
+- Web/Desktop: tablas, filtros y paneles amplios cuando aplique.
+- Todos los perfiles pueden usar todos los dispositivos; el rol define permisos y el dispositivo define layout.
+
+## Criterios de aceptación
+- Muestra mesas por sucursal activa.
+- Estados visuales: disponible, ocupada, reservada, inactiva.
+- No permite acciones sin permiso.
+- Se adapta a grilla en tablet/web y tarjetas en móvil.","frontend,flutter,multiplataforma,responsive,modulo:mesas,epica:mesas,api-integration",,Frontend Flutter MVP,Todo,Alta,mesas,mesas,Historia funcional,5,Mesas,"Muestra mesas por sucursal activa. | Estados visuales: disponible, ocupada, reservada, inactiva. | No permite acciones sin permiso. | Se adapta a grilla en tablet/web y tarjetas en móvil."
+42,Crear flujo para crear y editar mesas,"## Objetivo
+Implementar administración y visualización de mesas.
+
+Endpoint relacionado: POST /api/v1/tables y PATCH /api/v1/tables/{id}/status
+
+## Alcance funcional
+- Implementar la funcionalidad en Flutter.
+- Mantener compatibilidad multiplataforma desde el inicio.
+- Consumir los endpoints definidos por el backend Spring Boot cuando aplique.
+- Respetar sesión, permisos, empresa y sucursal activa.
+- Mostrar mensajes claros de éxito, validación y error.
+
+## Consideraciones multiplataforma
+- Mobile: diseño compacto, navegación simple y controles táctiles.
+- Tablet/iPad: layout intermedio con mayor espacio visual.
+- Web/Desktop: tablas, filtros y paneles amplios cuando aplique.
+- Todos los perfiles pueden usar todos los dispositivos; el rol define permisos y el dispositivo define layout.
+
+## Criterios de aceptación
+- Muestra mesas por sucursal activa.
+- Estados visuales: disponible, ocupada, reservada, inactiva.
+- No permite acciones sin permiso.
+- Se adapta a grilla en tablet/web y tarjetas en móvil.","frontend,flutter,multiplataforma,responsive,modulo:mesas,epica:mesas,api-integration",,Frontend Flutter MVP,Todo,Alta,mesas,mesas,Historia funcional,5,Mesas,"Muestra mesas por sucursal activa. | Estados visuales: disponible, ocupada, reservada, inactiva. | No permite acciones sin permiso. | Se adapta a grilla en tablet/web y tarjetas en móvil."
+43,Crear flujo para abrir venta en mesa,"## Objetivo
+Implementar flujo operativo de ventas/cuentas en Flutter.
+
+Endpoint relacionado: POST /api/v1/sales/open
+
+## Alcance funcional
+- Implementar la funcionalidad en Flutter.
+- Mantener compatibilidad multiplataforma desde el inicio.
+- Consumir los endpoints definidos por el backend Spring Boot cuando aplique.
+- Respetar sesión, permisos, empresa y sucursal activa.
+- Mostrar mensajes claros de éxito, validación y error.
+
+## Consideraciones multiplataforma
+- Mobile: diseño compacto, navegación simple y controles táctiles.
+- Tablet/iPad: layout intermedio con mayor espacio visual.
+- Web/Desktop: tablas, filtros y paneles amplios cuando aplique.
+- Todos los perfiles pueden usar todos los dispositivos; el rol define permisos y el dispositivo define layout.
+
+## Criterios de aceptación
+- Respeta estado de mesa, venta y cuenta.
+- Muestra totales, subtotales y saldo cuando aplique.
+- Muestra errores funcionales del backend.
+- Layout optimizado para operación en mobile, tablet y web.","frontend,flutter,multiplataforma,responsive,modulo:ventas,epica:ventas-cuentas,api-integration",,Frontend Flutter MVP,Todo,Alta,ventas,ventas-cuentas,Historia funcional,5,Ventas y cuentas,"Respeta estado de mesa, venta y cuenta. | Muestra totales, subtotales y saldo cuando aplique. | Muestra errores funcionales del backend. | Layout optimizado para operación en mobile, tablet y web."
+44,Crear pantalla de venta activa,"## Objetivo
+Implementar flujo operativo de ventas/cuentas en Flutter.
+
+Endpoint relacionado: GET /api/v1/tables/{tableId}/active-sale
+
+## Alcance funcional
+- Implementar la funcionalidad en Flutter.
+- Mantener compatibilidad multiplataforma desde el inicio.
+- Consumir los endpoints definidos por el backend Spring Boot cuando aplique.
+- Respetar sesión, permisos, empresa y sucursal activa.
+- Mostrar mensajes claros de éxito, validación y error.
+
+## Consideraciones multiplataforma
+- Mobile: diseño compacto, navegación simple y controles táctiles.
+- Tablet/iPad: layout intermedio con mayor espacio visual.
+- Web/Desktop: tablas, filtros y paneles amplios cuando aplique.
+- Todos los perfiles pueden usar todos los dispositivos; el rol define permisos y el dispositivo define layout.
+
+## Criterios de aceptación
+- Respeta estado de mesa, venta y cuenta.
+- Muestra totales, subtotales y saldo cuando aplique.
+- Muestra errores funcionales del backend.
+- Layout optimizado para operación en mobile, tablet y web.","frontend,flutter,multiplataforma,responsive,modulo:ventas,epica:ventas-cuentas,api-integration",,Frontend Flutter MVP,Todo,Alta,ventas,ventas-cuentas,Historia funcional,8,Ventas y cuentas,"Respeta estado de mesa, venta y cuenta. | Muestra totales, subtotales y saldo cuando aplique. | Muestra errores funcionales del backend. | Layout optimizado para operación en mobile, tablet y web."
+45,Crear flujo para crear cuenta en venta,"## Objetivo
+Implementar flujo operativo de ventas/cuentas en Flutter.
+
+Endpoint relacionado: POST /api/v1/sales/{saleId}/accounts
+
+## Alcance funcional
+- Implementar la funcionalidad en Flutter.
+- Mantener compatibilidad multiplataforma desde el inicio.
+- Consumir los endpoints definidos por el backend Spring Boot cuando aplique.
+- Respetar sesión, permisos, empresa y sucursal activa.
+- Mostrar mensajes claros de éxito, validación y error.
+
+## Consideraciones multiplataforma
+- Mobile: diseño compacto, navegación simple y controles táctiles.
+- Tablet/iPad: layout intermedio con mayor espacio visual.
+- Web/Desktop: tablas, filtros y paneles amplios cuando aplique.
+- Todos los perfiles pueden usar todos los dispositivos; el rol define permisos y el dispositivo define layout.
+
+## Criterios de aceptación
+- Respeta estado de mesa, venta y cuenta.
+- Muestra totales, subtotales y saldo cuando aplique.
+- Muestra errores funcionales del backend.
+- Layout optimizado para operación en mobile, tablet y web.","frontend,flutter,multiplataforma,responsive,modulo:cuentas-venta,epica:ventas-cuentas,api-integration",,Frontend Flutter MVP,Todo,Alta,cuentas-venta,ventas-cuentas,Historia funcional,5,Ventas y cuentas,"Respeta estado de mesa, venta y cuenta. | Muestra totales, subtotales y saldo cuando aplique. | Muestra errores funcionales del backend. | Layout optimizado para operación en mobile, tablet y web."
+46,Crear selector de productos para venta,"## Objetivo
+Implementar flujo operativo de ventas/cuentas en Flutter.
+
+Endpoint relacionado: GET /api/v1/branches/{branchId}/products y GET /api/v1/products/{productId}/current-price
+
+## Alcance funcional
+- Implementar la funcionalidad en Flutter.
+- Mantener compatibilidad multiplataforma desde el inicio.
+- Consumir los endpoints definidos por el backend Spring Boot cuando aplique.
+- Respetar sesión, permisos, empresa y sucursal activa.
+- Mostrar mensajes claros de éxito, validación y error.
+
+## Consideraciones multiplataforma
+- Mobile: diseño compacto, navegación simple y controles táctiles.
+- Tablet/iPad: layout intermedio con mayor espacio visual.
+- Web/Desktop: tablas, filtros y paneles amplios cuando aplique.
+- Todos los perfiles pueden usar todos los dispositivos; el rol define permisos y el dispositivo define layout.
+
+## Criterios de aceptación
+- Respeta estado de mesa, venta y cuenta.
+- Muestra totales, subtotales y saldo cuando aplique.
+- Muestra errores funcionales del backend.
+- Layout optimizado para operación en mobile, tablet y web.","frontend,flutter,multiplataforma,responsive,modulo:ventas,epica:ventas-cuentas,api-integration",,Frontend Flutter MVP,Todo,Alta,ventas,ventas-cuentas,Historia funcional,8,Ventas y cuentas,"Respeta estado de mesa, venta y cuenta. | Muestra totales, subtotales y saldo cuando aplique. | Muestra errores funcionales del backend. | Layout optimizado para operación en mobile, tablet y web."
+47,Crear flujo para agregar producto a cuenta,"## Objetivo
+Implementar flujo operativo de ventas/cuentas en Flutter.
+
+Endpoint relacionado: POST /api/v1/sale-accounts/{accountId}/items
+
+## Alcance funcional
+- Implementar la funcionalidad en Flutter.
+- Mantener compatibilidad multiplataforma desde el inicio.
+- Consumir los endpoints definidos por el backend Spring Boot cuando aplique.
+- Respetar sesión, permisos, empresa y sucursal activa.
+- Mostrar mensajes claros de éxito, validación y error.
+
+## Consideraciones multiplataforma
+- Mobile: diseño compacto, navegación simple y controles táctiles.
+- Tablet/iPad: layout intermedio con mayor espacio visual.
+- Web/Desktop: tablas, filtros y paneles amplios cuando aplique.
+- Todos los perfiles pueden usar todos los dispositivos; el rol define permisos y el dispositivo define layout.
+
+## Criterios de aceptación
+- Respeta estado de mesa, venta y cuenta.
+- Muestra totales, subtotales y saldo cuando aplique.
+- Muestra errores funcionales del backend.
+- Layout optimizado para operación en mobile, tablet y web.","frontend,flutter,multiplataforma,responsive,modulo:cuentas-venta,epica:ventas-cuentas,api-integration",,Frontend Flutter MVP,Todo,Alta,cuentas-venta,ventas-cuentas,Historia funcional,8,Ventas y cuentas,"Respeta estado de mesa, venta y cuenta. | Muestra totales, subtotales y saldo cuando aplique. | Muestra errores funcionales del backend. | Layout optimizado para operación en mobile, tablet y web."
+48,Crear flujo para modificar cantidad de producto,"## Objetivo
+Implementar flujo operativo de ventas/cuentas en Flutter.
+
+Endpoint relacionado: PUT /api/v1/sale-account-items/{itemId}
+
+## Alcance funcional
+- Implementar la funcionalidad en Flutter.
+- Mantener compatibilidad multiplataforma desde el inicio.
+- Consumir los endpoints definidos por el backend Spring Boot cuando aplique.
+- Respetar sesión, permisos, empresa y sucursal activa.
+- Mostrar mensajes claros de éxito, validación y error.
+
+## Consideraciones multiplataforma
+- Mobile: diseño compacto, navegación simple y controles táctiles.
+- Tablet/iPad: layout intermedio con mayor espacio visual.
+- Web/Desktop: tablas, filtros y paneles amplios cuando aplique.
+- Todos los perfiles pueden usar todos los dispositivos; el rol define permisos y el dispositivo define layout.
+
+## Criterios de aceptación
+- Respeta estado de mesa, venta y cuenta.
+- Muestra totales, subtotales y saldo cuando aplique.
+- Muestra errores funcionales del backend.
+- Layout optimizado para operación en mobile, tablet y web.","frontend,flutter,multiplataforma,responsive,modulo:cuentas-venta,epica:ventas-cuentas,api-integration",,Frontend Flutter MVP,Todo,Alta,cuentas-venta,ventas-cuentas,Historia funcional,5,Ventas y cuentas,"Respeta estado de mesa, venta y cuenta. | Muestra totales, subtotales y saldo cuando aplique. | Muestra errores funcionales del backend. | Layout optimizado para operación en mobile, tablet y web."
+49,Crear flujo para eliminar producto de cuenta,"## Objetivo
+Implementar flujo operativo de ventas/cuentas en Flutter.
+
+Endpoint relacionado: DELETE /api/v1/sale-account-items/{itemId}
+
+## Alcance funcional
+- Implementar la funcionalidad en Flutter.
+- Mantener compatibilidad multiplataforma desde el inicio.
+- Consumir los endpoints definidos por el backend Spring Boot cuando aplique.
+- Respetar sesión, permisos, empresa y sucursal activa.
+- Mostrar mensajes claros de éxito, validación y error.
+
+## Consideraciones multiplataforma
+- Mobile: diseño compacto, navegación simple y controles táctiles.
+- Tablet/iPad: layout intermedio con mayor espacio visual.
+- Web/Desktop: tablas, filtros y paneles amplios cuando aplique.
+- Todos los perfiles pueden usar todos los dispositivos; el rol define permisos y el dispositivo define layout.
+
+## Criterios de aceptación
+- Respeta estado de mesa, venta y cuenta.
+- Muestra totales, subtotales y saldo cuando aplique.
+- Muestra errores funcionales del backend.
+- Layout optimizado para operación en mobile, tablet y web.","frontend,flutter,multiplataforma,responsive,modulo:cuentas-venta,epica:ventas-cuentas,api-integration",,Frontend Flutter MVP,Todo,Alta,cuentas-venta,ventas-cuentas,Historia funcional,5,Ventas y cuentas,"Respeta estado de mesa, venta y cuenta. | Muestra totales, subtotales y saldo cuando aplique. | Muestra errores funcionales del backend. | Layout optimizado para operación en mobile, tablet y web."
+50,Crear pantalla de detalle de cuenta,"## Objetivo
+Implementar flujo operativo de ventas/cuentas en Flutter.
+
+Endpoint relacionado: GET /api/v1/sale-accounts/{accountId}
+
+## Alcance funcional
+- Implementar la funcionalidad en Flutter.
+- Mantener compatibilidad multiplataforma desde el inicio.
+- Consumir los endpoints definidos por el backend Spring Boot cuando aplique.
+- Respetar sesión, permisos, empresa y sucursal activa.
+- Mostrar mensajes claros de éxito, validación y error.
+
+## Consideraciones multiplataforma
+- Mobile: diseño compacto, navegación simple y controles táctiles.
+- Tablet/iPad: layout intermedio con mayor espacio visual.
+- Web/Desktop: tablas, filtros y paneles amplios cuando aplique.
+- Todos los perfiles pueden usar todos los dispositivos; el rol define permisos y el dispositivo define layout.
+
+## Criterios de aceptación
+- Respeta estado de mesa, venta y cuenta.
+- Muestra totales, subtotales y saldo cuando aplique.
+- Muestra errores funcionales del backend.
+- Layout optimizado para operación en mobile, tablet y web.","frontend,flutter,multiplataforma,responsive,modulo:cuentas-venta,epica:ventas-cuentas,api-integration",,Frontend Flutter MVP,Todo,Alta,cuentas-venta,ventas-cuentas,Historia funcional,8,Ventas y cuentas,"Respeta estado de mesa, venta y cuenta. | Muestra totales, subtotales y saldo cuando aplique. | Muestra errores funcionales del backend. | Layout optimizado para operación en mobile, tablet y web."
+51,Crear flujo para cancelar venta,"## Objetivo
+Implementar flujo operativo de ventas/cuentas en Flutter.
+
+Endpoint relacionado: PATCH /api/v1/sales/{id}/cancel
+
+## Alcance funcional
+- Implementar la funcionalidad en Flutter.
+- Mantener compatibilidad multiplataforma desde el inicio.
+- Consumir los endpoints definidos por el backend Spring Boot cuando aplique.
+- Respetar sesión, permisos, empresa y sucursal activa.
+- Mostrar mensajes claros de éxito, validación y error.
+
+## Consideraciones multiplataforma
+- Mobile: diseño compacto, navegación simple y controles táctiles.
+- Tablet/iPad: layout intermedio con mayor espacio visual.
+- Web/Desktop: tablas, filtros y paneles amplios cuando aplique.
+- Todos los perfiles pueden usar todos los dispositivos; el rol define permisos y el dispositivo define layout.
+
+## Criterios de aceptación
+- Respeta estado de mesa, venta y cuenta.
+- Muestra totales, subtotales y saldo cuando aplique.
+- Muestra errores funcionales del backend.
+- Layout optimizado para operación en mobile, tablet y web.","frontend,flutter,multiplataforma,responsive,modulo:ventas,epica:ventas-cuentas,api-integration",,Frontend Flutter MVP,Todo,Alta,ventas,ventas-cuentas,Historia funcional,5,Ventas y cuentas,"Respeta estado de mesa, venta y cuenta. | Muestra totales, subtotales y saldo cuando aplique. | Muestra errores funcionales del backend. | Layout optimizado para operación en mobile, tablet y web."
+52,Crear flujo para cerrar venta,"## Objetivo
+Implementar flujo operativo de ventas/cuentas en Flutter.
+
+Endpoint relacionado: PATCH /api/v1/sales/{id}/close
+
+## Alcance funcional
+- Implementar la funcionalidad en Flutter.
+- Mantener compatibilidad multiplataforma desde el inicio.
+- Consumir los endpoints definidos por el backend Spring Boot cuando aplique.
+- Respetar sesión, permisos, empresa y sucursal activa.
+- Mostrar mensajes claros de éxito, validación y error.
+
+## Consideraciones multiplataforma
+- Mobile: diseño compacto, navegación simple y controles táctiles.
+- Tablet/iPad: layout intermedio con mayor espacio visual.
+- Web/Desktop: tablas, filtros y paneles amplios cuando aplique.
+- Todos los perfiles pueden usar todos los dispositivos; el rol define permisos y el dispositivo define layout.
+
+## Criterios de aceptación
+- Respeta estado de mesa, venta y cuenta.
+- Muestra totales, subtotales y saldo cuando aplique.
+- Muestra errores funcionales del backend.
+- Layout optimizado para operación en mobile, tablet y web.","frontend,flutter,multiplataforma,responsive,modulo:ventas,epica:ventas-cuentas,api-integration",,Frontend Flutter MVP,Todo,Alta,ventas,ventas-cuentas,Historia funcional,5,Ventas y cuentas,"Respeta estado de mesa, venta y cuenta. | Muestra totales, subtotales y saldo cuando aplique. | Muestra errores funcionales del backend. | Layout optimizado para operación en mobile, tablet y web."
+53,Crear pantalla de pagos de cuenta,"## Objetivo
+Implementar funcionalidad de pagos.
+
+Endpoint/flujo relacionado: POST /api/v1/sale-accounts/{accountId}/payments
+
+## Alcance funcional
+- Implementar la funcionalidad en Flutter.
+- Mantener compatibilidad multiplataforma desde el inicio.
+- Consumir los endpoints definidos por el backend Spring Boot cuando aplique.
+- Respetar sesión, permisos, empresa y sucursal activa.
+- Mostrar mensajes claros de éxito, validación y error.
+
+## Consideraciones multiplataforma
+- Mobile: diseño compacto, navegación simple y controles táctiles.
+- Tablet/iPad: layout intermedio con mayor espacio visual.
+- Web/Desktop: tablas, filtros y paneles amplios cuando aplique.
+- Todos los perfiles pueden usar todos los dispositivos; el rol define permisos y el dispositivo define layout.
+
+## Criterios de aceptación
+- Permite pago parcial o total cuando aplique.
+- Muestra saldo pendiente actualizado.
+- Respeta medios de pago activos y permisos.
+- Funciona en móvil, tablet y web.","frontend,flutter,multiplataforma,responsive,modulo:pagos,epica:pagos,api-integration",,Frontend Flutter MVP,Todo,Alta,pagos,pagos,Historia funcional,8,Pagos,"Permite pago parcial o total cuando aplique. | Muestra saldo pendiente actualizado. | Respeta medios de pago activos y permisos. | Funciona en móvil, tablet y web."
+54,Crear flujo de pagos mixtos,"## Objetivo
+Implementar funcionalidad de pagos.
+
+Endpoint/flujo relacionado: Múltiples pagos sobre la misma cuenta
+
+## Alcance funcional
+- Implementar la funcionalidad en Flutter.
+- Mantener compatibilidad multiplataforma desde el inicio.
+- Consumir los endpoints definidos por el backend Spring Boot cuando aplique.
+- Respetar sesión, permisos, empresa y sucursal activa.
+- Mostrar mensajes claros de éxito, validación y error.
+
+## Consideraciones multiplataforma
+- Mobile: diseño compacto, navegación simple y controles táctiles.
+- Tablet/iPad: layout intermedio con mayor espacio visual.
+- Web/Desktop: tablas, filtros y paneles amplios cuando aplique.
+- Todos los perfiles pueden usar todos los dispositivos; el rol define permisos y el dispositivo define layout.
+
+## Criterios de aceptación
+- Permite pago parcial o total cuando aplique.
+- Muestra saldo pendiente actualizado.
+- Respeta medios de pago activos y permisos.
+- Funciona en móvil, tablet y web.","frontend,flutter,multiplataforma,responsive,modulo:pagos,epica:pagos,api-integration",,Frontend Flutter MVP,Todo,Alta,pagos,pagos,Historia funcional,5,Pagos,"Permite pago parcial o total cuando aplique. | Muestra saldo pendiente actualizado. | Respeta medios de pago activos y permisos. | Funciona en móvil, tablet y web."
+55,Crear flujo para anular pago,"## Objetivo
+Implementar funcionalidad de pagos.
+
+Endpoint/flujo relacionado: PATCH /api/v1/payments/{id}/cancel
+
+## Alcance funcional
+- Implementar la funcionalidad en Flutter.
+- Mantener compatibilidad multiplataforma desde el inicio.
+- Consumir los endpoints definidos por el backend Spring Boot cuando aplique.
+- Respetar sesión, permisos, empresa y sucursal activa.
+- Mostrar mensajes claros de éxito, validación y error.
+
+## Consideraciones multiplataforma
+- Mobile: diseño compacto, navegación simple y controles táctiles.
+- Tablet/iPad: layout intermedio con mayor espacio visual.
+- Web/Desktop: tablas, filtros y paneles amplios cuando aplique.
+- Todos los perfiles pueden usar todos los dispositivos; el rol define permisos y el dispositivo define layout.
+
+## Criterios de aceptación
+- Permite pago parcial o total cuando aplique.
+- Muestra saldo pendiente actualizado.
+- Respeta medios de pago activos y permisos.
+- Funciona en móvil, tablet y web.","frontend,flutter,multiplataforma,responsive,modulo:pagos,epica:pagos,api-integration",,Frontend Flutter MVP,Todo,Media,pagos,pagos,Historia funcional,5,Pagos,"Permite pago parcial o total cuando aplique. | Muestra saldo pendiente actualizado. | Respeta medios de pago activos y permisos. | Funciona en móvil, tablet y web."
+56,Crear pantalla de consulta de pagos,"## Objetivo
+Implementar funcionalidad de pagos.
+
+Endpoint/flujo relacionado: GET /api/v1/payments
+
+## Alcance funcional
+- Implementar la funcionalidad en Flutter.
+- Mantener compatibilidad multiplataforma desde el inicio.
+- Consumir los endpoints definidos por el backend Spring Boot cuando aplique.
+- Respetar sesión, permisos, empresa y sucursal activa.
+- Mostrar mensajes claros de éxito, validación y error.
+
+## Consideraciones multiplataforma
+- Mobile: diseño compacto, navegación simple y controles táctiles.
+- Tablet/iPad: layout intermedio con mayor espacio visual.
+- Web/Desktop: tablas, filtros y paneles amplios cuando aplique.
+- Todos los perfiles pueden usar todos los dispositivos; el rol define permisos y el dispositivo define layout.
+
+## Criterios de aceptación
+- Permite pago parcial o total cuando aplique.
+- Muestra saldo pendiente actualizado.
+- Respeta medios de pago activos y permisos.
+- Funciona en móvil, tablet y web.","frontend,flutter,multiplataforma,responsive,modulo:pagos,epica:pagos,api-integration",,Frontend Flutter MVP,Todo,Media,pagos,pagos,Historia funcional,8,Pagos,"Permite pago parcial o total cuando aplique. | Muestra saldo pendiente actualizado. | Respeta medios de pago activos y permisos. | Funciona en móvil, tablet y web."
+57,Crear reporte visual de ventas por fecha,"## Objetivo
+Crear reporte visual integrado con backend.
+
+Endpoint relacionado: GET /api/v1/reports/sales
+
+## Alcance funcional
+- Implementar la funcionalidad en Flutter.
+- Mantener compatibilidad multiplataforma desde el inicio.
+- Consumir los endpoints definidos por el backend Spring Boot cuando aplique.
+- Respetar sesión, permisos, empresa y sucursal activa.
+- Mostrar mensajes claros de éxito, validación y error.
+
+## Consideraciones multiplataforma
+- Mobile: diseño compacto, navegación simple y controles táctiles.
+- Tablet/iPad: layout intermedio con mayor espacio visual.
+- Web/Desktop: tablas, filtros y paneles amplios cuando aplique.
+- Todos los perfiles pueden usar todos los dispositivos; el rol define permisos y el dispositivo define layout.
+
+## Criterios de aceptación
+- Permite filtrar por fecha/sucursal cuando aplique.
+- Respeta permisos.
+- En web usa visualización amplia.
+- En móvil muestra tarjetas o resumen compacto.","frontend,flutter,multiplataforma,responsive,modulo:reportes,epica:reportes,api-integration",,Frontend Flutter MVP,Todo,Media,reportes,reportes,Historia funcional,8,Reportes,Permite filtrar por fecha/sucursal cuando aplique. | Respeta permisos. | En web usa visualización amplia. | En móvil muestra tarjetas o resumen compacto.
+58,Crear reporte visual de pagos por medio,"## Objetivo
+Crear reporte visual integrado con backend.
+
+Endpoint relacionado: GET /api/v1/reports/payments-by-method
+
+## Alcance funcional
+- Implementar la funcionalidad en Flutter.
+- Mantener compatibilidad multiplataforma desde el inicio.
+- Consumir los endpoints definidos por el backend Spring Boot cuando aplique.
+- Respetar sesión, permisos, empresa y sucursal activa.
+- Mostrar mensajes claros de éxito, validación y error.
+
+## Consideraciones multiplataforma
+- Mobile: diseño compacto, navegación simple y controles táctiles.
+- Tablet/iPad: layout intermedio con mayor espacio visual.
+- Web/Desktop: tablas, filtros y paneles amplios cuando aplique.
+- Todos los perfiles pueden usar todos los dispositivos; el rol define permisos y el dispositivo define layout.
+
+## Criterios de aceptación
+- Permite filtrar por fecha/sucursal cuando aplique.
+- Respeta permisos.
+- En web usa visualización amplia.
+- En móvil muestra tarjetas o resumen compacto.","frontend,flutter,multiplataforma,responsive,modulo:reportes,epica:reportes,api-integration",,Frontend Flutter MVP,Todo,Media,reportes,reportes,Historia funcional,8,Reportes,Permite filtrar por fecha/sucursal cuando aplique. | Respeta permisos. | En web usa visualización amplia. | En móvil muestra tarjetas o resumen compacto.
+59,Crear reporte visual de productos más vendidos,"## Objetivo
+Crear reporte visual integrado con backend.
+
+Endpoint relacionado: GET /api/v1/reports/top-products
+
+## Alcance funcional
+- Implementar la funcionalidad en Flutter.
+- Mantener compatibilidad multiplataforma desde el inicio.
+- Consumir los endpoints definidos por el backend Spring Boot cuando aplique.
+- Respetar sesión, permisos, empresa y sucursal activa.
+- Mostrar mensajes claros de éxito, validación y error.
+
+## Consideraciones multiplataforma
+- Mobile: diseño compacto, navegación simple y controles táctiles.
+- Tablet/iPad: layout intermedio con mayor espacio visual.
+- Web/Desktop: tablas, filtros y paneles amplios cuando aplique.
+- Todos los perfiles pueden usar todos los dispositivos; el rol define permisos y el dispositivo define layout.
+
+## Criterios de aceptación
+- Permite filtrar por fecha/sucursal cuando aplique.
+- Respeta permisos.
+- En web usa visualización amplia.
+- En móvil muestra tarjetas o resumen compacto.","frontend,flutter,multiplataforma,responsive,modulo:reportes,epica:reportes,api-integration",,Frontend Flutter MVP,Todo,Media,reportes,reportes,Historia funcional,8,Reportes,Permite filtrar por fecha/sucursal cuando aplique. | Respeta permisos. | En web usa visualización amplia. | En móvil muestra tarjetas o resumen compacto.
+60,Crear reporte visual de stock actual,"## Objetivo
+Crear reporte visual integrado con backend.
+
+Endpoint relacionado: GET /api/v1/reports/current-stock
+
+## Alcance funcional
+- Implementar la funcionalidad en Flutter.
+- Mantener compatibilidad multiplataforma desde el inicio.
+- Consumir los endpoints definidos por el backend Spring Boot cuando aplique.
+- Respetar sesión, permisos, empresa y sucursal activa.
+- Mostrar mensajes claros de éxito, validación y error.
+
+## Consideraciones multiplataforma
+- Mobile: diseño compacto, navegación simple y controles táctiles.
+- Tablet/iPad: layout intermedio con mayor espacio visual.
+- Web/Desktop: tablas, filtros y paneles amplios cuando aplique.
+- Todos los perfiles pueden usar todos los dispositivos; el rol define permisos y el dispositivo define layout.
+
+## Criterios de aceptación
+- Permite filtrar por fecha/sucursal cuando aplique.
+- Respeta permisos.
+- En web usa visualización amplia.
+- En móvil muestra tarjetas o resumen compacto.","frontend,flutter,multiplataforma,responsive,modulo:reportes,epica:reportes,api-integration",,Frontend Flutter MVP,Todo,Media,reportes,reportes,Historia funcional,8,Reportes,Permite filtrar por fecha/sucursal cuando aplique. | Respeta permisos. | En web usa visualización amplia. | En móvil muestra tarjetas o resumen compacto.
+61,Validar compatibilidad visual en Android,"## Objetivo
+Validar experiencia y flujos principales en Android.
+
+## Alcance funcional
+- Implementar la funcionalidad en Flutter.
+- Mantener compatibilidad multiplataforma desde el inicio.
+- Consumir los endpoints definidos por el backend Spring Boot cuando aplique.
+- Respetar sesión, permisos, empresa y sucursal activa.
+- Mostrar mensajes claros de éxito, validación y error.
+
+## Consideraciones multiplataforma
+- Mobile: diseño compacto, navegación simple y controles táctiles.
+- Tablet/iPad: layout intermedio con mayor espacio visual.
+- Web/Desktop: tablas, filtros y paneles amplios cuando aplique.
+- Todos los perfiles pueden usar todos los dispositivos; el rol define permisos y el dispositivo define layout.
+
+## Criterios de aceptación
+- Login funciona.
+- Navegación funciona.
+- Ventas, pagos e inventario no presentan desbordamientos.
+- Los permisos se respetan correctamente.","frontend,flutter,multiplataforma,responsive,modulo:qa,epica:pruebas-multiplataforma,qa",,Frontend Flutter MVP,Todo,Alta,qa,pruebas-multiplataforma,Historia funcional,5,Experiencia multiplataforma avanzada,"Login funciona. | Navegación funciona. | Ventas, pagos e inventario no presentan desbordamientos. | Los permisos se respetan correctamente."
+62,Validar compatibilidad visual en Web,"## Objetivo
+Validar experiencia y flujos principales en Web.
+
+## Alcance funcional
+- Implementar la funcionalidad en Flutter.
+- Mantener compatibilidad multiplataforma desde el inicio.
+- Consumir los endpoints definidos por el backend Spring Boot cuando aplique.
+- Respetar sesión, permisos, empresa y sucursal activa.
+- Mostrar mensajes claros de éxito, validación y error.
+
+## Consideraciones multiplataforma
+- Mobile: diseño compacto, navegación simple y controles táctiles.
+- Tablet/iPad: layout intermedio con mayor espacio visual.
+- Web/Desktop: tablas, filtros y paneles amplios cuando aplique.
+- Todos los perfiles pueden usar todos los dispositivos; el rol define permisos y el dispositivo define layout.
+
+## Criterios de aceptación
+- Login funciona.
+- Navegación funciona.
+- Ventas, pagos e inventario no presentan desbordamientos.
+- Los permisos se respetan correctamente.","frontend,flutter,multiplataforma,responsive,modulo:qa,epica:pruebas-multiplataforma,qa",,Frontend Flutter MVP,Todo,Alta,qa,pruebas-multiplataforma,Historia funcional,5,Experiencia multiplataforma avanzada,"Login funciona. | Navegación funciona. | Ventas, pagos e inventario no presentan desbordamientos. | Los permisos se respetan correctamente."
+63,Validar compatibilidad visual en iPhone,"## Objetivo
+Validar experiencia y flujos principales en iPhone.
+
+## Alcance funcional
+- Implementar la funcionalidad en Flutter.
+- Mantener compatibilidad multiplataforma desde el inicio.
+- Consumir los endpoints definidos por el backend Spring Boot cuando aplique.
+- Respetar sesión, permisos, empresa y sucursal activa.
+- Mostrar mensajes claros de éxito, validación y error.
+
+## Consideraciones multiplataforma
+- Mobile: diseño compacto, navegación simple y controles táctiles.
+- Tablet/iPad: layout intermedio con mayor espacio visual.
+- Web/Desktop: tablas, filtros y paneles amplios cuando aplique.
+- Todos los perfiles pueden usar todos los dispositivos; el rol define permisos y el dispositivo define layout.
+
+## Criterios de aceptación
+- Login funciona.
+- Navegación funciona.
+- Ventas, pagos e inventario no presentan desbordamientos.
+- Los permisos se respetan correctamente.","frontend,flutter,multiplataforma,responsive,modulo:qa,epica:pruebas-multiplataforma,qa",,Frontend Flutter MVP,Todo,Media,qa,pruebas-multiplataforma,Historia funcional,5,Experiencia multiplataforma avanzada,"Login funciona. | Navegación funciona. | Ventas, pagos e inventario no presentan desbordamientos. | Los permisos se respetan correctamente."
+64,Validar compatibilidad visual en iPad,"## Objetivo
+Validar experiencia y flujos principales en iPad.
+
+## Alcance funcional
+- Implementar la funcionalidad en Flutter.
+- Mantener compatibilidad multiplataforma desde el inicio.
+- Consumir los endpoints definidos por el backend Spring Boot cuando aplique.
+- Respetar sesión, permisos, empresa y sucursal activa.
+- Mostrar mensajes claros de éxito, validación y error.
+
+## Consideraciones multiplataforma
+- Mobile: diseño compacto, navegación simple y controles táctiles.
+- Tablet/iPad: layout intermedio con mayor espacio visual.
+- Web/Desktop: tablas, filtros y paneles amplios cuando aplique.
+- Todos los perfiles pueden usar todos los dispositivos; el rol define permisos y el dispositivo define layout.
+
+## Criterios de aceptación
+- Login funciona.
+- Navegación funciona.
+- Ventas, pagos e inventario no presentan desbordamientos.
+- Los permisos se respetan correctamente.","frontend,flutter,multiplataforma,responsive,modulo:qa,epica:pruebas-multiplataforma,qa",,Frontend Flutter MVP,Todo,Media,qa,pruebas-multiplataforma,Historia funcional,5,Experiencia multiplataforma avanzada,"Login funciona. | Navegación funciona. | Ventas, pagos e inventario no presentan desbordamientos. | Los permisos se respetan correctamente."
+65,Crear guía de diseño responsive,"## Objetivo
+Documentar reglas de diseño responsive para que nuevos desarrolladores implementen pantallas consistentes.
+
+## Alcance funcional
+- Implementar la funcionalidad en Flutter.
+- Mantener compatibilidad multiplataforma desde el inicio.
+- Consumir los endpoints definidos por el backend Spring Boot cuando aplique.
+- Respetar sesión, permisos, empresa y sucursal activa.
+- Mostrar mensajes claros de éxito, validación y error.
+
+## Consideraciones multiplataforma
+- Mobile: diseño compacto, navegación simple y controles táctiles.
+- Tablet/iPad: layout intermedio con mayor espacio visual.
+- Web/Desktop: tablas, filtros y paneles amplios cuando aplique.
+- Todos los perfiles pueden usar todos los dispositivos; el rol define permisos y el dispositivo define layout.
+
+## Criterios de aceptación
+- La guía incluye breakpoints.
+- Incluye reglas de formularios, tablas, botones y diálogos.
+- Define cuándo usar mobile/tablet/desktop layout.
+- Se referencia en nuevas tareas del frontend.","frontend,flutter,multiplataforma,responsive,modulo:core,epica:layout-adaptativo",,Frontend Flutter MVP,Todo,Media,core,layout-adaptativo,Historia funcional,5,Experiencia multiplataforma avanzada,"La guía incluye breakpoints. | Incluye reglas de formularios, tablas, botones y diálogos. | Define cuándo usar mobile/tablet/desktop layout. | Se referencia en nuevas tareas del frontend."
+66,Crear pruebas unitarias de servicios API,"## Objetivo
+Implementar pruebas automatizadas para asegurar calidad del frontend Flutter.
+
+## Alcance funcional
+- Implementar la funcionalidad en Flutter.
+- Mantener compatibilidad multiplataforma desde el inicio.
+- Consumir los endpoints definidos por el backend Spring Boot cuando aplique.
+- Respetar sesión, permisos, empresa y sucursal activa.
+- Mostrar mensajes claros de éxito, validación y error.
+
+## Consideraciones multiplataforma
+- Mobile: diseño compacto, navegación simple y controles táctiles.
+- Tablet/iPad: layout intermedio con mayor espacio visual.
+- Web/Desktop: tablas, filtros y paneles amplios cuando aplique.
+- Todos los perfiles pueden usar todos los dispositivos; el rol define permisos y el dispositivo define layout.
+
+## Criterios de aceptación
+- Las pruebas corren en pipeline o localmente.
+- Cubren casos exitosos y errores.
+- No dependen de backend real cuando aplica.
+- Validan comportamiento responsive cuando aplica.","frontend,flutter,multiplataforma,responsive,modulo:pruebas,epica:pruebas-frontend,testing",,Frontend Flutter MVP,Todo,Media,pruebas,pruebas-frontend,Historia funcional,8,Pruebas frontend,Las pruebas corren en pipeline o localmente. | Cubren casos exitosos y errores. | No dependen de backend real cuando aplica. | Validan comportamiento responsive cuando aplica.
+67,Crear pruebas de providers/controladores,"## Objetivo
+Implementar pruebas automatizadas para asegurar calidad del frontend Flutter.
+
+## Alcance funcional
+- Implementar la funcionalidad en Flutter.
+- Mantener compatibilidad multiplataforma desde el inicio.
+- Consumir los endpoints definidos por el backend Spring Boot cuando aplique.
+- Respetar sesión, permisos, empresa y sucursal activa.
+- Mostrar mensajes claros de éxito, validación y error.
+
+## Consideraciones multiplataforma
+- Mobile: diseño compacto, navegación simple y controles táctiles.
+- Tablet/iPad: layout intermedio con mayor espacio visual.
+- Web/Desktop: tablas, filtros y paneles amplios cuando aplique.
+- Todos los perfiles pueden usar todos los dispositivos; el rol define permisos y el dispositivo define layout.
+
+## Criterios de aceptación
+- Las pruebas corren en pipeline o localmente.
+- Cubren casos exitosos y errores.
+- No dependen de backend real cuando aplica.
+- Validan comportamiento responsive cuando aplica.","frontend,flutter,multiplataforma,responsive,modulo:pruebas,epica:pruebas-frontend,testing",,Frontend Flutter MVP,Todo,Media,pruebas,pruebas-frontend,Historia funcional,8,Pruebas frontend,Las pruebas corren en pipeline o localmente. | Cubren casos exitosos y errores. | No dependen de backend real cuando aplica. | Validan comportamiento responsive cuando aplica.
+68,Crear pruebas de widgets principales,"## Objetivo
+Implementar pruebas automatizadas para asegurar calidad del frontend Flutter.
+
+## Alcance funcional
+- Implementar la funcionalidad en Flutter.
+- Mantener compatibilidad multiplataforma desde el inicio.
+- Consumir los endpoints definidos por el backend Spring Boot cuando aplique.
+- Respetar sesión, permisos, empresa y sucursal activa.
+- Mostrar mensajes claros de éxito, validación y error.
+
+## Consideraciones multiplataforma
+- Mobile: diseño compacto, navegación simple y controles táctiles.
+- Tablet/iPad: layout intermedio con mayor espacio visual.
+- Web/Desktop: tablas, filtros y paneles amplios cuando aplique.
+- Todos los perfiles pueden usar todos los dispositivos; el rol define permisos y el dispositivo define layout.
+
+## Criterios de aceptación
+- Las pruebas corren en pipeline o localmente.
+- Cubren casos exitosos y errores.
+- No dependen de backend real cuando aplica.
+- Validan comportamiento responsive cuando aplica.","frontend,flutter,multiplataforma,responsive,modulo:pruebas,epica:pruebas-frontend,testing",,Frontend Flutter MVP,Todo,Media,pruebas,pruebas-frontend,Historia funcional,8,Pruebas frontend,Las pruebas corren en pipeline o localmente. | Cubren casos exitosos y errores. | No dependen de backend real cuando aplica. | Validan comportamiento responsive cuando aplica.
+69,Crear pruebas responsive,"## Objetivo
+Implementar pruebas automatizadas para asegurar calidad del frontend Flutter.
+
+## Alcance funcional
+- Implementar la funcionalidad en Flutter.
+- Mantener compatibilidad multiplataforma desde el inicio.
+- Consumir los endpoints definidos por el backend Spring Boot cuando aplique.
+- Respetar sesión, permisos, empresa y sucursal activa.
+- Mostrar mensajes claros de éxito, validación y error.
+
+## Consideraciones multiplataforma
+- Mobile: diseño compacto, navegación simple y controles táctiles.
+- Tablet/iPad: layout intermedio con mayor espacio visual.
+- Web/Desktop: tablas, filtros y paneles amplios cuando aplique.
+- Todos los perfiles pueden usar todos los dispositivos; el rol define permisos y el dispositivo define layout.
+
+## Criterios de aceptación
+- Las pruebas corren en pipeline o localmente.
+- Cubren casos exitosos y errores.
+- No dependen de backend real cuando aplica.
+- Validan comportamiento responsive cuando aplica.","frontend,flutter,multiplataforma,responsive,modulo:pruebas,epica:pruebas-frontend,testing",,Frontend Flutter MVP,Todo,Media,pruebas,pruebas-frontend,Historia funcional,8,Pruebas frontend,Las pruebas corren en pipeline o localmente. | Cubren casos exitosos y errores. | No dependen de backend real cuando aplica. | Validan comportamiento responsive cuando aplica.
+70,Validar flujo completo de autenticación,"## Objetivo
+Login, /me, menú, selección de sucursal, dashboard y logout.
+
+## Alcance funcional
+- Implementar la funcionalidad en Flutter.
+- Mantener compatibilidad multiplataforma desde el inicio.
+- Consumir los endpoints definidos por el backend Spring Boot cuando aplique.
+- Respetar sesión, permisos, empresa y sucursal activa.
+- Mostrar mensajes claros de éxito, validación y error.
+
+## Consideraciones multiplataforma
+- Mobile: diseño compacto, navegación simple y controles táctiles.
+- Tablet/iPad: layout intermedio con mayor espacio visual.
+- Web/Desktop: tablas, filtros y paneles amplios cuando aplique.
+- Todos los perfiles pueden usar todos los dispositivos; el rol define permisos y el dispositivo define layout.
+
+## Criterios de aceptación
+- El flujo funciona de inicio a fin.
+- La UI muestra mensajes claros.
+- Los datos quedan consistentes con backend.
+- Funciona al menos en mobile y web; tablet/iPad se valida en fase multiplataforma.","frontend,flutter,multiplataforma,responsive,modulo:flujos,epica:flujos-integrados,e2e,api-integration",,Frontend Flutter MVP,Todo,Alta,flujos,flujos-integrados,Historia funcional,8,Flujos completos integrados,El flujo funciona de inicio a fin. | La UI muestra mensajes claros. | Los datos quedan consistentes con backend. | Funciona al menos en mobile y web; tablet/iPad se valida en fase multiplataforma.
+71,Validar flujo completo de administración,"## Objetivo
+Crear empresa, sucursal, usuario, rol, parámetros y medios de pago.
+
+## Alcance funcional
+- Implementar la funcionalidad en Flutter.
+- Mantener compatibilidad multiplataforma desde el inicio.
+- Consumir los endpoints definidos por el backend Spring Boot cuando aplique.
+- Respetar sesión, permisos, empresa y sucursal activa.
+- Mostrar mensajes claros de éxito, validación y error.
+
+## Consideraciones multiplataforma
+- Mobile: diseño compacto, navegación simple y controles táctiles.
+- Tablet/iPad: layout intermedio con mayor espacio visual.
+- Web/Desktop: tablas, filtros y paneles amplios cuando aplique.
+- Todos los perfiles pueden usar todos los dispositivos; el rol define permisos y el dispositivo define layout.
+
+## Criterios de aceptación
+- El flujo funciona de inicio a fin.
+- La UI muestra mensajes claros.
+- Los datos quedan consistentes con backend.
+- Funciona al menos en mobile y web; tablet/iPad se valida en fase multiplataforma.","frontend,flutter,multiplataforma,responsive,modulo:flujos,epica:flujos-integrados,e2e,api-integration",,Frontend Flutter MVP,Todo,Alta,flujos,flujos-integrados,Historia funcional,8,Flujos completos integrados,El flujo funciona de inicio a fin. | La UI muestra mensajes claros. | Los datos quedan consistentes con backend. | Funciona al menos en mobile y web; tablet/iPad se valida en fase multiplataforma.
+72,Validar flujo completo de producto listo para venta,"## Objetivo
+Crear marca, tipo, producto, precio, inventario inicial y disponibilidad en ventas.
+
+## Alcance funcional
+- Implementar la funcionalidad en Flutter.
+- Mantener compatibilidad multiplataforma desde el inicio.
+- Consumir los endpoints definidos por el backend Spring Boot cuando aplique.
+- Respetar sesión, permisos, empresa y sucursal activa.
+- Mostrar mensajes claros de éxito, validación y error.
+
+## Consideraciones multiplataforma
+- Mobile: diseño compacto, navegación simple y controles táctiles.
+- Tablet/iPad: layout intermedio con mayor espacio visual.
+- Web/Desktop: tablas, filtros y paneles amplios cuando aplique.
+- Todos los perfiles pueden usar todos los dispositivos; el rol define permisos y el dispositivo define layout.
+
+## Criterios de aceptación
+- El flujo funciona de inicio a fin.
+- La UI muestra mensajes claros.
+- Los datos quedan consistentes con backend.
+- Funciona al menos en mobile y web; tablet/iPad se valida en fase multiplataforma.","frontend,flutter,multiplataforma,responsive,modulo:flujos,epica:flujos-integrados,e2e,api-integration",,Frontend Flutter MVP,Todo,Alta,flujos,flujos-integrados,Historia funcional,8,Flujos completos integrados,El flujo funciona de inicio a fin. | La UI muestra mensajes claros. | Los datos quedan consistentes con backend. | Funciona al menos en mobile y web; tablet/iPad se valida en fase multiplataforma.
+73,Validar flujo completo de venta en mesa,"## Objetivo
+Abrir mesa, cuenta, agregar productos, totales, pago, cierre y liberación de mesa.
+
+## Alcance funcional
+- Implementar la funcionalidad en Flutter.
+- Mantener compatibilidad multiplataforma desde el inicio.
+- Consumir los endpoints definidos por el backend Spring Boot cuando aplique.
+- Respetar sesión, permisos, empresa y sucursal activa.
+- Mostrar mensajes claros de éxito, validación y error.
+
+## Consideraciones multiplataforma
+- Mobile: diseño compacto, navegación simple y controles táctiles.
+- Tablet/iPad: layout intermedio con mayor espacio visual.
+- Web/Desktop: tablas, filtros y paneles amplios cuando aplique.
+- Todos los perfiles pueden usar todos los dispositivos; el rol define permisos y el dispositivo define layout.
+
+## Criterios de aceptación
+- El flujo funciona de inicio a fin.
+- La UI muestra mensajes claros.
+- Los datos quedan consistentes con backend.
+- Funciona al menos en mobile y web; tablet/iPad se valida en fase multiplataforma.","frontend,flutter,multiplataforma,responsive,modulo:flujos,epica:flujos-integrados,e2e,api-integration",,Frontend Flutter MVP,Todo,Alta,flujos,flujos-integrados,Historia funcional,8,Flujos completos integrados,El flujo funciona de inicio a fin. | La UI muestra mensajes claros. | Los datos quedan consistentes con backend. | Funciona al menos en mobile y web; tablet/iPad se valida en fase multiplataforma.
+74,Validar flujo completo de pago mixto,"## Objetivo
+Registrar varios pagos y cerrar venta con saldo cero.
+
+## Alcance funcional
+- Implementar la funcionalidad en Flutter.
+- Mantener compatibilidad multiplataforma desde el inicio.
+- Consumir los endpoints definidos por el backend Spring Boot cuando aplique.
+- Respetar sesión, permisos, empresa y sucursal activa.
+- Mostrar mensajes claros de éxito, validación y error.
+
+## Consideraciones multiplataforma
+- Mobile: diseño compacto, navegación simple y controles táctiles.
+- Tablet/iPad: layout intermedio con mayor espacio visual.
+- Web/Desktop: tablas, filtros y paneles amplios cuando aplique.
+- Todos los perfiles pueden usar todos los dispositivos; el rol define permisos y el dispositivo define layout.
+
+## Criterios de aceptación
+- El flujo funciona de inicio a fin.
+- La UI muestra mensajes claros.
+- Los datos quedan consistentes con backend.
+- Funciona al menos en mobile y web; tablet/iPad se valida en fase multiplataforma.","frontend,flutter,multiplataforma,responsive,modulo:flujos,epica:flujos-integrados,e2e,api-integration",,Frontend Flutter MVP,Todo,Alta,flujos,flujos-integrados,Historia funcional,8,Flujos completos integrados,El flujo funciona de inicio a fin. | La UI muestra mensajes claros. | Los datos quedan consistentes con backend. | Funciona al menos en mobile y web; tablet/iPad se valida en fase multiplataforma.
+75,Validar flujo completo de cancelación de venta,"## Objetivo
+Cancelar venta con motivo, liberar mesa y verificar inventario reversado.
+
+## Alcance funcional
+- Implementar la funcionalidad en Flutter.
+- Mantener compatibilidad multiplataforma desde el inicio.
+- Consumir los endpoints definidos por el backend Spring Boot cuando aplique.
+- Respetar sesión, permisos, empresa y sucursal activa.
+- Mostrar mensajes claros de éxito, validación y error.
+
+## Consideraciones multiplataforma
+- Mobile: diseño compacto, navegación simple y controles táctiles.
+- Tablet/iPad: layout intermedio con mayor espacio visual.
+- Web/Desktop: tablas, filtros y paneles amplios cuando aplique.
+- Todos los perfiles pueden usar todos los dispositivos; el rol define permisos y el dispositivo define layout.
+
+## Criterios de aceptación
+- El flujo funciona de inicio a fin.
+- La UI muestra mensajes claros.
+- Los datos quedan consistentes con backend.
+- Funciona al menos en mobile y web; tablet/iPad se valida en fase multiplataforma.","frontend,flutter,multiplataforma,responsive,modulo:flujos,epica:flujos-integrados,e2e,api-integration",,Frontend Flutter MVP,Todo,Alta,flujos,flujos-integrados,Historia funcional,8,Flujos completos integrados,El flujo funciona de inicio a fin. | La UI muestra mensajes claros. | Los datos quedan consistentes con backend. | Funciona al menos en mobile y web; tablet/iPad se valida en fase multiplataforma.
