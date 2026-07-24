@@ -19,7 +19,7 @@ class Environment {
       EnvironmentType.androidEmulator => 'http://10.0.2.2:8080',
       EnvironmentType.dev => 'https://dev-api.barlytics.local',
       EnvironmentType.prod => 'https://api.barlytics.local',
-      EnvironmentType.local => 'http://localhost:8080',
+      EnvironmentType.local => 'http://localhost:8282',
     };
   }
 }

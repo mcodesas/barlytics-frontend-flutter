@@ -3,6 +3,7 @@ class UsuariosRequestModel {
   const UsuariosRequestModel({
     this.ciudId,
     this.emprId,
+    this.sucuId,
     this.usuaEmail,
     this.usuaPrimerApellido,
     this.usuaPrimerNombre,
@@ -14,10 +15,12 @@ class UsuariosRequestModel {
     this.usuaDireccion,
     this.usuaTelefonoPrincipal,
     this.usuaTelefonoSecundario,
+    this.usuaFoto,
   });
 
   final int? ciudId;
   final int? emprId;
+  final int? sucuId;
   final String? usuaEmail;
   final String? usuaPrimerApellido;
   final String? usuaPrimerNombre;
@@ -29,10 +32,12 @@ class UsuariosRequestModel {
   final String? usuaDireccion;
   final String? usuaTelefonoPrincipal;
   final String? usuaTelefonoSecundario;
+  final String? usuaFoto;
 
   factory UsuariosRequestModel.fromJson(Map<String, dynamic> json) => UsuariosRequestModel(
       ciudId: (json['ciudId'] as num?)?.toInt(),
       emprId: (json['emprId'] as num?)?.toInt(),
+      sucuId: (json['sucuId'] as num?)?.toInt(),
       usuaEmail: json['usuaEmail']?.toString(),
       usuaPrimerApellido: json['usuaPrimerApellido']?.toString(),
       usuaPrimerNombre: json['usuaPrimerNombre']?.toString(),
@@ -44,11 +49,13 @@ class UsuariosRequestModel {
       usuaDireccion: json['usuaDireccion']?.toString(),
       usuaTelefonoPrincipal: json['usuaTelefonoPrincipal']?.toString(),
       usuaTelefonoSecundario: json['usuaTelefonoSecundario']?.toString(),
+      usuaFoto: json['usuaFoto']?.toString(),
   );
 
   Map<String, dynamic> toJson() => <String, dynamic>{
       if (ciudId != null) 'ciudId': ciudId,
       if (emprId != null) 'emprId': emprId,
+      if (sucuId != null) 'sucuId': sucuId,
       if (usuaEmail != null) 'usuaEmail': usuaEmail,
       if (usuaPrimerApellido != null) 'usuaPrimerApellido': usuaPrimerApellido,
       if (usuaPrimerNombre != null) 'usuaPrimerNombre': usuaPrimerNombre,
@@ -60,5 +67,6 @@ class UsuariosRequestModel {
       if (usuaDireccion != null) 'usuaDireccion': usuaDireccion,
       if (usuaTelefonoPrincipal != null) 'usuaTelefonoPrincipal': usuaTelefonoPrincipal,
       if (usuaTelefonoSecundario != null) 'usuaTelefonoSecundario': usuaTelefonoSecundario,
+      if (usuaFoto != null) 'usuaFoto': usuaFoto,
   };
 }

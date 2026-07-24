@@ -60,7 +60,7 @@ class AppTheme {
       ),
       filledButtonTheme: FilledButtonThemeData(
         style: FilledButton.styleFrom(
-          minimumSize: const Size.fromHeight(54),
+          minimumSize: const Size(0, 54),
           padding: const EdgeInsets.symmetric(horizontal: 22, vertical: 17),
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
           textStyle: const TextStyle(fontWeight: FontWeight.w900, fontSize: 15),

@@ -1,5 +1,5 @@
 /// Tipo visual y de validación para campos dinámicos.
-enum CrudFieldType { text, number, decimal, date, dateTime, boolean }
+enum CrudFieldType { text, number, decimal, date, dateTime, boolean, image }
 
 /// Configuración de una ayuda de búsqueda para campos relacionales.
 ///

@@ -4,6 +4,7 @@ class UsuariosResponseModel {
     this.usuaId,
     this.ciudId,
     this.emprId,
+    this.sucuId,
     this.usuaEstado,
     this.usuaBloqueado,
     this.usuaPrimerNombre,
@@ -15,6 +16,7 @@ class UsuariosResponseModel {
     this.usuaDireccion,
     this.usuaTelefonoPrincipal,
     this.usuaTelefonoSecundario,
+    this.usuaFoto,
     this.usuaRegistradoPor,
     this.usuaFechaCambio,
   });
@@ -22,6 +24,7 @@ class UsuariosResponseModel {
   final int? usuaId;
   final int? ciudId;
   final int? emprId;
+  final int? sucuId;
   final int? usuaEstado;
   final int? usuaBloqueado;
   final String? usuaPrimerNombre;
@@ -33,6 +36,7 @@ class UsuariosResponseModel {
   final String? usuaDireccion;
   final String? usuaTelefonoPrincipal;
   final String? usuaTelefonoSecundario;
+  final String? usuaFoto;
   final String? usuaRegistradoPor;
   final String? usuaFechaCambio;
 
@@ -40,6 +44,7 @@ class UsuariosResponseModel {
       usuaId: (json['usuaId'] as num?)?.toInt(),
       ciudId: (json['ciudId'] as num?)?.toInt(),
       emprId: (json['emprId'] as num?)?.toInt(),
+      sucuId: (json['sucuId'] as num?)?.toInt(),
       usuaEstado: (json['usuaEstado'] as num?)?.toInt(),
       usuaBloqueado: (json['usuaBloqueado'] as num?)?.toInt(),
       usuaPrimerNombre: json['usuaPrimerNombre']?.toString(),
@@ -51,6 +56,7 @@ class UsuariosResponseModel {
       usuaDireccion: json['usuaDireccion']?.toString(),
       usuaTelefonoPrincipal: json['usuaTelefonoPrincipal']?.toString(),
       usuaTelefonoSecundario: json['usuaTelefonoSecundario']?.toString(),
+      usuaFoto: json['usuaFoto']?.toString(),
       usuaRegistradoPor: json['usuaRegistradoPor']?.toString(),
       usuaFechaCambio: json['usuaFechaCambio']?.toString(),
   );
@@ -59,6 +65,7 @@ class UsuariosResponseModel {
       'usuaId': usuaId,
       'ciudId': ciudId,
       'emprId': emprId,
+      'sucuId': sucuId,
       'usuaEstado': usuaEstado,
       'usuaBloqueado': usuaBloqueado,
       'usuaPrimerNombre': usuaPrimerNombre,
@@ -70,6 +77,7 @@ class UsuariosResponseModel {
       'usuaDireccion': usuaDireccion,
       'usuaTelefonoPrincipal': usuaTelefonoPrincipal,
       'usuaTelefonoSecundario': usuaTelefonoSecundario,
+      'usuaFoto': usuaFoto,
       'usuaRegistradoPor': usuaRegistradoPor,
       'usuaFechaCambio': usuaFechaCambio,
   };
@@ -77,7 +85,7 @@ class UsuariosResponseModel {
   Object? get id => usuaId;
 
   String label() {
-    final values = <Object?>[usuaId, ciudId, emprId, usuaEstado];
+    final values = <Object?>[usuaId, usuaPrimerNombre, usuaPrimerApellido, usuaEmail];
     return values.where((e) => e != null && e.toString().isNotEmpty).join(' · ');
   }
 }
