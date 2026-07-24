@@ -3,12 +3,14 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../../app/theme/app_colors.dart';
+import '../../../../app/theme/app_palette.dart';
 import '../../../../core/constants/api_paths.dart';
 import '../../../../core/crud/crud_field.dart';
 import '../../../../core/providers/core_providers.dart';
 import '../../../../core/widgets/app_button.dart';
 import '../../../../core/widgets/app_loader.dart';
 import '../../../../core/widgets/lookup_dropdown.dart';
+import '../../../../core/widgets/tech_background.dart';
 
 /// Formulario guiado para crear y modificar empresas.
 ///
@@ -424,54 +426,84 @@ class _EmpresasFormPageState extends ConsumerState<EmpresasFormPage> {
 
   @override
   Widget build(BuildContext context) {
-    if (_loading) return const AppLoader();
+    final palette = ref.watch(selectedAppPaletteProvider);
+    if (_loading) {
+      return const Stack(children: [Positioned.fill(child: AppPageBackground()), Positioned.fill(child: AppLoader())]);
+    }
 
-    return ColoredBox(
-      color: AppColors.background,
-      child: SingleChildScrollView(
-        padding: const EdgeInsets.all(16),
-        child: Center(
-          child: ConstrainedBox(
-            constraints: const BoxConstraints(maxWidth: 1060),
-            child: Card(
-              child: Padding(
-                padding: const EdgeInsets.all(20),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    Row(
+    return Stack(
+      children: [
+        const Positioned.fill(child: AppPageBackground()),
+        SingleChildScrollView(
+          padding: const EdgeInsets.all(16),
+          child: Center(
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 1060),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  Container(
+                    padding: const EdgeInsets.all(14),
+                    decoration: BoxDecoration(
+                      color: palette.surface.withOpacity(palette.darkBackground ? 0.94 : 0.985),
+                      borderRadius: BorderRadius.circular(24),
+                      border: Border.all(color: palette.secondary.withOpacity(0.15)),
+                      boxShadow: [BoxShadow(color: palette.cardShadow, blurRadius: 20, offset: const Offset(0, 10))],
+                    ),
+                    child: Row(
                       children: [
-                        Expanded(
-                          child: Text(
-                            _isEdit ? 'Modificar empresa' : 'Crear empresa',
-                            style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w900, color: AppColors.textPrimary),
-                          ),
+                        IconButton.filledTonal(onPressed: () => context.go('/empresas'), tooltip: 'Volver a empresas', icon: const Icon(Icons.arrow_back_rounded)),
+                        const SizedBox(width: 10),
+                        Container(
+                          width: 44,
+                          height: 44,
+                          decoration: BoxDecoration(gradient: LinearGradient(colors: [palette.primary, palette.secondary]), borderRadius: BorderRadius.circular(15)),
+                          child: Icon(Icons.business_center_rounded, color: palette.onPrimary),
                         ),
-                        OutlinedButton.icon(
-                          onPressed: () => context.go('/empresas'),
-                          icon: const Icon(Icons.arrow_back_rounded),
-                          label: const Text('Volver'),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(_isEdit ? 'Modificar empresa' : 'Crear empresa', style: TextStyle(color: palette.textPrimary, fontWeight: FontWeight.w900, fontSize: 17)),
+                              const SizedBox(height: 2),
+                              Text('Configura los datos de empresa y sus sucursales en un flujo guiado.', maxLines: 2, overflow: TextOverflow.ellipsis, style: TextStyle(color: palette.textSecondary, fontWeight: FontWeight.w700, fontSize: 12.5)),
+                            ],
+                          ),
                         ),
                       ],
                     ),
-                    const SizedBox(height: 18),
-                    _WizardStepsTabs(currentStep: _step, editMode: _isEdit, onStepTap: (step) => setState(() => _step = step)),
-                    const SizedBox(height: 22),
-                    AnimatedSwitcher(
-                      duration: const Duration(milliseconds: 220),
-                      child: switch (_step) {
-                        0 => _empresaStep(),
-                        1 => _sucursalesStep(),
-                        _ => _summaryStep(),
-                      },
+                  ),
+                  const SizedBox(height: 12),
+                  Card(
+                    color: palette.surface.withOpacity(palette.darkBackground ? 0.95 : 0.99),
+                    elevation: 0,
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(28), side: BorderSide(color: palette.cardBorder)),
+                    child: Padding(
+                      padding: const EdgeInsets.all(20),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          _WizardStepsTabs(currentStep: _step, editMode: _isEdit, onStepTap: (step) => setState(() => _step = step)),
+                          const SizedBox(height: 22),
+                          AnimatedSwitcher(
+                            duration: const Duration(milliseconds: 220),
+                            child: switch (_step) {
+                              0 => _empresaStep(),
+                              1 => _sucursalesStep(),
+                              _ => _summaryStep(),
+                            },
+                          ),
+                        ],
+                      ),
                     ),
-                  ],
-                ),
+                  ),
+                ],
               ),
             ),
           ),
         ),
-      ),
+      ],
     );
   }
 
@@ -875,7 +907,7 @@ class _SucursalDialogState extends State<_SucursalDialog> {
   }
 }
 
-class _WizardStepsTabs extends StatelessWidget {
+class _WizardStepsTabs extends ConsumerWidget {
   const _WizardStepsTabs({required this.currentStep, required this.editMode, required this.onStepTap});
 
   final int currentStep;
@@ -884,14 +916,11 @@ class _WizardStepsTabs extends StatelessWidget {
   static const steps = ['Datos de empresa', 'Sucursales', 'Resumen'];
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    final palette = ref.watch(selectedAppPaletteProvider);
     return Container(
       padding: const EdgeInsets.all(6),
-      decoration: BoxDecoration(
-        color: AppColors.surfaceAlt,
-        borderRadius: BorderRadius.circular(24),
-        border: Border.all(color: Colors.black.withOpacity(0.05)),
-      ),
+      decoration: BoxDecoration(gradient: palette.glassGradient, borderRadius: BorderRadius.circular(24), border: Border.all(color: palette.cardBorder)),
       child: LayoutBuilder(
         builder: (context, constraints) {
           final compact = constraints.maxWidth < 680;
@@ -905,27 +934,16 @@ class _WizardStepsTabs extends StatelessWidget {
                 duration: const Duration(milliseconds: 180),
                 padding: EdgeInsets.symmetric(horizontal: compact ? 12 : 16, vertical: 12),
                 decoration: BoxDecoration(
-                  color: selected ? Theme.of(context).colorScheme.primary : Colors.transparent,
+                  gradient: selected ? LinearGradient(colors: [palette.primary, palette.secondary]) : null,
                   borderRadius: BorderRadius.circular(18),
                 ),
                 child: Row(
                   mainAxisAlignment: compact ? MainAxisAlignment.start : MainAxisAlignment.center,
                   mainAxisSize: compact ? MainAxisSize.max : MainAxisSize.min,
                   children: [
-                    Icon(
-                      completed ? Icons.check_circle_rounded : Icons.radio_button_checked_rounded,
-                      color: selected ? Colors.white : completed ? AppColors.success : AppColors.textSecondary,
-                      size: 20,
-                    ),
+                    Icon(completed ? Icons.check_circle_rounded : Icons.radio_button_checked_rounded, color: selected ? palette.onPrimary : completed ? AppColors.success : palette.textSecondary, size: 20),
                     const SizedBox(width: 8),
-                    Flexible(
-                      child: Text(
-                        'Paso ${index + 1}: ${steps[index]}',
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: TextStyle(color: selected ? Colors.white : AppColors.textPrimary, fontWeight: FontWeight.w900),
-                      ),
-                    ),
+                    Flexible(child: Text('Paso ${index + 1}: ${steps[index]}', maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(color: selected ? palette.onPrimary : palette.textPrimary, fontWeight: FontWeight.w900))),
                   ],
                 ),
               ),
@@ -939,7 +957,7 @@ class _WizardStepsTabs extends StatelessWidget {
   }
 }
 
-class _StepHeader extends StatelessWidget {
+class _StepHeader extends ConsumerWidget {
   const _StepHeader({required this.icon, required this.title, required this.description});
 
   final IconData icon;
@@ -947,24 +965,20 @@ class _StepHeader extends StatelessWidget {
   final String description;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    final palette = ref.watch(selectedAppPaletteProvider);
     return Row(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Container(
-          width: 56,
-          height: 56,
-          decoration: BoxDecoration(color: AppColors.infoSoft, borderRadius: BorderRadius.circular(20)),
-          child: Icon(icon, color: AppColors.info, size: 30),
-        ),
+        Container(width: 56, height: 56, decoration: BoxDecoration(color: palette.secondary.withOpacity(0.12), borderRadius: BorderRadius.circular(20)), child: Icon(icon, color: palette.secondary, size: 30)),
         const SizedBox(width: 14),
         Expanded(
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text(title, style: const TextStyle(fontSize: 22, fontWeight: FontWeight.w900)),
+              Text(title, style: TextStyle(fontSize: 22, fontWeight: FontWeight.w900, color: palette.textPrimary)),
               const SizedBox(height: 6),
-              Text(description, style: Theme.of(context).textTheme.bodyMedium?.copyWith(color: AppColors.textSecondary, fontWeight: FontWeight.w700)),
+              Text(description, style: TextStyle(color: palette.textSecondary, fontWeight: FontWeight.w700)),
             ],
           ),
         ),
@@ -973,7 +987,7 @@ class _StepHeader extends StatelessWidget {
   }
 }
 
-class _BranchesList extends StatelessWidget {
+class _BranchesList extends ConsumerWidget {
   const _BranchesList({required this.sucursales, required this.labelFor, required this.onEdit, required this.onDelete});
 
   final List<_SucursalDraft> sucursales;
@@ -982,40 +996,32 @@ class _BranchesList extends StatelessWidget {
   final ValueChanged<int> onDelete;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    final palette = ref.watch(selectedAppPaletteProvider);
     return Container(
       padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(color: AppColors.surfaceAlt, borderRadius: BorderRadius.circular(24), border: Border.all(color: Colors.black.withOpacity(0.05))),
+      decoration: BoxDecoration(color: palette.background.withOpacity(palette.darkBackground ? 0.40 : 0.68), borderRadius: BorderRadius.circular(24), border: Border.all(color: palette.cardBorder)),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          Row(
-            children: [
-              const Icon(Icons.list_alt_rounded, color: AppColors.info),
-              const SizedBox(width: 8),
-              Expanded(child: Text(sucursales.isEmpty ? 'Sucursales' : 'Sucursales (${sucursales.length})', style: const TextStyle(fontWeight: FontWeight.w900))),
-            ],
-          ),
+          Row(children: [Icon(Icons.list_alt_rounded, color: palette.secondary), const SizedBox(width: 8), Expanded(child: Text(sucursales.isEmpty ? 'Sucursales' : 'Sucursales (${sucursales.length})', style: TextStyle(fontWeight: FontWeight.w900, color: palette.textPrimary)))]),
           const SizedBox(height: 10),
           if (sucursales.isEmpty)
-            const Text('Aún no hay sucursales agregadas.', style: TextStyle(color: AppColors.textSecondary, fontWeight: FontWeight.w700))
+            Text('Aún no hay sucursales agregadas.', style: TextStyle(color: palette.textSecondary, fontWeight: FontWeight.w700))
           else
             ...List.generate(sucursales.length, (index) {
               final s = sucursales[index];
               return Card(
+                color: palette.surface.withOpacity(palette.darkBackground ? 0.92 : 0.99),
+                elevation: 0,
                 margin: const EdgeInsets.only(bottom: 10),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18), side: BorderSide(color: palette.cardBorder)),
                 child: ListTile(
-                  leading: const CircleAvatar(backgroundColor: AppColors.successSoft, child: Icon(Icons.storefront_rounded, color: AppColors.success)),
-                  title: Text(s.sucuNombre, style: const TextStyle(fontWeight: FontWeight.w900)),
-                  subtitle: Text('${s.sucuDireccion}\nCiudad: ${labelFor(_EmpresasFormPageState._ciudadField.name, s.ciudId)} · Moneda: ${labelFor(_EmpresasFormPageState._monedaField.name, s.moneId)}'),
+                  leading: CircleAvatar(backgroundColor: palette.secondary.withOpacity(0.12), child: Icon(Icons.storefront_rounded, color: palette.secondary)),
+                  title: Text(s.sucuNombre, style: TextStyle(fontWeight: FontWeight.w900, color: palette.textPrimary)),
+                  subtitle: Text('${s.sucuDireccion}\nCiudad: ${labelFor(_EmpresasFormPageState._ciudadField.name, s.ciudId)} · Moneda: ${labelFor(_EmpresasFormPageState._monedaField.name, s.moneId)}', style: TextStyle(color: palette.textSecondary, fontWeight: FontWeight.w600)),
                   isThreeLine: true,
-                  trailing: Wrap(
-                    spacing: 4,
-                    children: [
-                      IconButton(onPressed: () => onEdit(index), icon: const Icon(Icons.edit_rounded), tooltip: 'Modificar'),
-                      IconButton(onPressed: () => onDelete(index), icon: const Icon(Icons.delete_outline_rounded, color: AppColors.danger), tooltip: 'Eliminar'),
-                    ],
-                  ),
+                  trailing: Wrap(spacing: 4, children: [IconButton(onPressed: () => onEdit(index), icon: Icon(Icons.edit_rounded, color: palette.primary), tooltip: 'Modificar'), IconButton(onPressed: () => onDelete(index), icon: const Icon(Icons.delete_outline_rounded, color: AppColors.danger), tooltip: 'Eliminar')]),
                 ),
               );
             }),
@@ -1025,31 +1031,26 @@ class _BranchesList extends StatelessWidget {
   }
 }
 
-class _SummarySection extends StatelessWidget {
+class _SummarySection extends ConsumerWidget {
   const _SummarySection({required this.title, required this.items});
 
   final String title;
   final Map<String, String> items;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    final palette = ref.watch(selectedAppPaletteProvider);
     return Container(
       padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(color: AppColors.surfaceAlt, borderRadius: BorderRadius.circular(24), border: Border.all(color: Colors.black.withOpacity(0.05))),
+      decoration: BoxDecoration(color: palette.background.withOpacity(palette.darkBackground ? 0.40 : 0.68), borderRadius: BorderRadius.circular(24), border: Border.all(color: palette.cardBorder)),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          Text(title, style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w900)),
+          Text(title, style: TextStyle(fontSize: 18, fontWeight: FontWeight.w900, color: palette.textPrimary)),
           const SizedBox(height: 10),
           ...items.entries.map((entry) => Padding(
                 padding: const EdgeInsets.symmetric(vertical: 4),
-                child: Row(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    SizedBox(width: 170, child: Text(entry.key, style: const TextStyle(fontWeight: FontWeight.w900, color: AppColors.textSecondary))),
-                    Expanded(child: Text(entry.value.isEmpty ? '-' : entry.value, style: const TextStyle(fontWeight: FontWeight.w700))),
-                  ],
-                ),
+                child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [SizedBox(width: 170, child: Text(entry.key, style: TextStyle(fontWeight: FontWeight.w900, color: palette.textSecondary))), Expanded(child: Text(entry.value.isEmpty ? '-' : entry.value, style: TextStyle(fontWeight: FontWeight.w700, color: palette.textPrimary)))]),
               )),
         ],
       ),
@@ -1057,30 +1058,31 @@ class _SummarySection extends StatelessWidget {
   }
 }
 
-class _SummaryBranches extends StatelessWidget {
+class _SummaryBranches extends ConsumerWidget {
   const _SummaryBranches({required this.sucursales, required this.labelFor});
 
   final List<_SucursalDraft> sucursales;
   final String Function(String fieldName, Object? id) labelFor;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    final palette = ref.watch(selectedAppPaletteProvider);
     return Container(
       padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(color: AppColors.surfaceAlt, borderRadius: BorderRadius.circular(24), border: Border.all(color: Colors.black.withOpacity(0.05))),
+      decoration: BoxDecoration(color: palette.background.withOpacity(palette.darkBackground ? 0.40 : 0.68), borderRadius: BorderRadius.circular(24), border: Border.all(color: palette.cardBorder)),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          Text('Sucursales (${sucursales.length})', style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w900)),
+          Text('Sucursales (${sucursales.length})', style: TextStyle(fontSize: 18, fontWeight: FontWeight.w900, color: palette.textPrimary)),
           const SizedBox(height: 10),
           if (sucursales.isEmpty)
-            const Text('No se registrarán sucursales en este momento.', style: TextStyle(color: AppColors.warning, fontWeight: FontWeight.w800))
+            Text('No se registrarán sucursales en este momento.', style: TextStyle(color: palette.warning, fontWeight: FontWeight.w800))
           else
             ...sucursales.map((s) => ListTile(
                   contentPadding: EdgeInsets.zero,
-                  leading: const CircleAvatar(backgroundColor: AppColors.infoSoft, child: Icon(Icons.storefront_rounded, color: AppColors.info)),
-                  title: Text(s.sucuNombre, style: const TextStyle(fontWeight: FontWeight.w900)),
-                  subtitle: Text('${s.sucuDireccion}\nCiudad: ${labelFor(_EmpresasFormPageState._ciudadField.name, s.ciudId)} · Zona: ${labelFor(_EmpresasFormPageState._zonaField.name, s.zohoId)} · Moneda: ${labelFor(_EmpresasFormPageState._monedaField.name, s.moneId)} · País teléfono: ${labelFor(_EmpresasFormPageState._paisTelefonoField.name, s.paisIdtelefono)}'),
+                  leading: CircleAvatar(backgroundColor: palette.secondary.withOpacity(0.12), child: Icon(Icons.storefront_rounded, color: palette.secondary)),
+                  title: Text(s.sucuNombre, style: TextStyle(fontWeight: FontWeight.w900, color: palette.textPrimary)),
+                  subtitle: Text('${s.sucuDireccion}\nCiudad: ${labelFor(_EmpresasFormPageState._ciudadField.name, s.ciudId)} · Zona: ${labelFor(_EmpresasFormPageState._zonaField.name, s.zohoId)} · Moneda: ${labelFor(_EmpresasFormPageState._monedaField.name, s.moneId)} · País teléfono: ${labelFor(_EmpresasFormPageState._paisTelefonoField.name, s.paisIdtelefono)}', style: TextStyle(color: palette.textSecondary, fontWeight: FontWeight.w600)),
                   isThreeLine: true,
                 )),
         ],

@@ -1,5 +1,6 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../../core/branch/branch_scope_provider.dart';
 import '../../../../core/errors/error_mapper.dart';
 import '../../../../core/errors/failure.dart';
 import '../../../../core/providers/core_providers.dart';
@@ -21,6 +22,7 @@ final authControllerProvider = StateNotifierProvider<AuthController, AuthState>(
     LoginUseCase(ref.watch(authRepositoryProvider)),
     LogoutUseCase(ref.watch(authRepositoryProvider)),
     ref.watch(authRepositoryProvider),
+    ref,
   );
 });
 
@@ -55,18 +57,22 @@ class AuthState {
 }
 
 class AuthController extends StateNotifier<AuthState> {
-  AuthController(this._login, this._logout, this._repository) : super(const AuthState()) {
+  AuthController(this._login, this._logout, this._repository, this._ref) : super(const AuthState()) {
     checkSession();
   }
 
   final LoginUseCase _login;
   final LogoutUseCase _logout;
   final AuthRepository _repository;
+  final Ref _ref;
 
   Future<void> checkSession() async {
     final hasSession = await _repository.hasSession();
     final roles = hasSession ? await _repository.getStoredRoles() : const <String>[];
     state = state.copyWith(authenticated: hasSession, roles: roles);
+    if (hasSession) {
+      await _ref.read(branchScopeProvider.notifier).load();
+    }
   }
 
   Future<bool> login(String identificador, String password) async {
@@ -74,6 +80,7 @@ class AuthController extends StateNotifier<AuthState> {
     try {
       final response = await _login(identificador, password);
       state = AuthState(authenticated: true, roles: response.roles);
+      await _ref.read(branchScopeProvider.notifier).load();
       return true;
     } catch (error) {
       state = state.copyWith(loading: false, failure: ErrorMapper.map(error));
@@ -119,6 +126,7 @@ class AuthController extends StateNotifier<AuthState> {
 
   Future<void> logout() async {
     await _logout();
+    _ref.invalidate(branchScopeProvider);
     state = const AuthState();
   }
 }

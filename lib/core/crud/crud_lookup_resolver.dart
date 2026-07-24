@@ -77,6 +77,17 @@ String crudDisplayValue(
     return '-';
   }
 
+  if (field.type == CrudFieldType.boolean) {
+    final normalized = rawValue.toString().trim().toLowerCase();
+    final active = normalized == '1' || normalized == 'true';
+    return active ? 'Activo' : 'Inactivo';
+  }
+
+  final optionLabel = field.options?[rawValue.toString()];
+  if (optionLabel != null && optionLabel.trim().isNotEmpty) {
+    return optionLabel.trim();
+  }
+
   final lookup = field.lookup;
   if (lookup == null) {
     return rawValue.toString();

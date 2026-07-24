@@ -2,19 +2,19 @@ import 'dart:convert';
 import 'dart:html' as html;
 import 'dart:typed_data';
 
-Future<void> downloadTextFile({
+Future<bool> downloadTextFile({
   required String fileName,
   required String content,
   String mimeType = 'text/plain;charset=utf-8',
 }) async {
-  await downloadBytesFile(
+  return downloadBytesFile(
     fileName: fileName,
     bytes: Uint8List.fromList(utf8.encode(content)),
     mimeType: mimeType,
   );
 }
 
-Future<void> downloadBytesFile({
+Future<bool> downloadBytesFile({
   required String fileName,
   required Uint8List bytes,
   String mimeType = 'application/octet-stream',
@@ -29,4 +29,5 @@ Future<void> downloadBytesFile({
   anchor.click();
   anchor.remove();
   html.Url.revokeObjectUrl(url);
+  return true;
 }

@@ -2,6 +2,38 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+enum AppDensityPreset { compact, balanced, spacious }
+
+enum AppSurfacePreset { flat, soft, glass }
+
+extension AppDensityPresetX on AppDensityPreset {
+  String get label => switch (this) {
+        AppDensityPreset.compact => 'Compacta',
+        AppDensityPreset.balanced => 'Equilibrada',
+        AppDensityPreset.spacious => 'Amplia',
+      };
+
+  String get description => switch (this) {
+        AppDensityPreset.compact => 'Más información visible y controles reducidos.',
+        AppDensityPreset.balanced => 'Tamaño recomendado para operación diaria.',
+        AppDensityPreset.spacious => 'Más aire y controles grandes para táctil.',
+      };
+}
+
+extension AppSurfacePresetX on AppSurfacePreset {
+  String get label => switch (this) {
+        AppSurfacePreset.flat => 'Plano',
+        AppSurfacePreset.soft => 'Suave',
+        AppSurfacePreset.glass => 'Cristal',
+      };
+
+  String get description => switch (this) {
+        AppSurfacePreset.flat => 'Superficies sólidas y sin degradados.',
+        AppSurfacePreset.soft => 'Degradados discretos y sombras ligeras.',
+        AppSurfacePreset.glass => 'Paneles translúcidos con mayor profundidad.',
+      };
+}
+
 /// Paleta visual seleccionable y personalizable por el usuario.
 ///
 /// Además de las paletas rápidas, el usuario puede ajustar si quiere fondo
@@ -21,6 +53,12 @@ class AppPalette {
     required this.textSecondary,
     required this.isDarkHeader,
     required this.darkBackground,
+    this.fontFamily = 'Roboto',
+    this.fontScale = 1.0,
+    this.density = AppDensityPreset.balanced,
+    this.surfaceStyle = AppSurfacePreset.soft,
+    this.cornerScale = 1.0,
+    this.showBackgroundPattern = true,
   });
 
   final String id;
@@ -36,9 +74,37 @@ class AppPalette {
   final Color textSecondary;
   final bool isDarkHeader;
   final bool darkBackground;
+  final String fontFamily;
+  final double fontScale;
+  final AppDensityPreset density;
+  final AppSurfacePreset surfaceStyle;
+  final double cornerScale;
+  final bool showBackgroundPattern;
+
+  double get spacingScale => switch (density) {
+        AppDensityPreset.compact => 0.84,
+        AppDensityPreset.balanced => 1.0,
+        AppDensityPreset.spacious => 1.16,
+      };
+
+  VisualDensity get visualDensity => switch (density) {
+        AppDensityPreset.compact => const VisualDensity(horizontal: -2, vertical: -2),
+        AppDensityPreset.balanced => VisualDensity.standard,
+        AppDensityPreset.spacious => const VisualDensity(horizontal: 1, vertical: 1),
+      };
+
+  MaterialTapTargetSize get tapTargetSize => density == AppDensityPreset.compact
+      ? MaterialTapTargetSize.shrinkWrap
+      : MaterialTapTargetSize.padded;
+
+  double radius(double base) => (base * cornerScale).clamp(8.0, 42.0).toDouble();
+
+  EdgeInsets get pagePadding => EdgeInsets.all(18 * spacingScale);
+
+  EdgeInsets panelPadding([double base = 18]) => EdgeInsets.all(base * spacingScale);
 
   LinearGradient get mainGradient => LinearGradient(
-        colors: [titleBackground, secondary, accent],
+        colors: [primary, secondary, accent],
         begin: Alignment.topLeft,
         end: Alignment.bottomRight,
       );
@@ -51,13 +117,17 @@ class AppPalette {
 
   LinearGradient get pageGradient => LinearGradient(
         colors: darkBackground
-            ? [background, _blend(background, primary, 0.36), _blend(background, secondary, 0.18)]
-            : [background, _blend(background, accent, 0.10), _blend(background, surface, 0.50)],
+            ? [
+                background,
+                _blend(background, primary, 0.16),
+                _blend(background, secondary, 0.08),
+              ]
+            : [background, _blend(background, accent, 0.08), _blend(background, surface, 0.44)],
         begin: Alignment.topLeft,
         end: Alignment.bottomRight,
       );
 
-  Color get onPrimary => isDarkHeader ? Colors.white : textPrimary;
+  Color get onPrimary => primary.computeLuminance() > 0.55 ? const Color(0xFF06111F) : Colors.white;
   Color get onTitle => titleText;
   Color get cardBorder => darkBackground ? Colors.white.withOpacity(0.10) : accent.withOpacity(0.24);
   Color get cardShadow => darkBackground ? Colors.black.withOpacity(0.30) : secondary.withOpacity(0.12);
@@ -98,6 +168,59 @@ class AppPalette {
         end: Alignment.bottomRight,
       );
 
+  LinearGradient panelGradient({Color? tint}) {
+    final tone = tint ?? secondary;
+    return switch (surfaceStyle) {
+      AppSurfacePreset.flat => LinearGradient(
+          colors: [surface, surface],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+      AppSurfacePreset.soft => LinearGradient(
+          colors: [
+            surface.withOpacity(darkBackground ? 0.98 : 1),
+            _blend(surface, tone, darkBackground ? 0.10 : 0.045),
+          ],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+      AppSurfacePreset.glass => LinearGradient(
+          colors: darkBackground
+              ? [Colors.white.withOpacity(0.095), surface.withOpacity(0.90), tone.withOpacity(0.075)]
+              : [surface.withOpacity(0.90), Colors.white.withOpacity(0.72), tone.withOpacity(0.075)],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+    };
+  }
+
+  BoxDecoration panelDecoration({
+    double baseRadius = 24,
+    Color? tint,
+    bool elevated = true,
+  }) {
+    final tone = tint ?? secondary;
+    final useShadow = elevated && surfaceStyle != AppSurfacePreset.flat;
+    return BoxDecoration(
+      gradient: panelGradient(tint: tone),
+      borderRadius: BorderRadius.circular(radius(baseRadius)),
+      border: Border.all(
+        color: surfaceStyle == AppSurfacePreset.glass
+            ? translucentBorder
+            : tone.withOpacity(darkBackground ? 0.18 : 0.13),
+      ),
+      boxShadow: useShadow
+          ? [
+              BoxShadow(
+                color: cardShadow.withOpacity(surfaceStyle == AppSurfacePreset.glass ? 0.30 : 0.22),
+                blurRadius: surfaceStyle == AppSurfacePreset.glass ? 30 : 20,
+                offset: const Offset(0, 10),
+              ),
+            ]
+          : const [],
+    );
+  }
+
   AppPalette copyWith({
     String? id,
     String? name,
@@ -112,6 +235,12 @@ class AppPalette {
     Color? textSecondary,
     bool? isDarkHeader,
     bool? darkBackground,
+    String? fontFamily,
+    double? fontScale,
+    AppDensityPreset? density,
+    AppSurfacePreset? surfaceStyle,
+    double? cornerScale,
+    bool? showBackgroundPattern,
   }) =>
       AppPalette(
         id: id ?? this.id,
@@ -127,13 +256,19 @@ class AppPalette {
         textSecondary: textSecondary ?? this.textSecondary,
         isDarkHeader: isDarkHeader ?? this.isDarkHeader,
         darkBackground: darkBackground ?? this.darkBackground,
+        fontFamily: fontFamily ?? this.fontFamily,
+        fontScale: fontScale ?? this.fontScale,
+        density: density ?? this.density,
+        surfaceStyle: surfaceStyle ?? this.surfaceStyle,
+        cornerScale: cornerScale ?? this.cornerScale,
+        showBackgroundPattern: showBackgroundPattern ?? this.showBackgroundPattern,
       );
 
   static Color _blend(Color a, Color b, double t) => Color.lerp(a, b, t) ?? a;
 }
 
 const List<AppPalette> appPalettes = <AppPalette>[
-  AppPalette(id: 'executive_ink', name: 'Ejecutivo tinta', primary: Color(0xFF0F172A), secondary: Color(0xFF1D4ED8), accent: Color(0xFF38BDF8), background: Color(0xFFF6F8FC), surface: Color(0xFFFFFFFF), titleBackground: Color(0xFF0F172A), titleText: Color(0xFFFFFFFF), textPrimary: Color(0xFF111827), textSecondary: Color(0xFF64748B), isDarkHeader: true, darkBackground: false),
+  AppPalette(id: 'barlytics_mint', name: 'BarLytics menta', primary: Color(0xFF21E6BE), secondary: Color(0xFF38BDF8), accent: Color(0xFFFFC857), background: Color(0xFF061723), surface: Color(0xFF0B2634), titleBackground: Color(0xFF0D3142), titleText: Color(0xFFF8FAFC), textPrimary: Color(0xFFF8FAFC), textSecondary: Color(0xFFCBD5E1), isDarkHeader: true, darkBackground: true),
   AppPalette(id: 'emerald_pos', name: 'Caja esmeralda', primary: Color(0xFF064E3B), secondary: Color(0xFF047857), accent: Color(0xFF34D399), background: Color(0xFFF1F8F5), surface: Color(0xFFFFFFFF), titleBackground: Color(0xFF064E3B), titleText: Color(0xFFFFFFFF), textPrimary: Color(0xFF052E2B), textSecondary: Color(0xFF4B635E), isDarkHeader: true, darkBackground: false),
   AppPalette(id: 'amber_lounge', name: 'Lounge ámbar', primary: Color(0xFF422006), secondary: Color(0xFFB45309), accent: Color(0xFFF59E0B), background: Color(0xFFFFF7E6), surface: Color(0xFFFFFCF5), titleBackground: Color(0xFF78350F), titleText: Color(0xFFFFFBEB), textPrimary: Color(0xFF2F1A04), textSecondary: Color(0xFF7C5A2A), isDarkHeader: true, darkBackground: false),
   AppPalette(id: 'graphite_cyan', name: 'Grafito cian', primary: Color(0xFF111827), secondary: Color(0xFF0E7490), accent: Color(0xFF22D3EE), background: Color(0xFFF2FBFC), surface: Color(0xFFFFFFFF), titleBackground: Color(0xFF111827), titleText: Color(0xFFE0F2FE), textPrimary: Color(0xFF111827), textSecondary: Color(0xFF52616B), isDarkHeader: true, darkBackground: false),
@@ -171,8 +306,8 @@ class AppPaletteController extends StateNotifier<AppPalette> {
     _load();
   }
 
-  static const String _idKey = 'barlytics.palette.id';
-  static const String _customKey = 'barlytics.palette.custom.enabled';
+  static const String _idKey = 'barlytics.palette.v2.id';
+  static const String _customKey = 'barlytics.palette.v2.custom.enabled';
   static const String _primaryKey = 'barlytics.palette.custom.primary';
   static const String _secondaryKey = 'barlytics.palette.custom.secondary';
   static const String _accentKey = 'barlytics.palette.custom.accent';
@@ -183,27 +318,43 @@ class AppPaletteController extends StateNotifier<AppPalette> {
   static const String _textPrimaryKey = 'barlytics.palette.custom.textPrimary';
   static const String _textSecondaryKey = 'barlytics.palette.custom.textSecondary';
   static const String _darkBackgroundKey = 'barlytics.palette.custom.darkBackground';
+  static const String _fontFamilyKey = 'barlytics.appearance.fontFamily';
+  static const String _fontScaleKey = 'barlytics.appearance.fontScale';
+  static const String _densityKey = 'barlytics.appearance.density';
+  static const String _surfaceStyleKey = 'barlytics.appearance.surfaceStyle';
+  static const String _cornerScaleKey = 'barlytics.appearance.cornerScale';
+  static const String _showPatternKey = 'barlytics.appearance.showPattern';
 
   Future<void> _load() async {
     final prefs = await SharedPreferences.getInstance();
     final customEnabled = prefs.getBool(_customKey) ?? false;
+    AppPalette selected;
+
     if (customEnabled) {
       final baseId = prefs.getString(_idKey) ?? appPalettes.first.id;
       final base = _firstOrNull(appPalettes.where((palette) => palette.id == baseId)) ?? appPalettes.first;
-      state = _readCustom(prefs, base);
-      return;
+      selected = _readCustom(prefs, base);
+    } else {
+      final id = prefs.getString(_idKey);
+      selected = _firstOrNull(appPalettes.where((palette) => palette.id == id)) ?? appPalettes.first;
     }
 
-    final id = prefs.getString(_idKey);
-    final selected = _firstOrNull(appPalettes.where((palette) => palette.id == id));
-    if (selected != null) state = selected;
+    state = _readAppearance(prefs, selected);
   }
 
   Future<void> select(AppPalette palette) async {
-    state = palette;
+    state = palette.copyWith(
+      fontFamily: state.fontFamily,
+      fontScale: state.fontScale,
+      density: state.density,
+      surfaceStyle: state.surfaceStyle,
+      cornerScale: state.cornerScale,
+      showBackgroundPattern: state.showBackgroundPattern,
+    );
     final prefs = await SharedPreferences.getInstance();
     await prefs.setString(_idKey, palette.id);
     await prefs.setBool(_customKey, false);
+    await _persistAppearance(prefs);
   }
 
   Future<void> customize({
@@ -220,8 +371,8 @@ class AppPaletteController extends StateNotifier<AppPalette> {
     bool autoTitleText = false,
   }) async {
     final nextDark = darkBackground ?? state.darkBackground;
-    final nextBackground = background ?? (darkBackground == null ? state.background : (nextDark ? const Color(0xFF111827) : const Color(0xFFF8FAFC)));
-    final nextSurface = surface ?? (darkBackground == null ? state.surface : (nextDark ? const Color(0xFF1F2937) : Colors.white));
+    final nextBackground = background ?? (darkBackground == null ? state.background : (nextDark ? const Color(0xFF061723) : const Color(0xFFF8FAFC)));
+    final nextSurface = surface ?? (darkBackground == null ? state.surface : (nextDark ? const Color(0xFF0B2634) : Colors.white));
     final nextTextPrimary = textPrimary ?? (darkBackground == null ? state.textPrimary : (nextDark ? const Color(0xFFF8FAFC) : const Color(0xFF0F172A)));
     final nextTextSecondary = textSecondary ?? (darkBackground == null ? state.textSecondary : (nextDark ? const Color(0xFFCBD5E1) : const Color(0xFF64748B)));
 
@@ -243,8 +394,45 @@ class AppPaletteController extends StateNotifier<AppPalette> {
     await _persistCustom();
   }
 
+  Future<void> updateAppearance({
+    String? fontFamily,
+    double? fontScale,
+    AppDensityPreset? density,
+    AppSurfacePreset? surfaceStyle,
+    double? cornerScale,
+    bool? showBackgroundPattern,
+  }) async {
+    state = state.copyWith(
+      fontFamily: fontFamily,
+      fontScale: fontScale?.clamp(0.88, 1.20).toDouble(),
+      density: density,
+      surfaceStyle: surfaceStyle,
+      cornerScale: cornerScale?.clamp(0.78, 1.28).toDouble(),
+      showBackgroundPattern: showBackgroundPattern,
+    );
+    final prefs = await SharedPreferences.getInstance();
+    await _persistAppearance(prefs);
+  }
+
+  Future<void> resetAppearance() async {
+    state = state.copyWith(
+      fontFamily: 'Roboto',
+      fontScale: 1.0,
+      density: AppDensityPreset.balanced,
+      surfaceStyle: AppSurfacePreset.soft,
+      cornerScale: 1.0,
+      showBackgroundPattern: true,
+    );
+    final prefs = await SharedPreferences.getInstance();
+    await _persistAppearance(prefs);
+  }
+
   Future<void> reset() async {
-    await select(appPalettes.first);
+    state = appPalettes.first;
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString(_idKey, appPalettes.first.id);
+    await prefs.setBool(_customKey, false);
+    await _persistAppearance(prefs);
   }
 
   Future<void> _persistCustom() async {
@@ -261,7 +449,32 @@ class AppPaletteController extends StateNotifier<AppPalette> {
     await prefs.setInt(_textPrimaryKey, state.textPrimary.value);
     await prefs.setInt(_textSecondaryKey, state.textSecondary.value);
     await prefs.setBool(_darkBackgroundKey, state.darkBackground);
+    await _persistAppearance(prefs);
   }
+
+  Future<void> _persistAppearance(SharedPreferences prefs) async {
+    await prefs.setString(_fontFamilyKey, state.fontFamily);
+    await prefs.setDouble(_fontScaleKey, state.fontScale);
+    await prefs.setString(_densityKey, state.density.name);
+    await prefs.setString(_surfaceStyleKey, state.surfaceStyle.name);
+    await prefs.setDouble(_cornerScaleKey, state.cornerScale);
+    await prefs.setBool(_showPatternKey, state.showBackgroundPattern);
+  }
+
+  AppPalette _readAppearance(SharedPreferences prefs, AppPalette base) => base.copyWith(
+        fontFamily: prefs.getString(_fontFamilyKey) ?? base.fontFamily,
+        fontScale: (prefs.getDouble(_fontScaleKey) ?? base.fontScale).clamp(0.88, 1.20).toDouble(),
+        density: AppDensityPreset.values.firstWhere(
+          (value) => value.name == prefs.getString(_densityKey),
+          orElse: () => base.density,
+        ),
+        surfaceStyle: AppSurfacePreset.values.firstWhere(
+          (value) => value.name == prefs.getString(_surfaceStyleKey),
+          orElse: () => base.surfaceStyle,
+        ),
+        cornerScale: (prefs.getDouble(_cornerScaleKey) ?? base.cornerScale).clamp(0.78, 1.28).toDouble(),
+        showBackgroundPattern: prefs.getBool(_showPatternKey) ?? base.showBackgroundPattern,
+      );
 
   AppPalette _readCustom(SharedPreferences prefs, AppPalette base) => base.copyWith(
         id: 'custom',
@@ -307,27 +520,21 @@ class _PaletteSettingsDialog extends ConsumerWidget {
     final screen = MediaQuery.sizeOf(context);
 
     return Dialog(
-      insetPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 24),
+      insetPadding: const EdgeInsets.symmetric(horizontal: 10, vertical: 16),
       backgroundColor: Colors.transparent,
       child: ConstrainedBox(
         constraints: BoxConstraints(
-          maxWidth: 440,
+          maxWidth: 520,
           maxHeight: screen.height * 0.86,
         ),
         child: Material(
           color: selected.surface.withOpacity(selected.darkBackground ? 0.98 : 0.99),
-          borderRadius: BorderRadius.circular(28),
+          borderRadius: BorderRadius.circular(selected.radius(28)),
           elevation: 20,
           shadowColor: selected.cardShadow,
           clipBehavior: Clip.antiAlias,
-          child: DecoratedBox(
-            decoration: BoxDecoration(
-              borderRadius: BorderRadius.circular(28),
-              border: Border.all(color: selected.cardBorder),
-            ),
-            child: PaletteSettingsPanel(
-              onClose: () => Navigator.of(context).maybePop(),
-            ),
+          child: PaletteSettingsPanel(
+            onClose: () => Navigator.of(context).maybePop(),
           ),
         ),
       ),
@@ -335,164 +542,852 @@ class _PaletteSettingsDialog extends ConsumerWidget {
   }
 }
 
-class PaletteSettingsPanel extends ConsumerWidget {
+enum _AppearancePanelSection { themes, typography, components, colors }
+
+class PaletteSettingsPanel extends ConsumerStatefulWidget {
   const PaletteSettingsPanel({super.key, this.onClose, this.onHide});
 
   final VoidCallback? onClose;
   final VoidCallback? onHide;
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<PaletteSettingsPanel> createState() => _PaletteSettingsPanelState();
+}
+
+class _PaletteSettingsPanelState extends ConsumerState<PaletteSettingsPanel> {
+  _AppearancePanelSection _section = _AppearancePanelSection.themes;
+
+  @override
+  Widget build(BuildContext context) {
     final selected = ref.watch(selectedAppPaletteProvider);
     final controller = ref.read(selectedAppPaletteProvider.notifier);
 
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        return SingleChildScrollView(
-          primary: false,
-          padding: const EdgeInsets.all(14),
-          child: ConstrainedBox(
-            constraints: BoxConstraints(minWidth: constraints.maxWidth - 28),
+    return SingleChildScrollView(
+      primary: false,
+      padding: EdgeInsets.all(16 * selected.spacingScale),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          _AppearanceHeader(
+            palette: selected,
+            onHide: widget.onHide,
+            onClose: widget.onClose,
+          ),
+          const SizedBox(height: 14),
+          _AppearancePreview(palette: selected),
+          const SizedBox(height: 14),
+          _AppearanceSectionSelector(
+            selected: _section,
+            palette: selected,
+            onSelected: (value) => setState(() => _section = value),
+          ),
+          const SizedBox(height: 16),
+          switch (_section) {
+            _AppearancePanelSection.themes => _ThemePresetSection(
+                selected: selected,
+                controller: controller,
+              ),
+            _AppearancePanelSection.typography => _TypographySection(
+                selected: selected,
+                controller: controller,
+              ),
+            _AppearancePanelSection.components => _ComponentsSection(
+                selected: selected,
+                controller: controller,
+              ),
+            _AppearancePanelSection.colors => _AdvancedColorsSection(
+                selected: selected,
+                controller: controller,
+              ),
+          },
+          const SizedBox(height: 12),
+          Row(
+            children: [
+              Expanded(
+                child: OutlinedButton.icon(
+                  onPressed: controller.resetAppearance,
+                  icon: const Icon(Icons.text_fields_rounded, size: 18),
+                  label: const Text('Restablecer diseño'),
+                ),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: TextButton.icon(
+                  onPressed: controller.reset,
+                  icon: const Icon(Icons.restart_alt_rounded, size: 18),
+                  label: const Text('Restablecer todo'),
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _AppearanceHeader extends StatelessWidget {
+  const _AppearanceHeader({required this.palette, this.onClose, this.onHide});
+
+  final AppPalette palette;
+  final VoidCallback? onClose;
+  final VoidCallback? onHide;
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      children: [
+        Container(
+          width: 46,
+          height: 46,
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(palette.radius(15)),
+            gradient: palette.mainGradient,
+            boxShadow: [
+              BoxShadow(
+                color: palette.secondary.withOpacity(0.22),
+                blurRadius: 18,
+                offset: const Offset(0, 8),
+              ),
+            ],
+          ),
+          child: Icon(Icons.tune_rounded, color: palette.onPrimary),
+        ),
+        const SizedBox(width: 12),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'Apariencia',
+                style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                      color: palette.textPrimary,
+                      fontWeight: FontWeight.w900,
+                    ),
+              ),
+              const SizedBox(height: 2),
+              Text(
+                'La configuración se aplica a menús, tableros, formularios y operación.',
+                style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                      color: palette.textSecondary,
+                      fontWeight: FontWeight.w700,
+                    ),
+              ),
+            ],
+          ),
+        ),
+        if (onHide != null)
+          IconButton(
+            onPressed: onHide,
+            icon: const Icon(Icons.visibility_off_rounded),
+            color: palette.textSecondary,
+          ),
+        if (onClose != null)
+          IconButton(
+            onPressed: onClose,
+            icon: const Icon(Icons.close_rounded),
+            color: palette.textSecondary,
+          ),
+      ],
+    );
+  }
+}
+
+class _AppearancePreview extends StatelessWidget {
+  const _AppearancePreview({required this.palette});
+
+  final AppPalette palette;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: double.infinity,
+      padding: palette.panelPadding(14),
+      decoration: palette.panelDecoration(baseRadius: 20, tint: palette.secondary),
+      child: Row(
+        children: [
+          Container(
+            width: 48,
+            height: 48,
+            decoration: BoxDecoration(
+              color: palette.actionColor,
+              borderRadius: BorderRadius.circular(palette.radius(15)),
+            ),
+            child: Icon(Icons.dashboard_customize_rounded, color: palette.onAction),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
             child: Column(
-              mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Row(
-                  children: [
-                    Icon(Icons.tune_rounded, color: selected.secondary),
-                    const SizedBox(width: 8),
-                    Expanded(
-                      child: Text(
-                        'Personalizar vista',
-                        style: TextStyle(color: selected.textPrimary, fontWeight: FontWeight.w900),
-                      ),
-                    ),
-                    if (onHide != null)
-                      IconButton(
-                        tooltip: 'Ocultar',
-                        onPressed: onHide,
-                        icon: const Icon(Icons.visibility_off_rounded),
-                        color: selected.textSecondary,
-                      ),
-                    if (onClose != null)
-                      IconButton(
-                        tooltip: 'Cerrar',
-                        onPressed: onClose,
-                        icon: const Icon(Icons.close_rounded),
-                        color: selected.textSecondary,
-                      ),
-                  ],
-                ),
-                const SizedBox(height: 10),
                 Text(
-                  'Paletas rápidas',
-                  style: TextStyle(color: selected.textSecondary, fontSize: 12, fontWeight: FontWeight.w900),
-                ),
-                const SizedBox(height: 8),
-                Wrap(
-                  spacing: 10,
-                  runSpacing: 10,
-                  children: [
-                    for (final palette in appPalettes)
-                      _PaletteOption(
-                        palette: palette,
-                        selected: palette.id == selected.id,
-                        onTap: () => controller.select(palette),
+                  palette.name,
+                  style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                        color: palette.textPrimary,
+                        fontWeight: FontWeight.w900,
+                        fontFamily: palette.fontFamily,
                       ),
-                  ],
                 ),
-                const Divider(height: 22),
-                SwitchListTile.adaptive(
-                  contentPadding: EdgeInsets.zero,
-                  dense: true,
-                  value: selected.darkBackground,
-                  activeColor: selected.secondary,
-                  title: Text('Fondo oscuro', style: TextStyle(color: selected.textPrimary, fontWeight: FontWeight.w900)),
-                  subtitle: Text(
-                    'Cambia fondo, tarjetas y contraste de letras.',
-                    style: TextStyle(color: selected.textSecondary, fontSize: 12, fontWeight: FontWeight.w700),
-                  ),
-                  onChanged: (value) => controller.customize(darkBackground: value),
-                ),
-                const SizedBox(height: 8),
-                _ColorSection(
-                  title: 'Fondo de páginas',
-                  colors: selected.darkBackground ? _darkBackgroundColors : _lightBackgroundColors,
-                  selected: selected.background,
-                  textColor: selected.textPrimary,
-                  onColor: (color) => controller.customize(background: color),
-                ),
-                _ColorSection(
-                  title: 'Fondo de tarjetas',
-                  colors: selected.darkBackground ? _darkBackgroundColors : _lightBackgroundColors,
-                  selected: selected.surface,
-                  textColor: selected.textPrimary,
-                  onColor: (color) => controller.customize(surface: color),
-                ),
-                _ColorSection(
-                  title: 'Fondos de títulos',
-                  colors: _titleColors,
-                  selected: selected.titleBackground,
-                  textColor: selected.textPrimary,
-                  onColor: (color) => controller.customize(titleBackground: color, autoTitleText: true),
-                ),
-                _ColorSection(
-                  title: 'Color principal',
-                  colors: _actionColors,
-                  selected: selected.secondary,
-                  textColor: selected.textPrimary,
-                  onColor: (color) => controller.customize(secondary: color),
-                ),
-                _ColorSection(
-                  title: 'Color de acento',
-                  colors: _actionColors,
-                  selected: selected.accent,
-                  textColor: selected.textPrimary,
-                  onColor: (color) => controller.customize(accent: color),
-                ),
-                _ColorSection(
-                  title: 'Color de letras',
-                  colors: selected.darkBackground ? _darkTextColors : _lightTextColors,
-                  selected: selected.textPrimary,
-                  textColor: selected.textPrimary,
-                  onColor: (color) => controller.customize(textPrimary: color),
-                ),
-                _ColorSection(
-                  title: 'Color de títulos',
-                  colors: _titleTextColors,
-                  selected: selected.titleText,
-                  textColor: selected.textPrimary,
-                  onColor: (color) => controller.customize(titleText: color),
-                ),
-                _ColorSection(
-                  title: 'Color de subtítulos',
-                  colors: selected.darkBackground ? _darkSecondaryTextColors : _lightSecondaryTextColors,
-                  selected: selected.textSecondary,
-                  textColor: selected.textPrimary,
-                  onColor: (color) => controller.customize(textSecondary: color),
-                ),
-                Align(
-                  alignment: Alignment.centerRight,
-                  child: TextButton.icon(
-                    onPressed: controller.reset,
-                    icon: const Icon(Icons.restart_alt_rounded, size: 18),
-                    label: const Text('Restablecer'),
-                  ),
+                const SizedBox(height: 3),
+                Text(
+                  '${palette.density.label} · ${palette.surfaceStyle.label} · ${_fontLabel(palette.fontFamily)}',
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                        color: palette.textSecondary,
+                        fontWeight: FontWeight.w700,
+                        fontFamily: palette.fontFamily,
+                      ),
                 ),
               ],
             ),
           ),
-        );
-      },
+          const SizedBox(width: 10),
+          Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              _ColorDot(color: palette.primary),
+              _ColorDot(color: palette.secondary),
+              _ColorDot(color: palette.accent),
+            ],
+          ),
+        ],
+      ),
     );
   }
+}
+
+class _AppearanceSectionSelector extends StatelessWidget {
+  const _AppearanceSectionSelector({required this.selected, required this.palette, required this.onSelected});
+
+  final _AppearancePanelSection selected;
+  final AppPalette palette;
+  final ValueChanged<_AppearancePanelSection> onSelected;
+
+  @override
+  Widget build(BuildContext context) {
+    const items = <(_AppearancePanelSection, IconData, String)>[
+      (_AppearancePanelSection.themes, Icons.palette_outlined, 'Temas'),
+      (_AppearancePanelSection.typography, Icons.text_fields_rounded, 'Letra'),
+      (_AppearancePanelSection.components, Icons.widgets_outlined, 'Diseño'),
+      (_AppearancePanelSection.colors, Icons.color_lens_outlined, 'Colores'),
+    ];
+
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(4),
+      decoration: BoxDecoration(
+        color: palette.background.withOpacity(palette.darkBackground ? 0.48 : 0.72),
+        borderRadius: BorderRadius.circular(palette.radius(16)),
+        border: Border.all(color: palette.cardBorder),
+      ),
+      child: Wrap(
+        spacing: 4,
+        runSpacing: 4,
+        children: [
+          for (final item in items)
+            _AppearanceSectionButton(
+              icon: item.$2,
+              label: item.$3,
+              selected: selected == item.$1,
+              palette: palette,
+              onTap: () => onSelected(item.$1),
+            ),
+        ],
+      ),
+    );
+  }
+}
+
+class _AppearanceSectionButton extends StatelessWidget {
+  const _AppearanceSectionButton({
+    required this.icon,
+    required this.label,
+    required this.selected,
+    required this.palette,
+    required this.onTap,
+  });
+
+  final IconData icon;
+  final String label;
+  final bool selected;
+  final AppPalette palette;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: Colors.transparent,
+      borderRadius: BorderRadius.circular(palette.radius(12)),
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(palette.radius(12)),
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 160),
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 9),
+          decoration: BoxDecoration(
+            color: selected ? palette.secondary.withOpacity(0.16) : Colors.transparent,
+            borderRadius: BorderRadius.circular(palette.radius(12)),
+            border: Border.all(
+              color: selected ? palette.secondary.withOpacity(0.26) : Colors.transparent,
+            ),
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(icon, size: 17, color: selected ? palette.secondary : palette.textSecondary),
+              const SizedBox(width: 6),
+              Text(
+                label,
+                style: TextStyle(
+                  color: selected ? palette.textPrimary : palette.textSecondary,
+                  fontWeight: FontWeight.w900,
+                  fontSize: 11.5,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _ThemePresetSection extends StatelessWidget {
+  const _ThemePresetSection({required this.selected, required this.controller});
+
+  final AppPalette selected;
+  final AppPaletteController controller;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        _AppearanceSectionTitle(
+          title: 'Paleta principal',
+          subtitle: 'Cambia la identidad de toda la aplicación.',
+          palette: selected,
+        ),
+        const SizedBox(height: 10),
+        GridView.builder(
+          shrinkWrap: true,
+          primary: false,
+          physics: const NeverScrollableScrollPhysics(),
+          itemCount: appPalettes.length,
+          gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+            crossAxisCount: 2,
+            mainAxisSpacing: 9,
+            crossAxisSpacing: 9,
+            mainAxisExtent: 96,
+          ),
+          itemBuilder: (context, index) {
+            final palette = appPalettes[index];
+            return _ThemePresetCard(
+              palette: palette,
+              selected: selected.id == palette.id,
+              onTap: () => controller.select(palette),
+            );
+          },
+        ),
+        const SizedBox(height: 14),
+        SwitchListTile.adaptive(
+          contentPadding: EdgeInsets.zero,
+          value: selected.darkBackground,
+          activeColor: selected.secondary,
+          title: Text('Modo oscuro', style: TextStyle(color: selected.textPrimary, fontWeight: FontWeight.w900)),
+          subtitle: Text(
+            'Ajusta fondo, superficies y contraste de forma coordinada.',
+            style: TextStyle(color: selected.textSecondary, fontWeight: FontWeight.w700, fontSize: 12),
+          ),
+          onChanged: (value) => controller.customize(darkBackground: value),
+        ),
+      ],
+    );
+  }
+}
+
+class _ThemePresetCard extends StatelessWidget {
+  const _ThemePresetCard({required this.palette, required this.selected, required this.onTap});
+
+  final AppPalette palette;
+  final bool selected;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: Colors.transparent,
+      borderRadius: BorderRadius.circular(16),
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(16),
+        child: Container(
+          padding: const EdgeInsets.all(10),
+          decoration: BoxDecoration(
+            gradient: palette.panelGradient(tint: palette.secondary),
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(
+              color: selected ? palette.secondary : palette.cardBorder,
+              width: selected ? 2 : 1,
+            ),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  _ColorDot(color: palette.primary),
+                  _ColorDot(color: palette.secondary),
+                  _ColorDot(color: palette.accent),
+                  const Spacer(),
+                  if (selected) Icon(Icons.check_circle_rounded, size: 18, color: palette.secondary),
+                ],
+              ),
+              const Spacer(),
+              Text(
+                palette.name,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(color: palette.textPrimary, fontWeight: FontWeight.w900, fontSize: 11.5),
+              ),
+              const SizedBox(height: 2),
+              Text(
+                palette.darkBackground ? 'Oscura' : 'Clara',
+                style: TextStyle(color: palette.textSecondary, fontWeight: FontWeight.w700, fontSize: 10),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _TypographySection extends StatelessWidget {
+  const _TypographySection({required this.selected, required this.controller});
+
+  final AppPalette selected;
+  final AppPaletteController controller;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        _AppearanceSectionTitle(
+          title: 'Tipografía',
+          subtitle: 'La letra cambia en menús, tableros, tablas, botones y formularios.',
+          palette: selected,
+        ),
+        const SizedBox(height: 12),
+        DropdownButtonFormField<String>(
+          value: _fontOptions.any((item) => item.family == selected.fontFamily) ? selected.fontFamily : 'Roboto',
+          decoration: const InputDecoration(
+            labelText: 'Familia de letra',
+            prefixIcon: Icon(Icons.font_download_outlined),
+          ),
+          items: [
+            for (final option in _fontOptions)
+              DropdownMenuItem(
+                value: option.family,
+                child: Text(option.label, style: TextStyle(fontFamily: option.family)),
+              ),
+          ],
+          onChanged: (value) {
+            if (value != null) controller.updateAppearance(fontFamily: value);
+          },
+        ),
+        const SizedBox(height: 16),
+        _SliderSetting(
+          title: 'Tamaño de letra',
+          valueLabel: '${(selected.fontScale * 100).round()} %',
+          value: selected.fontScale,
+          min: 0.88,
+          max: 1.20,
+          divisions: 8,
+          palette: selected,
+          onChanged: (value) => controller.updateAppearance(fontScale: value),
+        ),
+        const SizedBox(height: 12),
+        Container(
+          width: double.infinity,
+          padding: selected.panelPadding(16),
+          decoration: selected.panelDecoration(baseRadius: 20, tint: selected.primary, elevated: false),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'Vista previa del tablero',
+                style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                      fontFamily: selected.fontFamily,
+                      color: selected.textPrimary,
+                      fontWeight: FontWeight.w900,
+                    ),
+              ),
+              const SizedBox(height: 5),
+              Text(
+                'Ventas del turno · 12 mesas activas · Caja cuadrada',
+                style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                      fontFamily: selected.fontFamily,
+                      color: selected.textSecondary,
+                      fontWeight: FontWeight.w700,
+                    ),
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _ComponentsSection extends StatelessWidget {
+  const _ComponentsSection({required this.selected, required this.controller});
+
+  final AppPalette selected;
+  final AppPaletteController controller;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        _AppearanceSectionTitle(
+          title: 'Estructura visual',
+          subtitle: 'Controla densidad, tarjetas, bordes y fondos desde una sola parametrización.',
+          palette: selected,
+        ),
+        const SizedBox(height: 12),
+        Text('Densidad', style: TextStyle(color: selected.textPrimary, fontWeight: FontWeight.w900)),
+        const SizedBox(height: 8),
+        for (final density in AppDensityPreset.values) ...[
+          _AppearanceOptionTile(
+            title: density.label,
+            subtitle: density.description,
+            icon: switch (density) {
+              AppDensityPreset.compact => Icons.density_small_rounded,
+              AppDensityPreset.balanced => Icons.density_medium_rounded,
+              AppDensityPreset.spacious => Icons.density_large_rounded,
+            },
+            selected: selected.density == density,
+            palette: selected,
+            onTap: () => controller.updateAppearance(density: density),
+          ),
+          const SizedBox(height: 7),
+        ],
+        const SizedBox(height: 10),
+        Text('Estilo de paneles', style: TextStyle(color: selected.textPrimary, fontWeight: FontWeight.w900)),
+        const SizedBox(height: 8),
+        for (final style in AppSurfacePreset.values) ...[
+          _AppearanceOptionTile(
+            title: style.label,
+            subtitle: style.description,
+            icon: switch (style) {
+              AppSurfacePreset.flat => Icons.crop_square_rounded,
+              AppSurfacePreset.soft => Icons.gradient_rounded,
+              AppSurfacePreset.glass => Icons.blur_on_rounded,
+            },
+            selected: selected.surfaceStyle == style,
+            palette: selected,
+            onTap: () => controller.updateAppearance(surfaceStyle: style),
+          ),
+          const SizedBox(height: 7),
+        ],
+        const SizedBox(height: 12),
+        _SliderSetting(
+          title: 'Redondeo de tarjetas',
+          valueLabel: '${(selected.cornerScale * 100).round()} %',
+          value: selected.cornerScale,
+          min: 0.78,
+          max: 1.28,
+          divisions: 10,
+          palette: selected,
+          onChanged: (value) => controller.updateAppearance(cornerScale: value),
+        ),
+        SwitchListTile.adaptive(
+          contentPadding: EdgeInsets.zero,
+          value: selected.showBackgroundPattern,
+          activeColor: selected.secondary,
+          title: Text('Decoración de fondo', style: TextStyle(color: selected.textPrimary, fontWeight: FontWeight.w900)),
+          subtitle: Text(
+            'Muestra puntos, íconos y líneas sutiles en las pantallas.',
+            style: TextStyle(color: selected.textSecondary, fontWeight: FontWeight.w700, fontSize: 12),
+          ),
+          onChanged: (value) => controller.updateAppearance(showBackgroundPattern: value),
+        ),
+      ],
+    );
+  }
+}
+
+class _AdvancedColorsSection extends StatelessWidget {
+  const _AdvancedColorsSection({required this.selected, required this.controller});
+
+  final AppPalette selected;
+  final AppPaletteController controller;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        _AppearanceSectionTitle(
+          title: 'Colores avanzados',
+          subtitle: 'Ajusta los colores base; todos los componentes se recalculan desde aquí.',
+          palette: selected,
+        ),
+        const SizedBox(height: 12),
+        _ColorSection(
+          title: 'Color principal',
+          colors: _actionColors,
+          selected: selected.primary,
+          textColor: selected.textPrimary,
+          onColor: (color) => controller.customize(primary: color),
+        ),
+        _ColorSection(
+          title: 'Color secundario',
+          colors: _actionColors,
+          selected: selected.secondary,
+          textColor: selected.textPrimary,
+          onColor: (color) => controller.customize(secondary: color),
+        ),
+        _ColorSection(
+          title: 'Acento',
+          colors: _actionColors,
+          selected: selected.accent,
+          textColor: selected.textPrimary,
+          onColor: (color) => controller.customize(accent: color),
+        ),
+        ExpansionTile(
+          tilePadding: EdgeInsets.zero,
+          childrenPadding: EdgeInsets.zero,
+          title: Text('Fondos y superficies', style: TextStyle(color: selected.textPrimary, fontWeight: FontWeight.w900)),
+          subtitle: Text('Páginas, tarjetas y encabezados', style: TextStyle(color: selected.textSecondary, fontWeight: FontWeight.w700, fontSize: 12)),
+          children: [
+            _ColorSection(
+              title: 'Fondo de páginas',
+              colors: selected.darkBackground ? _darkBackgroundColors : _lightBackgroundColors,
+              selected: selected.background,
+              textColor: selected.textPrimary,
+              onColor: (color) => controller.customize(background: color),
+            ),
+            _ColorSection(
+              title: 'Fondo de tarjetas',
+              colors: selected.darkBackground ? _darkBackgroundColors : _lightBackgroundColors,
+              selected: selected.surface,
+              textColor: selected.textPrimary,
+              onColor: (color) => controller.customize(surface: color),
+            ),
+            _ColorSection(
+              title: 'Fondo de encabezados',
+              colors: _titleColors,
+              selected: selected.titleBackground,
+              textColor: selected.textPrimary,
+              onColor: (color) => controller.customize(titleBackground: color, autoTitleText: true),
+            ),
+          ],
+        ),
+        ExpansionTile(
+          tilePadding: EdgeInsets.zero,
+          childrenPadding: EdgeInsets.zero,
+          title: Text('Letras y contraste', style: TextStyle(color: selected.textPrimary, fontWeight: FontWeight.w900)),
+          subtitle: Text('Texto principal, secundario y títulos', style: TextStyle(color: selected.textSecondary, fontWeight: FontWeight.w700, fontSize: 12)),
+          children: [
+            _ColorSection(
+              title: 'Texto principal',
+              colors: selected.darkBackground ? _darkTextColors : _lightTextColors,
+              selected: selected.textPrimary,
+              textColor: selected.textPrimary,
+              onColor: (color) => controller.customize(textPrimary: color),
+            ),
+            _ColorSection(
+              title: 'Texto secundario',
+              colors: selected.darkBackground ? _darkSecondaryTextColors : _lightSecondaryTextColors,
+              selected: selected.textSecondary,
+              textColor: selected.textPrimary,
+              onColor: (color) => controller.customize(textSecondary: color),
+            ),
+            _ColorSection(
+              title: 'Texto de encabezados',
+              colors: _titleTextColors,
+              selected: selected.titleText,
+              textColor: selected.textPrimary,
+              onColor: (color) => controller.customize(titleText: color),
+            ),
+          ],
+        ),
+      ],
+    );
+  }
+}
+
+class _AppearanceSectionTitle extends StatelessWidget {
+  const _AppearanceSectionTitle({required this.title, required this.subtitle, required this.palette});
+
+  final String title;
+  final String subtitle;
+  final AppPalette palette;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(title, style: Theme.of(context).textTheme.titleMedium?.copyWith(color: palette.textPrimary, fontWeight: FontWeight.w900)),
+        const SizedBox(height: 3),
+        Text(subtitle, style: Theme.of(context).textTheme.bodySmall?.copyWith(color: palette.textSecondary, fontWeight: FontWeight.w700)),
+      ],
+    );
+  }
+}
+
+class _AppearanceOptionTile extends StatelessWidget {
+  const _AppearanceOptionTile({
+    required this.title,
+    required this.subtitle,
+    required this.icon,
+    required this.selected,
+    required this.palette,
+    required this.onTap,
+  });
+
+  final String title;
+  final String subtitle;
+  final IconData icon;
+  final bool selected;
+  final AppPalette palette;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: Colors.transparent,
+      borderRadius: BorderRadius.circular(palette.radius(16)),
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(palette.radius(16)),
+        child: Container(
+          width: double.infinity,
+          padding: const EdgeInsets.all(12),
+          decoration: BoxDecoration(
+            color: selected ? palette.secondary.withOpacity(0.12) : palette.background.withOpacity(palette.darkBackground ? 0.38 : 0.68),
+            borderRadius: BorderRadius.circular(palette.radius(16)),
+            border: Border.all(color: selected ? palette.secondary.withOpacity(0.34) : palette.cardBorder),
+          ),
+          child: Row(
+            children: [
+              Container(
+                width: 38,
+                height: 38,
+                decoration: BoxDecoration(
+                  color: selected ? palette.secondary.withOpacity(0.17) : palette.surface.withOpacity(0.70),
+                  borderRadius: BorderRadius.circular(palette.radius(12)),
+                ),
+                child: Icon(icon, color: selected ? palette.secondary : palette.textSecondary, size: 20),
+              ),
+              const SizedBox(width: 11),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(title, style: TextStyle(color: palette.textPrimary, fontWeight: FontWeight.w900)),
+                    const SizedBox(height: 2),
+                    Text(subtitle, style: TextStyle(color: palette.textSecondary, fontWeight: FontWeight.w700, fontSize: 11.5)),
+                  ],
+                ),
+              ),
+              if (selected) Icon(Icons.check_circle_rounded, color: palette.secondary, size: 20),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _SliderSetting extends StatelessWidget {
+  const _SliderSetting({
+    required this.title,
+    required this.valueLabel,
+    required this.value,
+    required this.min,
+    required this.max,
+    required this.divisions,
+    required this.palette,
+    required this.onChanged,
+  });
+
+  final String title;
+  final String valueLabel;
+  final double value;
+  final double min;
+  final double max;
+  final int divisions;
+  final AppPalette palette;
+  final ValueChanged<double> onChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.fromLTRB(12, 10, 12, 4),
+      decoration: BoxDecoration(
+        color: palette.background.withOpacity(palette.darkBackground ? 0.38 : 0.68),
+        borderRadius: BorderRadius.circular(palette.radius(16)),
+        border: Border.all(color: palette.cardBorder),
+      ),
+      child: Column(
+        children: [
+          Row(
+            children: [
+              Expanded(child: Text(title, style: TextStyle(color: palette.textPrimary, fontWeight: FontWeight.w900))),
+              Text(valueLabel, style: TextStyle(color: palette.secondary, fontWeight: FontWeight.w900)),
+            ],
+          ),
+          Slider(
+            value: value,
+            min: min,
+            max: max,
+            divisions: divisions,
+            activeColor: palette.secondary,
+            onChanged: onChanged,
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _FontOptionData {
+  const _FontOptionData(this.family, this.label);
+
+  final String family;
+  final String label;
+}
+
+const _fontOptions = <_FontOptionData>[
+  _FontOptionData('Roboto', 'Roboto · Moderna'),
+  _FontOptionData('Arial', 'Arial · Clara'),
+  _FontOptionData('Verdana', 'Verdana · Amplia'),
+  _FontOptionData('Trebuchet MS', 'Trebuchet · Dinámica'),
+  _FontOptionData('Georgia', 'Georgia · Editorial'),
+  _FontOptionData('monospace', 'Monoespaciada · Técnica'),
+];
+
+String _fontLabel(String family) {
+  for (final option in _fontOptions) {
+    if (option.family == family) return option.label.split(' · ').first;
+  }
+  return family;
 }
 
 class PaletteFloatingButton extends ConsumerStatefulWidget {
   const PaletteFloatingButton({super.key});
 
   @override
-  ConsumerState<PaletteFloatingButton> createState() => _PaletteFloatingButtonState();
+  ConsumerState<PaletteFloatingButton> createState() =>
+      _PaletteFloatingButtonState();
 }
 
 class _PaletteFloatingButtonState extends ConsumerState<PaletteFloatingButton> {
@@ -505,17 +1400,17 @@ class _PaletteFloatingButtonState extends ConsumerState<PaletteFloatingButton> {
   Widget build(BuildContext context) {
     final selected = ref.watch(selectedAppPaletteProvider);
     final media = MediaQuery.sizeOf(context);
-    final padding = MediaQuery.paddingOf(context);
-    final topOffset = padding.top + 72;
-    final rightOffset = media.width < 380 ? 12.0 : 16.0;
+    final safePadding = MediaQuery.paddingOf(context);
+    final rightOffset = media.width < 380 ? 12.0 : 18.0;
+    final bottomOffset = safePadding.bottom + 18.0;
 
     if (_hidden) {
       return Positioned(
         right: 8,
-        top: padding.top + 74,
+        bottom: safePadding.bottom + 18,
         child: _buildFloatingCircle(
           selected: selected,
-          tooltip: 'Mostrar personalización',
+          semanticsLabel: 'Mostrar personalización',
           icon: Icons.tune_rounded,
           onTap: () => setState(() => _hidden = false),
         ),
@@ -525,22 +1420,22 @@ class _PaletteFloatingButtonState extends ConsumerState<PaletteFloatingButton> {
     if (!_open) {
       return Positioned(
         right: rightOffset,
-        top: topOffset,
+        bottom: bottomOffset,
         child: _buildFloatingCircle(
           selected: selected,
-          tooltip: 'Personalizar colores',
-          icon: Icons.tune_rounded,
+          semanticsLabel: 'Personalizar colores',
+          icon: Icons.palette_outlined,
           onTap: () => setState(() => _open = true),
         ),
       );
     }
 
     final panelWidth = _resolvePanelWidth(media.width);
-    final panelHeight = _resolvePanelHeight(media.height, topOffset);
+    final panelHeight = _resolvePanelHeight(media.height, safePadding);
 
     return Positioned(
       right: rightOffset,
-      top: topOffset,
+      bottom: bottomOffset,
       child: SizedBox(
         width: panelWidth,
         height: panelHeight,
@@ -555,7 +1450,13 @@ class _PaletteFloatingButtonState extends ConsumerState<PaletteFloatingButton> {
               borderRadius: BorderRadius.circular(26),
               border: Border.all(color: selected.cardBorder),
             ),
-            child: _buildPanel(selected),
+            child: PaletteSettingsPanel(
+              onHide: () => setState(() {
+                _hidden = true;
+                _open = false;
+              }),
+              onClose: () => setState(() => _open = false),
+            ),
           ),
         ),
       ),
@@ -564,59 +1465,58 @@ class _PaletteFloatingButtonState extends ConsumerState<PaletteFloatingButton> {
 
   double _resolvePanelWidth(double screenWidth) {
     final available = screenWidth - 24;
-    if (available <= 280) return available < 220 ? 220 : available;
+    if (available <= 280) return available.clamp(220.0, 360.0).toDouble();
     if (screenWidth < 420) return available;
     return 360;
   }
 
-  double _resolvePanelHeight(double screenHeight, double topOffset) {
-    final available = screenHeight - topOffset - 18;
-    if (available <= 280) return screenHeight * 0.72;
-    if (available > 650) return 650;
-    return available;
+  double _resolvePanelHeight(double screenHeight, EdgeInsets safePadding) {
+    final available = screenHeight - safePadding.top - safePadding.bottom - 36;
+    if (available <= 300) return available.clamp(260.0, 650.0).toDouble();
+    return available.clamp(300.0, 650.0).toDouble();
   }
 
   Widget _buildFloatingCircle({
     required AppPalette selected,
-    required String tooltip,
+    required String semanticsLabel,
     required IconData icon,
     required VoidCallback onTap,
   }) {
-    return SizedBox(
-      width: _buttonSize,
-      height: _buttonSize,
-      child: Tooltip(
-        message: tooltip,
-        child: Material(
-          color: selected.surface.withOpacity(selected.darkBackground ? 0.96 : 0.99),
-          shape: CircleBorder(side: BorderSide(color: selected.cardBorder)),
-          elevation: 10,
-          shadowColor: selected.cardShadow,
-          clipBehavior: Clip.antiAlias,
-          child: InkWell(
-            onTap: onTap,
-            child: Center(child: Icon(icon, color: selected.secondary)),
+    return Semantics(
+      button: true,
+      label: semanticsLabel,
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          onTap: onTap,
+          customBorder: const CircleBorder(),
+          child: Container(
+            width: _buttonSize,
+            height: _buttonSize,
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              gradient: selected.mainGradient,
+              border: Border.all(color: selected.textPrimary.withOpacity(0.16)),
+              boxShadow: [
+                BoxShadow(
+                  color: selected.primary.withOpacity(0.34),
+                  blurRadius: 28,
+                  offset: const Offset(0, 12),
+                ),
+              ],
+            ),
+            child: Icon(icon, color: selected.onPrimary),
           ),
         ),
       ),
     );
   }
-
-  Widget _buildPanel(AppPalette selected) {
-    return PaletteSettingsPanel(
-      onHide: () => setState(() {
-        _hidden = true;
-        _open = false;
-      }),
-      onClose: () => setState(() => _open = false),
-    );
-  }
 }
 
 const _lightBackgroundColors = [Color(0xFFF8FAFC), Color(0xFFF2F7FF), Color(0xFFF0F9FF), Color(0xFFEFF6FF), Color(0xFFFFF7E6), Color(0xFFFFFBEB), Color(0xFFF0FDF4), Color(0xFFF0FDFA), Color(0xFFFFF1F2), Color(0xFFFDF2F8), Color(0xFFF5F3FF), Color(0xFFFAF5FF), Color(0xFFFFF7ED), Color(0xFFECFCCB), Color(0xFFE2E8F0)];
-const _darkBackgroundColors = [Color(0xFF020617), Color(0xFF030712), Color(0xFF111827), Color(0xFF160B24), Color(0xFF1C1917), Color(0xFF052E2B), Color(0xFF022C22), Color(0xFF172554), Color(0xFF1E1B4B), Color(0xFF082F49), Color(0xFF23030A), Color(0xFF18181B), Color(0xFF020F08)];
-const _titleColors = [Color(0xFF020617), Color(0xFF111827), Color(0xFF1C1917), Color(0xFF064E3B), Color(0xFF312E81), Color(0xFF450A0A), Color(0xFF082F49), Color(0xFF022C22), Color(0xFFEFF6FF), Color(0xFFE0F2FE), Color(0xFFFFFBEB), Color(0xFFECFCCB), Color(0xFFF3E8FF), Color(0xFFFCE7F3), Color(0xFFE2E8F0)];
-const _actionColors = [Color(0xFF2563EB), Color(0xFF0284C7), Color(0xFF06B6D4), Color(0xFF0F766E), Color(0xFF059669), Color(0xFF65A30D), Color(0xFF7C3AED), Color(0xFF9333EA), Color(0xFF4F46E5), Color(0xFFEC4899), Color(0xFFDB2777), Color(0xFFF59E0B), Color(0xFFD97706), Color(0xFFEA580C), Color(0xFFDC2626), Color(0xFF475569)];
+const _darkBackgroundColors = [Color(0xFF061723), Color(0xFF0B2634), Color(0xFF0D3142), Color(0xFF123D4F), Color(0xFF020617), Color(0xFF030712), Color(0xFF111827), Color(0xFF160B24), Color(0xFF1C1917), Color(0xFF052E2B), Color(0xFF022C22), Color(0xFF172554), Color(0xFF1E1B4B), Color(0xFF082F49), Color(0xFF23030A), Color(0xFF18181B), Color(0xFF020F08)];
+const _titleColors = [Color(0xFF0D3142), Color(0xFF123D4F), Color(0xFF155B66), Color(0xFF020617), Color(0xFF111827), Color(0xFF1C1917), Color(0xFF064E3B), Color(0xFF312E81), Color(0xFF450A0A), Color(0xFF082F49), Color(0xFF022C22), Color(0xFFEFF6FF), Color(0xFFE0F2FE), Color(0xFFFFFBEB), Color(0xFFECFCCB), Color(0xFFF3E8FF), Color(0xFFFCE7F3), Color(0xFFE2E8F0)];
+const _actionColors = [Color(0xFF21E6BE), Color(0xFF38BDF8), Color(0xFFFFC857), Color(0xFF2563EB), Color(0xFF0284C7), Color(0xFF06B6D4), Color(0xFF0F766E), Color(0xFF059669), Color(0xFF65A30D), Color(0xFF7C3AED), Color(0xFF9333EA), Color(0xFF4F46E5), Color(0xFFEC4899), Color(0xFFDB2777), Color(0xFFF59E0B), Color(0xFFD97706), Color(0xFFEA580C), Color(0xFFDC2626), Color(0xFF475569)];
 const _lightTextColors = [Color(0xFF0F172A), Color(0xFF1C1917), Color(0xFF052E2B), Color(0xFF042F2E), Color(0xFF312E81), Color(0xFF581C87), Color(0xFF831843), Color(0xFF7C2D12), Color(0xFF365314), Color(0xFF374151)];
 const _lightSecondaryTextColors = [Color(0xFF64748B), Color(0xFF78716C), Color(0xFF6B7280), Color(0xFF475569), Color(0xFF4B5563), Color(0xFF0F766E), Color(0xFF7E22CE), Color(0xFF9D174D), Color(0xFF854D0E)];
 const _titleTextColors = [Colors.white, Color(0xFF0F172A), Color(0xFF111827), Color(0xFFFFFBEB), Color(0xFFE0F2FE), Color(0xFFECFDF5), Color(0xFFFDE68A), Color(0xFFFDF2F8), Color(0xFFF3E8FF), Color(0xFFDCFCE7)];

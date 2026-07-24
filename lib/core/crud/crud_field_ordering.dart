@@ -29,6 +29,7 @@ const Map<String, String> _preferredPrimaryFields = <String, String>{
   'roles': 'roleNombre',
   'sucursales': 'sucuNombre',
   'tipos_producto': 'tpprNombre',
+  'tipos_movimiento': 'timoNombre',
   'usuarios': 'usuaPrimerNombre',
   'ventas': 'ventFecha',
   'zonas_horarias': 'zohoNombre',

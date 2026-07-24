@@ -2,7 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../../../app/theme/app_control_metrics.dart';
 import '../../../../app/theme/app_colors.dart';
+import '../../../../app/theme/app_palette.dart';
 import '../../../../core/constants/api_paths.dart';
 import '../../../../core/providers/core_providers.dart';
 import '../../../../core/widgets/app_empty_view.dart';
@@ -114,91 +116,53 @@ class _UsuariosListPageState extends ConsumerState<UsuariosListPage> {
   @override
   Widget build(BuildContext context) {
     final filtered = _filteredUsuarios;
+    final palette = ref.watch(selectedAppPaletteProvider);
 
     return Scaffold(
-      backgroundColor: AppColors.background,
+      backgroundColor: Colors.transparent,
       floatingActionButton: FloatingActionButton.extended(
+        backgroundColor: palette.actionColor,
+        foregroundColor: palette.onAction,
         onPressed: _deleting ? null : () => context.go('/usuarios/nuevo'),
         icon: const Icon(Icons.add_rounded),
-        label: const Text('Crear'),
+        label: const Text('Crear usuario'),
       ),
-      body: CustomScrollView(
-        slivers: [
-          SliverAppBar(
-            pinned: true,
-            foregroundColor: Colors.white,
-            expandedHeight: 218,
-            title: const Text('Usuarios'),
-            actions: [IconButton(onPressed: _load, icon: const Icon(Icons.refresh_rounded), tooltip: 'Actualizar')],
-            flexibleSpace: FlexibleSpaceBar(
-              background: TechBackground(
-                padding: const EdgeInsets.fromLTRB(20, 58, 20, 16),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
-                      children: [
-                        Container(
-                          width: 60,
-                          height: 60,
-                          decoration: BoxDecoration(
-                            gradient: const LinearGradient(colors: [AppColors.primary, AppColors.tertiary]),
-                            borderRadius: BorderRadius.circular(23),
-                            boxShadow: [BoxShadow(color: AppColors.primary.withOpacity(0.32), blurRadius: 24, offset: const Offset(0, 12))],
-                          ),
-                          child: const Icon(Icons.people_alt_outlined, color: Colors.white, size: 31),
-                        ),
-                        const SizedBox(width: 14),
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text('Usuarios', style: Theme.of(context).textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.w900, color: Colors.white)),
-                              const SizedBox(height: 3),
-                              Text('Consulta simplificada: nombre, empresa, sucursal, ciudad, estado y bloqueo.', style: TextStyle(color: Colors.white.withOpacity(0.74), fontWeight: FontWeight.w700)),
-                            ],
-                          ),
-                        ),
-                        _CountPill(label: '${filtered.length}/${_usuarios.length}'),
-                      ],
-                    ),
-                    const SizedBox(height: 16),
-                    Container(
-                      decoration: BoxDecoration(
-                        color: Colors.white.withOpacity(0.95),
-                        borderRadius: BorderRadius.circular(22),
-                        boxShadow: [BoxShadow(color: AppColors.primaryDark.withOpacity(0.16), blurRadius: 22, offset: const Offset(0, 12))],
-                      ),
-                      child: TextField(
-                        controller: _searchController,
-                        onChanged: (_) => setState(() {}),
-                        decoration: InputDecoration(
-                          hintText: 'Buscar por nombre, empresa, sucursal, ciudad, estado o bloqueo...',
-                          prefixIcon: const Icon(Icons.search_rounded),
-                          suffixIcon: _searchController.text.isEmpty
-                              ? null
-                              : IconButton(
-                                  icon: const Icon(Icons.close_rounded),
-                                  onPressed: () {
-                                    _searchController.clear();
-                                    setState(() {});
-                                  },
-                                ),
+      body: Stack(
+        children: [
+          const Positioned.fill(child: AppPageBackground()),
+          RefreshIndicator(
+            onRefresh: _load,
+            child: CustomScrollView(
+              slivers: [
+                SliverPadding(
+                  padding: const EdgeInsets.fromLTRB(16, 16, 16, 0),
+                  sliver: SliverToBoxAdapter(
+                    child: Center(
+                      child: ConstrainedBox(
+                        constraints: const BoxConstraints(maxWidth: 1180),
+                        child: _UsuariosToolbar(
+                          total: _usuarios.length,
+                          visible: filtered.length,
+                          controller: _searchController,
+                          palette: palette,
+                          loading: _loading,
+                          onChanged: (_) => setState(() {}),
+                          onRefresh: _load,
                         ),
                       ),
                     ),
-                  ],
+                  ),
                 ),
-              ),
+                SliverToBoxAdapter(child: _buildContent(filtered, palette)),
+              ],
             ),
           ),
-          SliverToBoxAdapter(child: _buildContent(filtered)),
         ],
       ),
     );
   }
 
-  Widget _buildContent(List<UsuariosResponseModel> usuarios) {
+  Widget _buildContent(List<UsuariosResponseModel> usuarios, AppPalette palette) {
     if (_loading) return const Padding(padding: EdgeInsets.all(32), child: AppLoader());
     if (_error != null) return Padding(padding: const EdgeInsets.all(16), child: AppErrorView(message: _error!, onRetry: _load));
     if (usuarios.isEmpty) return const Padding(padding: EdgeInsets.all(16), child: AppEmptyView(message: 'No hay usuarios para mostrar.'));
@@ -206,24 +170,27 @@ class _UsuariosListPageState extends ConsumerState<UsuariosListPage> {
     final isNarrow = MediaQuery.sizeOf(context).width < 820;
     return Padding(
       padding: const EdgeInsets.fromLTRB(12, 12, 12, 96),
-      child: isNarrow ? _buildCards(usuarios) : _buildTable(usuarios),
+      child: isNarrow ? _buildCards(usuarios, palette) : _buildTable(usuarios, palette),
     );
   }
 
-  Widget _buildTable(List<UsuariosResponseModel> usuarios) {
+  Widget _buildTable(List<UsuariosResponseModel> usuarios, AppPalette palette) {
     return Container(
       width: double.infinity,
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: palette.surface.withOpacity(palette.darkBackground ? 0.94 : 0.985),
         borderRadius: BorderRadius.circular(28),
-        border: Border.all(color: AppColors.border),
-        boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.04), blurRadius: 24, offset: const Offset(0, 12))],
+        border: Border.all(color: palette.cardBorder),
+        boxShadow: [BoxShadow(color: palette.cardShadow, blurRadius: 24, offset: const Offset(0, 12))],
       ),
       child: ClipRRect(
         borderRadius: BorderRadius.circular(28),
         child: SingleChildScrollView(
           scrollDirection: Axis.horizontal,
           child: DataTable(
+            headingRowColor: WidgetStatePropertyAll(palette.secondary.withOpacity(palette.darkBackground ? 0.12 : 0.07)),
+            headingTextStyle: TextStyle(color: palette.textPrimary, fontWeight: FontWeight.w900),
+            dataTextStyle: TextStyle(color: palette.textPrimary, fontWeight: FontWeight.w700),
             headingRowHeight: 58,
             dataRowMinHeight: 64,
             dataRowMaxHeight: 78,
@@ -249,7 +216,7 @@ class _UsuariosListPageState extends ConsumerState<UsuariosListPage> {
                     DataCell(SizedBox(width: 180, child: Text(_label(_ciudades, usuario.ciudId), maxLines: 2, overflow: TextOverflow.ellipsis))),
                     DataCell(_StatusChip(label: _statusLabel(usuario.usuaEstado), positive: usuario.usuaEstado == 1)),
                     DataCell(_StatusChip(label: _blockedLabel(usuario.usuaBloqueado), positive: usuario.usuaBloqueado != 1)),
-                    DataCell(_Actions(usuario: usuario, onDelete: () => _delete(usuario))),
+                    DataCell(_Actions(usuario: usuario, onDelete: () => _delete(usuario), palette: palette)),
                   ],
                 ),
             ],
@@ -259,7 +226,7 @@ class _UsuariosListPageState extends ConsumerState<UsuariosListPage> {
     );
   }
 
-  Widget _buildCards(List<UsuariosResponseModel> usuarios) {
+  Widget _buildCards(List<UsuariosResponseModel> usuarios, AppPalette palette) {
     return ListView.separated(
       shrinkWrap: true,
       physics: const NeverScrollableScrollPhysics(),
@@ -268,6 +235,9 @@ class _UsuariosListPageState extends ConsumerState<UsuariosListPage> {
       itemBuilder: (context, index) {
         final usuario = usuarios[index];
         return Card(
+          color: palette.surface.withOpacity(palette.darkBackground ? 0.94 : 0.985),
+          elevation: 0,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24), side: BorderSide(color: palette.cardBorder)),
           child: InkWell(
             borderRadius: BorderRadius.circular(24),
             onTap: () => context.go('/usuarios/${usuario.usuaId}'),
@@ -276,21 +246,21 @@ class _UsuariosListPageState extends ConsumerState<UsuariosListPage> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  Text(_fullName(usuario), maxLines: 2, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w900)),
+                  Text(_fullName(usuario), maxLines: 2, overflow: TextOverflow.ellipsis, style: TextStyle(fontSize: 16, fontWeight: FontWeight.w900, color: palette.textPrimary)),
                   const SizedBox(height: 10),
                   Wrap(
                     spacing: 8,
                     runSpacing: 8,
                     children: [
-                      _MiniInfo(icon: Icons.business_outlined, label: _label(_empresas, usuario.emprId)),
-                      _MiniInfo(icon: Icons.store_mall_directory_outlined, label: _label(_sucursales, usuario.sucuId)),
-                      _MiniInfo(icon: Icons.location_city_outlined, label: _label(_ciudades, usuario.ciudId)),
+                      _MiniInfo(icon: Icons.business_outlined, label: _label(_empresas, usuario.emprId), palette: palette),
+                      _MiniInfo(icon: Icons.store_mall_directory_outlined, label: _label(_sucursales, usuario.sucuId), palette: palette),
+                      _MiniInfo(icon: Icons.location_city_outlined, label: _label(_ciudades, usuario.ciudId), palette: palette),
                       _StatusChip(label: _statusLabel(usuario.usuaEstado), positive: usuario.usuaEstado == 1),
                       _StatusChip(label: _blockedLabel(usuario.usuaBloqueado), positive: usuario.usuaBloqueado != 1),
                     ],
                   ),
                   const SizedBox(height: 10),
-                  Align(alignment: Alignment.centerRight, child: _Actions(usuario: usuario, onDelete: () => _delete(usuario))),
+                  Align(alignment: Alignment.centerRight, child: _Actions(usuario: usuario, onDelete: () => _delete(usuario), palette: palette)),
                 ],
               ),
             ),
@@ -337,9 +307,10 @@ class _UsuariosListPageState extends ConsumerState<UsuariosListPage> {
 }
 
 class _Actions extends StatelessWidget {
-  const _Actions({required this.usuario, required this.onDelete});
+  const _Actions({required this.usuario, required this.onDelete, required this.palette});
   final UsuariosResponseModel usuario;
   final VoidCallback onDelete;
+  final AppPalette palette;
 
   @override
   Widget build(BuildContext context) {
@@ -347,8 +318,8 @@ class _Actions extends StatelessWidget {
     return Row(
       mainAxisSize: MainAxisSize.min,
       children: [
-        _ActionIcon(color: AppColors.primary, icon: Icons.visibility_rounded, tooltip: 'Ver', onPressed: id == null ? null : () => context.go('/usuarios/$id')),
-        _ActionIcon(color: AppColors.warning, icon: Icons.edit_rounded, tooltip: 'Modificar', onPressed: id == null ? null : () => context.go('/usuarios/$id/editar')),
+        _ActionIcon(color: palette.secondary, icon: Icons.visibility_rounded, tooltip: 'Ver', onPressed: id == null ? null : () => context.go('/usuarios/$id')),
+        _ActionIcon(color: palette.primary, icon: Icons.edit_rounded, tooltip: 'Modificar', onPressed: id == null ? null : () => context.go('/usuarios/$id/editar')),
         _ActionIcon(color: AppColors.danger, icon: Icons.delete_outline_rounded, tooltip: 'Eliminar/Inactivar', onPressed: id == null ? null : onDelete),
       ],
     );
@@ -391,34 +362,125 @@ class _StatusChip extends StatelessWidget {
 }
 
 class _MiniInfo extends StatelessWidget {
-  const _MiniInfo({required this.icon, required this.label});
+  const _MiniInfo({required this.icon, required this.label, required this.palette});
   final IconData icon;
   final String label;
+  final AppPalette palette;
 
   @override
   Widget build(BuildContext context) => Container(
         constraints: const BoxConstraints(maxWidth: 250),
         padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
-        decoration: BoxDecoration(color: AppColors.primary.withOpacity(0.08), borderRadius: BorderRadius.circular(999)),
+        decoration: BoxDecoration(color: palette.secondary.withOpacity(0.09), borderRadius: BorderRadius.circular(999)),
         child: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(icon, size: 15, color: AppColors.primary),
+            Icon(icon, size: 15, color: palette.secondary),
             const SizedBox(width: 6),
-            Flexible(child: Text(label, maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w800))),
+            Flexible(child: Text(label, maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(fontSize: 12, fontWeight: FontWeight.w800, color: palette.textPrimary))),
           ],
         ),
       );
 }
 
+class _UsuariosToolbar extends StatelessWidget {
+  const _UsuariosToolbar({
+    required this.total,
+    required this.visible,
+    required this.controller,
+    required this.palette,
+    required this.loading,
+    required this.onChanged,
+    required this.onRefresh,
+  });
+
+  final int total;
+  final int visible;
+  final TextEditingController controller;
+  final AppPalette palette;
+  final bool loading;
+  final ValueChanged<String> onChanged;
+  final VoidCallback onRefresh;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: palette.surface.withOpacity(palette.darkBackground ? 0.94 : 0.985),
+        borderRadius: BorderRadius.circular(26),
+        border: Border.all(color: palette.secondary.withOpacity(0.15)),
+        boxShadow: [BoxShadow(color: palette.cardShadow, blurRadius: 22, offset: const Offset(0, 10))],
+      ),
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          final compact = constraints.maxWidth < 720;
+          final info = Row(
+            children: [
+              Container(
+                width: 48,
+                height: 48,
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(colors: [palette.primary, palette.secondary]),
+                  borderRadius: BorderRadius.circular(16),
+                ),
+                child: Icon(Icons.people_alt_rounded, color: palette.onPrimary, size: 25),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text('Administración de usuarios', style: TextStyle(color: palette.textPrimary, fontWeight: FontWeight.w900, fontSize: 17)),
+                    const SizedBox(height: 3),
+                    Text('Consulta usuarios, sucursales asignadas, estado y bloqueo.', maxLines: 2, overflow: TextOverflow.ellipsis, style: TextStyle(color: palette.textSecondary, fontWeight: FontWeight.w700, fontSize: 12.5)),
+                  ],
+                ),
+              ),
+              const SizedBox(width: 10),
+              _CountPill(label: '$visible/$total', palette: palette),
+              const SizedBox(width: 6),
+              IconButton.filledTonal(
+                onPressed: loading ? null : onRefresh,
+                tooltip: 'Actualizar',
+                icon: loading ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2)) : const Icon(Icons.refresh_rounded),
+              ),
+            ],
+          );
+          final search = TextField(
+            controller: controller,
+            onChanged: onChanged,
+            decoration: InputDecoration(
+              prefixIcon: const Icon(Icons.search_rounded),
+              hintText: 'Buscar por nombre, empresa, sucursal, ciudad o estado...',
+              suffixIcon: controller.text.isEmpty
+                  ? null
+                  : IconButton(
+                      onPressed: () {
+                        controller.clear();
+                        onChanged('');
+                      },
+                      icon: const Icon(Icons.close_rounded),
+                    ),
+            ).compactFilter(),
+          );
+          if (compact) return Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [info, const SizedBox(height: 14), search]);
+          return Row(children: [Expanded(flex: 5, child: info), const SizedBox(width: 16), Expanded(flex: 4, child: search)]);
+        },
+      ),
+    );
+  }
+}
+
 class _CountPill extends StatelessWidget {
-  const _CountPill({required this.label});
+  const _CountPill({required this.label, required this.palette});
   final String label;
+  final AppPalette palette;
 
   @override
   Widget build(BuildContext context) => Container(
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-        decoration: BoxDecoration(color: AppColors.accent.withOpacity(0.12), borderRadius: BorderRadius.circular(999), border: Border.all(color: AppColors.accent.withOpacity(0.22))),
-        child: Text(label, style: const TextStyle(color: AppColors.accent, fontWeight: FontWeight.w900)),
+        decoration: BoxDecoration(color: palette.secondary.withOpacity(0.12), borderRadius: BorderRadius.circular(999), border: Border.all(color: palette.secondary.withOpacity(0.22))),
+        child: Text(label, style: TextStyle(color: palette.secondary, fontWeight: FontWeight.w900)),
       );
 }

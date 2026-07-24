@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../../app/theme/app_control_metrics.dart';
 import '../../app/theme/app_colors.dart';
 import '../crud/crud_field.dart';
 
@@ -115,7 +116,7 @@ class LookupDropdown extends StatelessWidget {
                       decoration: const InputDecoration(
                         labelText: 'Buscar por nombre, código o descripción',
                         prefixIcon: Icon(Icons.search_rounded),
-                      ),
+                      ).compactFilter(),
                       onChanged: filter,
                     ),
                     const SizedBox(height: 12),
