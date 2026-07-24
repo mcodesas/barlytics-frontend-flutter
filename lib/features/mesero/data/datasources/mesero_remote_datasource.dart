@@ -169,6 +169,20 @@ class MeseroRemoteDataSource {
   }
 
 
+  Future<MeseroVentaModel> actualizarCantidadProductoCuenta({
+    required int cuentaId,
+    required int detalleId,
+    required double cantidad,
+  }) async {
+    final response = await _apiClient.put<MeseroVentaModel>(
+      ApiPaths.meseroActualizarCantidadProductoCuenta(cuentaId, detalleId),
+      {'cantidad': cantidad},
+      (json) => MeseroVentaModel.fromJson(Map<String, dynamic>.from(json as Map)),
+    );
+    return response.data!;
+  }
+
+
   Future<MeseroVentaModel> eliminarProductoCuenta({
     required int cuentaId,
     required int detalleId,

@@ -8,7 +8,6 @@ import '../../../../core/widgets/app_error_view.dart';
 import '../../../../core/widgets/app_loader.dart';
 import '../../../../core/widgets/app_scaffold.dart';
 import '../../../../core/widgets/responsive_layout.dart';
-import '../../../../core/widgets/tech_background.dart';
 import '../../../auth/presentation/providers/auth_provider.dart';
 import '../../../mesero/presentation/providers/mesero_tab_provider.dart';
 import '../../../navigation/data/models/user_menu_item.dart';
@@ -32,69 +31,15 @@ class HomePage extends ConsumerWidget {
         backgroundColor: Colors.transparent,
         body: CustomScrollView(
           slivers: [
-            SliverAppBar(
-              pinned: true,
-              expandedHeight: 238,
-              title: Text('Inicio', style: TextStyle(color: palette.onTitle, fontWeight: FontWeight.w900)),
-              foregroundColor: palette.onTitle,
-              backgroundColor: palette.titleBackground,
-              surfaceTintColor: Colors.transparent,
-              flexibleSpace: FlexibleSpaceBar(
-                background: TechBackground(
-                  padding: const EdgeInsets.fromLTRB(22, 58, 22, 22),
-                  child: Row(
-                    children: [
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            Container(
-                              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-                              decoration: BoxDecoration(
-                                color: Colors.white.withOpacity(0.12),
-                                borderRadius: BorderRadius.circular(999),
-                                border: Border.all(color: Colors.white.withOpacity(0.16)),
-                              ),
-                              child: Text(
-                                isOperational ? 'Dashboard ${isCajero ? 'de caja' : 'de vendedor'}' : 'Dashboard administrativo',
-                                style: TextStyle(color: palette.onTitle, fontWeight: FontWeight.w800),
-                              ),
-                            ),
-                            const SizedBox(height: 14),
-                            Text(
-                              'Hola, bienvenido a BarLytics',
-                              style: Theme.of(context).textTheme.headlineMedium?.copyWith(color: palette.onTitle, fontWeight: FontWeight.w900),
-                            ),
-                            const SizedBox(height: 8),
-                            Text(
-                              isOperational
-                                  ? 'Aquí tienes solamente las funciones habilitadas para tu rol operativo.'
-                                  : 'Opera tu bar, inventario, ventas y pagos desde cualquier dispositivo.',
-                              style: TextStyle(color: palette.onTitle.withOpacity(0.78), fontWeight: FontWeight.w700, height: 1.35),
-                            ),
-                          ],
-                        ),
-                      ),
-                      if (MediaQuery.sizeOf(context).width >= 700)
-                        Container(
-                          width: 118,
-                          height: 118,
-                          decoration: BoxDecoration(
-                            gradient: palette.mainGradient,
-                            borderRadius: BorderRadius.circular(36),
-                            border: Border.all(color: Colors.white.withOpacity(0.16)),
-                            boxShadow: [BoxShadow(color: palette.accent.withOpacity(0.28), blurRadius: 32, offset: const Offset(0, 16))],
-                          ),
-                          child: Icon(isOperational ? Icons.point_of_sale_rounded : Icons.insights_rounded, color: palette.onTitle, size: 58),
-                        ),
-                    ],
-                  ),
-                ),
+            SliverToBoxAdapter(
+              child: _HomeHero(
+                isOperational: isOperational,
+                isCajero: isCajero,
+                palette: palette,
               ),
             ),
             SliverPadding(
-              padding: const EdgeInsets.all(18),
+              padding: palette.pagePadding,
               sliver: SliverList(
                 delegate: SliverChildListDelegate([
                   if (isOperational)
@@ -212,6 +157,115 @@ List<UserMenuItem> _operativeItems({required bool isCajero}) => [
         ),
     ];
 
+class _HomeHero extends StatelessWidget {
+  const _HomeHero({
+    required this.isOperational,
+    required this.isCajero,
+    required this.palette,
+  });
+
+  final bool isOperational;
+  final bool isCajero;
+  final AppPalette palette;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: EdgeInsets.fromLTRB(18 * palette.spacingScale, 18 * palette.spacingScale, 18 * palette.spacingScale, 0),
+      child: Container(
+        padding: palette.panelPadding(20),
+        decoration: palette.panelDecoration(
+          baseRadius: 30,
+          tint: palette.secondary,
+        ),
+        child: LayoutBuilder(
+          builder: (context, constraints) {
+            final compact = constraints.maxWidth < 700;
+            final copy = Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 13, vertical: 7),
+                  decoration: BoxDecoration(
+                    color: palette.secondary.withOpacity(0.12),
+                    borderRadius: BorderRadius.circular(palette.radius(999)),
+                    border: Border.all(color: palette.secondary.withOpacity(0.20)),
+                  ),
+                  child: Text(
+                    isOperational
+                        ? 'Panel ${isCajero ? 'de caja' : 'de vendedor'}'
+                        : 'Panel administrativo',
+                    style: TextStyle(
+                      color: palette.secondary,
+                      fontWeight: FontWeight.w900,
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 14),
+                Text(
+                  'Hola, bienvenido a BarLytics',
+                  style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+                        color: palette.textPrimary,
+                        fontWeight: FontWeight.w900,
+                      ),
+                ),
+                const SizedBox(height: 7),
+                Text(
+                  isOperational
+                      ? 'Accede a las funciones habilitadas para operar ventas y caja sin información innecesaria.'
+                      : 'Administra usuarios, catálogo, inventario, ventas, pagos y configuración desde un mismo lugar.',
+                  style: TextStyle(
+                    color: palette.textSecondary,
+                    fontWeight: FontWeight.w600,
+                    height: 1.35,
+                  ),
+                ),
+              ],
+            );
+
+            final icon = Container(
+              width: compact ? 74 : 104,
+              height: compact ? 74 : 104,
+              decoration: BoxDecoration(
+                gradient: LinearGradient(colors: [palette.primary, palette.secondary]),
+                borderRadius: BorderRadius.circular(palette.radius(compact ? 24 : 32)),
+                border: Border.all(color: palette.secondary.withOpacity(0.18)),
+                boxShadow: [
+                  BoxShadow(
+                    color: palette.secondary.withOpacity(0.18),
+                    blurRadius: 24,
+                    offset: const Offset(0, 12),
+                  ),
+                ],
+              ),
+              child: Icon(
+                isOperational ? Icons.point_of_sale_rounded : Icons.insights_rounded,
+                color: palette.onPrimary,
+                size: compact ? 36 : 50,
+              ),
+            );
+
+            if (compact) {
+              return Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [copy, const SizedBox(height: 18), icon],
+              );
+            }
+
+            return Row(
+              children: [
+                Expanded(child: copy),
+                const SizedBox(width: 24),
+                icon,
+              ],
+            );
+          },
+        ),
+      ),
+    );
+  }
+}
+
 class _QuickStats extends ConsumerWidget {
   const _QuickStats({required this.modulesCount, required this.rolesCount, required this.operationLabel});
   final int modulesCount;
@@ -226,7 +280,7 @@ class _QuickStats extends ConsumerWidget {
       runSpacing: 14,
       children: [
         _StatCard(title: 'Opciones visibles', value: modulesCount.toString(), icon: Icons.dashboard_customize_rounded, color: palette.secondary),
-        _StatCard(title: 'Roles activos', value: rolesCount.toString(), icon: Icons.admin_panel_settings_rounded, color: palette.accent),
+        _StatCard(title: 'Roles activos', value: rolesCount.toString(), icon: Icons.admin_panel_settings_rounded, color: palette.primary),
         _StatCard(title: 'Operación', value: operationLabel, icon: Icons.point_of_sale_rounded, color: palette.titleBackground),
       ],
     );
@@ -246,12 +300,10 @@ class _StatCard extends ConsumerWidget {
     return SizedBox(
       width: MediaQuery.sizeOf(context).width < 600 ? double.infinity : 230,
       child: Container(
-        padding: const EdgeInsets.all(18),
-        decoration: BoxDecoration(
-          gradient: palette.glassGradient,
-          borderRadius: BorderRadius.circular(28),
-          border: Border.all(color: palette.translucentBorder),
-          boxShadow: [BoxShadow(color: color.withOpacity(0.14), blurRadius: 24, offset: const Offset(0, 14))],
+        padding: palette.panelPadding(18),
+        decoration: palette.panelDecoration(
+          baseRadius: 28,
+          tint: color,
         ),
         child: Row(
           children: [
@@ -260,7 +312,7 @@ class _StatCard extends ConsumerWidget {
               height: 54,
               decoration: BoxDecoration(
                 gradient: LinearGradient(colors: [color, palette.secondary]),
-                borderRadius: BorderRadius.circular(20),
+                borderRadius: BorderRadius.circular(palette.radius(20)),
               ),
               child: Icon(icon, color: Colors.white),
             ),
@@ -278,23 +330,30 @@ class _StatCard extends ConsumerWidget {
   }
 }
 
-class _Grid extends StatelessWidget {
+class _Grid extends ConsumerWidget {
   const _Grid({required this.columns, required this.items});
   final int columns;
   final List<UserMenuItem> items;
 
   @override
-  Widget build(BuildContext context) => GridView.count(
-        shrinkWrap: true,
-        physics: const NeverScrollableScrollPhysics(),
-        crossAxisCount: columns,
-        childAspectRatio: columns == 1 ? 3.7 : 2.2,
-        mainAxisSpacing: 14,
-        crossAxisSpacing: 14,
-        children: [
-          for (final item in items) _ModuleCard(item: item),
-        ],
-      );
+  Widget build(BuildContext context, WidgetRef ref) {
+    final palette = ref.watch(selectedAppPaletteProvider);
+    final gap = 14 * palette.spacingScale;
+    final aspect = columns == 1
+        ? (palette.density == AppDensityPreset.compact ? 4.2 : 3.7)
+        : (palette.density == AppDensityPreset.spacious ? 1.95 : 2.2);
+    return GridView.count(
+      shrinkWrap: true,
+      physics: const NeverScrollableScrollPhysics(),
+      crossAxisCount: columns,
+      childAspectRatio: aspect,
+      mainAxisSpacing: gap,
+      crossAxisSpacing: gap,
+      children: [
+        for (final item in items) _ModuleCard(item: item),
+      ],
+    );
+  }
 }
 
 class _ModuleCard extends ConsumerWidget {
@@ -309,32 +368,22 @@ class _ModuleCard extends ConsumerWidget {
 
     return Material(
       color: Colors.transparent,
-      borderRadius: BorderRadius.circular(30),
+      borderRadius: BorderRadius.circular(palette.radius(30)),
       child: InkWell(
-        borderRadius: BorderRadius.circular(30),
+        borderRadius: BorderRadius.circular(palette.radius(30)),
         onTap: () => _goToModule(context, ref, item),
         child: Container(
-          padding: const EdgeInsets.all(18),
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(30),
-            border: Border.all(color: palette.translucentBorder),
-            gradient: LinearGradient(
-              colors: [
-                palette.glassSurface,
-                palette.background.withOpacity(palette.darkBackground ? 0.66 : 0.70),
-                accentColor.withOpacity(palette.darkBackground ? 0.18 : 0.12),
-              ],
-              begin: Alignment.topLeft,
-              end: Alignment.bottomRight,
-            ),
-            boxShadow: [BoxShadow(color: accentColor.withOpacity(0.14), blurRadius: 24, offset: const Offset(0, 14))],
+          padding: palette.panelPadding(18),
+          decoration: palette.panelDecoration(
+            baseRadius: 30,
+            tint: accentColor,
           ),
           child: Row(
             children: [
               Container(
                 width: 58,
                 height: 58,
-                decoration: BoxDecoration(gradient: LinearGradient(colors: [palette.secondary, palette.accent]), borderRadius: BorderRadius.circular(22), border: Border.all(color: Colors.white.withOpacity(0.18))),
+                decoration: BoxDecoration(gradient: LinearGradient(colors: [palette.primary, palette.secondary]), borderRadius: BorderRadius.circular(palette.radius(22)), border: Border.all(color: Colors.white.withOpacity(0.18))),
                 child: Icon(visual.icon, color: Colors.white, size: 28),
               ),
               const SizedBox(width: 16),
@@ -343,9 +392,9 @@ class _ModuleCard extends ConsumerWidget {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
-                    Text(item.title, maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(color: palette.textPrimary, fontWeight: FontWeight.w900, fontSize: 16)),
+                    Text(item.title, maxLines: 1, overflow: TextOverflow.ellipsis, style: Theme.of(context).textTheme.titleMedium?.copyWith(color: palette.textPrimary, fontWeight: FontWeight.w900)),
                     const SizedBox(height: 4),
-                    Text(item.description ?? visual.description, maxLines: 2, overflow: TextOverflow.ellipsis, style: TextStyle(color: palette.textSecondary, fontWeight: FontWeight.w600, fontSize: 12)),
+                    Text(item.description ?? visual.description, maxLines: 2, overflow: TextOverflow.ellipsis, style: Theme.of(context).textTheme.bodySmall?.copyWith(color: palette.textSecondary, fontWeight: FontWeight.w700)),
                   ],
                 ),
               ),
@@ -389,12 +438,10 @@ class _EmptyRoleModulesCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) => Container(
         width: double.infinity,
-        padding: const EdgeInsets.all(22),
-        decoration: BoxDecoration(
-          gradient: palette.glassGradient,
-          borderRadius: BorderRadius.circular(30),
-          border: Border.all(color: palette.translucentBorder),
-          boxShadow: [BoxShadow(color: palette.cardShadow, blurRadius: 18, offset: const Offset(0, 10))],
+        padding: palette.panelPadding(22),
+        decoration: palette.panelDecoration(
+          baseRadius: 30,
+          tint: palette.secondary,
         ),
         child: Row(
           children: [

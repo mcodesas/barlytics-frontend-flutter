@@ -53,6 +53,8 @@ class ModuleVisuals {
         return const ModuleVisual(icon: Icons.verified_rounded, color: Color(0xFF6366F1), description: 'Marcas y fabricantes');
       case 'tipos_producto':
         return const ModuleVisual(icon: Icons.category_rounded, color: Color(0xFF9333EA), description: 'Categorías de productos');
+      case 'tipos_movimiento':
+        return const ModuleVisual(icon: Icons.sync_alt_rounded, color: Color(0xFF0D9488), description: 'Define cuáles movimientos aumentan, disminuyen o ajustan inventario');
       case 'parametros':
         return const ModuleVisual(icon: Icons.tune_rounded, color: Color(0xFF64748B), description: 'Configuración funcional del sistema');
       case 'paises':
@@ -71,6 +73,10 @@ class ModuleVisuals {
         return const ModuleVisual(icon: Icons.schedule_rounded, color: Color(0xFF0891B2), description: 'Zonas horarias del sistema');
       case 'reportes':
         return const ModuleVisual(icon: Icons.query_stats_rounded, color: Color(0xFF8B5CF6), description: 'Indicadores y reportes operativos');
+      case 'ganancias':
+        return const ModuleVisual(icon: Icons.trending_up_rounded, color: AppColors.success, description: 'Ganancia bruta, margen y rentabilidad');
+      case 'proximo_pedido':
+        return const ModuleVisual(icon: Icons.local_shipping_rounded, color: Color(0xFFF59E0B), description: 'Reposición sugerida por stock mínimo y máximo');
       default:
         return const ModuleVisual(icon: Icons.apps_rounded, color: AppColors.secondary, description: 'Módulo operativo');
     }

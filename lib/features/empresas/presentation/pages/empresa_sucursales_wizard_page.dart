@@ -2,13 +2,14 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
-import '../../../../app/theme/app_colors.dart';
+import '../../../../app/theme/app_palette.dart';
 import '../../../../core/constants/api_paths.dart';
 import '../../../../core/crud/crud_field.dart';
 import '../../../../core/providers/core_providers.dart';
 import '../../../../core/widgets/app_button.dart';
 import '../../../../core/widgets/app_loader.dart';
 import '../../../../core/widgets/lookup_dropdown.dart';
+import '../../../../core/widgets/tech_background.dart';
 
 class EmpresaSucursalesWizardPage extends ConsumerStatefulWidget {
   const EmpresaSucursalesWizardPage({super.key, required this.empresaId});
@@ -182,102 +183,190 @@ class _EmpresaSucursalesWizardPageState extends ConsumerState<EmpresaSucursalesW
 
   @override
   Widget build(BuildContext context) {
-    if (_loading) return const Scaffold(body: AppLoader());
+    final palette = ref.watch(selectedAppPaletteProvider);
+
+    if (_loading) {
+      return const Scaffold(
+        backgroundColor: Colors.transparent,
+        body: Stack(
+          children: [
+            Positioned.fill(child: AppPageBackground()),
+            AppLoader(message: 'Cargando configuración de sucursales...'),
+          ],
+        ),
+      );
+    }
 
     return Scaffold(
-      backgroundColor: AppColors.background,
-      appBar: AppBar(title: const Text('Crear empresa')),
-      body: SingleChildScrollView(
-        padding: const EdgeInsets.all(16),
-        child: Center(
-          child: ConstrainedBox(
-            constraints: const BoxConstraints(maxWidth: 980),
-            child: Card(
-              child: Padding(
-                padding: const EdgeInsets.all(20),
+      backgroundColor: Colors.transparent,
+      body: Stack(
+        children: [
+          const Positioned.fill(child: AppPageBackground()),
+          SingleChildScrollView(
+            padding: const EdgeInsets.all(16),
+            child: Center(
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 1040),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
-                    const _WizardStepsTabs(currentStep: 1),
-                    const SizedBox(height: 20),
-                    Row(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Container(
-                          width: 56,
-                          height: 56,
-                          decoration: BoxDecoration(color: AppColors.infoSoft, borderRadius: BorderRadius.circular(20)),
-                          child: const Icon(Icons.storefront_rounded, color: AppColors.info, size: 30),
-                        ),
-                        const SizedBox(width: 14),
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              const Text('Paso 2: crea las sucursales', style: TextStyle(fontSize: 22, fontWeight: FontWeight.w900)),
-                              const SizedBox(height: 6),
-                              Text(
-                                'La empresa ya fue creada. Ahora agrega una o varias sedes. Las relaciones como ciudad, zona horaria, moneda y país teléfono se seleccionan con ayudas de búsqueda.',
-                                style: Theme.of(context).textTheme.bodyMedium?.copyWith(color: AppColors.textSecondary, fontWeight: FontWeight.w700),
-                              ),
-                            ],
-                          ),
-                        ),
-                      ],
+                    _WizardContextHeader(
+                      palette: palette,
+                      branchCount: _sucursales.length,
+                      onBack: () => context.go('/empresas'),
                     ),
-                    const SizedBox(height: 20),
-                    _ExistingBranches(sucursales: _sucursales),
-                    const SizedBox(height: 20),
-                    Form(
-                      key: _formKey,
-                      child: LayoutBuilder(
-                        builder: (context, constraints) {
-                          final twoColumns = constraints.maxWidth > 720;
-                          final fieldWidth = twoColumns ? (constraints.maxWidth - 20) / 2 : constraints.maxWidth;
-                          return Column(
-                            crossAxisAlignment: CrossAxisAlignment.stretch,
-                            children: [
-                              const Text('Nueva sucursal', style: TextStyle(fontSize: 20, fontWeight: FontWeight.w900)),
-                              const SizedBox(height: 16),
-                              Wrap(
-                                spacing: 20,
-                                runSpacing: 16,
+                    const SizedBox(height: 14),
+                    Container(
+                      padding: const EdgeInsets.all(20),
+                      decoration: BoxDecoration(
+                        gradient: LinearGradient(
+                          colors: [
+                            palette.surface.withOpacity(palette.darkBackground ? 0.95 : 0.99),
+                            palette.secondary.withOpacity(palette.darkBackground ? 0.10 : 0.04),
+                          ],
+                          begin: Alignment.topLeft,
+                          end: Alignment.bottomRight,
+                        ),
+                        borderRadius: BorderRadius.circular(28),
+                        border: Border.all(color: palette.translucentBorder),
+                        boxShadow: [
+                          BoxShadow(
+                            color: palette.cardShadow,
+                            blurRadius: 24,
+                            offset: const Offset(0, 12),
+                          ),
+                        ],
+                      ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          const _WizardStepsTabs(currentStep: 1),
+                          const SizedBox(height: 20),
+                          LayoutBuilder(
+                            builder: (context, constraints) {
+                              final compact = constraints.maxWidth < 620;
+                              final icon = Container(
+                                width: 56,
+                                height: 56,
+                                decoration: BoxDecoration(
+                                  gradient: LinearGradient(colors: [palette.primary, palette.secondary]),
+                                  borderRadius: BorderRadius.circular(19),
+                                ),
+                                child: Icon(Icons.storefront_rounded, color: palette.onPrimary, size: 29),
+                              );
+                              final copy = Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
-                                  SizedBox(width: fieldWidth, child: _textField(_nombre, 'Nombre sucursal', Icons.storefront_outlined)),
-                                  SizedBox(width: fieldWidth, child: _textField(_codigo, 'Código interno', Icons.tag_rounded)),
-                                  SizedBox(width: fieldWidth, child: _textField(_direccion, 'Dirección', Icons.location_on_outlined)),
-                                  SizedBox(width: fieldWidth, child: _textField(_telefono, 'Teléfono', Icons.phone_outlined)),
-                                  SizedBox(width: fieldWidth, child: _lookupField(_ciudad, _ciudadField)),
-                                  SizedBox(width: fieldWidth, child: _lookupField(_zona, _zonaField)),
-                                  SizedBox(width: fieldWidth, child: _lookupField(_moneda, _monedaField)),
-                                  SizedBox(width: fieldWidth, child: _lookupField(_paisTelefono, _paisTelefonoField)),
-                                  SizedBox(width: fieldWidth, child: _textField(_estado, 'Estado', Icons.toggle_on_outlined, keyboardType: TextInputType.number)),
-                                ],
-                              ),
-                              const SizedBox(height: 22),
-                              Row(
-                                children: [
-                                  Expanded(
-                                    child: OutlinedButton.icon(
-                                      onPressed: () => context.go('/empresas'),
-                                      icon: const Icon(Icons.check_rounded),
-                                      label: Text(_sucursales.isEmpty ? 'Omitir y finalizar' : 'Finalizar'),
+                                  Text(
+                                    'Paso 2: crea las sucursales',
+                                    style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                                          color: palette.textPrimary,
+                                          fontWeight: FontWeight.w900,
+                                        ),
+                                  ),
+                                  const SizedBox(height: 6),
+                                  Text(
+                                    'La empresa ya fue creada. Agrega una o varias sedes y define ciudad, zona horaria, moneda y país del teléfono.',
+                                    style: TextStyle(
+                                      color: palette.textSecondary,
+                                      fontWeight: FontWeight.w600,
+                                      height: 1.35,
                                     ),
                                   ),
-                                  const SizedBox(width: 12),
-                                  Expanded(
-                                    child: AppButton(
-                                      label: 'Agregar sucursal',
-                                      icon: Icons.add_business_rounded,
-                                      loading: _saving,
-                                      onPressed: _createSucursal,
-                                    ),
-                                  ),
                                 ],
-                              ),
-                            ],
-                          );
-                        },
+                              );
+
+                              if (compact) {
+                                return Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [icon, const SizedBox(height: 12), copy],
+                                );
+                              }
+                              return Row(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [icon, const SizedBox(width: 14), Expanded(child: copy)],
+                              );
+                            },
+                          ),
+                          const SizedBox(height: 20),
+                          _ExistingBranches(sucursales: _sucursales),
+                          const SizedBox(height: 20),
+                          Form(
+                            key: _formKey,
+                            child: LayoutBuilder(
+                              builder: (context, constraints) {
+                                final twoColumns = constraints.maxWidth > 720;
+                                final fieldWidth = twoColumns ? (constraints.maxWidth - 20) / 2 : constraints.maxWidth;
+                                final finishButton = OutlinedButton.icon(
+                                  onPressed: _saving ? null : () => context.go('/empresas'),
+                                  icon: const Icon(Icons.check_rounded),
+                                  label: Text(_sucursales.isEmpty ? 'Omitir y finalizar' : 'Finalizar'),
+                                );
+                                final addButton = AppButton(
+                                  label: 'Agregar sucursal',
+                                  icon: Icons.add_business_rounded,
+                                  loading: _saving,
+                                  onPressed: _createSucursal,
+                                );
+
+                                return Column(
+                                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                                  children: [
+                                    Row(
+                                      children: [
+                                        Container(
+                                          width: 4,
+                                          height: 28,
+                                          decoration: BoxDecoration(
+                                            color: palette.secondary,
+                                            borderRadius: BorderRadius.circular(999),
+                                          ),
+                                        ),
+                                        const SizedBox(width: 10),
+                                        Text(
+                                          'Nueva sucursal',
+                                          style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                                                color: palette.textPrimary,
+                                                fontWeight: FontWeight.w900,
+                                              ),
+                                        ),
+                                      ],
+                                    ),
+                                    const SizedBox(height: 16),
+                                    Wrap(
+                                      spacing: 20,
+                                      runSpacing: 16,
+                                      children: [
+                                        SizedBox(width: fieldWidth, child: _textField(_nombre, 'Nombre sucursal', Icons.storefront_outlined)),
+                                        SizedBox(width: fieldWidth, child: _textField(_codigo, 'Código interno', Icons.tag_rounded)),
+                                        SizedBox(width: fieldWidth, child: _textField(_direccion, 'Dirección', Icons.location_on_outlined)),
+                                        SizedBox(width: fieldWidth, child: _textField(_telefono, 'Teléfono', Icons.phone_outlined)),
+                                        SizedBox(width: fieldWidth, child: _lookupField(_ciudad, _ciudadField)),
+                                        SizedBox(width: fieldWidth, child: _lookupField(_zona, _zonaField)),
+                                        SizedBox(width: fieldWidth, child: _lookupField(_moneda, _monedaField)),
+                                        SizedBox(width: fieldWidth, child: _lookupField(_paisTelefono, _paisTelefonoField)),
+                                        SizedBox(width: fieldWidth, child: _textField(_estado, 'Estado', Icons.toggle_on_outlined, keyboardType: TextInputType.number)),
+                                      ],
+                                    ),
+                                    const SizedBox(height: 22),
+                                    if (constraints.maxWidth < 560) ...[
+                                      addButton,
+                                      const SizedBox(height: 10),
+                                      finishButton,
+                                    ] else
+                                      Row(
+                                        children: [
+                                          Expanded(child: finishButton),
+                                          const SizedBox(width: 12),
+                                          Expanded(child: addButton),
+                                        ],
+                                      ),
+                                  ],
+                                );
+                              },
+                            ),
+                          ),
+                        ],
                       ),
                     ),
                   ],
@@ -285,7 +374,7 @@ class _EmpresaSucursalesWizardPageState extends ConsumerState<EmpresaSucursalesW
               ),
             ),
           ),
-        ),
+        ],
       ),
     );
   }
@@ -313,45 +402,144 @@ class _EmpresaSucursalesWizardPageState extends ConsumerState<EmpresaSucursalesW
   }
 }
 
-class _ExistingBranches extends StatelessWidget {
+class _WizardContextHeader extends StatelessWidget {
+  const _WizardContextHeader({
+    required this.palette,
+    required this.branchCount,
+    required this.onBack,
+  });
+
+  final AppPalette palette;
+  final int branchCount;
+  final VoidCallback onBack;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 10),
+      decoration: BoxDecoration(
+        color: palette.surface.withOpacity(palette.darkBackground ? 0.94 : 0.98),
+        borderRadius: BorderRadius.circular(22),
+        border: Border.all(color: palette.cardBorder),
+      ),
+      child: Row(
+        children: [
+          IconButton(
+            tooltip: 'Volver a empresas',
+            onPressed: onBack,
+            icon: const Icon(Icons.arrow_back_rounded),
+            color: palette.textPrimary,
+          ),
+          const SizedBox(width: 4),
+          Container(
+            width: 42,
+            height: 42,
+            decoration: BoxDecoration(
+              color: palette.secondary.withOpacity(0.13),
+              borderRadius: BorderRadius.circular(14),
+            ),
+            child: Icon(Icons.add_business_rounded, color: palette.secondary),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Configurar sucursales',
+                  style: TextStyle(color: palette.textPrimary, fontWeight: FontWeight.w900, fontSize: 16),
+                ),
+                Text(
+                  branchCount == 0 ? 'Aún no se han agregado sedes' : '$branchCount ${branchCount == 1 ? 'sucursal creada' : 'sucursales creadas'}',
+                  style: TextStyle(color: palette.textSecondary, fontWeight: FontWeight.w600, fontSize: 12),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _ExistingBranches extends ConsumerWidget {
   const _ExistingBranches({required this.sucursales});
 
   final List<Map<String, dynamic>> sucursales;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    final palette = ref.watch(selectedAppPaletteProvider);
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: AppColors.surfaceAlt,
-        borderRadius: BorderRadius.circular(24),
-        border: Border.all(color: Colors.black.withOpacity(0.05)),
+        color: palette.background.withOpacity(palette.darkBackground ? 0.38 : 0.68),
+        borderRadius: BorderRadius.circular(22),
+        border: Border.all(color: palette.cardBorder),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           Row(
             children: [
-              const Icon(Icons.list_alt_rounded, color: AppColors.info),
+              Icon(Icons.list_alt_rounded, color: palette.secondary),
               const SizedBox(width: 8),
               Expanded(
                 child: Text(
                   sucursales.isEmpty ? 'Sucursales agregadas' : 'Sucursales agregadas (${sucursales.length})',
-                  style: const TextStyle(fontWeight: FontWeight.w900),
+                  style: TextStyle(color: palette.textPrimary, fontWeight: FontWeight.w900),
                 ),
               ),
             ],
           ),
           const SizedBox(height: 10),
           if (sucursales.isEmpty)
-            const Text('Aún no hay sucursales creadas para esta empresa.', style: TextStyle(color: AppColors.textSecondary, fontWeight: FontWeight.w700))
+            Text(
+              'Aún no hay sucursales creadas para esta empresa.',
+              style: TextStyle(color: palette.textSecondary, fontWeight: FontWeight.w600),
+            )
           else
             ...sucursales.map(
-              (s) => ListTile(
-                contentPadding: EdgeInsets.zero,
-                leading: const CircleAvatar(backgroundColor: AppColors.successSoft, child: Icon(Icons.storefront_rounded, color: AppColors.success)),
-                title: Text(s['sucuNombre']?.toString() ?? 'Sucursal', style: const TextStyle(fontWeight: FontWeight.w900)),
-                subtitle: Text(s['sucuDireccion']?.toString() ?? ''),
+              (sucursal) => Container(
+                margin: const EdgeInsets.only(top: 8),
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: palette.surface.withOpacity(palette.darkBackground ? 0.70 : 0.90),
+                  borderRadius: BorderRadius.circular(16),
+                  border: Border.all(color: palette.cardBorder),
+                ),
+                child: Row(
+                  children: [
+                    Container(
+                      width: 38,
+                      height: 38,
+                      decoration: BoxDecoration(
+                        color: palette.success.withOpacity(0.12),
+                        borderRadius: BorderRadius.circular(13),
+                      ),
+                      child: Icon(Icons.storefront_rounded, color: palette.success, size: 20),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            sucursal['sucuNombre']?.toString() ?? 'Sucursal',
+                            style: TextStyle(color: palette.textPrimary, fontWeight: FontWeight.w900),
+                          ),
+                          const SizedBox(height: 2),
+                          Text(
+                            sucursal['sucuDireccion']?.toString().trim().isNotEmpty == true
+                                ? sucursal['sucuDireccion'].toString()
+                                : 'Sin dirección registrada',
+                            style: TextStyle(color: palette.textSecondary, fontWeight: FontWeight.w600, fontSize: 12),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
               ),
             ),
         ],
@@ -360,20 +548,21 @@ class _ExistingBranches extends StatelessWidget {
   }
 }
 
-class _WizardStepsTabs extends StatelessWidget {
+class _WizardStepsTabs extends ConsumerWidget {
   const _WizardStepsTabs({required this.currentStep});
 
   final int currentStep;
   static const steps = ['Datos de empresa', 'Sucursales', 'Finalizar'];
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    final palette = ref.watch(selectedAppPaletteProvider);
     return Container(
       padding: const EdgeInsets.all(6),
       decoration: BoxDecoration(
-        color: AppColors.surfaceAlt,
-        borderRadius: BorderRadius.circular(24),
-        border: Border.all(color: Colors.black.withOpacity(0.05)),
+        color: palette.background.withOpacity(palette.darkBackground ? 0.42 : 0.70),
+        borderRadius: BorderRadius.circular(22),
+        border: Border.all(color: palette.cardBorder),
       ),
       child: LayoutBuilder(
         builder: (context, constraints) {
@@ -385,8 +574,8 @@ class _WizardStepsTabs extends StatelessWidget {
               duration: const Duration(milliseconds: 180),
               padding: EdgeInsets.symmetric(horizontal: compact ? 12 : 16, vertical: 12),
               decoration: BoxDecoration(
-                color: selected ? Theme.of(context).colorScheme.primary : Colors.transparent,
-                borderRadius: BorderRadius.circular(18),
+                gradient: selected ? LinearGradient(colors: [palette.primary, palette.secondary]) : null,
+                borderRadius: BorderRadius.circular(17),
               ),
               child: Row(
                 mainAxisAlignment: compact ? MainAxisAlignment.start : MainAxisAlignment.center,
@@ -395,10 +584,10 @@ class _WizardStepsTabs extends StatelessWidget {
                   Icon(
                     completed ? Icons.check_circle_rounded : Icons.radio_button_checked_rounded,
                     color: selected
-                        ? Colors.white
+                        ? palette.onPrimary
                         : completed
-                            ? AppColors.success
-                            : AppColors.textSecondary,
+                            ? palette.success
+                            : palette.textSecondary,
                     size: 20,
                   ),
                   const SizedBox(width: 8),
@@ -408,7 +597,7 @@ class _WizardStepsTabs extends StatelessWidget {
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                       style: TextStyle(
-                        color: selected ? Colors.white : AppColors.textPrimary,
+                        color: selected ? palette.onPrimary : palette.textPrimary,
                         fontWeight: FontWeight.w900,
                       ),
                     ),
@@ -418,7 +607,9 @@ class _WizardStepsTabs extends StatelessWidget {
             );
             return compact ? content : Expanded(child: content);
           });
-          return compact ? Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: children) : Row(children: children);
+          return compact
+              ? Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: children)
+              : Row(children: children);
         },
       ),
     );

@@ -2,13 +2,16 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../../../app/theme/app_control_metrics.dart';
 import '../../../../app/theme/app_colors.dart';
+import '../../../../app/theme/app_palette.dart';
 import '../../../../core/constants/api_paths.dart';
 import '../../../../core/crud/crud_field.dart';
 import '../../../../core/providers/core_providers.dart';
 import '../../../../core/widgets/app_button.dart';
 import '../../../../core/widgets/app_loader.dart';
 import '../../../../core/widgets/lookup_dropdown.dart';
+import '../../../../core/widgets/tech_background.dart';
 import '../../data/models/usuarios_response_model.dart';
 
 class UsuariosFormPage extends ConsumerStatefulWidget {
@@ -60,6 +63,7 @@ class _UsuariosFormPageState extends ConsumerState<UsuariosFormPage> {
   final Map<String, List<CrudLookupOption>> _lookupOptions = <String, List<CrudLookupOption>>{};
   final Set<String> _loadingLookups = <String>{};
   final Map<String, String> _lookupErrors = <String, String>{};
+  final Set<String> _selectedSucursalIds = <String>{};
 
   int _currentStep = 0;
   int _estado = 1;
@@ -91,6 +95,10 @@ class _UsuariosFormPageState extends ConsumerState<UsuariosFormPage> {
         .where((option) => option.raw['emprId']?.toString() == empresaId)
         .toList(growable: false);
   }
+
+  List<CrudLookupOption> get _selectedSucursalOptions => _sucursalOptions
+      .where((option) => _selectedSucursalIds.contains(option.id?.toString()))
+      .toList(growable: false);
 
   @override
   void initState() {
@@ -140,6 +148,12 @@ class _UsuariosFormPageState extends ConsumerState<UsuariosFormPage> {
       _ciudadController.text = usuario.ciudId?.toString() ?? '';
       _empresaController.text = usuario.emprId?.toString() ?? '';
       _sucursalController.text = usuario.sucuId?.toString() ?? '';
+      _selectedSucursalIds
+        ..clear()
+        ..addAll(usuario.sucursalIds.map((id) => id.toString()));
+      if (_selectedSucursalIds.isEmpty && usuario.sucuId != null) {
+        _selectedSucursalIds.add(usuario.sucuId.toString());
+      }
       _estado = usuario.usuaEstado ?? 1;
       _bloqueado = usuario.usuaBloqueado ?? 0;
       _direccionController.text = usuario.usuaDireccion ?? '';
@@ -235,7 +249,7 @@ class _UsuariosFormPageState extends ConsumerState<UsuariosFormPage> {
       'Correo electrónico': email,
       'Ciudad': _ciudadController.text.trim(),
       'Empresa': _empresaController.text.trim(),
-      'Sucursal': _sucursalController.text.trim(),
+      'Sucursal principal': _sucursalController.text.trim(),
     };
     final missing = requiredValues.entries.where((entry) => entry.value.isEmpty).map((entry) => entry.key).toList();
     if (missing.isNotEmpty) {
@@ -258,8 +272,16 @@ class _UsuariosFormPageState extends ConsumerState<UsuariosFormPage> {
       _showMessage('Selecciona la empresa después de seleccionar la ciudad.');
       return false;
     }
+    if (_selectedSucursalIds.isEmpty) {
+      _showMessage('Selecciona al menos una sucursal para el usuario.');
+      return false;
+    }
     if (_sucursalController.text.trim().isEmpty) {
-      _showMessage('Selecciona la sucursal después de seleccionar la empresa.');
+      _showMessage('Selecciona la sucursal principal del usuario.');
+      return false;
+    }
+    if (!_selectedSucursalIds.contains(_sucursalController.text.trim())) {
+      _showMessage('La sucursal principal debe estar incluida entre las sucursales asignadas.');
       return false;
     }
     return true;
@@ -279,6 +301,7 @@ class _UsuariosFormPageState extends ConsumerState<UsuariosFormPage> {
       final body = <String, dynamic>{
         'usuario': _buildUserPayload(),
         'roleIds': _roles.where((r) => r.assigned).map((r) => r.roleId).toList(growable: false),
+        'sucursalIds': _selectedSucursalIds.map(int.parse).toList(growable: false)..sort(),
       };
 
       if (_isEditing) {
@@ -299,8 +322,8 @@ class _UsuariosFormPageState extends ConsumerState<UsuariosFormPage> {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(_isEditing
-              ? 'Usuario y roles actualizados correctamente. Si el correo cambió, se envió un nuevo correo para registrar la contraseña.'
-              : 'Usuario creado correctamente. Se envió el correo para activar la cuenta y registrar la contraseña.'),
+              ? 'Usuario, sucursales y roles actualizados correctamente. Si el correo cambió, se envió un nuevo correo para registrar la contraseña.'
+              : 'Usuario creado con sus sucursales y roles. Se envió el correo para activar la cuenta y registrar la contraseña.'),
         ),
       );
       context.go('/usuarios');
@@ -370,71 +393,104 @@ class _UsuariosFormPageState extends ConsumerState<UsuariosFormPage> {
 
   @override
   Widget build(BuildContext context) {
-    if (_loadingInitial) return const Scaffold(body: AppLoader());
+    final palette = ref.watch(selectedAppPaletteProvider);
+    if (_loadingInitial) {
+      return const Scaffold(
+        backgroundColor: Colors.transparent,
+        body: Stack(children: [Positioned.fill(child: AppPageBackground()), Positioned.fill(child: AppLoader())]),
+      );
+    }
+
+    final pageTitle = _isReadOnly ? 'Detalle del usuario' : (_isEditing ? 'Modificar usuario' : 'Crear usuario');
+    final pageSubtitle = _isReadOnly
+        ? 'Consulta los datos, las sucursales y los roles asignados.'
+        : 'Completa los datos y confirma los roles antes de guardar.';
 
     return Scaffold(
-      backgroundColor: AppColors.background,
-      appBar: AppBar(
-        title: Text(_isReadOnly ? 'Ver usuario' : (_isEditing ? 'Modificar usuario' : 'Crear usuario')),
-        leading: IconButton(icon: const Icon(Icons.arrow_back_rounded), onPressed: () => context.go('/usuarios')),
-      ),
-      body: Center(
-        child: ConstrainedBox(
-          constraints: const BoxConstraints(maxWidth: 1080),
-          child: Padding(
-            padding: const EdgeInsets.all(16),
-            child: Card(
+      backgroundColor: Colors.transparent,
+      body: Stack(
+        children: [
+          const Positioned.fill(child: AppPageBackground()),
+          Center(
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 1080),
               child: Padding(
-                padding: const EdgeInsets.all(20),
+                padding: const EdgeInsets.all(16),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
-                    _WizardHeader(
-                      currentStep: _currentStep,
-                      onStepSelected: (step) {
-                        if (_isReadOnly) {
-                          setState(() => _currentStep = step);
-                          return;
-                        }
-                        if (step == 0) {
-                          setState(() => _currentStep = 0);
-                          return;
-                        }
-                        if (step == 1) {
-                          if (_currentStep == 0) {
-                            _goToRoles();
-                          } else {
-                            setState(() => _currentStep = 1);
-                          }
-                          return;
-                        }
-                        if (step == 2 && _validateUserData()) {
-                          setState(() => _currentStep = 2);
-                        }
-                      },
+                    _UserFormContextHeader(
+                      title: pageTitle,
+                      subtitle: pageSubtitle,
+                      palette: palette,
+                      onBack: () => context.go('/usuarios'),
                     ),
-                    const SizedBox(height: 18),
-                    if (_error != null) ...[
-                      Container(
-                        padding: const EdgeInsets.all(14),
-                        decoration: BoxDecoration(color: AppColors.dangerSoft, borderRadius: BorderRadius.circular(18)),
-                        child: Text(_error!, style: const TextStyle(color: AppColors.danger, fontWeight: FontWeight.w800)),
-                      ),
-                      const SizedBox(height: 14),
-                    ],
+                    const SizedBox(height: 12),
                     Expanded(
-                      child: switch (_currentStep) {
-                        0 => _buildUserStep(),
-                        1 => _buildRolesStep(),
-                        _ => _buildConfirmationStep(),
-                      },
+                      child: Card(
+                        color: palette.surface.withOpacity(palette.darkBackground ? 0.95 : 0.99),
+                        elevation: 0,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(28),
+                          side: BorderSide(color: palette.cardBorder),
+                        ),
+                        child: Padding(
+                          padding: const EdgeInsets.all(20),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.stretch,
+                            children: [
+                              _WizardHeader(
+                                currentStep: _currentStep,
+                                palette: palette,
+                                onStepSelected: (step) {
+                                  if (_isReadOnly) {
+                                    setState(() => _currentStep = step);
+                                    return;
+                                  }
+                                  if (step == 0) {
+                                    setState(() => _currentStep = 0);
+                                    return;
+                                  }
+                                  if (step == 1) {
+                                    if (_currentStep == 0) {
+                                      _goToRoles();
+                                    } else {
+                                      setState(() => _currentStep = 1);
+                                    }
+                                    return;
+                                  }
+                                  if (step == 2 && _validateUserData()) {
+                                    setState(() => _currentStep = 2);
+                                  }
+                                },
+                              ),
+                              const SizedBox(height: 18),
+                              if (_error != null) ...[
+                                Container(
+                                  padding: const EdgeInsets.all(14),
+                                  decoration: BoxDecoration(color: AppColors.dangerSoft, borderRadius: BorderRadius.circular(18)),
+                                  child: Text(_error!, style: const TextStyle(color: AppColors.danger, fontWeight: FontWeight.w800)),
+                                ),
+                                const SizedBox(height: 14),
+                              ],
+                              Expanded(
+                                child: switch (_currentStep) {
+                                  0 => _buildUserStep(),
+                                  1 => _buildRolesStep(),
+                                  _ => _buildConfirmationStep(),
+                                },
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
                     ),
                   ],
                 ),
               ),
             ),
           ),
-        ),
+        ],
       ),
     );
   }
@@ -446,7 +502,6 @@ class _UsuariosFormPageState extends ConsumerState<UsuariosFormPage> {
         builder: (context, constraints) {
           final isCompact = constraints.maxWidth < 760;
           final fieldWidth = isCompact ? constraints.maxWidth : (constraints.maxWidth - 16) / 2;
-          final thirdWidth = isCompact ? constraints.maxWidth : (constraints.maxWidth - 32) / 3;
           return SingleChildScrollView(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -462,9 +517,9 @@ class _UsuariosFormPageState extends ConsumerState<UsuariosFormPage> {
                     SizedBox(width: fieldWidth, child: _textField(_primerApellidoController, 'Primer apellido', Icons.badge_outlined, required: true)),
                     SizedBox(width: fieldWidth, child: _textField(_segundoApellidoController, 'Segundo apellido', Icons.badge_outlined, required: true)),
                     SizedBox(width: constraints.maxWidth, child: _emailField()),
-                    SizedBox(width: thirdWidth, child: _lookupField(_ciudadField, _ciudadController, _ciudadOptions, onSelected: (_) => _onCiudadChanged())),
-                    SizedBox(width: thirdWidth, child: _lookupField(_empresaField, _empresaController, _empresaOptions, enabled: _ciudadController.text.trim().isNotEmpty, helperText: 'Primero selecciona ciudad', onSelected: (_) => _onEmpresaChanged())),
-                    SizedBox(width: thirdWidth, child: _lookupField(_sucursalField, _sucursalController, _sucursalOptions, enabled: _empresaController.text.trim().isNotEmpty, helperText: 'Primero selecciona empresa')),
+                    SizedBox(width: fieldWidth, child: _lookupField(_ciudadField, _ciudadController, _ciudadOptions, onSelected: (_) => _onCiudadChanged())),
+                    SizedBox(width: fieldWidth, child: _lookupField(_empresaField, _empresaController, _empresaOptions, enabled: _ciudadController.text.trim().isNotEmpty, helperText: 'Primero selecciona ciudad', onSelected: (_) => _onEmpresaChanged())),
+                    SizedBox(width: constraints.maxWidth, child: _branchesField()),
                     SizedBox(width: fieldWidth, child: _statusField()),
                     SizedBox(width: fieldWidth, child: _blockedField()),
                     SizedBox(width: fieldWidth, child: _dateField()),
@@ -502,6 +557,7 @@ class _UsuariosFormPageState extends ConsumerState<UsuariosFormPage> {
   }
 
   Widget _buildRolesStep() {
+    final palette = ref.watch(selectedAppPaletteProvider);
     if (_loadingRoles) return const AppLoader();
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -518,35 +574,38 @@ class _UsuariosFormPageState extends ConsumerState<UsuariosFormPage> {
                     final role = _roles[index];
                     return CheckboxListTile(
                       value: role.assigned,
-                      title: Text(role.name, style: const TextStyle(fontWeight: FontWeight.w900)),
-                      subtitle: Text(role.description.isEmpty ? 'Sin descripción' : role.description),
-                      secondary: const Icon(Icons.verified_user_outlined),
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
-                      tileColor: AppColors.surfaceAlt,
+                      title: Text(role.name, style: TextStyle(fontWeight: FontWeight.w900, color: palette.textPrimary)),
+                      subtitle: Text(role.description.isEmpty ? 'Sin descripción' : role.description, style: TextStyle(color: palette.textSecondary, fontWeight: FontWeight.w600)),
+                      secondary: Icon(Icons.verified_user_outlined, color: palette.secondary),
+                      activeColor: palette.actionColor,
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18), side: BorderSide(color: palette.cardBorder)),
+                      tileColor: palette.background.withOpacity(palette.darkBackground ? 0.40 : 0.68),
                       onChanged: _isReadOnly ? null : (value) => setState(() => _roles[index] = role.copyWith(assigned: value ?? false)),
                     );
                   },
                 ),
         ),
         const SizedBox(height: 16),
-        Row(
-          children: [
-            Expanded(child: OutlinedButton.icon(onPressed: _saving ? null : () => setState(() => _currentStep = 0), icon: const Icon(Icons.arrow_back_rounded), label: const Text('Volver a datos'))),
-            const SizedBox(width: 12),
-            Expanded(child: AppButton(label: _isReadOnly ? 'Ver resumen' : 'Continuar a confirmación', icon: Icons.fact_check_outlined, onPressed: _isReadOnly ? () => setState(() => _currentStep = 2) : _goToConfirmation)),
-          ],
+        LayoutBuilder(
+          builder: (context, constraints) {
+            final back = OutlinedButton.icon(onPressed: _saving ? null : () => setState(() => _currentStep = 0), icon: const Icon(Icons.arrow_back_rounded), label: const Text('Volver a datos'));
+            final next = AppButton(label: _isReadOnly ? 'Ver resumen' : 'Continuar a confirmación', icon: Icons.fact_check_outlined, onPressed: _isReadOnly ? () => setState(() => _currentStep = 2) : _goToConfirmation);
+            if (constraints.maxWidth < 520) return Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [back, const SizedBox(height: 10), next]);
+            return Row(children: [Expanded(child: back), const SizedBox(width: 12), Expanded(child: next)]);
+          },
         ),
       ],
     );
   }
 
   Widget _buildConfirmationStep() {
+    final palette = ref.watch(selectedAppPaletteProvider);
     final selectedRoles = _roles.where((role) => role.assigned).toList(growable: false);
     return SingleChildScrollView(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          _sectionTitle('Paso 3: resumen', _isReadOnly ? 'Vista de resumen del usuario. Esta pantalla no realiza cambios.' : (_isEditing ? 'Revisa los cambios. Solo al confirmar se actualizan usuario y roles. Si cambiaste el correo, se enviará un nuevo correo para registrar contraseña.' : 'Revisa la información. Solo al confirmar se crea el usuario, se asignan roles y se envía el correo de activación.')), 
+          _sectionTitle('Paso 3: resumen', _isReadOnly ? 'Vista de resumen del usuario. Esta pantalla no realiza cambios.' : (_isEditing ? 'Revisa los cambios. Solo al confirmar se actualizan usuario y roles. Si cambiaste el correo, se enviará un nuevo correo para registrar contraseña.' : 'Revisa la información. Solo al confirmar se crea el usuario, se asignan roles y se envía el correo de activación.')),
           const SizedBox(height: 16),
           _summaryCard('Identificación', [
             _SummaryItem('Nombre', '${_primerNombreController.text.trim()} ${_segundoNombreController.text.trim()} ${_primerApellidoController.text.trim()} ${_segundoApellidoController.text.trim()}'.replaceAll(RegExp(r'\s+'), ' ').trim()),
@@ -557,7 +616,8 @@ class _UsuariosFormPageState extends ConsumerState<UsuariosFormPage> {
           _summaryCard('Ubicación operativa', [
             _SummaryItem('Ciudad', _labelOf(_ciudadOptions, _ciudadController.text)),
             _SummaryItem('Empresa', _labelOf(_empresaOptions, _empresaController.text)),
-            _SummaryItem('Sucursal', _labelOf(_sucursalOptions, _sucursalController.text)),
+            _SummaryItem('Sucursal principal', _labelOf(_sucursalOptions, _sucursalController.text)),
+            _SummaryItem('Sucursales asignadas', _selectedBranchLabels()),
           ]),
           const SizedBox(height: 12),
           _summaryCard('Estado y contacto', [
@@ -573,24 +633,23 @@ class _UsuariosFormPageState extends ConsumerState<UsuariosFormPage> {
             const SizedBox(height: 12),
             Container(
               padding: const EdgeInsets.all(14),
-              decoration: BoxDecoration(color: AppColors.infoSoft, borderRadius: BorderRadius.circular(18)),
-              child: const Text(
+              decoration: BoxDecoration(color: palette.secondary.withOpacity(0.10), borderRadius: BorderRadius.circular(18), border: Border.all(color: palette.secondary.withOpacity(0.18))),
+              child: Text(
                 'Al confirmar, el sistema enviará un correo para que el usuario active la cuenta registrando su contraseña.',
-                style: TextStyle(color: AppColors.info, fontWeight: FontWeight.w900),
+                style: TextStyle(color: palette.secondary, fontWeight: FontWeight.w900),
               ),
             ),
           ],
           const SizedBox(height: 20),
-          Row(
-            children: [
-              Expanded(child: OutlinedButton.icon(onPressed: _saving ? null : () => setState(() => _currentStep = 1), icon: const Icon(Icons.arrow_back_rounded), label: const Text('Volver a roles'))),
-              const SizedBox(width: 12),
-              Expanded(
-                child: _isReadOnly
-                    ? AppButton(label: 'Volver al listado', icon: Icons.list_alt_rounded, onPressed: () => context.go('/usuarios'))
-                    : AppButton(label: _isEditing ? 'Confirmar modificación' : 'Confirmar y crear usuario', icon: Icons.save_rounded, loading: _saving, onPressed: _saveWizard),
-              ),
-            ],
+          LayoutBuilder(
+            builder: (context, constraints) {
+              final back = OutlinedButton.icon(onPressed: _saving ? null : () => setState(() => _currentStep = 1), icon: const Icon(Icons.arrow_back_rounded), label: const Text('Volver a roles'));
+              final confirm = _isReadOnly
+                  ? AppButton(label: 'Volver al listado', icon: Icons.list_alt_rounded, onPressed: () => context.go('/usuarios'))
+                  : AppButton(label: _isEditing ? 'Confirmar modificación' : 'Confirmar y crear usuario', icon: Icons.save_rounded, loading: _saving, onPressed: _saveWizard);
+              if (constraints.maxWidth < 520) return Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [back, const SizedBox(height: 10), confirm]);
+              return Row(children: [Expanded(child: back), const SizedBox(width: 12), Expanded(child: confirm)]);
+            },
           ),
         ],
       ),
@@ -598,21 +657,22 @@ class _UsuariosFormPageState extends ConsumerState<UsuariosFormPage> {
   }
 
   Widget _summaryCard(String title, List<_SummaryItem> items) {
+    final palette = ref.watch(selectedAppPaletteProvider);
     return Container(
       padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(color: AppColors.surfaceAlt, borderRadius: BorderRadius.circular(20)),
+      decoration: BoxDecoration(color: palette.background.withOpacity(palette.darkBackground ? 0.40 : 0.68), borderRadius: BorderRadius.circular(20), border: Border.all(color: palette.cardBorder)),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(title, style: const TextStyle(fontSize: 17, fontWeight: FontWeight.w900)),
+          Text(title, style: TextStyle(fontSize: 17, fontWeight: FontWeight.w900, color: palette.textPrimary)),
           const SizedBox(height: 10),
           ...items.map((item) => Padding(
                 padding: const EdgeInsets.only(bottom: 8),
                 child: Row(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    SizedBox(width: 170, child: Text(item.label, style: const TextStyle(color: AppColors.textSecondary, fontWeight: FontWeight.w800))),
-                    Expanded(child: Text(item.value, style: const TextStyle(fontWeight: FontWeight.w900))),
+                    SizedBox(width: 170, child: Text(item.label, style: TextStyle(color: palette.textSecondary, fontWeight: FontWeight.w800))),
+                    Expanded(child: Text(item.value, style: TextStyle(fontWeight: FontWeight.w900, color: palette.textPrimary))),
                   ],
                 ),
               )),
@@ -622,12 +682,13 @@ class _UsuariosFormPageState extends ConsumerState<UsuariosFormPage> {
   }
 
   Widget _sectionTitle(String title, String subtitle) {
+    final palette = ref.watch(selectedAppPaletteProvider);
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(title, style: const TextStyle(fontSize: 21, fontWeight: FontWeight.w900)),
+        Text(title, style: TextStyle(fontSize: 21, fontWeight: FontWeight.w900, color: palette.textPrimary)),
         const SizedBox(height: 4),
-        Text(subtitle, style: const TextStyle(color: AppColors.textSecondary, fontWeight: FontWeight.w700)),
+        Text(subtitle, style: TextStyle(color: palette.textSecondary, fontWeight: FontWeight.w700)),
       ],
     );
   }
@@ -685,6 +746,287 @@ class _UsuariosFormPageState extends ConsumerState<UsuariosFormPage> {
     );
   }
 
+  Widget _branchesField() {
+    final palette = ref.watch(selectedAppPaletteProvider);
+    final companySelected = _empresaController.text.trim().isNotEmpty;
+    final loading = _loadingLookups.contains(_sucursalField.name);
+    final selectedOptions = _selectedSucursalOptions;
+    final primaryValue = selectedOptions.any((option) => option.id?.toString() == _sucursalController.text.trim())
+        ? _sucursalController.text.trim()
+        : null;
+
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: palette.background.withOpacity(palette.darkBackground ? 0.36 : 0.62),
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: palette.cardBorder),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Row(
+            children: [
+              Container(
+                width: 42,
+                height: 42,
+                decoration: BoxDecoration(
+                  color: palette.secondary.withOpacity(0.12),
+                  borderRadius: BorderRadius.circular(14),
+                ),
+                child: Icon(Icons.store_mall_directory_outlined, color: palette.secondary),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text('Sucursales asignadas', style: TextStyle(color: palette.textPrimary, fontWeight: FontWeight.w900, fontSize: 16)),
+                    const SizedBox(height: 2),
+                    Text(
+                      _selectedSucursalIds.isEmpty
+                          ? 'Selecciona las sedes donde podrá trabajar este usuario.'
+                          : '${_selectedSucursalIds.length} ${_selectedSucursalIds.length == 1 ? 'sucursal seleccionada' : 'sucursales seleccionadas'}',
+                      style: TextStyle(color: palette.textSecondary, fontWeight: FontWeight.w700, fontSize: 12.5),
+                    ),
+                  ],
+                ),
+              ),
+              if (!_isReadOnly)
+                FilledButton.tonalIcon(
+                  onPressed: companySelected && !loading ? _showBranchPicker : null,
+                  icon: const Icon(Icons.checklist_rounded),
+                  label: Text(_selectedSucursalIds.isEmpty ? 'Seleccionar' : 'Cambiar'),
+                ),
+            ],
+          ),
+          const SizedBox(height: 14),
+          if (!companySelected)
+            _branchNotice('Selecciona primero la empresa para cargar sus sucursales.', Icons.info_outline_rounded, palette)
+          else if (loading)
+            const LinearProgressIndicator(minHeight: 3)
+          else if (_sucursalOptions.isEmpty)
+            _branchNotice('La empresa seleccionada no tiene sucursales disponibles.', Icons.store_mall_directory_outlined, palette)
+          else if (_selectedSucursalIds.isEmpty)
+            _branchNotice('Todavía no hay sucursales asignadas.', Icons.add_business_outlined, palette)
+          else
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: selectedOptions.map((option) {
+                final id = option.id?.toString() ?? '';
+                final isPrimary = id == _sucursalController.text.trim();
+                return InputChip(
+                  avatar: Icon(isPrimary ? Icons.star_rounded : Icons.storefront_outlined, size: 18, color: isPrimary ? palette.warning : palette.secondary),
+                  label: Text(option.label, style: TextStyle(color: palette.textPrimary, fontWeight: FontWeight.w800)),
+                  onDeleted: _isReadOnly ? null : () => _removeBranch(id),
+                  deleteIcon: const Icon(Icons.close_rounded, size: 18),
+                  side: BorderSide(color: isPrimary ? palette.warning.withOpacity(0.48) : palette.cardBorder),
+                  backgroundColor: isPrimary ? palette.warning.withOpacity(0.10) : palette.surface.withOpacity(0.70),
+                  deleteButtonTooltipMessage: 'Quitar sucursal',
+                );
+              }).toList(growable: false),
+            ),
+          const SizedBox(height: 14),
+          DropdownButtonFormField<String>(
+            value: primaryValue,
+            decoration: const InputDecoration(
+              labelText: 'Sucursal principal',
+              prefixIcon: Icon(Icons.star_outline_rounded),
+              helperText: 'Se usa como sede inicial al ingresar al sistema.',
+            ),
+            items: selectedOptions
+                .map((option) => DropdownMenuItem<String>(value: option.id?.toString(), child: Text(option.label, overflow: TextOverflow.ellipsis)))
+                .toList(growable: false),
+            onChanged: _isReadOnly || selectedOptions.isEmpty
+                ? null
+                : (value) => setState(() => _sucursalController.text = value ?? ''),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _branchNotice(String text, IconData icon, AppPalette palette) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 11),
+      decoration: BoxDecoration(color: palette.surface.withOpacity(0.55), borderRadius: BorderRadius.circular(14)),
+      child: Row(
+        children: [
+          Icon(icon, size: 19, color: palette.textSecondary),
+          const SizedBox(width: 9),
+          Expanded(child: Text(text, style: TextStyle(color: palette.textSecondary, fontWeight: FontWeight.w700))),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _showBranchPicker() async {
+    if (_empresaController.text.trim().isEmpty) {
+      _showMessage('Selecciona primero la empresa.');
+      return;
+    }
+    final palette = ref.read(selectedAppPaletteProvider);
+    final options = [..._sucursalOptions]..sort((a, b) => a.label.compareTo(b.label));
+    if (options.isEmpty) {
+      _showMessage('La empresa no tiene sucursales disponibles.');
+      return;
+    }
+
+    final initial = Set<String>.from(_selectedSucursalIds);
+    final result = await showModalBottomSheet<Set<String>>(
+      context: context,
+      isScrollControlled: true,
+      useSafeArea: true,
+      backgroundColor: Colors.transparent,
+      builder: (sheetContext) {
+        var selected = Set<String>.from(initial);
+        var query = '';
+        return StatefulBuilder(
+          builder: (context, setSheetState) {
+            final visible = options
+                .where((option) => option.label.toLowerCase().contains(query.trim().toLowerCase()))
+                .toList(growable: false);
+            return Align(
+              alignment: Alignment.bottomCenter,
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 720),
+                child: Container(
+                  constraints: BoxConstraints(maxHeight: MediaQuery.sizeOf(context).height * 0.84),
+                  padding: const EdgeInsets.fromLTRB(18, 14, 18, 18),
+                  decoration: BoxDecoration(
+                    color: palette.surface,
+                    borderRadius: const BorderRadius.vertical(top: Radius.circular(28)),
+                    boxShadow: [BoxShadow(color: palette.cardShadow, blurRadius: 28, offset: const Offset(0, -8))],
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      Center(
+                        child: Container(
+                          width: 46,
+                          height: 4,
+                          decoration: BoxDecoration(color: palette.textSecondary.withOpacity(0.28), borderRadius: BorderRadius.circular(20)),
+                        ),
+                      ),
+                      const SizedBox(height: 14),
+                      Row(
+                        children: [
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text('Asignar sucursales', style: TextStyle(color: palette.textPrimary, fontWeight: FontWeight.w900, fontSize: 20)),
+                                Text('${selected.length} seleccionadas', style: TextStyle(color: palette.textSecondary, fontWeight: FontWeight.w700)),
+                              ],
+                            ),
+                          ),
+                          IconButton(onPressed: () => Navigator.pop(sheetContext), icon: const Icon(Icons.close_rounded), tooltip: 'Cerrar'),
+                        ],
+                      ),
+                      const SizedBox(height: 12),
+                      TextField(
+                        onChanged: (value) => setSheetState(() => query = value),
+                        decoration: const InputDecoration(
+                          hintText: 'Buscar sucursal',
+                          prefixIcon: Icon(Icons.search_rounded),
+                        ).compactFilter(),
+                      ),
+                      const SizedBox(height: 10),
+                      Row(
+                        children: [
+                          TextButton.icon(
+                            onPressed: () => setSheetState(() => selected = options.map((option) => option.id.toString()).toSet()),
+                            icon: const Icon(Icons.done_all_rounded),
+                            label: const Text('Seleccionar todas'),
+                          ),
+                          const Spacer(),
+                          TextButton(onPressed: () => setSheetState(selected.clear), child: const Text('Limpiar')),
+                        ],
+                      ),
+                      const SizedBox(height: 4),
+                      Expanded(
+                        child: visible.isEmpty
+                            ? Center(child: Text('No se encontraron sucursales.', style: TextStyle(color: palette.textSecondary, fontWeight: FontWeight.w700)))
+                            : ListView.separated(
+                                itemCount: visible.length,
+                                separatorBuilder: (_, __) => const SizedBox(height: 7),
+                                itemBuilder: (_, index) {
+                                  final option = visible[index];
+                                  final id = option.id.toString();
+                                  final checked = selected.contains(id);
+                                  return CheckboxListTile(
+                                    value: checked,
+                                    onChanged: (value) => setSheetState(() {
+                                      if (value == true) {
+                                        selected.add(id);
+                                      } else {
+                                        selected.remove(id);
+                                      }
+                                    }),
+                                    title: Text(option.label, style: TextStyle(color: palette.textPrimary, fontWeight: FontWeight.w900)),
+                                    subtitle: option.raw['sucuDireccion'] == null
+                                        ? null
+                                        : Text(option.raw['sucuDireccion'].toString(), style: TextStyle(color: palette.textSecondary, fontWeight: FontWeight.w600)),
+                                    secondary: Icon(Icons.storefront_outlined, color: checked ? palette.secondary : palette.textSecondary),
+                                    activeColor: palette.actionColor,
+                                    tileColor: palette.background.withOpacity(palette.darkBackground ? 0.34 : 0.62),
+                                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16), side: BorderSide(color: checked ? palette.secondary.withOpacity(0.45) : palette.cardBorder)),
+                                  );
+                                },
+                              ),
+                      ),
+                      const SizedBox(height: 14),
+                      Row(
+                        children: [
+                          Expanded(child: OutlinedButton(onPressed: () => Navigator.pop(sheetContext), child: const Text('Cancelar'))),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: FilledButton.icon(
+                              onPressed: selected.isEmpty ? null : () => Navigator.pop(sheetContext, Set<String>.from(selected)),
+                              icon: const Icon(Icons.check_rounded),
+                              label: Text('Aplicar (${selected.length})'),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            );
+          },
+        );
+      },
+    );
+
+    if (result == null || !mounted) return;
+    setState(() {
+      _selectedSucursalIds
+        ..clear()
+        ..addAll(result);
+      if (!_selectedSucursalIds.contains(_sucursalController.text.trim())) {
+        _sucursalController.text = _selectedSucursalIds.first;
+      }
+    });
+  }
+
+  void _removeBranch(String id) {
+    setState(() {
+      _selectedSucursalIds.remove(id);
+      if (_sucursalController.text.trim() == id) {
+        _sucursalController.text = _selectedSucursalIds.isEmpty ? '' : _selectedSucursalIds.first;
+      }
+    });
+  }
+
+  String _selectedBranchLabels() {
+    if (_selectedSucursalIds.isEmpty) return 'Sin sucursales seleccionadas';
+    final labels = _selectedSucursalOptions.map((option) => option.label).toList(growable: false);
+    if (labels.isNotEmpty) return labels.join(', ');
+    return _selectedSucursalIds.map((id) => 'ID $id').join(', ');
+  }
+
   Widget _statusField() {
     return DropdownButtonFormField<int>(
       value: _estado,
@@ -740,11 +1082,15 @@ class _UsuariosFormPageState extends ConsumerState<UsuariosFormPage> {
     setState(() {
       _empresaController.clear();
       _sucursalController.clear();
+      _selectedSucursalIds.clear();
     });
   }
 
   void _onEmpresaChanged() {
-    setState(() => _sucursalController.clear());
+    setState(() {
+      _sucursalController.clear();
+      _selectedSucursalIds.clear();
+    });
   }
 
   String _labelOf(List<CrudLookupOption> options, String id) {
@@ -761,60 +1107,110 @@ class _UsuariosFormPageState extends ConsumerState<UsuariosFormPage> {
 }
 
 class _WizardHeader extends StatelessWidget {
-  const _WizardHeader({required this.currentStep, required this.onStepSelected});
+  const _WizardHeader({required this.currentStep, required this.onStepSelected, required this.palette});
 
   final int currentStep;
   final ValueChanged<int> onStepSelected;
+  final AppPalette palette;
 
   @override
   Widget build(BuildContext context) {
     return Container(
       padding: const EdgeInsets.all(6),
       decoration: BoxDecoration(
-        gradient: AppColors.softTechGradient,
+        gradient: palette.glassGradient,
         borderRadius: BorderRadius.circular(24),
-        border: Border.all(color: Colors.black.withOpacity(0.05)),
+        border: Border.all(color: palette.cardBorder),
       ),
-      child: Row(
-        children: [
-          Expanded(child: _step(context, 0, 'Datos del usuario', Icons.person_add_alt_1_rounded)),
-          Expanded(child: _step(context, 1, 'Asignación de roles', Icons.admin_panel_settings_outlined)),
-          Expanded(child: _step(context, 2, 'Confirmación', Icons.fact_check_outlined)),
-        ],
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          final compact = constraints.maxWidth < 680;
+          final steps = [
+            _step(0, 'Datos del usuario', Icons.person_add_alt_1_rounded, compact),
+            _step(1, 'Asignación de roles', Icons.admin_panel_settings_outlined, compact),
+            _step(2, 'Confirmación', Icons.fact_check_outlined, compact),
+          ];
+          if (compact) {
+            return Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: steps);
+          }
+          return Row(children: steps.map((step) => Expanded(child: step)).toList(growable: false));
+        },
       ),
     );
   }
 
-  Widget _step(BuildContext context, int index, String label, IconData icon) {
+  Widget _step(int index, String label, IconData icon, bool compact) {
     final selected = currentStep == index;
     return InkWell(
       borderRadius: BorderRadius.circular(18),
       onTap: () => onStepSelected(index),
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 180),
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 13),
+        padding: EdgeInsets.symmetric(horizontal: compact ? 12 : 10, vertical: 13),
         decoration: BoxDecoration(
-          gradient: selected ? AppColors.bluePurpleGradient : null,
+          gradient: selected ? LinearGradient(colors: [palette.primary, palette.secondary]) : null,
           borderRadius: BorderRadius.circular(18),
         ),
         child: Row(
-          mainAxisAlignment: MainAxisAlignment.center,
+          mainAxisAlignment: compact ? MainAxisAlignment.start : MainAxisAlignment.center,
           children: [
-            Icon(icon, color: selected ? Colors.white : AppColors.textPrimary),
+            Icon(icon, color: selected ? palette.onPrimary : palette.textSecondary, size: 20),
             const SizedBox(width: 8),
             Flexible(
               child: Text(
                 'Paso ${index + 1}: $label',
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
-                style: TextStyle(
-                  color: selected ? Colors.white : AppColors.textPrimary,
-                  fontWeight: FontWeight.w900,
-                ),
+                style: TextStyle(color: selected ? palette.onPrimary : palette.textPrimary, fontWeight: FontWeight.w900),
               ),
             ),
           ],
         ),
+      ),
+    );
+  }
+}
+
+class _UserFormContextHeader extends StatelessWidget {
+  const _UserFormContextHeader({required this.title, required this.subtitle, required this.palette, required this.onBack});
+
+  final String title;
+  final String subtitle;
+  final AppPalette palette;
+  final VoidCallback onBack;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: palette.surface.withOpacity(palette.darkBackground ? 0.94 : 0.985),
+        borderRadius: BorderRadius.circular(24),
+        border: Border.all(color: palette.secondary.withOpacity(0.15)),
+        boxShadow: [BoxShadow(color: palette.cardShadow, blurRadius: 20, offset: const Offset(0, 10))],
+      ),
+      child: Row(
+        children: [
+          IconButton.filledTonal(onPressed: onBack, tooltip: 'Volver a usuarios', icon: const Icon(Icons.arrow_back_rounded)),
+          const SizedBox(width: 10),
+          Container(
+            width: 44,
+            height: 44,
+            decoration: BoxDecoration(gradient: LinearGradient(colors: [palette.primary, palette.secondary]), borderRadius: BorderRadius.circular(15)),
+            child: Icon(Icons.manage_accounts_rounded, color: palette.onPrimary),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(title, maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(color: palette.textPrimary, fontWeight: FontWeight.w900, fontSize: 17)),
+                const SizedBox(height: 2),
+                Text(subtitle, maxLines: 2, overflow: TextOverflow.ellipsis, style: TextStyle(color: palette.textSecondary, fontWeight: FontWeight.w700, fontSize: 12.5)),
+              ],
+            ),
+          ),
+        ],
       ),
     );
   }
