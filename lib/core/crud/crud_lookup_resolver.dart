@@ -83,6 +83,11 @@ String crudDisplayValue(
     return active ? 'Activo' : 'Inactivo';
   }
 
+  final optionLabel = field.options?[rawValue.toString()];
+  if (optionLabel != null && optionLabel.trim().isNotEmpty) {
+    return optionLabel.trim();
+  }
+
   final lookup = field.lookup;
   if (lookup == null) {
     return rawValue.toString();

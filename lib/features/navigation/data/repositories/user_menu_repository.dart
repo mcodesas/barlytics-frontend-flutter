@@ -27,9 +27,14 @@ class UserMenuRepository {
     for (final item in response.data ?? const <UserMenuItem>[]) {
       final normalizedKey = _normalizeModuleKey(item.keyName);
       final keyName = moduleAliases[normalizedKey] ?? normalizedKey;
-      if (!moduleByKey.containsKey(keyName) && keyName != 'reportes') continue;
+      if (!moduleByKey.containsKey(keyName) &&
+          !const {'reportes', 'ganancias', 'proximo_pedido'}.contains(keyName)) {
+        continue;
+      }
       byKey[keyName] = item.copyWith(keyName: keyName, path: '/$keyName');
     }
+
+
     return _sortByRegistry(byKey.values);
   }
 
@@ -37,6 +42,8 @@ class UserMenuRepository {
     final order = <String, int>{
       for (var i = 0; i < moduleRegistry.length; i++) moduleRegistry[i].key: i,
       'reportes': moduleRegistry.length + 1,
+      'ganancias': moduleRegistry.length + 2,
+      'proximo_pedido': moduleRegistry.length + 3,
     };
     final list = items.toList(growable: false);
     list.sort((a, b) => (order[a.keyName] ?? 9999).compareTo(order[b.keyName] ?? 9999));
@@ -76,6 +83,11 @@ const moduleAliases = <String, String>{
   'inventarios': 'inventario',
   'reporte': 'reportes',
   'reportes': 'reportes',
+  'ganancia': 'ganancias',
+  'ganancias': 'ganancias',
+  'proximo_pedido': 'proximo_pedido',
+  'proximopedido': 'proximo_pedido',
+  'pedido': 'proximo_pedido',
   'dashboard': 'reportes',
   'pagocuentaventa': 'pagos',
   'pago_cuenta_venta': 'pagos',

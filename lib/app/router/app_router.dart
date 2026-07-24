@@ -8,9 +8,13 @@ import '../../features/auth/presentation/providers/auth_provider.dart';
 import '../../features/home/presentation/pages/home_page.dart';
 import '../../features/profile/presentation/pages/profile_page.dart';
 import '../../features/reportes/presentation/pages/reportes_page.dart';
+import '../../features/tablas_parametricas/presentation/pages/tablas_parametricas_page.dart';
 import '../../features/mesero/presentation/pages/mesero_page.dart';
 import '../../features/mesero/presentation/providers/mesero_tab_provider.dart';
 import '../../core/widgets/app_scaffold.dart';
+import '../../core/widgets/dynamic_crud_detail_page.dart';
+import '../../core/widgets/dynamic_crud_form_page.dart';
+import '../../core/widgets/dynamic_crud_list_page.dart';
 import 'module_registry.dart';
 import '../../features/ciudades/presentation/pages/ciudades_list_page.dart';
 import '../../features/ciudades/presentation/pages/ciudades_form_page.dart';
@@ -100,6 +104,21 @@ final appRouterProvider = Provider<GoRouter>((ref) {
 
       if (!authState.authenticated && !isPublicRoute) return '/login';
 
+      final isInventario = authState.roles.any((role) {
+        final normalized = role.toUpperCase();
+        return normalized.contains('INVENTARIO') ||
+            normalized.contains('INVENTORY') ||
+            normalized.contains('BODEGA') ||
+            normalized.contains('ALMACEN') ||
+            normalized.contains('ALMACÉN');
+      });
+
+      // Un usuario de inventario no debe entrar al flujo operativo de mesas,
+      // incluso si también posee un rol comercial secundario.
+      if (authState.authenticated && isInventario && path.startsWith('/mesero')) {
+        return '/productos';
+      }
+
       // Login y olvidé contraseña no se muestran cuando ya hay sesión activa.
       // Reset password sí se permite porque puede abrirse desde un enlace externo.
       // No se usa Uri.base dentro del redirect para no forzar de nuevo #/login en web.
@@ -109,10 +128,6 @@ final appRouterProvider = Provider<GoRouter>((ref) {
           return normalized.contains('MESERO') || normalized.contains('CAJERO') || normalized.contains('INVENTARIO') || normalized.contains('INVENTORY') || normalized.contains('BODEGA') || normalized.contains('ALMACEN') || normalized.contains('ALMACÉN');
         });
         if (isOperativoMesa) {
-          final isInventario = authState.roles.any((role) {
-            final normalized = role.toUpperCase();
-            return normalized.contains('INVENTARIO') || normalized.contains('INVENTORY') || normalized.contains('BODEGA') || normalized.contains('ALMACEN') || normalized.contains('ALMACÉN');
-          });
           return isInventario ? '/productos' : '/mesero';
         }
         return '/home';
@@ -128,6 +143,9 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       GoRoute(path: '/home', builder: (context, state) => const HomePage()),
       GoRoute(path: '/profile', builder: (context, state) => AppScaffold(child: const ProfilePage())),
       GoRoute(path: '/reportes', builder: (context, state) => AppScaffold(child: const ReportesPage())),
+      GoRoute(path: '/ganancias', builder: (context, state) => AppScaffold(child: const ReportesPage.ganancias())),
+      GoRoute(path: '/proximo_pedido', builder: (context, state) => AppScaffold(child: const ReportesPage.proximoPedido())),
+      GoRoute(path: '/tablas_parametricas', builder: (context, state) => AppScaffold(child: const TablasParametricasPage())),
       GoRoute(path: '/mesero', builder: (context, state) => AppScaffold(child: const MeseroPage())),
       GoRoute(path: '/mesero/productos', builder: (context, state) => AppScaffold(child: const MeseroPage(initialMode: MeseroPageMode.productos))),
       GoRoute(path: '/mesero/resumen', builder: (context, state) => AppScaffold(child: const MeseroPage(initialMode: MeseroPageMode.resumen))),
@@ -234,7 +252,17 @@ final appRouterProvider = Provider<GoRouter>((ref) {
         path: '/movimientos',
         builder: (context, state) => AppScaffold(child: const MovimientosListPage()),
         routes: [
-          GoRoute(path: 'nuevo', builder: (context, state) => AppScaffold(child: const MovimientosFormPage())),
+          GoRoute(
+            path: 'nuevo',
+            builder: (context, state) => AppScaffold(
+              child: MovimientosFormPage(
+                initialValues: <String, dynamic>{
+                  for (final entry in state.uri.queryParameters.entries)
+                    if (entry.value.trim().isNotEmpty) entry.key: entry.value,
+                },
+              ),
+            ),
+          ),
           GoRoute(path: ':id', builder: (context, state) => AppScaffold(child: MovimientosDetailPage(id: state.pathParameters['id']!))),
           GoRoute(path: ':id/editar', builder: (context, state) => AppScaffold(child: MovimientosFormPage(id: state.pathParameters['id']))),
         ],
@@ -327,6 +355,39 @@ final appRouterProvider = Provider<GoRouter>((ref) {
           GoRoute(path: 'nuevo', builder: (context, state) => AppScaffold(child: const SucursalesFormPage())),
           GoRoute(path: ':id', builder: (context, state) => AppScaffold(child: SucursalesDetailPage(id: state.pathParameters['id']!))),
           GoRoute(path: ':id/editar', builder: (context, state) => AppScaffold(child: SucursalesFormPage(id: state.pathParameters['id']))),
+        ],
+      ),
+
+      GoRoute(
+        path: '/tipos_movimiento',
+        builder: (context, state) => AppScaffold(
+          child: DynamicCrudListPage<Map<String, dynamic>>(config: tiposmovimientoConfig),
+        ),
+        routes: [
+          GoRoute(
+            path: 'nuevo',
+            builder: (context, state) => AppScaffold(
+              child: DynamicCrudFormPage<Map<String, dynamic>>(config: tiposmovimientoConfig),
+            ),
+          ),
+          GoRoute(
+            path: ':id',
+            builder: (context, state) => AppScaffold(
+              child: DynamicCrudDetailPage<Map<String, dynamic>>(
+                config: tiposmovimientoConfig,
+                id: state.pathParameters['id']!,
+              ),
+            ),
+          ),
+          GoRoute(
+            path: ':id/editar',
+            builder: (context, state) => AppScaffold(
+              child: DynamicCrudFormPage<Map<String, dynamic>>(
+                config: tiposmovimientoConfig,
+                id: state.pathParameters['id'],
+              ),
+            ),
+          ),
         ],
       ),
 

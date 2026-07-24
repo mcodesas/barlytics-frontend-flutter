@@ -50,6 +50,43 @@ enum ProductosSortOption {
       };
 }
 
+
+enum ProductosQuickFilter {
+  all,
+  lowStock,
+  outOfStock,
+  expiringSoon,
+  soldYesterday;
+
+  String get label => switch (this) {
+        ProductosQuickFilter.all => 'Todos',
+        ProductosQuickFilter.lowStock => 'Stock bajo',
+        ProductosQuickFilter.outOfStock => 'Sin stock',
+        ProductosQuickFilter.expiringSoon => 'Vence pronto',
+        ProductosQuickFilter.soldYesterday => 'Salida ayer',
+      };
+
+  String? get queryValue => switch (this) {
+        ProductosQuickFilter.all => null,
+        ProductosQuickFilter.lowStock => 'LOW_STOCK',
+        ProductosQuickFilter.outOfStock => 'OUT_OF_STOCK',
+        ProductosQuickFilter.expiringSoon => 'EXPIRING_SOON',
+        ProductosQuickFilter.soldYesterday => 'SOLD_YESTERDAY',
+      };
+}
+
+enum ProductosPriceStatus {
+  all,
+  withPrice,
+  withoutPrice;
+
+  String? get queryValue => switch (this) {
+        ProductosPriceStatus.all => null,
+        ProductosPriceStatus.withPrice => 'WITH_PRICE',
+        ProductosPriceStatus.withoutPrice => 'WITHOUT_PRICE',
+      };
+}
+
 class ProductosPagedState {
   const ProductosPagedState({
     this.items = const [],
@@ -66,6 +103,8 @@ class ProductosPagedState {
     this.marcaId,
     this.sucursalId,
     this.sortOption = ProductosSortOption.nombreAsc,
+    this.quickFilter = ProductosQuickFilter.all,
+    this.priceStatus = ProductosPriceStatus.all,
   });
 
   final List<ProductosResponseModel> items;
@@ -82,6 +121,8 @@ class ProductosPagedState {
   final int? marcaId;
   final int? sucursalId;
   final ProductosSortOption sortOption;
+  final ProductosQuickFilter quickFilter;
+  final ProductosPriceStatus priceStatus;
 
   ProductosPagedState copyWith({
     List<ProductosResponseModel>? items,
@@ -101,6 +142,8 @@ class ProductosPagedState {
     int? sucursalId,
     bool clearSucursalId = false,
     ProductosSortOption? sortOption,
+    ProductosQuickFilter? quickFilter,
+    ProductosPriceStatus? priceStatus,
   }) {
     return ProductosPagedState(
       items: items ?? this.items,
@@ -117,13 +160,19 @@ class ProductosPagedState {
       marcaId: clearMarcaId ? null : (marcaId ?? this.marcaId),
       sucursalId: clearSucursalId ? null : (sucursalId ?? this.sucursalId),
       sortOption: sortOption ?? this.sortOption,
+      quickFilter: quickFilter ?? this.quickFilter,
+      priceStatus: priceStatus ?? this.priceStatus,
     );
   }
 }
 
 class ProductosPagedNotifier extends StateNotifier<ProductosPagedState> {
-  ProductosPagedNotifier(this._repository, this._apiClient) : super(const ProductosPagedState()) {
-    load();
+  ProductosPagedNotifier(
+    this._repository,
+    this._apiClient, {
+    bool autoLoad = true,
+  }) : super(const ProductosPagedState()) {
+    if (autoLoad) load();
   }
 
   final CrudRepository<ProductosResponseModel> _repository;
@@ -140,6 +189,8 @@ class ProductosPagedNotifier extends StateNotifier<ProductosPagedState> {
     int? sucursalId,
     bool clearSucursalId = false,
     ProductosSortOption? sortOption,
+    ProductosQuickFilter? quickFilter,
+    ProductosPriceStatus? priceStatus,
   }) async {
     final nextState = state.copyWith(
       page: page,
@@ -152,6 +203,8 @@ class ProductosPagedNotifier extends StateNotifier<ProductosPagedState> {
       sucursalId: sucursalId,
       clearSucursalId: clearSucursalId,
       sortOption: sortOption,
+      quickFilter: quickFilter,
+      priceStatus: priceStatus,
     );
     state = nextState.copyWith(loading: true);
 
@@ -168,6 +221,8 @@ class ProductosPagedNotifier extends StateNotifier<ProductosPagedState> {
           if (nextState.tipoId != null) 'tipoId': nextState.tipoId,
           if (nextState.marcaId != null) 'marcaId': nextState.marcaId,
           if (nextState.sucursalId != null) 'sucursalId': nextState.sucursalId,
+          if (nextState.quickFilter.queryValue != null) 'quickFilter': nextState.quickFilter.queryValue,
+          if (nextState.priceStatus.queryValue != null) 'priceStatus': nextState.priceStatus.queryValue,
         },
       );
       final pageData = response.data ?? const ProductosPageResponseModel();

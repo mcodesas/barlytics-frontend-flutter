@@ -35,6 +35,7 @@ class DynamicCrudFormPage<T> extends ConsumerStatefulWidget {
     this.onSaved,
     this.wizardSteps,
     this.currentWizardStep = 0,
+    this.initialValues = const <String, dynamic>{},
   });
 
   final CrudModuleConfig<T> config;
@@ -47,6 +48,7 @@ class DynamicCrudFormPage<T> extends ConsumerStatefulWidget {
   /// que el primer formulario no es el final del proceso.
   final List<String>? wizardSteps;
   final int currentWizardStep;
+  final Map<String, dynamic> initialValues;
 
   @override
   ConsumerState<DynamicCrudFormPage<T>> createState() => _DynamicCrudFormPageState<T>();
@@ -73,7 +75,10 @@ class _DynamicCrudFormPageState<T> extends ConsumerState<DynamicCrudFormPage<T>>
     });
 
     for (final field in widget.config.formFields) {
-      _controllers[field.name] = TextEditingController();
+      final initialValue = widget.initialValues[field.name];
+      _controllers[field.name] = TextEditingController(
+        text: initialValue == null ? '' : initialValue.toString(),
+      );
     }
 
     _loadLookupOptions();
@@ -328,6 +333,14 @@ class _DynamicCrudFormPageState<T> extends ConsumerState<DynamicCrudFormPage<T>>
       );
     }
 
+    if (field.options != null && field.options!.isNotEmpty) {
+      return _FixedOptionsDropdown(
+        controller: _controllers[field.name]!,
+        field: field,
+        palette: palette,
+      );
+    }
+
     if (field.lookup != null) {
       return LookupDropdown(
         controller: _controllers[field.name]!,
@@ -428,6 +441,52 @@ class _FormContextHeader extends StatelessWidget {
           ),
         ],
       ),
+    );
+  }
+}
+
+class _FixedOptionsDropdown extends StatelessWidget {
+  const _FixedOptionsDropdown({
+    required this.controller,
+    required this.field,
+    required this.palette,
+  });
+
+  final TextEditingController controller;
+  final CrudField field;
+  final AppPalette palette;
+
+  @override
+  Widget build(BuildContext context) {
+    final options = field.options ?? const <String, String>{};
+    return ValueListenableBuilder<TextEditingValue>(
+      valueListenable: controller,
+      builder: (context, value, _) {
+        final selected = options.containsKey(value.text) ? value.text : null;
+        return DropdownButtonFormField<String>(
+          value: selected,
+          decoration: InputDecoration(
+            labelText: field.label,
+            prefixIcon: const Icon(Icons.compare_arrows_rounded),
+            filled: true,
+            fillColor: palette.background.withOpacity(palette.darkBackground ? 0.42 : 0.72),
+            border: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(18),
+              borderSide: BorderSide.none,
+            ),
+          ),
+          items: options.entries
+              .map((item) => DropdownMenuItem<String>(
+                    value: item.key,
+                    child: Text(item.value),
+                  ))
+              .toList(growable: false),
+          onChanged: field.readOnly ? null : (newValue) => controller.text = newValue ?? '',
+          validator: field.required
+              ? (newValue) => newValue == null || newValue.isEmpty ? 'Este campo es obligatorio' : null
+              : null,
+        );
+      },
     );
   }
 }

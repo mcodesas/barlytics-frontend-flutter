@@ -48,6 +48,8 @@ class _ProductosFormPageState extends ConsumerState<ProductosFormPage> {
   final _cantidadCompraController = TextEditingController();
   final _porcentajeImpuestoController = TextEditingController(text: '19');
   final _inventarioCantidadController = TextEditingController();
+  final _stockMinimoController = TextEditingController(text: '0');
+  final _stockMaximoController = TextEditingController();
 
   int _currentStep = 0;
   int? _sucursalId;
@@ -57,6 +59,7 @@ class _ProductosFormPageState extends ConsumerState<ProductosFormPage> {
   bool _aplicaImpuesto = false;
   bool _compraPorCantidad = false;
   bool _registrarInventario = false;
+  bool _stockMaximoSinLimite = true;
   bool _saving = false;
   bool _loadedStorage = false;
   bool _hydratedProduct = false;
@@ -87,6 +90,8 @@ class _ProductosFormPageState extends ConsumerState<ProductosFormPage> {
     _cantidadCompraController.dispose();
     _porcentajeImpuestoController.dispose();
     _inventarioCantidadController.dispose();
+    _stockMinimoController.dispose();
+    _stockMaximoController.dispose();
     super.dispose();
   }
 
@@ -115,6 +120,11 @@ class _ProductosFormPageState extends ConsumerState<ProductosFormPage> {
     _presentacionCompraController.text = (producto.prodPresentacionCompra ?? '').trim().isEmpty
         ? 'Canasta'
         : producto.prodPresentacionCompra!.trim();
+    _stockMinimoController.text = _toFieldNumber(producto.prodStockMinimo ?? 0);
+    _stockMaximoSinLimite = producto.prodStockMaximo == null;
+    _stockMaximoController.text = _stockMaximoSinLimite
+        ? ''
+        : _toFieldNumber(producto.prodStockMaximo);
   }
 
   void _hydratePrice(List<PreciosResponseModel> precios) {
@@ -547,10 +557,146 @@ class _ProductosFormPageState extends ConsumerState<ProductosFormPage> {
             rows: [
               _SummaryRow('Sucursal', sucursalNombre),
               _SummaryRow('Inventario actual', '${_formatNumber(inventarioActual)} unidades'),
+      _SummaryRow(
+        'Stock mínimo',
+        '${_formatNumber(_parseDouble(_stockMinimoController.text) ?? 0)} unidades',
+      ),
+      _SummaryRow(
+        'Stock máximo',
+        _stockMaximoSinLimite
+            ? 'Sin límite'
+            : '${_formatNumber(_parseDouble(_stockMaximoController.text) ?? 0)} unidades',
+      ),
               _SummaryRow('Registros históricos', '${inventarioHistorial.length} registros'),
             ],
           ),
           const SizedBox(height: 14),
+          Text(
+            'Control de reposición',
+            style: TextStyle(
+              color: palette.textPrimary,
+              fontWeight: FontWeight.w900,
+              fontSize: 16,
+            ),
+          ),
+          const SizedBox(height: 6),
+          Text(
+            'Cuando el inventario llegue al mínimo, el reporte sugerirá la reposición. El máximo es opcional; vacío significa sin límite superior.',
+            style: TextStyle(
+              color: palette.textSecondary,
+              fontWeight: FontWeight.w700,
+              height: 1.35,
+            ),
+          ),
+          const SizedBox(height: 12),
+          LayoutBuilder(
+            builder: (context, constraints) {
+              final columns = constraints.maxWidth >= 680 ? 2 : 1;
+              const spacing = 12.0;
+              final width =
+                  (constraints.maxWidth - spacing * (columns - 1)) / columns;
+              return Wrap(
+                spacing: spacing,
+                runSpacing: spacing,
+                children: [
+                  SizedBox(
+                    width: width,
+                    child: _FormTextField(
+                      palette: palette,
+                      controller: _stockMinimoController,
+                      label: 'Stock mínimo',
+                      icon: Icons.notification_important_rounded,
+                      keyboardType:
+                          const TextInputType.numberWithOptions(decimal: true),
+                      validator: _requiredPositiveOrZero,
+                      onChanged: (_) => setState(() {}),
+                    ),
+                  ),
+                  SizedBox(
+                    width: width,
+                    child: _FormTextField(
+                      palette: palette,
+                      controller: _stockMaximoController,
+                      label: 'Stock máximo (opcional)',
+                      icon: Icons.inventory_rounded,
+                      keyboardType:
+                          const TextInputType.numberWithOptions(decimal: true),
+                      validator: _validateStockMaximo,
+                      enabled: !_stockMaximoSinLimite,
+                      onChanged: (_) => setState(() {}),
+                    ),
+                  ),
+                ],
+              );
+            },
+          ),
+          const SizedBox(height: 10),
+          Container(
+            decoration: BoxDecoration(
+              color: palette.background.withOpacity(0.45),
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(color: palette.cardBorder),
+            ),
+            child: SwitchListTile.adaptive(
+              value: _stockMaximoSinLimite,
+              onChanged: (value) {
+                setState(() {
+                  _stockMaximoSinLimite = value;
+                  if (value) {
+                    _stockMaximoController.clear();
+                  } else if (_stockMaximoController.text.trim().isEmpty) {
+                    final minimo = _parseDouble(_stockMinimoController.text) ?? 0;
+                    _stockMaximoController.text = _toFieldNumber(minimo);
+                  }
+                });
+              },
+              title: Text(
+                'Sin límite máximo',
+                style: TextStyle(
+                  color: palette.textPrimary,
+                  fontWeight: FontWeight.w900,
+                ),
+              ),
+              subtitle: Text(
+                'El producto seguirá generando alerta por stock mínimo, pero no será marcado como sobrestock.',
+                style: TextStyle(
+                  color: palette.textSecondary,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+              secondary: Icon(Icons.all_inclusive, color: palette.secondary),
+            ),
+          ),
+          const SizedBox(height: 10),
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.all(13),
+            decoration: BoxDecoration(
+              color: palette.secondary.withOpacity(0.08),
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(color: palette.secondary.withOpacity(0.18)),
+            ),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Icon(Icons.auto_graph_rounded, color: palette.secondary),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Text(
+                    !_stockMaximoSinLimite
+                        ? 'Reposición con objetivo: al llegar al mínimo se sugerirá comprar hasta alcanzar el máximo.'
+                        : 'Sin límite máximo: al llegar al mínimo se sugerirá al menos una presentación de compra y el usuario podrá ajustar libremente la cantidad.',
+                    style: TextStyle(
+                      color: palette.textPrimary,
+                      fontWeight: FontWeight.w800,
+                      height: 1.35,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 18),
           Text(
             'Historial de inventario',
             style: TextStyle(
@@ -737,6 +883,16 @@ class _ProductosFormPageState extends ConsumerState<ProductosFormPage> {
       _SummaryRow('Impuesto', _aplicaImpuesto ? '${_porcentajeImpuestoController.text}% aplica' : 'No aplica'),
       _SummaryRow('Inventario actual', '${_formatNumber(inventarioActual)} unidades'),
       _SummaryRow(
+        'Stock mínimo',
+        '${_formatNumber(_parseDouble(_stockMinimoController.text) ?? 0)} unidades',
+      ),
+      _SummaryRow(
+        'Stock máximo',
+        _stockMaximoSinLimite
+            ? 'Sin límite'
+            : '${_formatNumber(_parseDouble(_stockMaximoController.text) ?? 0)} unidades',
+      ),
+      _SummaryRow(
         'Inventario a registrar',
         _registrarInventario ? '${_inventarioCantidadController.text} unidades' : 'No se registrará ahora',
       ),
@@ -761,7 +917,7 @@ class _ProductosFormPageState extends ConsumerState<ProductosFormPage> {
   void _goNext() {
     if (_currentStep == 0 && !_validateGeneral()) return;
     if (_currentStep == 1 && !(_priceFormKey.currentState?.validate() ?? false)) return;
-    if (_currentStep == 2 && _registrarInventario && !(_inventoryFormKey.currentState?.validate() ?? false)) return;
+    if (_currentStep == 2 && !(_inventoryFormKey.currentState?.validate() ?? false)) return;
     setState(() => _currentStep = math.min(3, _currentStep + 1));
   }
 
@@ -792,7 +948,7 @@ class _ProductosFormPageState extends ConsumerState<ProductosFormPage> {
       setState(() => _currentStep = 1);
       return;
     }
-    if (_registrarInventario && !(_inventoryFormKey.currentState?.validate() ?? false)) {
+    if (!(_inventoryFormKey.currentState?.validate() ?? false)) {
       setState(() => _currentStep = 2);
       return;
     }
@@ -820,6 +976,10 @@ class _ProductosFormPageState extends ConsumerState<ProductosFormPage> {
         'prodCompraPorCantidad': _compraPorCantidad ? 1 : 0,
         'prodCantidadCompra': _compraPorCantidad ? _parseDouble(_cantidadCompraController.text) : null,
         'prodPresentacionCompra': _compraPorCantidad ? _presentacionCompraController.text.trim() : null,
+        'prodStockMinimo': _parseDouble(_stockMinimoController.text) ?? 0,
+        'prodStockMaximo': _stockMaximoSinLimite
+            ? null
+            : _parseDouble(_stockMaximoController.text),
       };
 
       final productResponse = _editing
@@ -1043,6 +1203,17 @@ class _ProductosFormPageState extends ConsumerState<ProductosFormPage> {
   String? _requiredPositiveOrZero(String? value) {
     final number = _parseDouble(value ?? '');
     if (number == null || number < 0) return 'Ingresa un valor válido';
+    return null;
+  }
+
+  String? _validateStockMaximo(String? value) {
+    if (_stockMaximoSinLimite) return null;
+    final raw = value?.trim() ?? '';
+    if (raw.isEmpty) return 'Ingresa el stock máximo';
+    final maximo = _parseDouble(raw);
+    final minimo = _parseDouble(_stockMinimoController.text) ?? 0;
+    if (maximo == null || maximo < 0) return 'Ingresa un valor válido';
+    if (maximo < minimo) return 'Debe ser mayor o igual al mínimo';
     return null;
   }
 }
@@ -1514,6 +1685,7 @@ class _FormTextField extends StatelessWidget {
     this.keyboardType,
     this.maxLines = 1,
     this.onChanged,
+    this.enabled = true,
   });
 
   final AppPalette palette;
@@ -1524,6 +1696,7 @@ class _FormTextField extends StatelessWidget {
   final TextInputType? keyboardType;
   final int maxLines;
   final ValueChanged<String>? onChanged;
+  final bool enabled;
 
   @override
   Widget build(BuildContext context) {
@@ -1532,6 +1705,7 @@ class _FormTextField extends StatelessWidget {
       validator: validator,
       keyboardType: keyboardType,
       maxLines: maxLines,
+      enabled: enabled,
       onChanged: onChanged,
       style: TextStyle(color: palette.textPrimary, fontWeight: FontWeight.w700),
       decoration: InputDecoration(

@@ -67,7 +67,7 @@ class TechBackground extends ConsumerWidget {
               color: palette.primary,
             ),
           ),
-          if (showPattern) Positioned.fill(child: _BarMoodPattern(palette: palette)),
+          if (showPattern && palette.showBackgroundPattern) Positioned.fill(child: _BarMoodPattern(palette: palette)),
           SafeArea(child: Padding(padding: padding, child: child)),
         ],
       ),
@@ -292,7 +292,7 @@ class _BarMoodPatternPainter extends CustomPainter {
   }
 
   @override
-  bool shouldRepaint(covariant _BarMoodPatternPainter oldDelegate) => oldDelegate.palette.id != palette.id;
+  bool shouldRepaint(covariant _BarMoodPatternPainter oldDelegate) => oldDelegate.palette != palette;
 }
 
 /// Tarjeta tipo glass con borde transparente, inspirada en el diseño del login.
@@ -316,36 +316,38 @@ class TechGlassPanel extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final palette = ref.watch(selectedAppPaletteProvider);
-    final outerRadius = BorderRadius.circular(36);
-    final innerRadius = BorderRadius.circular(28);
+    final outerRadius = BorderRadius.circular(palette.radius(36));
+    final innerRadius = BorderRadius.circular(palette.radius(28));
 
     final panel = Container(
-      padding: const EdgeInsets.all(10),
+      padding: EdgeInsets.all(10 * palette.spacingScale),
       decoration: BoxDecoration(
-        color: Colors.white.withOpacity(dark || palette.darkBackground ? 0.11 : 0.16),
+        gradient: palette.surfaceStyle == AppSurfacePreset.flat
+            ? null
+            : palette.panelGradient(tint: palette.secondary),
+        color: palette.surfaceStyle == AppSurfacePreset.flat
+            ? palette.surface
+            : null,
         borderRadius: outerRadius,
-        border: Border.all(color: Colors.white.withOpacity(0.26)),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(palette.darkBackground ? 0.34 : 0.18),
-            blurRadius: 38,
-            offset: const Offset(0, 24),
-          ),
-          BoxShadow(
-            color: palette.secondary.withOpacity(0.14),
-            blurRadius: 46,
-            offset: const Offset(0, 0),
-          ),
-        ],
+        border: Border.all(color: palette.translucentBorder),
+        boxShadow: palette.surfaceStyle == AppSurfacePreset.flat
+            ? const []
+            : [
+                BoxShadow(
+                  color: Colors.black.withOpacity(palette.darkBackground ? 0.30 : 0.14),
+                  blurRadius: 30,
+                  offset: const Offset(0, 18),
+                ),
+              ],
       ),
       child: Container(
         padding: padding,
         decoration: BoxDecoration(
-          color: dark || palette.darkBackground ? palette.surface.withOpacity(0.88) : Colors.white.withOpacity(0.94),
+          color: dark || palette.darkBackground
+              ? palette.surface.withOpacity(palette.surfaceStyle == AppSurfacePreset.glass ? 0.78 : 0.94)
+              : palette.surface.withOpacity(palette.surfaceStyle == AppSurfacePreset.glass ? 0.84 : 0.98),
           borderRadius: innerRadius,
-          border: Border.all(
-            color: dark || palette.darkBackground ? Colors.white.withOpacity(0.12) : palette.cardBorder,
-          ),
+          border: Border.all(color: palette.cardBorder),
         ),
         child: child,
       ),
@@ -454,7 +456,7 @@ class TechGlassTitlePanel extends ConsumerWidget {
       width: double.infinity,
       padding: const EdgeInsets.all(1.3),
       decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(31),
+        borderRadius: BorderRadius.circular(palette.radius(31)),
         gradient: LinearGradient(
           colors: [palette.secondary.withOpacity(0.95), palette.secondary.withOpacity(0.88), palette.primary.withOpacity(0.74)],
           begin: Alignment.topLeft,
@@ -466,14 +468,14 @@ class TechGlassTitlePanel extends ConsumerWidget {
         ],
       ),
       child: ClipRRect(
-        borderRadius: BorderRadius.circular(30),
+        borderRadius: BorderRadius.circular(palette.radius(30)),
         child: BackdropFilter(
           filter: ui.ImageFilter.blur(sigmaX: 14, sigmaY: 14),
           child: Container(
             padding: padding,
             decoration: BoxDecoration(
               color: palette.darkBackground ? Colors.white.withOpacity(0.08) : palette.surface.withOpacity(0.84),
-              borderRadius: BorderRadius.circular(30),
+              borderRadius: BorderRadius.circular(palette.radius(30)),
               border: Border.all(color: Colors.white.withOpacity(0.22)),
             ),
             child: Row(
@@ -528,9 +530,11 @@ class AppPageBackground extends ConsumerWidget {
       decoration: BoxDecoration(gradient: palette.pageGradient),
       child: Stack(
         children: [
-          Positioned(top: -120, right: -110, child: GlowCircle(size: 320, opacity: palette.darkBackground ? 0.18 : 0.10, color: palette.primary)),
-          Positioned(bottom: -150, left: -120, child: GlowCircle(size: 360, opacity: palette.darkBackground ? 0.16 : 0.08, color: palette.secondary)),
-          Positioned.fill(child: _PagePattern(palette: palette)),
+          if (palette.showBackgroundPattern) ...[
+            Positioned(top: -120, right: -110, child: GlowCircle(size: 320, opacity: palette.darkBackground ? 0.18 : 0.10, color: palette.primary)),
+            Positioned(bottom: -150, left: -120, child: GlowCircle(size: 360, opacity: palette.darkBackground ? 0.16 : 0.08, color: palette.secondary)),
+            Positioned.fill(child: _PagePattern(palette: palette)),
+          ],
         ],
       ),
     );

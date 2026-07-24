@@ -12,6 +12,8 @@ class ProductosRequestModel {
     this.prodCompraPorCantidad,
     this.prodCantidadCompra,
     this.prodPresentacionCompra,
+    this.prodStockMinimo,
+    this.prodStockMaximo,
   });
 
   final int? mrcaId;
@@ -25,6 +27,8 @@ class ProductosRequestModel {
   final int? prodCompraPorCantidad;
   final double? prodCantidadCompra;
   final String? prodPresentacionCompra;
+  final double? prodStockMinimo;
+  final double? prodStockMaximo;
 
   factory ProductosRequestModel.fromJson(Map<String, dynamic> json) => ProductosRequestModel(
         mrcaId: (json['mrcaId'] as num?)?.toInt(),
@@ -38,6 +42,8 @@ class ProductosRequestModel {
         prodCompraPorCantidad: (json['prodCompraPorCantidad'] as num?)?.toInt(),
         prodCantidadCompra: (json['prodCantidadCompra'] as num?)?.toDouble(),
         prodPresentacionCompra: json['prodPresentacionCompra']?.toString(),
+        prodStockMinimo: (json['prodStockMinimo'] as num?)?.toDouble(),
+        prodStockMaximo: (json['prodStockMaximo'] as num?)?.toDouble(),
       );
 
   Map<String, dynamic> toJson() => <String, dynamic>{
@@ -52,5 +58,7 @@ class ProductosRequestModel {
         if (prodCompraPorCantidad != null) 'prodCompraPorCantidad': prodCompraPorCantidad,
         if (prodCantidadCompra != null) 'prodCantidadCompra': prodCantidadCompra,
         if (prodPresentacionCompra != null) 'prodPresentacionCompra': prodPresentacionCompra,
+        if (prodStockMinimo != null) 'prodStockMinimo': prodStockMinimo,
+        'prodStockMaximo': prodStockMaximo,
       };
 }

@@ -12,8 +12,15 @@ class ProductosResponseModel {
     this.prodCompraPorCantidad,
     this.prodCantidadCompra,
     this.prodPresentacionCompra,
+    this.prodStockMinimo,
+    this.prodStockMaximo,
     this.inventarioActual,
     this.ventasAyer,
+    this.precioVigenteId,
+    this.precioVentaVigente,
+    this.precioCompraVigente,
+    this.precioAplicaImpuesto,
+    this.precioPorcentajeImpuesto,
     this.prodCreadoPor,
     this.prodFechaCambio,
   });
@@ -29,8 +36,15 @@ class ProductosResponseModel {
   final int? prodCompraPorCantidad;
   final double? prodCantidadCompra;
   final String? prodPresentacionCompra;
+  final double? prodStockMinimo;
+  final double? prodStockMaximo;
   final double? inventarioActual;
   final double? ventasAyer;
+  final int? precioVigenteId;
+  final double? precioVentaVigente;
+  final double? precioCompraVigente;
+  final int? precioAplicaImpuesto;
+  final double? precioPorcentajeImpuesto;
   final String? prodCreadoPor;
   final String? prodFechaCambio;
 
@@ -46,8 +60,15 @@ class ProductosResponseModel {
         prodCompraPorCantidad: _toInt(json['prodCompraPorCantidad']),
         prodCantidadCompra: _toDouble(json['prodCantidadCompra']),
         prodPresentacionCompra: json['prodPresentacionCompra']?.toString(),
+        prodStockMinimo: _toDouble(json['prodStockMinimo']),
+        prodStockMaximo: _toDouble(json['prodStockMaximo']),
         inventarioActual: _toDouble(json['inventarioActual']),
         ventasAyer: _toDouble(json['ventasAyer']),
+        precioVigenteId: _toInt(json['precioVigenteId']),
+        precioVentaVigente: _toDouble(json['precioVentaVigente']),
+        precioCompraVigente: _toDouble(json['precioCompraVigente']),
+        precioAplicaImpuesto: _toInt(json['precioAplicaImpuesto']),
+        precioPorcentajeImpuesto: _toDouble(json['precioPorcentajeImpuesto']),
         prodCreadoPor: json['prodCreadoPor']?.toString(),
         prodFechaCambio: json['prodFechaCambio']?.toString(),
       );
@@ -64,8 +85,15 @@ class ProductosResponseModel {
         'prodCompraPorCantidad': prodCompraPorCantidad,
         'prodCantidadCompra': prodCantidadCompra,
         'prodPresentacionCompra': prodPresentacionCompra,
+        'prodStockMinimo': prodStockMinimo,
+        'prodStockMaximo': prodStockMaximo,
         'inventarioActual': inventarioActual,
         'ventasAyer': ventasAyer,
+        'precioVigenteId': precioVigenteId,
+        'precioVentaVigente': precioVentaVigente,
+        'precioCompraVigente': precioCompraVigente,
+        'precioAplicaImpuesto': precioAplicaImpuesto,
+        'precioPorcentajeImpuesto': precioPorcentajeImpuesto,
         'prodCreadoPor': prodCreadoPor,
         'prodFechaCambio': prodFechaCambio,
       };

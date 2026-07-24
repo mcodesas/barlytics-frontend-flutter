@@ -5,6 +5,7 @@ class UsuariosResponseModel {
     this.ciudId,
     this.emprId,
     this.sucuId,
+    this.sucursalIds = const <int>[],
     this.usuaEstado,
     this.usuaBloqueado,
     this.usuaPrimerNombre,
@@ -25,6 +26,7 @@ class UsuariosResponseModel {
   final int? ciudId;
   final int? emprId;
   final int? sucuId;
+  final List<int> sucursalIds;
   final int? usuaEstado;
   final int? usuaBloqueado;
   final String? usuaPrimerNombre;
@@ -45,6 +47,10 @@ class UsuariosResponseModel {
       ciudId: (json['ciudId'] as num?)?.toInt(),
       emprId: (json['emprId'] as num?)?.toInt(),
       sucuId: (json['sucuId'] as num?)?.toInt(),
+      sucursalIds: (json['sucursalIds'] as List? ?? const <Object?>[])
+          .map((value) => int.tryParse(value.toString()))
+          .whereType<int>()
+          .toList(growable: false),
       usuaEstado: (json['usuaEstado'] as num?)?.toInt(),
       usuaBloqueado: (json['usuaBloqueado'] as num?)?.toInt(),
       usuaPrimerNombre: json['usuaPrimerNombre']?.toString(),
@@ -66,6 +72,7 @@ class UsuariosResponseModel {
       'ciudId': ciudId,
       'emprId': emprId,
       'sucuId': sucuId,
+      'sucursalIds': sucursalIds,
       'usuaEstado': usuaEstado,
       'usuaBloqueado': usuaBloqueado,
       'usuaPrimerNombre': usuaPrimerNombre,

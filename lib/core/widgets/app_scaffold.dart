@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -9,6 +11,7 @@ import '../../features/auth/presentation/providers/auth_provider.dart';
 import '../../features/mesero/presentation/providers/mesero_tab_provider.dart';
 import '../../features/navigation/data/models/user_menu_item.dart';
 import '../../features/navigation/presentation/providers/user_menu_provider.dart';
+import '../../features/profile/presentation/providers/profile_header_provider.dart';
 import '../utils/responsive_utils.dart';
 import 'tech_background.dart';
 
@@ -160,7 +163,16 @@ class _AppScaffoldState extends ConsumerState<AppScaffold> {
     }
 
     return Scaffold(
-      drawer: Drawer(child: _DrawerContent(onLogout: () => _logout(context), palette: palette)),
+      drawer: Drawer(
+        backgroundColor: Colors.transparent,
+        surfaceTintColor: Colors.transparent,
+        elevation: 0,
+        shape: const RoundedRectangleBorder(side: BorderSide.none),
+        child: _DrawerContent(
+          onLogout: () => _logout(context),
+          palette: palette,
+        ),
+      ),
       body: SafeArea(
         child: Column(
           children: [
@@ -184,68 +196,31 @@ class _AppScaffoldState extends ConsumerState<AppScaffold> {
   }
 
   Future<void> _logout(BuildContext context) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Cerrar sesión'),
+        content: const Text('¿Deseas salir de BarLytics en este dispositivo?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(dialogContext).pop(false),
+            child: const Text('Cancelar'),
+          ),
+          FilledButton.icon(
+            onPressed: () => Navigator.of(dialogContext).pop(true),
+            icon: const Icon(Icons.logout_rounded),
+            label: const Text('Cerrar sesión'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true || !context.mounted) return;
+
     await ref.read(authControllerProvider.notifier).logout();
     ref.invalidate(userMenuProvider);
+    ref.invalidate(profileHeaderProvider);
     if (context.mounted) context.go('/login');
   }
-}
-
-class _PageMetadata {
-  const _PageMetadata({
-    required this.title,
-    required this.subtitle,
-    required this.icon,
-    this.eyebrow = 'Administración',
-    this.statusText,
-  });
-
-  final String title;
-  final String subtitle;
-  final IconData icon;
-  final String eyebrow;
-  final String? statusText;
-}
-
-const Map<String, _PageMetadata> _pageMetadata = <String, _PageMetadata>{
-  '/home': _PageMetadata(title: 'Inicio', subtitle: 'Accede rápidamente a los módulos habilitados para tu usuario.', icon: Icons.home_rounded, eyebrow: 'BarLytics'),
-  '/profile': _PageMetadata(title: 'Mi perfil', subtitle: 'Consulta y actualiza la información de tu cuenta.', icon: Icons.account_circle_rounded, eyebrow: 'Cuenta'),
-  '/usuarios': _PageMetadata(title: 'Usuarios', subtitle: 'Administra usuarios, sucursales asignadas, estados y roles.', icon: Icons.people_alt_rounded),
-  '/roles': _PageMetadata(title: 'Roles', subtitle: 'Define perfiles de acceso y responsabilidades dentro del sistema.', icon: Icons.admin_panel_settings_rounded),
-  '/menus': _PageMetadata(title: 'Menús', subtitle: 'Organiza los módulos disponibles dentro de la navegación.', icon: Icons.menu_book_rounded),
-  '/opciones_menu': _PageMetadata(title: 'Opciones de menú', subtitle: 'Configura las opciones y permisos visibles para cada rol.', icon: Icons.rule_folder_rounded),
-  '/empresas': _PageMetadata(title: 'Empresas', subtitle: 'Administra los negocios registrados y su información principal.', icon: Icons.domain_rounded),
-  '/sucursales': _PageMetadata(title: 'Sucursales', subtitle: 'Gestiona sedes, ubicación, moneda y operación por sucursal.', icon: Icons.store_rounded),
-  '/parametros': _PageMetadata(title: 'Parámetros', subtitle: 'Centraliza configuraciones funcionales por empresa o sucursal.', icon: Icons.tune_rounded),
-  '/medios_pago': _PageMetadata(title: 'Medios de pago', subtitle: 'Activa medios de pago y configura el QR de cada sucursal.', icon: Icons.payments_rounded),
-  '/productos': _PageMetadata(title: 'Productos', subtitle: 'Administra el catálogo disponible para venta e inventario.', icon: Icons.inventory_2_rounded),
-  '/inventario': _PageMetadata(title: 'Inventario', subtitle: 'Consulta existencias y disponibilidad por sucursal.', icon: Icons.fact_check_rounded),
-  '/precios': _PageMetadata(title: 'Precios', subtitle: 'Gestiona valores de compra, venta e impuestos vigentes.', icon: Icons.price_change_rounded),
-  '/tipos_producto': _PageMetadata(title: 'Tipos de producto', subtitle: 'Clasifica el catálogo para facilitar búsqueda y operación.', icon: Icons.category_rounded),
-  '/marcas': _PageMetadata(title: 'Marcas', subtitle: 'Administra las marcas asociadas al catálogo de productos.', icon: Icons.sell_rounded),
-  '/movimientos': _PageMetadata(title: 'Movimientos', subtitle: 'Consulta entradas, salidas y ajustes de inventario.', icon: Icons.sync_alt_rounded),
-  '/mesas': _PageMetadata(title: 'Mesas', subtitle: 'Configura mesas, estado, descripción e imagen por sucursal.', icon: Icons.table_restaurant_rounded),
-  '/ventas': _PageMetadata(title: 'Ventas', subtitle: 'Consulta documentos de venta y su estado operativo.', icon: Icons.receipt_long_rounded),
-  '/cuentas_venta': _PageMetadata(title: 'Cuentas de venta', subtitle: 'Consulta las cuentas asociadas a cada venta.', icon: Icons.receipt_rounded),
-  '/detalle_cuenta_venta': _PageMetadata(title: 'Detalle de cuentas', subtitle: 'Consulta productos y valores registrados por cuenta.', icon: Icons.list_alt_rounded),
-  '/pagos': _PageMetadata(title: 'Pagos', subtitle: 'Consulta pagos aplicados a las cuentas de venta.', icon: Icons.account_balance_wallet_rounded),
-  '/reportes': _PageMetadata(title: 'Reportes', subtitle: 'Analiza información operativa y resultados del negocio.', icon: Icons.analytics_rounded, eyebrow: 'Analítica'),
-  '/paises': _PageMetadata(title: 'Países', subtitle: 'Administra el catálogo geográfico de países.', icon: Icons.public_rounded, eyebrow: 'Configuración'),
-  '/regiones': _PageMetadata(title: 'Regiones', subtitle: 'Administra regiones y su relación geográfica.', icon: Icons.map_rounded, eyebrow: 'Configuración'),
-  '/ciudades': _PageMetadata(title: 'Ciudades', subtitle: 'Administra ciudades, códigos y zonas horarias.', icon: Icons.location_city_rounded, eyebrow: 'Configuración'),
-  '/zonas_horarias': _PageMetadata(title: 'Zonas horarias', subtitle: 'Configura zonas horarias usadas por empresas y sucursales.', icon: Icons.schedule_rounded, eyebrow: 'Configuración'),
-  '/monedas': _PageMetadata(title: 'Monedas', subtitle: 'Administra monedas, símbolos y precisión decimal.', icon: Icons.currency_exchange_rounded, eyebrow: 'Configuración'),
-};
-
-_PageMetadata? _metadataForPath(String path) {
-  _PageMetadata? result;
-  var bestLength = -1;
-  for (final entry in _pageMetadata.entries) {
-    if ((path == entry.key || path.startsWith('${entry.key}/')) && entry.key.length > bestLength) {
-      result = entry.value;
-      bestLength = entry.key.length;
-    }
-  }
-  return result;
 }
 
 String _resolveCurrentPageTitle(
@@ -267,8 +242,38 @@ String _resolveCurrentPageTitle(
     };
   }
 
-  final metadata = _metadataForPath(path);
-  if (metadata != null) return metadata.title;
+  const routeTitles = <String, String>{
+    '/home': 'Inicio',
+    '/profile': 'Mi perfil',
+    '/reportes': 'Reportes',
+    '/ganancias': 'Ganancias',
+    '/proximo_pedido': 'Próximo pedido',
+    '/productos': 'Productos',
+    '/inventario': 'Inventario',
+    '/precios': 'Precios',
+    '/tablas_parametricas': 'Tablas paramétricas',
+    '/tipos_producto': 'Tipos de producto',
+    '/marcas': 'Marcas',
+    '/movimientos': 'Movimientos',
+    '/medios_pago': 'Medios de pago por sucursal',
+    '/usuarios': 'Usuarios',
+    '/roles': 'Roles',
+    '/empresas': 'Empresas',
+    '/sucursales': 'Sucursales',
+    '/ventas': 'Ventas',
+    '/regiones': 'Regiones',
+    '/zonas_horarias': 'Zonas horarias',
+  };
+
+  String? bestStaticTitle;
+  var bestStaticLength = -1;
+  for (final entry in routeTitles.entries) {
+    if ((path == entry.key || path.startsWith('${entry.key}/')) && entry.key.length > bestStaticLength) {
+      bestStaticTitle = entry.value;
+      bestStaticLength = entry.key.length;
+    }
+  }
+  if (bestStaticTitle != null) return bestStaticTitle;
 
   final authorizedItems = ref.watch(userMenuProvider).maybeWhen(
         data: (items) => items,
@@ -311,8 +316,17 @@ String? _resolveCurrentPageSubtitle(
       MeseroPageMode.cierreCaja => 'Cuadra las ventas y medios de pago del turno actual.',
     };
   }
+  if (isInventario && path.startsWith('/ganancias')) {
+    return 'Consulta ingresos, costos, margen y rentabilidad real del periodo.';
+  }
+  if (isInventario && path.startsWith('/proximo_pedido')) {
+    return 'Planea la reposición según stock actual, mínimo, máximo y presentación de compra.';
+  }
+  if (isInventario && path.startsWith('/tablas_parametricas')) {
+    return 'Organiza tipos de producto, marcas y medios de pago en un solo lugar.';
+  }
   if (isInventario) return 'Gestiona inventario, movimientos y trazabilidad del stock.';
-  return _metadataForPath(path)?.subtitle;
+  return null;
 }
 
 String? _resolveCurrentPageEyebrow(
@@ -332,8 +346,17 @@ String? _resolveCurrentPageEyebrow(
       MeseroPageMode.cierreCaja => 'Control del turno',
     };
   }
+  if (isInventario && path.startsWith('/ganancias')) {
+    return 'Analítica de rentabilidad';
+  }
+  if (isInventario && path.startsWith('/proximo_pedido')) {
+    return 'Planificación de compras';
+  }
+  if (isInventario && path.startsWith('/tablas_parametricas')) {
+    return 'Configuración operativa';
+  }
   if (isInventario) return 'Operación de inventario';
-  return _metadataForPath(path)?.eyebrow;
+  return null;
 }
 
 String? _resolveCurrentPageStatusText(
@@ -344,9 +367,11 @@ String? _resolveCurrentPageStatusText(
 }) {
   final path = GoRouterState.of(context).uri.path;
   if (isOperativo && path.startsWith('/mesero')) {
-    return isInventario ? 'Stock activo' : null;
+    return isInventario ? 'Stock activo' : 'Caja activa';
   }
-  return _metadataForPath(path)?.statusText;
+  if (isInventario && path.startsWith('/ganancias')) return 'Periodo actual';
+  if (isInventario && path.startsWith('/proximo_pedido')) return 'Stock actualizado';
+  return null;
 }
 
 IconData? _resolveCurrentPageIcon(
@@ -366,11 +391,20 @@ IconData? _resolveCurrentPageIcon(
       MeseroPageMode.cierreCaja => Icons.point_of_sale_rounded,
     };
   }
+  if (isInventario && path.startsWith('/ganancias')) {
+    return Icons.trending_up;
+  }
+  if (isInventario && path.startsWith('/proximo_pedido')) {
+    return Icons.local_shipping_rounded;
+  }
+  if (isInventario && path.startsWith('/tablas_parametricas')) {
+    return Icons.tune_rounded;
+  }
   if (isInventario) return Icons.inventory_rounded;
-  return _metadataForPath(path)?.icon;
+  return null;
 }
 
-class _PageTopBar extends StatelessWidget {
+class _PageTopBar extends ConsumerWidget {
   const _PageTopBar({
     required this.title,
     required this.palette,
@@ -394,7 +428,7 @@ class _PageTopBar extends StatelessWidget {
   final VoidCallback onMenuPressed;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final compact = MediaQuery.sizeOf(context).width < 780;
     final showRichHeader = subtitle != null || eyebrow != null || statusText != null || leadingContentIcon != null;
 
@@ -425,25 +459,12 @@ class _PageTopBar extends StatelessWidget {
             child: Container(
               height: compact ? 68 : 76,
               padding: EdgeInsets.symmetric(horizontal: compact ? 14 : 18, vertical: compact ? 10 : 12),
-              decoration: BoxDecoration(
-                borderRadius: BorderRadius.circular(26),
-                gradient: LinearGradient(
-                  colors: [
-                    palette.surface.withOpacity(palette.darkBackground ? 0.86 : 0.92),
-                    Color.lerp(palette.surface, palette.primary, 0.08)?.withOpacity(palette.darkBackground ? 0.84 : 0.90) ?? palette.surface,
-                    Color.lerp(palette.surface, palette.secondary, 0.08)?.withOpacity(palette.darkBackground ? 0.84 : 0.90) ?? palette.surface,
-                  ],
-                  begin: Alignment.centerLeft,
-                  end: Alignment.centerRight,
-                ),
+              decoration: palette.panelDecoration(
+                baseRadius: 26,
+                tint: palette.secondary,
+                elevated: palette.surfaceStyle != AppSurfacePreset.flat,
+              ).copyWith(
                 border: Border.all(color: palette.secondary.withOpacity(0.18), width: 1.15),
-                boxShadow: [
-                  BoxShadow(
-                    color: palette.secondary.withOpacity(0.08),
-                    blurRadius: 18,
-                    offset: const Offset(0, 8),
-                  ),
-                ],
               ),
               child: Row(
                 children: [
@@ -457,7 +478,7 @@ class _PageTopBar extends StatelessWidget {
                           begin: Alignment.topLeft,
                           end: Alignment.bottomRight,
                         ),
-                        borderRadius: BorderRadius.circular(15),
+                        borderRadius: BorderRadius.circular(palette.radius(15)),
                         boxShadow: [
                           BoxShadow(color: palette.secondary.withOpacity(0.14), blurRadius: 16, offset: const Offset(0, 8)),
                         ],
@@ -480,7 +501,7 @@ class _PageTopBar extends StatelessWidget {
                                       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
                                       decoration: BoxDecoration(
                                         color: palette.secondary.withOpacity(0.10),
-                                        borderRadius: BorderRadius.circular(999),
+                                        borderRadius: BorderRadius.circular(palette.radius(999)),
                                         border: Border.all(color: palette.secondary.withOpacity(0.16)),
                                       ),
                                       child: Text(
@@ -549,7 +570,7 @@ class _PageTopBar extends StatelessWidget {
                       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
                       decoration: BoxDecoration(
                         color: palette.primary.withOpacity(0.10),
-                        borderRadius: BorderRadius.circular(999),
+                        borderRadius: BorderRadius.circular(palette.radius(999)),
                         border: Border.all(color: palette.primary.withOpacity(0.18)),
                       ),
                       child: Row(
@@ -565,14 +586,6 @@ class _PageTopBar extends StatelessWidget {
                 ],
               ),
             ),
-          ),
-          SizedBox(width: compact ? 10 : 12),
-          _TopBarIconButton(
-            semanticLabel: 'Abrir mi perfil',
-            icon: Icons.account_circle_rounded,
-            onTap: () => context.go('/profile'),
-            palette: palette,
-            accent: true,
           ),
         ],
       ),
@@ -623,6 +636,188 @@ class _TopBarIconButton extends StatelessWidget {
   }
 }
 
+class _MenuProfileCard extends StatelessWidget {
+  const _MenuProfileCard({
+    required this.profile,
+    required this.palette,
+    this.dark = false,
+    this.compact = false,
+  });
+
+  final ProfileHeaderInfo profile;
+  final AppPalette palette;
+  final bool dark;
+  final bool compact;
+
+  @override
+  Widget build(BuildContext context) {
+    final displayName = (profile.displayName ?? '').trim();
+    final title = displayName.isEmpty ? 'Mi perfil' : displayName;
+    final subtitle = displayName.isEmpty ? 'Ver datos de mi cuenta' : 'Mi perfil y cuenta';
+    final avatar = ClipOval(
+      child: SizedBox(
+        width: compact ? 40 : 46,
+        height: compact ? 40 : 46,
+        child: _TopBarProfileImage(
+          value: profile.photo,
+          initials: profile.initials,
+          palette: palette,
+        ),
+      ),
+    );
+
+    if (compact) {
+      return Tooltip(
+        message: 'Mi perfil',
+        child: Material(
+          color: dark ? Colors.white.withOpacity(0.10) : palette.secondary.withOpacity(0.10),
+          shape: const CircleBorder(),
+          clipBehavior: Clip.antiAlias,
+          child: InkWell(
+            onTap: () => context.go('/profile'),
+            child: Padding(padding: const EdgeInsets.all(6), child: avatar),
+          ),
+        ),
+      );
+    }
+
+    return Material(
+      color: dark ? Colors.white.withOpacity(0.10) : palette.secondary.withOpacity(0.08),
+      borderRadius: BorderRadius.circular(22),
+      clipBehavior: Clip.antiAlias,
+      child: InkWell(
+        borderRadius: BorderRadius.circular(22),
+        onTap: () => context.go('/profile'),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 11),
+          child: Row(
+            children: [
+              avatar,
+              const SizedBox(width: 11),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      title,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        color: dark ? Colors.white : palette.textPrimary,
+                        fontWeight: FontWeight.w900,
+                        fontSize: 14,
+                      ),
+                    ),
+                    const SizedBox(height: 3),
+                    Text(
+                      subtitle,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        color: dark ? Colors.white70 : palette.textSecondary,
+                        fontWeight: FontWeight.w700,
+                        fontSize: 11.5,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              Icon(Icons.chevron_right_rounded, color: dark ? Colors.white70 : palette.secondary),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _TopBarProfileImage extends StatelessWidget {
+  const _TopBarProfileImage({
+    required this.value,
+    required this.initials,
+    required this.palette,
+  });
+
+  final String? value;
+  final String initials;
+  final AppPalette palette;
+
+  @override
+  Widget build(BuildContext context) {
+    final normalized = (value ?? '').trim();
+    final fallback = _fallback();
+    if (normalized.isEmpty) return fallback;
+
+    if (normalized.startsWith('data:image')) {
+      final comma = normalized.indexOf(',');
+      if (comma >= 0) {
+        try {
+          return Image.memory(
+            base64Decode(normalized.substring(comma + 1)),
+            width: double.infinity,
+            height: double.infinity,
+            fit: BoxFit.cover,
+            gaplessPlayback: true,
+            errorBuilder: (_, __, ___) => fallback,
+          );
+        } catch (_) {
+          return fallback;
+        }
+      }
+    }
+
+    if (normalized.startsWith('http://') || normalized.startsWith('https://')) {
+      return Image.network(
+        normalized,
+        width: double.infinity,
+        height: double.infinity,
+        fit: BoxFit.cover,
+        gaplessPlayback: true,
+        errorBuilder: (_, __, ___) => fallback,
+      );
+    }
+
+    try {
+      return Image.memory(
+        base64Decode(normalized),
+        width: double.infinity,
+        height: double.infinity,
+        fit: BoxFit.cover,
+        gaplessPlayback: true,
+        errorBuilder: (_, __, ___) => fallback,
+      );
+    } catch (_) {
+      return fallback;
+    }
+  }
+
+  Widget _fallback() {
+    return Container(
+      width: double.infinity,
+      height: double.infinity,
+      alignment: Alignment.center,
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          colors: [palette.primary, palette.secondary],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+      ),
+      child: initials.isNotEmpty
+          ? Text(
+              initials,
+              style: TextStyle(
+                color: palette.onPrimary,
+                fontWeight: FontWeight.w900,
+                fontSize: 13,
+                letterSpacing: 0.2,
+              ),
+            )
+          : Icon(Icons.person_rounded, color: palette.onPrimary, size: 24),
+    );
+  }
+}
+
 class _PaletteAwareBody extends StatelessWidget {
   const _PaletteAwareBody({required this.child, required this.palette});
 
@@ -631,74 +826,10 @@ class _PaletteAwareBody extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final baseTheme = Theme.of(context);
     return Stack(
       children: [
         const Positioned.fill(child: AppPageBackground()),
-        Positioned.fill(
-          child: Theme(
-            data: baseTheme.copyWith(
-              scaffoldBackgroundColor: Colors.transparent,
-              canvasColor: palette.background,
-              cardColor: palette.surface,
-              colorScheme: baseTheme.colorScheme.copyWith(
-                primary: palette.primary,
-                secondary: palette.secondary,
-                surface: palette.surface,
-                onSurface: palette.textPrimary,
-                background: palette.background,
-                onBackground: palette.textPrimary,
-              ),
-              appBarTheme: baseTheme.appBarTheme.copyWith(
-                backgroundColor: palette.titleBackground,
-                foregroundColor: palette.titleText,
-                surfaceTintColor: Colors.transparent,
-              ),
-              inputDecorationTheme: baseTheme.inputDecorationTheme.copyWith(
-                filled: true,
-                fillColor: palette.surface.withOpacity(palette.darkBackground ? 0.88 : 0.96),
-                labelStyle: TextStyle(color: palette.textSecondary, fontWeight: FontWeight.w700),
-                hintStyle: TextStyle(color: palette.textSecondary.withOpacity(0.78)),
-              ),
-              textTheme: baseTheme.textTheme.apply(
-                bodyColor: palette.textPrimary,
-                displayColor: palette.textPrimary,
-              ),
-              filledButtonTheme: FilledButtonThemeData(
-                style: FilledButton.styleFrom(
-                  backgroundColor: palette.actionColor,
-                  foregroundColor: palette.onAction,
-                  disabledBackgroundColor: palette.textSecondary.withOpacity(0.28),
-                  disabledForegroundColor: palette.textSecondary.withOpacity(0.70),
-                  textStyle: const TextStyle(fontWeight: FontWeight.w900),
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
-                ),
-              ),
-              outlinedButtonTheme: OutlinedButtonThemeData(
-                style: OutlinedButton.styleFrom(
-                  foregroundColor: palette.secondary,
-                  side: BorderSide(color: palette.secondary.withOpacity(0.42)),
-                  textStyle: const TextStyle(fontWeight: FontWeight.w900),
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
-                ),
-              ),
-              textButtonTheme: TextButtonThemeData(
-                style: TextButton.styleFrom(
-                  foregroundColor: palette.secondary,
-                  textStyle: const TextStyle(fontWeight: FontWeight.w900),
-                ),
-              ),
-              chipTheme: baseTheme.chipTheme.copyWith(
-                backgroundColor: palette.surface.withOpacity(palette.darkBackground ? 0.88 : 0.94),
-                selectedColor: palette.secondary.withOpacity(0.16),
-                labelStyle: TextStyle(color: palette.textPrimary, fontWeight: FontWeight.w800),
-                secondaryLabelStyle: TextStyle(color: palette.textPrimary, fontWeight: FontWeight.w800),
-                side: BorderSide(color: palette.cardBorder),
-              ),
-            ),
-            child: child,
-          ),
-        ),
+        Positioned.fill(child: child),
       ],
     );
   }
@@ -721,7 +852,7 @@ class _DesktopMenuLauncher extends StatelessWidget {
         color: palette.surface.withOpacity(0.96),
         elevation: 12,
         shadowColor: Colors.black.withOpacity(0.34),
-        borderRadius: BorderRadius.circular(16),
+        borderRadius: BorderRadius.circular(palette.radius(16)),
         clipBehavior: Clip.antiAlias,
         child: InkWell(
           onTap: onPressed,
@@ -729,7 +860,7 @@ class _DesktopMenuLauncher extends StatelessWidget {
             width: 52,
             height: 52,
             decoration: BoxDecoration(
-              borderRadius: BorderRadius.circular(16),
+              borderRadius: BorderRadius.circular(palette.radius(16)),
               border: Border.all(color: palette.cardBorder),
             ),
             child: Icon(Icons.menu_rounded, color: palette.secondary, size: 27),
@@ -756,7 +887,7 @@ class AppMenuToggleButton extends ConsumerWidget {
       label: menuOpen ? 'Ocultar menú' : 'Mostrar menú',
       child: Material(
         color: palette.background.withOpacity(palette.darkBackground ? 0.48 : 0.78),
-        borderRadius: BorderRadius.circular(14),
+        borderRadius: BorderRadius.circular(palette.radius(14)),
         clipBehavior: Clip.antiAlias,
         child: InkWell(
           onTap: () {
@@ -771,7 +902,7 @@ class AppMenuToggleButton extends ConsumerWidget {
             height: size,
             alignment: Alignment.center,
             decoration: BoxDecoration(
-              borderRadius: BorderRadius.circular(14),
+              borderRadius: BorderRadius.circular(palette.radius(14)),
               border: Border.all(
                 color: menuOpen
                     ? palette.secondary.withOpacity(0.42)
@@ -875,7 +1006,16 @@ class _MeseroScaffold extends StatelessWidget {
     }
 
     return Scaffold(
-      drawer: Drawer(child: _MeseroDrawerContent(onLogout: onLogout, palette: palette)),
+      drawer: Drawer(
+        backgroundColor: Colors.transparent,
+        surfaceTintColor: Colors.transparent,
+        elevation: 0,
+        shape: const RoundedRectangleBorder(side: BorderSide.none),
+        child: _MeseroDrawerContent(
+          onLogout: onLogout,
+          palette: palette,
+        ),
+      ),
       body: SafeArea(
         child: Column(
           children: [
@@ -900,7 +1040,7 @@ class _MeseroScaffold extends StatelessWidget {
   }
 }
 
-class _MeseroSideNavigation extends StatelessWidget {
+class _MeseroSideNavigation extends ConsumerWidget {
   const _MeseroSideNavigation({
     required this.onLogout,
     required this.collapsed,
@@ -914,7 +1054,15 @@ class _MeseroSideNavigation extends StatelessWidget {
   final AppPalette palette;
 
   @override
-  Widget build(BuildContext context) => AnimatedContainer(
+  Widget build(BuildContext context, WidgetRef ref) {
+    final profile = ref.watch(profileHeaderProvider).maybeWhen(
+          data: (value) => value,
+          orElse: () => const ProfileHeaderInfo(),
+        );
+    final roles = ref.watch(authControllerProvider).roles;
+    final isInventario = roles.any(_isInventoryRole);
+    final menuAsync = ref.watch(userMenuProvider);
+    return AnimatedContainer(
         duration: const Duration(milliseconds: 220),
         curve: Curves.easeOutCubic,
         width: 280,
@@ -928,11 +1076,10 @@ class _MeseroSideNavigation extends StatelessWidget {
             begin: Alignment.topCenter,
             end: Alignment.bottomCenter,
           ),
-          border: Border(right: BorderSide(color: palette.cardBorder)),
         ),
         child: Stack(
           children: [
-            Positioned(top: -70, right: -100, child: GlowCircle(size: 240, opacity: 0.18, color: palette.primary)),
+            Positioned(top: -70, right: -100, child: GlowCircle(size: 240, opacity: 0.18, color: palette.accent)),
             Positioned(bottom: -90, left: -120, child: GlowCircle(size: 280, opacity: 0.12, color: palette.secondary)),
             SafeArea(
               child: Column(
@@ -944,9 +1091,23 @@ class _MeseroSideNavigation extends StatelessWidget {
                       primary: false,
                       padding: EdgeInsets.symmetric(horizontal: collapsed ? 10 : 14, vertical: 8),
                       children: [
+                        _MenuProfileCard(profile: profile, palette: palette, dark: true, compact: collapsed),
+                        const SizedBox(height: 6),
                         _NavTile(title: 'Inicio', keyName: 'home', path: '/home', dark: true, compact: collapsed, palette: palette),
                         _NavTile(title: 'Apariencia', keyName: 'parametros', path: '__appearance__', dark: true, compact: collapsed, palette: palette, onTap: () => showPaletteSettingsDialog(context)),
-                        _NavTile(title: 'Mi perfil', keyName: 'usuarios', path: '/profile', dark: true, compact: collapsed, palette: palette),
+                        if (isInventario && !collapsed) ...[
+                          const SizedBox(height: 8),
+                          const _NavSectionLabel('Opciones de inventario'),
+                        ],
+                        if (isInventario)
+                          ..._authorizedMenuWidgets(
+                            context: context,
+                            ref: ref,
+                            menuAsync: menuAsync.whenData(_ensureInventoryAnalysisMenus),
+                            dark: true,
+                            compact: collapsed,
+                            palette: palette,
+                          ),
                       ],
                     ),
                   ),
@@ -960,48 +1121,59 @@ class _MeseroSideNavigation extends StatelessWidget {
           ],
         ),
       );
+  }
 }
 
-class _MeseroDrawerContent extends StatelessWidget {
+class _MeseroDrawerContent extends ConsumerWidget {
   const _MeseroDrawerContent({required this.onLogout, required this.palette});
   final VoidCallback onLogout;
   final AppPalette palette;
 
   @override
-  Widget build(BuildContext context) => Container(
-        decoration: BoxDecoration(
-          gradient: LinearGradient(
-            colors: [
-              palette.surface,
-              Color.lerp(palette.surface, palette.primary, 0.18) ?? palette.surface,
-              Color.lerp(palette.surface, palette.secondary, 0.10) ?? palette.surface,
-              palette.surface,
-            ],
-            begin: Alignment.topCenter,
-            end: Alignment.bottomCenter,
-          ),
-        ),
+  Widget build(BuildContext context, WidgetRef ref) {
+    final profile = ref.watch(profileHeaderProvider).maybeWhen(
+          data: (value) => value,
+          orElse: () => const ProfileHeaderInfo(),
+        );
+    final roles = ref.watch(authControllerProvider).roles;
+    final isInventario = roles.any(_isInventoryRole);
+    final menuAsync = ref.watch(userMenuProvider);
+    return Container(
+        decoration: BoxDecoration(gradient: palette.softGradient),
         child: Column(
           children: [
-            const _BrandHeader(dark: true),
+            const _BrandHeader(dark: false),
             Expanded(
               child: ListView(
                 primary: false,
                 padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
                 children: [
-                  _NavTile(title: 'Inicio', keyName: 'home', path: '/home', dark: true, palette: palette),
-                  _NavTile(title: 'Apariencia', keyName: 'parametros', path: '__appearance__', dark: true, palette: palette, onTap: () => showPaletteSettingsDialog(context)),
-                  _NavTile(title: 'Mi perfil', keyName: 'usuarios', path: '/profile', dark: true, palette: palette),
+                  _MenuProfileCard(profile: profile, palette: palette),
+                  const SizedBox(height: 6),
+                  _NavTile(title: 'Inicio', keyName: 'home', path: '/home', palette: palette),
+                  _NavTile(title: 'Apariencia', keyName: 'parametros', path: '__appearance__', palette: palette, onTap: () => showPaletteSettingsDialog(context)),
+                  if (isInventario) ...[
+                    const Divider(),
+                    ..._authorizedMenuWidgets(
+                      context: context,
+                      ref: ref,
+                      menuAsync: menuAsync.whenData(_ensureInventoryAnalysisMenus),
+                      dark: false,
+                      compact: false,
+                      palette: palette,
+                    ),
+                  ],
                 ],
               ),
             ),
             Padding(
               padding: const EdgeInsets.all(12),
-              child: _LogoutTile(onLogout: onLogout, dark: true),
+              child: _LogoutTile(onLogout: onLogout),
             ),
           ],
         ),
       );
+  }
 }
 
 class _OperationalBottomNavigation extends ConsumerWidget {
@@ -1044,7 +1216,6 @@ class _OperationalBottomNavigation extends ConsumerWidget {
     return Container(
       decoration: BoxDecoration(
         color: palette.surface.withOpacity(palette.darkBackground ? 0.94 : 0.98),
-        border: Border(top: BorderSide(color: palette.cardBorder)),
         boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.10), blurRadius: 24, offset: const Offset(0, -8))],
       ),
       child: SafeArea(
@@ -1076,31 +1247,61 @@ class _OperationalBottomNavigation extends ConsumerWidget {
 class _InventoryBottomNavigation extends ConsumerWidget {
   const _InventoryBottomNavigation();
 
-  static const _items = <({String label, IconData icon, String path})>[
+  static const _allItems = <({String label, IconData icon, String path})>[
     (label: 'Productos', icon: Icons.inventory_2_rounded, path: '/productos'),
     (label: 'Inventario', icon: Icons.fact_check_rounded, path: '/inventario'),
     (label: 'Precios', icon: Icons.price_change_rounded, path: '/precios'),
-    (label: 'Tipos', icon: Icons.category_rounded, path: '/tipos_producto'),
-    (label: 'Marcas', icon: Icons.sell_rounded, path: '/marcas'),
     (label: 'Movimientos', icon: Icons.sync_alt_rounded, path: '/movimientos'),
-    (label: 'Pagos', icon: Icons.payments_rounded, path: '/medios_pago'),
+    (label: 'Parámetros', icon: Icons.tune_rounded, path: '/tablas_parametricas'),
     (label: 'Reportes', icon: Icons.analytics_rounded, path: '/reportes'),
+    (label: 'Ganancias', icon: Icons.trending_up_rounded, path: '/ganancias'),
+    (label: 'Pedido', icon: Icons.local_shipping_rounded, path: '/proximo_pedido'),
   ];
+
+  static const _moreItem = (label: 'Más', icon: Icons.more_horiz_rounded, path: '__more__');
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final palette = ref.watch(selectedAppPaletteProvider);
     final currentPath = GoRouterState.of(context).uri.path;
-    var selectedIndex = _items.indexWhere((item) => currentPath == item.path || currentPath.startsWith('${item.path}/'));
+    final width = MediaQuery.sizeOf(context).width;
+
+    final visibleItems = width >= 1280
+        ? _allItems
+        : width >= 720
+            ? <({String label, IconData icon, String path})>[
+                _allItems[0],
+                _allItems[1],
+                _allItems[3],
+                _allItems[6],
+                _allItems[7],
+              ]
+            : <({String label, IconData icon, String path})>[
+                _allItems[0],
+                _allItems[1],
+                _allItems[6],
+                _allItems[7],
+              ];
+
+    final visiblePaths = visibleItems.map((item) => item.path).toSet();
+    final overflowItems = _allItems.where((item) => !visiblePaths.contains(item.path)).toList(growable: false);
+    final navigationItems = <({String label, IconData icon, String path})>[
+      ...visibleItems,
+      if (overflowItems.isNotEmpty) _moreItem,
+    ];
+
+    final selectedPath = _inventorySelectedPath(currentPath);
+    var selectedIndex = navigationItems.indexWhere((item) => item.path == selectedPath);
+    if (selectedIndex < 0 && overflowItems.any((item) => item.path == selectedPath)) {
+      selectedIndex = navigationItems.indexWhere((item) => item.path == _moreItem.path);
+    }
     if (selectedIndex < 0) selectedIndex = 0;
 
-    final width = MediaQuery.sizeOf(context).width;
-    final isCompact = width < 640;
+    final isCompact = width < 720;
 
     return Container(
       decoration: BoxDecoration(
         color: palette.surface.withOpacity(palette.darkBackground ? 0.96 : 0.99),
-        border: Border(top: BorderSide(color: palette.cardBorder.withOpacity(0.70))),
         boxShadow: [
           BoxShadow(
             color: Colors.black.withOpacity(palette.darkBackground ? 0.24 : 0.11),
@@ -1118,16 +1319,28 @@ class _InventoryBottomNavigation extends ConsumerWidget {
           elevation: 0,
           selectedItemColor: palette.secondary,
           unselectedItemColor: palette.textSecondary.withOpacity(0.86),
-          selectedFontSize: isCompact ? 10.5 : 12,
-          unselectedFontSize: isCompact ? 10 : 11.5,
-          iconSize: isCompact ? 22 : 24,
+          selectedFontSize: isCompact ? 10 : 11.5,
+          unselectedFontSize: isCompact ? 9.5 : 11,
+          iconSize: isCompact ? 21 : 23,
           selectedLabelStyle: const TextStyle(fontWeight: FontWeight.w900, height: 1.15),
           unselectedLabelStyle: const TextStyle(fontWeight: FontWeight.w700, height: 1.15),
           showSelectedLabels: true,
           showUnselectedLabels: true,
-          onTap: (index) => context.go(_items[index].path),
+          onTap: (index) {
+            final item = navigationItems[index];
+            if (item.path == _moreItem.path) {
+              _showInventoryMoreMenu(
+                context: context,
+                palette: palette,
+                items: overflowItems,
+                selectedPath: selectedPath,
+              );
+              return;
+            }
+            context.go(item.path);
+          },
           items: [
-            for (final item in _items)
+            for (final item in navigationItems)
               BottomNavigationBarItem(
                 icon: Padding(
                   padding: const EdgeInsets.only(bottom: 3),
@@ -1135,11 +1348,10 @@ class _InventoryBottomNavigation extends ConsumerWidget {
                 ),
                 activeIcon: Container(
                   margin: const EdgeInsets.only(bottom: 3),
-                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 5),
+                  padding: EdgeInsets.symmetric(horizontal: isCompact ? 10 : 13, vertical: 5),
                   decoration: BoxDecoration(
                     color: palette.secondary.withOpacity(palette.darkBackground ? 0.22 : 0.14),
                     borderRadius: BorderRadius.circular(18),
-                    border: Border.all(color: palette.secondary.withOpacity(0.28)),
                   ),
                   child: Icon(item.icon),
                 ),
@@ -1149,6 +1361,104 @@ class _InventoryBottomNavigation extends ConsumerWidget {
         ),
       ),
     );
+  }
+
+  String _inventorySelectedPath(String currentPath) {
+    if (currentPath == '/tablas_parametricas' ||
+        currentPath.startsWith('/tipos_producto') ||
+        currentPath.startsWith('/marcas') ||
+        currentPath.startsWith('/medios_pago')) {
+      return '/tablas_parametricas';
+    }
+
+    for (final item in _allItems) {
+      if (currentPath == item.path || currentPath.startsWith('${item.path}/')) {
+        return item.path;
+      }
+    }
+    return '/productos';
+  }
+
+  Future<void> _showInventoryMoreMenu({
+    required BuildContext context,
+    required AppPalette palette,
+    required List<({String label, IconData icon, String path})> items,
+    required String selectedPath,
+  }) async {
+    final destination = await showModalBottomSheet<String>(
+      context: context,
+      backgroundColor: Colors.transparent,
+      builder: (sheetContext) => SafeArea(
+        child: Container(
+          margin: const EdgeInsets.all(12),
+          padding: const EdgeInsets.fromLTRB(14, 10, 14, 14),
+          decoration: BoxDecoration(
+            color: palette.surface,
+            borderRadius: BorderRadius.circular(palette.radius(26)),
+            border: Border.all(color: palette.cardBorder),
+            boxShadow: [
+              BoxShadow(color: Colors.black.withOpacity(0.20), blurRadius: 28, offset: const Offset(0, 12)),
+            ],
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Center(
+                child: Container(
+                  width: 44,
+                  height: 4,
+                  margin: const EdgeInsets.only(bottom: 14),
+                  decoration: BoxDecoration(
+                    color: palette.textSecondary.withOpacity(0.30),
+                    borderRadius: BorderRadius.circular(99),
+                  ),
+                ),
+              ),
+              Text(
+                'Más opciones de inventario',
+                style: TextStyle(color: palette.textPrimary, fontSize: 18, fontWeight: FontWeight.w900),
+              ),
+              const SizedBox(height: 4),
+              Text(
+                'Accede a precios, parámetros y reportes sin saturar la navegación principal.',
+                style: TextStyle(color: palette.textSecondary, fontWeight: FontWeight.w600),
+              ),
+              const SizedBox(height: 12),
+              for (final item in items)
+                Padding(
+                  padding: const EdgeInsets.only(bottom: 7),
+                  child: Material(
+                    color: item.path == selectedPath
+                        ? palette.secondary.withOpacity(palette.darkBackground ? 0.20 : 0.10)
+                        : palette.background.withOpacity(palette.darkBackground ? 0.34 : 0.70),
+                    borderRadius: BorderRadius.circular(palette.radius(18)),
+                    child: ListTile(
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(palette.radius(18))),
+                      leading: Container(
+                        width: 42,
+                        height: 42,
+                        decoration: BoxDecoration(
+                          color: palette.secondary.withOpacity(0.14),
+                          borderRadius: BorderRadius.circular(14),
+                        ),
+                        child: Icon(item.icon, color: palette.secondary),
+                      ),
+                      title: Text(item.label, style: TextStyle(color: palette.textPrimary, fontWeight: FontWeight.w900)),
+                      trailing: Icon(Icons.chevron_right_rounded, color: palette.textSecondary),
+                      onTap: () => Navigator.of(sheetContext).pop(item.path),
+                    ),
+                  ),
+                ),
+            ],
+          ),
+        ),
+      ),
+    );
+
+    if (destination != null && context.mounted) {
+      context.go(destination);
+    }
   }
 }
 
@@ -1168,27 +1478,19 @@ class _SideNavigation extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final menuAsync = ref.watch(userMenuProvider);
+    final profile = ref.watch(profileHeaderProvider).maybeWhen(
+          data: (value) => value,
+          orElse: () => const ProfileHeaderInfo(),
+        );
 
     return AnimatedContainer(
       duration: const Duration(milliseconds: 220),
       curve: Curves.easeOutCubic,
       width: 312,
-      decoration: BoxDecoration(
-        gradient: LinearGradient(
-          colors: [
-            palette.surface,
-            Color.lerp(palette.surface, palette.primary, 0.18) ?? palette.surface,
-            Color.lerp(palette.surface, palette.secondary, 0.10) ?? palette.surface,
-            palette.surface,
-          ],
-          begin: Alignment.topCenter,
-          end: Alignment.bottomCenter,
-        ),
-        border: Border(right: BorderSide(color: palette.cardBorder)),
-      ),
+      decoration: BoxDecoration(gradient: palette.mainGradient),
       child: Stack(
         children: [
-          Positioned(top: -80, right: -90, child: GlowCircle(size: 240, opacity: 0.20, color: palette.primary)),
+          Positioned(top: -80, right: -90, child: GlowCircle(size: 240, opacity: 0.20, color: palette.accent)),
           Positioned(bottom: -90, left: -120, child: GlowCircle(size: 300, opacity: 0.14, color: palette.secondary)),
           SafeArea(
             child: Column(
@@ -1202,9 +1504,10 @@ class _SideNavigation extends ConsumerWidget {
                     primary: false,
                     padding: EdgeInsets.symmetric(horizontal: collapsed ? 10 : 14, vertical: 8),
                     children: [
+                      _MenuProfileCard(profile: profile, palette: palette, dark: true, compact: collapsed),
+                      const SizedBox(height: 6),
                       _NavTile(title: 'Inicio', keyName: 'home', path: '/home', dark: true, compact: collapsed, palette: palette),
                       _NavTile(title: 'Apariencia', keyName: 'parametros', path: '__appearance__', dark: true, compact: collapsed, palette: palette, onTap: () => showPaletteSettingsDialog(context)),
-                      _NavTile(title: 'Mi perfil', keyName: 'usuarios', path: '/profile', dark: true, compact: collapsed, palette: palette),
                       if (!collapsed) ...[
                         const SizedBox(height: 8),
                         const _NavSectionLabel('Opciones autorizadas'),
@@ -1241,23 +1544,16 @@ class _DrawerContent extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final menuAsync = ref.watch(userMenuProvider);
+    final profile = ref.watch(profileHeaderProvider).maybeWhen(
+          data: (value) => value,
+          orElse: () => const ProfileHeaderInfo(),
+        );
 
     return Container(
-      decoration: BoxDecoration(
-        gradient: LinearGradient(
-          colors: [
-            palette.surface,
-            Color.lerp(palette.surface, palette.primary, 0.18) ?? palette.surface,
-            Color.lerp(palette.surface, palette.secondary, 0.10) ?? palette.surface,
-            palette.surface,
-          ],
-          begin: Alignment.topCenter,
-          end: Alignment.bottomCenter,
-        ),
-      ),
+      decoration: BoxDecoration(gradient: palette.softGradient),
       child: Column(
         children: [
-          const _BrandHeader(dark: true),
+          const _BrandHeader(dark: false),
           Expanded(
             child: ListView(
               key: const PageStorageKey<String>('mobile-main-navigation-scroll'),
@@ -1265,16 +1561,16 @@ class _DrawerContent extends ConsumerWidget {
               primary: false,
               padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
               children: [
-                _NavTile(title: 'Inicio', keyName: 'home', path: '/home', dark: true, palette: palette),
-                _NavTile(title: 'Apariencia', keyName: 'parametros', path: '__appearance__', dark: true, palette: palette, onTap: () => showPaletteSettingsDialog(context)),
-                _NavTile(title: 'Mi perfil', keyName: 'usuarios', path: '/profile', dark: true, palette: palette),
-                const SizedBox(height: 8),
-                const _NavSectionLabel('Opciones autorizadas'),
+                _MenuProfileCard(profile: profile, palette: palette),
+                const SizedBox(height: 6),
+                _NavTile(title: 'Inicio', keyName: 'home', path: '/home', palette: palette),
+                _NavTile(title: 'Apariencia', keyName: 'parametros', path: '__appearance__', palette: palette, onTap: () => showPaletteSettingsDialog(context)),
+                const Divider(),
                 ..._authorizedMenuWidgets(
                   context: context,
                   ref: ref,
                   menuAsync: menuAsync,
-                  dark: true,
+                  dark: false,
                   compact: false,
                   palette: palette,
                 ),
@@ -1283,12 +1579,53 @@ class _DrawerContent extends ConsumerWidget {
           ),
           Padding(
             padding: const EdgeInsets.all(12),
-            child: _LogoutTile(onLogout: onLogout, dark: true),
+            child: _LogoutTile(onLogout: onLogout),
           ),
         ],
       ),
     );
   }
+}
+
+List<UserMenuItem> _ensureInventoryAnalysisMenus(List<UserMenuItem> items) {
+  final byKey = <String, UserMenuItem>{for (final item in items) item.keyName: item};
+
+  byKey.putIfAbsent(
+    'ganancias',
+    () => const UserMenuItem(
+      keyName: 'ganancias',
+      title: 'Ganancias',
+      path: '/ganancias',
+      description: 'Ganancia bruta, margen y rentabilidad',
+      system: true,
+    ),
+  );
+  byKey.putIfAbsent(
+    'proximo_pedido',
+    () => const UserMenuItem(
+      keyName: 'proximo_pedido',
+      title: 'Próximo pedido',
+      path: '/proximo_pedido',
+      description: 'Reposición sugerida según stock mínimo y máximo',
+      system: true,
+    ),
+  );
+
+  final result = byKey.values.toList(growable: false);
+  const priority = <String, int>{
+    'productos': 0,
+    'inventario': 1,
+    'precios': 2,
+    'movimientos': 3,
+    'tipos_producto': 4,
+    'marcas': 5,
+    'medios_pago': 6,
+    'reportes': 7,
+    'ganancias': 8,
+    'proximo_pedido': 9,
+  };
+  result.sort((a, b) => (priority[a.keyName] ?? 100).compareTo(priority[b.keyName] ?? 100));
+  return result;
 }
 
 List<Widget> _authorizedMenuWidgets({
@@ -1392,7 +1729,6 @@ class _BrandHeader extends StatelessWidget {
               decoration: BoxDecoration(
                 color: dark ? Colors.white.withOpacity(0.10) : palette.surface.withOpacity(palette.darkBackground ? 0.92 : 0.96),
                 borderRadius: BorderRadius.circular(30),
-                border: Border.all(color: dark ? Colors.white.withOpacity(0.18) : palette.cardBorder),
                 boxShadow: [
                   BoxShadow(color: palette.cardShadow, blurRadius: 26, offset: const Offset(0, 14)),
                 ],
@@ -1521,16 +1857,9 @@ class _NavTile extends StatelessWidget {
           width: small ? 36 : 38,
           height: small ? 36 : 38,
           decoration: BoxDecoration(
-            gradient: selected
-                ? LinearGradient(
-                    colors: [appPalette.primary, appPalette.secondary],
-                    begin: Alignment.topLeft,
-                    end: Alignment.bottomRight,
-                  )
-                : null,
+            gradient: selected ? appPalette.mainGradient : null,
             color: selected ? null : (dark ? Colors.white.withOpacity(0.12) : appPalette.secondary.withOpacity(0.12)),
             borderRadius: BorderRadius.circular(15),
-            border: Border.all(color: dark ? Colors.white.withOpacity(0.08) : Colors.transparent),
           ),
           child: Icon(visual.icon, size: small ? 19 : 20, color: selected || dark ? Colors.white : appPalette.secondary),
         );
@@ -1538,7 +1867,7 @@ class _NavTile extends StatelessWidget {
     final tile = Padding(
       padding: const EdgeInsets.symmetric(vertical: 4),
       child: Material(
-        color: selected ? (dark ? appPalette.secondary.withOpacity(0.18) : appPalette.secondary.withOpacity(0.10)) : Colors.transparent,
+        color: selected ? (dark ? Colors.white.withOpacity(0.15) : appPalette.secondary.withOpacity(0.10)) : Colors.transparent,
         borderRadius: BorderRadius.circular(20),
         child: InkWell(
           borderRadius: BorderRadius.circular(20),
@@ -1571,7 +1900,7 @@ class _NavTile extends StatelessWidget {
                               style: TextStyle(color: foreground, fontWeight: selected ? FontWeight.w900 : FontWeight.w700),
                             ),
                           ),
-                          if (selected) Icon(Icons.circle, color: appPalette.secondary, size: 8),
+                          if (selected) Icon(Icons.circle, color: dark ? appPalette.accent : appPalette.secondary, size: 8),
                         ],
                       ),
               );
@@ -1613,12 +1942,11 @@ class _MenuMessage extends StatelessWidget {
         decoration: BoxDecoration(
           color: dark ? Colors.white.withOpacity(0.10) : Colors.white,
           borderRadius: BorderRadius.circular(20),
-          border: Border.all(color: dark ? Colors.white24 : AppColors.border),
         ),
         child: Row(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Icon(icon, color: dark ? AppColors.secondary : AppColors.secondaryDark, size: 22),
+            Icon(icon, color: dark ? AppColors.accent : AppColors.secondaryDark, size: 22),
             const SizedBox(width: 10),
             Expanded(
               child: Column(

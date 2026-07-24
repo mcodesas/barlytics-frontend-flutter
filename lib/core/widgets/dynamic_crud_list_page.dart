@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../app/theme/app_control_metrics.dart';
 import '../../app/theme/app_colors.dart';
 import '../../app/theme/app_palette.dart';
 import '../../app/theme/module_visuals.dart';
@@ -279,7 +280,7 @@ class _ModuleHeader extends StatelessWidget {
                             onSearchChanged('');
                           },
                         ),
-                ),
+                ).compactFilter(),
               );
 
               if (compact) {

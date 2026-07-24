@@ -7,6 +7,7 @@ import 'package:flutter/services.dart';
 import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
 
+import '../../../../app/theme/app_control_metrics.dart';
 import '../../../../app/theme/app_colors.dart';
 import '../../../../app/theme/app_palette.dart';
 import '../../../../core/providers/core_providers.dart';
@@ -639,7 +640,7 @@ class _MeseroPageState extends ConsumerState<MeseroPage> {
                         setState(() => _productoFiltro = '');
                       },
                     ),
-            ),
+            ).compactFilter(),
             onChanged: (value) => setState(() => _productoFiltro = value),
           );
 
@@ -648,7 +649,7 @@ class _MeseroPageState extends ConsumerState<MeseroPage> {
             decoration: const InputDecoration(
               labelText: 'Tipo de producto',
               prefixIcon: Icon(Icons.category_rounded),
-            ),
+            ).compactFilter(),
             items: tipos.map((tipo) => DropdownMenuItem(value: tipo, child: Text(tipo))).toList(growable: false),
             onChanged: tipos.isEmpty ? null : (value) => setState(() => _tipoProductoFiltro = value),
           );
@@ -658,7 +659,7 @@ class _MeseroPageState extends ConsumerState<MeseroPage> {
             decoration: const InputDecoration(
               labelText: 'Marca',
               prefixIcon: Icon(Icons.local_offer_rounded),
-            ),
+            ).compactFilter(),
             items: marcas.map((marca) => DropdownMenuItem(value: marca, child: Text(marca))).toList(growable: false),
             onChanged: marcas.isEmpty ? null : (value) => setState(() => _marcaProductoFiltro = value),
           );
@@ -1423,12 +1424,12 @@ class _MeseroPageState extends ConsumerState<MeseroPage> {
                       },
                       icon: const Icon(Icons.close_rounded),
                     ),
-            ),
+            ).compactFilter(),
           );
 
           final status = DropdownButtonFormField<String>(
             value: _historialEstado,
-            decoration: const InputDecoration(labelText: 'Estado', prefixIcon: Icon(Icons.verified_rounded)),
+            decoration: const InputDecoration(labelText: 'Estado', prefixIcon: Icon(Icons.verified_rounded)).compactFilter(),
             items: const [
               DropdownMenuItem(value: 'todos', child: Text('Todos los estados')),
               DropdownMenuItem(value: 'pagadas', child: Text('Pagadas')),
@@ -1439,7 +1440,7 @@ class _MeseroPageState extends ConsumerState<MeseroPage> {
 
           final order = DropdownButtonFormField<String>(
             value: _historialOrden,
-            decoration: const InputDecoration(labelText: 'Ordenar', prefixIcon: Icon(Icons.swap_vert_rounded)),
+            decoration: const InputDecoration(labelText: 'Ordenar', prefixIcon: Icon(Icons.swap_vert_rounded)).compactFilter(),
             items: const [
               DropdownMenuItem(value: 'recientes', child: Text('Más recientes')),
               DropdownMenuItem(value: 'antiguas', child: Text('Más antiguas')),
@@ -1622,9 +1623,9 @@ class _MeseroPageState extends ConsumerState<MeseroPage> {
     final searchField = TextField(
       controller: _productoFiltroController,
       decoration: InputDecoration(
-        labelText: 'Buscar en el catálogo',
-        hintText: 'Nombre, marca, tipo, código o precio',
-        prefixIcon: Icon(Icons.search_rounded, color: palette.secondary),
+        labelText: 'Buscar productos',
+        hintText: 'Nombre, marca, categoría, código o precio',
+        prefixIcon: const Icon(Icons.search_rounded),
         suffixIcon: _productoFiltro.trim().isEmpty
             ? null
             : IconButton(
@@ -1635,28 +1636,38 @@ class _MeseroPageState extends ConsumerState<MeseroPage> {
                   setState(() => _productoFiltro = '');
                 },
               ),
-      ),
+      ).compactFilter(),
       onChanged: (value) => setState(() => _productoFiltro = value),
     );
 
     final marcaField = DropdownButtonFormField<String>(
       value: marcas.contains(_marcaProductoFiltro) ? _marcaProductoFiltro : null,
       isExpanded: true,
-      decoration: InputDecoration(
+      decoration: const InputDecoration(
         labelText: 'Marca',
-        prefixIcon: Icon(Icons.local_offer_rounded, color: palette.secondary),
-      ),
-      items: marcas.map((marca) => DropdownMenuItem(value: marca, child: Text(marca, overflow: TextOverflow.ellipsis))).toList(growable: false),
-      onChanged: marcas.isEmpty ? null : (value) => setState(() => _marcaProductoFiltro = value),
+        prefixIcon: Icon(Icons.local_offer_outlined),
+      ).compactFilter(),
+      items: [
+        const DropdownMenuItem<String>(value: null, child: Text('Todas las marcas')),
+        ...marcas.map(
+          (marca) => DropdownMenuItem(
+            value: marca,
+            child: Text(marca, overflow: TextOverflow.ellipsis),
+          ),
+        ),
+      ],
+      onChanged: marcas.isEmpty
+          ? null
+          : (value) => setState(() => _marcaProductoFiltro = value),
     );
 
     final ordenField = DropdownButtonFormField<String>(
       value: _productosOrdenCatalogo,
       isExpanded: true,
-      decoration: InputDecoration(
-        labelText: 'Ordenar por',
-        prefixIcon: Icon(Icons.swap_vert_rounded, color: palette.secondary),
-      ),
+      decoration: const InputDecoration(
+        labelText: 'Orden',
+        prefixIcon: Icon(Icons.sort_rounded),
+      ).compactFilter(),
       items: const [
         DropdownMenuItem(value: 'nombre', child: Text('Nombre A–Z')),
         DropdownMenuItem(value: 'precioMenor', child: Text('Menor precio')),
@@ -1679,79 +1690,89 @@ class _MeseroPageState extends ConsumerState<MeseroPage> {
             onSelected: () => setState(() => _tipoProductoFiltro = null),
           ),
           for (final tipo in tipos) ...[
-            const SizedBox(width: 8),
+            const SizedBox(width: 7),
             _CatalogoCategoryChip(
               label: tipo,
-              icon: Icons.category_rounded,
+              icon: Icons.category_outlined,
               selected: _tipoProductoFiltro == tipo,
-              onSelected: () => setState(() => _tipoProductoFiltro = _tipoProductoFiltro == tipo ? null : tipo),
+              onSelected: () => setState(
+                () => _tipoProductoFiltro = _tipoProductoFiltro == tipo ? null : tipo,
+              ),
             ),
           ],
         ],
       ),
     );
 
+    final resultBadge = Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+      decoration: BoxDecoration(
+        color: palette.secondary.withOpacity(0.12),
+        borderRadius: BorderRadius.circular(palette.radius(999)),
+        border: Border.all(color: palette.secondary.withOpacity(0.20)),
+      ),
+      child: Text(
+        '$resultados ${resultados == 1 ? 'producto' : 'productos'}',
+        style: Theme.of(context).textTheme.labelMedium?.copyWith(
+              color: palette.secondary,
+              fontWeight: FontWeight.w900,
+            ),
+      ),
+    );
+
+    final viewToggle = _CatalogoViewToggle(
+      gridSelected: _productosVistaCuadricula,
+      onGrid: () => setState(() => _productosVistaCuadricula = true),
+      onList: () => setState(() => _productosVistaCuadricula = false),
+    );
+
     return Container(
       width: double.infinity,
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        gradient: LinearGradient(
-          colors: [
-            palette.surface.withOpacity(palette.darkBackground ? 0.96 : 0.99),
-            palette.secondary.withOpacity(palette.darkBackground ? 0.08 : 0.035),
-          ],
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-        ),
-        borderRadius: BorderRadius.circular(24),
-        border: Border.all(color: palette.secondary.withOpacity(0.16)),
-        boxShadow: [BoxShadow(color: palette.cardShadow.withOpacity(0.22), blurRadius: 22, offset: const Offset(0, 10))],
+      padding: palette.panelPadding(14),
+      decoration: palette.panelDecoration(
+        baseRadius: 22,
+        tint: palette.secondary,
       ),
       child: LayoutBuilder(
         builder: (context, constraints) {
-          final compact = constraints.maxWidth < 880;
-          final viewToggle = _CatalogoViewToggle(
-            gridSelected: _productosVistaCuadricula,
-            onGrid: () => setState(() => _productosVistaCuadricula = true),
-            onList: () => setState(() => _productosVistaCuadricula = false),
-          );
+          final mobile = constraints.maxWidth < 700;
+          final tablet = constraints.maxWidth < 1050;
 
-          if (compact) {
+          if (mobile) {
             return Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
+                searchField,
+                const SizedBox(height: 10),
                 Row(
                   children: [
-                    Expanded(
-                      child: Text(
-                        '$resultados ${resultados == 1 ? 'producto encontrado' : 'productos encontrados'}',
-                        style: TextStyle(color: palette.textSecondary, fontWeight: FontWeight.w800),
-                      ),
-                    ),
+                    resultBadge,
+                    const Spacer(),
                     viewToggle,
+                    if (hayFiltros) ...[
+                      const SizedBox(width: 6),
+                      IconButton.filledTonal(
+                        tooltip: 'Quitar filtros',
+                        onPressed: limpiarFiltros,
+                        icon: const Icon(Icons.filter_alt_off_rounded),
+                      ),
+                    ],
                   ],
                 ),
-                const SizedBox(height: 14),
-                searchField,
                 const SizedBox(height: 12),
-                marcaField,
-                const SizedBox(height: 12),
-                ordenField,
-                const SizedBox(height: 16),
-                Text('Categorías', style: TextStyle(color: palette.textPrimary, fontWeight: FontWeight.w900)),
-                const SizedBox(height: 9),
+                Text(
+                  'Categorías',
+                  style: Theme.of(context).textTheme.labelLarge?.copyWith(
+                        color: palette.textPrimary,
+                        fontWeight: FontWeight.w900,
+                      ),
+                ),
+                const SizedBox(height: 8),
                 categories,
-                if (hayFiltros) ...[
-                  const SizedBox(height: 12),
-                  Align(
-                    alignment: Alignment.centerLeft,
-                    child: TextButton.icon(
-                      onPressed: limpiarFiltros,
-                      icon: const Icon(Icons.filter_alt_off_rounded),
-                      label: const Text('Quitar filtros'),
-                    ),
-                  ),
-                ],
+                const SizedBox(height: 11),
+                marcaField,
+                const SizedBox(height: 10),
+                ordenField,
               ],
             );
           }
@@ -1761,36 +1782,39 @@ class _MeseroPageState extends ConsumerState<MeseroPage> {
             children: [
               Row(
                 children: [
-                  Expanded(flex: 5, child: searchField),
-                  const SizedBox(width: 12),
-                  SizedBox(width: 230, child: marcaField),
-                  const SizedBox(width: 12),
-                  SizedBox(width: 220, child: ordenField),
-                  const SizedBox(width: 12),
-                  viewToggle,
-                ],
-              ),
-              const SizedBox(height: 16),
-              Row(
-                children: [
-                  Icon(Icons.tune_rounded, size: 18, color: palette.secondary),
+                  Expanded(flex: tablet ? 5 : 7, child: searchField),
+                  const SizedBox(width: 10),
+                  SizedBox(width: tablet ? 190 : 220, child: marcaField),
+                  const SizedBox(width: 10),
+                  SizedBox(width: tablet ? 180 : 205, child: ordenField),
+                  const SizedBox(width: 10),
+                  resultBadge,
                   const SizedBox(width: 8),
-                  Text('Categorías', style: TextStyle(color: palette.textPrimary, fontWeight: FontWeight.w900)),
-                  const SizedBox(width: 14),
-                  Expanded(child: categories),
-                  const SizedBox(width: 14),
-                  Text(
-                    '$resultados visibles',
-                    style: TextStyle(color: palette.textSecondary, fontWeight: FontWeight.w800),
-                  ),
+                  viewToggle,
                   if (hayFiltros) ...[
-                    const SizedBox(width: 8),
-                    IconButton(
+                    const SizedBox(width: 6),
+                    IconButton.filledTonal(
                       tooltip: 'Quitar filtros',
                       onPressed: limpiarFiltros,
                       icon: const Icon(Icons.filter_alt_off_rounded),
                     ),
                   ],
+                ],
+              ),
+              const SizedBox(height: 12),
+              Row(
+                children: [
+                  Icon(Icons.category_outlined, size: 18, color: palette.secondary),
+                  const SizedBox(width: 7),
+                  Text(
+                    'Categorías',
+                    style: Theme.of(context).textTheme.labelLarge?.copyWith(
+                          color: palette.textPrimary,
+                          fontWeight: FontWeight.w900,
+                        ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(child: categories),
                 ],
               ),
             ],
@@ -1850,9 +1874,13 @@ class _MeseroPageState extends ConsumerState<MeseroPage> {
   Future<void> _mostrarDetalleProductoCatalogo(MeseroProductoModel producto) async {
     await showModalBottomSheet<void>(
       context: context,
+      useRootNavigator: true,
       isScrollControlled: true,
       useSafeArea: true,
+      enableDrag: true,
+      isDismissible: true,
       backgroundColor: Colors.transparent,
+      barrierColor: Colors.black.withOpacity(0.66),
       builder: (_) => _ProductoCatalogoDetalleSheet(producto: producto),
     );
   }
@@ -2760,7 +2788,7 @@ class _MeseroPageState extends ConsumerState<MeseroPage> {
                           labelText: 'Buscar productos',
                           hintText: 'Nombre, descripción, código o precio',
                           prefixIcon: Icon(Icons.search_rounded),
-                        ),
+                        ).compactFilter(),
                         onChanged: (value) => setModalState(() => filtro = value),
                       ),
                       const SizedBox(height: 14),
@@ -9485,19 +9513,30 @@ class _CuentaProductosTabla extends ConsumerWidget {
           SizedBox(
             width: 92,
             child: Row(
+              mainAxisSize: MainAxisSize.min,
               mainAxisAlignment: MainAxisAlignment.end,
               children: [
                 IconButton(
-                  constraints: const BoxConstraints.tightFor(width: 34, height: 34),
-                  padding: EdgeInsets.zero,
+                  style: IconButton.styleFrom(
+                    minimumSize: const Size(34, 34),
+                    maximumSize: const Size(34, 34),
+                    padding: EdgeInsets.zero,
+                    tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                  ),
+                  visualDensity: VisualDensity.compact,
                   iconSize: 19,
                   tooltip: pagado ? 'No se puede mover porque ya fue pagado' : 'Pasar producto a otra cuenta',
                   onPressed: puedeMover ? () => onMoverProducto!(producto) : null,
                   icon: const Icon(Icons.swap_horiz_rounded),
                 ),
                 IconButton(
-                  constraints: const BoxConstraints.tightFor(width: 34, height: 34),
-                  padding: EdgeInsets.zero,
+                  style: IconButton.styleFrom(
+                    minimumSize: const Size(34, 34),
+                    maximumSize: const Size(34, 34),
+                    padding: EdgeInsets.zero,
+                    tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                  ),
+                  visualDensity: VisualDensity.compact,
                   iconSize: 19,
                   tooltip: pagado ? 'No se puede eliminar porque ya fue pagado' : 'Eliminar producto no pagado',
                   onPressed: puedeEliminar ? () => onEliminarProducto!(producto) : null,
@@ -10112,60 +10151,60 @@ class _ProductosCatalogoResumen extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final palette = ref.watch(selectedAppPaletteProvider);
     final metrics = <Widget>[
-      _CatalogoMetric(icon: Icons.inventory_2_rounded, label: 'Productos', value: '$total'),
-      _CatalogoMetric(icon: Icons.category_rounded, label: 'Tipos', value: '$tipos'),
-      _CatalogoMetric(icon: Icons.local_offer_rounded, label: 'Marcas', value: '$marcas'),
-      _CatalogoMetric(icon: Icons.sell_rounded, label: 'Precios desde', value: precioDesde == null ? '—' : CurrencyUtils.format(precioDesde)),
+      _CatalogoMetric(icon: Icons.inventory_2_outlined, label: 'Catálogo', value: '$total'),
+      _CatalogoMetric(icon: Icons.visibility_outlined, label: 'Visibles', value: '$visibles'),
+      _CatalogoMetric(icon: Icons.category_outlined, label: 'Categorías', value: '$tipos'),
+      _CatalogoMetric(
+        icon: Icons.sell_outlined,
+        label: 'Desde',
+        value: precioDesde == null ? '—' : CurrencyUtils.format(precioDesde),
+      ),
     ];
 
     return Container(
       width: double.infinity,
-      padding: const EdgeInsets.all(20),
-      decoration: BoxDecoration(
-        gradient: LinearGradient(
-          colors: [
-            palette.surface.withOpacity(palette.darkBackground ? 0.98 : 1),
-            palette.primary.withOpacity(palette.darkBackground ? 0.20 : 0.08),
-            palette.secondary.withOpacity(palette.darkBackground ? 0.10 : 0.045),
-          ],
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-        ),
-        borderRadius: BorderRadius.circular(28),
-        border: Border.all(color: palette.secondary.withOpacity(0.18)),
-        boxShadow: [BoxShadow(color: palette.cardShadow.withOpacity(0.26), blurRadius: 26, offset: const Offset(0, 12))],
+      padding: palette.panelPadding(16),
+      decoration: palette.panelDecoration(
+        baseRadius: 24,
+        tint: palette.primary,
       ),
       child: LayoutBuilder(
         builder: (context, constraints) {
-          final compact = constraints.maxWidth < 840;
+          final compact = constraints.maxWidth < 860;
           final heading = Row(
-            crossAxisAlignment: CrossAxisAlignment.center,
             children: [
               Container(
-                width: 54,
-                height: 54,
+                width: 48,
+                height: 48,
                 decoration: BoxDecoration(
-                  gradient: LinearGradient(colors: [palette.primary, palette.secondary]),
-                  borderRadius: BorderRadius.circular(18),
-                  boxShadow: [BoxShadow(color: palette.secondary.withOpacity(0.20), blurRadius: 14, offset: const Offset(0, 7))],
+                  color: palette.actionColor,
+                  borderRadius: BorderRadius.circular(palette.radius(15)),
                 ),
-                child: Icon(Icons.local_bar_rounded, color: palette.onPrimary, size: 27),
+                child: Icon(Icons.local_bar_rounded, color: palette.onAction, size: 24),
               ),
-              const SizedBox(width: 14),
+              const SizedBox(width: 12),
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      'Catálogo visual para atender más rápido',
-                      style: Theme.of(context).textTheme.titleLarge?.copyWith(color: palette.textPrimary, fontWeight: FontWeight.w900),
+                      'Catálogo de productos',
+                      style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                            color: palette.textPrimary,
+                            fontWeight: FontWeight.w900,
+                          ),
                     ),
-                    const SizedBox(height: 4),
+                    const SizedBox(height: 3),
                     Text(
                       visibles == total
-                          ? 'Consulta imágenes, precios y categorías sin salir de la operación.'
-                          : 'Mostrando $visibles de $total productos según los filtros aplicados.',
-                      style: TextStyle(color: palette.textSecondary, fontWeight: FontWeight.w600),
+                          ? 'Consulta precios, imágenes y categorías de la sucursal.'
+                          : 'Mostrando $visibles de $total productos según los filtros.',
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                            color: palette.textSecondary,
+                            fontWeight: FontWeight.w700,
+                          ),
                     ),
                   ],
                 ),
@@ -10178,23 +10217,22 @@ class _ProductosCatalogoResumen extends ConsumerWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 heading,
-                const SizedBox(height: 18),
-                Wrap(spacing: 10, runSpacing: 10, children: metrics),
+                const SizedBox(height: 13),
+                Wrap(spacing: 8, runSpacing: 8, children: metrics),
               ],
             );
           }
 
           return Row(
-            crossAxisAlignment: CrossAxisAlignment.center,
             children: [
               Expanded(flex: 5, child: heading),
-              const SizedBox(width: 24),
+              const SizedBox(width: 22),
               Expanded(
-                flex: 4,
+                flex: 5,
                 child: Wrap(
                   alignment: WrapAlignment.end,
-                  spacing: 10,
-                  runSpacing: 10,
+                  spacing: 8,
+                  runSpacing: 8,
                   children: metrics,
                 ),
               ),
@@ -10217,11 +10255,11 @@ class _CatalogoMetric extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final palette = ref.watch(selectedAppPaletteProvider);
     return Container(
-      constraints: const BoxConstraints(minWidth: 128),
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+      constraints: const BoxConstraints(minWidth: 118),
+      padding: EdgeInsets.symmetric(horizontal: 12 * palette.spacingScale, vertical: 9 * palette.spacingScale),
       decoration: BoxDecoration(
         color: palette.background.withOpacity(palette.darkBackground ? 0.42 : 0.72),
-        borderRadius: BorderRadius.circular(16),
+        borderRadius: BorderRadius.circular(palette.radius(16)),
         border: Border.all(color: palette.secondary.withOpacity(0.12)),
       ),
       child: Row(
@@ -10267,9 +10305,9 @@ class _CatalogoCategoryChip extends ConsumerWidget {
       selectedColor: palette.actionColor,
       backgroundColor: palette.background.withOpacity(palette.darkBackground ? 0.40 : 0.70),
       side: BorderSide(color: selected ? palette.secondary.withOpacity(0.42) : palette.cardBorder),
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(999)),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(palette.radius(999))),
       showCheckmark: false,
-      padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 8),
+      padding: EdgeInsets.symmetric(horizontal: 9 * palette.spacingScale, vertical: 7 * palette.spacingScale),
     );
   }
 }
@@ -10326,11 +10364,11 @@ class _CatalogoEmptyState extends ConsumerWidget {
     final palette = ref.watch(selectedAppPaletteProvider);
     return Container(
       width: double.infinity,
-      padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 46),
-      decoration: BoxDecoration(
-        color: palette.surface.withOpacity(palette.darkBackground ? 0.94 : 0.99),
-        borderRadius: BorderRadius.circular(24),
-        border: Border.all(color: palette.cardBorder),
+      padding: EdgeInsets.symmetric(horizontal: 24 * palette.spacingScale, vertical: 40 * palette.spacingScale),
+      decoration: palette.panelDecoration(
+        baseRadius: 24,
+        tint: palette.secondary,
+        elevated: false,
       ),
       child: Column(
         children: [
@@ -10370,24 +10408,33 @@ class _ProductosCatalogoTabla extends ConsumerWidget {
       builder: (context, constraints) {
         if (vistaCuadricula) {
           final width = constraints.maxWidth;
-          final columns = width >= 1500
-              ? 5
-              : width >= 1180
-                  ? 4
-                  : width >= 820
-                      ? 3
-                      : width >= 520
-                          ? 2
-                          : 1;
+          final columns = width >= 1660
+              ? 6
+              : width >= 1320
+                  ? 5
+                  : width >= 1020
+                      ? 4
+                      : width >= 760
+                          ? 3
+                          : width >= 480
+                              ? 2
+                              : 1;
+          final extent = switch (palette.density) {
+            AppDensityPreset.compact => columns == 1 ? 216.0 : 236.0,
+            AppDensityPreset.balanced => columns == 1 ? 232.0 : 252.0,
+            AppDensityPreset.spacious => columns == 1 ? 254.0 : 276.0,
+          };
+          final gap = 12 * palette.spacingScale;
+
           return GridView.builder(
             shrinkWrap: true,
             physics: const NeverScrollableScrollPhysics(),
             itemCount: productos.length,
             gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
               crossAxisCount: columns,
-              mainAxisSpacing: 14,
-              crossAxisSpacing: 14,
-              mainAxisExtent: columns == 1 ? 268 : 312,
+              mainAxisSpacing: gap,
+              crossAxisSpacing: gap,
+              mainAxisExtent: extent,
             ),
             itemBuilder: (context, index) => _ProductoCatalogoCard(
               producto: productos[index],
@@ -10398,11 +10445,10 @@ class _ProductosCatalogoTabla extends ConsumerWidget {
 
         return Container(
           width: double.infinity,
-          decoration: BoxDecoration(
-            color: palette.surface.withOpacity(palette.darkBackground ? 0.94 : 0.99),
-            borderRadius: BorderRadius.circular(22),
-            border: Border.all(color: palette.cardBorder),
-            boxShadow: [BoxShadow(color: palette.cardShadow.withOpacity(0.20), blurRadius: 20, offset: const Offset(0, 9))],
+          decoration: palette.panelDecoration(
+            baseRadius: 22,
+            tint: palette.secondary,
+            elevated: false,
           ),
           clipBehavior: Clip.antiAlias,
           child: Column(
@@ -10437,127 +10483,198 @@ class _ProductoCatalogoCardState extends ConsumerState<_ProductoCatalogoCard> {
   @override
   Widget build(BuildContext context) {
     final palette = ref.watch(selectedAppPaletteProvider);
+    final theme = Theme.of(context);
     final producto = widget.producto;
     final tipo = _catalogoTipoProducto(producto);
     final marca = _catalogoMarcaProducto(producto);
     final descripcion = _catalogoDescripcionProducto(producto);
+    final compact = palette.density == AppDensityPreset.compact;
+    final spacious = palette.density == AppDensityPreset.spacious;
+    final imageHeight = compact ? 102.0 : (spacious ? 128.0 : 114.0);
+    final imageSize = compact ? 76.0 : (spacious ? 98.0 : 88.0);
+    final radius = palette.radius(22);
 
     return MouseRegion(
       onEnter: (_) => setState(() => _hovered = true),
       onExit: (_) => setState(() => _hovered = false),
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 170),
-        decoration: BoxDecoration(
-          gradient: LinearGradient(
-            colors: [
-              palette.surface.withOpacity(palette.darkBackground ? 0.98 : 1),
-              palette.secondary.withOpacity(_hovered ? 0.12 : 0.055),
-            ],
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-          ),
-          borderRadius: BorderRadius.circular(24),
-          border: Border.all(color: _hovered ? palette.secondary.withOpacity(0.42) : palette.cardBorder, width: _hovered ? 1.4 : 1),
-          boxShadow: [
-            BoxShadow(
-              color: palette.cardShadow.withOpacity(_hovered ? 0.34 : 0.20),
-              blurRadius: _hovered ? 26 : 18,
-              offset: Offset(0, _hovered ? 12 : 8),
+      child: AnimatedScale(
+        scale: _hovered ? 1.012 : 1,
+        duration: const Duration(milliseconds: 160),
+        curve: Curves.easeOut,
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 170),
+          decoration: palette.panelDecoration(
+            baseRadius: 22,
+            tint: palette.secondary,
+            elevated: true,
+          ).copyWith(
+            border: Border.all(
+              color: _hovered
+                  ? palette.secondary.withOpacity(0.46)
+                  : palette.secondary.withOpacity(palette.darkBackground ? 0.16 : 0.12),
+              width: _hovered ? 1.35 : 1,
             ),
-          ],
-        ),
-        child: Material(
-          color: Colors.transparent,
-          borderRadius: BorderRadius.circular(24),
-          child: InkWell(
-            onTap: widget.onTap,
-            borderRadius: BorderRadius.circular(24),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Stack(
-                  children: [
-                    Container(
-                      height: 142,
-                      width: double.infinity,
-                      decoration: BoxDecoration(
-                        gradient: LinearGradient(
-                          colors: [
-                            palette.background.withOpacity(palette.darkBackground ? 0.72 : 0.78),
-                            palette.primary.withOpacity(palette.darkBackground ? 0.22 : 0.10),
-                          ],
-                          begin: Alignment.topLeft,
-                          end: Alignment.bottomRight,
-                        ),
-                        borderRadius: const BorderRadius.vertical(top: Radius.circular(23)),
-                      ),
-                      alignment: Alignment.center,
-                      child: _ProductoCatalogoImage(value: producto.foto, size: 112),
-                    ),
-                    Positioned(
-                      top: 11,
-                      left: 11,
-                      child: _CatalogoPill(icon: Icons.category_rounded, text: tipo),
-                    ),
-                    Positioned(
-                      top: 11,
-                      right: 11,
-                      child: Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
-                        decoration: BoxDecoration(
-                          color: palette.actionColor,
-                          borderRadius: BorderRadius.circular(999),
-                          boxShadow: [BoxShadow(color: palette.actionColor.withOpacity(0.24), blurRadius: 12, offset: const Offset(0, 5))],
-                        ),
-                        child: Text(
-                          CurrencyUtils.format(producto.precioVenta),
-                          style: TextStyle(color: palette.onAction, fontWeight: FontWeight.w900, fontSize: 12.5),
-                        ),
-                      ),
+            boxShadow: palette.surfaceStyle == AppSurfacePreset.flat
+                ? const []
+                : [
+                    BoxShadow(
+                      color: palette.cardShadow.withOpacity(_hovered ? 0.33 : 0.18),
+                      blurRadius: _hovered ? 24 : 16,
+                      offset: Offset(0, _hovered ? 10 : 7),
                     ),
                   ],
-                ),
-                Expanded(
-                  child: Padding(
-                    padding: const EdgeInsets.fromLTRB(15, 13, 15, 13),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
+          ),
+          child: Material(
+            color: Colors.transparent,
+            borderRadius: BorderRadius.circular(radius),
+            clipBehavior: Clip.antiAlias,
+            child: InkWell(
+              onTap: widget.onTap,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  SizedBox(
+                    height: imageHeight,
+                    width: double.infinity,
+                    child: Stack(
+                      fit: StackFit.expand,
                       children: [
-                        Text(
-                          producto.nombre ?? 'Producto ${producto.prodId ?? '-'}',
-                          maxLines: 2,
-                          overflow: TextOverflow.ellipsis,
-                          style: TextStyle(color: palette.textPrimary, fontWeight: FontWeight.w900, fontSize: 15.5, height: 1.15),
-                        ),
-                        const SizedBox(height: 6),
-                        Text(
-                          descripcion.isEmpty ? 'Producto disponible en el catálogo de la sucursal.' : descripcion,
-                          maxLines: 2,
-                          overflow: TextOverflow.ellipsis,
-                          style: TextStyle(color: palette.textSecondary, fontWeight: FontWeight.w600, fontSize: 11.5, height: 1.28),
-                        ),
-                        const Spacer(),
-                        Row(
-                          children: [
-                            Icon(Icons.local_offer_outlined, size: 16, color: palette.secondary),
-                            const SizedBox(width: 6),
-                            Expanded(
-                              child: Text(
-                                marca,
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                                style: TextStyle(color: palette.textSecondary, fontWeight: FontWeight.w800, fontSize: 12),
-                              ),
+                        DecoratedBox(
+                          decoration: BoxDecoration(
+                            gradient: LinearGradient(
+                              colors: [
+                                palette.background.withOpacity(palette.darkBackground ? 0.72 : 0.68),
+                                palette.secondary.withOpacity(_hovered ? 0.18 : 0.09),
+                              ],
+                              begin: Alignment.topLeft,
+                              end: Alignment.bottomRight,
                             ),
-                            const SizedBox(width: 8),
-                            Icon(Icons.arrow_forward_rounded, size: 18, color: palette.secondary),
-                          ],
+                          ),
+                        ),
+                        Center(child: _ProductoCatalogoImage(value: producto.foto, size: imageSize)),
+                        Positioned(
+                          top: compact ? 8 : 10,
+                          left: compact ? 8 : 10,
+                          child: _CatalogoPill(
+                            icon: Icons.category_outlined,
+                            text: tipo,
+                            compact: true,
+                          ),
                         ),
                       ],
                     ),
                   ),
-                ),
-              ],
+                  Expanded(
+                    child: Padding(
+                      padding: EdgeInsets.fromLTRB(
+                        13 * palette.spacingScale,
+                        11 * palette.spacingScale,
+                        13 * palette.spacingScale,
+                        12 * palette.spacingScale,
+                      ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            producto.nombre ?? 'Producto ${producto.prodId ?? '-'}',
+                            maxLines: 2,
+                            overflow: TextOverflow.ellipsis,
+                            style: theme.textTheme.titleSmall?.copyWith(
+                              color: palette.textPrimary,
+                              fontWeight: FontWeight.w900,
+                              height: 1.15,
+                            ),
+                          ),
+                          if (descripcion.isNotEmpty) ...[
+                            const SizedBox(height: 4),
+                            Text(
+                              descripcion,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: theme.textTheme.bodySmall?.copyWith(
+                                color: palette.textSecondary,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                          ],
+                          const SizedBox(height: 7),
+                          Row(
+                            children: [
+                              Icon(Icons.local_offer_outlined, size: 14, color: palette.secondary),
+                              const SizedBox(width: 5),
+                              Expanded(
+                                child: Text(
+                                  marca,
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: theme.textTheme.labelSmall?.copyWith(
+                                    color: palette.textSecondary,
+                                    fontWeight: FontWeight.w800,
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                          const Spacer(),
+                          Row(
+                            crossAxisAlignment: CrossAxisAlignment.center,
+                            children: [
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      'Precio',
+                                      style: theme.textTheme.labelSmall?.copyWith(
+                                        color: palette.textSecondary,
+                                        fontWeight: FontWeight.w800,
+                                      ),
+                                    ),
+                                    const SizedBox(height: 1),
+                                    Text(
+                                      CurrencyUtils.format(producto.precioVenta),
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
+                                      style: theme.textTheme.titleMedium?.copyWith(
+                                        color: palette.secondary,
+                                        fontWeight: FontWeight.w900,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                              Container(
+                                padding: EdgeInsets.symmetric(
+                                  horizontal: compact ? 8 : 10,
+                                  vertical: compact ? 6 : 7,
+                                ),
+                                decoration: BoxDecoration(
+                                  color: palette.actionColor.withOpacity(_hovered ? 1 : 0.90),
+                                  borderRadius: BorderRadius.circular(palette.radius(12)),
+                                ),
+                                child: Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    Text(
+                                      'Ver',
+                                      style: theme.textTheme.labelMedium?.copyWith(
+                                        color: palette.onAction,
+                                        fontWeight: FontWeight.w900,
+                                      ),
+                                    ),
+                                    const SizedBox(width: 4),
+                                    Icon(Icons.arrow_forward_rounded, size: 16, color: palette.onAction),
+                                  ],
+                                ),
+                              ),
+                            ],
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ],
+              ),
             ),
           ),
         ),
@@ -10678,21 +10795,35 @@ class _ProductoCatalogoImage extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final palette = ref.watch(selectedAppPaletteProvider);
     final image = (value ?? '').trim();
+    final radius = palette.radius(size > 90 ? 22 : 17);
     return Container(
       width: size,
       height: size,
-      padding: const EdgeInsets.all(7),
+      padding: EdgeInsets.all(7 * palette.spacingScale),
       decoration: BoxDecoration(
-        color: palette.surface.withOpacity(palette.darkBackground ? 0.88 : 0.96),
-        borderRadius: BorderRadius.circular(size > 90 ? 24 : 19),
-        border: Border.all(color: palette.secondary.withOpacity(0.14)),
-        boxShadow: [BoxShadow(color: palette.cardShadow.withOpacity(0.18), blurRadius: 12, offset: const Offset(0, 6))],
+        gradient: palette.panelGradient(tint: palette.secondary),
+        borderRadius: BorderRadius.circular(radius),
+        border: Border.all(color: palette.secondary.withOpacity(0.16)),
+        boxShadow: palette.surfaceStyle == AppSurfacePreset.flat
+            ? const []
+            : [
+                BoxShadow(
+                  color: palette.cardShadow.withOpacity(0.16),
+                  blurRadius: 12,
+                  offset: const Offset(0, 6),
+                ),
+              ],
       ),
       child: image.isEmpty
-          ? Icon(Icons.local_bar_rounded, color: palette.secondary, size: size * 0.38)
+          ? Icon(Icons.inventory_2_outlined, color: palette.secondary, size: size * 0.34)
           : ClipRRect(
-              borderRadius: BorderRadius.circular(size > 90 ? 18 : 14),
-              child: _BarlyticsImage(value: image, width: size - 14, height: size - 14, fit: BoxFit.contain),
+              borderRadius: BorderRadius.circular(palette.radius(size > 90 ? 16 : 12)),
+              child: _BarlyticsImage(
+                value: image,
+                width: size - 14,
+                height: size - 14,
+                fit: BoxFit.contain,
+              ),
             ),
     );
   }
@@ -10713,7 +10844,7 @@ class _CatalogoPill extends ConsumerWidget {
       padding: EdgeInsets.symmetric(horizontal: compact ? 8 : 10, vertical: compact ? 5 : 7),
       decoration: BoxDecoration(
         color: palette.background.withOpacity(palette.darkBackground ? 0.66 : 0.78),
-        borderRadius: BorderRadius.circular(999),
+        borderRadius: BorderRadius.circular(palette.radius(999)),
         border: Border.all(color: palette.secondary.withOpacity(0.14)),
       ),
       child: Row(
@@ -10743,125 +10874,275 @@ class _ProductoCatalogoDetalleSheet extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final palette = ref.watch(selectedAppPaletteProvider);
+    final media = MediaQuery.of(context);
+    final size = media.size;
     final tipo = _catalogoTipoProducto(producto);
     final marca = _catalogoMarcaProducto(producto);
     final descripcion = _catalogoDescripcionProducto(producto);
-    final maxHeight = MediaQuery.sizeOf(context).height * 0.88;
+    final isHandheld = size.width < 900 || size.width / size.height < 0.95;
+    final isVeryCompact = size.width < 480;
+    final spacing = palette.spacingScale;
+    final sheetHeight = isHandheld
+        ? (size.height * 0.94).clamp(520.0, size.height).toDouble()
+        : (size.height * 0.82).clamp(540.0, 760.0).toDouble();
+    final horizontalMargin = isHandheld ? 8.0 : 24.0;
+    final sheetWidth = isHandheld ? size.width - (horizontalMargin * 2) : 760.0;
+    final radius = palette.radius(isHandheld ? 26 : 30);
 
-    final details = Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Wrap(
-          spacing: 8,
-          runSpacing: 8,
-          children: [
-            _CatalogoPill(icon: Icons.category_rounded, text: tipo),
-            _CatalogoPill(icon: Icons.local_offer_rounded, text: marca),
-          ],
-        ),
-        const SizedBox(height: 14),
-        Text(
-          producto.nombre ?? 'Producto ${producto.prodId ?? '-'}',
-          style: Theme.of(context).textTheme.headlineSmall?.copyWith(color: palette.textPrimary, fontWeight: FontWeight.w900),
-        ),
-        const SizedBox(height: 8),
-        Text(
-          descripcion.isEmpty ? 'Este producto no tiene una descripción comercial registrada.' : descripcion,
-          style: TextStyle(color: palette.textSecondary, fontWeight: FontWeight.w600, height: 1.38),
-        ),
-        const SizedBox(height: 18),
-        Container(
-          width: double.infinity,
-          padding: const EdgeInsets.all(16),
-          decoration: BoxDecoration(
-            gradient: LinearGradient(colors: [palette.actionColor.withOpacity(0.20), palette.secondary.withOpacity(0.08)]),
-            borderRadius: BorderRadius.circular(20),
-            border: Border.all(color: palette.secondary.withOpacity(0.20)),
-          ),
-          child: Row(
+    final titleStyle = Theme.of(context).textTheme.titleLarge?.copyWith(
+          color: palette.textPrimary,
+          fontWeight: FontWeight.w900,
+          height: 1.12,
+        );
+
+    Widget buildProductIdentity({required bool compact}) {
+      final imageSize = compact ? 118.0 : 148.0;
+      final textContent = Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Wrap(
+            spacing: 7,
+            runSpacing: 7,
             children: [
-              Container(
-                width: 44,
-                height: 44,
-                decoration: BoxDecoration(color: palette.actionColor, borderRadius: BorderRadius.circular(14)),
-                child: Icon(Icons.sell_rounded, color: palette.onAction),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text('Precio vigente', style: TextStyle(color: palette.textSecondary, fontWeight: FontWeight.w800, fontSize: 11)),
-                    const SizedBox(height: 3),
-                    Text(CurrencyUtils.format(producto.precioVenta), style: TextStyle(color: palette.textPrimary, fontWeight: FontWeight.w900, fontSize: 24)),
-                  ],
-                ),
-              ),
+              _CatalogoPill(icon: Icons.category_rounded, text: tipo, compact: true),
+              _CatalogoPill(icon: Icons.local_offer_rounded, text: marca, compact: true),
             ],
           ),
-        ),
-        const SizedBox(height: 14),
-        Row(
+          SizedBox(height: 12 * spacing),
+          Text(
+            producto.nombre ?? 'Producto ${producto.prodId ?? '-'}',
+            maxLines: compact ? 3 : 2,
+            overflow: TextOverflow.ellipsis,
+            style: titleStyle,
+          ),
+          SizedBox(height: 7 * spacing),
+          Text(
+            descripcion.isEmpty
+                ? 'Este producto no tiene una descripción comercial registrada.'
+                : descripcion,
+            maxLines: compact ? 4 : 3,
+            overflow: TextOverflow.ellipsis,
+            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                  color: palette.textSecondary,
+                  fontWeight: FontWeight.w600,
+                  height: 1.34,
+                ),
+          ),
+        ],
+      );
+
+      if (compact) {
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            Icon(Icons.tag_rounded, size: 18, color: palette.secondary),
-            const SizedBox(width: 7),
-            Text('Código del producto', style: TextStyle(color: palette.textSecondary, fontWeight: FontWeight.w800)),
-            const Spacer(),
-            Text('#${producto.prodId ?? '-'}', style: TextStyle(color: palette.textPrimary, fontWeight: FontWeight.w900)),
+            Center(child: _ProductoCatalogoImage(value: producto.foto, size: imageSize)),
+            SizedBox(height: 16 * spacing),
+            textContent,
           ],
-        ),
-      ],
+        );
+      }
+
+      return Row(
+        crossAxisAlignment: CrossAxisAlignment.center,
+        children: [
+          _ProductoCatalogoImage(value: producto.foto, size: imageSize),
+          SizedBox(width: 18 * spacing),
+          Expanded(child: textContent),
+        ],
+      );
+    }
+
+    final body = SingleChildScrollView(
+      padding: EdgeInsets.fromLTRB(
+        20 * spacing,
+        18 * spacing,
+        20 * spacing,
+        24 * spacing + media.viewPadding.bottom,
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          buildProductIdentity(compact: isVeryCompact),
+          SizedBox(height: 18 * spacing),
+          Container(
+            padding: EdgeInsets.all(15 * spacing),
+            decoration: BoxDecoration(
+              gradient: palette.panelGradient(tint: palette.secondary),
+              borderRadius: BorderRadius.circular(palette.radius(20)),
+              border: Border.all(color: palette.secondary.withOpacity(0.22)),
+            ),
+            child: Row(
+              children: [
+                Container(
+                  width: 46,
+                  height: 46,
+                  decoration: BoxDecoration(
+                    color: palette.actionColor,
+                    borderRadius: BorderRadius.circular(palette.radius(14)),
+                  ),
+                  child: Icon(Icons.sell_rounded, color: palette.onAction),
+                ),
+                const SizedBox(width: 13),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'Precio vigente',
+                        style: Theme.of(context).textTheme.labelMedium?.copyWith(
+                              color: palette.textSecondary,
+                              fontWeight: FontWeight.w800,
+                            ),
+                      ),
+                      const SizedBox(height: 3),
+                      Text(
+                        CurrencyUtils.format(producto.precioVenta),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+                              color: palette.textPrimary,
+                              fontWeight: FontWeight.w900,
+                            ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+          SizedBox(height: 12 * spacing),
+          Container(
+            padding: EdgeInsets.symmetric(horizontal: 15 * spacing, vertical: 13 * spacing),
+            decoration: BoxDecoration(
+              color: palette.background.withOpacity(palette.darkBackground ? 0.34 : 0.62),
+              borderRadius: BorderRadius.circular(palette.radius(17)),
+              border: Border.all(color: palette.cardBorder),
+            ),
+            child: Row(
+              children: [
+                Container(
+                  width: 38,
+                  height: 38,
+                  decoration: BoxDecoration(
+                    color: palette.secondary.withOpacity(0.13),
+                    borderRadius: BorderRadius.circular(palette.radius(12)),
+                  ),
+                  child: Icon(Icons.tag_rounded, size: 19, color: palette.secondary),
+                ),
+                const SizedBox(width: 11),
+                Expanded(
+                  child: Text(
+                    'Código del producto',
+                    style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                          color: palette.textSecondary,
+                          fontWeight: FontWeight.w800,
+                        ),
+                  ),
+                ),
+                Text(
+                  '#${producto.prodId ?? '-'}',
+                  style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                        color: palette.textPrimary,
+                        fontWeight: FontWeight.w900,
+                      ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
     );
 
     return Align(
       alignment: Alignment.bottomCenter,
-      child: Container(
-        width: double.infinity,
-        constraints: BoxConstraints(maxWidth: 760, maxHeight: maxHeight),
-        decoration: BoxDecoration(
-          color: palette.surface,
-          borderRadius: const BorderRadius.vertical(top: Radius.circular(30)),
-          border: Border.all(color: palette.secondary.withOpacity(0.18)),
-          boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.30), blurRadius: 34, offset: const Offset(0, -10))],
-        ),
-        child: SingleChildScrollView(
-          padding: const EdgeInsets.fromLTRB(22, 18, 22, 28),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              Row(
-                children: [
-                  Container(width: 42, height: 4, decoration: BoxDecoration(color: palette.secondary.withOpacity(0.55), borderRadius: BorderRadius.circular(999))),
-                  const Spacer(),
-                  Text('Información del producto', style: TextStyle(color: palette.textPrimary, fontWeight: FontWeight.w900)),
-                  const Spacer(),
-                  IconButton.filledTonal(onPressed: () => Navigator.of(context).pop(), icon: const Icon(Icons.close_rounded)),
+      child: Padding(
+        padding: EdgeInsets.symmetric(horizontal: horizontalMargin),
+        child: SizedBox(
+          width: sheetWidth,
+          height: sheetHeight,
+          child: Material(
+            color: Colors.transparent,
+            clipBehavior: Clip.antiAlias,
+            borderRadius: BorderRadius.vertical(top: Radius.circular(radius)),
+            child: DecoratedBox(
+              decoration: BoxDecoration(
+                gradient: palette.panelGradient(tint: palette.secondary),
+                borderRadius: BorderRadius.vertical(top: Radius.circular(radius)),
+                border: Border.all(color: palette.secondary.withOpacity(0.20)),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withOpacity(0.36),
+                    blurRadius: 36,
+                    offset: const Offset(0, -12),
+                  ),
                 ],
               ),
-              const SizedBox(height: 18),
-              LayoutBuilder(
-                builder: (context, constraints) {
-                  final compact = constraints.maxWidth < 620;
-                  if (compact) {
-                    return Column(
+              child: Column(
+                children: [
+                  Padding(
+                    padding: EdgeInsets.fromLTRB(16 * spacing, 10 * spacing, 10 * spacing, 10 * spacing),
+                    child: Column(
                       children: [
-                        _ProductoCatalogoImage(value: producto.foto, size: 190),
-                        const SizedBox(height: 20),
-                        details,
+                        Container(
+                          width: 46,
+                          height: 4,
+                          decoration: BoxDecoration(
+                            color: palette.secondary.withOpacity(0.48),
+                            borderRadius: BorderRadius.circular(999),
+                          ),
+                        ),
+                        SizedBox(height: 9 * spacing),
+                        Row(
+                          children: [
+                            Container(
+                              width: 38,
+                              height: 38,
+                              decoration: BoxDecoration(
+                                color: palette.secondary.withOpacity(0.13),
+                                borderRadius: BorderRadius.circular(palette.radius(12)),
+                              ),
+                              child: Icon(Icons.inventory_2_outlined, size: 19, color: palette.secondary),
+                            ),
+                            const SizedBox(width: 11),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    'Detalle del producto',
+                                    style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                                          color: palette.textPrimary,
+                                          fontWeight: FontWeight.w900,
+                                        ),
+                                  ),
+                                  Text(
+                                    'Consulta imagen, marca y precio vigente.',
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                                          color: palette.textSecondary,
+                                          fontWeight: FontWeight.w600,
+                                        ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                            IconButton.filledTonal(
+                              tooltip: 'Cerrar',
+                              onPressed: () => Navigator.of(context).pop(),
+                              icon: const Icon(Icons.close_rounded),
+                            ),
+                          ],
+                        ),
                       ],
-                    );
-                  }
-                  return Row(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      _ProductoCatalogoImage(value: producto.foto, size: 220),
-                      const SizedBox(width: 24),
-                      Expanded(child: details),
-                    ],
-                  );
-                },
+                    ),
+                  ),
+                  Divider(height: 1, color: palette.cardBorder),
+                  Expanded(child: body),
+                ],
               ),
-            ],
+            ),
           ),
         ),
       ),
@@ -14953,14 +15234,22 @@ class _AgregarProductosOverlayPanelState extends ConsumerState<_AgregarProductos
           borderRadius: mobile
               ? const BorderRadius.vertical(top: Radius.circular(30))
               : const BorderRadius.horizontal(left: Radius.circular(30)),
-          border: Border.all(color: palette.secondary.withOpacity(0.18)),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withOpacity(0.30),
-              blurRadius: 36,
-              offset: const Offset(-12, 0),
-            ),
-          ],
+          border: mobile ? null : Border.all(color: palette.secondary.withOpacity(0.18)),
+          boxShadow: mobile
+              ? [
+                  BoxShadow(
+                    color: Colors.black.withOpacity(0.24),
+                    blurRadius: 28,
+                    offset: const Offset(0, -8),
+                  ),
+                ]
+              : [
+                  BoxShadow(
+                    color: Colors.black.withOpacity(0.30),
+                    blurRadius: 36,
+                    offset: const Offset(-12, 0),
+                  ),
+                ],
         ),
         clipBehavior: Clip.antiAlias,
         child: Column(
@@ -15079,7 +15368,7 @@ class _AgregarProductosOverlayPanelState extends ConsumerState<_AgregarProductos
                       },
                       icon: const Icon(Icons.close_rounded),
                     ),
-            ),
+            ).compactFilter(),
           ),
           if (_tipos.isNotEmpty) ...[
             const SizedBox(height: 12),

@@ -6,6 +6,9 @@ class InventarioResponseModel {
     this.sucuId,
     this.invtCantidad,
     this.invtFecha,
+    this.invtOrigen,
+    this.invtCantidadEsperada,
+    this.invtDiferencia,
     this.invtRegistradoPor,
     this.invtFechaCambio,
   });
@@ -15,6 +18,9 @@ class InventarioResponseModel {
   final int? sucuId;
   final double? invtCantidad;
   final String? invtFecha;
+  final String? invtOrigen;
+  final double? invtCantidadEsperada;
+  final double? invtDiferencia;
   final String? invtRegistradoPor;
   final String? invtFechaCambio;
 
@@ -24,6 +30,9 @@ class InventarioResponseModel {
       sucuId: (json['sucuId'] as num?)?.toInt(),
       invtCantidad: (json['invtCantidad'] as num?)?.toDouble(),
       invtFecha: json['invtFecha']?.toString(),
+      invtOrigen: json['invtOrigen']?.toString(),
+      invtCantidadEsperada: (json['invtCantidadEsperada'] as num?)?.toDouble(),
+      invtDiferencia: (json['invtDiferencia'] as num?)?.toDouble(),
       invtRegistradoPor: json['invtRegistradoPor']?.toString(),
       invtFechaCambio: json['invtFechaCambio']?.toString(),
   );
@@ -34,6 +43,9 @@ class InventarioResponseModel {
       'sucuId': sucuId,
       'invtCantidad': invtCantidad,
       'invtFecha': invtFecha,
+      'invtOrigen': invtOrigen,
+      'invtCantidadEsperada': invtCantidadEsperada,
+      'invtDiferencia': invtDiferencia,
       'invtRegistradoPor': invtRegistradoPor,
       'invtFechaCambio': invtFechaCambio,
   };

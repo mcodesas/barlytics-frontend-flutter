@@ -13,6 +13,7 @@ import '../../../../core/widgets/app_button.dart';
 import '../../../../core/widgets/app_loader.dart';
 import '../../../../core/widgets/lookup_dropdown.dart';
 import '../../../../core/widgets/tech_background.dart';
+import '../providers/profile_header_provider.dart';
 
 class ProfilePage extends ConsumerStatefulWidget {
   const ProfilePage({super.key});
@@ -224,6 +225,7 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Perfil actualizado correctamente')),
       );
+      ref.invalidate(profileHeaderProvider);
       await _loadProfile();
       if (mounted) setState(() {});
     } catch (e) {

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../../../app/theme/app_control_metrics.dart';
 import '../../../../app/theme/app_colors.dart';
 import '../../../../app/theme/app_palette.dart';
 import '../../../../app/theme/module_visuals.dart';
@@ -562,7 +563,7 @@ class _EmpresasToolbar extends StatelessWidget {
                       },
                       icon: const Icon(Icons.close_rounded),
                     ),
-            ),
+            ).compactFilter(),
           );
           if (compact) return Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [info, const SizedBox(height: 14), search]);
           return Row(children: [Expanded(flex: 5, child: info), const SizedBox(width: 16), Expanded(flex: 4, child: search)]);

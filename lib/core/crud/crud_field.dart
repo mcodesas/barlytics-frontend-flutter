@@ -44,6 +44,7 @@ class CrudField {
     this.required = true,
     this.readOnly = false,
     this.lookup,
+    this.options,
   });
 
   final String name;
@@ -54,4 +55,8 @@ class CrudField {
 
   /// Configuración opcional para renderizar el campo como ayuda de búsqueda.
   final CrudLookupConfig? lookup;
+
+  /// Opciones fijas para catálogos controlados, por ejemplo ENTRADA/SALIDA/AJUSTE.
+  /// La llave se envía al backend y el valor se muestra al usuario.
+  final Map<String, String>? options;
 }

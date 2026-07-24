@@ -224,141 +224,855 @@ class _ProductDetailBody extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final sale = precioActivo?.precValorVenta ?? 0;
-    final purchase = precioActivo?.precValorCompra ?? 0;
-    final utility = sale - purchase;
+    final sale = precioActivo?.precValorVenta?.toDouble() ?? 0.0;
+    final purchaseTotal = precioActivo?.precValorCompra?.toDouble() ?? 0.0;
+    final purchaseUnit = _unitPurchaseCost(producto, purchaseTotal);
+    final utility = sale - purchaseUnit;
     final margin = sale > 0 ? (utility / sale) * 100 : 0.0;
-
-    final infoCard = _SectionCard(
-      palette: palette,
-      title: 'Ficha del producto',
-      icon: Icons.info_outline_rounded,
-      child: _SimpleInfoList(
-        palette: palette,
-        rows: [
-          _InfoItem('Producto', _value(producto.prodNombre)),
-          _InfoItem('Descripción', _value(producto.prodDescripcion, fallback: 'Sin descripción registrada.')),
-          _InfoItem('Sucursal', sucursalNombre),
-          _InfoItem('Marca', marca?.mrcaNombre ?? 'Marca no definida'),
-          _InfoItem('Tipo de producto', tipo?.tpprNombre ?? 'Tipo no definido'),
-          _InfoItem('Fecha de vencimiento', _date(producto.prodFechaVencimiento)),
-          _InfoItem(
-            'Compra por presentación',
-            (producto.prodCompraPorCantidad ?? 0) == 1
-                ? '${_number(producto.prodCantidadCompra ?? 0)} unidades · ${_value(producto.prodPresentacionCompra, fallback: 'Presentación')}'
-                : 'Compra por unidad',
-          ),
-          _InfoItem('Última modificación', _date(producto.prodFechaCambio)),
-        ],
-      ),
+    final purchaseQuantity = producto.prodCantidadCompra ?? 0;
+    final purchaseByPackage =
+        (producto.prodCompraPorCantidad ?? 0) == 1 && purchaseQuantity > 0;
+    final purchasePresentation = _value(
+      producto.prodPresentacionCompra,
+      fallback: 'Presentación',
     );
-
-    final inventoryCard = _SectionCard(
-      palette: palette,
-      title: 'Inventario',
-      icon: Icons.inventory_rounded,
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          _InventoryOverview(
-            palette: palette,
-            total: cantidadInventario,
-            records: inventarios.length,
-            sucursalNombre: sucursalNombre,
-          ),
-          const SizedBox(height: 16),
-          Text('Movimientos recientes', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w900, color: palette.textPrimary)),
-          const SizedBox(height: 10),
-          inventarios.isEmpty
-              ? _EmptyMiniMessage(palette: palette, text: 'Este producto todavía no tiene inventario registrado.')
-              : _InventoryHistoryTable(palette: palette, items: inventarios, sucursalNombre: sucursalNombre),
-        ],
-      ),
-    );
-
-    final activePriceCard = _SectionCard(
-      palette: palette,
-      title: 'Precio y rentabilidad',
-      icon: Icons.local_offer_rounded,
-      trailing: precioActivo == null
-          ? _StatusPill(text: 'Sin precio activo', active: false, palette: palette)
-          : _StatusPill(text: 'Activo', active: true, palette: palette),
-      child: precioActivo == null
-          ? _EmptyMiniMessage(palette: palette, text: 'No se encontró un precio activo para este producto.')
-          : Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                _ActivePriceSummary(palette: palette, price: precioActivo!),
-                const SizedBox(height: 14),
-                _ProfitabilitySummary(
-                  palette: palette,
-                  utility: utility,
-                  margin: margin,
-                  sale: sale,
-                  purchase: purchase,
-                ),
-              ],
-            ),
-    );
-
-    final historyCard = _SectionCard(
-      palette: palette,
-      title: 'Historial de precios',
-      icon: Icons.history_rounded,
-      child: precios.isEmpty
-          ? _EmptyMiniMessage(palette: palette, text: 'No hay historial de precios registrado.')
-          : _PriceHistoryTable(palette: palette, prices: precios),
+    final purchaseSummary = purchaseByPackage
+        ? '$purchasePresentation x ${_number(purchaseQuantity)}'
+        : 'Compra por unidad';
+    final expiration = _expirationSummary(
+      producto.prodFechaVencimiento,
+      palette,
     );
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        _ProductQuickSummary(
+        _PosProductSummary(
           palette: palette,
+          producto: producto,
+          marca: marca,
+          tipo: tipo,
+          price: precioActivo,
           inventory: cantidadInventario,
-          salesYesterday: producto.ventasAyer ?? 0,
-          salePrice: precioActivo?.precValorVenta,
-          margin: precioActivo == null ? null : margin,
-          expirationDate: producto.prodFechaVencimiento,
+          purchaseUnit: purchaseUnit,
+          utility: utility,
+          margin: margin,
+          purchaseSummary: purchaseSummary,
+          expiration: expiration,
+          sucursalNombre: sucursalNombre,
         ),
-        const SizedBox(height: 14),
-        LayoutBuilder(
-          builder: (context, constraints) {
-            if (constraints.maxWidth < 980) {
-              return Column(
-                children: [
-                  infoCard,
-                  const SizedBox(height: 14),
-                  activePriceCard,
-                  const SizedBox(height: 14),
-                  inventoryCard,
-                  const SizedBox(height: 14),
-                  historyCard,
-                ],
-              );
-            }
-
-            return Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Expanded(
-                  flex: 6,
-                  child: Column(children: [infoCard, const SizedBox(height: 14), inventoryCard]),
+        const SizedBox(height: 12),
+        _PosExpandableSection(
+          palette: palette,
+          icon: Icons.inventory_2_rounded,
+          title: 'Inventario y movimientos',
+          subtitle:
+              '${_number(cantidadInventario)} unidades · ${inventarios.length} registros',
+          child: inventarios.isEmpty
+              ? _EmptyMiniMessage(
+                  palette: palette,
+                  text: 'Todavía no hay movimientos de inventario.',
+                )
+              : _InventoryHistoryTable(
+                  palette: palette,
+                  items: inventarios,
+                  sucursalNombre: sucursalNombre,
                 ),
-                const SizedBox(width: 14),
-                Expanded(
-                  flex: 5,
-                  child: Column(children: [activePriceCard, const SizedBox(height: 14), historyCard]),
+        ),
+        const SizedBox(height: 12),
+        _PosExpandableSection(
+          palette: palette,
+          icon: Icons.history_rounded,
+          title: 'Historial de precios',
+          subtitle: precios.isEmpty
+              ? 'Sin registros'
+              : '${precios.length} precios registrados',
+          child: precios.isEmpty
+              ? _EmptyMiniMessage(
+                  palette: palette,
+                  text: 'No hay historial de precios registrado.',
+                )
+              : _PriceHistoryTable(
+                  palette: palette,
+                  prices: precios,
                 ),
-              ],
-            );
-          },
         ),
         if (loading) ...[
-          const SizedBox(height: 14),
-          LinearProgressIndicator(color: palette.secondary, backgroundColor: palette.background),
+          const SizedBox(height: 12),
+          LinearProgressIndicator(
+            color: palette.secondary,
+            backgroundColor: palette.background,
+          ),
         ],
       ],
+    );
+  }
+}
+
+class _PosProductSummary extends StatelessWidget {
+  const _PosProductSummary({
+    required this.palette,
+    required this.producto,
+    required this.marca,
+    required this.tipo,
+    required this.price,
+    required this.inventory,
+    required this.purchaseUnit,
+    required this.utility,
+    required this.margin,
+    required this.purchaseSummary,
+    required this.expiration,
+    required this.sucursalNombre,
+  });
+
+  final AppPalette palette;
+  final ProductosResponseModel producto;
+  final MarcasResponseModel? marca;
+  final TiposProductoResponseModel? tipo;
+  final PreciosResponseModel? price;
+  final double inventory;
+  final double purchaseUnit;
+  final double utility;
+  final double margin;
+  final String purchaseSummary;
+  final _ExpirationSummary expiration;
+  final String sucursalNombre;
+
+  @override
+  Widget build(BuildContext context) {
+    final hasPrice = price != null;
+    final positive = utility >= 0;
+    final profitColor = positive ? palette.success : Colors.redAccent;
+    final stockColor = inventory <= 0
+        ? Colors.redAccent
+        : inventory <= 5
+            ? palette.warning
+            : palette.success;
+
+    final leftRows = [
+      _PosDetailData(
+        icon: Icons.sell_rounded,
+        label: 'Marca',
+        value: marca?.mrcaNombre ?? 'Sin marca',
+      ),
+      _PosDetailData(
+        icon: Icons.category_rounded,
+        label: 'Tipo',
+        value: tipo?.tpprNombre ?? 'Sin tipo',
+      ),
+      _PosDetailData(
+        icon: Icons.storefront_rounded,
+        label: 'Sucursal',
+        value: sucursalNombre,
+      ),
+    ];
+    final rightRows = [
+      _PosDetailData(
+        icon: Icons.inventory_2_outlined,
+        label: 'Forma de compra',
+        value: purchaseSummary,
+      ),
+      _PosDetailData(
+        icon: expiration.icon,
+        label: 'Vencimiento',
+        value: expiration.label,
+        color: expiration.color,
+      ),
+      _PosDetailData(
+        icon: Icons.update_rounded,
+        label: 'Última actualización',
+        value: _date(producto.prodFechaCambio),
+      ),
+    ];
+
+    return Center(
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: 980),
+        child: Container(
+          decoration: BoxDecoration(
+            color: palette.surface.withOpacity(
+              palette.darkBackground ? 0.96 : 0.99,
+            ),
+            borderRadius: BorderRadius.circular(palette.radius(26)),
+            boxShadow: [
+              BoxShadow(
+                color: palette.cardShadow.withOpacity(0.38),
+                blurRadius: 24,
+                offset: const Offset(0, 10),
+              ),
+            ],
+          ),
+          child: ClipRRect(
+            borderRadius: BorderRadius.circular(palette.radius(26)),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(18, 18, 18, 14),
+                  child: Row(
+                    children: [
+                      Container(
+                        width: 46,
+                        height: 46,
+                        decoration: BoxDecoration(
+                          color: palette.secondary.withOpacity(0.14),
+                          borderRadius: BorderRadius.circular(15),
+                        ),
+                        child: Icon(
+                          Icons.inventory_2_rounded,
+                          color: palette.secondary,
+                          size: 24,
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              'Resumen del producto',
+                              style: TextStyle(
+                                color: palette.textPrimary,
+                                fontSize: 18,
+                                fontWeight: FontWeight.w900,
+                              ),
+                            ),
+                            const SizedBox(height: 2),
+                            Text(
+                              'Información principal para operar y vender.',
+                              style: TextStyle(
+                                color: palette.textSecondary,
+                                fontSize: 12,
+                                fontWeight: FontWeight.w700,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      _StatusPill(
+                        text: hasPrice ? 'Activo' : 'Sin precio',
+                        active: hasPrice,
+                        palette: palette,
+                      ),
+                    ],
+                  ),
+                ),
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(18, 0, 18, 18),
+                  child: Column(
+                    children: [
+                      LayoutBuilder(
+                        builder: (context, constraints) {
+                          final compact = constraints.maxWidth < 620;
+                          final priceValue = _PosPrimaryValue(
+                            palette: palette,
+                            icon: Icons.payments_rounded,
+                            label: 'Precio de venta',
+                            value: hasPrice
+                                ? _money(price!.precValorVenta)
+                                : 'Sin precio',
+                            color: palette.secondary,
+                          );
+                          final stockValue = _PosPrimaryValue(
+                            palette: palette,
+                            icon: Icons.inventory_rounded,
+                            label: 'Stock disponible',
+                            value: '${_number(inventory)} unidades',
+                            color: stockColor,
+                          );
+
+                          return Container(
+                            padding: const EdgeInsets.all(14),
+                            decoration: BoxDecoration(
+                              color: palette.background.withOpacity(
+                                palette.darkBackground ? 0.48 : 0.72,
+                              ),
+                              borderRadius: BorderRadius.circular(
+                                palette.radius(20),
+                              ),
+                            ),
+                            child: compact
+                                ? Column(
+                                    children: [
+                                      priceValue,
+                                      const SizedBox(height: 12),
+                                      stockValue,
+                                    ],
+                                  )
+                                : Row(
+                                    children: [
+                                      Expanded(child: priceValue),
+                                      const SizedBox(width: 18),
+                                      Expanded(child: stockValue),
+                                    ],
+                                  ),
+                          );
+                        },
+                      ),
+                      const SizedBox(height: 12),
+                      LayoutBuilder(
+                        builder: (context, constraints) {
+                          final compact = constraints.maxWidth < 720;
+                          final left = _PosDetailList(
+                            palette: palette,
+                            rows: leftRows,
+                          );
+                          final right = _PosDetailList(
+                            palette: palette,
+                            rows: rightRows,
+                          );
+
+                          if (compact) {
+                            return Column(
+                              children: [
+                                left,
+                                const SizedBox(height: 8),
+                                right,
+                              ],
+                            );
+                          }
+                          return Row(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Expanded(child: left),
+                              const SizedBox(width: 10),
+                              Expanded(child: right),
+                            ],
+                          );
+                        },
+                      ),
+                      const SizedBox(height: 12),
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 14,
+                          vertical: 13,
+                        ),
+                        decoration: BoxDecoration(
+                          color: profitColor.withOpacity(0.08),
+                          borderRadius: BorderRadius.circular(
+                            palette.radius(18),
+                          ),
+                        ),
+                        child: LayoutBuilder(
+                          builder: (context, constraints) {
+                            final compact = constraints.maxWidth < 560;
+                            final items = [
+                              _PosProfitValue(
+                                palette: palette,
+                                label: 'Costo unitario',
+                                value: hasPrice ? _money(purchaseUnit) : '-',
+                              ),
+                              _PosProfitValue(
+                                palette: palette,
+                                label: 'Utilidad',
+                                value: hasPrice ? _money(utility) : '-',
+                                color: profitColor,
+                              ),
+                              _PosProfitValue(
+                                palette: palette,
+                                label: 'Margen',
+                                value: hasPrice ? '${_number(margin)}%' : '-',
+                                color: profitColor,
+                              ),
+                            ];
+
+                            if (compact) {
+                              return Column(
+                                children: [
+                                  for (var index = 0;
+                                      index < items.length;
+                                      index++) ...[
+                                    items[index],
+                                    if (index != items.length - 1)
+                                      const SizedBox(height: 10),
+                                  ],
+                                ],
+                              );
+                            }
+                            return Row(
+                              children: [
+                                for (var index = 0;
+                                    index < items.length;
+                                    index++) ...[
+                                  Expanded(child: items[index]),
+                                  if (index != items.length - 1)
+                                    const SizedBox(width: 12),
+                                ],
+                              ],
+                            );
+                          },
+                        ),
+                      ),
+                      if (hasPrice) ...[
+                        const SizedBox(height: 4),
+                        Theme(
+                          data: Theme.of(context).copyWith(
+                            dividerColor: Colors.transparent,
+                          ),
+                          child: ExpansionTile(
+                            tilePadding: EdgeInsets.zero,
+                            childrenPadding: const EdgeInsets.only(top: 2),
+                            shape: const Border(),
+                            collapsedShape: const Border(),
+                            iconColor: palette.secondary,
+                            collapsedIconColor: palette.textSecondary,
+                            title: Text(
+                              'Vigencia del precio',
+                              style: TextStyle(
+                                color: palette.textSecondary,
+                                fontWeight: FontWeight.w800,
+                                fontSize: 12.5,
+                              ),
+                            ),
+                            children: [
+                              _SimpleInfoList(
+                                palette: palette,
+                                rows: [
+                                  _InfoItem('Impuesto', _taxSummary(price!)),
+                                  _InfoItem(
+                                    'Inicio',
+                                    _date(price!.precFechaInicia),
+                                  ),
+                                  _InfoItem(
+                                    'Finaliza',
+                                    _date(price!.precFechaFinaliza),
+                                  ),
+                                ],
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _PosPrimaryValue extends StatelessWidget {
+  const _PosPrimaryValue({
+    required this.palette,
+    required this.icon,
+    required this.label,
+    required this.value,
+    required this.color,
+  });
+
+  final AppPalette palette;
+  final IconData icon;
+  final String label;
+  final String value;
+  final Color color;
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      children: [
+        Container(
+          width: 42,
+          height: 42,
+          decoration: BoxDecoration(
+            color: color.withOpacity(0.13),
+            borderRadius: BorderRadius.circular(14),
+          ),
+          child: Icon(icon, color: color, size: 22),
+        ),
+        const SizedBox(width: 11),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                label,
+                style: TextStyle(
+                  color: palette.textSecondary,
+                  fontWeight: FontWeight.w700,
+                  fontSize: 11,
+                ),
+              ),
+              const SizedBox(height: 2),
+              Text(
+                value,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(
+                  color: palette.textPrimary,
+                  fontWeight: FontWeight.w900,
+                  fontSize: 22,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _PosDetailData {
+  const _PosDetailData({
+    required this.icon,
+    required this.label,
+    required this.value,
+    this.color,
+  });
+
+  final IconData icon;
+  final String label;
+  final String value;
+  final Color? color;
+}
+
+class _PosDetailList extends StatelessWidget {
+  const _PosDetailList({required this.palette, required this.rows});
+
+  final AppPalette palette;
+  final List<_PosDetailData> rows;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
+      decoration: BoxDecoration(
+        color: palette.background.withOpacity(
+          palette.darkBackground ? 0.34 : 0.58,
+        ),
+        borderRadius: BorderRadius.circular(palette.radius(18)),
+      ),
+      child: Column(
+        children: [
+          for (var index = 0; index < rows.length; index++) ...[
+            _PosDetailRow(palette: palette, data: rows[index]),
+            if (index != rows.length - 1)
+              Divider(
+                height: 1,
+                color: palette.textSecondary.withOpacity(0.10),
+              ),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
+class _PosDetailRow extends StatelessWidget {
+  const _PosDetailRow({required this.palette, required this.data});
+
+  final AppPalette palette;
+  final _PosDetailData data;
+
+  @override
+  Widget build(BuildContext context) {
+    final color = data.color ?? palette.secondary;
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 10),
+      child: Row(
+        children: [
+          Icon(data.icon, size: 18, color: color),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Text(
+              data.label,
+              style: TextStyle(
+                color: palette.textSecondary,
+                fontWeight: FontWeight.w700,
+                fontSize: 11.5,
+              ),
+            ),
+          ),
+          const SizedBox(width: 12),
+          Flexible(
+            child: Text(
+              data.value,
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+              textAlign: TextAlign.right,
+              style: TextStyle(
+                color: palette.textPrimary,
+                fontWeight: FontWeight.w900,
+                fontSize: 12.5,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _PosProfitValue extends StatelessWidget {
+  const _PosProfitValue({
+    required this.palette,
+    required this.label,
+    required this.value,
+    this.color,
+  });
+
+  final AppPalette palette;
+  final String label;
+  final String value;
+  final Color? color;
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      children: [
+        Flexible(
+          child: Text(
+            label,
+            overflow: TextOverflow.ellipsis,
+            style: TextStyle(
+              color: palette.textSecondary,
+              fontWeight: FontWeight.w700,
+              fontSize: 11.5,
+            ),
+          ),
+        ),
+        const SizedBox(width: 8),
+        Text(
+          value,
+          style: TextStyle(
+            color: color ?? palette.textPrimary,
+            fontWeight: FontWeight.w900,
+            fontSize: 13,
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _PosMetric extends StatelessWidget {
+  const _PosMetric({
+    required this.palette,
+    required this.label,
+    required this.value,
+    required this.icon,
+    required this.color,
+  });
+
+  final AppPalette palette;
+  final String label;
+  final String value;
+  final IconData icon;
+  final Color color;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 11),
+      decoration: BoxDecoration(
+        color: palette.background.withOpacity(
+          palette.darkBackground ? 0.54 : 0.76,
+        ),
+        borderRadius: BorderRadius.circular(16),
+      ),
+      child: Row(
+        children: [
+          Icon(icon, size: 18, color: color),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  label,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    color: palette.textSecondary,
+                    fontWeight: FontWeight.w700,
+                    fontSize: 10.5,
+                  ),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  value,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    color: palette.textPrimary,
+                    fontWeight: FontWeight.w900,
+                    fontSize: 13,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _PosInfoChip extends StatelessWidget {
+  const _PosInfoChip({
+    required this.palette,
+    required this.icon,
+    required this.text,
+    this.color,
+  });
+
+  final AppPalette palette;
+  final IconData icon;
+  final String text;
+  final Color? color;
+
+  @override
+  Widget build(BuildContext context) {
+    final foreground = color ?? palette.textSecondary;
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+      decoration: BoxDecoration(
+        color: foreground.withOpacity(0.09),
+        borderRadius: BorderRadius.circular(999),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 15, color: foreground),
+          const SizedBox(width: 6),
+          Text(
+            text,
+            style: TextStyle(
+              color: palette.textPrimary,
+              fontWeight: FontWeight.w800,
+              fontSize: 12,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _PosExpandableSection extends StatelessWidget {
+  const _PosExpandableSection({
+    required this.palette,
+    required this.icon,
+    required this.title,
+    required this.subtitle,
+    required this.child,
+  });
+
+  final AppPalette palette;
+  final IconData icon;
+  final String title;
+  final String subtitle;
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      decoration: BoxDecoration(
+        color: palette.surface.withOpacity(palette.darkBackground ? 0.92 : 0.99),
+        borderRadius: BorderRadius.circular(20),
+        boxShadow: [
+          BoxShadow(
+            color: palette.cardShadow.withOpacity(0.32),
+            blurRadius: 14,
+            offset: const Offset(0, 6),
+          ),
+        ],
+      ),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(20),
+        child: Theme(
+          data: Theme.of(context).copyWith(dividerColor: Colors.transparent),
+          child: ExpansionTile(
+            tilePadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 3),
+            childrenPadding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+            shape: const Border(),
+            collapsedShape: const Border(),
+            iconColor: palette.secondary,
+            collapsedIconColor: palette.textSecondary,
+            leading: Container(
+              width: 38,
+              height: 38,
+              decoration: BoxDecoration(
+                color: palette.secondary.withOpacity(0.12),
+                borderRadius: BorderRadius.circular(13),
+              ),
+              child: Icon(icon, color: palette.secondary, size: 20),
+            ),
+            title: Text(
+              title,
+              style: TextStyle(
+                color: palette.textPrimary,
+                fontWeight: FontWeight.w900,
+                fontSize: 15,
+              ),
+            ),
+            subtitle: Text(
+              subtitle,
+              style: TextStyle(
+                color: palette.textSecondary,
+                fontWeight: FontWeight.w700,
+                fontSize: 11.5,
+              ),
+            ),
+            children: [child],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _ProductInformationCard extends StatelessWidget {
+  const _ProductInformationCard({
+    required this.palette,
+    required this.producto,
+    required this.marca,
+    required this.tipo,
+    required this.sucursalNombre,
+  });
+
+  final AppPalette palette;
+  final ProductosResponseModel producto;
+  final MarcasResponseModel? marca;
+  final TiposProductoResponseModel? tipo;
+  final String sucursalNombre;
+
+  @override
+  Widget build(BuildContext context) {
+    final purchaseQuantity = producto.prodCantidadCompra ?? 0;
+    final purchaseByPackage =
+        (producto.prodCompraPorCantidad ?? 0) == 1 && purchaseQuantity > 0;
+    final purchasePresentation = _value(
+      producto.prodPresentacionCompra,
+      fallback: 'Presentación',
+    );
+    final purchaseSummary = purchaseByPackage
+        ? '$purchasePresentation x ${_number(purchaseQuantity)}'
+        : 'Por unidad';
+    final expiration = _expirationSummary(
+      producto.prodFechaVencimiento,
+      palette,
+    );
+
+    return _SectionCard(
+      palette: palette,
+      title: 'Datos del producto',
+      icon: Icons.info_outline_rounded,
+      child: _SimpleInfoList(
+        palette: palette,
+        rows: [
+          _InfoItem('Marca', marca?.mrcaNombre ?? 'Sin marca'),
+          _InfoItem('Tipo', tipo?.tpprNombre ?? 'Sin tipo'),
+          _InfoItem('Sucursal', sucursalNombre),
+          _InfoItem('Compra', purchaseSummary),
+          _InfoItem('Vencimiento', expiration.label),
+          _InfoItem('Actualizado', _date(producto.prodFechaCambio)),
+        ],
+      ),
     );
   }
 }
@@ -645,6 +1359,11 @@ class _ProductHeader extends StatelessWidget {
             ],
           );
 
+          final classification = [
+            marca?.mrcaNombre,
+            tipo?.tpprNombre,
+          ].whereType<String>().where((value) => value.trim().isNotEmpty).join(' · ');
+
           final details = Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
@@ -664,33 +1383,53 @@ class _ProductHeader extends StatelessWidget {
                   ),
                   if (!compact) ...[
                     const SizedBox(width: 10),
-                    _HeaderActions(palette: palette, onEdit: onEdit, onRefresh: onRefresh),
+                    _HeaderActions(
+                      palette: palette,
+                      onEdit: onEdit,
+                      onRefresh: onRefresh,
+                    ),
                   ],
                 ],
               ),
-              const SizedBox(height: 6),
-              Text(
-                _value(producto.prodDescripcion, fallback: 'Sin descripción registrada.'),
-                maxLines: compact ? 3 : 2,
-                overflow: TextOverflow.ellipsis,
-                style: TextStyle(color: Colors.white.withOpacity(0.80), fontWeight: FontWeight.w700, height: 1.35),
-              ),
+              if (classification.isNotEmpty) ...[
+                const SizedBox(height: 5),
+                Text(
+                  classification,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    color: Colors.white.withOpacity(0.76),
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+              ],
               const SizedBox(height: 12),
               Wrap(
                 spacing: 8,
                 runSpacing: 8,
                 children: [
-                  _HeaderChip(icon: Icons.inventory_2_rounded, text: '${_number(cantidadInventario)} unidades'),
-                  _HeaderChip(icon: Icons.storefront_rounded, text: sucursalNombre),
-                  _HeaderChip(icon: Icons.sell_rounded, text: marca?.mrcaNombre ?? 'Marca no definida'),
-                  _HeaderChip(icon: Icons.category_rounded, text: tipo?.tpprNombre ?? 'Tipo no definido'),
+                  _HeaderChip(
+                    icon: Icons.inventory_2_rounded,
+                    text: '${_number(cantidadInventario)} unidades',
+                  ),
                   if (precioActivo != null)
-                    _HeaderChip(icon: Icons.payments_rounded, text: _money(precioActivo!.precValorVenta)),
+                    _HeaderChip(
+                      icon: Icons.payments_rounded,
+                      text: _money(precioActivo!.precValorVenta),
+                    ),
+                  _HeaderChip(
+                    icon: Icons.storefront_rounded,
+                    text: sucursalNombre,
+                  ),
                 ],
               ),
               if (compact) ...[
                 const SizedBox(height: 12),
-                _HeaderActions(palette: palette, onEdit: onEdit, onRefresh: onRefresh),
+                _HeaderActions(
+                  palette: palette,
+                  onEdit: onEdit,
+                  onRefresh: onRefresh,
+                ),
               ],
             ],
           );
@@ -979,13 +1718,23 @@ class _InventoryOverview extends StatelessWidget {
 }
 
 class _ActivePriceSummary extends StatelessWidget {
-  const _ActivePriceSummary({required this.palette, required this.price});
+  const _ActivePriceSummary({
+    required this.palette,
+    required this.price,
+    required this.producto,
+    required this.unitPurchaseCost,
+  });
 
   final AppPalette palette;
   final PreciosResponseModel price;
+  final ProductosResponseModel producto;
+  final double unitPurchaseCost;
 
   @override
   Widget build(BuildContext context) {
+    final purchaseByPackage =
+        (producto.prodCompraPorCantidad ?? 0) == 1 &&
+            (producto.prodCantidadCompra ?? 0) > 0;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -1009,7 +1758,12 @@ class _ActivePriceSummary extends StatelessWidget {
         _SimpleInfoList(
           palette: palette,
           rows: [
-            _InfoItem('Precio de compra', _money(price.precValorCompra)),
+            _InfoItem(
+              purchaseByPackage ? 'Costo del empaque' : 'Precio de compra',
+              _money(price.precValorCompra),
+            ),
+            if (purchaseByPackage)
+              _InfoItem('Costo unitario calculado', _money(unitPurchaseCost)),
             _InfoItem('Impuesto', _taxSummary(price)),
             _InfoItem('Fecha de inicio', _date(price.precFechaInicia)),
             _InfoItem('Fecha de finalización', _date(price.precFechaFinaliza)),
@@ -1531,6 +2285,19 @@ class _ProductImage extends StatelessWidget {
   }
 }
 
+
+
+double _unitPurchaseCost(
+  ProductosResponseModel producto,
+  num? totalPurchase,
+) {
+  final total = totalPurchase?.toDouble() ?? 0;
+  final quantity = producto.prodCantidadCompra ?? 0;
+  final purchasedByPackage =
+      (producto.prodCompraPorCantidad ?? 0) == 1 && quantity > 0;
+  if (!purchasedByPackage) return total;
+  return total / quantity;
+}
 
 String _taxSummary(PreciosResponseModel price) {
   if ((price.precAplicaImpuesto ?? 0) != 1) return 'No aplica';

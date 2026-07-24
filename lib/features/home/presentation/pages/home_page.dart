@@ -39,7 +39,7 @@ class HomePage extends ConsumerWidget {
               ),
             ),
             SliverPadding(
-              padding: const EdgeInsets.all(18),
+              padding: palette.pagePadding,
               sliver: SliverList(
                 delegate: SliverChildListDelegate([
                   if (isOperational)
@@ -171,28 +171,12 @@ class _HomeHero extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Padding(
-      padding: const EdgeInsets.fromLTRB(18, 18, 18, 0),
+      padding: EdgeInsets.fromLTRB(18 * palette.spacingScale, 18 * palette.spacingScale, 18 * palette.spacingScale, 0),
       child: Container(
-        padding: const EdgeInsets.all(20),
-        decoration: BoxDecoration(
-          gradient: LinearGradient(
-            colors: [
-              palette.surface.withOpacity(palette.darkBackground ? 0.96 : 0.99),
-              palette.primary.withOpacity(palette.darkBackground ? 0.16 : 0.07),
-              palette.secondary.withOpacity(palette.darkBackground ? 0.11 : 0.05),
-            ],
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-          ),
-          borderRadius: BorderRadius.circular(30),
-          border: Border.all(color: palette.translucentBorder),
-          boxShadow: [
-            BoxShadow(
-              color: palette.cardShadow,
-              blurRadius: 26,
-              offset: const Offset(0, 14),
-            ),
-          ],
+        padding: palette.panelPadding(20),
+        decoration: palette.panelDecoration(
+          baseRadius: 30,
+          tint: palette.secondary,
         ),
         child: LayoutBuilder(
           builder: (context, constraints) {
@@ -204,7 +188,7 @@ class _HomeHero extends StatelessWidget {
                   padding: const EdgeInsets.symmetric(horizontal: 13, vertical: 7),
                   decoration: BoxDecoration(
                     color: palette.secondary.withOpacity(0.12),
-                    borderRadius: BorderRadius.circular(999),
+                    borderRadius: BorderRadius.circular(palette.radius(999)),
                     border: Border.all(color: palette.secondary.withOpacity(0.20)),
                   ),
                   child: Text(
@@ -244,7 +228,7 @@ class _HomeHero extends StatelessWidget {
               height: compact ? 74 : 104,
               decoration: BoxDecoration(
                 gradient: LinearGradient(colors: [palette.primary, palette.secondary]),
-                borderRadius: BorderRadius.circular(compact ? 24 : 32),
+                borderRadius: BorderRadius.circular(palette.radius(compact ? 24 : 32)),
                 border: Border.all(color: palette.secondary.withOpacity(0.18)),
                 boxShadow: [
                   BoxShadow(
@@ -316,12 +300,10 @@ class _StatCard extends ConsumerWidget {
     return SizedBox(
       width: MediaQuery.sizeOf(context).width < 600 ? double.infinity : 230,
       child: Container(
-        padding: const EdgeInsets.all(18),
-        decoration: BoxDecoration(
-          gradient: palette.glassGradient,
-          borderRadius: BorderRadius.circular(28),
-          border: Border.all(color: palette.translucentBorder),
-          boxShadow: [BoxShadow(color: color.withOpacity(0.14), blurRadius: 24, offset: const Offset(0, 14))],
+        padding: palette.panelPadding(18),
+        decoration: palette.panelDecoration(
+          baseRadius: 28,
+          tint: color,
         ),
         child: Row(
           children: [
@@ -330,7 +312,7 @@ class _StatCard extends ConsumerWidget {
               height: 54,
               decoration: BoxDecoration(
                 gradient: LinearGradient(colors: [color, palette.secondary]),
-                borderRadius: BorderRadius.circular(20),
+                borderRadius: BorderRadius.circular(palette.radius(20)),
               ),
               child: Icon(icon, color: Colors.white),
             ),
@@ -348,23 +330,30 @@ class _StatCard extends ConsumerWidget {
   }
 }
 
-class _Grid extends StatelessWidget {
+class _Grid extends ConsumerWidget {
   const _Grid({required this.columns, required this.items});
   final int columns;
   final List<UserMenuItem> items;
 
   @override
-  Widget build(BuildContext context) => GridView.count(
-        shrinkWrap: true,
-        physics: const NeverScrollableScrollPhysics(),
-        crossAxisCount: columns,
-        childAspectRatio: columns == 1 ? 3.7 : 2.2,
-        mainAxisSpacing: 14,
-        crossAxisSpacing: 14,
-        children: [
-          for (final item in items) _ModuleCard(item: item),
-        ],
-      );
+  Widget build(BuildContext context, WidgetRef ref) {
+    final palette = ref.watch(selectedAppPaletteProvider);
+    final gap = 14 * palette.spacingScale;
+    final aspect = columns == 1
+        ? (palette.density == AppDensityPreset.compact ? 4.2 : 3.7)
+        : (palette.density == AppDensityPreset.spacious ? 1.95 : 2.2);
+    return GridView.count(
+      shrinkWrap: true,
+      physics: const NeverScrollableScrollPhysics(),
+      crossAxisCount: columns,
+      childAspectRatio: aspect,
+      mainAxisSpacing: gap,
+      crossAxisSpacing: gap,
+      children: [
+        for (final item in items) _ModuleCard(item: item),
+      ],
+    );
+  }
 }
 
 class _ModuleCard extends ConsumerWidget {
@@ -379,32 +368,22 @@ class _ModuleCard extends ConsumerWidget {
 
     return Material(
       color: Colors.transparent,
-      borderRadius: BorderRadius.circular(30),
+      borderRadius: BorderRadius.circular(palette.radius(30)),
       child: InkWell(
-        borderRadius: BorderRadius.circular(30),
+        borderRadius: BorderRadius.circular(palette.radius(30)),
         onTap: () => _goToModule(context, ref, item),
         child: Container(
-          padding: const EdgeInsets.all(18),
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(30),
-            border: Border.all(color: palette.translucentBorder),
-            gradient: LinearGradient(
-              colors: [
-                palette.glassSurface,
-                palette.background.withOpacity(palette.darkBackground ? 0.66 : 0.70),
-                accentColor.withOpacity(palette.darkBackground ? 0.18 : 0.12),
-              ],
-              begin: Alignment.topLeft,
-              end: Alignment.bottomRight,
-            ),
-            boxShadow: [BoxShadow(color: accentColor.withOpacity(0.14), blurRadius: 24, offset: const Offset(0, 14))],
+          padding: palette.panelPadding(18),
+          decoration: palette.panelDecoration(
+            baseRadius: 30,
+            tint: accentColor,
           ),
           child: Row(
             children: [
               Container(
                 width: 58,
                 height: 58,
-                decoration: BoxDecoration(gradient: LinearGradient(colors: [palette.primary, palette.secondary]), borderRadius: BorderRadius.circular(22), border: Border.all(color: Colors.white.withOpacity(0.18))),
+                decoration: BoxDecoration(gradient: LinearGradient(colors: [palette.primary, palette.secondary]), borderRadius: BorderRadius.circular(palette.radius(22)), border: Border.all(color: Colors.white.withOpacity(0.18))),
                 child: Icon(visual.icon, color: Colors.white, size: 28),
               ),
               const SizedBox(width: 16),
@@ -413,9 +392,9 @@ class _ModuleCard extends ConsumerWidget {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
-                    Text(item.title, maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(color: palette.textPrimary, fontWeight: FontWeight.w900, fontSize: 16)),
+                    Text(item.title, maxLines: 1, overflow: TextOverflow.ellipsis, style: Theme.of(context).textTheme.titleMedium?.copyWith(color: palette.textPrimary, fontWeight: FontWeight.w900)),
                     const SizedBox(height: 4),
-                    Text(item.description ?? visual.description, maxLines: 2, overflow: TextOverflow.ellipsis, style: TextStyle(color: palette.textSecondary, fontWeight: FontWeight.w600, fontSize: 12)),
+                    Text(item.description ?? visual.description, maxLines: 2, overflow: TextOverflow.ellipsis, style: Theme.of(context).textTheme.bodySmall?.copyWith(color: palette.textSecondary, fontWeight: FontWeight.w700)),
                   ],
                 ),
               ),
@@ -459,12 +438,10 @@ class _EmptyRoleModulesCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) => Container(
         width: double.infinity,
-        padding: const EdgeInsets.all(22),
-        decoration: BoxDecoration(
-          gradient: palette.glassGradient,
-          borderRadius: BorderRadius.circular(30),
-          border: Border.all(color: palette.translucentBorder),
-          boxShadow: [BoxShadow(color: palette.cardShadow, blurRadius: 18, offset: const Offset(0, 10))],
+        padding: palette.panelPadding(22),
+        decoration: palette.panelDecoration(
+          baseRadius: 30,
+          tint: palette.secondary,
         ),
         child: Row(
           children: [
