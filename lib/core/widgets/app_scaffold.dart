@@ -18,6 +18,26 @@ import 'tech_background.dart';
 final ScrollController _desktopNavigationScrollController = ScrollController();
 final ScrollController _mobileNavigationScrollController = ScrollController();
 
+const double _appMenuWidth = 288;
+
+BoxDecoration _appMenuDecoration(AppPalette palette) => BoxDecoration(
+      gradient: palette.softGradient,
+      boxShadow: [
+        BoxShadow(
+          color: palette.cardShadow.withOpacity(0.34),
+          blurRadius: 28,
+          offset: const Offset(10, 0),
+        ),
+      ],
+    );
+
+Color _selectedMenuForeground(AppPalette palette) {
+  final representative = Color.lerp(palette.primary, palette.secondary, 0.5) ?? palette.primary;
+  return ThemeData.estimateBrightnessForColor(representative) == Brightness.dark
+      ? Colors.white
+      : const Color(0xFF0F172A);
+}
+
 /// Controla la visibilidad del menú lateral operativo en escritorio.
 final operationalMenuOpenProvider = StateProvider<bool>((ref) => false);
 
@@ -1065,18 +1085,8 @@ class _MeseroSideNavigation extends ConsumerWidget {
     return AnimatedContainer(
         duration: const Duration(milliseconds: 220),
         curve: Curves.easeOutCubic,
-        width: 280,
-        decoration: BoxDecoration(
-          gradient: LinearGradient(
-            colors: [
-              palette.surface,
-              Color.lerp(palette.surface, palette.primary, 0.18) ?? palette.surface,
-              palette.surface,
-            ],
-            begin: Alignment.topCenter,
-            end: Alignment.bottomCenter,
-          ),
-        ),
+        width: _appMenuWidth,
+        decoration: _appMenuDecoration(palette),
         child: Stack(
           children: [
             Positioned(top: -70, right: -100, child: GlowCircle(size: 240, opacity: 0.18, color: palette.accent)),
@@ -1084,27 +1094,27 @@ class _MeseroSideNavigation extends ConsumerWidget {
             SafeArea(
               child: Column(
                 children: [
-                  _NavigationCollapseButton(collapsed: collapsed, onPressed: onToggleCollapsed, dark: true),
-                  if (collapsed) const _CollapsedBrand() else const _BrandHeader(dark: true),
+                  _NavigationCollapseButton(collapsed: collapsed, onPressed: onToggleCollapsed, palette: palette),
+                  if (collapsed) const _CollapsedBrand() else const _BrandHeader(dark: false),
                   Expanded(
                     child: ListView(
                       primary: false,
                       padding: EdgeInsets.symmetric(horizontal: collapsed ? 10 : 14, vertical: 8),
                       children: [
-                        _MenuProfileCard(profile: profile, palette: palette, dark: true, compact: collapsed),
+                        _MenuProfileCard(profile: profile, palette: palette, compact: collapsed),
                         const SizedBox(height: 6),
-                        _NavTile(title: 'Inicio', keyName: 'home', path: '/home', dark: true, compact: collapsed, palette: palette),
-                        _NavTile(title: 'Apariencia', keyName: 'parametros', path: '__appearance__', dark: true, compact: collapsed, palette: palette, onTap: () => showPaletteSettingsDialog(context)),
+                        _NavTile(title: 'Inicio', keyName: 'home', path: '/home', compact: collapsed, palette: palette),
+                        _NavTile(title: 'Apariencia', keyName: 'parametros', path: '__appearance__', compact: collapsed, palette: palette, onTap: () => showPaletteSettingsDialog(context)),
                         if (isInventario && !collapsed) ...[
                           const SizedBox(height: 8),
-                          const _NavSectionLabel('Opciones de inventario'),
+                          _NavSectionLabel('Opciones de inventario', palette: palette),
                         ],
                         if (isInventario)
                           ..._authorizedMenuWidgets(
                             context: context,
                             ref: ref,
                             menuAsync: menuAsync.whenData(_ensureInventoryAnalysisMenus),
-                            dark: true,
+                            dark: false,
                             compact: collapsed,
                             palette: palette,
                           ),
@@ -1113,7 +1123,7 @@ class _MeseroSideNavigation extends ConsumerWidget {
                   ),
                   Padding(
                     padding: EdgeInsets.all(collapsed ? 10 : 14),
-                    child: _LogoutTile(onLogout: onLogout, dark: true, compact: collapsed),
+                    child: _LogoutTile(onLogout: onLogout, compact: collapsed, palette: palette),
                   ),
                 ],
               ),
@@ -1168,7 +1178,7 @@ class _MeseroDrawerContent extends ConsumerWidget {
             ),
             Padding(
               padding: const EdgeInsets.all(12),
-              child: _LogoutTile(onLogout: onLogout),
+              child: _LogoutTile(onLogout: onLogout, palette: palette),
             ),
           ],
         ),
@@ -1486,8 +1496,8 @@ class _SideNavigation extends ConsumerWidget {
     return AnimatedContainer(
       duration: const Duration(milliseconds: 220),
       curve: Curves.easeOutCubic,
-      width: 312,
-      decoration: BoxDecoration(gradient: palette.mainGradient),
+      width: _appMenuWidth,
+      decoration: _appMenuDecoration(palette),
       child: Stack(
         children: [
           Positioned(top: -80, right: -90, child: GlowCircle(size: 240, opacity: 0.20, color: palette.accent)),
@@ -1495,8 +1505,8 @@ class _SideNavigation extends ConsumerWidget {
           SafeArea(
             child: Column(
               children: [
-                _NavigationCollapseButton(collapsed: collapsed, onPressed: onToggleCollapsed, dark: true),
-                if (collapsed) const _CollapsedBrand() else const _BrandHeader(dark: true),
+                _NavigationCollapseButton(collapsed: collapsed, onPressed: onToggleCollapsed, palette: palette),
+                if (collapsed) const _CollapsedBrand() else const _BrandHeader(dark: false),
                 Expanded(
                   child: ListView(
                     key: const PageStorageKey<String>('desktop-main-navigation-scroll'),
@@ -1504,19 +1514,19 @@ class _SideNavigation extends ConsumerWidget {
                     primary: false,
                     padding: EdgeInsets.symmetric(horizontal: collapsed ? 10 : 14, vertical: 8),
                     children: [
-                      _MenuProfileCard(profile: profile, palette: palette, dark: true, compact: collapsed),
+                      _MenuProfileCard(profile: profile, palette: palette, compact: collapsed),
                       const SizedBox(height: 6),
-                      _NavTile(title: 'Inicio', keyName: 'home', path: '/home', dark: true, compact: collapsed, palette: palette),
-                      _NavTile(title: 'Apariencia', keyName: 'parametros', path: '__appearance__', dark: true, compact: collapsed, palette: palette, onTap: () => showPaletteSettingsDialog(context)),
+                      _NavTile(title: 'Inicio', keyName: 'home', path: '/home', compact: collapsed, palette: palette),
+                      _NavTile(title: 'Apariencia', keyName: 'parametros', path: '__appearance__', compact: collapsed, palette: palette, onTap: () => showPaletteSettingsDialog(context)),
                       if (!collapsed) ...[
                         const SizedBox(height: 8),
-                        const _NavSectionLabel('Opciones autorizadas'),
+                        _NavSectionLabel('Opciones autorizadas', palette: palette),
                       ],
                       ..._authorizedMenuWidgets(
                         context: context,
                         ref: ref,
                         menuAsync: menuAsync,
-                        dark: true,
+                        dark: false,
                         compact: collapsed,
                         palette: palette,
                       ),
@@ -1525,7 +1535,7 @@ class _SideNavigation extends ConsumerWidget {
                 ),
                 Padding(
                   padding: EdgeInsets.all(collapsed ? 10 : 14),
-                  child: _LogoutTile(onLogout: onLogout, dark: true, compact: collapsed),
+                  child: _LogoutTile(onLogout: onLogout, compact: collapsed, palette: palette),
                 ),
               ],
             ),
@@ -1579,7 +1589,7 @@ class _DrawerContent extends ConsumerWidget {
           ),
           Padding(
             padding: const EdgeInsets.all(12),
-            child: _LogoutTile(onLogout: onLogout),
+            child: _LogoutTile(onLogout: onLogout, palette: palette),
           ),
         ],
       ),
@@ -1642,6 +1652,7 @@ List<Widget> _authorizedMenuWidgets({
         : [
             _MenuMessage(
               dark: dark,
+              palette: palette,
               icon: Icons.hourglass_top_rounded,
               title: 'Cargando menú...',
               message: 'Consultando opciones según tu rol.',
@@ -1660,6 +1671,7 @@ List<Widget> _authorizedMenuWidgets({
         : [
             _MenuMessage(
               dark: dark,
+              palette: palette,
               icon: Icons.warning_amber_rounded,
               title: 'No se pudo cargar el menú',
               message: 'Revisa que existan roles, menús y opciones asignadas.',
@@ -1684,6 +1696,7 @@ List<Widget> _authorizedMenuWidgets({
             : [
                 _MenuMessage(
                   dark: dark,
+                  palette: palette,
                   icon: Icons.lock_outline_rounded,
                   title: 'Sin opciones asignadas',
                   message: 'Tu rol aún no tiene opciones de menú configuradas.',
@@ -1785,12 +1798,12 @@ class _NavigationCollapseButton extends StatelessWidget {
   const _NavigationCollapseButton({
     required this.collapsed,
     required this.onPressed,
-    required this.dark,
+    required this.palette,
   });
 
   final bool collapsed;
   final VoidCallback onPressed;
-  final bool dark;
+  final AppPalette palette;
 
   @override
   Widget build(BuildContext context) => Align(
@@ -1802,9 +1815,11 @@ class _NavigationCollapseButton extends StatelessWidget {
             child: IconButton.filledTonal(
               onPressed: onPressed,
               icon: Icon(collapsed ? Icons.menu_open_rounded : Icons.close_rounded),
-              color: dark ? Colors.white : AppColors.secondaryDark,
+              color: palette.textPrimary,
               style: IconButton.styleFrom(
-                backgroundColor: dark ? Colors.white.withOpacity(0.12) : Colors.white,
+                backgroundColor: palette.secondary.withOpacity(
+                  palette.darkBackground ? 0.18 : 0.10,
+                ),
               ),
             ),
           ),
@@ -1813,15 +1828,21 @@ class _NavigationCollapseButton extends StatelessWidget {
 }
 
 class _NavSectionLabel extends StatelessWidget {
-  const _NavSectionLabel(this.text);
+  const _NavSectionLabel(this.text, {required this.palette});
   final String text;
+  final AppPalette palette;
 
   @override
   Widget build(BuildContext context) => Padding(
         padding: const EdgeInsets.fromLTRB(14, 14, 14, 8),
         child: Text(
           text.toUpperCase(),
-          style: TextStyle(color: Colors.white.withOpacity(0.58), fontWeight: FontWeight.w900, letterSpacing: 1.1, fontSize: 11),
+          style: TextStyle(
+            color: palette.textSecondary,
+            fontWeight: FontWeight.w900,
+            letterSpacing: 1.1,
+            fontSize: 11,
+          ),
         ),
       );
 }
@@ -1852,6 +1873,7 @@ class _NavTile extends StatelessWidget {
     final pathNow = _currentPath(context);
     final selected = pathNow == path || (path != '/home' && pathNow.startsWith('$path/'));
     final foreground = dark ? Colors.white : appPalette.textPrimary;
+    final selectedForeground = _selectedMenuForeground(appPalette);
 
     Widget iconBox({required bool small}) => Container(
           width: small ? 36 : 38,
@@ -1861,7 +1883,11 @@ class _NavTile extends StatelessWidget {
             color: selected ? null : (dark ? Colors.white.withOpacity(0.12) : appPalette.secondary.withOpacity(0.12)),
             borderRadius: BorderRadius.circular(15),
           ),
-          child: Icon(visual.icon, size: small ? 19 : 20, color: selected || dark ? Colors.white : appPalette.secondary),
+          child: Icon(
+            visual.icon,
+            size: small ? 19 : 20,
+            color: selected ? selectedForeground : (dark ? Colors.white : appPalette.secondary),
+          ),
         );
 
     final tile = Padding(
@@ -1925,12 +1951,14 @@ class _NavTile extends StatelessWidget {
 class _MenuMessage extends StatelessWidget {
   const _MenuMessage({
     required this.dark,
+    required this.palette,
     required this.icon,
     required this.title,
     required this.message,
   });
 
   final bool dark;
+  final AppPalette palette;
   final IconData icon;
   final String title;
   final String message;
@@ -1940,21 +1968,36 @@ class _MenuMessage extends StatelessWidget {
         margin: const EdgeInsets.symmetric(horizontal: 6, vertical: 8),
         padding: const EdgeInsets.all(14),
         decoration: BoxDecoration(
-          color: dark ? Colors.white.withOpacity(0.10) : Colors.white,
+          color: dark
+              ? Colors.white.withOpacity(0.10)
+              : palette.secondary.withOpacity(palette.darkBackground ? 0.12 : 0.07),
           borderRadius: BorderRadius.circular(20),
         ),
         child: Row(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Icon(icon, color: dark ? AppColors.accent : AppColors.secondaryDark, size: 22),
+            Icon(icon, color: dark ? palette.accent : palette.secondary, size: 22),
             const SizedBox(width: 10),
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(title, style: TextStyle(color: dark ? Colors.white : AppColors.textPrimary, fontWeight: FontWeight.w900)),
+                  Text(
+                    title,
+                    style: TextStyle(
+                      color: dark ? Colors.white : palette.textPrimary,
+                      fontWeight: FontWeight.w900,
+                    ),
+                  ),
                   const SizedBox(height: 4),
-                  Text(message, style: TextStyle(color: dark ? Colors.white70 : AppColors.textSecondary, fontSize: 12, height: 1.25)),
+                  Text(
+                    message,
+                    style: TextStyle(
+                      color: dark ? Colors.white70 : palette.textSecondary,
+                      fontSize: 12,
+                      height: 1.25,
+                    ),
+                  ),
                 ],
               ),
             ),
@@ -1964,8 +2007,14 @@ class _MenuMessage extends StatelessWidget {
 }
 
 class _LogoutTile extends StatelessWidget {
-  const _LogoutTile({required this.onLogout, this.dark = false, this.compact = false});
+  const _LogoutTile({
+    required this.onLogout,
+    required this.palette,
+    this.dark = false,
+    this.compact = false,
+  });
   final VoidCallback onLogout;
+  final AppPalette palette;
   final bool dark;
   final bool compact;
 
@@ -1975,7 +2024,9 @@ class _LogoutTile extends StatelessWidget {
       builder: (context, constraints) {
         final effectiveCompact = compact || (constraints.maxWidth.isFinite && constraints.maxWidth < 118);
         final content = Material(
-          color: dark ? Colors.white.withOpacity(0.10) : AppColors.dangerSoft,
+          color: dark
+              ? Colors.white.withOpacity(0.10)
+              : AppColors.danger.withOpacity(palette.darkBackground ? 0.16 : 0.10),
           borderRadius: BorderRadius.circular(20),
           child: InkWell(
             borderRadius: BorderRadius.circular(20),
