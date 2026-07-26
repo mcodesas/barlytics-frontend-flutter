@@ -65,7 +65,10 @@ class SucursalesResponseModel {
   Object? get id => sucuId;
 
   String label() {
-    final values = <Object?>[sucuId, emprId, ciudId, zohoId];
-    return values.where((e) => e != null && e.toString().isNotEmpty).join(' · ');
+    final name = sucuNombre?.trim();
+    if (name != null && name.isNotEmpty) return name;
+    final code = sucuCodigoInterno?.trim();
+    if (code != null && code.isNotEmpty) return code;
+    return sucuId == null ? 'Sucursal' : 'Sucursal #$sucuId';
   }
 }

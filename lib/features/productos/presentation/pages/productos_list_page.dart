@@ -2142,6 +2142,7 @@ class _SimpleProductoTile extends StatelessWidget {
                           icon: stockStatus.icon,
                           label: stockStatus.label,
                           color: stockStatus.color,
+                          palette: palette,
                         ),
                         _SubtleInfoBadge(
                           icon: Icons.storefront_rounded,
@@ -4952,27 +4953,48 @@ class _SubtleInfoBadge extends StatelessWidget {
   }
 }
 class _StatusBadge extends StatelessWidget {
-  const _StatusBadge({required this.icon, required this.label, required this.color});
+  const _StatusBadge({
+    required this.icon,
+    required this.label,
+    required this.color,
+    required this.palette,
+  });
 
   final IconData icon;
   final String label;
   final Color color;
+  final AppPalette palette;
 
   @override
   Widget build(BuildContext context) {
+    final foreground = _adaptiveStatusForeground(color, palette);
+    final background = Color.alphaBlend(
+      color.withOpacity(palette.darkBackground ? 0.20 : 0.13),
+      palette.surface,
+    );
+
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 6),
       decoration: BoxDecoration(
-        color: Colors.black.withOpacity(0.56),
+        color: background,
         borderRadius: BorderRadius.circular(999),
-        border: Border.all(color: color.withOpacity(0.72)),
+        border: Border.all(
+          color: color.withOpacity(palette.darkBackground ? 0.68 : 0.48),
+        ),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(icon, size: 14, color: color),
+          Icon(icon, size: 14, color: foreground),
           const SizedBox(width: 5),
-          Text(label, style: const TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.w900)),
+          Text(
+            label,
+            style: TextStyle(
+              color: foreground,
+              fontSize: 11,
+              fontWeight: FontWeight.w900,
+            ),
+          ),
         ],
       ),
     );
@@ -5033,9 +5055,22 @@ _StockStatus _stockStatus(num stock, AppPalette palette) {
     return const _StockStatus(label: 'Sin stock', icon: Icons.remove_shopping_cart_rounded, color: Colors.redAccent);
   }
   if (stock <= 5) {
-    return _StockStatus(label: 'Stock bajo', icon: Icons.inventory_2_outlined, color: palette.primary);
+    return _StockStatus(
+      label: 'Stock bajo',
+      icon: Icons.inventory_2_outlined,
+      color: palette.warning,
+    );
   }
   return _StockStatus(label: 'Disponible', icon: Icons.check_circle_rounded, color: Colors.greenAccent.shade400);
+}
+
+Color _adaptiveStatusForeground(Color color, AppPalette palette) {
+  if (palette.darkBackground) {
+    return Color.lerp(color, Colors.white, 0.20)!;
+  }
+
+  final darkening = color.computeLuminance() > 0.36 ? 0.42 : 0.14;
+  return Color.lerp(color, const Color(0xFF0F172A), darkening)!;
 }
 
 _ExpiryStatus _expiryStatus(String? value, AppPalette palette) {

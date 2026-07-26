@@ -40,9 +40,9 @@ class AppTheme {
     final dialogRadius = palette.radius(28);
     final compact = palette.density == AppDensityPreset.compact;
     final spacious = palette.density == AppDensityPreset.spacious;
-    final controlHeight = compact ? 42.0 : (spacious ? 54.0 : 48.0);
-    final horizontalPadding = compact ? 14.0 : (spacious ? 22.0 : 18.0);
-    final verticalPadding = compact ? 11.0 : (spacious ? 17.0 : 14.0);
+    final controlHeight = compact ? 38.0 : (spacious ? 46.0 : 42.0);
+    final horizontalPadding = compact ? 11.0 : (spacious ? 17.0 : 14.0);
+    final verticalPadding = compact ? 7.0 : (spacious ? 11.0 : 9.0);
 
     final scheme = ColorScheme.fromSeed(
       seedColor: palette.primary,
@@ -249,6 +249,8 @@ class AppTheme {
       filledButtonTheme: FilledButtonThemeData(
         style: FilledButton.styleFrom(
           minimumSize: Size(0, controlHeight),
+          tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+          visualDensity: VisualDensity.compact,
           backgroundColor: palette.actionColor,
           foregroundColor: palette.onAction,
           disabledBackgroundColor: palette.textSecondary.withOpacity(0.24),
@@ -266,6 +268,8 @@ class AppTheme {
       elevatedButtonTheme: ElevatedButtonThemeData(
         style: ElevatedButton.styleFrom(
           minimumSize: Size(0, controlHeight),
+          tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+          visualDensity: VisualDensity.compact,
           elevation: palette.surfaceStyle == AppSurfacePreset.flat ? 0 : 1,
           backgroundColor: palette.actionColor,
           foregroundColor: palette.onAction,
@@ -283,6 +287,8 @@ class AppTheme {
       outlinedButtonTheme: OutlinedButtonThemeData(
         style: OutlinedButton.styleFrom(
           minimumSize: Size(0, controlHeight),
+          tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+          visualDensity: VisualDensity.compact,
           foregroundColor: palette.textPrimary,
           side: BorderSide(color: outline),
           padding: EdgeInsets.symmetric(
@@ -298,6 +304,10 @@ class AppTheme {
       textButtonTheme: TextButtonThemeData(
         style: TextButton.styleFrom(
           foregroundColor: palette.secondary,
+          minimumSize: const Size(0, 36),
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+          tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+          visualDensity: VisualDensity.compact,
           textStyle: textTheme.labelLarge?.copyWith(fontWeight: FontWeight.w900),
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(palette.radius(12)),
@@ -307,6 +317,10 @@ class AppTheme {
       iconButtonTheme: IconButtonThemeData(
         style: IconButton.styleFrom(
           foregroundColor: palette.secondary,
+          minimumSize: const Size(38, 38),
+          maximumSize: const Size(42, 42),
+          padding: const EdgeInsets.all(8),
+          tapTargetSize: MaterialTapTargetSize.shrinkWrap,
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(palette.radius(13)),
           ),
@@ -336,8 +350,8 @@ class AppTheme {
           borderRadius: BorderRadius.circular(palette.radius(999)),
         ),
         padding: EdgeInsets.symmetric(
-          horizontal: compact ? 8 : 10,
-          vertical: compact ? 5 : 7,
+          horizontal: compact ? 7 : 9,
+          vertical: compact ? 3 : 4,
         ),
       ),
       listTileTheme: ListTileThemeData(

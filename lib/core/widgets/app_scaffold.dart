@@ -18,6 +18,26 @@ import 'tech_background.dart';
 final ScrollController _desktopNavigationScrollController = ScrollController();
 final ScrollController _mobileNavigationScrollController = ScrollController();
 
+const double _appMenuWidth = 288;
+
+BoxDecoration _appMenuDecoration(AppPalette palette) => BoxDecoration(
+      gradient: palette.softGradient,
+      boxShadow: [
+        BoxShadow(
+          color: palette.cardShadow.withOpacity(0.34),
+          blurRadius: 28,
+          offset: const Offset(10, 0),
+        ),
+      ],
+    );
+
+Color _selectedMenuForeground(AppPalette palette) {
+  final representative = Color.lerp(palette.primary, palette.secondary, 0.5) ?? palette.primary;
+  return ThemeData.estimateBrightnessForColor(representative) == Brightness.dark
+      ? Colors.white
+      : const Color(0xFF0F172A);
+}
+
 /// Controla la visibilidad del menú lateral operativo en escritorio.
 final operationalMenuOpenProvider = StateProvider<bool>((ref) => false);
 
@@ -37,6 +57,19 @@ bool _isMesaCashierSellerRole(String role) {
       normalized.contains('VENDEDOR') ||
       normalized.contains('VENTA') ||
       normalized.contains('SELLER');
+}
+
+bool _isManagerRole(String role) {
+  final normalized = role
+      .toUpperCase()
+      .replaceAll('Á', 'A')
+      .replaceAll('É', 'E')
+      .replaceAll('Í', 'I')
+      .replaceAll('Ó', 'O')
+      .replaceAll('Ú', 'U');
+  return normalized.contains('GERENTE') ||
+      normalized.contains('MANAGER') ||
+      normalized.contains('SUPERVISOR');
 }
 
 bool _isOperationalRole(String role) => _isMesaCashierSellerRole(role) || _isInventoryRole(role);
@@ -60,37 +93,58 @@ class _AppScaffoldState extends ConsumerState<AppScaffold> {
     final roles = ref.watch(authControllerProvider).roles;
     final isOperativo = roles.any(_isOperationalRole);
     final isInventario = roles.any(_isInventoryRole);
+    final isManager = roles.any(_isManagerRole);
     final operationalMenuOpen = ref.watch(operationalMenuOpenProvider);
     final pageTitle = _resolveCurrentPageTitle(
       context,
       ref,
       isOperativo: isOperativo,
       isInventario: isInventario,
+      isManager: isManager,
     );
     final pageSubtitle = _resolveCurrentPageSubtitle(
       context,
       ref,
       isOperativo: isOperativo,
       isInventario: isInventario,
+      isManager: isManager,
     );
     final pageEyebrow = _resolveCurrentPageEyebrow(
       context,
       ref,
       isOperativo: isOperativo,
       isInventario: isInventario,
+      isManager: isManager,
     );
     final pageStatusText = _resolveCurrentPageStatusText(
       context,
       ref,
       isOperativo: isOperativo,
       isInventario: isInventario,
+      isManager: isManager,
     );
     final pageIcon = _resolveCurrentPageIcon(
       context,
       ref,
       isOperativo: isOperativo,
       isInventario: isInventario,
+      isManager: isManager,
     );
+
+    if (isManager) {
+      return _ManagerScaffold(
+        child: widget.child,
+        onLogout: () => _logout(context),
+        collapsed: _mainMenuCollapsed,
+        onToggleCollapsed: () => setState(() => _mainMenuCollapsed = !_mainMenuCollapsed),
+        palette: palette,
+        pageTitle: pageTitle,
+        pageSubtitle: pageSubtitle,
+        pageEyebrow: pageEyebrow,
+        pageStatusText: pageStatusText,
+        pageIcon: pageIcon,
+      );
+    }
 
     if (isOperativo) {
       return _MeseroScaffold(
@@ -228,6 +282,7 @@ String _resolveCurrentPageTitle(
   WidgetRef ref, {
   required bool isOperativo,
   required bool isInventario,
+  required bool isManager,
 }) {
   final path = GoRouterState.of(context).uri.path;
 
@@ -241,6 +296,8 @@ String _resolveCurrentPageTitle(
       MeseroPageMode.cierreCaja => 'Cierre de caja',
     };
   }
+
+  if (isManager && path == '/home') return 'Panel gerencial';
 
   const routeTitles = <String, String>{
     '/home': 'Inicio',
@@ -258,6 +315,7 @@ String _resolveCurrentPageTitle(
     '/medios_pago': 'Medios de pago por sucursal',
     '/usuarios': 'Usuarios',
     '/roles': 'Roles',
+    '/roles_personalizados': 'Roles personalizados',
     '/empresas': 'Empresas',
     '/sucursales': 'Sucursales',
     '/ventas': 'Ventas',
@@ -304,6 +362,7 @@ String? _resolveCurrentPageSubtitle(
   WidgetRef ref, {
   required bool isOperativo,
   required bool isInventario,
+  required bool isManager,
 }) {
   final path = GoRouterState.of(context).uri.path;
   if (isOperativo && !isInventario && path.startsWith('/mesero')) {
@@ -325,6 +384,19 @@ String? _resolveCurrentPageSubtitle(
   if (isInventario && path.startsWith('/tablas_parametricas')) {
     return 'Organiza tipos de producto, marcas y medios de pago en un solo lugar.';
   }
+  if (isManager && path == '/home') {
+    return 'Supervisa ventas, inventario, rentabilidad y operación desde un panel rápido.';
+  }
+  if (isManager && path.startsWith('/reportes')) {
+    return 'Analiza la operación y toma decisiones con información consolidada.';
+  }
+  if (isManager && path.startsWith('/ganancias')) {
+    return 'Consulta ingresos, costos, margen y rentabilidad del negocio.';
+  }
+  if (isManager && path.startsWith('/proximo_pedido')) {
+    return 'Planea compras y reposición con base en el stock disponible.';
+  }
+  if (isManager) return 'Gestiona la operación del negocio con acceso rápido a tus módulos autorizados.';
   if (isInventario) return 'Gestiona inventario, movimientos y trazabilidad del stock.';
   return null;
 }
@@ -334,6 +406,7 @@ String? _resolveCurrentPageEyebrow(
   WidgetRef ref, {
   required bool isOperativo,
   required bool isInventario,
+  required bool isManager,
 }) {
   final path = GoRouterState.of(context).uri.path;
   if (isOperativo && !isInventario && path.startsWith('/mesero')) {
@@ -355,6 +428,8 @@ String? _resolveCurrentPageEyebrow(
   if (isInventario && path.startsWith('/tablas_parametricas')) {
     return 'Configuración operativa';
   }
+  if (isManager && path == '/home') return 'Centro de control POS';
+  if (isManager) return 'Gestión gerencial';
   if (isInventario) return 'Operación de inventario';
   return null;
 }
@@ -364,6 +439,7 @@ String? _resolveCurrentPageStatusText(
   WidgetRef ref, {
   required bool isOperativo,
   required bool isInventario,
+  required bool isManager,
 }) {
   final path = GoRouterState.of(context).uri.path;
   if (isOperativo && path.startsWith('/mesero')) {
@@ -371,6 +447,7 @@ String? _resolveCurrentPageStatusText(
   }
   if (isInventario && path.startsWith('/ganancias')) return 'Periodo actual';
   if (isInventario && path.startsWith('/proximo_pedido')) return 'Stock actualizado';
+  if (isManager) return 'Operación en línea';
   return null;
 }
 
@@ -379,6 +456,7 @@ IconData? _resolveCurrentPageIcon(
   WidgetRef ref, {
   required bool isOperativo,
   required bool isInventario,
+  required bool isManager,
 }) {
   final path = GoRouterState.of(context).uri.path;
   if (isOperativo && !isInventario && path.startsWith('/mesero')) {
@@ -400,6 +478,11 @@ IconData? _resolveCurrentPageIcon(
   if (isInventario && path.startsWith('/tablas_parametricas')) {
     return Icons.tune_rounded;
   }
+  if (isManager && path == '/home') return Icons.space_dashboard_rounded;
+  if (isManager && path.startsWith('/reportes')) return Icons.analytics_rounded;
+  if (isManager && path.startsWith('/ganancias')) return Icons.trending_up_rounded;
+  if (isManager && path.startsWith('/proximo_pedido')) return Icons.local_shipping_rounded;
+  if (isManager) return Icons.manage_accounts_rounded;
   if (isInventario) return Icons.inventory_rounded;
   return null;
 }
@@ -1040,6 +1123,120 @@ class _MeseroScaffold extends StatelessWidget {
   }
 }
 
+class _ManagerScaffold extends StatelessWidget {
+  const _ManagerScaffold({
+    required this.child,
+    required this.onLogout,
+    required this.collapsed,
+    required this.onToggleCollapsed,
+    required this.palette,
+    required this.pageTitle,
+    required this.pageSubtitle,
+    required this.pageEyebrow,
+    required this.pageStatusText,
+    required this.pageIcon,
+  });
+
+  final Widget child;
+  final VoidCallback onLogout;
+  final bool collapsed;
+  final VoidCallback onToggleCollapsed;
+  final AppPalette palette;
+  final String pageTitle;
+  final String? pageSubtitle;
+  final String? pageEyebrow;
+  final String? pageStatusText;
+  final IconData? pageIcon;
+
+  @override
+  Widget build(BuildContext context) {
+    final isDesktop = ResponsiveUtils.isDesktop(context);
+
+    if (isDesktop) {
+      return Scaffold(
+        body: SafeArea(
+          child: Stack(
+            children: [
+              Positioned.fill(
+                child: Column(
+                  children: [
+                    _PageTopBar(
+                      title: pageTitle,
+                      subtitle: pageSubtitle,
+                      eyebrow: pageEyebrow,
+                      statusText: pageStatusText,
+                      leadingContentIcon: pageIcon,
+                      palette: palette,
+                      menuOpen: !collapsed,
+                      onMenuPressed: onToggleCollapsed,
+                    ),
+                    Expanded(child: _PaletteAwareBody(child: child, palette: palette)),
+                    const _ManagerBottomNavigation(),
+                  ],
+                ),
+              ),
+              if (!collapsed) ...[
+                Positioned(
+                  top: _PageTopBar.height,
+                  left: 0,
+                  right: 0,
+                  bottom: 0,
+                  child: GestureDetector(
+                    behavior: HitTestBehavior.opaque,
+                    onTap: onToggleCollapsed,
+                    child: ColoredBox(color: Colors.black.withOpacity(0.30)),
+                  ),
+                ),
+                Positioned(
+                  top: _PageTopBar.height,
+                  left: 0,
+                  bottom: 0,
+                  child: _SideNavigation(
+                    onLogout: onLogout,
+                    collapsed: false,
+                    onToggleCollapsed: onToggleCollapsed,
+                    palette: palette,
+                  ),
+                ),
+              ],
+            ],
+          ),
+        ),
+      );
+    }
+
+    return Scaffold(
+      drawer: Drawer(
+        backgroundColor: Colors.transparent,
+        surfaceTintColor: Colors.transparent,
+        elevation: 0,
+        shape: const RoundedRectangleBorder(side: BorderSide.none),
+        child: _DrawerContent(onLogout: onLogout, palette: palette),
+      ),
+      body: SafeArea(
+        child: Column(
+          children: [
+            Builder(
+              builder: (scaffoldContext) => _PageTopBar(
+                title: pageTitle,
+                subtitle: pageSubtitle,
+                eyebrow: pageEyebrow,
+                statusText: pageStatusText,
+                leadingContentIcon: pageIcon,
+                palette: palette,
+                menuOpen: false,
+                onMenuPressed: () => Scaffold.of(scaffoldContext).openDrawer(),
+              ),
+            ),
+            Expanded(child: _PaletteAwareBody(child: child, palette: palette)),
+          ],
+        ),
+      ),
+      bottomNavigationBar: const _ManagerBottomNavigation(),
+    );
+  }
+}
+
 class _MeseroSideNavigation extends ConsumerWidget {
   const _MeseroSideNavigation({
     required this.onLogout,
@@ -1065,18 +1262,8 @@ class _MeseroSideNavigation extends ConsumerWidget {
     return AnimatedContainer(
         duration: const Duration(milliseconds: 220),
         curve: Curves.easeOutCubic,
-        width: 280,
-        decoration: BoxDecoration(
-          gradient: LinearGradient(
-            colors: [
-              palette.surface,
-              Color.lerp(palette.surface, palette.primary, 0.18) ?? palette.surface,
-              palette.surface,
-            ],
-            begin: Alignment.topCenter,
-            end: Alignment.bottomCenter,
-          ),
-        ),
+        width: _appMenuWidth,
+        decoration: _appMenuDecoration(palette),
         child: Stack(
           children: [
             Positioned(top: -70, right: -100, child: GlowCircle(size: 240, opacity: 0.18, color: palette.accent)),
@@ -1084,27 +1271,27 @@ class _MeseroSideNavigation extends ConsumerWidget {
             SafeArea(
               child: Column(
                 children: [
-                  _NavigationCollapseButton(collapsed: collapsed, onPressed: onToggleCollapsed, dark: true),
-                  if (collapsed) const _CollapsedBrand() else const _BrandHeader(dark: true),
+                  _NavigationCollapseButton(collapsed: collapsed, onPressed: onToggleCollapsed, palette: palette),
+                  if (collapsed) const _CollapsedBrand() else const _BrandHeader(dark: false),
                   Expanded(
                     child: ListView(
                       primary: false,
                       padding: EdgeInsets.symmetric(horizontal: collapsed ? 10 : 14, vertical: 8),
                       children: [
-                        _MenuProfileCard(profile: profile, palette: palette, dark: true, compact: collapsed),
+                        _MenuProfileCard(profile: profile, palette: palette, compact: collapsed),
                         const SizedBox(height: 6),
-                        _NavTile(title: 'Inicio', keyName: 'home', path: '/home', dark: true, compact: collapsed, palette: palette),
-                        _NavTile(title: 'Apariencia', keyName: 'parametros', path: '__appearance__', dark: true, compact: collapsed, palette: palette, onTap: () => showPaletteSettingsDialog(context)),
+                        _NavTile(title: 'Inicio', keyName: 'home', path: '/home', compact: collapsed, palette: palette),
+                        _NavTile(title: 'Apariencia', keyName: 'parametros', path: '__appearance__', compact: collapsed, palette: palette, onTap: () => showPaletteSettingsDialog(context)),
                         if (isInventario && !collapsed) ...[
                           const SizedBox(height: 8),
-                          const _NavSectionLabel('Opciones de inventario'),
+                          _NavSectionLabel('Opciones de inventario', palette: palette),
                         ],
                         if (isInventario)
                           ..._authorizedMenuWidgets(
                             context: context,
                             ref: ref,
                             menuAsync: menuAsync.whenData(_ensureInventoryAnalysisMenus),
-                            dark: true,
+                            dark: false,
                             compact: collapsed,
                             palette: palette,
                           ),
@@ -1113,7 +1300,7 @@ class _MeseroSideNavigation extends ConsumerWidget {
                   ),
                   Padding(
                     padding: EdgeInsets.all(collapsed ? 10 : 14),
-                    child: _LogoutTile(onLogout: onLogout, dark: true, compact: collapsed),
+                    child: _LogoutTile(onLogout: onLogout, compact: collapsed, palette: palette),
                   ),
                 ],
               ),
@@ -1168,7 +1355,7 @@ class _MeseroDrawerContent extends ConsumerWidget {
             ),
             Padding(
               padding: const EdgeInsets.all(12),
-              child: _LogoutTile(onLogout: onLogout),
+              child: _LogoutTile(onLogout: onLogout, palette: palette),
             ),
           ],
         ),
@@ -1191,7 +1378,9 @@ class _OperationalBottomNavigation extends ConsumerWidget {
     final palette = ref.watch(selectedAppPaletteProvider);
     final roles = ref.watch(authControllerProvider).roles;
     final isCajero = roles.any((role) => role.toUpperCase().contains('CAJER'));
-    final selectedMode = !isCajero && (rawSelectedMode == MeseroPageMode.historial || rawSelectedMode == MeseroPageMode.cierreCaja)
+    final selectedMode = !isCajero &&
+            (rawSelectedMode == MeseroPageMode.historial ||
+                rawSelectedMode == MeseroPageMode.cierreCaja)
         ? MeseroPageMode.resumen
         : rawSelectedMode;
 
@@ -1201,22 +1390,79 @@ class _OperationalBottomNavigation extends ConsumerWidget {
       });
     }
 
-    final entries = <({MeseroPageMode mode, BottomNavigationBarItem item})>[
-      (mode: MeseroPageMode.mesas, item: const BottomNavigationBarItem(icon: Icon(Icons.table_bar_rounded), label: 'Mesas')),
-      (mode: MeseroPageMode.productos, item: const BottomNavigationBarItem(icon: Icon(Icons.liquor_rounded), label: 'Productos')),
-      (mode: MeseroPageMode.resumen, item: const BottomNavigationBarItem(icon: Icon(Icons.dashboard_rounded), label: 'Resumen')),
+    final entries = <({
+      String path,
+      MeseroPageMode? mode,
+      BottomNavigationBarItem item,
+    })>[
+      (
+        path: '/home',
+        mode: null,
+        item: const BottomNavigationBarItem(
+          icon: Icon(Icons.home_rounded),
+          label: 'Inicio',
+        ),
+      ),
+      (
+        path: '/mesero',
+        mode: MeseroPageMode.mesas,
+        item: const BottomNavigationBarItem(
+          icon: Icon(Icons.table_bar_rounded),
+          label: 'Mesas',
+        ),
+      ),
+      (
+        path: '/mesero/productos',
+        mode: MeseroPageMode.productos,
+        item: const BottomNavigationBarItem(
+          icon: Icon(Icons.liquor_rounded),
+          label: 'Productos',
+        ),
+      ),
+      if (!isCajero)
+        (
+          path: '/mesero/resumen',
+          mode: MeseroPageMode.resumen,
+          item: const BottomNavigationBarItem(
+            icon: Icon(Icons.dashboard_rounded),
+            label: 'Resumen',
+          ),
+        ),
       if (isCajero) ...[
-        (mode: MeseroPageMode.historial, item: const BottomNavigationBarItem(icon: Icon(Icons.receipt_long_rounded), label: 'Historial')),
-        (mode: MeseroPageMode.cierreCaja, item: const BottomNavigationBarItem(icon: Icon(Icons.point_of_sale_rounded), label: 'Cierre caja')),
+        (
+          path: '/mesero/historial',
+          mode: MeseroPageMode.historial,
+          item: const BottomNavigationBarItem(
+            icon: Icon(Icons.receipt_long_rounded),
+            label: 'Historial',
+          ),
+        ),
+        (
+          path: '/mesero/cierre-caja',
+          mode: MeseroPageMode.cierreCaja,
+          item: const BottomNavigationBarItem(
+            icon: Icon(Icons.point_of_sale_rounded),
+            label: 'Cierre caja',
+          ),
+        ),
       ],
     ];
 
-    final selectedIndex = entries.indexWhere((entry) => entry.mode == selectedMode);
+    final currentPath = GoRouterState.of(context).uri.path;
+    final selectedIndex = currentPath == '/home'
+        ? 0
+        : entries.indexWhere((entry) => entry.mode == selectedMode);
 
     return Container(
       decoration: BoxDecoration(
         color: palette.surface.withOpacity(palette.darkBackground ? 0.94 : 0.98),
-        boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.10), blurRadius: 24, offset: const Offset(0, -8))],
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.10),
+            blurRadius: 24,
+            offset: const Offset(0, -8),
+          ),
+        ],
       ),
       child: SafeArea(
         top: false,
@@ -1228,13 +1474,19 @@ class _OperationalBottomNavigation extends ConsumerWidget {
           elevation: 0,
           showUnselectedLabels: true,
           type: BottomNavigationBarType.fixed,
+          selectedFontSize: 10.5,
+          unselectedFontSize: 9.5,
+          iconSize: 22,
           onTap: (index) {
-            final mode = entries[index].mode;
-            ref.read(meseroSelectedModeProvider.notifier).state = mode;
-            final currentPath = GoRouterState.of(context).uri.path;
-            if (!currentPath.startsWith('/mesero')) {
-              context.go('/mesero');
+            final entry = entries[index];
+            if (entry.path == '/home') {
+              context.go('/home');
+              return;
             }
+            if (entry.mode != null) {
+              ref.read(meseroSelectedModeProvider.notifier).state = entry.mode!;
+            }
+            context.go(entry.path);
           },
           items: [for (final entry in entries) entry.item],
         ),
@@ -1243,11 +1495,11 @@ class _OperationalBottomNavigation extends ConsumerWidget {
   }
 }
 
-
 class _InventoryBottomNavigation extends ConsumerWidget {
   const _InventoryBottomNavigation();
 
   static const _allItems = <({String label, IconData icon, String path})>[
+    (label: 'Inicio', icon: Icons.home_rounded, path: '/home'),
     (label: 'Productos', icon: Icons.inventory_2_rounded, path: '/productos'),
     (label: 'Inventario', icon: Icons.fact_check_rounded, path: '/inventario'),
     (label: 'Precios', icon: Icons.price_change_rounded, path: '/precios'),
@@ -1268,20 +1520,35 @@ class _InventoryBottomNavigation extends ConsumerWidget {
 
     final visibleItems = width >= 1280
         ? _allItems
+            .where((item) => const {
+                  '/home',
+                  '/productos',
+                  '/inventario',
+                  '/movimientos',
+                  '/reportes',
+                  '/ganancias',
+                  '/proximo_pedido',
+                }.contains(item.path))
+            .toList(growable: false)
         : width >= 720
-            ? <({String label, IconData icon, String path})>[
-                _allItems[0],
-                _allItems[1],
-                _allItems[3],
-                _allItems[6],
-                _allItems[7],
-              ]
-            : <({String label, IconData icon, String path})>[
-                _allItems[0],
-                _allItems[1],
-                _allItems[6],
-                _allItems[7],
-              ];
+            ? _allItems
+                .where((item) => const {
+                      '/home',
+                      '/productos',
+                      '/inventario',
+                      '/movimientos',
+                      '/ganancias',
+                      '/proximo_pedido',
+                    }.contains(item.path))
+                .toList(growable: false)
+            : _allItems
+                .where((item) => const {
+                      '/home',
+                      '/productos',
+                      '/inventario',
+                      '/proximo_pedido',
+                    }.contains(item.path))
+                .toList(growable: false);
 
     final visiblePaths = visibleItems.map((item) => item.path).toSet();
     final overflowItems = _allItems.where((item) => !visiblePaths.contains(item.path)).toList(growable: false);
@@ -1364,6 +1631,8 @@ class _InventoryBottomNavigation extends ConsumerWidget {
   }
 
   String _inventorySelectedPath(String currentPath) {
+    if (currentPath == '/home') return '/home';
+
     if (currentPath == '/tablas_parametricas' ||
         currentPath.startsWith('/tipos_producto') ||
         currentPath.startsWith('/marcas') ||
@@ -1376,7 +1645,7 @@ class _InventoryBottomNavigation extends ConsumerWidget {
         return item.path;
       }
     }
-    return '/productos';
+    return '/home';
   }
 
   Future<void> _showInventoryMoreMenu({
@@ -1462,6 +1731,323 @@ class _InventoryBottomNavigation extends ConsumerWidget {
   }
 }
 
+class _ManagerNavigationItem {
+  const _ManagerNavigationItem({
+    required this.keyName,
+    required this.label,
+    required this.icon,
+    required this.path,
+    this.description,
+  });
+
+  final String keyName;
+  final String label;
+  final IconData icon;
+  final String path;
+  final String? description;
+}
+
+class _ManagerBottomNavigation extends ConsumerWidget {
+  const _ManagerBottomNavigation();
+
+  static const _moreItem = _ManagerNavigationItem(
+    keyName: '__more__',
+    label: 'Más',
+    icon: Icons.more_horiz_rounded,
+    path: '__more__',
+    description: 'Ver todas las opciones autorizadas',
+  );
+
+  static const _priority = <String, int>{
+    'reportes': 0,
+    'ganancias': 1,
+    'ventas': 2,
+    'inventario': 3,
+    'proximo_pedido': 4,
+    'productos': 5,
+    'movimientos': 6,
+    'precios': 7,
+    'cierres_caja': 8,
+    'usuarios': 9,
+    'roles_personalizados': 10,
+    'sucursales': 11,
+    'empresas': 12,
+    'parametros': 13,
+  };
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final palette = ref.watch(selectedAppPaletteProvider);
+    final menuItems = ref.watch(userMenuProvider).maybeWhen(
+          data: _buildManagerItems,
+          orElse: () => const <_ManagerNavigationItem>[
+            _ManagerNavigationItem(
+              keyName: 'home',
+              label: 'Inicio',
+              icon: Icons.home_rounded,
+              path: '/home',
+              description: 'Panel gerencial',
+            ),
+            _ManagerNavigationItem(
+              keyName: 'profile',
+              label: 'Perfil',
+              icon: Icons.person_rounded,
+              path: '/profile',
+              description: 'Datos y seguridad de la cuenta',
+            ),
+          ],
+        );
+    final currentPath = GoRouterState.of(context).uri.path;
+    final width = MediaQuery.sizeOf(context).width;
+    final maxVisible = width >= 1280
+        ? 7
+        : width >= 720
+            ? 5
+            : 4;
+
+    final hasOverflow = menuItems.length > maxVisible;
+    final visibleCount = hasOverflow ? maxVisible - 1 : menuItems.length;
+    final visibleItems = menuItems.take(visibleCount).toList(growable: false);
+    final overflowItems = hasOverflow ? menuItems.skip(visibleCount).toList(growable: false) : const <_ManagerNavigationItem>[];
+    final navigationItems = <_ManagerNavigationItem>[
+      ...visibleItems,
+      if (overflowItems.isNotEmpty) _moreItem,
+    ];
+
+    final selectedPath = _selectedManagerPath(currentPath, menuItems);
+    var selectedIndex = navigationItems.indexWhere((item) => item.path == selectedPath);
+    if (selectedIndex < 0 && overflowItems.any((item) => item.path == selectedPath)) {
+      selectedIndex = navigationItems.indexWhere((item) => item.path == _moreItem.path);
+    }
+    if (selectedIndex < 0) selectedIndex = 0;
+
+    final isCompact = width < 720;
+    return Container(
+      decoration: BoxDecoration(
+        color: palette.surface.withOpacity(palette.darkBackground ? 0.96 : 0.99),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(palette.darkBackground ? 0.24 : 0.11),
+            blurRadius: 24,
+            offset: const Offset(0, -8),
+          ),
+        ],
+      ),
+      child: SafeArea(
+        top: false,
+        child: BottomNavigationBar(
+          currentIndex: selectedIndex,
+          type: BottomNavigationBarType.fixed,
+          backgroundColor: Colors.transparent,
+          elevation: 0,
+          selectedItemColor: palette.secondary,
+          unselectedItemColor: palette.textSecondary.withOpacity(0.86),
+          selectedFontSize: isCompact ? 10 : 11.5,
+          unselectedFontSize: isCompact ? 9.5 : 11,
+          iconSize: isCompact ? 21 : 23,
+          selectedLabelStyle: const TextStyle(fontWeight: FontWeight.w900, height: 1.15),
+          unselectedLabelStyle: const TextStyle(fontWeight: FontWeight.w700, height: 1.15),
+          showSelectedLabels: true,
+          showUnselectedLabels: true,
+          onTap: (index) {
+            final item = navigationItems[index];
+            if (item.path == _moreItem.path) {
+              _showManagerMoreMenu(
+                context: context,
+                palette: palette,
+                items: overflowItems,
+                selectedPath: selectedPath,
+              );
+              return;
+            }
+            context.go(item.path);
+          },
+          items: [
+            for (final item in navigationItems)
+              BottomNavigationBarItem(
+                icon: Padding(
+                  padding: const EdgeInsets.only(bottom: 3),
+                  child: Icon(item.icon),
+                ),
+                activeIcon: Container(
+                  margin: const EdgeInsets.only(bottom: 3),
+                  padding: EdgeInsets.symmetric(horizontal: isCompact ? 10 : 13, vertical: 5),
+                  decoration: BoxDecoration(
+                    color: palette.secondary.withOpacity(palette.darkBackground ? 0.22 : 0.14),
+                    borderRadius: BorderRadius.circular(18),
+                  ),
+                  child: Icon(item.icon),
+                ),
+                label: item.label,
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  List<_ManagerNavigationItem> _buildManagerItems(List<UserMenuItem> items) {
+    final authorized = <_ManagerNavigationItem>[];
+    final seenPaths = <String>{'/home', '/profile'};
+
+    for (final item in items) {
+      if (item.path.trim().isEmpty || !seenPaths.add(item.path)) continue;
+      final visual = ModuleVisuals.byKey(item.keyName);
+      authorized.add(
+        _ManagerNavigationItem(
+          keyName: item.keyName,
+          label: _managerLabel(item),
+          icon: visual.icon,
+          path: item.path,
+          description: item.description ?? visual.description,
+        ),
+      );
+    }
+
+    authorized.sort((a, b) {
+      final priority = (_priority[a.keyName] ?? 999).compareTo(_priority[b.keyName] ?? 999);
+      if (priority != 0) return priority;
+      return a.label.compareTo(b.label);
+    });
+
+    return <_ManagerNavigationItem>[
+      const _ManagerNavigationItem(
+        keyName: 'home',
+        label: 'Inicio',
+        icon: Icons.home_rounded,
+        path: '/home',
+        description: 'Panel gerencial',
+      ),
+      ...authorized,
+      const _ManagerNavigationItem(
+        keyName: 'profile',
+        label: 'Perfil',
+        icon: Icons.person_rounded,
+        path: '/profile',
+        description: 'Datos y seguridad de la cuenta',
+      ),
+    ];
+  }
+
+  String _managerLabel(UserMenuItem item) {
+    return switch (item.keyName) {
+      'proximo_pedido' => 'Pedido',
+      'tablas_parametricas' => 'Parámetros',
+      'tipos_producto' => 'Tipos',
+      'medios_pago' => 'Pagos',
+      'zonas_horarias' => 'Zonas',
+      _ => item.title.trim().isEmpty ? item.keyName : item.title.trim(),
+    };
+  }
+
+  String _selectedManagerPath(String currentPath, List<_ManagerNavigationItem> items) {
+    _ManagerNavigationItem? selected;
+    for (final item in items) {
+      final matches = currentPath == item.path || (item.path != '/home' && currentPath.startsWith('${item.path}/'));
+      if (!matches) continue;
+      if (selected == null || item.path.length > selected.path.length) selected = item;
+    }
+    return selected?.path ?? '/home';
+  }
+
+  Future<void> _showManagerMoreMenu({
+    required BuildContext context,
+    required AppPalette palette,
+    required List<_ManagerNavigationItem> items,
+    required String selectedPath,
+  }) async {
+    final destination = await showModalBottomSheet<String>(
+      context: context,
+      backgroundColor: Colors.transparent,
+      isScrollControlled: true,
+      builder: (sheetContext) => SafeArea(
+        child: Container(
+          margin: const EdgeInsets.all(12),
+          constraints: BoxConstraints(maxHeight: MediaQuery.sizeOf(sheetContext).height * 0.78),
+          padding: const EdgeInsets.fromLTRB(14, 10, 14, 14),
+          decoration: BoxDecoration(
+            color: palette.surface,
+            borderRadius: BorderRadius.circular(palette.radius(26)),
+            border: Border.all(color: palette.cardBorder),
+            boxShadow: [
+              BoxShadow(color: Colors.black.withOpacity(0.20), blurRadius: 28, offset: const Offset(0, 12)),
+            ],
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Center(
+                child: Container(
+                  width: 44,
+                  height: 4,
+                  margin: const EdgeInsets.only(bottom: 14),
+                  decoration: BoxDecoration(
+                    color: palette.textSecondary.withOpacity(0.30),
+                    borderRadius: BorderRadius.circular(99),
+                  ),
+                ),
+              ),
+              Text(
+                'Más opciones de gestión',
+                style: TextStyle(color: palette.textPrimary, fontSize: 18, fontWeight: FontWeight.w900),
+              ),
+              const SizedBox(height: 4),
+              Text(
+                'Accede a los demás módulos autorizados para el rol gerente.',
+                style: TextStyle(color: palette.textSecondary, fontWeight: FontWeight.w600),
+              ),
+              const SizedBox(height: 12),
+              Flexible(
+                child: ListView(
+                  shrinkWrap: true,
+                  children: [
+                    for (final item in items)
+                      Padding(
+                        padding: const EdgeInsets.only(bottom: 7),
+                        child: Material(
+                          color: item.path == selectedPath
+                              ? palette.secondary.withOpacity(palette.darkBackground ? 0.20 : 0.10)
+                              : palette.background.withOpacity(palette.darkBackground ? 0.34 : 0.70),
+                          borderRadius: BorderRadius.circular(palette.radius(18)),
+                          child: ListTile(
+                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(palette.radius(18))),
+                            leading: Container(
+                              width: 42,
+                              height: 42,
+                              decoration: BoxDecoration(
+                                color: palette.secondary.withOpacity(0.14),
+                                borderRadius: BorderRadius.circular(14),
+                              ),
+                              child: Icon(item.icon, color: palette.secondary),
+                            ),
+                            title: Text(item.label, style: TextStyle(color: palette.textPrimary, fontWeight: FontWeight.w900)),
+                            subtitle: item.description == null
+                                ? null
+                                : Text(
+                                    item.description!,
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: TextStyle(color: palette.textSecondary, fontWeight: FontWeight.w600),
+                                  ),
+                            trailing: Icon(Icons.chevron_right_rounded, color: palette.textSecondary),
+                            onTap: () => Navigator.of(sheetContext).pop(item.path),
+                          ),
+                        ),
+                      ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+
+    if (destination != null && context.mounted) context.go(destination);
+  }
+}
+
 class _SideNavigation extends ConsumerWidget {
   const _SideNavigation({
     required this.onLogout,
@@ -1486,8 +2072,8 @@ class _SideNavigation extends ConsumerWidget {
     return AnimatedContainer(
       duration: const Duration(milliseconds: 220),
       curve: Curves.easeOutCubic,
-      width: 312,
-      decoration: BoxDecoration(gradient: palette.mainGradient),
+      width: _appMenuWidth,
+      decoration: _appMenuDecoration(palette),
       child: Stack(
         children: [
           Positioned(top: -80, right: -90, child: GlowCircle(size: 240, opacity: 0.20, color: palette.accent)),
@@ -1495,8 +2081,8 @@ class _SideNavigation extends ConsumerWidget {
           SafeArea(
             child: Column(
               children: [
-                _NavigationCollapseButton(collapsed: collapsed, onPressed: onToggleCollapsed, dark: true),
-                if (collapsed) const _CollapsedBrand() else const _BrandHeader(dark: true),
+                _NavigationCollapseButton(collapsed: collapsed, onPressed: onToggleCollapsed, palette: palette),
+                if (collapsed) const _CollapsedBrand() else const _BrandHeader(dark: false),
                 Expanded(
                   child: ListView(
                     key: const PageStorageKey<String>('desktop-main-navigation-scroll'),
@@ -1504,19 +2090,19 @@ class _SideNavigation extends ConsumerWidget {
                     primary: false,
                     padding: EdgeInsets.symmetric(horizontal: collapsed ? 10 : 14, vertical: 8),
                     children: [
-                      _MenuProfileCard(profile: profile, palette: palette, dark: true, compact: collapsed),
+                      _MenuProfileCard(profile: profile, palette: palette, compact: collapsed),
                       const SizedBox(height: 6),
-                      _NavTile(title: 'Inicio', keyName: 'home', path: '/home', dark: true, compact: collapsed, palette: palette),
-                      _NavTile(title: 'Apariencia', keyName: 'parametros', path: '__appearance__', dark: true, compact: collapsed, palette: palette, onTap: () => showPaletteSettingsDialog(context)),
+                      _NavTile(title: 'Inicio', keyName: 'home', path: '/home', compact: collapsed, palette: palette),
+                      _NavTile(title: 'Apariencia', keyName: 'parametros', path: '__appearance__', compact: collapsed, palette: palette, onTap: () => showPaletteSettingsDialog(context)),
                       if (!collapsed) ...[
                         const SizedBox(height: 8),
-                        const _NavSectionLabel('Opciones autorizadas'),
+                        _NavSectionLabel('Opciones autorizadas', palette: palette),
                       ],
                       ..._authorizedMenuWidgets(
                         context: context,
                         ref: ref,
                         menuAsync: menuAsync,
-                        dark: true,
+                        dark: false,
                         compact: collapsed,
                         palette: palette,
                       ),
@@ -1525,7 +2111,7 @@ class _SideNavigation extends ConsumerWidget {
                 ),
                 Padding(
                   padding: EdgeInsets.all(collapsed ? 10 : 14),
-                  child: _LogoutTile(onLogout: onLogout, dark: true, compact: collapsed),
+                  child: _LogoutTile(onLogout: onLogout, compact: collapsed, palette: palette),
                 ),
               ],
             ),
@@ -1579,7 +2165,7 @@ class _DrawerContent extends ConsumerWidget {
           ),
           Padding(
             padding: const EdgeInsets.all(12),
-            child: _LogoutTile(onLogout: onLogout),
+            child: _LogoutTile(onLogout: onLogout, palette: palette),
           ),
         ],
       ),
@@ -1642,6 +2228,7 @@ List<Widget> _authorizedMenuWidgets({
         : [
             _MenuMessage(
               dark: dark,
+              palette: palette,
               icon: Icons.hourglass_top_rounded,
               title: 'Cargando menú...',
               message: 'Consultando opciones según tu rol.',
@@ -1660,6 +2247,7 @@ List<Widget> _authorizedMenuWidgets({
         : [
             _MenuMessage(
               dark: dark,
+              palette: palette,
               icon: Icons.warning_amber_rounded,
               title: 'No se pudo cargar el menú',
               message: 'Revisa que existan roles, menús y opciones asignadas.',
@@ -1684,6 +2272,7 @@ List<Widget> _authorizedMenuWidgets({
             : [
                 _MenuMessage(
                   dark: dark,
+                  palette: palette,
                   icon: Icons.lock_outline_rounded,
                   title: 'Sin opciones asignadas',
                   message: 'Tu rol aún no tiene opciones de menú configuradas.',
@@ -1785,12 +2374,12 @@ class _NavigationCollapseButton extends StatelessWidget {
   const _NavigationCollapseButton({
     required this.collapsed,
     required this.onPressed,
-    required this.dark,
+    required this.palette,
   });
 
   final bool collapsed;
   final VoidCallback onPressed;
-  final bool dark;
+  final AppPalette palette;
 
   @override
   Widget build(BuildContext context) => Align(
@@ -1802,9 +2391,11 @@ class _NavigationCollapseButton extends StatelessWidget {
             child: IconButton.filledTonal(
               onPressed: onPressed,
               icon: Icon(collapsed ? Icons.menu_open_rounded : Icons.close_rounded),
-              color: dark ? Colors.white : AppColors.secondaryDark,
+              color: palette.textPrimary,
               style: IconButton.styleFrom(
-                backgroundColor: dark ? Colors.white.withOpacity(0.12) : Colors.white,
+                backgroundColor: palette.secondary.withOpacity(
+                  palette.darkBackground ? 0.18 : 0.10,
+                ),
               ),
             ),
           ),
@@ -1813,15 +2404,21 @@ class _NavigationCollapseButton extends StatelessWidget {
 }
 
 class _NavSectionLabel extends StatelessWidget {
-  const _NavSectionLabel(this.text);
+  const _NavSectionLabel(this.text, {required this.palette});
   final String text;
+  final AppPalette palette;
 
   @override
   Widget build(BuildContext context) => Padding(
         padding: const EdgeInsets.fromLTRB(14, 14, 14, 8),
         child: Text(
           text.toUpperCase(),
-          style: TextStyle(color: Colors.white.withOpacity(0.58), fontWeight: FontWeight.w900, letterSpacing: 1.1, fontSize: 11),
+          style: TextStyle(
+            color: palette.textSecondary,
+            fontWeight: FontWeight.w900,
+            letterSpacing: 1.1,
+            fontSize: 11,
+          ),
         ),
       );
 }
@@ -1852,6 +2449,7 @@ class _NavTile extends StatelessWidget {
     final pathNow = _currentPath(context);
     final selected = pathNow == path || (path != '/home' && pathNow.startsWith('$path/'));
     final foreground = dark ? Colors.white : appPalette.textPrimary;
+    final selectedForeground = _selectedMenuForeground(appPalette);
 
     Widget iconBox({required bool small}) => Container(
           width: small ? 36 : 38,
@@ -1861,7 +2459,11 @@ class _NavTile extends StatelessWidget {
             color: selected ? null : (dark ? Colors.white.withOpacity(0.12) : appPalette.secondary.withOpacity(0.12)),
             borderRadius: BorderRadius.circular(15),
           ),
-          child: Icon(visual.icon, size: small ? 19 : 20, color: selected || dark ? Colors.white : appPalette.secondary),
+          child: Icon(
+            visual.icon,
+            size: small ? 19 : 20,
+            color: selected ? selectedForeground : (dark ? Colors.white : appPalette.secondary),
+          ),
         );
 
     final tile = Padding(
@@ -1925,12 +2527,14 @@ class _NavTile extends StatelessWidget {
 class _MenuMessage extends StatelessWidget {
   const _MenuMessage({
     required this.dark,
+    required this.palette,
     required this.icon,
     required this.title,
     required this.message,
   });
 
   final bool dark;
+  final AppPalette palette;
   final IconData icon;
   final String title;
   final String message;
@@ -1940,21 +2544,36 @@ class _MenuMessage extends StatelessWidget {
         margin: const EdgeInsets.symmetric(horizontal: 6, vertical: 8),
         padding: const EdgeInsets.all(14),
         decoration: BoxDecoration(
-          color: dark ? Colors.white.withOpacity(0.10) : Colors.white,
+          color: dark
+              ? Colors.white.withOpacity(0.10)
+              : palette.secondary.withOpacity(palette.darkBackground ? 0.12 : 0.07),
           borderRadius: BorderRadius.circular(20),
         ),
         child: Row(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Icon(icon, color: dark ? AppColors.accent : AppColors.secondaryDark, size: 22),
+            Icon(icon, color: dark ? palette.accent : palette.secondary, size: 22),
             const SizedBox(width: 10),
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(title, style: TextStyle(color: dark ? Colors.white : AppColors.textPrimary, fontWeight: FontWeight.w900)),
+                  Text(
+                    title,
+                    style: TextStyle(
+                      color: dark ? Colors.white : palette.textPrimary,
+                      fontWeight: FontWeight.w900,
+                    ),
+                  ),
                   const SizedBox(height: 4),
-                  Text(message, style: TextStyle(color: dark ? Colors.white70 : AppColors.textSecondary, fontSize: 12, height: 1.25)),
+                  Text(
+                    message,
+                    style: TextStyle(
+                      color: dark ? Colors.white70 : palette.textSecondary,
+                      fontSize: 12,
+                      height: 1.25,
+                    ),
+                  ),
                 ],
               ),
             ),
@@ -1964,8 +2583,14 @@ class _MenuMessage extends StatelessWidget {
 }
 
 class _LogoutTile extends StatelessWidget {
-  const _LogoutTile({required this.onLogout, this.dark = false, this.compact = false});
+  const _LogoutTile({
+    required this.onLogout,
+    required this.palette,
+    this.dark = false,
+    this.compact = false,
+  });
   final VoidCallback onLogout;
+  final AppPalette palette;
   final bool dark;
   final bool compact;
 
@@ -1975,7 +2600,9 @@ class _LogoutTile extends StatelessWidget {
       builder: (context, constraints) {
         final effectiveCompact = compact || (constraints.maxWidth.isFinite && constraints.maxWidth < 118);
         final content = Material(
-          color: dark ? Colors.white.withOpacity(0.10) : AppColors.dangerSoft,
+          color: dark
+              ? Colors.white.withOpacity(0.10)
+              : AppColors.danger.withOpacity(palette.darkBackground ? 0.16 : 0.10),
           borderRadius: BorderRadius.circular(20),
           child: InkWell(
             borderRadius: BorderRadius.circular(20),
