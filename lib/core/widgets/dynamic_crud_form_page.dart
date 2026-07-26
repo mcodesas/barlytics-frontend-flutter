@@ -257,6 +257,7 @@ class _DynamicCrudFormPageState<T> extends ConsumerState<DynamicCrudFormPage<T>>
                                     final saveButton = AppButton(
                                       label: widget.wizardSteps != null && widget.id == null ? 'Guardar y continuar' : 'Guardar',
                                       icon: Icons.save_rounded,
+                                      compact: true,
                                       loading: state.loading,
                                       onPressed: () async {
                                         if (!_formKey.currentState!.validate()) return;
@@ -286,10 +287,11 @@ class _DynamicCrudFormPageState<T> extends ConsumerState<DynamicCrudFormPage<T>>
                                       );
                                     }
                                     return Row(
+                                      mainAxisAlignment: MainAxisAlignment.end,
                                       children: [
-                                        Expanded(child: cancelButton),
-                                        const SizedBox(width: 12),
-                                        Expanded(child: saveButton),
+                                        SizedBox(width: 132, child: cancelButton),
+                                        const SizedBox(width: 10),
+                                        SizedBox(width: 170, child: saveButton),
                                       ],
                                     );
                                   },

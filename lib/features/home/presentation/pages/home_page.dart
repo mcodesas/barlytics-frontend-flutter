@@ -1,119 +1,64 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:go_router/go_router.dart';
 
-import '../../../../app/theme/app_palette.dart';
-import '../../../../app/theme/module_visuals.dart';
 import '../../../../core/widgets/app_error_view.dart';
 import '../../../../core/widgets/app_loader.dart';
 import '../../../../core/widgets/app_scaffold.dart';
-import '../../../../core/widgets/responsive_layout.dart';
 import '../../../auth/presentation/providers/auth_provider.dart';
-import '../../../mesero/presentation/providers/mesero_tab_provider.dart';
 import '../../../navigation/data/models/user_menu_item.dart';
 import '../../../navigation/presentation/providers/user_menu_provider.dart';
+import 'manager_home_page.dart';
+import 'role_home_page.dart';
 
 class HomePage extends ConsumerWidget {
   const HomePage({super.key});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final menuAsync = ref.watch(userMenuProvider);
     final authState = ref.watch(authControllerProvider);
-    final palette = ref.watch(selectedAppPaletteProvider);
-    final isOperational = authState.roles.any(_isOperationalRole);
-    final isCajero = authState.roles.any(_isCajeroRole);
-
-    final operativeItems = _operativeItems(isCajero: isCajero);
+    final menuAsync = ref.watch(userMenuProvider);
+    final isManager = authState.roles.any(_isManagerRole);
 
     return AppScaffold(
-      child: Scaffold(
-        backgroundColor: Colors.transparent,
-        body: CustomScrollView(
-          slivers: [
-            SliverToBoxAdapter(
-              child: _HomeHero(
-                isOperational: isOperational,
-                isCajero: isCajero,
-                palette: palette,
-              ),
-            ),
-            SliverPadding(
-              padding: palette.pagePadding,
-              sliver: SliverList(
-                delegate: SliverChildListDelegate([
-                  if (isOperational)
-                    _QuickStats(modulesCount: operativeItems.length, rolesCount: authState.roles.length, operationLabel: isCajero ? 'Caja' : 'Ventas')
-                  else
-                    menuAsync.when(
-                      loading: () => _QuickStats(modulesCount: 0, rolesCount: authState.roles.length, operationLabel: 'General'),
-                      error: (_, __) => _QuickStats(modulesCount: 0, rolesCount: authState.roles.length, operationLabel: 'General'),
-                      data: (items) => _QuickStats(modulesCount: items.length, rolesCount: authState.roles.length, operationLabel: 'General'),
-                    ),
-                  const SizedBox(height: 22),
-                  Text(
-                    isOperational ? 'Funciones habilitadas para tu rol' : 'Módulos disponibles para tu rol',
-                    style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w900, color: palette.textPrimary),
-                  ),
-                  const SizedBox(height: 8),
-                  Text(
-                    isOperational
-                        ? 'Estas opciones se muestran según tu rol. El vendedor no ve historial de caja; el cajero sí puede revisarlo.'
-                        : 'Estas opciones vienen desde la base de datos según los roles asignados a tu usuario.',
-                    style: TextStyle(color: palette.textSecondary, fontWeight: FontWeight.w700),
-                  ),
-                  const SizedBox(height: 16),
-                  if (isOperational)
-                    ResponsiveLayout(
-                      mobile: _Grid(columns: 1, items: operativeItems),
-                      tablet: _Grid(columns: 2, items: operativeItems),
-                      desktop: _Grid(columns: 3, items: operativeItems),
-                    )
-                  else
-                    menuAsync.when(
-                      loading: () => const Padding(
-                        padding: EdgeInsets.symmetric(vertical: 32),
-                        child: AppLoader(message: 'Cargando módulos autorizados...'),
-                      ),
-                      error: (error, _) => AppErrorView(
-                        message: 'No fue posible cargar los módulos autorizados. Revisa la configuración de MENUS, OPCIONMENU y ROLES.',
-                        onRetry: () => ref.invalidate(userMenuProvider),
-                      ),
-                      data: (items) {
-                        if (items.isEmpty) {
-                          return _EmptyRoleModulesCard(palette: palette);
-                        }
-
-                        return ResponsiveLayout(
-                          mobile: _Grid(columns: 1, items: items),
-                          tablet: _Grid(columns: 2, items: items),
-                          desktop: _Grid(columns: 3, items: items),
-                        );
-                      },
-                    ),
-                ]),
-              ),
-            ),
-          ],
+      child: menuAsync.when(
+        loading: () => Scaffold(
+          backgroundColor: Colors.transparent,
+          body: AppLoader(
+            message: isManager
+                ? 'Preparando centro de gerencia...'
+                : 'Preparando tu espacio de trabajo...',
+          ),
         ),
+        error: (error, _) => Scaffold(
+          backgroundColor: Colors.transparent,
+          body: AppErrorView(
+            message: 'No fue posible cargar las funciones autorizadas para tu rol.',
+            onRetry: () => ref.invalidate(userMenuProvider),
+          ),
+        ),
+        data: (items) {
+          if (isManager) {
+            return ManagerHomePage(
+              items: _sortManagerItems(items),
+              rolesCount: authState.roles.length,
+            );
+          }
+
+          return RoleHomePage(
+            items: items,
+            roles: authState.roles,
+          );
+        },
       ),
     );
   }
 }
 
-bool _isOperationalRole(String role) {
+bool _isManagerRole(String role) {
   final normalized = _normalizeRole(role);
-  return normalized.contains('MESER') ||
-      normalized.contains('CAJER') ||
-      normalized.contains('CAJA') ||
-      normalized.contains('VENDEDOR') ||
-      normalized.contains('VENTA') ||
-      normalized.contains('SELLER');
-}
-
-bool _isCajeroRole(String role) {
-  final normalized = _normalizeRole(role);
-  return normalized.contains('CAJER') || normalized.contains('CAJA') || normalized.contains('CASHIER');
+  return normalized.contains('GERENTE') ||
+      normalized.contains('MANAGER') ||
+      normalized.contains('SUPERVISOR');
 }
 
 String _normalizeRole(String value) => value
@@ -125,335 +70,29 @@ String _normalizeRole(String value) => value
     .replaceAll('Ú', 'U')
     .replaceAll(RegExp(r'[^A-Z0-9]+'), '_');
 
-List<UserMenuItem> _operativeItems({required bool isCajero}) => [
-      const UserMenuItem(
-        keyName: 'mesas',
-        title: 'Mesas',
-        path: '/mesero',
-        description: 'Abrir ventas, seleccionar mesas y operar cuentas.',
-        system: true,
-      ),
-      const UserMenuItem(
-        keyName: 'productos',
-        title: 'Productos',
-        path: '/mesero',
-        description: 'Buscar productos por nombre, tipo, marca, código o precio.',
-        system: true,
-      ),
-      const UserMenuItem(
-        keyName: 'reportes',
-        title: 'Resumen',
-        path: '/mesero',
-        description: 'Ver mesas abiertas, libres y valores pendientes.',
-        system: true,
-      ),
-      if (isCajero)
-        const UserMenuItem(
-          keyName: 'ventas',
-          title: 'Historial',
-          path: '/mesero',
-          description: 'Consultar ventas registradas y sus pagos.',
-          system: true,
-        ),
-    ];
-
-class _HomeHero extends StatelessWidget {
-  const _HomeHero({
-    required this.isOperational,
-    required this.isCajero,
-    required this.palette,
+List<UserMenuItem> _sortManagerItems(List<UserMenuItem> items) {
+  const priority = <String, int>{
+    'reportes': 0,
+    'ganancias': 1,
+    'ventas': 2,
+    'inventario': 3,
+    'proximo_pedido': 4,
+    'productos': 5,
+    'movimientos': 6,
+    'precios': 7,
+    'pagos': 8,
+    'usuarios': 9,
+    'roles_personalizados': 10,
+    'sucursales': 11,
+    'empresas': 12,
+    'parametros': 13,
+  };
+  final sorted = List<UserMenuItem>.of(items);
+  sorted.sort((a, b) {
+    final byPriority =
+        (priority[a.keyName] ?? 999).compareTo(priority[b.keyName] ?? 999);
+    if (byPriority != 0) return byPriority;
+    return a.title.compareTo(b.title);
   });
-
-  final bool isOperational;
-  final bool isCajero;
-  final AppPalette palette;
-
-  @override
-  Widget build(BuildContext context) {
-    return Padding(
-      padding: EdgeInsets.fromLTRB(18 * palette.spacingScale, 18 * palette.spacingScale, 18 * palette.spacingScale, 0),
-      child: Container(
-        padding: palette.panelPadding(20),
-        decoration: palette.panelDecoration(
-          baseRadius: 30,
-          tint: palette.secondary,
-        ),
-        child: LayoutBuilder(
-          builder: (context, constraints) {
-            final compact = constraints.maxWidth < 700;
-            final copy = Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 13, vertical: 7),
-                  decoration: BoxDecoration(
-                    color: palette.secondary.withOpacity(0.12),
-                    borderRadius: BorderRadius.circular(palette.radius(999)),
-                    border: Border.all(color: palette.secondary.withOpacity(0.20)),
-                  ),
-                  child: Text(
-                    isOperational
-                        ? 'Panel ${isCajero ? 'de caja' : 'de vendedor'}'
-                        : 'Panel administrativo',
-                    style: TextStyle(
-                      color: palette.secondary,
-                      fontWeight: FontWeight.w900,
-                    ),
-                  ),
-                ),
-                const SizedBox(height: 14),
-                Text(
-                  'Hola, bienvenido a BarLytics',
-                  style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-                        color: palette.textPrimary,
-                        fontWeight: FontWeight.w900,
-                      ),
-                ),
-                const SizedBox(height: 7),
-                Text(
-                  isOperational
-                      ? 'Accede a las funciones habilitadas para operar ventas y caja sin información innecesaria.'
-                      : 'Administra usuarios, catálogo, inventario, ventas, pagos y configuración desde un mismo lugar.',
-                  style: TextStyle(
-                    color: palette.textSecondary,
-                    fontWeight: FontWeight.w600,
-                    height: 1.35,
-                  ),
-                ),
-              ],
-            );
-
-            final icon = Container(
-              width: compact ? 74 : 104,
-              height: compact ? 74 : 104,
-              decoration: BoxDecoration(
-                gradient: LinearGradient(colors: [palette.primary, palette.secondary]),
-                borderRadius: BorderRadius.circular(palette.radius(compact ? 24 : 32)),
-                border: Border.all(color: palette.secondary.withOpacity(0.18)),
-                boxShadow: [
-                  BoxShadow(
-                    color: palette.secondary.withOpacity(0.18),
-                    blurRadius: 24,
-                    offset: const Offset(0, 12),
-                  ),
-                ],
-              ),
-              child: Icon(
-                isOperational ? Icons.point_of_sale_rounded : Icons.insights_rounded,
-                color: palette.onPrimary,
-                size: compact ? 36 : 50,
-              ),
-            );
-
-            if (compact) {
-              return Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [copy, const SizedBox(height: 18), icon],
-              );
-            }
-
-            return Row(
-              children: [
-                Expanded(child: copy),
-                const SizedBox(width: 24),
-                icon,
-              ],
-            );
-          },
-        ),
-      ),
-    );
-  }
-}
-
-class _QuickStats extends ConsumerWidget {
-  const _QuickStats({required this.modulesCount, required this.rolesCount, required this.operationLabel});
-  final int modulesCount;
-  final int rolesCount;
-  final String operationLabel;
-
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final palette = ref.watch(selectedAppPaletteProvider);
-    return Wrap(
-      spacing: 14,
-      runSpacing: 14,
-      children: [
-        _StatCard(title: 'Opciones visibles', value: modulesCount.toString(), icon: Icons.dashboard_customize_rounded, color: palette.secondary),
-        _StatCard(title: 'Roles activos', value: rolesCount.toString(), icon: Icons.admin_panel_settings_rounded, color: palette.primary),
-        _StatCard(title: 'Operación', value: operationLabel, icon: Icons.point_of_sale_rounded, color: palette.titleBackground),
-      ],
-    );
-  }
-}
-
-class _StatCard extends ConsumerWidget {
-  const _StatCard({required this.title, required this.value, required this.icon, required this.color});
-  final String title;
-  final String value;
-  final IconData icon;
-  final Color color;
-
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final palette = ref.watch(selectedAppPaletteProvider);
-    return SizedBox(
-      width: MediaQuery.sizeOf(context).width < 600 ? double.infinity : 230,
-      child: Container(
-        padding: palette.panelPadding(18),
-        decoration: palette.panelDecoration(
-          baseRadius: 28,
-          tint: color,
-        ),
-        child: Row(
-          children: [
-            Container(
-              width: 54,
-              height: 54,
-              decoration: BoxDecoration(
-                gradient: LinearGradient(colors: [color, palette.secondary]),
-                borderRadius: BorderRadius.circular(palette.radius(20)),
-              ),
-              child: Icon(icon, color: Colors.white),
-            ),
-            const SizedBox(width: 14),
-            Expanded(
-              child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                Text(value, style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w900, color: palette.textPrimary)),
-                Text(title, style: TextStyle(color: palette.textSecondary, fontWeight: FontWeight.w700)),
-              ]),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-class _Grid extends ConsumerWidget {
-  const _Grid({required this.columns, required this.items});
-  final int columns;
-  final List<UserMenuItem> items;
-
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final palette = ref.watch(selectedAppPaletteProvider);
-    final gap = 14 * palette.spacingScale;
-    final aspect = columns == 1
-        ? (palette.density == AppDensityPreset.compact ? 4.2 : 3.7)
-        : (palette.density == AppDensityPreset.spacious ? 1.95 : 2.2);
-    return GridView.count(
-      shrinkWrap: true,
-      physics: const NeverScrollableScrollPhysics(),
-      crossAxisCount: columns,
-      childAspectRatio: aspect,
-      mainAxisSpacing: gap,
-      crossAxisSpacing: gap,
-      children: [
-        for (final item in items) _ModuleCard(item: item),
-      ],
-    );
-  }
-}
-
-class _ModuleCard extends ConsumerWidget {
-  const _ModuleCard({required this.item});
-  final UserMenuItem item;
-
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final visual = ModuleVisuals.byKey(item.keyName);
-    final palette = ref.watch(selectedAppPaletteProvider);
-    final accentColor = Color.lerp(visual.color, palette.secondary, 0.58) ?? palette.secondary;
-
-    return Material(
-      color: Colors.transparent,
-      borderRadius: BorderRadius.circular(palette.radius(30)),
-      child: InkWell(
-        borderRadius: BorderRadius.circular(palette.radius(30)),
-        onTap: () => _goToModule(context, ref, item),
-        child: Container(
-          padding: palette.panelPadding(18),
-          decoration: palette.panelDecoration(
-            baseRadius: 30,
-            tint: accentColor,
-          ),
-          child: Row(
-            children: [
-              Container(
-                width: 58,
-                height: 58,
-                decoration: BoxDecoration(gradient: LinearGradient(colors: [palette.primary, palette.secondary]), borderRadius: BorderRadius.circular(palette.radius(22)), border: Border.all(color: Colors.white.withOpacity(0.18))),
-                child: Icon(visual.icon, color: Colors.white, size: 28),
-              ),
-              const SizedBox(width: 16),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    Text(item.title, maxLines: 1, overflow: TextOverflow.ellipsis, style: Theme.of(context).textTheme.titleMedium?.copyWith(color: palette.textPrimary, fontWeight: FontWeight.w900)),
-                    const SizedBox(height: 4),
-                    Text(item.description ?? visual.description, maxLines: 2, overflow: TextOverflow.ellipsis, style: Theme.of(context).textTheme.bodySmall?.copyWith(color: palette.textSecondary, fontWeight: FontWeight.w700)),
-                  ],
-                ),
-              ),
-              Icon(Icons.chevron_right_rounded, color: accentColor),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-
-  void _goToModule(BuildContext context, WidgetRef ref, UserMenuItem item) {
-    if (item.system) {
-      switch (item.title.toLowerCase()) {
-        case 'mesas':
-          ref.read(meseroSelectedModeProvider.notifier).state = MeseroPageMode.mesas;
-          context.go('/mesero');
-          return;
-        case 'productos':
-          ref.read(meseroSelectedModeProvider.notifier).state = MeseroPageMode.productos;
-          context.go('/mesero');
-          return;
-        case 'resumen':
-          ref.read(meseroSelectedModeProvider.notifier).state = MeseroPageMode.resumen;
-          context.go('/mesero');
-          return;
-        case 'historial':
-          ref.read(meseroSelectedModeProvider.notifier).state = MeseroPageMode.historial;
-          context.go('/mesero');
-          return;
-      }
-    }
-    context.go(item.path);
-  }
-}
-
-class _EmptyRoleModulesCard extends StatelessWidget {
-  const _EmptyRoleModulesCard({required this.palette});
-  final AppPalette palette;
-
-  @override
-  Widget build(BuildContext context) => Container(
-        width: double.infinity,
-        padding: palette.panelPadding(22),
-        decoration: palette.panelDecoration(
-          baseRadius: 30,
-          tint: palette.secondary,
-        ),
-        child: Row(
-          children: [
-            Icon(Icons.lock_outline_rounded, color: palette.secondary),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Text(
-                'Tu usuario no tiene opciones de menú asignadas. Valida la relación ROLES → OPCIONMENU → MENUS.',
-                style: TextStyle(color: palette.textSecondary, fontWeight: FontWeight.w700),
-              ),
-            ),
-          ],
-        ),
-      );
+  return sorted;
 }

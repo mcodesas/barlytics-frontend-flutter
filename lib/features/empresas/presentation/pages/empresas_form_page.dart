@@ -1,16 +1,23 @@
+import 'dart:convert';
+import 'dart:typed_data';
+
+import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../../app/theme/app_colors.dart';
 import '../../../../app/theme/app_palette.dart';
+import '../../../../core/branch/branch_scope_provider.dart';
 import '../../../../core/constants/api_paths.dart';
+import '../../../../core/constants/storage_keys.dart';
 import '../../../../core/crud/crud_field.dart';
 import '../../../../core/providers/core_providers.dart';
 import '../../../../core/widgets/app_button.dart';
 import '../../../../core/widgets/app_loader.dart';
 import '../../../../core/widgets/lookup_dropdown.dart';
 import '../../../../core/widgets/tech_background.dart';
+import '../../../auth/presentation/providers/auth_provider.dart';
 
 /// Formulario guiado para crear y modificar empresas.
 ///
@@ -90,18 +97,27 @@ class _EmpresasFormPageState extends ConsumerState<EmpresasFormPage> {
   bool _loading = true;
   bool _saving = false;
   int _step = 0;
+  int _editSectionIndex = 0;
 
   bool get _isEdit => widget.id != null && widget.id!.trim().isNotEmpty;
 
   @override
   void initState() {
     super.initState();
+    _nombreComercial.addListener(_refreshCompanyPreview);
+    _razonSocial.addListener(_refreshCompanyPreview);
+    _identificacion.addListener(_refreshCompanyPreview);
     _loadInitialData();
+  }
+
+  void _refreshCompanyPreview() {
+    if (mounted && _isEdit) setState(() {});
   }
 
   Future<void> _loadInitialData() async {
     setState(() => _loading = true);
     try {
+      if (!await _validateManagerScope()) return;
       await _loadLookupOptions();
       if (_isEdit) {
         await Future.wait([
@@ -112,6 +128,44 @@ class _EmpresasFormPageState extends ConsumerState<EmpresasFormPage> {
     } finally {
       if (mounted) setState(() => _loading = false);
     }
+  }
+
+  Future<bool> _validateManagerScope() async {
+    final roles = ref.read(authControllerProvider).roles.map(_normalizeRole).toSet();
+    const globalAdmins = {'ADMIN', 'ADMINISTRADOR', 'SUPERADMIN', 'SUPER_ADMIN'};
+    final isGlobalAdmin = roles.any(globalAdmins.contains);
+    final isManager = !isGlobalAdmin && (roles.contains('GERENTE') || roles.contains('MANAGER'));
+    if (!isManager) return true;
+
+    final profile = await ref.read(apiClientProvider).get<Map<String, dynamic>>(
+      ApiPaths.profile,
+      (json) => Map<String, dynamic>.from(json as Map),
+    );
+    final companyId = (profile.data?['empresaId'] as num?)?.toInt();
+    final routeId = int.tryParse(widget.id ?? '');
+    final allowed = _isEdit ? companyId != null && routeId == companyId : companyId == null;
+    if (allowed) return true;
+
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            _isEdit
+                ? 'Solo puedes modificar la empresa asignada a tu usuario.'
+                : 'Ya tienes una empresa asignada. Un gerente no puede crear una segunda empresa.',
+          ),
+        ),
+      );
+      context.go('/empresas');
+    });
+    return false;
+  }
+
+  String _normalizeRole(String value) {
+    var normalized = value.trim().toUpperCase();
+    if (normalized.startsWith('ROLE_')) normalized = normalized.substring(5);
+    return normalized;
   }
 
   Future<void> _loadEmpresa() async {
@@ -197,7 +251,7 @@ class _EmpresasFormPageState extends ConsumerState<EmpresasFormPage> {
         'emprTelefono': _telefono.text.trim(),
         'emprCorreoElectronico': _correo.text.trim(),
         'emprSitioWeb': _sitioWeb.text.trim().isEmpty ? null : _sitioWeb.text.trim(),
-        'emprLogo': _logo.text.trim().isEmpty ? null : _logo.text.trim(),
+        'emprLogo': _isEdit ? _logo.text.trim() : (_logo.text.trim().isEmpty ? null : _logo.text.trim()),
         'emprEstado': int.tryParse(_estado.text) ?? 1,
       };
 
@@ -225,19 +279,9 @@ class _EmpresasFormPageState extends ConsumerState<EmpresasFormPage> {
 
 
   bool _validateEmpresaStep({bool showStep = false}) {
-    final formState = _empresaFormKey.currentState;
-
-    // Cuando el usuario está en el paso 2 o 3, el formulario del paso 1 no
-    // está montado en el árbol de widgets. Por eso currentState puede ser null.
-    // En ese caso validamos directamente los controladores para evitar el error
-    // "Unexpected null value" al finalizar desde el resumen.
-    if (formState != null) {
-      final valid = formState.validate();
-      if (!valid && showStep) setState(() => _step = 0);
-      return valid;
-    }
-
+    final formValid = _empresaFormKey.currentState?.validate() ?? true;
     final errors = <String>[];
+
     void required(String value, String label) {
       if (value.trim().isEmpty) errors.add(label);
     }
@@ -255,16 +299,33 @@ class _EmpresasFormPageState extends ConsumerState<EmpresasFormPage> {
 
     final emailError = _emailValidator(_correo.text);
     if (emailError != null && _correo.text.trim().isNotEmpty) errors.add('Correo electrónico válido');
-
     final urlError = _optionalUrlValidator(_sitioWeb.text);
     if (urlError != null) errors.add('Sitio web válido');
 
-    if (errors.isEmpty) return true;
+    if (formValid && errors.isEmpty) return true;
 
     if (showStep && mounted) {
-      setState(() => _step = 0);
+      final identityInvalid = _nombreComercial.text.trim().isEmpty ||
+          _razonSocial.text.trim().isEmpty ||
+          _tipoIdentificacion.text.trim().isEmpty ||
+          _identificacion.text.trim().isEmpty;
+      final contactInvalid = _correo.text.trim().isEmpty ||
+          _telefono.text.trim().isEmpty ||
+          _paisTelefono.text.trim().isEmpty ||
+          emailError != null ||
+          urlError != null;
+      final locationInvalid = _ciudad.text.trim().isEmpty ||
+          _direccion.text.trim().isEmpty ||
+          _zona.text.trim().isEmpty;
+
+      setState(() {
+        _step = 0;
+        if (_isEdit) {
+          _editSectionIndex = identityInvalid ? 0 : (contactInvalid ? 1 : (locationInvalid ? 2 : _editSectionIndex));
+        }
+      });
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Revisa los datos de empresa: ${errors.join(', ')}')),
+        SnackBar(content: Text(errors.isEmpty ? 'Revisa los campos marcados.' : 'Revisa: ${errors.join(', ')}')),
       );
     }
     return false;
@@ -290,6 +351,9 @@ class _EmpresasFormPageState extends ConsumerState<EmpresasFormPage> {
               (json) => json,
             );
       }
+
+      await ref.read(secureStorageProvider).write(StorageKeys.empresaId, '$empresaId');
+      await ref.read(branchScopeProvider.notifier).load();
 
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Empresa registrada correctamente')));
@@ -431,6 +495,8 @@ class _EmpresasFormPageState extends ConsumerState<EmpresasFormPage> {
       return const Stack(children: [Positioned.fill(child: AppPageBackground()), Positioned.fill(child: AppLoader())]);
     }
 
+    if (_isEdit) return _buildEditPage(palette);
+
     return Stack(
       children: [
         const Positioned.fill(child: AppPageBackground()),
@@ -467,7 +533,7 @@ class _EmpresasFormPageState extends ConsumerState<EmpresasFormPage> {
                             children: [
                               Text(_isEdit ? 'Modificar empresa' : 'Crear empresa', style: TextStyle(color: palette.textPrimary, fontWeight: FontWeight.w900, fontSize: 17)),
                               const SizedBox(height: 2),
-                              Text('Configura los datos de empresa y sus sucursales en un flujo guiado.', maxLines: 2, overflow: TextOverflow.ellipsis, style: TextStyle(color: palette.textSecondary, fontWeight: FontWeight.w700, fontSize: 12.5)),
+                              Text('Configura la identidad de la empresa, su logo y las sucursales iniciales.', maxLines: 2, overflow: TextOverflow.ellipsis, style: TextStyle(color: palette.textSecondary, fontWeight: FontWeight.w700, fontSize: 12.5)),
                             ],
                           ),
                         ),
@@ -507,6 +573,534 @@ class _EmpresasFormPageState extends ConsumerState<EmpresasFormPage> {
     );
   }
 
+
+  Widget _buildEditPage(AppPalette palette) {
+    return Stack(
+      children: [
+        const Positioned.fill(child: AppPageBackground()),
+        SingleChildScrollView(
+          padding: const EdgeInsets.fromLTRB(16, 16, 16, 28),
+          child: Center(
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 1180),
+              child: Form(
+                key: _empresaFormKey,
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    _editHeader(palette),
+                    const SizedBox(height: 14),
+                    LayoutBuilder(
+                      builder: (context, constraints) {
+                        final wide = constraints.maxWidth >= 900;
+                        final profile = _companyProfilePanel(palette);
+                        final form = _companyEditWorkspace(palette);
+
+                        if (!wide) {
+                          return Column(
+                            crossAxisAlignment: CrossAxisAlignment.stretch,
+                            children: [profile, const SizedBox(height: 14), form],
+                          );
+                        }
+                        return Row(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            SizedBox(width: 280, child: profile),
+                            const SizedBox(width: 16),
+                            Expanded(child: form),
+                          ],
+                        );
+                      },
+                    ),
+                    const SizedBox(height: 8),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _editHeader(AppPalette palette) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+      decoration: BoxDecoration(
+        color: palette.surface.withOpacity(palette.darkBackground ? 0.95 : 0.99),
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: palette.cardBorder),
+      ),
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          final compact = constraints.maxWidth < 640;
+          final title = Row(
+            children: [
+              IconButton.filledTonal(
+                onPressed: () => context.go('/empresas'),
+                tooltip: 'Volver a empresas',
+                icon: const Icon(Icons.arrow_back_rounded),
+              ),
+              const SizedBox(width: 10),
+              Container(
+                width: 40,
+                height: 40,
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(colors: [palette.primary, palette.secondary]),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Icon(Icons.business_rounded, color: palette.onPrimary),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text('Modificar empresa', style: TextStyle(color: palette.textPrimary, fontWeight: FontWeight.w900, fontSize: 16)),
+                    const SizedBox(height: 2),
+                    Text(
+                      'Actualiza la identidad, el logo, el contacto y la operación sin salir de esta vista.',
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(color: palette.textSecondary, fontWeight: FontWeight.w700, fontSize: 12.5),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          );
+          final save = AppButton(
+            label: 'Guardar',
+            icon: Icons.save_rounded,
+            compact: true,
+            loading: _saving,
+            onPressed: _saveEditAndFinish,
+          );
+          if (compact) {
+            return Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [title, const SizedBox(height: 12), save]);
+          }
+          return Row(children: [Expanded(child: title), const SizedBox(width: 12), SizedBox(width: 142, child: save)]);
+        },
+      ),
+    );
+  }
+
+  Widget _companyProfilePanel(AppPalette palette) {
+    final companyName = _nombreComercial.text.trim().isEmpty ? 'Tu empresa' : _nombreComercial.text.trim();
+    final legalName = _razonSocial.text.trim().isEmpty ? 'Información comercial' : _razonSocial.text.trim();
+    final active = (_estado.text.trim().isEmpty ? 1 : int.tryParse(_estado.text.trim()) ?? 1) != 0;
+    return Container(
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: palette.surface.withOpacity(palette.darkBackground ? 0.95 : 0.99),
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: palette.cardBorder),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          _logoEditorCard(compact: true),
+          const SizedBox(height: 18),
+          Text(companyName, textAlign: TextAlign.center, maxLines: 2, overflow: TextOverflow.ellipsis, style: TextStyle(color: palette.textPrimary, fontWeight: FontWeight.w900, fontSize: 16)),
+          const SizedBox(height: 3),
+          Text(legalName, textAlign: TextAlign.center, maxLines: 2, overflow: TextOverflow.ellipsis, style: TextStyle(color: palette.textSecondary, fontWeight: FontWeight.w700, fontSize: 12.5)),
+          const SizedBox(height: 14),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+            decoration: BoxDecoration(
+              color: (active ? AppColors.success : AppColors.danger).withOpacity(0.09),
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(color: (active ? AppColors.success : AppColors.danger).withOpacity(0.22)),
+            ),
+            child: Row(
+              children: [
+                Icon(active ? Icons.check_circle_rounded : Icons.pause_circle_rounded, color: active ? AppColors.success : AppColors.danger, size: 19),
+                const SizedBox(width: 8),
+                Expanded(child: Text(active ? 'Empresa activa' : 'Empresa inactiva', style: TextStyle(color: active ? AppColors.success : AppColors.danger, fontWeight: FontWeight.w900, fontSize: 12.5))),
+              ],
+            ),
+          ),
+          const SizedBox(height: 12),
+          _statusField(),
+          const SizedBox(height: 12),
+          Container(
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(color: palette.background.withOpacity(0.55), borderRadius: BorderRadius.circular(16)),
+            child: Row(
+              children: [
+                Icon(Icons.storefront_rounded, color: palette.secondary, size: 20),
+                const SizedBox(width: 9),
+                Expanded(child: Text('${_sucursales.length} ${_sucursales.length == 1 ? 'sucursal' : 'sucursales'} vinculadas', style: TextStyle(color: palette.textPrimary, fontWeight: FontWeight.w800, fontSize: 12.5))),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _companyEditWorkspace(AppPalette palette) {
+    final sections = <({String label, IconData icon})>[
+      (label: 'Identidad', icon: Icons.business_center_rounded),
+      (label: 'Contacto', icon: Icons.contact_phone_rounded),
+      (label: 'Ubicación', icon: Icons.location_on_rounded),
+      (label: 'Sucursales', icon: Icons.storefront_rounded),
+    ];
+
+    final content = switch (_editSectionIndex) {
+      0 => _editSection(
+          palette: palette,
+          icon: Icons.business_center_rounded,
+          title: 'Identidad de la empresa',
+          description: 'Nombre comercial, razón social e identificación tributaria.',
+          children: [
+            _textField(_nombreComercial, 'Nombre comercial', Icons.storefront_rounded),
+            _textField(_razonSocial, 'Razón social', Icons.apartment_rounded),
+            _lookupField(_tipoIdentificacion, _tipoIdentificacionField),
+            _textField(_identificacion, 'Número de identificación', Icons.badge_outlined),
+          ],
+        ),
+      1 => _editSection(
+          palette: palette,
+          icon: Icons.contact_phone_rounded,
+          title: 'Contacto comercial',
+          description: 'Información que se mostrará en documentos y canales de atención.',
+          children: [
+            _textField(_correo, 'Correo electrónico', Icons.email_outlined, keyboardType: TextInputType.emailAddress, validator: _emailValidator),
+            _textField(_telefono, 'Teléfono', Icons.phone_outlined, keyboardType: TextInputType.phone),
+            _textField(_sitioWeb, 'Sitio web', Icons.language_rounded, required: false, validator: _optionalUrlValidator),
+            _lookupField(_paisTelefono, _paisTelefonoField),
+          ],
+        ),
+      2 => _editSection(
+          palette: palette,
+          icon: Icons.location_on_rounded,
+          title: 'Ubicación y operación',
+          description: 'Dirección principal, ciudad y zona horaria del negocio.',
+          children: [
+            _lookupField(_ciudad, _ciudadField),
+            _textField(_direccion, 'Dirección principal', Icons.location_on_outlined),
+            _textField(_codigoPostal, 'Código postal', Icons.local_post_office_outlined, required: false),
+            _lookupField(_zona, _zonaField),
+          ],
+        ),
+      _ => _branchesEditSection(palette),
+    };
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Container(
+          height: 44,
+          padding: const EdgeInsets.all(4),
+          decoration: BoxDecoration(
+            color: palette.surface.withOpacity(palette.darkBackground ? 0.94 : 0.99),
+            borderRadius: BorderRadius.circular(15),
+            border: Border.all(color: palette.cardBorder),
+          ),
+          child: SingleChildScrollView(
+            scrollDirection: Axis.horizontal,
+            child: Row(
+              children: List.generate(sections.length, (index) {
+                final section = sections[index];
+                final selected = _editSectionIndex == index;
+                return Padding(
+                  padding: EdgeInsets.only(right: index == sections.length - 1 ? 0 : 4),
+                  child: Material(
+                    color: selected ? palette.secondary.withOpacity(0.14) : Colors.transparent,
+                    borderRadius: BorderRadius.circular(11),
+                    child: InkWell(
+                      borderRadius: BorderRadius.circular(11),
+                      onTap: _saving ? null : () => setState(() => _editSectionIndex = index),
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(section.icon, size: 16, color: selected ? palette.secondary : palette.textSecondary),
+                            const SizedBox(width: 6),
+                            Text(
+                              section.label,
+                              style: TextStyle(
+                                color: selected ? palette.secondary : palette.textSecondary,
+                                fontSize: 12,
+                                fontWeight: FontWeight.w900,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ),
+                );
+              }),
+            ),
+          ),
+        ),
+        const SizedBox(height: 10),
+        AnimatedSwitcher(
+          duration: const Duration(milliseconds: 180),
+          child: KeyedSubtree(key: ValueKey(_editSectionIndex), child: content),
+        ),
+      ],
+    );
+  }
+
+  Widget _editSection({
+    required AppPalette palette,
+    required IconData icon,
+    required String title,
+    required String description,
+    required List<Widget> children,
+  }) {
+    return Container(
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: palette.surface.withOpacity(palette.darkBackground ? 0.95 : 0.99),
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: palette.cardBorder),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Container(
+                width: 34,
+                height: 34,
+                decoration: BoxDecoration(color: palette.secondary.withOpacity(0.12), borderRadius: BorderRadius.circular(11)),
+                child: Icon(icon, color: palette.secondary, size: 18),
+              ),
+              const SizedBox(width: 11),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(title, style: TextStyle(color: palette.textPrimary, fontWeight: FontWeight.w900, fontSize: 14.5)),
+                    const SizedBox(height: 3),
+                    Text(description, style: TextStyle(color: palette.textSecondary, fontWeight: FontWeight.w600, fontSize: 12)),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          LayoutBuilder(
+            builder: (context, constraints) {
+              final twoColumns = constraints.maxWidth >= 620;
+              final width = twoColumns ? (constraints.maxWidth - 14) / 2 : constraints.maxWidth;
+              return Wrap(
+                spacing: 14,
+                runSpacing: 14,
+                children: children.map((child) => SizedBox(width: width, child: child)).toList(growable: false),
+              );
+            },
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _branchesEditSection(AppPalette palette) {
+    return Container(
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: palette.surface.withOpacity(palette.darkBackground ? 0.95 : 0.99),
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: palette.cardBorder),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          LayoutBuilder(
+            builder: (context, constraints) {
+              final compact = constraints.maxWidth < 560;
+              final title = Row(
+                children: [
+                  Container(width: 40, height: 40, decoration: BoxDecoration(color: palette.secondary.withOpacity(0.12), borderRadius: BorderRadius.circular(13)), child: Icon(Icons.storefront_rounded, color: palette.secondary, size: 21)),
+                  const SizedBox(width: 11),
+                  Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Text('Sucursales', style: TextStyle(color: palette.textPrimary, fontWeight: FontWeight.w900, fontSize: 15.5)), const SizedBox(height: 3), Text('Consulta o ajusta las sedes asociadas a esta empresa.', style: TextStyle(color: palette.textSecondary, fontWeight: FontWeight.w600, fontSize: 12))])),
+                ],
+              );
+              final add = OutlinedButton.icon(onPressed: _saving ? null : () => _openSucursalDialog(), icon: const Icon(Icons.add_business_rounded), label: const Text('Agregar sucursal'));
+              if (compact) return Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [title, const SizedBox(height: 12), add]);
+              return Row(children: [Expanded(child: title), const SizedBox(width: 12), add]);
+            },
+          ),
+          const SizedBox(height: 16),
+          _BranchesList(
+            sucursales: _sucursales,
+            labelFor: _labelFor,
+            onEdit: (index) => _openSucursalDialog(sucursal: _sucursales[index], index: index),
+            onDelete: _deleteSucursal,
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _logoEditorCard({required bool compact}) {
+    final palette = ref.watch(selectedAppPaletteProvider);
+    final logoValue = _logo.text.trim();
+    final previewSize = compact ? 88.0 : 96.0;
+    final preview = Container(
+      width: previewSize,
+      height: previewSize,
+      padding: const EdgeInsets.all(4),
+      decoration: BoxDecoration(
+        color: palette.background.withOpacity(0.62),
+        borderRadius: BorderRadius.circular(26),
+        border: Border.all(color: palette.secondary.withOpacity(0.25), width: 2),
+      ),
+      child: ClipRRect(borderRadius: BorderRadius.circular(21), child: _logoPreview(logoValue, palette)),
+    );
+    final actions = Wrap(
+      spacing: 8,
+      runSpacing: 8,
+      alignment: compact ? WrapAlignment.center : WrapAlignment.start,
+      children: [
+        FilledButton.tonalIcon(onPressed: _saving ? null : _pickCompanyLogo, icon: const Icon(Icons.upload_rounded, size: 17), label: Text(logoValue.isEmpty ? 'Cargar' : 'Cambiar')),
+        OutlinedButton.icon(onPressed: _saving ? null : _setLogoFromUrl, icon: const Icon(Icons.link_rounded, size: 17), label: const Text('URL')),
+        if (logoValue.isNotEmpty)
+          IconButton.filledTonal(onPressed: _saving ? null : _removeCompanyLogo, tooltip: 'Eliminar logo', style: IconButton.styleFrom(foregroundColor: AppColors.danger), icon: const Icon(Icons.delete_outline_rounded)),
+      ],
+    );
+    final info = Column(
+      crossAxisAlignment: compact ? CrossAxisAlignment.center : CrossAxisAlignment.start,
+      children: [
+        Text('Logo de la empresa', textAlign: compact ? TextAlign.center : TextAlign.start, style: TextStyle(color: palette.textPrimary, fontWeight: FontWeight.w900, fontSize: 15)),
+        const SizedBox(height: 4),
+        Text('JPG, PNG o WEBP. Máximo 2 MB. También puedes usar una URL pública.', textAlign: compact ? TextAlign.center : TextAlign.start, style: TextStyle(color: palette.textSecondary, fontWeight: FontWeight.w600, fontSize: 11.5)),
+        const SizedBox(height: 12),
+        actions,
+      ],
+    );
+    if (compact) return Column(children: [preview, const SizedBox(height: 13), info]);
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(color: palette.background.withOpacity(0.52), borderRadius: BorderRadius.circular(22), border: Border.all(color: palette.cardBorder)),
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          if (constraints.maxWidth < 540) return Column(children: [preview, const SizedBox(height: 13), info]);
+          return Row(children: [preview, const SizedBox(width: 16), Expanded(child: info)]);
+        },
+      ),
+    );
+  }
+
+  Widget _logoPreview(String value, AppPalette palette) {
+    final fallback = Center(child: Icon(Icons.business_rounded, color: palette.secondary, size: 50));
+    if (value.isEmpty) return fallback;
+    final bytes = _decodeLogoBytes(value);
+    if (bytes != null) {
+      return Image.memory(bytes, fit: BoxFit.contain, errorBuilder: (_, __, ___) => fallback);
+    }
+    final uri = Uri.tryParse(value);
+    if (uri != null && (uri.scheme == 'http' || uri.scheme == 'https')) {
+      return Image.network(value, fit: BoxFit.contain, errorBuilder: (_, __, ___) => fallback, loadingBuilder: (_, child, progress) => progress == null ? child : const Center(child: CircularProgressIndicator(strokeWidth: 2)));
+    }
+    return fallback;
+  }
+
+  Uint8List? _decodeLogoBytes(String value) {
+    try {
+      final normalized = value.trim();
+      if (normalized.startsWith('http://') || normalized.startsWith('https://')) return null;
+      final raw = normalized.contains(',') ? normalized.substring(normalized.indexOf(',') + 1) : normalized;
+      return base64Decode(raw);
+    } catch (_) {
+      return null;
+    }
+  }
+
+  Future<void> _pickCompanyLogo() async {
+    try {
+      final result = await FilePicker.platform.pickFiles(
+        type: FileType.custom,
+        allowedExtensions: const ['png', 'jpg', 'jpeg', 'webp'],
+        allowMultiple: false,
+        withData: true,
+      );
+      final file = result?.files.single;
+      final bytes = file?.bytes;
+      if (bytes == null || bytes.isEmpty) return;
+      if (bytes.length > 2 * 1024 * 1024) {
+        _showLogoMessage('El logo no puede superar 2 MB.');
+        return;
+      }
+      final extension = (file?.extension ?? 'png').toLowerCase();
+      final mime = switch (extension) {
+        'jpg' || 'jpeg' => 'image/jpeg',
+        'webp' => 'image/webp',
+        _ => 'image/png',
+      };
+      setState(() => _logo.text = 'data:$mime;base64,${base64Encode(bytes)}');
+    } catch (error) {
+      _showLogoMessage('No fue posible cargar el logo: $error');
+    }
+  }
+
+  Future<void> _setLogoFromUrl() async {
+    final controller = TextEditingController(text: _logo.text.trim().startsWith('http') ? _logo.text.trim() : '');
+    final value = await showModalBottomSheet<String>(
+      context: context,
+      isScrollControlled: true,
+      showDragHandle: true,
+      builder: (sheetContext) => Padding(
+        padding: EdgeInsets.fromLTRB(20, 6, 20, 20 + MediaQuery.of(sheetContext).viewInsets.bottom),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            const Text('Usar logo desde una URL', style: TextStyle(fontWeight: FontWeight.w900, fontSize: 18)),
+            const SizedBox(height: 6),
+            const Text('La dirección debe ser pública y comenzar con http:// o https://.'),
+            const SizedBox(height: 16),
+            TextField(controller: controller, autofocus: true, keyboardType: TextInputType.url, decoration: const InputDecoration(labelText: 'URL del logo', prefixIcon: Icon(Icons.link_rounded))),
+            const SizedBox(height: 16),
+            FilledButton.icon(onPressed: () => Navigator.of(sheetContext).pop(controller.text.trim()), icon: const Icon(Icons.check_rounded), label: const Text('Aplicar URL')),
+          ],
+        ),
+      ),
+    );
+    controller.dispose();
+    if (value == null) return;
+    final uri = Uri.tryParse(value);
+    if (value.isEmpty || uri == null || !(uri.scheme == 'http' || uri.scheme == 'https')) {
+      _showLogoMessage('Ingresa una URL válida con http:// o https://.');
+      return;
+    }
+    setState(() => _logo.text = value);
+  }
+
+  void _removeCompanyLogo() {
+    setState(_logo.clear);
+    _showLogoMessage('El logo se eliminará cuando guardes los cambios.');
+  }
+
+  void _showLogoMessage(String message) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(message)));
+  }
+
+  Widget _statusField() {
+    final palette = ref.watch(selectedAppPaletteProvider);
+    final active = (_estado.text.trim().isEmpty ? 1 : int.tryParse(_estado.text.trim()) ?? 1) != 0;
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 13, vertical: 4),
+      decoration: BoxDecoration(color: palette.background.withOpacity(0.58), borderRadius: BorderRadius.circular(16), border: Border.all(color: palette.cardBorder)),
+      child: SwitchListTile.adaptive(
+        contentPadding: EdgeInsets.zero,
+        value: active,
+        onChanged: _saving ? null : (value) => setState(() => _estado.text = value ? '1' : '0'),
+        title: Text(active ? 'Empresa activa' : 'Empresa inactiva', style: TextStyle(color: palette.textPrimary, fontWeight: FontWeight.w900, fontSize: 13)),
+        subtitle: Text(active ? 'La empresa puede operar normalmente.' : 'La empresa quedará fuera de operación.', style: TextStyle(color: palette.textSecondary, fontWeight: FontWeight.w600, fontSize: 11.5)),
+        secondary: Icon(active ? Icons.toggle_on_rounded : Icons.toggle_off_rounded, color: active ? AppColors.success : AppColors.danger),
+      ),
+    );
+  }
+
   Widget _empresaStep() {
     return Form(
       key: _empresaFormKey,
@@ -522,6 +1116,8 @@ class _EmpresasFormPageState extends ConsumerState<EmpresasFormPage> {
                 : 'Completa los datos de empresa. Nada se guarda todavía; el registro real se hará al finalizar.',
           ),
           const SizedBox(height: 20),
+          _logoEditorCard(compact: false),
+          const SizedBox(height: 18),
           LayoutBuilder(
             builder: (context, constraints) {
               final twoColumns = constraints.maxWidth > 760;
@@ -542,8 +1138,7 @@ class _EmpresasFormPageState extends ConsumerState<EmpresasFormPage> {
                   SizedBox(width: fieldWidth, child: _textField(_direccion, 'Dirección', Icons.location_on_outlined)),
                   SizedBox(width: fieldWidth, child: _textField(_codigoPostal, 'Código postal', Icons.local_post_office_outlined, required: false)),
                   SizedBox(width: fieldWidth, child: _textField(_sitioWeb, 'Sitio web (opcional)', Icons.language_rounded, required: false, validator: _optionalUrlValidator)),
-                  SizedBox(width: fieldWidth, child: _textField(_logo, 'Logo / URL del logo (opcional)', Icons.image_outlined, required: false)),
-                  SizedBox(width: fieldWidth, child: _textField(_estado, 'Estado', Icons.toggle_on_outlined, keyboardType: TextInputType.number)),
+                  SizedBox(width: fieldWidth, child: _statusField()),
                 ],
               );
             },
@@ -640,7 +1235,7 @@ class _EmpresasFormPageState extends ConsumerState<EmpresasFormPage> {
             'Dirección': _direccion.text,
             'Código postal': _codigoPostal.text,
             'Sitio web': _sitioWeb.text.isEmpty ? 'No aplica' : _sitioWeb.text,
-            'Logo': _logo.text.isEmpty ? 'No aplica' : _logo.text,
+            'Logo': _logo.text.trim().isEmpty ? 'Sin logo configurado' : 'Logo configurado',
           },
         ),
         const SizedBox(height: 16),

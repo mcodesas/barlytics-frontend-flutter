@@ -16,6 +16,7 @@ class LookupDropdown extends StatelessWidget {
     this.enabled = true,
     this.helperText,
     this.onSelected,
+    this.compact = false,
   });
 
   final TextEditingController controller;
@@ -26,6 +27,7 @@ class LookupDropdown extends StatelessWidget {
   final bool enabled;
   final String? helperText;
   final ValueChanged<CrudLookupOption>? onSelected;
+  final bool compact;
 
   @override
   Widget build(BuildContext context) {
@@ -43,22 +45,27 @@ class LookupDropdown extends StatelessWidget {
         final selected = options.where((option) => option.id?.toString() == selectedId).firstOrNull;
         final displayValue = selected?.label ?? (selectedId.isEmpty ? '' : 'Opción seleccionada');
 
+        final baseDecoration = InputDecoration(
+          labelText: field.label,
+          prefixIcon: const Icon(Icons.manage_search_rounded),
+          errorText: state.errorText,
+          helperText: compact
+              ? errorMessage ?? (loading ? 'Cargando opciones...' : !enabled ? helperText : null)
+              : errorMessage ?? helperText ?? (loading ? 'Cargando opciones...' : enabled ? 'Toca para buscar y seleccionar' : 'Selecciona primero el dato anterior'),
+          suffixIcon: loading
+              ? const Padding(
+                  padding: EdgeInsets.all(12),
+                  child: SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2)),
+                )
+              : Icon(enabled ? Icons.keyboard_arrow_down_rounded : Icons.lock_outline_rounded),
+        );
+        final decoration = compact ? baseDecoration.compactFilter(fixedHeight: false) : baseDecoration;
+
         return InkWell(
           borderRadius: BorderRadius.circular(18),
           onTap: field.readOnly || loading || !enabled ? null : () => _openLookupDialog(context, state),
           child: InputDecorator(
-            decoration: InputDecoration(
-              labelText: field.label,
-              prefixIcon: const Icon(Icons.manage_search_rounded),
-              errorText: state.errorText,
-              helperText: errorMessage ?? helperText ?? (loading ? 'Cargando opciones...' : enabled ? 'Toca para buscar y seleccionar' : 'Selecciona primero el dato anterior'),
-              suffixIcon: loading
-                  ? const Padding(
-                      padding: EdgeInsets.all(12),
-                      child: SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2)),
-                    )
-                  : Icon(enabled ? Icons.keyboard_arrow_down_rounded : Icons.lock_outline_rounded),
-            ),
+            decoration: decoration,
             child: Text(
               displayValue.isEmpty ? 'Seleccione una opción' : displayValue,
               maxLines: 1,
@@ -162,6 +169,7 @@ class LookupDropdown extends StatelessWidget {
     onSelected?.call(selected);
   }
 }
+
 
 extension _FirstOrNullExtension<T> on Iterable<T> {
   T? get firstOrNull => isEmpty ? null : first;

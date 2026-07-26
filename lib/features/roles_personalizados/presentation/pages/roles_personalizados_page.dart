@@ -1,0 +1,1319 @@
+import 'dart:math' as math;
+
+import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+
+import '../../../../app/theme/app_palette.dart';
+import '../../../../core/constants/api_paths.dart';
+import '../../../../core/providers/core_providers.dart';
+import '../../../../core/widgets/app_button.dart';
+import '../../../../core/widgets/app_loader.dart';
+import '../../../../core/widgets/confirmation_dialog.dart';
+import '../../../../core/widgets/tech_background.dart';
+import '../../../empresas/data/models/empresas_response_model.dart';
+import '../../../sucursales/data/models/sucursales_response_model.dart';
+import '../../data/models/rol_personalizado_model.dart';
+
+enum _RoleStatusFilter { todos, activos, inactivos }
+
+class RolesPersonalizadosPage extends ConsumerStatefulWidget {
+  const RolesPersonalizadosPage({super.key});
+
+  @override
+  ConsumerState<RolesPersonalizadosPage> createState() => _RolesPersonalizadosPageState();
+}
+
+class _RolesPersonalizadosPageState extends ConsumerState<RolesPersonalizadosPage> {
+  final TextEditingController _search = TextEditingController();
+  List<RolPersonalizadoModel> _roles = const [];
+  List<MenuAsignableModel> _menus = const [];
+  List<EmpresasResponseModel> _companies = const [];
+  List<SucursalesResponseModel> _branches = const [];
+  _RoleStatusFilter _status = _RoleStatusFilter.todos;
+  int? _companyFilter;
+  bool _loading = true;
+  String? _error;
+
+  @override
+  void initState() {
+    super.initState();
+    _load();
+  }
+
+  @override
+  void dispose() {
+    _search.dispose();
+    super.dispose();
+  }
+
+  Future<void> _load() async {
+    if (mounted) {
+      setState(() {
+        _loading = true;
+        _error = null;
+      });
+    }
+    try {
+      final api = ref.read(apiClientProvider);
+      final rolesFuture = api.get<List<RolPersonalizadoModel>>(
+        ApiPaths.rolesPersonalizados,
+        (json) => (json as List? ?? const <Object?>[])
+            .whereType<Map>()
+            .map((item) => RolPersonalizadoModel.fromJson(Map<String, dynamic>.from(item)))
+            .toList(),
+      );
+      final menusFuture = api.get<List<MenuAsignableModel>>(
+        ApiPaths.rolesPersonalizadosOpciones,
+        (json) => (json as List? ?? const <Object?>[])
+            .whereType<Map>()
+            .map((item) => MenuAsignableModel.fromJson(Map<String, dynamic>.from(item)))
+            .toList(),
+      );
+      final companiesFuture = api.get<List<EmpresasResponseModel>>(
+        ApiPaths.empresas,
+        (json) => (json as List? ?? const <Object?>[])
+            .whereType<Map>()
+            .map((item) => EmpresasResponseModel.fromJson(Map<String, dynamic>.from(item)))
+            .toList(),
+      );
+      final branchesFuture = api.get<List<SucursalesResponseModel>>(
+        ApiPaths.sucursales,
+        (json) => (json as List? ?? const <Object?>[])
+            .whereType<Map>()
+            .map((item) => SucursalesResponseModel.fromJson(Map<String, dynamic>.from(item)))
+            .toList(),
+      );
+      final rolesResponse = await rolesFuture;
+      final menusResponse = await menusFuture;
+      final companiesResponse = await companiesFuture;
+      final branchesResponse = await branchesFuture;
+      if (!mounted) return;
+      setState(() {
+        _roles = rolesResponse.data ?? const [];
+        _menus = menusResponse.data ?? const [];
+        _companies = companiesResponse.data ?? const [];
+        _branches = branchesResponse.data ?? const [];
+        if (_companies.length == 1) _companyFilter = _companies.first.emprId;
+      });
+    } catch (error) {
+      if (mounted) setState(() => _error = error.toString());
+    } finally {
+      if (mounted) setState(() => _loading = false);
+    }
+  }
+
+  List<RolPersonalizadoModel> get _filtered {
+    final query = _search.text.trim().toLowerCase();
+    return _roles.where((role) {
+      if (_status == _RoleStatusFilter.activos && !role.active) return false;
+      if (_status == _RoleStatusFilter.inactivos && role.active) return false;
+      if (_companyFilter != null && role.emprId != _companyFilter) return false;
+      if (query.isEmpty) return true;
+      final text = [
+        role.roleNombre,
+        role.roleDescripcion,
+        _companyName(role.emprId),
+        _branchName(role.sucuId),
+        ...role.menus.map((item) => item.nombre),
+      ].join(' ').toLowerCase();
+      return text.contains(query);
+    }).toList()
+      ..sort((a, b) {
+        final active = (b.active ? 1 : 0).compareTo(a.active ? 1 : 0);
+        return active != 0 ? active : a.roleNombre.toLowerCase().compareTo(b.roleNombre.toLowerCase());
+      });
+  }
+
+  String _companyName(int id) {
+    for (final company in _companies) {
+      if (company.emprId == id) {
+        final name = company.empreNombreComercial?.trim();
+        if (name != null && name.isNotEmpty) return name;
+        return company.emprRazonSocial?.trim().isNotEmpty == true
+            ? company.emprRazonSocial!.trim()
+            : 'Empresa #$id';
+      }
+    }
+    return 'Empresa #$id';
+  }
+
+  String _branchName(int? id) {
+    if (id == null) return 'Toda la empresa';
+    for (final branch in _branches) {
+      if (branch.sucuId == id) return branch.label();
+    }
+    return 'Sucursal #$id';
+  }
+
+  Future<void> _openForm([RolPersonalizadoModel? role]) async {
+    if (_companies.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('No hay una empresa disponible para crear el rol.')),
+      );
+      return;
+    }
+    if (_menus.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Tu usuario no tiene opciones de menú que pueda delegar.')),
+      );
+      return;
+    }
+    final palette = ref.read(selectedAppPaletteProvider);
+    final saved = await showModalBottomSheet<bool>(
+      context: context,
+      isScrollControlled: true,
+      useSafeArea: true,
+      backgroundColor: Colors.transparent,
+      barrierColor: Colors.black54,
+      builder: (context) {
+        final media = MediaQuery.of(context);
+        final availableHeight = math.max(
+          320.0,
+          media.size.height - media.padding.top - media.viewInsets.bottom,
+        ).toDouble();
+        final height = math.min(
+          availableHeight,
+          math.max(560.0, availableHeight * 0.94),
+        ).toDouble();
+        return AnimatedPadding(
+          duration: const Duration(milliseconds: 180),
+          curve: Curves.easeOut,
+          padding: EdgeInsets.only(bottom: media.viewInsets.bottom),
+          child: Align(
+            alignment: Alignment.bottomCenter,
+            child: SizedBox(
+              width: math.min(media.size.width, 1180.0).toDouble(),
+              height: height,
+              child: DecoratedBox(
+                decoration: BoxDecoration(
+                  color: palette.background,
+                  borderRadius: const BorderRadius.vertical(
+                    top: Radius.circular(30),
+                  ),
+                  boxShadow: const [
+                    BoxShadow(
+                      color: Colors.black26,
+                      blurRadius: 28,
+                      offset: Offset(0, -10),
+                    ),
+                  ],
+                ),
+                child: ClipRRect(
+                  borderRadius: const BorderRadius.vertical(
+                    top: Radius.circular(30),
+                  ),
+                  child: _RolPersonalizadoFormSheet(
+                role: role,
+                menus: _menus,
+                companies: _companies,
+                    branches: _branches,
+                  ),
+                ),
+              ),
+            ),
+          ),
+        );
+      },
+    );
+    if (saved == true && mounted) {
+      await _load();
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(role == null ? 'Rol personalizado creado correctamente' : 'Rol personalizado actualizado correctamente')),
+      );
+    }
+  }
+
+  Future<void> _inactivate(RolPersonalizadoModel role) async {
+    final confirmed = await showConfirmationDialog(
+      context,
+      title: 'Inactivar rol personalizado',
+      message: 'El rol “${role.roleNombre}” dejará de entregar opciones de menú a los usuarios que lo tengan asignado.',
+    );
+    if (!confirmed || !mounted) return;
+    try {
+      await ref.read(apiClientProvider).delete<Object?>(
+            '${ApiPaths.rolesPersonalizados}/${role.roleId}',
+            (_) => null,
+          );
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Rol inactivado correctamente')));
+      await _load();
+    } catch (error) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('No fue posible inactivar el rol: $error')));
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final palette = ref.watch(selectedAppPaletteProvider);
+    final visible = _filtered;
+    final active = _roles.where((item) => item.active).length;
+    final branchRoles = _roles.where((item) => !item.companyWide).length;
+    final assigned = _roles.fold<int>(0, (sum, item) => sum + item.usuariosAsignados);
+
+    return Scaffold(
+      backgroundColor: Colors.transparent,
+      floatingActionButton: FloatingActionButton.extended(
+        heroTag: 'roles-personalizados-fab',
+        onPressed: _loading || _companies.isEmpty || _menus.isEmpty ? null : () => _openForm(),
+        backgroundColor: palette.actionColor,
+        foregroundColor: palette.onAction,
+        icon: const Icon(Icons.add_moderator_rounded),
+        label: const Text('Nuevo rol'),
+      ),
+      body: Stack(
+        children: [
+          const Positioned.fill(child: AppPageBackground()),
+          RefreshIndicator(
+            onRefresh: _load,
+            child: CustomScrollView(
+              physics: const AlwaysScrollableScrollPhysics(),
+              slivers: [
+                SliverPadding(
+                  padding: const EdgeInsets.fromLTRB(16, 16, 16, 0),
+                  sliver: SliverToBoxAdapter(
+                    child: Center(
+                      child: ConstrainedBox(
+                        constraints: const BoxConstraints(maxWidth: 1180),
+                        child: _Header(palette: palette, total: _roles.length, onRefresh: _load),
+                      ),
+                    ),
+                  ),
+                ),
+                SliverPadding(
+                  padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
+                  sliver: SliverToBoxAdapter(
+                    child: Center(
+                      child: ConstrainedBox(
+                        constraints: const BoxConstraints(maxWidth: 1180),
+                        child: _Metrics(
+                          palette: palette,
+                          total: _roles.length,
+                          active: active,
+                          branchRoles: branchRoles,
+                          assigned: assigned,
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+                SliverPadding(
+                  padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
+                  sliver: SliverToBoxAdapter(
+                    child: Center(
+                      child: ConstrainedBox(
+                        constraints: const BoxConstraints(maxWidth: 1180),
+                        child: _Filters(
+                          palette: palette,
+                          search: _search,
+                          status: _status,
+                          companyId: _companyFilter,
+                          companies: _companies,
+                          onChanged: () => setState(() {}),
+                          onStatus: (value) => setState(() => _status = value),
+                          onCompany: (value) => setState(() => _companyFilter = value),
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+                if (_loading)
+                  const SliverFillRemaining(hasScrollBody: false, child: AppLoader(message: 'Cargando roles personalizados...'))
+                else if (_error != null)
+                  SliverFillRemaining(
+                    hasScrollBody: false,
+                    child: _MessageState(
+                      palette: palette,
+                      icon: Icons.warning_amber_rounded,
+                      title: 'No fue posible cargar los roles',
+                      message: _error!,
+                      action: _load,
+                    ),
+                  )
+                else if (visible.isEmpty)
+                  SliverFillRemaining(
+                    hasScrollBody: false,
+                    child: _MessageState(
+                      palette: palette,
+                      icon: Icons.admin_panel_settings_outlined,
+                      title: _roles.isEmpty ? 'Aún no existen roles personalizados' : 'No hay resultados con estos filtros',
+                      message: _roles.isEmpty
+                          ? 'Crea el primer rol y elige exactamente qué opciones de menú podrá utilizar.'
+                          : 'Cambia los filtros o limpia la búsqueda.',
+                      action: _roles.isEmpty && _companies.isNotEmpty && _menus.isNotEmpty ? () => _openForm() : null,
+                    ),
+                  )
+                else
+                  SliverPadding(
+                    padding: const EdgeInsets.fromLTRB(16, 14, 16, 110),
+                    sliver: SliverToBoxAdapter(
+                      child: Center(
+                        child: ConstrainedBox(
+                          constraints: const BoxConstraints(maxWidth: 1180),
+                          child: LayoutBuilder(
+                            builder: (context, constraints) {
+                              final columns = constraints.maxWidth >= 1000 ? 3 : constraints.maxWidth >= 650 ? 2 : 1;
+                              final width = (constraints.maxWidth - ((columns - 1) * 12)) / columns;
+                              return Wrap(
+                                spacing: 12,
+                                runSpacing: 12,
+                                children: [
+                                  for (final role in visible)
+                                    SizedBox(
+                                      width: width,
+                                      child: _RoleCard(
+                                        palette: palette,
+                                        role: role,
+                                        company: _companyName(role.emprId),
+                                        branch: _branchName(role.sucuId),
+                                        onEdit: () => _openForm(role),
+                                        onDelete: role.active ? () => _inactivate(role) : null,
+                                      ),
+                                    ),
+                                ],
+                              );
+                            },
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _Header extends StatelessWidget {
+  const _Header({required this.palette, required this.total, required this.onRefresh});
+  final AppPalette palette;
+  final int total;
+  final VoidCallback onRefresh;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(18),
+      decoration: palette.panelDecoration(baseRadius: 28, tint: palette.secondary),
+      child: Row(
+        children: [
+          Container(
+            width: 52,
+            height: 52,
+            decoration: BoxDecoration(
+              gradient: LinearGradient(colors: [palette.primary, palette.secondary]),
+              borderRadius: BorderRadius.circular(17),
+            ),
+            child: Icon(Icons.admin_panel_settings_rounded, color: palette.onPrimary, size: 29),
+          ),
+          const SizedBox(width: 13),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text('Roles personalizados', style: TextStyle(color: palette.textPrimary, fontWeight: FontWeight.w900, fontSize: 20)),
+                const SizedBox(height: 4),
+                Text(
+                  'Crea perfiles propios de la empresa y decide qué módulos puede utilizar cada uno.',
+                  style: TextStyle(color: palette.textSecondary, fontWeight: FontWeight.w700, height: 1.3),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(width: 10),
+          Chip(label: Text('$total roles')),
+          IconButton.filledTonal(onPressed: onRefresh, tooltip: 'Actualizar', icon: const Icon(Icons.refresh_rounded)),
+        ],
+      ),
+    );
+  }
+}
+
+class _Metrics extends StatelessWidget {
+  const _Metrics({required this.palette, required this.total, required this.active, required this.branchRoles, required this.assigned});
+  final AppPalette palette;
+  final int total;
+  final int active;
+  final int branchRoles;
+  final int assigned;
+
+  @override
+  Widget build(BuildContext context) {
+    final metrics = [
+      ('Total', total, Icons.shield_outlined),
+      ('Activos', active, Icons.verified_user_outlined),
+      ('Por sucursal', branchRoles, Icons.store_outlined),
+      ('Asignaciones', assigned, Icons.group_outlined),
+    ];
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final columns = constraints.maxWidth >= 760 ? 4 : 2;
+        final width = (constraints.maxWidth - ((columns - 1) * 10)) / columns;
+        return Wrap(
+          spacing: 10,
+          runSpacing: 10,
+          children: [
+            for (final metric in metrics)
+              Container(
+                width: width,
+                padding: const EdgeInsets.all(14),
+                decoration: palette.panelDecoration(baseRadius: 20),
+                child: Row(
+                  children: [
+                    Icon(metric.$3, color: palette.secondary),
+                    const SizedBox(width: 10),
+                    Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text('${metric.$2}', style: TextStyle(color: palette.textPrimary, fontWeight: FontWeight.w900, fontSize: 18)),
+                        Text(metric.$1, style: TextStyle(color: palette.textSecondary, fontWeight: FontWeight.w700)),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+          ],
+        );
+      },
+    );
+  }
+}
+
+class _Filters extends StatelessWidget {
+  const _Filters({
+    required this.palette,
+    required this.search,
+    required this.status,
+    required this.companyId,
+    required this.companies,
+    required this.onChanged,
+    required this.onStatus,
+    required this.onCompany,
+  });
+  final AppPalette palette;
+  final TextEditingController search;
+  final _RoleStatusFilter status;
+  final int? companyId;
+  final List<EmpresasResponseModel> companies;
+  final VoidCallback onChanged;
+  final ValueChanged<_RoleStatusFilter> onStatus;
+  final ValueChanged<int?> onCompany;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(13),
+      decoration: palette.panelDecoration(baseRadius: 22),
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          final searchField = TextField(
+            controller: search,
+            onChanged: (_) => onChanged(),
+            decoration: const InputDecoration(
+              isDense: true,
+              prefixIcon: Icon(Icons.search_rounded),
+              hintText: 'Buscar rol, permiso o sucursal',
+              border: OutlineInputBorder(),
+            ),
+          );
+          final statusField = DropdownButtonFormField<_RoleStatusFilter>(
+            value: status,
+            isDense: true,
+            decoration: const InputDecoration(labelText: 'Estado', border: OutlineInputBorder()),
+            items: const [
+              DropdownMenuItem(value: _RoleStatusFilter.todos, child: Text('Todos')),
+              DropdownMenuItem(value: _RoleStatusFilter.activos, child: Text('Activos')),
+              DropdownMenuItem(value: _RoleStatusFilter.inactivos, child: Text('Inactivos')),
+            ],
+            onChanged: (value) => value == null ? null : onStatus(value),
+          );
+          final companyField = DropdownButtonFormField<int?>(
+            value: companyId,
+            isDense: true,
+            decoration: const InputDecoration(labelText: 'Empresa', border: OutlineInputBorder()),
+            items: [
+              if (companies.length > 1) const DropdownMenuItem<int?>(value: null, child: Text('Todas')),
+              for (final company in companies)
+                DropdownMenuItem<int?>(
+                  value: company.emprId,
+                  child: Text(company.empreNombreComercial ?? company.emprRazonSocial ?? 'Empresa #${company.emprId}'),
+                ),
+            ],
+            onChanged: companies.length <= 1 ? null : onCompany,
+          );
+          if (constraints.maxWidth < 720) {
+            return Column(children: [searchField, const SizedBox(height: 10), Row(children: [Expanded(child: statusField), const SizedBox(width: 10), Expanded(child: companyField)])]);
+          }
+          return Row(children: [Expanded(flex: 3, child: searchField), const SizedBox(width: 10), Expanded(child: statusField), const SizedBox(width: 10), Expanded(flex: 2, child: companyField)]);
+        },
+      ),
+    );
+  }
+}
+
+class _RoleCard extends StatelessWidget {
+  const _RoleCard({required this.palette, required this.role, required this.company, required this.branch, required this.onEdit, this.onDelete});
+  final AppPalette palette;
+  final RolPersonalizadoModel role;
+  final String company;
+  final String branch;
+  final VoidCallback onEdit;
+  final VoidCallback? onDelete;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: palette.panelDecoration(baseRadius: 24, tint: role.active ? palette.secondary : palette.warning),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Container(
+                width: 45,
+                height: 45,
+                decoration: BoxDecoration(color: palette.secondary.withOpacity(0.14), borderRadius: BorderRadius.circular(15)),
+                child: Icon(role.companyWide ? Icons.corporate_fare_rounded : Icons.store_rounded, color: palette.secondary),
+              ),
+              const SizedBox(width: 11),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(role.roleNombre, maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(color: palette.textPrimary, fontWeight: FontWeight.w900, fontSize: 16)),
+                    Text(role.active ? 'Activo' : 'Inactivo', style: TextStyle(color: role.active ? palette.success : palette.warning, fontWeight: FontWeight.w800)),
+                  ],
+                ),
+              ),
+              PopupMenuButton<String>(
+                onSelected: (value) => value == 'edit' ? onEdit() : onDelete?.call(),
+                itemBuilder: (_) => [
+                  const PopupMenuItem(value: 'edit', child: ListTile(leading: Icon(Icons.edit_rounded), title: Text('Modificar'))),
+                  if (onDelete != null) const PopupMenuItem(value: 'delete', child: ListTile(leading: Icon(Icons.block_rounded), title: Text('Inactivar'))),
+                ],
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          Text(role.roleDescripcion, maxLines: 3, overflow: TextOverflow.ellipsis, style: TextStyle(color: palette.textSecondary, fontWeight: FontWeight.w700, height: 1.35)),
+          const SizedBox(height: 13),
+          _InfoLine(icon: Icons.business_rounded, text: company, palette: palette),
+          const SizedBox(height: 6),
+          _InfoLine(icon: Icons.location_on_outlined, text: branch, palette: palette),
+          const SizedBox(height: 12),
+          Wrap(
+            spacing: 6,
+            runSpacing: 6,
+            children: [
+              Chip(avatar: const Icon(Icons.apps_rounded, size: 17), label: Text('${role.menuIds.length} opciones')),
+              Chip(avatar: const Icon(Icons.group_outlined, size: 17), label: Text('${role.usuariosAsignados} usuarios')),
+            ],
+          ),
+          if (role.menus.isNotEmpty) ...[
+            const SizedBox(height: 10),
+            Text(
+              role.menus.take(3).map((menu) => menu.nombre).join(' · '),
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(color: palette.textSecondary, fontSize: 12, fontWeight: FontWeight.w700),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
+class _InfoLine extends StatelessWidget {
+  const _InfoLine({required this.icon, required this.text, required this.palette});
+  final IconData icon;
+  final String text;
+  final AppPalette palette;
+  @override
+  Widget build(BuildContext context) => Row(children: [Icon(icon, size: 17, color: palette.textSecondary), const SizedBox(width: 7), Expanded(child: Text(text, maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(color: palette.textPrimary, fontWeight: FontWeight.w800)))]);
+}
+
+class _MessageState extends StatelessWidget {
+  const _MessageState({required this.palette, required this.icon, required this.title, required this.message, this.action});
+  final AppPalette palette;
+  final IconData icon;
+  final String title;
+  final String message;
+  final VoidCallback? action;
+  @override
+  Widget build(BuildContext context) => Center(
+        child: Padding(
+          padding: const EdgeInsets.all(28),
+          child: Column(mainAxisSize: MainAxisSize.min, children: [
+            Icon(icon, size: 64, color: palette.secondary),
+            const SizedBox(height: 12),
+            Text(title, textAlign: TextAlign.center, style: TextStyle(color: palette.textPrimary, fontWeight: FontWeight.w900, fontSize: 19)),
+            const SizedBox(height: 7),
+            Text(message, textAlign: TextAlign.center, style: TextStyle(color: palette.textSecondary, fontWeight: FontWeight.w700)),
+            if (action != null) ...[const SizedBox(height: 16), FilledButton.icon(onPressed: action, icon: const Icon(Icons.add_rounded), label: const Text('Continuar'))],
+          ]),
+        ),
+      );
+}
+
+class _RolPersonalizadoFormSheet extends ConsumerStatefulWidget {
+  const _RolPersonalizadoFormSheet({required this.menus, required this.companies, required this.branches, this.role});
+  final RolPersonalizadoModel? role;
+  final List<MenuAsignableModel> menus;
+  final List<EmpresasResponseModel> companies;
+  final List<SucursalesResponseModel> branches;
+
+  @override
+  ConsumerState<_RolPersonalizadoFormSheet> createState() => _RolPersonalizadoFormSheetState();
+}
+
+class _RolPersonalizadoFormSheetState extends ConsumerState<_RolPersonalizadoFormSheet> {
+  final _formKey = GlobalKey<FormState>();
+  late final TextEditingController _name;
+  late final TextEditingController _description;
+  late Set<int> _selectedMenus;
+  int? _companyId;
+  int? _branchId;
+  bool _branchScope = false;
+  bool _active = true;
+  bool _saving = false;
+  String? _error;
+
+  @override
+  void initState() {
+    super.initState();
+    final role = widget.role;
+    _name = TextEditingController(text: role?.roleNombre ?? '');
+    _description = TextEditingController(text: role?.roleDescripcion ?? '');
+    _selectedMenus = {...?role?.menuIds};
+    final companyIds = <int>{
+      ...widget.companies.map((item) => item.emprId).whereType<int>(),
+      ...widget.branches.map((item) => item.emprId).whereType<int>(),
+    };
+    _companyId = role?.emprId ?? (companyIds.length == 1 ? companyIds.first : null);
+    _branchId = role?.sucuId;
+    _branchScope = role?.sucuId != null;
+    _active = role?.active ?? true;
+  }
+
+  @override
+  void dispose() {
+    _name.dispose();
+    _description.dispose();
+    super.dispose();
+  }
+
+  List<SucursalesResponseModel> get _availableBranches => widget.branches
+      .where((branch) => (_companyId == null || branch.emprId == _companyId) && (branch.sucuEstado == null || branch.sucuEstado == 1))
+      .toList()
+    ..sort((a, b) => a.label().toLowerCase().compareTo(b.label().toLowerCase()));
+
+  SucursalesResponseModel? _branchById(int? id) {
+    if (id == null) return null;
+    for (final branch in widget.branches) {
+      if (branch.sucuId == id) return branch;
+    }
+    return null;
+  }
+
+  Future<void> _save() async {
+    if (!_formKey.currentState!.validate()) return;
+    final selectedBranch = _branchScope ? _branchById(_branchId) : null;
+    final effectiveCompanyId = _companyId ?? selectedBranch?.emprId;
+    if ((_branchScope && _branchId == null) || _selectedMenus.isEmpty) {
+      setState(() => _error = _selectedMenus.isEmpty ? 'Selecciona al menos una opción de menú.' : 'Selecciona la sucursal del rol.');
+      return;
+    }
+    if (effectiveCompanyId == null && widget.companies.isNotEmpty) {
+      setState(() => _error = 'Selecciona la empresa propietaria del rol.');
+      return;
+    }
+    setState(() {
+      _saving = true;
+      _error = null;
+    });
+    final body = <String, dynamic>{
+      'emprId': effectiveCompanyId,
+      'sucuId': _branchScope ? _branchId : null,
+      'roleNombre': _name.text.trim(),
+      'roleDescripcion': _description.text.trim(),
+      'roleEstado': _active ? 1 : 0,
+      'menuIds': _selectedMenus.toList()..sort(),
+    };
+    try {
+      final api = ref.read(apiClientProvider);
+      final response = widget.role == null
+          ? await api.post<RolPersonalizadoModel>(
+              ApiPaths.rolesPersonalizados,
+              body,
+              (json) => RolPersonalizadoModel.fromJson(Map<String, dynamic>.from(json as Map)),
+            )
+          : await api.put<RolPersonalizadoModel>(
+              '${ApiPaths.rolesPersonalizados}/${widget.role!.roleId}',
+              body,
+              (json) => RolPersonalizadoModel.fromJson(Map<String, dynamic>.from(json as Map)),
+            );
+      if (response.data == null || response.data!.roleId <= 0) {
+        throw StateError('El backend no confirmó la creación del rol.');
+      }
+      if (!mounted) return;
+      Navigator.of(context).pop(true);
+    } catch (error) {
+      if (mounted) {
+        setState(() => _error = error.toString());
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('No fue posible guardar el rol: $error')),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _saving = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final palette = ref.watch(selectedAppPaletteProvider);
+    final branches = _availableBranches;
+    if (_branchId != null && !branches.any((item) => item.sucuId == _branchId)) {
+      _branchId = null;
+    }
+
+    return Material(
+      color: palette.background,
+      child: SafeArea(
+        top: false,
+        child: Column(
+          children: [
+            const SizedBox(height: 9),
+            Container(
+              width: 48,
+              height: 5,
+              decoration: BoxDecoration(
+                color: palette.textSecondary.withOpacity(0.32),
+                borderRadius: BorderRadius.circular(999),
+              ),
+            ),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 10, 12, 10),
+              child: Row(
+                children: [
+                  Container(
+                    width: 46,
+                    height: 46,
+                    decoration: BoxDecoration(
+                      gradient: LinearGradient(
+                        colors: [palette.primary, palette.secondary],
+                      ),
+                      borderRadius: BorderRadius.circular(15),
+                    ),
+                    child: Icon(
+                      widget.role == null
+                          ? Icons.add_moderator_rounded
+                          : Icons.edit_rounded,
+                      color: palette.onPrimary,
+                    ),
+                  ),
+                  const SizedBox(width: 11),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          widget.role == null
+                              ? 'Crear rol personalizado'
+                              : 'Modificar rol personalizado',
+                          style: TextStyle(
+                            color: palette.textPrimary,
+                            fontWeight: FontWeight.w900,
+                            fontSize: 18,
+                          ),
+                        ),
+                        Text(
+                          'Define el alcance y selecciona exactamente las opciones autorizadas.',
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                          style: TextStyle(
+                            color: palette.textSecondary,
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  IconButton(
+                    tooltip: 'Cerrar',
+                    onPressed: _saving
+                        ? null
+                        : () => Navigator.of(context).pop(false),
+                    icon: const Icon(Icons.close_rounded),
+                  ),
+                ],
+              ),
+            ),
+            Divider(height: 1, color: palette.cardBorder),
+            Expanded(
+              child: Form(
+                key: _formKey,
+                child: Scrollbar(
+                  thumbVisibility: true,
+                  child: SingleChildScrollView(
+                    primary: true,
+                    padding: const EdgeInsets.fromLTRB(16, 16, 16, 24),
+                    child: Center(
+                      child: ConstrainedBox(
+                        constraints: const BoxConstraints(maxWidth: 1050),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.stretch,
+                          children: [
+                            if (_error != null)
+                              Container(
+                                padding: const EdgeInsets.all(12),
+                                margin: const EdgeInsets.only(bottom: 12),
+                                decoration: BoxDecoration(
+                                  color: palette.warning.withOpacity(0.12),
+                                  borderRadius: BorderRadius.circular(14),
+                                  border: Border.all(
+                                    color: palette.warning.withOpacity(0.35),
+                                  ),
+                                ),
+                                child: Text(
+                                  _error!,
+                                  style: TextStyle(
+                                    color: palette.warning,
+                                    fontWeight: FontWeight.w800,
+                                  ),
+                                ),
+                              ),
+                            _Section(
+                              palette: palette,
+                              icon: Icons.badge_outlined,
+                              title: 'Identidad del rol',
+                              child: LayoutBuilder(
+                                builder: (context, constraints) {
+                                  final name = TextFormField(
+                                    controller: _name,
+                                    maxLength: 50,
+                                    textInputAction: TextInputAction.next,
+                                    validator: (value) =>
+                                        value == null || value.trim().isEmpty
+                                            ? 'Escribe el nombre del rol'
+                                            : null,
+                                    decoration: const InputDecoration(
+                                      labelText: 'Nombre del rol',
+                                      hintText: 'Ej. Supervisor de caja',
+                                      helperText:
+                                          'Debe ser diferente a los roles predefinidos del sistema.',
+                                      border: OutlineInputBorder(),
+                                    ),
+                                  );
+                                  final description = TextFormField(
+                                    controller: _description,
+                                    maxLength: 100,
+                                    minLines: 2,
+                                    maxLines: 3,
+                                    validator: (value) =>
+                                        value == null || value.trim().isEmpty
+                                            ? 'Escribe una descripción'
+                                            : null,
+                                    decoration: const InputDecoration(
+                                      labelText: 'Descripción',
+                                      hintText:
+                                          'Explica qué puede hacer este perfil',
+                                      border: OutlineInputBorder(),
+                                    ),
+                                  );
+                                  if (constraints.maxWidth < 720) {
+                                    return Column(
+                                      children: [
+                                        name,
+                                        const SizedBox(height: 10),
+                                        description,
+                                      ],
+                                    );
+                                  }
+                                  return Row(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
+                                    children: [
+                                      Expanded(child: name),
+                                      const SizedBox(width: 12),
+                                      Expanded(child: description),
+                                    ],
+                                  );
+                                },
+                              ),
+                            ),
+                            const SizedBox(height: 12),
+                            _Section(
+                              palette: palette,
+                              icon: Icons.account_tree_outlined,
+                              title: 'Alcance operativo',
+                              child: Column(
+                                children: [
+                                  LayoutBuilder(
+                                    builder: (context, constraints) {
+                                      final company =
+                                          DropdownButtonFormField<int>(
+                                        value: _companyId,
+                                        isExpanded: true,
+                                        decoration: const InputDecoration(
+                                          labelText: 'Empresa',
+                                          border: OutlineInputBorder(),
+                                        ),
+                                        items: [
+                                          for (final item
+                                              in widget.companies.where(
+                                            (item) => item.emprId != null,
+                                          ))
+                                            DropdownMenuItem<int>(
+                                              value: item.emprId!,
+                                              child: Text(
+                                                item.empreNombreComercial ??
+                                                    item.emprRazonSocial ??
+                                                    'Empresa #${item.emprId}',
+                                                overflow: TextOverflow.ellipsis,
+                                              ),
+                                            ),
+                                        ],
+                                        onChanged: widget.companies.length <= 1 ||
+                                                (widget.role
+                                                            ?.usuariosAsignados ??
+                                                        0) >
+                                                    0
+                                            ? null
+                                            : (value) => setState(() {
+                                                  _companyId = value;
+                                                  _branchId = null;
+                                                }),
+                                        validator: (value) => value == null
+                                            ? 'Selecciona la empresa'
+                                            : null,
+                                      );
+                                      final branch =
+                                          DropdownButtonFormField<int>(
+                                        value: _branchId,
+                                        isExpanded: true,
+                                        decoration: const InputDecoration(
+                                          labelText: 'Sucursal específica',
+                                          border: OutlineInputBorder(),
+                                        ),
+                                        items: [
+                                          for (final item in branches.where(
+                                            (item) => item.sucuId != null,
+                                          ))
+                                            DropdownMenuItem<int>(
+                                              value: item.sucuId!,
+                                              child: Text(
+                                                item.label(),
+                                                overflow: TextOverflow.ellipsis,
+                                              ),
+                                            ),
+                                        ],
+                                        onChanged: !_branchScope ||
+                                                (widget.role
+                                                            ?.usuariosAsignados ??
+                                                        0) >
+                                                    0
+                                            ? null
+                                            : (value) => setState(
+                                                  () => _branchId = value,
+                                                ),
+                                        validator: (_) =>
+                                            _branchScope && _branchId == null
+                                                ? 'Selecciona la sucursal'
+                                                : null,
+                                      );
+                                      if (constraints.maxWidth < 720) {
+                                        return Column(
+                                          children: [
+                                            company,
+                                            if (_branchScope) ...[
+                                              const SizedBox(height: 10),
+                                              branch,
+                                            ],
+                                          ],
+                                        );
+                                      }
+                                      return Row(
+                                        children: [
+                                          Expanded(child: company),
+                                          if (_branchScope) ...[
+                                            const SizedBox(width: 12),
+                                            Expanded(child: branch),
+                                          ],
+                                        ],
+                                      );
+                                    },
+                                  ),
+                                  const SizedBox(height: 12),
+                                  Align(
+                                    alignment: Alignment.centerLeft,
+                                    child: SegmentedButton<bool>(
+                                      segments: const [
+                                        ButtonSegment(
+                                          value: false,
+                                          icon: Icon(
+                                            Icons.corporate_fare_rounded,
+                                          ),
+                                          label: Text('Toda la empresa'),
+                                        ),
+                                        ButtonSegment(
+                                          value: true,
+                                          icon: Icon(Icons.store_rounded),
+                                          label: Text('Una sucursal'),
+                                        ),
+                                      ],
+                                      selected: {_branchScope},
+                                      onSelectionChanged:
+                                          (widget.role?.usuariosAsignados ?? 0) >
+                                                  0
+                                              ? null
+                                              : (values) => setState(() {
+                                                    _branchScope = values.first;
+                                                    if (!_branchScope) {
+                                                      _branchId = null;
+                                                    }
+                                                  }),
+                                    ),
+                                  ),
+                                  if ((widget.role?.usuariosAsignados ?? 0) > 0)
+                                    Padding(
+                                      padding: const EdgeInsets.only(top: 8),
+                                      child: Text(
+                                        'El alcance no puede cambiar mientras el rol esté asignado a usuarios.',
+                                        style: TextStyle(
+                                          color: palette.textSecondary,
+                                          fontWeight: FontWeight.w700,
+                                        ),
+                                      ),
+                                    ),
+                                ],
+                              ),
+                            ),
+                            const SizedBox(height: 12),
+                            _Section(
+                              palette: palette,
+                              icon: Icons.apps_rounded,
+                              title:
+                                  'Opciones de menú (${_selectedMenus.length})',
+                              trailing: Wrap(
+                                spacing: 8,
+                                children: [
+                                  TextButton(
+                                    onPressed: () => setState(
+                                      () => _selectedMenus = widget.menus
+                                          .map((item) => item.menuId)
+                                          .toSet(),
+                                    ),
+                                    child: const Text('Seleccionar todas'),
+                                  ),
+                                  TextButton(
+                                    onPressed: () => setState(
+                                      () => _selectedMenus.clear(),
+                                    ),
+                                    child: const Text('Limpiar'),
+                                  ),
+                                ],
+                              ),
+                              child: LayoutBuilder(
+                                builder: (context, constraints) {
+                                  final columns = constraints.maxWidth >= 900
+                                      ? 3
+                                      : constraints.maxWidth >= 600
+                                          ? 2
+                                          : 1;
+                                  final width = math.max(
+                                    240.0,
+                                    (constraints.maxWidth -
+                                            ((columns - 1) * 10)) /
+                                        columns,
+                                  ).toDouble();
+                                  return Wrap(
+                                    spacing: 10,
+                                    runSpacing: 10,
+                                    children: [
+                                      for (final menu in widget.menus)
+                                        SizedBox(
+                                          width: width,
+                                          child: Material(
+                                            color: _selectedMenus
+                                                    .contains(menu.menuId)
+                                                ? palette.secondary
+                                                    .withOpacity(0.12)
+                                                : palette.background
+                                                    .withOpacity(0.65),
+                                            borderRadius:
+                                                BorderRadius.circular(16),
+                                            child: CheckboxListTile(
+                                              value: _selectedMenus
+                                                  .contains(menu.menuId),
+                                              onChanged: (value) => setState(
+                                                () => value == true
+                                                    ? _selectedMenus
+                                                        .add(menu.menuId)
+                                                    : _selectedMenus.remove(
+                                                        menu.menuId,
+                                                      ),
+                                              ),
+                                              controlAffinity:
+                                                  ListTileControlAffinity.leading,
+                                              title: Text(
+                                                menu.nombre,
+                                                style: TextStyle(
+                                                  color: palette.textPrimary,
+                                                  fontWeight: FontWeight.w900,
+                                                ),
+                                              ),
+                                              subtitle: Text(
+                                                menu.descripcion,
+                                                maxLines: 2,
+                                                overflow: TextOverflow.ellipsis,
+                                                style: TextStyle(
+                                                  color: palette.textSecondary,
+                                                  fontWeight: FontWeight.w600,
+                                                ),
+                                              ),
+                                              shape: RoundedRectangleBorder(
+                                                borderRadius:
+                                                    BorderRadius.circular(16),
+                                                side: BorderSide(
+                                                  color: _selectedMenus
+                                                          .contains(menu.menuId)
+                                                      ? palette.secondary
+                                                      : palette.cardBorder,
+                                                ),
+                                              ),
+                                            ),
+                                          ),
+                                        ),
+                                    ],
+                                  );
+                                },
+                              ),
+                            ),
+                            const SizedBox(height: 12),
+                            _Section(
+                              palette: palette,
+                              icon: Icons.toggle_on_outlined,
+                              title: 'Estado',
+                              child: SwitchListTile.adaptive(
+                                contentPadding: EdgeInsets.zero,
+                                value: _active,
+                                onChanged: (value) =>
+                                    setState(() => _active = value),
+                                title: Text(
+                                  _active
+                                      ? 'Rol habilitado'
+                                      : 'Rol inactivo',
+                                  style: TextStyle(
+                                    color: palette.textPrimary,
+                                    fontWeight: FontWeight.w900,
+                                  ),
+                                ),
+                                subtitle: Text(
+                                  _active
+                                      ? 'Los usuarios asignados recibirán las opciones seleccionadas.'
+                                      : 'El rol se conserva, pero no entrega permisos.',
+                                  style: TextStyle(
+                                    color: palette.textSecondary,
+                                    fontWeight: FontWeight.w700,
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            ),
+            Container(
+              padding: const EdgeInsets.fromLTRB(16, 10, 16, 12),
+              decoration: BoxDecoration(
+                color: palette.surface,
+                border: Border(
+                  top: BorderSide(color: palette.cardBorder),
+                ),
+                boxShadow: const [
+                  BoxShadow(
+                    color: Colors.black12,
+                    blurRadius: 16,
+                    offset: Offset(0, -5),
+                  ),
+                ],
+              ),
+              child: Center(
+                child: ConstrainedBox(
+                  constraints: const BoxConstraints(maxWidth: 760),
+                  child: LayoutBuilder(
+                    builder: (context, constraints) {
+                      final cancel = OutlinedButton.icon(
+                        onPressed: _saving
+                            ? null
+                            : () => Navigator.of(context).pop(false),
+                        icon: const Icon(Icons.close_rounded),
+                        label: const Text('Cancelar'),
+                      );
+                      final save = AppButton(
+                        label: widget.role == null
+                            ? 'Crear rol'
+                            : 'Guardar cambios',
+                        icon: Icons.save_rounded,
+                        loading: _saving,
+                        onPressed: _save,
+                      );
+                      if (constraints.maxWidth < 520) {
+                        return Column(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            SizedBox(width: double.infinity, child: save),
+                            const SizedBox(height: 8),
+                            SizedBox(width: double.infinity, child: cancel),
+                          ],
+                        );
+                      }
+                      return Row(
+                        children: [
+                          Expanded(child: cancel),
+                          const SizedBox(width: 12),
+                          Expanded(flex: 2, child: save),
+                        ],
+                      );
+                    },
+                  ),
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _Section extends StatelessWidget {
+  const _Section({required this.palette, required this.icon, required this.title, required this.child, this.trailing});
+  final AppPalette palette;
+  final IconData icon;
+  final String title;
+  final Widget child;
+  final Widget? trailing;
+  @override
+  Widget build(BuildContext context) => Container(
+        padding: const EdgeInsets.all(15),
+        decoration: palette.panelDecoration(baseRadius: 22),
+        child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+          Row(children: [Icon(icon, color: palette.secondary), const SizedBox(width: 8), Expanded(child: Text(title, style: TextStyle(color: palette.textPrimary, fontWeight: FontWeight.w900, fontSize: 16))), if (trailing != null) trailing!]),
+          const SizedBox(height: 14),
+          child,
+        ]),
+      );
+}
