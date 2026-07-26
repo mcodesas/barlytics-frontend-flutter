@@ -220,7 +220,7 @@ class _ModuleHeader extends StatelessWidget {
       child: ConstrainedBox(
         constraints: const BoxConstraints(maxWidth: 1180),
         child: Container(
-          padding: const EdgeInsets.all(16),
+          padding: const EdgeInsets.all(13),
           decoration: BoxDecoration(
             color: palette.surface.withOpacity(palette.darkBackground ? 0.94 : 0.985),
             borderRadius: BorderRadius.circular(26),
@@ -233,13 +233,13 @@ class _ModuleHeader extends StatelessWidget {
               final info = Row(
                 children: [
                   Container(
-                    width: 48,
-                    height: 48,
+                    width: 42,
+                    height: 42,
                     decoration: BoxDecoration(
                       gradient: LinearGradient(colors: [palette.primary, palette.secondary]),
-                      borderRadius: BorderRadius.circular(16),
+                      borderRadius: BorderRadius.circular(14),
                     ),
-                    child: Icon(visual.icon, color: palette.onPrimary, size: 25),
+                    child: Icon(visual.icon, color: palette.onPrimary, size: 22),
                   ),
                   const SizedBox(width: 12),
                   Expanded(
@@ -286,7 +286,13 @@ class _ModuleHeader extends StatelessWidget {
               if (compact) {
                 return Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [info, const SizedBox(height: 14), search]);
               }
-              return Row(children: [Expanded(flex: 5, child: info), const SizedBox(width: 16), Expanded(flex: 4, child: search)]);
+              return Row(
+                children: [
+                  Expanded(child: info),
+                  const SizedBox(width: 14),
+                  ConstrainedBox(constraints: const BoxConstraints(maxWidth: 340), child: search),
+                ],
+              );
             },
           ),
         ),
@@ -302,7 +308,7 @@ class _CountPill extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => Container(
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
         decoration: BoxDecoration(color: color.withOpacity(0.12), borderRadius: BorderRadius.circular(999), border: Border.all(color: color.withOpacity(0.22))),
         child: Text(label, style: TextStyle(color: color, fontWeight: FontWeight.w900)),
       );

@@ -1319,8 +1319,8 @@ class _ProductHeader extends StatelessWidget {
     final stockColor = cantidadInventario <= 0
         ? Colors.redAccent
         : cantidadInventario <= 5
-            ? palette.primary
-            : Colors.greenAccent.shade400;
+            ? palette.warning
+            : palette.success;
     final stockText = cantidadInventario <= 0
         ? 'Sin stock'
         : cantidadInventario <= 5
@@ -1342,16 +1342,36 @@ class _ProductHeader extends StatelessWidget {
                 child: Container(
                   padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 6),
                   decoration: BoxDecoration(
-                    color: const Color(0xFF071A1C),
+                    color: Color.alphaBlend(
+                      stockColor.withOpacity(palette.darkBackground ? 0.22 : 0.14),
+                      palette.surface,
+                    ),
                     borderRadius: BorderRadius.circular(999),
-                    border: Border.all(color: stockColor.withOpacity(0.72)),
+                    border: Border.all(
+                      color: stockColor.withOpacity(
+                        palette.darkBackground ? 0.70 : 0.50,
+                      ),
+                    ),
                   ),
                   child: Row(
                     mainAxisSize: MainAxisSize.min,
                     children: [
                       Icon(Icons.circle, size: 8, color: stockColor),
                       const SizedBox(width: 5),
-                      Text(stockText, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w900, fontSize: 10)),
+                      Text(
+                        stockText,
+                        style: TextStyle(
+                          color: palette.darkBackground
+                              ? Color.lerp(stockColor, Colors.white, 0.20)
+                              : Color.lerp(
+                                  stockColor,
+                                  const Color(0xFF0F172A),
+                                  stockColor.computeLuminance() > 0.36 ? 0.42 : 0.14,
+                                ),
+                          fontWeight: FontWeight.w900,
+                          fontSize: 10,
+                        ),
+                      ),
                     ],
                   ),
                 ),

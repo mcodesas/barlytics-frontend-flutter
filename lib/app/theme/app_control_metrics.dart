@@ -5,11 +5,14 @@ import 'package:flutter/material.dart';
 /// Mantener estos valores centralizados evita que cada módulo defina campos
 /// de 48, 52 o más píxeles y conserva una interfaz compacta tipo POS.
 abstract final class AppControlMetrics {
-  static const double filterHeight = 40;
-  static const double filterIconExtent = 36;
+  static const double filterHeight = 38;
+  static const double filterIconExtent = 34;
+  static const double compactButtonHeight = 38;
+  static const double buttonHeight = 42;
+  static const double largeButtonHeight = 48;
   static const EdgeInsets filterContentPadding = EdgeInsets.symmetric(
     horizontal: 10,
-    vertical: 9,
+    vertical: 8,
   );
   static const BoxConstraints filterConstraints = BoxConstraints(
     minHeight: filterHeight,
