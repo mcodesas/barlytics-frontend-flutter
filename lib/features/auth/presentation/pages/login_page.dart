@@ -38,27 +38,10 @@ class _LoginPageState extends ConsumerState<LoginPage> {
 
     ref.listen(authControllerProvider, (previous, next) {
       if (next.authenticated) {
-        final isInventario = next.roles.any((role) {
-          final normalized = role.toUpperCase();
-          return normalized.contains('INVENTARIO') ||
-              normalized.contains('INVENTORY') ||
-              normalized.contains('BODEGA') ||
-              normalized.contains('ALMACEN') ||
-              normalized.contains('ALMACÉN');
-        });
-        final isOperativoMesa = next.roles.any((role) {
-          final normalized = role.toUpperCase();
-          return normalized.contains('MESERO') ||
-              normalized.contains('MESER') ||
-              normalized.contains('CAJERO') ||
-              normalized.contains('CAJER') ||
-              normalized.contains('VENDEDOR') ||
-              normalized.contains('VENTA') ||
-              normalized.contains('SELLER');
-        });
-        context.go(isInventario ? '/productos' : (isOperativoMesa ? '/mesero' : '/home'));
+        context.go('/home');
         return;
       }
+
 
       if (next.failure != null) {
         setState(() => _loginErrorMessage = _messageForLogin(next.failure!));

@@ -6,6 +6,8 @@ class PagosResponseModel {
     this.mepaId,
     this.pacvMonto,
     this.pacvObservacion,
+    this.pacvValorRecibido,
+    this.pacvCambio,
     this.pacvRegistradoPor,
     this.pacvFechaCambio,
   });
@@ -15,6 +17,8 @@ class PagosResponseModel {
   final int? mepaId;
   final double? pacvMonto;
   final double? pacvObservacion;
+  final double? pacvValorRecibido;
+  final double? pacvCambio;
   final String? pacvRegistradoPor;
   final String? pacvFechaCambio;
 
@@ -24,6 +28,8 @@ class PagosResponseModel {
       mepaId: (json['mepaId'] as num?)?.toInt(),
       pacvMonto: (json['pacvMonto'] as num?)?.toDouble(),
       pacvObservacion: (json['pacvObservacion'] as num?)?.toDouble(),
+      pacvValorRecibido: (json['pacvValorRecibido'] as num?)?.toDouble(),
+      pacvCambio: (json['pacvCambio'] as num?)?.toDouble(),
       pacvRegistradoPor: json['pacvRegistradoPor']?.toString(),
       pacvFechaCambio: json['pacvFechaCambio']?.toString(),
   );
@@ -34,6 +40,8 @@ class PagosResponseModel {
       'mepaId': mepaId,
       'pacvMonto': pacvMonto,
       'pacvObservacion': pacvObservacion,
+      'pacvValorRecibido': pacvValorRecibido,
+      'pacvCambio': pacvCambio,
       'pacvRegistradoPor': pacvRegistradoPor,
       'pacvFechaCambio': pacvFechaCambio,
   };
