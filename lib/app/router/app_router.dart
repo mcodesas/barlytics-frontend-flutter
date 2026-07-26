@@ -72,6 +72,7 @@ import '../../features/regiones/presentation/pages/regiones_detail_page.dart';
 import '../../features/roles/presentation/pages/roles_list_page.dart';
 import '../../features/roles/presentation/pages/roles_form_page.dart';
 import '../../features/roles/presentation/pages/roles_detail_page.dart';
+import '../../features/roles_personalizados/presentation/pages/roles_personalizados_page.dart';
 import '../../features/sucursales/presentation/pages/sucursales_list_page.dart';
 import '../../features/sucursales/presentation/pages/sucursales_form_page.dart';
 import '../../features/sucursales/presentation/pages/sucursales_detail_page.dart';
@@ -123,13 +124,6 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       // Reset password sí se permite porque puede abrirse desde un enlace externo.
       // No se usa Uri.base dentro del redirect para no forzar de nuevo #/login en web.
       if (authState.authenticated && (isLoginRoute || isForgotPasswordRoute)) {
-        final isOperativoMesa = authState.roles.any((role) {
-          final normalized = role.toUpperCase();
-          return normalized.contains('MESERO') || normalized.contains('CAJERO') || normalized.contains('INVENTARIO') || normalized.contains('INVENTORY') || normalized.contains('BODEGA') || normalized.contains('ALMACEN') || normalized.contains('ALMACÉN');
-        });
-        if (isOperativoMesa) {
-          return isInventario ? '/productos' : '/mesero';
-        }
         return '/home';
       }
 
@@ -348,11 +342,17 @@ final appRouterProvider = Provider<GoRouter>((ref) {
         ],
       ),
 
+
+      GoRoute(
+        path: '/roles_personalizados',
+        builder: (context, state) => const AppScaffold(child: RolesPersonalizadosPage()),
+      ),
+
       GoRoute(
         path: '/sucursales',
         builder: (context, state) => AppScaffold(child: const SucursalesListPage()),
         routes: [
-          GoRoute(path: 'nuevo', builder: (context, state) => AppScaffold(child: const SucursalesFormPage())),
+          GoRoute(path: 'nuevo', builder: (context, state) => AppScaffold(child: SucursalesFormPage())),
           GoRoute(path: ':id', builder: (context, state) => AppScaffold(child: SucursalesDetailPage(id: state.pathParameters['id']!))),
           GoRoute(path: ':id/editar', builder: (context, state) => AppScaffold(child: SucursalesFormPage(id: state.pathParameters['id']))),
         ],

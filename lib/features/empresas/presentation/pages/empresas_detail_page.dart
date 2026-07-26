@@ -1,3 +1,6 @@
+import 'dart:convert';
+import 'dart:typed_data';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -240,6 +243,8 @@ class _EmpresasDetailPageState extends ConsumerState<EmpresasDetailPage> {
                           _Header(
                             title: _value('empreNombreComercial').isEmpty ? 'Empresa' : _value('empreNombreComercial'),
                             subtitle: _value('emprRazonSocial').isEmpty ? 'Detalle de empresa y sucursales' : _value('emprRazonSocial'),
+                            logo: _empresa['emprLogo']?.toString(),
+                            active: (_empresa['emprEstado'] as num?)?.toInt() != 0,
                           ),
                           const SizedBox(height: 20),
                           _ViewTabs(currentTab: _tab, onTabTap: (tab) => setState(() => _tab = tab)),
@@ -300,7 +305,6 @@ class _EmpresasDetailPageState extends ConsumerState<EmpresasDetailPage> {
                 SizedBox(width: fieldWidth, child: _InfoTile(icon: Icons.location_on_outlined, label: 'Dirección', value: _value('emprDireccion'))),
                 SizedBox(width: fieldWidth, child: _InfoTile(icon: Icons.local_post_office_outlined, label: 'Código postal', value: _value('emprCodigoPostal'))),
                 SizedBox(width: fieldWidth, child: _InfoTile(icon: Icons.language_rounded, label: 'Sitio web', value: _value('emprSitioWeb'))),
-                SizedBox(width: fieldWidth, child: _InfoTile(icon: Icons.image_outlined, label: 'Logo', value: _value('emprLogo'))),
                 SizedBox(width: fieldWidth, child: _InfoTile(icon: Icons.toggle_on_outlined, label: 'Estado', value: _estadoLabel(_empresa['emprEstado']))),
               ],
             );
@@ -354,14 +358,18 @@ class _EmpresasDetailPageState extends ConsumerState<EmpresasDetailPage> {
 }
 
 class _Header extends ConsumerWidget {
-  const _Header({required this.title, required this.subtitle});
+  const _Header({required this.title, required this.subtitle, required this.logo, required this.active});
 
   final String title;
   final String subtitle;
+  final String? logo;
+  final bool active;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final palette = ref.watch(selectedAppPaletteProvider);
+    final logoValue = logo?.trim() ?? '';
+    final statusColor = active ? AppColors.success : AppColors.danger;
     return Container(
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
@@ -369,16 +377,76 @@ class _Header extends ConsumerWidget {
         borderRadius: BorderRadius.circular(24),
         border: Border.all(color: palette.cardBorder),
       ),
-      child: Row(
-        children: [
-          Container(width: 58, height: 58, decoration: BoxDecoration(gradient: LinearGradient(colors: [palette.primary, palette.secondary]), borderRadius: BorderRadius.circular(20)), child: Icon(Icons.business_rounded, color: palette.onPrimary, size: 30)),
-          const SizedBox(width: 16),
-          Expanded(
-            child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Text(title, style: TextStyle(fontSize: 22, fontWeight: FontWeight.w900, color: palette.textPrimary)), const SizedBox(height: 4), Text(subtitle, style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: palette.textSecondary))]),
-          ),
-        ],
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          final compact = constraints.maxWidth < 620;
+          final logoWidget = Container(
+            width: compact ? 86 : 104,
+            height: compact ? 86 : 104,
+            padding: const EdgeInsets.all(5),
+            decoration: BoxDecoration(
+              color: palette.background.withOpacity(0.62),
+              borderRadius: BorderRadius.circular(24),
+              border: Border.all(color: palette.secondary.withOpacity(0.25), width: 2),
+            ),
+            child: ClipRRect(borderRadius: BorderRadius.circular(19), child: _CompanyLogoPreview(value: logoValue)),
+          );
+          final info = Column(
+            crossAxisAlignment: compact ? CrossAxisAlignment.center : CrossAxisAlignment.start,
+            children: [
+              Text(title, textAlign: compact ? TextAlign.center : TextAlign.start, style: TextStyle(fontSize: 22, fontWeight: FontWeight.w900, color: palette.textPrimary)),
+              const SizedBox(height: 4),
+              Text(subtitle, textAlign: compact ? TextAlign.center : TextAlign.start, style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: palette.textSecondary)),
+              const SizedBox(height: 12),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                decoration: BoxDecoration(color: statusColor.withOpacity(0.10), borderRadius: BorderRadius.circular(999), border: Border.all(color: statusColor.withOpacity(0.24))),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(active ? Icons.check_circle_rounded : Icons.pause_circle_rounded, size: 16, color: statusColor),
+                    const SizedBox(width: 6),
+                    Text(active ? 'Empresa activa' : 'Empresa inactiva', style: TextStyle(color: statusColor, fontWeight: FontWeight.w900, fontSize: 11.5)),
+                  ],
+                ),
+              ),
+            ],
+          );
+          if (compact) return Column(children: [logoWidget, const SizedBox(height: 14), info]);
+          return Row(children: [logoWidget, const SizedBox(width: 18), Expanded(child: info)]);
+        },
       ),
     );
+  }
+}
+
+class _CompanyLogoPreview extends ConsumerWidget {
+  const _CompanyLogoPreview({required this.value});
+  final String value;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final palette = ref.watch(selectedAppPaletteProvider);
+    final fallback = Center(child: Icon(Icons.business_rounded, color: palette.secondary, size: 42));
+    if (value.isEmpty) return fallback;
+    final bytes = _decode(value);
+    if (bytes != null) return Image.memory(bytes, fit: BoxFit.contain, errorBuilder: (_, __, ___) => fallback);
+    final uri = Uri.tryParse(value);
+    if (uri != null && (uri.scheme == 'http' || uri.scheme == 'https')) {
+      return Image.network(value, fit: BoxFit.contain, errorBuilder: (_, __, ___) => fallback, loadingBuilder: (_, child, progress) => progress == null ? child : const Center(child: CircularProgressIndicator(strokeWidth: 2)));
+    }
+    return fallback;
+  }
+
+  Uint8List? _decode(String rawValue) {
+    try {
+      final normalized = rawValue.trim();
+      if (normalized.startsWith('http://') || normalized.startsWith('https://')) return null;
+      final raw = normalized.contains(',') ? normalized.substring(normalized.indexOf(',') + 1) : normalized;
+      return base64Decode(raw);
+    } catch (_) {
+      return null;
+    }
   }
 }
 

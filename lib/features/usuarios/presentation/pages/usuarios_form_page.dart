@@ -1,3 +1,6 @@
+import 'dart:convert';
+
+import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -6,12 +9,14 @@ import '../../../../app/theme/app_control_metrics.dart';
 import '../../../../app/theme/app_colors.dart';
 import '../../../../app/theme/app_palette.dart';
 import '../../../../core/constants/api_paths.dart';
+import '../../../../core/constants/storage_keys.dart';
 import '../../../../core/crud/crud_field.dart';
 import '../../../../core/providers/core_providers.dart';
 import '../../../../core/widgets/app_button.dart';
 import '../../../../core/widgets/app_loader.dart';
 import '../../../../core/widgets/lookup_dropdown.dart';
 import '../../../../core/widgets/tech_background.dart';
+import '../../../auth/presentation/providers/auth_provider.dart';
 import '../../data/models/usuarios_response_model.dart';
 
 class UsuariosFormPage extends ConsumerStatefulWidget {
@@ -59,6 +64,7 @@ class _UsuariosFormPageState extends ConsumerState<UsuariosFormPage> {
   final _direccionController = TextEditingController();
   final _telefonoPrincipalController = TextEditingController();
   final _telefonoSecundarioController = TextEditingController();
+  final _fotoController = TextEditingController();
 
   final Map<String, List<CrudLookupOption>> _lookupOptions = <String, List<CrudLookupOption>>{};
   final Set<String> _loadingLookups = <String>{};
@@ -74,16 +80,44 @@ class _UsuariosFormPageState extends ConsumerState<UsuariosFormPage> {
   bool _saving = false;
   String? _error;
   List<_RoleOption> _roles = const <_RoleOption>[];
+  String? _managerEmpresaId;
 
   bool get _isEditing => widget.id != null;
   bool get _isReadOnly => widget.readOnly;
+  bool get _isManager {
+    final roles = ref.read(authControllerProvider).roles
+        .map((role) => role.toUpperCase().replaceFirst('ROLE_', '').trim())
+        .toList(growable: false);
+    final isAdmin = roles.any((role) =>
+        role == 'ADMIN' ||
+        role == 'ADMINISTRADOR' ||
+        role == 'SUPERADMIN' ||
+        role == 'SUPER_ADMIN');
+    return !isAdmin && roles.contains('GERENTE');
+  }
+
+  String get _currentName {
+    final value = <String>[
+      _primerNombreController.text.trim(),
+      _segundoNombreController.text.trim(),
+      _primerApellidoController.text.trim(),
+      _segundoApellidoController.text.trim(),
+    ].where((part) => part.isNotEmpty).join(' ').replaceAll(RegExp(r'\s+'), ' ').trim();
+    return value.isEmpty ? 'Nuevo usuario' : value;
+  }
 
   List<CrudLookupOption> get _ciudadOptions => _lookupOptions[_ciudadField.name] ?? const <CrudLookupOption>[];
 
   List<CrudLookupOption> get _empresaOptions {
+    final all = _lookupOptions[_empresaField.name] ?? const <CrudLookupOption>[];
+    if (_isManager) {
+      return all
+          .where((option) => option.id?.toString() == _managerEmpresaId)
+          .toList(growable: false);
+    }
     final ciudadId = _ciudadController.text.trim();
     if (ciudadId.isEmpty) return const <CrudLookupOption>[];
-    return (_lookupOptions[_empresaField.name] ?? const <CrudLookupOption>[])
+    return all
         .where((option) => option.raw['ciudId']?.toString() == ciudadId)
         .toList(growable: false);
   }
@@ -103,11 +137,29 @@ class _UsuariosFormPageState extends ConsumerState<UsuariosFormPage> {
   @override
   void initState() {
     super.initState();
-    _loadLookups();
-    _loadRoles();
+    _initialize();
+  }
+
+  Future<void> _initialize() async {
+    await _loadManagerScope();
+    await Future.wait([_loadLookups(), _loadRoles()]);
     if (_isEditing) {
-      _loadUsuario();
+      await _loadUsuario();
     }
+  }
+
+  Future<void> _loadManagerScope() async {
+    if (!_isManager) return;
+    final raw = await ref.read(secureStorageProvider).read(StorageKeys.empresaId);
+    final empresaId = int.tryParse(raw ?? '')?.toString();
+    if (empresaId == null) {
+      if (mounted) {
+        setState(() => _error = 'No fue posible identificar la empresa asignada al gerente.');
+      }
+      return;
+    }
+    _managerEmpresaId = empresaId;
+    _empresaController.text = empresaId;
   }
 
   @override
@@ -124,6 +176,7 @@ class _UsuariosFormPageState extends ConsumerState<UsuariosFormPage> {
     _direccionController.dispose();
     _telefonoPrincipalController.dispose();
     _telefonoSecundarioController.dispose();
+    _fotoController.dispose();
     super.dispose();
   }
 
@@ -146,7 +199,7 @@ class _UsuariosFormPageState extends ConsumerState<UsuariosFormPage> {
       _segundoApellidoController.text = usuario.usuaSegundoApellido ?? '';
       _emailController.text = usuario.usuaEmail ?? '';
       _ciudadController.text = usuario.ciudId?.toString() ?? '';
-      _empresaController.text = usuario.emprId?.toString() ?? '';
+      _empresaController.text = _isManager ? (_managerEmpresaId ?? '') : (usuario.emprId?.toString() ?? '');
       _sucursalController.text = usuario.sucuId?.toString() ?? '';
       _selectedSucursalIds
         ..clear()
@@ -159,6 +212,7 @@ class _UsuariosFormPageState extends ConsumerState<UsuariosFormPage> {
       _direccionController.text = usuario.usuaDireccion ?? '';
       _telefonoPrincipalController.text = usuario.usuaTelefonoPrincipal ?? '';
       _telefonoSecundarioController.text = usuario.usuaTelefonoSecundario ?? '';
+      _fotoController.text = usuario.usuaFoto ?? '';
       _setFechaNacimiento(_parseDate(usuario.usuaFechaNacimiento));
     } catch (e) {
       _error = 'No fue posible cargar el usuario: $e';
@@ -180,8 +234,11 @@ class _UsuariosFormPageState extends ConsumerState<UsuariosFormPage> {
     setState(() => _loadingLookups.add(field.name));
     try {
       final api = ref.read(apiClientProvider);
+      final endpoint = _isManager && field.name == _sucursalField.name
+          ? '${ApiPaths.sucursales}/mis-sucursales'
+          : lookup.endpoint;
       final response = await api.get<List<CrudLookupOption>>(
-        lookup.endpoint,
+        endpoint,
         (json) {
           final items = json is List ? json : const [];
           return items.whereType<Map>().map((item) {
@@ -237,6 +294,14 @@ class _UsuariosFormPageState extends ConsumerState<UsuariosFormPage> {
 
   void _goToConfirmation() {
     if (!_validateUserData()) return;
+    final incompatible = _roles
+        .where((role) => role.assigned && !role.compatibleWith(_selectedSucursalIds, _empresaController.text.trim()))
+        .map((role) => role.name)
+        .toList(growable: false);
+    if (incompatible.isNotEmpty) {
+      _showMessage('Estos roles no son compatibles con la empresa o las sucursales del usuario: ${incompatible.join(', ')}.');
+      return;
+    }
     setState(() => _currentStep = 2);
   }
 
@@ -337,7 +402,7 @@ class _UsuariosFormPageState extends ConsumerState<UsuariosFormPage> {
   Map<String, dynamic> _buildUserPayload() {
     final payload = <String, dynamic>{
       'ciudId': int.tryParse(_ciudadController.text.trim()),
-      'emprId': int.tryParse(_empresaController.text.trim()),
+      'emprId': int.tryParse((_isManager ? _managerEmpresaId : _empresaController.text)?.trim() ?? ''),
       'sucuId': int.tryParse(_sucursalController.text.trim()),
       'usuaEstado': _estado,
       'usuaBloqueado': _bloqueado,
@@ -350,6 +415,9 @@ class _UsuariosFormPageState extends ConsumerState<UsuariosFormPage> {
       'usuaDireccion': _direccionController.text.trim().isEmpty ? null : _direccionController.text.trim(),
       'usuaTelefonoPrincipal': _telefonoPrincipalController.text.trim().isEmpty ? null : _telefonoPrincipalController.text.trim(),
       'usuaTelefonoSecundario': _telefonoSecundarioController.text.trim().isEmpty ? null : _telefonoSecundarioController.text.trim(),
+      // Siempre se envía la foto: conserva la actual, reemplaza con una nueva o
+      // la elimina de forma explícita cuando el valor está vacío.
+      'usuaFoto': _fotoController.text.trim(),
     };
     payload.removeWhere((_, value) => value == null);
     return payload;
@@ -413,15 +481,19 @@ class _UsuariosFormPageState extends ConsumerState<UsuariosFormPage> {
           const Positioned.fill(child: AppPageBackground()),
           Center(
             child: ConstrainedBox(
-              constraints: const BoxConstraints(maxWidth: 1080),
+              constraints: const BoxConstraints(maxWidth: 1180),
               child: Padding(
-                padding: const EdgeInsets.all(16),
+                padding: const EdgeInsets.fromLTRB(14, 14, 14, 18),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
                     _UserFormContextHeader(
                       title: pageTitle,
                       subtitle: pageSubtitle,
+                      name: _currentName,
+                      photo: _fotoController.text,
+                      active: _estado == 1,
+                      blocked: _bloqueado == 1,
                       palette: palette,
                       onBack: () => context.go('/usuarios'),
                     ),
@@ -431,11 +503,11 @@ class _UsuariosFormPageState extends ConsumerState<UsuariosFormPage> {
                         color: palette.surface.withOpacity(palette.darkBackground ? 0.95 : 0.99),
                         elevation: 0,
                         shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(28),
+                          borderRadius: BorderRadius.circular(24),
                           side: BorderSide(color: palette.cardBorder),
                         ),
                         child: Padding(
-                          padding: const EdgeInsets.all(20),
+                          padding: const EdgeInsets.all(16),
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.stretch,
                             children: [
@@ -496,58 +568,189 @@ class _UsuariosFormPageState extends ConsumerState<UsuariosFormPage> {
   }
 
   Widget _buildUserStep() {
+    final palette = ref.watch(selectedAppPaletteProvider);
+
+    Widget fieldsContent(double availableWidth) {
+      final columns = availableWidth >= 920 ? 3 : availableWidth >= 620 ? 2 : 1;
+      final gap = 12.0;
+      final fieldWidth = columns == 1 ? availableWidth : (availableWidth - (gap * (columns - 1))) / columns;
+
+      Widget grid(List<Widget> children) => Wrap(
+            spacing: gap,
+            runSpacing: gap,
+            children: children.map((child) => SizedBox(width: fieldWidth, child: child)).toList(growable: false),
+          );
+
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          _sectionTitle(
+            _isReadOnly ? 'Información registrada' : 'Datos del usuario',
+            _isReadOnly
+                ? 'Consulta la información personal, operativa y de acceso.'
+                : 'Edita la información en bloques compactos. La foto se conserva mientras no la elimines.',
+          ),
+          const SizedBox(height: 14),
+          _formSectionCard(
+            title: 'Identificación',
+            subtitle: 'Nombre, apellidos y fecha de nacimiento.',
+            icon: Icons.badge_outlined,
+            child: grid([
+              _textField(_primerNombreController, 'Primer nombre', Icons.person_outline_rounded, required: true),
+              _textField(_segundoNombreController, 'Segundo nombre', Icons.person_outline_rounded),
+              _textField(_primerApellidoController, 'Primer apellido', Icons.badge_outlined, required: true),
+              _textField(_segundoApellidoController, 'Segundo apellido', Icons.badge_outlined, required: true),
+              _dateField(),
+            ]),
+          ),
+          const SizedBox(height: 12),
+          _formSectionCard(
+            title: 'Contacto',
+            subtitle: 'Canales de comunicación y ubicación del usuario.',
+            icon: Icons.contact_phone_outlined,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                grid([
+                  _emailField(),
+                  _textField(_telefonoPrincipalController, 'Teléfono principal', Icons.phone_outlined, keyboardType: TextInputType.phone),
+                  _textField(_telefonoSecundarioController, 'Teléfono secundario', Icons.phone_android_outlined, keyboardType: TextInputType.phone),
+                ]),
+                const SizedBox(height: 12),
+                _textField(_direccionController, 'Dirección', Icons.location_on_outlined),
+              ],
+            ),
+          ),
+          const SizedBox(height: 12),
+          _formSectionCard(
+            title: 'Asignación operativa',
+            subtitle: 'Empresa, ciudad y sedes donde podrá trabajar.',
+            icon: Icons.store_mall_directory_outlined,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                grid([
+                  _lookupField(
+                    _ciudadField,
+                    _ciudadController,
+                    _ciudadOptions,
+                    onSelected: (_) => _onCiudadChanged(),
+                  ),
+                  _lookupField(
+                    _empresaField,
+                    _empresaController,
+                    _empresaOptions,
+                    enabled: !_isManager && _ciudadController.text.trim().isNotEmpty,
+                    helperText: _isManager
+                        ? 'Empresa asignada a tu perfil de gerente'
+                        : 'Selecciona primero la ciudad',
+                    onSelected: (_) => _onEmpresaChanged(),
+                  ),
+                ]),
+                const SizedBox(height: 12),
+                _branchesField(),
+              ],
+            ),
+          ),
+          const SizedBox(height: 12),
+          _formSectionCard(
+            title: 'Estado y acceso',
+            subtitle: 'Controla la disponibilidad de la cuenta sin borrar al usuario.',
+            icon: Icons.security_outlined,
+            child: LayoutBuilder(
+              builder: (context, sectionConstraints) {
+                final stack = sectionConstraints.maxWidth < 620;
+                final status = _accessStateCard(
+                  title: 'Usuario activo',
+                  description: _estado == 1
+                      ? 'Puede utilizar las funciones asignadas.'
+                      : 'Permanece registrado, pero está inactivo.',
+                  icon: _estado == 1 ? Icons.check_circle_outline_rounded : Icons.pause_circle_outline_rounded,
+                  value: _estado == 1,
+                  color: _estado == 1 ? AppColors.success : AppColors.warning,
+                  onChanged: _isReadOnly ? null : (value) => setState(() => _estado = value ? 1 : 0),
+                );
+                final access = _accessStateCard(
+                  title: 'Acceso habilitado',
+                  description: _bloqueado == 0
+                      ? 'Puede iniciar sesión normalmente.'
+                      : 'No podrá iniciar sesión hasta habilitarlo.',
+                  icon: _bloqueado == 0 ? Icons.lock_open_rounded : Icons.lock_outline_rounded,
+                  value: _bloqueado == 0,
+                  color: _bloqueado == 0 ? AppColors.info : AppColors.danger,
+                  onChanged: _isReadOnly ? null : (value) => setState(() => _bloqueado = value ? 0 : 1),
+                );
+                if (stack) return Column(children: [status, const SizedBox(height: 10), access]);
+                return Row(children: [Expanded(child: status), const SizedBox(width: 10), Expanded(child: access)]);
+              },
+            ),
+          ),
+          const SizedBox(height: 18),
+          LayoutBuilder(
+            builder: (context, buttonConstraints) {
+              final back = OutlinedButton.icon(
+                onPressed: _saving ? null : () => context.go('/usuarios'),
+                icon: Icon(_isReadOnly ? Icons.arrow_back_rounded : Icons.close_rounded),
+                label: Text(_isReadOnly ? 'Volver al listado' : 'Cancelar'),
+              );
+              final next = AppButton(
+                label: _isReadOnly ? 'Ver roles' : 'Continuar a roles',
+                icon: Icons.arrow_forward_rounded,
+                compact: true,
+                onPressed: _isReadOnly ? () => setState(() => _currentStep = 1) : _goToRoles,
+              );
+              if (buttonConstraints.maxWidth < 560) {
+                return Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [back, const SizedBox(height: 10), next]);
+              }
+              return Row(
+                mainAxisAlignment: MainAxisAlignment.end,
+                children: [
+                  SizedBox(width: 140, child: back),
+                  const SizedBox(width: 10),
+                  SizedBox(width: 185, child: next),
+                ],
+              );
+            },
+          ),
+        ],
+      );
+    }
+
     return Form(
       key: _formKey,
       child: LayoutBuilder(
         builder: (context, constraints) {
-          final isCompact = constraints.maxWidth < 760;
-          final fieldWidth = isCompact ? constraints.maxWidth : (constraints.maxWidth - 16) / 2;
+          final wide = constraints.maxWidth >= 980;
+          if (wide) {
+            return Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                SizedBox(
+                  width: 286,
+                  child: SingleChildScrollView(
+                    padding: const EdgeInsets.only(bottom: 4),
+                    child: _profileEditorCard(palette, compact: false),
+                  ),
+                ),
+                const SizedBox(width: 14),
+                Expanded(
+                  child: SingleChildScrollView(
+                    padding: const EdgeInsets.only(bottom: 4),
+                    child: fieldsContent(constraints.maxWidth - 300),
+                  ),
+                ),
+              ],
+            );
+          }
+
           return SingleChildScrollView(
+            padding: const EdgeInsets.only(bottom: 4),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                _sectionTitle('Paso 1: datos de la tabla usuarios', _isReadOnly ? 'Consulta la información principal del usuario. Esta vista es solo lectura.' : 'Captura los datos en memoria. Nada se guarda hasta confirmar al final.'),
+                _profileEditorCard(palette, compact: constraints.maxWidth < 620),
                 const SizedBox(height: 14),
-                Wrap(
-                  spacing: 16,
-                  runSpacing: 16,
-                  children: [
-                    SizedBox(width: fieldWidth, child: _textField(_primerNombreController, 'Primer nombre', Icons.person_outline_rounded, required: true)),
-                    SizedBox(width: fieldWidth, child: _textField(_segundoNombreController, 'Segundo nombre', Icons.person_outline_rounded)),
-                    SizedBox(width: fieldWidth, child: _textField(_primerApellidoController, 'Primer apellido', Icons.badge_outlined, required: true)),
-                    SizedBox(width: fieldWidth, child: _textField(_segundoApellidoController, 'Segundo apellido', Icons.badge_outlined, required: true)),
-                    SizedBox(width: constraints.maxWidth, child: _emailField()),
-                    SizedBox(width: fieldWidth, child: _lookupField(_ciudadField, _ciudadController, _ciudadOptions, onSelected: (_) => _onCiudadChanged())),
-                    SizedBox(width: fieldWidth, child: _lookupField(_empresaField, _empresaController, _empresaOptions, enabled: _ciudadController.text.trim().isNotEmpty, helperText: 'Primero selecciona ciudad', onSelected: (_) => _onEmpresaChanged())),
-                    SizedBox(width: constraints.maxWidth, child: _branchesField()),
-                    SizedBox(width: fieldWidth, child: _statusField()),
-                    SizedBox(width: fieldWidth, child: _blockedField()),
-                    SizedBox(width: fieldWidth, child: _dateField()),
-                    SizedBox(width: fieldWidth, child: _textField(_direccionController, 'Dirección', Icons.location_on_outlined)),
-                    SizedBox(width: fieldWidth, child: _textField(_telefonoPrincipalController, 'Teléfono principal', Icons.phone_outlined, keyboardType: TextInputType.phone)),
-                    SizedBox(width: fieldWidth, child: _textField(_telefonoSecundarioController, 'Teléfono secundario', Icons.phone_android_outlined, keyboardType: TextInputType.phone)),
-                  ],
-                ),
-                const SizedBox(height: 22),
-                Row(
-                  children: [
-                    Expanded(
-                      child: OutlinedButton.icon(
-                        onPressed: _saving ? null : () => context.go('/usuarios'),
-                        icon: Icon(_isReadOnly ? Icons.arrow_back_rounded : Icons.close_rounded),
-                        label: Text(_isReadOnly ? 'Volver al listado' : 'Cancelar'),
-                      ),
-                    ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: AppButton(
-                        label: _isReadOnly ? 'Ver roles' : 'Continuar a roles',
-                        icon: Icons.arrow_forward_rounded,
-                        onPressed: _isReadOnly ? () => setState(() => _currentStep = 1) : _goToRoles,
-                      ),
-                    ),
-                  ],
-                ),
+                fieldsContent(constraints.maxWidth),
               ],
             ),
           );
@@ -556,42 +759,269 @@ class _UsuariosFormPageState extends ConsumerState<UsuariosFormPage> {
     );
   }
 
+  Widget _profileEditorCard(AppPalette palette, {required bool compact}) {
+    final photo = _fotoController.text.trim();
+    final name = _currentName;
+    final email = _emailController.text.trim();
+
+    final preview = Container(
+      width: compact ? 92 : 132,
+      height: compact ? 92 : 132,
+      padding: const EdgeInsets.all(4),
+      decoration: BoxDecoration(
+        shape: BoxShape.circle,
+        color: palette.surface,
+        border: Border.all(color: palette.secondary.withOpacity(0.42), width: 2),
+        boxShadow: [BoxShadow(color: palette.cardShadow, blurRadius: 18, offset: const Offset(0, 7))],
+      ),
+      child: ClipOval(child: _UserPhotoPreview(value: photo, name: name, size: compact ? 84 : 124, palette: palette)),
+    );
+
+    final actions = Wrap(
+      spacing: 8,
+      runSpacing: 8,
+      alignment: compact ? WrapAlignment.start : WrapAlignment.center,
+      children: [
+        if (!_isReadOnly)
+          FilledButton.tonalIcon(
+            onPressed: _saving ? null : _pickProfilePhoto,
+            icon: const Icon(Icons.photo_camera_outlined, size: 18),
+            label: Text(photo.isEmpty ? 'Agregar foto' : 'Cambiar foto'),
+          ),
+        if (!_isReadOnly && photo.isNotEmpty)
+          IconButton.outlined(
+            onPressed: _saving ? null : _removeProfilePhoto,
+            tooltip: 'Eliminar foto',
+            icon: const Icon(Icons.delete_outline_rounded),
+          ),
+      ],
+    );
+
+    final identity = Column(
+      crossAxisAlignment: compact ? CrossAxisAlignment.start : CrossAxisAlignment.center,
+      children: [
+        Text(
+          name,
+          maxLines: 2,
+          overflow: TextOverflow.ellipsis,
+          textAlign: compact ? TextAlign.start : TextAlign.center,
+          style: TextStyle(color: palette.textPrimary, fontWeight: FontWeight.w900, fontSize: 18),
+        ),
+        const SizedBox(height: 4),
+        Text(
+          email.isEmpty ? 'Correo pendiente' : email,
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+          textAlign: compact ? TextAlign.start : TextAlign.center,
+          style: TextStyle(color: palette.textSecondary, fontWeight: FontWeight.w700, fontSize: 12.5),
+        ),
+        const SizedBox(height: 10),
+        Wrap(
+          spacing: 7,
+          runSpacing: 7,
+          alignment: compact ? WrapAlignment.start : WrapAlignment.center,
+          children: [
+            _FormStatusChip(
+              label: _estado == 1 ? 'Activo' : 'Inactivo',
+              color: _estado == 1 ? AppColors.success : AppColors.warning,
+              icon: _estado == 1 ? Icons.check_circle_outline_rounded : Icons.pause_circle_outline_rounded,
+            ),
+            _FormStatusChip(
+              label: _bloqueado == 1 ? 'Bloqueado' : 'Con acceso',
+              color: _bloqueado == 1 ? AppColors.danger : AppColors.info,
+              icon: _bloqueado == 1 ? Icons.lock_outline_rounded : Icons.lock_open_rounded,
+            ),
+          ],
+        ),
+      ],
+    );
+
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: palette.background.withOpacity(palette.darkBackground ? 0.36 : 0.64),
+        borderRadius: BorderRadius.circular(24),
+        border: Border.all(color: palette.cardBorder),
+      ),
+      child: compact
+          ? Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                preview,
+                const SizedBox(width: 14),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [identity, const SizedBox(height: 12), actions],
+                  ),
+                ),
+              ],
+            )
+          : Column(
+              children: [
+                preview,
+                const SizedBox(height: 14),
+                identity,
+                const SizedBox(height: 14),
+                actions,
+                const SizedBox(height: 12),
+                Container(
+                  padding: const EdgeInsets.all(11),
+                  decoration: BoxDecoration(
+                    color: palette.surface.withOpacity(0.58),
+                    borderRadius: BorderRadius.circular(16),
+                  ),
+                  child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Icon(Icons.info_outline_rounded, size: 18, color: palette.secondary),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Text(
+                          photo.isEmpty
+                              ? 'Puedes cargar JPG, PNG o WEBP de máximo 5 MB.'
+                              : 'La foto actual se conservará al modificar los demás datos.',
+                          style: TextStyle(color: palette.textSecondary, fontWeight: FontWeight.w700, fontSize: 11.5),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+    );
+  }
+
+  Future<void> _pickProfilePhoto() async {
+    try {
+      final result = await FilePicker.platform.pickFiles(
+        type: FileType.image,
+        allowMultiple: false,
+        withData: true,
+      );
+      final file = result?.files.single;
+      final bytes = file?.bytes;
+      if (bytes == null || bytes.isEmpty) return;
+      if (bytes.length > 5 * 1024 * 1024) {
+        _showMessage('La foto no puede superar 5 MB.');
+        return;
+      }
+      final extension = (file?.extension ?? 'png').toLowerCase();
+      final mime = switch (extension) {
+        'jpg' || 'jpeg' => 'image/jpeg',
+        'webp' => 'image/webp',
+        _ => 'image/png',
+      };
+      setState(() => _fotoController.text = 'data:$mime;base64,${base64Encode(bytes)}');
+    } catch (e) {
+      _showMessage('No fue posible cargar la foto: $e');
+    }
+  }
+
+  void _removeProfilePhoto() {
+    setState(_fotoController.clear);
+    _showMessage('La foto se eliminará cuando confirmes la modificación.');
+  }
+
   Widget _buildRolesStep() {
     final palette = ref.watch(selectedAppPaletteProvider);
     if (_loadingRoles) return const AppLoader();
+    final selectedCount = _roles.where((role) => role.assigned).length;
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        _sectionTitle('Paso 2: asignación de roles', _isReadOnly ? 'Consulta los roles asignados actualmente. Esta vista es solo lectura.' : 'Selecciona los roles funcionales. Todavía no se guarda nada en base de datos.'),
-        const SizedBox(height: 12),
+        Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Expanded(
+              child: _sectionTitle(
+                'Roles y permisos',
+                _isReadOnly
+                    ? 'Consulta los perfiles funcionales asignados actualmente.'
+                    : 'Selecciona únicamente los perfiles necesarios para sus responsabilidades.',
+              ),
+            ),
+            const SizedBox(width: 10),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 8),
+              decoration: BoxDecoration(
+                color: palette.secondary.withOpacity(0.11),
+                borderRadius: BorderRadius.circular(999),
+                border: Border.all(color: palette.secondary.withOpacity(0.2)),
+              ),
+              child: Text(
+                '$selectedCount seleccionados',
+                style: TextStyle(color: palette.secondary, fontWeight: FontWeight.w900, fontSize: 12.5),
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 14),
         Expanded(
           child: _roles.isEmpty
-              ? const Center(child: Text('No hay roles parametrizados para asignar.'))
-              : ListView.separated(
-                  itemCount: _roles.length,
-                  separatorBuilder: (_, __) => const SizedBox(height: 8),
-                  itemBuilder: (_, index) {
-                    final role = _roles[index];
-                    return CheckboxListTile(
-                      value: role.assigned,
-                      title: Text(role.name, style: TextStyle(fontWeight: FontWeight.w900, color: palette.textPrimary)),
-                      subtitle: Text(role.description.isEmpty ? 'Sin descripción' : role.description, style: TextStyle(color: palette.textSecondary, fontWeight: FontWeight.w600)),
-                      secondary: Icon(Icons.verified_user_outlined, color: palette.secondary),
-                      activeColor: palette.actionColor,
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18), side: BorderSide(color: palette.cardBorder)),
-                      tileColor: palette.background.withOpacity(palette.darkBackground ? 0.40 : 0.68),
-                      onChanged: _isReadOnly ? null : (value) => setState(() => _roles[index] = role.copyWith(assigned: value ?? false)),
+              ? Center(
+                  child: Text(
+                    'No hay roles parametrizados para asignar.',
+                    style: TextStyle(color: palette.textSecondary, fontWeight: FontWeight.w700),
+                  ),
+                )
+              : LayoutBuilder(
+                  builder: (context, constraints) {
+                    return GridView.builder(
+                      padding: const EdgeInsets.only(bottom: 4),
+                      gridDelegate: SliverGridDelegateWithMaxCrossAxisExtent(
+                        maxCrossAxisExtent: constraints.maxWidth < 560 ? constraints.maxWidth : 390,
+                        mainAxisExtent: 142,
+                        crossAxisSpacing: 10,
+                        mainAxisSpacing: 10,
+                      ),
+                      itemCount: _roles.length,
+                      itemBuilder: (_, index) {
+                        final role = _roles[index];
+                        final incompatibility = role.incompatibilityReason(
+                          _selectedSucursalIds,
+                          _empresaController.text.trim(),
+                        );
+                        final available = incompatibility == null;
+                        return _RoleSelectionCard(
+                          palette: palette,
+                          role: role,
+                          readOnly: _isReadOnly,
+                          available: available,
+                          unavailableMessage: incompatibility,
+                          onChanged: (value) => setState(() => _roles[index] = role.copyWith(assigned: value)),
+                        );
+                      },
                     );
                   },
                 ),
         ),
-        const SizedBox(height: 16),
+        const SizedBox(height: 14),
         LayoutBuilder(
           builder: (context, constraints) {
-            final back = OutlinedButton.icon(onPressed: _saving ? null : () => setState(() => _currentStep = 0), icon: const Icon(Icons.arrow_back_rounded), label: const Text('Volver a datos'));
-            final next = AppButton(label: _isReadOnly ? 'Ver resumen' : 'Continuar a confirmación', icon: Icons.fact_check_outlined, onPressed: _isReadOnly ? () => setState(() => _currentStep = 2) : _goToConfirmation);
-            if (constraints.maxWidth < 520) return Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [back, const SizedBox(height: 10), next]);
-            return Row(children: [Expanded(child: back), const SizedBox(width: 12), Expanded(child: next)]);
+            final back = OutlinedButton.icon(
+              onPressed: _saving ? null : () => setState(() => _currentStep = 0),
+              icon: const Icon(Icons.arrow_back_rounded),
+              label: const Text('Volver a datos'),
+            );
+            final next = AppButton(
+              label: _isReadOnly ? 'Ver resumen' : 'Revisar información',
+              icon: Icons.fact_check_outlined,
+              compact: true,
+              onPressed: _isReadOnly ? () => setState(() => _currentStep = 2) : _goToConfirmation,
+            );
+            if (constraints.maxWidth < 560) {
+              return Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [back, const SizedBox(height: 10), next]);
+            }
+            return Row(
+              mainAxisAlignment: MainAxisAlignment.end,
+              children: [
+                SizedBox(width: 140, child: back),
+                const SizedBox(width: 10),
+                SizedBox(width: 185, child: next),
+              ],
+            );
           },
         ),
       ],
@@ -605,12 +1035,13 @@ class _UsuariosFormPageState extends ConsumerState<UsuariosFormPage> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          _sectionTitle('Paso 3: resumen', _isReadOnly ? 'Vista de resumen del usuario. Esta pantalla no realiza cambios.' : (_isEditing ? 'Revisa los cambios. Solo al confirmar se actualizan usuario y roles. Si cambiaste el correo, se enviará un nuevo correo para registrar contraseña.' : 'Revisa la información. Solo al confirmar se crea el usuario, se asignan roles y se envía el correo de activación.')),
+          _sectionTitle('Revisión final', _isReadOnly ? 'Vista de resumen del usuario. Esta pantalla no realiza cambios.' : (_isEditing ? 'Revisa los cambios. Solo al confirmar se actualizan usuario y roles. Si cambiaste el correo, se enviará un nuevo correo para registrar contraseña.' : 'Revisa la información. Solo al confirmar se crea el usuario, se asignan roles y se envía el correo de activación.')),
           const SizedBox(height: 16),
           _summaryCard('Identificación', [
             _SummaryItem('Nombre', '${_primerNombreController.text.trim()} ${_segundoNombreController.text.trim()} ${_primerApellidoController.text.trim()} ${_segundoApellidoController.text.trim()}'.replaceAll(RegExp(r'\s+'), ' ').trim()),
             _SummaryItem('Correo', _emailController.text.trim()),
             _SummaryItem('Fecha nacimiento', _fechaNacimientoController.text.trim().isEmpty ? 'No registrada' : _fechaNacimientoController.text.trim()),
+            _SummaryItem('Foto de perfil', _fotoController.text.trim().isEmpty ? 'Sin foto' : 'Configurada'),
           ]),
           const SizedBox(height: 12),
           _summaryCard('Ubicación operativa', [
@@ -622,7 +1053,7 @@ class _UsuariosFormPageState extends ConsumerState<UsuariosFormPage> {
           const SizedBox(height: 12),
           _summaryCard('Estado y contacto', [
             _SummaryItem('Estado', _estado == 1 ? 'Activo' : 'Inactivo'),
-            _SummaryItem('Bloqueo', _bloqueado == 1 ? 'Bloqueado' : 'Activo'),
+            _SummaryItem('Acceso', _bloqueado == 1 ? 'Bloqueado' : 'Habilitado'),
             _SummaryItem('Teléfono principal', _telefonoPrincipalController.text.trim().isEmpty ? 'No registrado' : _telefonoPrincipalController.text.trim()),
             _SummaryItem('Teléfono secundario', _telefonoSecundarioController.text.trim().isEmpty ? 'No registrado' : _telefonoSecundarioController.text.trim()),
             _SummaryItem('Dirección', _direccionController.text.trim().isEmpty ? 'No registrada' : _direccionController.text.trim()),
@@ -645,12 +1076,115 @@ class _UsuariosFormPageState extends ConsumerState<UsuariosFormPage> {
             builder: (context, constraints) {
               final back = OutlinedButton.icon(onPressed: _saving ? null : () => setState(() => _currentStep = 1), icon: const Icon(Icons.arrow_back_rounded), label: const Text('Volver a roles'));
               final confirm = _isReadOnly
-                  ? AppButton(label: 'Volver al listado', icon: Icons.list_alt_rounded, onPressed: () => context.go('/usuarios'))
-                  : AppButton(label: _isEditing ? 'Confirmar modificación' : 'Confirmar y crear usuario', icon: Icons.save_rounded, loading: _saving, onPressed: _saveWizard);
+                  ? AppButton(label: 'Volver al listado', icon: Icons.list_alt_rounded, compact: true, onPressed: () => context.go('/usuarios'))
+                  : AppButton(
+                      label: _isEditing ? 'Guardar usuario' : 'Crear usuario',
+                      icon: Icons.save_rounded,
+                      compact: true,
+                      loading: _saving,
+                      onPressed: _saveWizard,
+                    );
               if (constraints.maxWidth < 520) return Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [back, const SizedBox(height: 10), confirm]);
-              return Row(children: [Expanded(child: back), const SizedBox(width: 12), Expanded(child: confirm)]);
+              return Row(
+                mainAxisAlignment: MainAxisAlignment.end,
+                children: [
+                  SizedBox(width: 140, child: back),
+                  const SizedBox(width: 10),
+                  SizedBox(width: 190, child: confirm),
+                ],
+              );
             },
           ),
+        ],
+      ),
+    );
+  }
+
+  Widget _formSectionCard({
+    required String title,
+    required String subtitle,
+    required IconData icon,
+    required Widget child,
+  }) {
+    final palette = ref.watch(selectedAppPaletteProvider);
+    return Container(
+      padding: const EdgeInsets.all(15),
+      decoration: BoxDecoration(
+        color: palette.background.withOpacity(palette.darkBackground ? 0.35 : 0.6),
+        borderRadius: BorderRadius.circular(22),
+        border: Border.all(color: palette.cardBorder),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Container(
+                width: 40,
+                height: 40,
+                decoration: BoxDecoration(
+                  color: palette.secondary.withOpacity(0.11),
+                  borderRadius: BorderRadius.circular(13),
+                ),
+                child: Icon(icon, color: palette.secondary, size: 21),
+              ),
+              const SizedBox(width: 11),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(title, style: TextStyle(color: palette.textPrimary, fontSize: 16, fontWeight: FontWeight.w900)),
+                    const SizedBox(height: 2),
+                    Text(subtitle, style: TextStyle(color: palette.textSecondary, fontSize: 12.5, fontWeight: FontWeight.w700)),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 14),
+          child,
+        ],
+      ),
+    );
+  }
+
+  Widget _accessStateCard({
+    required String title,
+    required String description,
+    required IconData icon,
+    required bool value,
+    required Color color,
+    required ValueChanged<bool>? onChanged,
+  }) {
+    final palette = ref.watch(selectedAppPaletteProvider);
+    return Container(
+      padding: const EdgeInsets.fromLTRB(13, 11, 9, 11),
+      decoration: BoxDecoration(
+        color: value ? color.withOpacity(0.08) : palette.surface.withOpacity(0.5),
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: value ? color.withOpacity(0.28) : palette.cardBorder),
+      ),
+      child: Row(
+        children: [
+          Container(
+            width: 38,
+            height: 38,
+            decoration: BoxDecoration(color: color.withOpacity(0.12), borderRadius: BorderRadius.circular(12)),
+            child: Icon(icon, color: color, size: 20),
+          ),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(title, style: TextStyle(color: palette.textPrimary, fontWeight: FontWeight.w900)),
+                const SizedBox(height: 2),
+                Text(description, maxLines: 2, overflow: TextOverflow.ellipsis, style: TextStyle(color: palette.textSecondary, fontSize: 11.5, fontWeight: FontWeight.w600)),
+              ],
+            ),
+          ),
+          Switch(value: value, activeColor: color, onChanged: onChanged),
         ],
       ),
     );
@@ -659,23 +1193,49 @@ class _UsuariosFormPageState extends ConsumerState<UsuariosFormPage> {
   Widget _summaryCard(String title, List<_SummaryItem> items) {
     final palette = ref.watch(selectedAppPaletteProvider);
     return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(color: palette.background.withOpacity(palette.darkBackground ? 0.40 : 0.68), borderRadius: BorderRadius.circular(20), border: Border.all(color: palette.cardBorder)),
+      padding: const EdgeInsets.all(15),
+      decoration: BoxDecoration(
+        color: palette.background.withOpacity(palette.darkBackground ? 0.36 : 0.62),
+        borderRadius: BorderRadius.circular(21),
+        border: Border.all(color: palette.cardBorder),
+      ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(title, style: TextStyle(fontSize: 17, fontWeight: FontWeight.w900, color: palette.textPrimary)),
-          const SizedBox(height: 10),
-          ...items.map((item) => Padding(
-                padding: const EdgeInsets.only(bottom: 8),
-                child: Row(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    SizedBox(width: 170, child: Text(item.label, style: TextStyle(color: palette.textSecondary, fontWeight: FontWeight.w800))),
-                    Expanded(child: Text(item.value, style: TextStyle(fontWeight: FontWeight.w900, color: palette.textPrimary))),
-                  ],
-                ),
-              )),
+          Text(title, style: TextStyle(fontSize: 16, fontWeight: FontWeight.w900, color: palette.textPrimary)),
+          const SizedBox(height: 11),
+          LayoutBuilder(
+            builder: (context, constraints) {
+              final columns = constraints.maxWidth >= 720 ? 2 : 1;
+              const spacing = 10.0;
+              final itemWidth = (constraints.maxWidth - spacing * (columns - 1)) / columns;
+              return Wrap(
+                spacing: spacing,
+                runSpacing: spacing,
+                children: [
+                  for (final item in items)
+                    SizedBox(
+                      width: itemWidth,
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                        decoration: BoxDecoration(
+                          color: palette.surface.withOpacity(0.55),
+                          borderRadius: BorderRadius.circular(15),
+                        ),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(item.label, style: TextStyle(color: palette.textSecondary, fontSize: 11.5, fontWeight: FontWeight.w800)),
+                            const SizedBox(height: 3),
+                            Text(item.value, style: TextStyle(color: palette.textPrimary, fontWeight: FontWeight.w900)),
+                          ],
+                        ),
+                      ),
+                    ),
+                ],
+              );
+            },
+          ),
         ],
       ),
     );
@@ -705,8 +1265,9 @@ class _UsuariosFormPageState extends ConsumerState<UsuariosFormPage> {
       readOnly: _isReadOnly,
       enabled: !_isReadOnly,
       keyboardType: keyboardType,
+      onChanged: (_) => setState(() {}),
       validator: required ? (value) => value == null || value.trim().isEmpty ? 'Campo obligatorio' : null : null,
-      decoration: InputDecoration(labelText: label, prefixIcon: Icon(icon)),
+      decoration: InputDecoration(labelText: label, prefixIcon: Icon(icon)).compactFilter(fixedHeight: false),
     );
   }
 
@@ -716,13 +1277,14 @@ class _UsuariosFormPageState extends ConsumerState<UsuariosFormPage> {
       readOnly: _isReadOnly,
       enabled: !_isReadOnly,
       keyboardType: TextInputType.emailAddress,
+      onChanged: (_) => setState(() {}),
       validator: (value) {
         final text = value?.trim() ?? '';
         if (text.isEmpty) return 'Campo obligatorio';
         if (!text.contains('@') || !text.contains('.')) return 'Correo inválido';
         return null;
       },
-      decoration: const InputDecoration(labelText: 'Correo electrónico', prefixIcon: Icon(Icons.email_outlined)),
+      decoration: const InputDecoration(labelText: 'Correo electrónico', prefixIcon: Icon(Icons.email_outlined)).compactFilter(fixedHeight: false),
     );
   }
 
@@ -743,6 +1305,7 @@ class _UsuariosFormPageState extends ConsumerState<UsuariosFormPage> {
       enabled: enabled && !_isReadOnly,
       helperText: _isReadOnly ? 'Solo lectura' : (enabled ? null : helperText),
       onSelected: onSelected,
+      compact: true,
     );
   }
 
@@ -1060,25 +1623,24 @@ class _UsuariosFormPageState extends ConsumerState<UsuariosFormPage> {
       decoration: InputDecoration(
         labelText: 'Fecha de nacimiento',
         prefixIcon: const Icon(Icons.event_outlined),
-        helperText: 'Selecciona la fecha desde el calendario',
-        suffixIcon: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            if (_fechaNacimiento != null)
-              IconButton(
+        suffixIcon: _fechaNacimiento == null
+            ? const Icon(Icons.calendar_month_rounded)
+            : IconButton(
                 tooltip: 'Limpiar fecha',
                 onPressed: _isReadOnly ? null : () => setState(() => _setFechaNacimiento(null)),
                 icon: const Icon(Icons.close_rounded),
               ),
-            const Icon(Icons.calendar_month_rounded),
-            const SizedBox(width: 10),
-          ],
-        ),
-      ),
+      ).compactFilter(fixedHeight: false),
     );
   }
 
   void _onCiudadChanged() {
+    if (_isManager) {
+      // La ciudad pertenece al usuario que se está creando; no debe cambiar la
+      // empresa ni las sucursales autorizadas del gerente.
+      setState(() {});
+      return;
+    }
     setState(() {
       _empresaController.clear();
       _sucursalController.clear();
@@ -1087,6 +1649,7 @@ class _UsuariosFormPageState extends ConsumerState<UsuariosFormPage> {
   }
 
   void _onEmpresaChanged() {
+    if (_isManager) return;
     setState(() {
       _sucursalController.clear();
       _selectedSucursalIds.clear();
@@ -1113,124 +1676,469 @@ class _WizardHeader extends StatelessWidget {
   final ValueChanged<int> onStepSelected;
   final AppPalette palette;
 
+  static const _items = <({String label, IconData icon})>[
+    (label: 'Información', icon: Icons.person_outline_rounded),
+    (label: 'Roles', icon: Icons.admin_panel_settings_outlined),
+    (label: 'Confirmar', icon: Icons.fact_check_outlined),
+  ];
+
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.all(6),
+      padding: const EdgeInsets.all(5),
       decoration: BoxDecoration(
-        gradient: palette.glassGradient,
-        borderRadius: BorderRadius.circular(24),
+        color: palette.background.withOpacity(palette.darkBackground ? 0.36 : 0.58),
+        borderRadius: BorderRadius.circular(18),
         border: Border.all(color: palette.cardBorder),
       ),
       child: LayoutBuilder(
         builder: (context, constraints) {
-          final compact = constraints.maxWidth < 680;
-          final steps = [
-            _step(0, 'Datos del usuario', Icons.person_add_alt_1_rounded, compact),
-            _step(1, 'Asignación de roles', Icons.admin_panel_settings_outlined, compact),
-            _step(2, 'Confirmación', Icons.fact_check_outlined, compact),
-          ];
-          if (compact) {
-            return Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: steps);
-          }
-          return Row(children: steps.map((step) => Expanded(child: step)).toList(growable: false));
+          final showLabels = constraints.maxWidth >= 470;
+          return Row(
+            children: List.generate(_items.length, (index) {
+              final item = _items[index];
+              final selected = currentStep == index;
+              final completed = currentStep > index;
+              return Expanded(
+                child: Padding(
+                  padding: EdgeInsets.only(right: index == _items.length - 1 ? 0 : 5),
+                  child: Material(
+                    color: selected ? palette.actionColor : Colors.transparent,
+                    borderRadius: BorderRadius.circular(14),
+                    child: InkWell(
+                      onTap: () => onStepSelected(index),
+                      borderRadius: BorderRadius.circular(14),
+                      child: AnimatedContainer(
+                        duration: const Duration(milliseconds: 180),
+                        padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 10),
+                        child: Row(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Icon(
+                              completed && !selected ? Icons.check_circle_rounded : item.icon,
+                              size: 19,
+                              color: selected
+                                  ? palette.onAction
+                                  : completed
+                                      ? palette.secondary
+                                      : palette.textSecondary,
+                            ),
+                            if (showLabels) ...[
+                              const SizedBox(width: 7),
+                              Flexible(
+                                child: Text(
+                                  item.label,
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: TextStyle(
+                                    color: selected ? palette.onAction : palette.textPrimary,
+                                    fontWeight: FontWeight.w900,
+                                    fontSize: 12.5,
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ],
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+              );
+            }),
+          );
         },
-      ),
-    );
-  }
-
-  Widget _step(int index, String label, IconData icon, bool compact) {
-    final selected = currentStep == index;
-    return InkWell(
-      borderRadius: BorderRadius.circular(18),
-      onTap: () => onStepSelected(index),
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 180),
-        padding: EdgeInsets.symmetric(horizontal: compact ? 12 : 10, vertical: 13),
-        decoration: BoxDecoration(
-          gradient: selected ? LinearGradient(colors: [palette.primary, palette.secondary]) : null,
-          borderRadius: BorderRadius.circular(18),
-        ),
-        child: Row(
-          mainAxisAlignment: compact ? MainAxisAlignment.start : MainAxisAlignment.center,
-          children: [
-            Icon(icon, color: selected ? palette.onPrimary : palette.textSecondary, size: 20),
-            const SizedBox(width: 8),
-            Flexible(
-              child: Text(
-                'Paso ${index + 1}: $label',
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: TextStyle(color: selected ? palette.onPrimary : palette.textPrimary, fontWeight: FontWeight.w900),
-              ),
-            ),
-          ],
-        ),
       ),
     );
   }
 }
 
 class _UserFormContextHeader extends StatelessWidget {
-  const _UserFormContextHeader({required this.title, required this.subtitle, required this.palette, required this.onBack});
+  const _UserFormContextHeader({
+    required this.title,
+    required this.subtitle,
+    required this.name,
+    required this.photo,
+    required this.active,
+    required this.blocked,
+    required this.palette,
+    required this.onBack,
+  });
 
   final String title;
   final String subtitle;
+  final String name;
+  final String photo;
+  final bool active;
+  final bool blocked;
   final AppPalette palette;
   final VoidCallback onBack;
 
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.all(14),
+      padding: const EdgeInsets.all(15),
       decoration: BoxDecoration(
-        color: palette.surface.withOpacity(palette.darkBackground ? 0.94 : 0.985),
-        borderRadius: BorderRadius.circular(24),
-        border: Border.all(color: palette.secondary.withOpacity(0.15)),
-        boxShadow: [BoxShadow(color: palette.cardShadow, blurRadius: 20, offset: const Offset(0, 10))],
+        color: palette.surface.withOpacity(palette.darkBackground ? 0.95 : 0.99),
+        borderRadius: BorderRadius.circular(25),
+        border: Border.all(color: palette.cardBorder),
+        boxShadow: [BoxShadow(color: palette.cardShadow, blurRadius: 20, offset: const Offset(0, 9))],
+      ),
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          final compact = constraints.maxWidth < 650;
+          final identity = Row(
+            children: [
+              IconButton.filledTonal(
+                onPressed: onBack,
+                tooltip: 'Volver a usuarios',
+                icon: const Icon(Icons.arrow_back_rounded),
+              ),
+              const SizedBox(width: 10),
+              _FormUserAvatar(name: name, photo: photo, palette: palette),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(title, maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(color: palette.textPrimary, fontWeight: FontWeight.w900, fontSize: 18)),
+                    const SizedBox(height: 2),
+                    Text(subtitle, maxLines: 2, overflow: TextOverflow.ellipsis, style: TextStyle(color: palette.textSecondary, fontWeight: FontWeight.w700, fontSize: 12.5)),
+                  ],
+                ),
+              ),
+            ],
+          );
+
+          final states = Wrap(
+            spacing: 7,
+            runSpacing: 7,
+            alignment: WrapAlignment.end,
+            children: [
+              _FormStatusChip(
+                label: active ? 'Activo' : 'Inactivo',
+                color: active ? AppColors.success : AppColors.warning,
+                icon: active ? Icons.check_circle_outline_rounded : Icons.pause_circle_outline_rounded,
+              ),
+              _FormStatusChip(
+                label: blocked ? 'Bloqueado' : 'Con acceso',
+                color: blocked ? AppColors.danger : AppColors.info,
+                icon: blocked ? Icons.lock_outline_rounded : Icons.lock_open_rounded,
+              ),
+            ],
+          );
+
+          if (compact) {
+            return Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                identity,
+                const SizedBox(height: 12),
+                Align(alignment: Alignment.centerRight, child: states),
+              ],
+            );
+          }
+          return Row(children: [Expanded(child: identity), const SizedBox(width: 12), states]);
+        },
+      ),
+    );
+  }
+}
+
+class _FormUserAvatar extends StatelessWidget {
+  const _FormUserAvatar({required this.name, required this.photo, required this.palette});
+
+  final String name;
+  final String photo;
+  final AppPalette palette;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: 48,
+      height: 48,
+      padding: const EdgeInsets.all(2),
+      decoration: BoxDecoration(
+        gradient: LinearGradient(colors: [palette.primary, palette.secondary]),
+        borderRadius: BorderRadius.circular(16),
+      ),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(14),
+        child: _UserPhotoPreview(value: photo, name: name, size: 44, palette: palette),
+      ),
+    );
+  }
+}
+
+class _UserPhotoPreview extends StatelessWidget {
+  const _UserPhotoPreview({required this.value, required this.name, required this.size, required this.palette});
+
+  final String value;
+  final String name;
+  final double size;
+  final AppPalette palette;
+
+  @override
+  Widget build(BuildContext context) {
+    final imageValue = value.trim();
+    if (imageValue.startsWith('data:image')) {
+      final commaIndex = imageValue.indexOf(',');
+      if (commaIndex > -1) {
+        try {
+          return Image.memory(
+            base64Decode(imageValue.substring(commaIndex + 1)),
+            width: size,
+            height: size,
+            fit: BoxFit.cover,
+          );
+        } catch (_) {}
+      }
+    }
+    if (imageValue.isNotEmpty) {
+      return Image.network(
+        imageValue,
+        width: size,
+        height: size,
+        fit: BoxFit.cover,
+        errorBuilder: (_, __, ___) => _UserInitialsPreview(name: name, size: size, palette: palette),
+      );
+    }
+    return _UserInitialsPreview(name: name, size: size, palette: palette);
+  }
+}
+
+class _UserInitialsPreview extends StatelessWidget {
+  const _UserInitialsPreview({required this.name, required this.size, required this.palette});
+
+  final String name;
+  final double size;
+  final AppPalette palette;
+
+  @override
+  Widget build(BuildContext context) {
+    final parts = name.trim().split(RegExp(r'\s+')).where((part) => part.isNotEmpty).toList();
+    final initials = parts.isEmpty
+        ? 'U'
+        : parts.length == 1
+            ? parts.first.substring(0, 1).toUpperCase()
+            : '${parts.first.substring(0, 1)}${parts.last.substring(0, 1)}'.toUpperCase();
+    return Container(
+      width: size,
+      height: size,
+      alignment: Alignment.center,
+      decoration: BoxDecoration(gradient: LinearGradient(colors: [palette.primary, palette.secondary])),
+      child: Text(initials, style: TextStyle(color: palette.onPrimary, fontSize: size * 0.34, fontWeight: FontWeight.w900)),
+    );
+  }
+}
+
+class _FormStatusChip extends StatelessWidget {
+  const _FormStatusChip({required this.label, required this.color, required this.icon});
+
+  final String label;
+  final Color color;
+  final IconData icon;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 6),
+      decoration: BoxDecoration(
+        color: color.withOpacity(0.1),
+        borderRadius: BorderRadius.circular(999),
+        border: Border.all(color: color.withOpacity(0.2)),
       ),
       child: Row(
+        mainAxisSize: MainAxisSize.min,
         children: [
-          IconButton.filledTonal(onPressed: onBack, tooltip: 'Volver a usuarios', icon: const Icon(Icons.arrow_back_rounded)),
-          const SizedBox(width: 10),
-          Container(
-            width: 44,
-            height: 44,
-            decoration: BoxDecoration(gradient: LinearGradient(colors: [palette.primary, palette.secondary]), borderRadius: BorderRadius.circular(15)),
-            child: Icon(Icons.manage_accounts_rounded, color: palette.onPrimary),
-          ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(title, maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(color: palette.textPrimary, fontWeight: FontWeight.w900, fontSize: 17)),
-                const SizedBox(height: 2),
-                Text(subtitle, maxLines: 2, overflow: TextOverflow.ellipsis, style: TextStyle(color: palette.textSecondary, fontWeight: FontWeight.w700, fontSize: 12.5)),
-              ],
-            ),
-          ),
+          Icon(icon, size: 15, color: color),
+          const SizedBox(width: 5),
+          Text(label, style: TextStyle(color: color, fontWeight: FontWeight.w900, fontSize: 11.5)),
         ],
       ),
     );
   }
 }
 
+class _RoleSelectionCard extends StatelessWidget {
+  const _RoleSelectionCard({
+    required this.palette,
+    required this.role,
+    required this.readOnly,
+    required this.available,
+    required this.unavailableMessage,
+    required this.onChanged,
+  });
+
+  final AppPalette palette;
+  final _RoleOption role;
+  final bool readOnly;
+  final bool available;
+  final String? unavailableMessage;
+  final ValueChanged<bool> onChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    final selected = role.assigned;
+    final disabled = readOnly || (!available && !selected);
+    return Opacity(
+      opacity: available || readOnly || selected ? 1 : 0.58,
+      child: Material(
+        color: selected
+            ? palette.secondary.withOpacity(palette.darkBackground ? 0.13 : 0.08)
+            : palette.background.withOpacity(palette.darkBackground ? 0.36 : 0.6),
+        borderRadius: BorderRadius.circular(20),
+        child: InkWell(
+          borderRadius: BorderRadius.circular(20),
+          onTap: disabled ? null : () => onChanged(!selected),
+          child: Container(
+            padding: const EdgeInsets.all(14),
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(20),
+              border: Border.all(
+                color: selected ? palette.secondary.withOpacity(0.46) : palette.cardBorder,
+                width: selected ? 1.4 : 1,
+              ),
+            ),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Container(
+                  width: 42,
+                  height: 42,
+                  decoration: BoxDecoration(
+                    color: selected ? palette.secondary.withOpacity(0.15) : palette.surface.withOpacity(0.6),
+                    borderRadius: BorderRadius.circular(14),
+                  ),
+                  child: Icon(
+                    Icons.verified_user_outlined,
+                    color: selected ? palette.secondary : palette.textSecondary,
+                  ),
+                ),
+                const SizedBox(width: 11),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          Expanded(
+                            child: Text(
+                              role.name,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: TextStyle(
+                                color: palette.textPrimary,
+                                fontWeight: FontWeight.w900,
+                                fontSize: 15,
+                              ),
+                            ),
+                          ),
+                          if (role.custom) ...[
+                            const SizedBox(width: 6),
+                            Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
+                              decoration: BoxDecoration(
+                                color: palette.secondary.withOpacity(0.10),
+                                borderRadius: BorderRadius.circular(999),
+                              ),
+                              child: Text(
+                                role.sucuId == null ? 'Empresa' : 'Sucursal',
+                                style: TextStyle(
+                                  color: palette.secondary,
+                                  fontSize: 9.5,
+                                  fontWeight: FontWeight.w900,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ],
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        !available
+                            ? (unavailableMessage ?? 'Este rol no es compatible con la asignación operativa del usuario.')
+                            : (role.description.isEmpty ? 'Sin descripción' : role.description),
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                          color: !available ? palette.warning : palette.textSecondary,
+                          fontSize: 12,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Checkbox(
+                  value: selected,
+                  activeColor: palette.actionColor,
+                  onChanged: disabled ? null : (value) => onChanged(value ?? false),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
 class _RoleOption {
-  const _RoleOption({required this.roleId, required this.name, required this.description, required this.assigned});
+  const _RoleOption({
+    required this.roleId,
+    required this.name,
+    required this.description,
+    required this.assigned,
+    required this.roleTipo,
+    this.emprId,
+    this.sucuId,
+  });
+
   final int roleId;
   final String name;
   final String description;
   final bool assigned;
+  final String roleTipo;
+  final int? emprId;
+  final int? sucuId;
+
+  bool get custom => roleTipo.toUpperCase() == 'PERSONALIZADO';
+
+  String? incompatibilityReason(Set<String> selectedBranchIds, String selectedCompanyId) {
+    if (!custom) return null;
+    if (emprId != null && selectedCompanyId.isNotEmpty && emprId.toString() != selectedCompanyId) {
+      return 'Este rol pertenece a otra empresa.';
+    }
+    if (sucuId != null && !selectedBranchIds.contains(sucuId.toString())) {
+      return 'Asigna la sucursal #$sucuId para habilitar este rol.';
+    }
+    return null;
+  }
+
+  bool compatibleWith(Set<String> selectedBranchIds, String selectedCompanyId) =>
+      incompatibilityReason(selectedBranchIds, selectedCompanyId) == null;
 
   factory _RoleOption.fromJson(Map<String, dynamic> json) => _RoleOption(
         roleId: int.tryParse(json['roleId']?.toString() ?? '') ?? 0,
         name: json['roleNombre']?.toString() ?? 'Rol',
         description: json['roleDescripcion']?.toString() ?? '',
         assigned: json['asignado'] == true,
+        roleTipo: json['roleTipo']?.toString() ?? 'PREDEFINIDO',
+        emprId: int.tryParse(json['emprId']?.toString() ?? ''),
+        sucuId: int.tryParse(json['sucuId']?.toString() ?? ''),
       );
 
-  _RoleOption copyWith({bool? assigned}) => _RoleOption(roleId: roleId, name: name, description: description, assigned: assigned ?? this.assigned);
+  _RoleOption copyWith({bool? assigned}) => _RoleOption(
+        roleId: roleId,
+        name: name,
+        description: description,
+        assigned: assigned ?? this.assigned,
+        roleTipo: roleTipo,
+        emprId: emprId,
+        sucuId: sucuId,
+      );
 }
 
 class _SummaryItem {

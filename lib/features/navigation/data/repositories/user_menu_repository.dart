@@ -28,7 +28,7 @@ class UserMenuRepository {
       final normalizedKey = _normalizeModuleKey(item.keyName);
       final keyName = moduleAliases[normalizedKey] ?? normalizedKey;
       if (!moduleByKey.containsKey(keyName) &&
-          !const {'reportes', 'ganancias', 'proximo_pedido'}.contains(keyName)) {
+          !const {'reportes', 'ganancias', 'proximo_pedido', 'roles_personalizados'}.contains(keyName)) {
         continue;
       }
       byKey[keyName] = item.copyWith(keyName: keyName, path: '/$keyName');
@@ -44,6 +44,7 @@ class UserMenuRepository {
       'reportes': moduleRegistry.length + 1,
       'ganancias': moduleRegistry.length + 2,
       'proximo_pedido': moduleRegistry.length + 3,
+      'roles_personalizados': moduleRegistry.length + 4,
     };
     final list = items.toList(growable: false);
     list.sort((a, b) => (order[a.keyName] ?? 9999).compareTo(order[b.keyName] ?? 9999));
@@ -89,6 +90,8 @@ const moduleAliases = <String, String>{
   'proximopedido': 'proximo_pedido',
   'pedido': 'proximo_pedido',
   'dashboard': 'reportes',
+  'rolespersonalizados': 'roles_personalizados',
+  'roles_personalizados': 'roles_personalizados',
   'pagocuentaventa': 'pagos',
   'pago_cuenta_venta': 'pagos',
 };

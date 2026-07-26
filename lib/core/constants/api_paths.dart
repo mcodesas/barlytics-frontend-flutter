@@ -29,6 +29,8 @@ class ApiPaths {
   static const regiones = '/api/v1/regiones';
   static const reportes = '/api/v1/reportes';
   static const roles = '/api/v1/roles';
+  static const rolesPersonalizados = '/api/v1/roles/personalizados';
+  static const rolesPersonalizadosOpciones = '/api/v1/roles/personalizados/opciones-disponibles';
   static const sucursales = '/api/v1/sucursales';
   static const tiposidentificacion = '/api/v1/tiposidentificacion';
   static const tiposproducto = '/api/v1/tiposproducto';

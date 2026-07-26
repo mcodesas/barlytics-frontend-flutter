@@ -23,6 +23,8 @@ class ModuleVisuals {
         return const ModuleVisual(icon: Icons.people_alt_rounded, color: AppColors.secondary, description: 'Personas, accesos y datos de contacto');
       case 'roles':
         return const ModuleVisual(icon: Icons.admin_panel_settings_rounded, color: AppColors.tertiary, description: 'Perfiles y permisos del sistema');
+      case 'roles_personalizados':
+        return const ModuleVisual(icon: Icons.add_moderator_rounded, color: Color(0xFF7C3AED), description: 'Permisos configurables por empresa o sucursal');
       case 'empresas':
         return const ModuleVisual(icon: Icons.storefront_rounded, color: AppColors.accent, description: 'Negocios o tenants registrados');
       case 'sucursales':
