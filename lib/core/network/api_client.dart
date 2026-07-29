@@ -29,6 +29,14 @@ class ApiClient {
     return _send(() => _dio.delete(path), parser);
   }
 
+  Future<ApiResponse<T>> deleteWithBody<T>(
+    String path,
+    Object? body,
+    T Function(Object? json) parser,
+  ) async {
+    return _send(() => _dio.delete(path, data: body), parser);
+  }
+
   Future<ApiResponse<T>> _send<T>(Future<Response<dynamic>> Function() request, T Function(Object? json) parser) async {
     try {
       final response = await request();

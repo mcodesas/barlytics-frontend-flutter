@@ -74,6 +74,23 @@ bool _isManagerRole(String role) {
 
 bool _isOperationalRole(String role) => _isMesaCashierSellerRole(role) || _isInventoryRole(role);
 
+bool _isGlobalAdminRole(String role) {
+  final normalized = role
+      .toUpperCase()
+      .replaceAll('ROLE_', '')
+      .replaceAll('Á', 'A')
+      .replaceAll('É', 'E')
+      .replaceAll('Í', 'I')
+      .replaceAll('Ó', 'O')
+      .replaceAll('Ú', 'U')
+      .trim();
+  return normalized == 'ADMIN' ||
+      normalized == 'ADMINISTRADOR' ||
+      normalized == 'SUPERADMIN' ||
+      normalized == 'SUPER_ADMIN';
+}
+
+
 /// Scaffold principal con navegación adaptable y diseño tecnológico unificado.
 class AppScaffold extends ConsumerStatefulWidget {
   const AppScaffold({super.key, required this.child});
@@ -94,6 +111,7 @@ class _AppScaffoldState extends ConsumerState<AppScaffold> {
     final isOperativo = roles.any(_isOperationalRole);
     final isInventario = roles.any(_isInventoryRole);
     final isManager = roles.any(_isManagerRole);
+    final isGlobalAdmin = roles.any(_isGlobalAdminRole);
     final operationalMenuOpen = ref.watch(operationalMenuOpenProvider);
     final pageTitle = _resolveCurrentPageTitle(
       context,
@@ -183,6 +201,7 @@ class _AppScaffoldState extends ConsumerState<AppScaffold> {
                       onMenuPressed: () => setState(() => _mainMenuCollapsed = !_mainMenuCollapsed),
                     ),
                     Expanded(child: _PaletteAwareBody(child: widget.child, palette: palette)),
+                    if (isGlobalAdmin) const _AdminBottomNavigation(),
                   ],
                 ),
               ),
@@ -246,6 +265,7 @@ class _AppScaffoldState extends ConsumerState<AppScaffold> {
           ],
         ),
       ),
+      bottomNavigationBar: isGlobalAdmin ? const _AdminBottomNavigation() : null,
     );
   }
 
@@ -1508,6 +1528,7 @@ class _InventoryBottomNavigation extends ConsumerWidget {
     (label: 'Reportes', icon: Icons.analytics_rounded, path: '/reportes'),
     (label: 'Ganancias', icon: Icons.trending_up_rounded, path: '/ganancias'),
     (label: 'Pedido', icon: Icons.local_shipping_rounded, path: '/proximo_pedido'),
+    (label: 'Sincronizar', icon: Icons.sync_alt_rounded, path: '/sincronizar_catalogo'),
   ];
 
   static const _moreItem = (label: 'Más', icon: Icons.more_horiz_rounded, path: '__more__');
@@ -1747,6 +1768,210 @@ class _ManagerNavigationItem {
   final String? description;
 }
 
+class _AdminBottomNavigation extends ConsumerWidget {
+  const _AdminBottomNavigation();
+
+  static const _coreItems = <_AdminNavigationItem>[
+    _AdminNavigationItem(label: 'Inicio', icon: Icons.home_rounded, path: '/home'),
+    _AdminNavigationItem(label: 'Clientes', icon: Icons.business_rounded, path: '/empresas'),
+    _AdminNavigationItem(label: 'Usuarios', icon: Icons.manage_accounts_rounded, path: '/usuarios'),
+    _AdminNavigationItem(label: 'Soporte', icon: Icons.help_outline_rounded, path: '/soporte_global'),
+    _AdminNavigationItem(label: 'Más', icon: Icons.more_horiz_rounded, path: '__more__'),
+  ];
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final palette = ref.watch(selectedAppPaletteProvider);
+    final currentPath = GoRouterState.of(context).uri.path;
+    final selectedIndex = _selectedIndex(currentPath);
+    final compact = MediaQuery.sizeOf(context).width < 720;
+    return Container(
+      decoration: BoxDecoration(
+        color: palette.surface.withOpacity(palette.darkBackground ? .96 : .99),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(palette.darkBackground ? .24 : .11),
+            blurRadius: 24,
+            offset: const Offset(0, -8),
+          ),
+        ],
+      ),
+      child: SafeArea(
+        top: false,
+        child: BottomNavigationBar(
+          currentIndex: selectedIndex,
+          type: BottomNavigationBarType.fixed,
+          backgroundColor: Colors.transparent,
+          elevation: 0,
+          selectedItemColor: palette.secondary,
+          unselectedItemColor: palette.textSecondary.withOpacity(.86),
+          selectedFontSize: compact ? 10 : 11.5,
+          unselectedFontSize: compact ? 9.5 : 11,
+          iconSize: compact ? 21 : 23,
+          selectedLabelStyle: const TextStyle(fontWeight: FontWeight.w900, height: 1.15),
+          unselectedLabelStyle: const TextStyle(fontWeight: FontWeight.w700, height: 1.15),
+          showSelectedLabels: true,
+          showUnselectedLabels: true,
+          onTap: (index) {
+            final item = _coreItems[index];
+            if (item.path == '__more__') {
+              _showMore(context, ref, palette);
+              return;
+            }
+            context.go(item.path);
+          },
+          items: [
+            for (final item in _coreItems)
+              BottomNavigationBarItem(
+                icon: Padding(padding: const EdgeInsets.only(bottom: 3), child: Icon(item.icon)),
+                activeIcon: Container(
+                  margin: const EdgeInsets.only(bottom: 3),
+                  padding: EdgeInsets.symmetric(horizontal: compact ? 10 : 13, vertical: 5),
+                  decoration: BoxDecoration(
+                    color: palette.secondary.withOpacity(palette.darkBackground ? .22 : .14),
+                    borderRadius: BorderRadius.circular(18),
+                  ),
+                  child: Icon(item.icon),
+                ),
+                label: item.label,
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  int _selectedIndex(String path) {
+    if (path == '/home') return 0;
+    if (path.startsWith('/empresas') || path.startsWith('/sucursales')) return 1;
+    if (path.startsWith('/usuarios') ||
+        path.startsWith('/roles') ||
+        path.startsWith('/tipos_usuario') ||
+        path.startsWith('/menus') ||
+        path.startsWith('/opciones_menu')) return 2;
+    if (path.startsWith('/soporte_global') ||
+        path.startsWith('/soporte_clientes') ||
+        path.startsWith('/soporte_accesos') ||
+        path.startsWith('/soporte_operacion') ||
+        path.startsWith('/soporte_configuracion') ||
+        path.startsWith('/soporte_mantenimiento') ||
+        path.startsWith('/explorador_datos') ||
+        path.startsWith('/diagnostico_sistema') ||
+        path.startsWith('/auditoria_soporte') ||
+        path.startsWith('/sincronizar_catalogo')) return 3;
+    return 4;
+  }
+
+  void _showMore(BuildContext context, WidgetRef ref, AppPalette palette) {
+    final authorized = ref.read(userMenuProvider).maybeWhen(
+          data: (items) => items,
+          orElse: () => const <UserMenuItem>[],
+        );
+    final entries = <_AdminNavigationItem>[
+      const _AdminNavigationItem(label: 'Sincronizar catálogo', icon: Icons.sync_alt_rounded, path: '/sincronizar_catalogo'),
+      const _AdminNavigationItem(label: 'Explorador de datos', icon: Icons.storage_rounded, path: '/explorador_datos'),
+      const _AdminNavigationItem(label: 'Diagnóstico', icon: Icons.monitor_heart_rounded, path: '/diagnostico_sistema'),
+      const _AdminNavigationItem(label: 'Auditoría', icon: Icons.history_rounded, path: '/auditoria_soporte'),
+      for (final item in authorized)
+        if (item.path.trim().isNotEmpty &&
+            !const {'/home', '/empresas', '/usuarios', '/soporte_global', '/explorador_datos', '/diagnostico_sistema', '/auditoria_soporte', '/sincronizar_catalogo'}.contains(item.path))
+          _AdminNavigationItem(
+            label: item.title.trim().isEmpty ? item.keyName : item.title.trim(),
+            icon: ModuleVisuals.byKey(item.keyName).icon,
+            path: item.path,
+          ),
+      const _AdminNavigationItem(label: 'Perfil', icon: Icons.person_rounded, path: '/profile'),
+    ];
+    final unique = <String, _AdminNavigationItem>{};
+    for (final item in entries) {
+      unique.putIfAbsent(item.path, () => item);
+    }
+    showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (sheetContext) => SafeArea(
+        child: Container(
+          margin: const EdgeInsets.all(12),
+          constraints: BoxConstraints(maxHeight: MediaQuery.sizeOf(sheetContext).height * .80),
+          padding: const EdgeInsets.fromLTRB(14, 10, 14, 14),
+          decoration: BoxDecoration(
+            color: palette.surface,
+            borderRadius: BorderRadius.circular(palette.radius(26)),
+            border: Border.all(color: palette.cardBorder),
+            boxShadow: [BoxShadow(color: Colors.black.withOpacity(.20), blurRadius: 28, offset: const Offset(0, 12))],
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Center(
+                child: Container(
+                  width: 44,
+                  height: 4,
+                  margin: const EdgeInsets.only(bottom: 14),
+                  decoration: BoxDecoration(color: palette.textSecondary.withOpacity(.30), borderRadius: BorderRadius.circular(99)),
+                ),
+              ),
+              Text('Todas las herramientas', style: TextStyle(color: palette.textPrimary, fontSize: 18, fontWeight: FontWeight.w900)),
+              const SizedBox(height: 4),
+              Text('Accede a cualquier módulo autorizado sin perder el menú inferior.', style: TextStyle(color: palette.textSecondary, fontWeight: FontWeight.w600)),
+              const SizedBox(height: 12),
+              Flexible(
+                child: GridView.builder(
+                  shrinkWrap: true,
+                  gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+                    crossAxisCount: MediaQuery.sizeOf(sheetContext).width >= 760 ? 3 : 2,
+                    crossAxisSpacing: 9,
+                    mainAxisSpacing: 9,
+                    childAspectRatio: 2.35,
+                  ),
+                  itemCount: unique.length,
+                  itemBuilder: (itemContext, index) {
+                    final item = unique.values.elementAt(index);
+                    return InkWell(
+                      onTap: () {
+                        final destination = item.path;
+                        Navigator.pop(sheetContext);
+                        WidgetsBinding.instance.addPostFrameCallback((_) {
+                          if (context.mounted) context.go(destination);
+                        });
+                      },
+                      borderRadius: BorderRadius.circular(16),
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 9),
+                        decoration: BoxDecoration(
+                          color: palette.background.withOpacity(.56),
+                          borderRadius: BorderRadius.circular(16),
+                          border: Border.all(color: palette.cardBorder),
+                        ),
+                        child: Row(
+                          children: [
+                            Icon(item.icon, color: palette.primary, size: 21),
+                            const SizedBox(width: 9),
+                            Expanded(child: Text(item.label, maxLines: 2, overflow: TextOverflow.ellipsis, style: TextStyle(color: palette.textPrimary, fontWeight: FontWeight.w800, fontSize: 11.5))),
+                          ],
+                        ),
+                      ),
+                    );
+                  },
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _AdminNavigationItem {
+  const _AdminNavigationItem({required this.label, required this.icon, required this.path});
+  final String label;
+  final IconData icon;
+  final String path;
+}
+
 class _ManagerBottomNavigation extends ConsumerWidget {
   const _ManagerBottomNavigation();
 
@@ -1764,7 +1989,8 @@ class _ManagerBottomNavigation extends ConsumerWidget {
     'ventas': 2,
     'inventario': 3,
     'proximo_pedido': 4,
-    'productos': 5,
+    'sincronizar_catalogo': 5,
+    'productos': 6,
     'movimientos': 6,
     'precios': 7,
     'cierres_caja': 8,
@@ -2209,6 +2435,7 @@ List<UserMenuItem> _ensureInventoryAnalysisMenus(List<UserMenuItem> items) {
     'reportes': 7,
     'ganancias': 8,
     'proximo_pedido': 9,
+    'sincronizar_catalogo': 10,
   };
   result.sort((a, b) => (priority[a.keyName] ?? 100).compareTo(priority[b.keyName] ?? 100));
   return result;
