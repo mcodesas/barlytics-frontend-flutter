@@ -231,6 +231,7 @@ class MeseroVentaModel {
     this.mesaId,
     this.mesaNumero,
     this.sucursalId,
+    this.tipoVenta,
     this.mesaDescripcion,
     this.mesaFoto,
     this.fecha,
@@ -247,6 +248,7 @@ class MeseroVentaModel {
   final int? mesaId;
   final int? mesaNumero;
   final int? sucursalId;
+  final String? tipoVenta;
   final String? mesaDescripcion;
   final String? mesaFoto;
   final String? fecha;
@@ -263,6 +265,7 @@ class MeseroVentaModel {
         mesaId: (json['mesaId'] as num?)?.toInt(),
         mesaNumero: (json['mesaNumero'] as num?)?.toInt(),
         sucursalId: (json['sucursalId'] as num?)?.toInt(),
+        tipoVenta: json['tipoVenta']?.toString(),
         mesaDescripcion: json['mesaDescripcion']?.toString(),
         mesaFoto: json['mesaFoto']?.toString(),
         fecha: json['fecha']?.toString(),
@@ -319,10 +322,11 @@ class CierreCajaProductoModel {
 }
 
 class CierreCajaVentaIncluidaModel {
-  const CierreCajaVentaIncluidaModel({this.ventaId, this.mesaId, this.mesaNumero, this.fecha, this.subtotalVenta, this.propina, this.total});
+  const CierreCajaVentaIncluidaModel({this.ventaId, this.mesaId, this.mesaNumero, this.tipoVenta, this.fecha, this.subtotalVenta, this.propina, this.total});
   final int? ventaId;
   final int? mesaId;
   final int? mesaNumero;
+  final String? tipoVenta;
   final String? fecha;
   final double? subtotalVenta;
   final double? propina;
@@ -331,6 +335,7 @@ class CierreCajaVentaIncluidaModel {
         ventaId: (json['ventaId'] as num?)?.toInt(),
         mesaId: (json['mesaId'] as num?)?.toInt(),
         mesaNumero: (json['mesaNumero'] as num?)?.toInt(),
+        tipoVenta: json['tipoVenta']?.toString(),
         fecha: json['fecha']?.toString(),
         subtotalVenta: (json['subtotalVenta'] as num?)?.toDouble(),
         propina: (json['propina'] as num?)?.toDouble(),

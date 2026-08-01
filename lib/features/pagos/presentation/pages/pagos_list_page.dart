@@ -370,7 +370,7 @@ class _PagosListPageState extends ConsumerState<PagosListPage> {
               _page = 0;
             }),
             decoration: InputDecoration(
-              hintText: 'Buscar mesa, cuenta, responsable o referencia',
+              hintText: 'Buscar venta directa, mesa, cuenta, responsable o referencia',
               prefixIcon: const Icon(Icons.search_rounded),
               suffixIcon: _search.isEmpty
                   ? null
@@ -481,7 +481,7 @@ class _PagosListPageState extends ConsumerState<PagosListPage> {
               onSelectChanged: (_) => _showPaymentDetail(item),
               cells: [
                 DataCell(Text(_formatDate(item.date))),
-                DataCell(Column(mainAxisAlignment: MainAxisAlignment.center, crossAxisAlignment: CrossAxisAlignment.start, children: [Text('Mesa ${item.tableNumber ?? '-'}', style: const TextStyle(fontWeight: FontWeight.w900)), Text('Cuenta ${item.accountNumber ?? '-'} · Venta ${item.saleId ?? '-'}', style: TextStyle(color: palette.textSecondary, fontSize: 11))])),
+                DataCell(Column(mainAxisAlignment: MainAxisAlignment.center, crossAxisAlignment: CrossAxisAlignment.start, children: [Text(item.originLabel, style: const TextStyle(fontWeight: FontWeight.w900)), Text('Cuenta ${item.accountNumber ?? '-'} · Venta ${item.saleId ?? '-'}', style: TextStyle(color: palette.textSecondary, fontSize: 11))])),
                 DataCell(Row(mainAxisSize: MainAxisSize.min, children: [Icon(_methodIcon(item.methodName), size: 17, color: palette.secondary), const SizedBox(width: 6), Text(item.methodName)])),
                 DataCell(Text(_currency.format(item.amount), style: const TextStyle(fontWeight: FontWeight.w900))),
                 DataCell(Text(item.valueReceived == null ? '-' : _currency.format(item.valueReceived))),
@@ -517,7 +517,7 @@ class _PagosListPageState extends ConsumerState<PagosListPage> {
                 ],
               ),
               const SizedBox(height: 10),
-              Row(children: [Expanded(child: _miniInfo('Mesa', '${item.tableNumber ?? '-'}', palette)), Expanded(child: _miniInfo('Cuenta', '${item.accountNumber ?? '-'}', palette)), Expanded(child: _miniInfo('Saldo', _currency.format(item.accountBalance), palette))]),
+              Row(children: [Expanded(child: _miniInfo('Origen', item.originLabel, palette)), Expanded(child: _miniInfo('Cuenta', '${item.accountNumber ?? '-'}', palette)), Expanded(child: _miniInfo('Saldo', _currency.format(item.accountBalance), palette))]),
             ],
           ),
         ),
@@ -618,7 +618,7 @@ class _PagosListPageState extends ConsumerState<PagosListPage> {
                 _detailAmount(payment, palette),
                 const SizedBox(height: 10),
                 _detailSection('Operación', Icons.table_restaurant_rounded, palette, [
-                  _DetailItem('Mesa', '${payment.tableNumber ?? '-'}'),
+                  _DetailItem('Origen', payment.originLabel),
                   _DetailItem('Cuenta', '${payment.accountNumber ?? '-'}'),
                   _DetailItem('Venta', '#${payment.saleId ?? '-'}'),
                   _DetailItem('Estado venta', payment.saleState.isEmpty ? '-' : payment.saleState),
@@ -816,7 +816,7 @@ class _PaymentFormSheetState extends State<_PaymentFormSheet> {
                 value: _accountId,
                 isExpanded: true,
                 decoration: const InputDecoration(labelText: 'Cuenta pendiente', prefixIcon: Icon(Icons.table_restaurant_rounded)),
-                items: widget.accounts.map((item) => DropdownMenuItem<int>(value: item.id, child: Text('Mesa ${item.tableNumber} · Cuenta ${item.accountNumber} · ${widget.currency.format(item.balance)}', overflow: TextOverflow.ellipsis))).toList(growable: false),
+                items: widget.accounts.map((item) => DropdownMenuItem<int>(value: item.id, child: Text('${item.originLabel} · Cuenta ${item.accountNumber} · ${widget.currency.format(item.balance)}', overflow: TextOverflow.ellipsis))).toList(growable: false),
                 onChanged: _saving
                     ? null
                     : (value) {
@@ -1095,7 +1095,7 @@ class _PeriodSheetState extends State<_PeriodSheet> {
 }
 
 class _PaymentAdmin {
-  const _PaymentAdmin({required this.id, required this.accountId, required this.accountNumber, required this.accountDescription, required this.saleId, required this.saleState, required this.tableNumber, required this.methodId, required this.methodName, required this.amount, required this.valueReceived, required this.change, required this.observation, required this.registeredBy, required this.date, required this.accountTotal, required this.accountTip, required this.accountPaid, required this.accountBalance});
+  const _PaymentAdmin({required this.id, required this.accountId, required this.accountNumber, required this.accountDescription, required this.saleId, required this.saleState, required this.saleType, required this.tableNumber, required this.methodId, required this.methodName, required this.amount, required this.valueReceived, required this.change, required this.observation, required this.registeredBy, required this.date, required this.accountTotal, required this.accountTip, required this.accountPaid, required this.accountBalance});
 
   final int? id;
   final int? accountId;
@@ -1103,6 +1103,7 @@ class _PaymentAdmin {
   final String accountDescription;
   final int? saleId;
   final String saleState;
+  final String saleType;
   final int? tableNumber;
   final int? methodId;
   final String methodName;
@@ -1122,6 +1123,9 @@ class _PaymentAdmin {
     return value.contains('EFECTIVO') || value.contains('CASH');
   }
 
+  bool get isDirectSale => saleType.toUpperCase() == 'DIRECTA' || tableNumber == null;
+  String get originLabel => isDirectSale ? 'Venta directa' : 'Mesa ${tableNumber ?? '-'}';
+
   factory _PaymentAdmin.fromJson(Map<String, dynamic> json) => _PaymentAdmin(
         id: (json['pacvId'] as num?)?.toInt(),
         accountId: (json['cuveId'] as num?)?.toInt(),
@@ -1129,6 +1133,7 @@ class _PaymentAdmin {
         accountDescription: json['cuentaDescripcion']?.toString() ?? '',
         saleId: (json['ventId'] as num?)?.toInt(),
         saleState: json['ventaEstado']?.toString() ?? '',
+        saleType: json['tipoVenta']?.toString() ?? '',
         tableNumber: (json['mesaNumero'] as num?)?.toInt(),
         methodId: (json['mepaId'] as num?)?.toInt(),
         methodName: json['medioPagoNombre']?.toString() ?? 'Medio de pago',
@@ -1146,9 +1151,10 @@ class _PaymentAdmin {
 }
 
 class _PendingAccount {
-  const _PendingAccount({required this.id, required this.saleId, required this.tableNumber, required this.accountNumber, required this.description, required this.total, required this.paid, required this.balance, required this.responsible, required this.saleDate});
+  const _PendingAccount({required this.id, required this.saleId, required this.saleType, required this.tableNumber, required this.accountNumber, required this.description, required this.total, required this.paid, required this.balance, required this.responsible, required this.saleDate});
   final int? id;
   final int? saleId;
+  final String saleType;
   final int? tableNumber;
   final int? accountNumber;
   final String description;
@@ -1158,9 +1164,13 @@ class _PendingAccount {
   final String responsible;
   final DateTime? saleDate;
 
+  bool get isDirectSale => saleType.toUpperCase() == 'DIRECTA' || tableNumber == null;
+  String get originLabel => isDirectSale ? 'Venta directa' : 'Mesa ${tableNumber ?? '-'}';
+
   factory _PendingAccount.fromJson(Map<String, dynamic> json) => _PendingAccount(
         id: (json['cuveId'] as num?)?.toInt(),
         saleId: (json['ventId'] as num?)?.toInt(),
+        saleType: json['tipoVenta']?.toString() ?? '',
         tableNumber: (json['mesaNumero'] as num?)?.toInt(),
         accountNumber: (json['cuentaNumero'] as num?)?.toInt(),
         description: json['cuentaDescripcion']?.toString() ?? '',
