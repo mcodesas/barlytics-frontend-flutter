@@ -4,6 +4,7 @@ import '../../../../core/branch/branch_scope_provider.dart';
 import '../../../../core/errors/error_mapper.dart';
 import '../../../../core/errors/failure.dart';
 import '../../../../core/providers/core_providers.dart';
+import '../../../../core/network/session_expiration_notifier.dart';
 import '../../data/datasources/auth_remote_datasource.dart';
 import '../../data/repositories/auth_repository_impl.dart';
 import '../../domain/repositories/auth_repository.dart';
@@ -22,6 +23,7 @@ final authControllerProvider = StateNotifierProvider<AuthController, AuthState>(
     LoginUseCase(ref.watch(authRepositoryProvider)),
     LogoutUseCase(ref.watch(authRepositoryProvider)),
     ref.watch(authRepositoryProvider),
+    ref.watch(sessionExpirationNotifierProvider),
     ref,
   );
 });
@@ -57,14 +59,34 @@ class AuthState {
 }
 
 class AuthController extends StateNotifier<AuthState> {
-  AuthController(this._login, this._logout, this._repository, this._ref) : super(const AuthState()) {
+  AuthController(
+    this._login,
+    this._logout,
+    this._repository,
+    this._sessionExpirationNotifier,
+    this._ref,
+  ) : super(const AuthState()) {
+    _sessionExpirationNotifier.addListener(_handleSessionExpired);
     checkSession();
   }
 
   final LoginUseCase _login;
   final LogoutUseCase _logout;
   final AuthRepository _repository;
+  final SessionExpirationNotifier _sessionExpirationNotifier;
   final Ref _ref;
+
+  void _handleSessionExpired() {
+    if (!state.authenticated) return;
+    _ref.invalidate(branchScopeProvider);
+    state = const AuthState();
+  }
+
+  @override
+  void dispose() {
+    _sessionExpirationNotifier.removeListener(_handleSessionExpired);
+    super.dispose();
+  }
 
   Future<void> checkSession() async {
     final hasSession = await _repository.hasSession();
@@ -125,8 +147,19 @@ class AuthController extends StateNotifier<AuthState> {
   }
 
   Future<void> logout() async {
-    await _logout();
+    // El router escucha este estado. Se cambia primero para que el usuario vaya
+    // al login de inmediato, sin esperar red, timeout ni respuesta del backend.
     _ref.invalidate(branchScopeProvider);
     state = const AuthState();
+
+    try {
+      await _logout();
+    } catch (_) {
+      // Protección adicional si incluso el almacenamiento local fallara. El
+      // estado visual ya quedó cerrado y no debe volver a una pantalla cargando.
+      try {
+        await _ref.read(secureStorageProvider).clear();
+      } catch (_) {}
+    }
   }
 }

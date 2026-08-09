@@ -270,6 +270,12 @@ class _GlassLoginCard extends ConsumerWidget {
                     child: const Text('Olvidé mi contraseña'),
                   ),
                   const SizedBox(height: 4),
+                  TextButton.icon(
+                    onPressed: loading ? null : () => context.go('/reset-password'),
+                    icon: const Icon(Icons.pin_rounded),
+                    label: const Text('Activar con código'),
+                  ),
+                  const SizedBox(height: 4),
                   OutlinedButton.icon(
                     onPressed: () => showPaletteSettingsDialog(context),
                     icon: const Icon(Icons.palette_outlined),

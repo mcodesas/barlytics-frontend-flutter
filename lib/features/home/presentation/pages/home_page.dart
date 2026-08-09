@@ -7,6 +7,7 @@ import '../../../../core/widgets/app_scaffold.dart';
 import '../../../auth/presentation/providers/auth_provider.dart';
 import '../../../navigation/data/models/user_menu_item.dart';
 import '../../../navigation/presentation/providers/user_menu_provider.dart';
+import '../../../admin_support/presentation/pages/admin_home_page.dart';
 import 'manager_home_page.dart';
 import 'role_home_page.dart';
 
@@ -17,16 +18,19 @@ class HomePage extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final authState = ref.watch(authControllerProvider);
     final menuAsync = ref.watch(userMenuProvider);
-    final isManager = authState.roles.any(_isManagerRole);
+    final isGlobalAdmin = authState.roles.any(_isGlobalAdminRole);
+    final isManager = !isGlobalAdmin && authState.roles.any(_isManagerRole);
 
     return AppScaffold(
       child: menuAsync.when(
         loading: () => Scaffold(
           backgroundColor: Colors.transparent,
           body: AppLoader(
-            message: isManager
-                ? 'Preparando centro de gerencia...'
-                : 'Preparando tu espacio de trabajo...',
+            message: isGlobalAdmin
+                ? 'Preparando centro de soporte global...'
+                : isManager
+                    ? 'Preparando centro de gerencia...'
+                    : 'Preparando tu espacio de trabajo...',
           ),
         ),
         error: (error, _) => Scaffold(
@@ -37,6 +41,12 @@ class HomePage extends ConsumerWidget {
           ),
         ),
         data: (items) {
+          if (isGlobalAdmin) {
+            return AdminHomePage(
+              items: _sortAdminItems(items),
+              rolesCount: authState.roles.length,
+            );
+          }
           if (isManager) {
             return ManagerHomePage(
               items: _sortManagerItems(items),
@@ -52,6 +62,43 @@ class HomePage extends ConsumerWidget {
       ),
     );
   }
+}
+
+
+bool _isGlobalAdminRole(String role) {
+  final normalized = _normalizeRole(role).replaceFirst(RegExp(r'^ROLE_'), '');
+  return normalized == 'ADMIN' ||
+      normalized == 'ADMINISTRADOR' ||
+      normalized == 'SUPERADMIN' ||
+      normalized == 'SUPER_ADMIN';
+}
+
+List<UserMenuItem> _sortAdminItems(List<UserMenuItem> items) {
+  const priority = <String, int>{
+    'soporte_global': 0,
+    'diagnostico_sistema': 1,
+    'explorador_datos': 2,
+    'auditoria_soporte': 3,
+    'empresas': 4,
+    'sucursales': 5,
+    'usuarios': 6,
+    'roles': 7,
+    'roles_personalizados': 8,
+    'menus': 9,
+    'opciones_menu': 10,
+    'ventas': 11,
+    'pagos': 12,
+    'inventario': 13,
+    'movimientos': 14,
+    'parametros': 15,
+  };
+  final sorted = List<UserMenuItem>.of(items);
+  sorted.sort((a, b) {
+    final byPriority = (priority[a.keyName] ?? 999).compareTo(priority[b.keyName] ?? 999);
+    if (byPriority != 0) return byPriority;
+    return a.title.compareTo(b.title);
+  });
+  return sorted;
 }
 
 bool _isManagerRole(String role) {
@@ -77,7 +124,8 @@ List<UserMenuItem> _sortManagerItems(List<UserMenuItem> items) {
     'ventas': 2,
     'inventario': 3,
     'proximo_pedido': 4,
-    'productos': 5,
+    'sincronizar_catalogo': 5,
+    'productos': 6,
     'movimientos': 6,
     'precios': 7,
     'pagos': 8,

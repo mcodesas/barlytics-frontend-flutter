@@ -6,6 +6,12 @@ import '../../features/auth/presentation/pages/forgot_password_page.dart';
 import '../../features/auth/presentation/pages/reset_password_page.dart';
 import '../../features/auth/presentation/providers/auth_provider.dart';
 import '../../features/home/presentation/pages/home_page.dart';
+import '../../features/admin_support/presentation/pages/admin_support_page.dart';
+import '../../features/admin_support/presentation/pages/admin_data_explorer_page.dart';
+import '../../features/admin_support/presentation/pages/admin_audit_page.dart';
+import '../../features/admin_support/presentation/pages/admin_diagnostics_page.dart';
+import '../../features/admin_support/presentation/pages/admin_support_workspace_page.dart';
+import '../../features/admin_support/presentation/pages/product_catalog_sync_page.dart';
 import '../../features/profile/presentation/pages/profile_page.dart';
 import '../../features/reportes/presentation/pages/reportes_page.dart';
 import '../../features/tablas_parametricas/presentation/pages/tablas_parametricas_page.dart';
@@ -135,6 +141,21 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       GoRoute(path: '/forgot-password', builder: (context, state) => const ForgotPasswordPage()),
       GoRoute(path: '/reset-password', builder: (context, state) => ResetPasswordPage(code: _recoveryCodeFromState(state))),
       GoRoute(path: '/home', builder: (context, state) => const HomePage()),
+      GoRoute(path: '/soporte_global', builder: (context, state) => AppScaffold(child: const AdminSupportPage())),
+      GoRoute(
+        path: '/explorador_datos',
+        builder: (context, state) => AppScaffold(
+          child: AdminDataExplorerPage(initialTable: state.uri.queryParameters['table']),
+        ),
+      ),
+      GoRoute(path: '/auditoria_soporte', builder: (context, state) => AppScaffold(child: const AdminAuditPage())),
+      GoRoute(path: '/diagnostico_sistema', builder: (context, state) => AppScaffold(child: const AdminDiagnosticsPage())),
+      GoRoute(path: '/soporte_clientes', builder: (context, state) => AppScaffold(child: const AdminSupportWorkspacePage(type: AdminSupportWorkspaceType.clients))),
+      GoRoute(path: '/soporte_accesos', builder: (context, state) => AppScaffold(child: const AdminSupportWorkspacePage(type: AdminSupportWorkspaceType.access))),
+      GoRoute(path: '/soporte_operacion', builder: (context, state) => AppScaffold(child: const AdminSupportWorkspacePage(type: AdminSupportWorkspaceType.operations))),
+      GoRoute(path: '/soporte_configuracion', builder: (context, state) => AppScaffold(child: const AdminSupportWorkspacePage(type: AdminSupportWorkspaceType.configuration))),
+      GoRoute(path: '/soporte_mantenimiento', builder: (context, state) => AppScaffold(child: const AdminSupportWorkspacePage(type: AdminSupportWorkspaceType.maintenance))),
+      GoRoute(path: '/sincronizar_catalogo', builder: (context, state) => AppScaffold(child: const ProductCatalogSyncPage())),
       GoRoute(path: '/profile', builder: (context, state) => AppScaffold(child: const ProfilePage())),
       GoRoute(path: '/reportes', builder: (context, state) => AppScaffold(child: const ReportesPage())),
       GoRoute(path: '/ganancias', builder: (context, state) => AppScaffold(child: const ReportesPage.ganancias())),

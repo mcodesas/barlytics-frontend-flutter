@@ -100,6 +100,25 @@ class MeseroRemoteDataSource {
     return response.data!;
   }
 
+  Future<MeseroVentaModel> abrirVentaDirecta() async {
+    final response = await _apiClient.post<MeseroVentaModel>(
+      ApiPaths.meseroAbrirVentaDirecta,
+      const <String, dynamic>{},
+      (json) => MeseroVentaModel.fromJson(Map<String, dynamic>.from(json as Map)),
+    );
+    return response.data!;
+  }
+
+  Future<List<MeseroVentaModel>> listarVentasDirectasAbiertas() async {
+    final response = await _apiClient.get<List<MeseroVentaModel>>(
+      ApiPaths.meseroVentasDirectasAbiertas,
+      (json) => (json as List? ?? const [])
+          .map((e) => MeseroVentaModel.fromJson(Map<String, dynamic>.from(e as Map)))
+          .toList(growable: false),
+    );
+    return response.data ?? const <MeseroVentaModel>[];
+  }
+
   Future<MeseroVentaModel> consultarVenta(int ventaId) async {
     final response = await _apiClient.get<MeseroVentaModel>(
       ApiPaths.meseroVenta(ventaId),

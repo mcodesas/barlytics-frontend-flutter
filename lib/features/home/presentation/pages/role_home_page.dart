@@ -1194,6 +1194,7 @@ class _RoleHomeProfile {
           'productos',
           'movimientos',
           'proximo_pedido',
+          'sincronizar_catalogo',
           'precios',
           'reportes',
           'ganancias',
@@ -1309,6 +1310,7 @@ List<_WorkflowStep> _workflowFor(
     _RoleHomeType.inventory => const [
         ('inventario', 'Consulta existencias', 'Identifica faltantes y diferencias.'),
         ('movimientos', 'Registra movimientos', 'Aplica entradas, salidas o ajustes.'),
+        ('sincronizar_catalogo', 'Comparte el catálogo', 'Copia productos y costos hacia otra sucursal autorizada.'),
         ('proximo_pedido', 'Prepara el pedido', 'Revisa la reposición sugerida.'),
       ],
     _RoleHomeType.prices => const [

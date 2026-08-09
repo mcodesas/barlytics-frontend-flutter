@@ -16,8 +16,14 @@ class AuthRemoteDataSource {
     return response.data!;
   }
 
-  Future<void> logout() async {
-    await _apiClient.post<void>(ApiPaths.authLogout, null, (_) => null);
+  Future<void> logout({String? token}) async {
+    final authorization = token == null || token.trim().isEmpty ? null : 'Bearer $token';
+    await _apiClient.post<void>(
+      ApiPaths.authLogout,
+      null,
+      (_) => null,
+      headers: authorization == null ? null : {'Authorization': authorization},
+    );
   }
 
   Future<void> requestPasswordRecovery(String email) async {

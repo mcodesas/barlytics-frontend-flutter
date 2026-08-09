@@ -677,7 +677,9 @@ class _RolPersonalizadoFormSheetState extends ConsumerState<_RolPersonalizadoFor
   final _formKey = GlobalKey<FormState>();
   late final TextEditingController _name;
   late final TextEditingController _description;
+  late final TextEditingController _menuSearch;
   late Set<int> _selectedMenus;
+  String _menuType = 'Todos';
   int? _companyId;
   int? _branchId;
   bool _branchScope = false;
@@ -691,6 +693,7 @@ class _RolPersonalizadoFormSheetState extends ConsumerState<_RolPersonalizadoFor
     final role = widget.role;
     _name = TextEditingController(text: role?.roleNombre ?? '');
     _description = TextEditingController(text: role?.roleDescripcion ?? '');
+    _menuSearch = TextEditingController();
     _selectedMenus = {...?role?.menuIds};
     final companyIds = <int>{
       ...widget.companies.map((item) => item.emprId).whereType<int>(),
@@ -706,6 +709,7 @@ class _RolPersonalizadoFormSheetState extends ConsumerState<_RolPersonalizadoFor
   void dispose() {
     _name.dispose();
     _description.dispose();
+    _menuSearch.dispose();
     super.dispose();
   }
 
@@ -721,6 +725,42 @@ class _RolPersonalizadoFormSheetState extends ConsumerState<_RolPersonalizadoFor
     }
     return null;
   }
+
+  List<String> get _menuTypes {
+    final values = widget.menus
+        .expand((menu) => menu.tipos.isEmpty ? const ['General'] : menu.tipos)
+        .toSet()
+        .toList()
+      ..sort((a, b) => a.toLowerCase().compareTo(b.toLowerCase()));
+    return values;
+  }
+
+  List<MenuAsignableModel> get _filteredMenus {
+    final query = _normalizeMenuText(_menuSearch.text);
+    return widget.menus.where((menu) {
+      final types = menu.tipos.isEmpty ? const ['General'] : menu.tipos;
+      if (_menuType != 'Todos' && !types.contains(_menuType)) return false;
+      if (query.isEmpty) return true;
+      final searchable = _normalizeMenuText([
+        menu.nombre,
+        menu.descripcion,
+        menu.parametro,
+        ...types,
+      ].join(' '));
+      return searchable.contains(query);
+    }).toList();
+  }
+
+  String _normalizeMenuText(String value) => value
+      .trim()
+      .toLowerCase()
+      .replaceAll('á', 'a')
+      .replaceAll('é', 'e')
+      .replaceAll('í', 'i')
+      .replaceAll('ó', 'o')
+      .replaceAll('ú', 'u')
+      .replaceAll('ü', 'u')
+      .replaceAll('ñ', 'n');
 
   Future<void> _save() async {
     if (!_formKey.currentState!.validate()) return;
@@ -1108,10 +1148,11 @@ class _RolPersonalizadoFormSheetState extends ConsumerState<_RolPersonalizadoFor
                                   TextButton(
                                     onPressed: () => setState(
                                       () => _selectedMenus = widget.menus
+                                          .where((item) => item.asignable)
                                           .map((item) => item.menuId)
                                           .toSet(),
                                     ),
-                                    child: const Text('Seleccionar todas'),
+                                    child: const Text('Seleccionar disponibles'),
                                   ),
                                   TextButton(
                                     onPressed: () => setState(
@@ -1121,80 +1162,184 @@ class _RolPersonalizadoFormSheetState extends ConsumerState<_RolPersonalizadoFor
                                   ),
                                 ],
                               ),
-                              child: LayoutBuilder(
-                                builder: (context, constraints) {
-                                  final columns = constraints.maxWidth >= 900
-                                      ? 3
-                                      : constraints.maxWidth >= 600
-                                          ? 2
-                                          : 1;
-                                  final width = math.max(
-                                    240.0,
-                                    (constraints.maxWidth -
-                                            ((columns - 1) * 10)) /
-                                        columns,
-                                  ).toDouble();
-                                  return Wrap(
-                                    spacing: 10,
-                                    runSpacing: 10,
-                                    children: [
-                                      for (final menu in widget.menus)
-                                        SizedBox(
-                                          width: width,
-                                          child: Material(
-                                            color: _selectedMenus
-                                                    .contains(menu.menuId)
-                                                ? palette.secondary
-                                                    .withOpacity(0.12)
-                                                : palette.background
-                                                    .withOpacity(0.65),
-                                            borderRadius:
-                                                BorderRadius.circular(16),
-                                            child: CheckboxListTile(
-                                              value: _selectedMenus
-                                                  .contains(menu.menuId),
-                                              onChanged: (value) => setState(
-                                                () => value == true
-                                                    ? _selectedMenus
-                                                        .add(menu.menuId)
-                                                    : _selectedMenus.remove(
-                                                        menu.menuId,
-                                                      ),
-                                              ),
-                                              controlAffinity:
-                                                  ListTileControlAffinity.leading,
-                                              title: Text(
-                                                menu.nombre,
-                                                style: TextStyle(
-                                                  color: palette.textPrimary,
-                                                  fontWeight: FontWeight.w900,
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.stretch,
+                                children: [
+                                  LayoutBuilder(
+                                    builder: (context, constraints) {
+                                      final search = TextField(
+                                        controller: _menuSearch,
+                                        onChanged: (_) => setState(() {}),
+                                        decoration: InputDecoration(
+                                          labelText: 'Buscar opción de menú',
+                                          hintText: 'Nombre, descripción o tipo',
+                                          prefixIcon: const Icon(Icons.search_rounded),
+                                          suffixIcon: _menuSearch.text.isEmpty
+                                              ? null
+                                              : IconButton(
+                                                  tooltip: 'Limpiar búsqueda',
+                                                  onPressed: () => setState(_menuSearch.clear),
+                                                  icon: const Icon(Icons.close_rounded),
                                                 ),
-                                              ),
-                                              subtitle: Text(
-                                                menu.descripcion,
-                                                maxLines: 2,
-                                                overflow: TextOverflow.ellipsis,
-                                                style: TextStyle(
-                                                  color: palette.textSecondary,
-                                                  fontWeight: FontWeight.w600,
-                                                ),
-                                              ),
-                                              shape: RoundedRectangleBorder(
-                                                borderRadius:
-                                                    BorderRadius.circular(16),
-                                                side: BorderSide(
-                                                  color: _selectedMenus
-                                                          .contains(menu.menuId)
-                                                      ? palette.secondary
-                                                      : palette.cardBorder,
-                                                ),
-                                              ),
-                                            ),
-                                          ),
+                                          border: const OutlineInputBorder(),
                                         ),
-                                    ],
-                                  );
-                                },
+                                      );
+                                      final type = DropdownButtonFormField<String>(
+                                        value: _menuType,
+                                        isExpanded: true,
+                                        decoration: const InputDecoration(
+                                          labelText: 'Tipo de menú',
+                                          prefixIcon: Icon(Icons.category_outlined),
+                                          border: OutlineInputBorder(),
+                                        ),
+                                        items: [
+                                          const DropdownMenuItem(value: 'Todos', child: Text('Todos los tipos')),
+                                          for (final item in _menuTypes)
+                                            DropdownMenuItem(value: item, child: Text(item)),
+                                        ],
+                                        onChanged: (value) => setState(() => _menuType = value ?? 'Todos'),
+                                      );
+                                      if (constraints.maxWidth < 680) {
+                                        return Column(children: [search, const SizedBox(height: 10), type]);
+                                      }
+                                      return Row(children: [Expanded(flex: 2, child: search), const SizedBox(width: 10), Expanded(child: type)]);
+                                    },
+                                  ),
+                                  const SizedBox(height: 10),
+                                  Text(
+                                    'Mostrando ${_filteredMenus.length} de ${widget.menus.length} opciones. Las etiquetas indican qué perfiles estándar usan cada menú.',
+                                    style: TextStyle(color: palette.textSecondary, fontWeight: FontWeight.w700),
+                                  ),
+                                  const SizedBox(height: 10),
+                                  if (_filteredMenus.isEmpty)
+                                    Container(
+                                      padding: const EdgeInsets.all(24),
+                                      decoration: BoxDecoration(
+                                        color: palette.background.withOpacity(0.65),
+                                        borderRadius: BorderRadius.circular(16),
+                                        border: Border.all(color: palette.cardBorder),
+                                      ),
+                                      child: Column(
+                                        children: [
+                                          Icon(Icons.search_off_rounded, size: 38, color: palette.textSecondary),
+                                          const SizedBox(height: 8),
+                                          Text('No se encontraron opciones de menú', style: TextStyle(color: palette.textPrimary, fontWeight: FontWeight.w900)),
+                                          const SizedBox(height: 4),
+                                          Text('Cambia el texto o el tipo seleccionado.', style: TextStyle(color: palette.textSecondary, fontWeight: FontWeight.w600)),
+                                        ],
+                                      ),
+                                    )
+                                  else
+                                    LayoutBuilder(
+                                      builder: (context, constraints) {
+                                        final columns = constraints.maxWidth >= 900
+                                            ? 3
+                                            : constraints.maxWidth >= 600
+                                                ? 2
+                                                : 1;
+                                        final width = math.max(
+                                          240.0,
+                                          (constraints.maxWidth - ((columns - 1) * 10)) / columns,
+                                        ).toDouble();
+                                        return Wrap(
+                                          spacing: 10,
+                                          runSpacing: 10,
+                                          children: [
+                                            for (final menu in _filteredMenus)
+                                              SizedBox(
+                                                width: width,
+                                                child: Material(
+                                                  color: _selectedMenus.contains(menu.menuId)
+                                                      ? palette.secondary.withOpacity(0.12)
+                                                      : palette.background.withOpacity(0.65),
+                                                  borderRadius: BorderRadius.circular(16),
+                                                  child: CheckboxListTile(
+                                                    value: _selectedMenus.contains(menu.menuId),
+                                                    enabled: menu.asignable,
+                                                    onChanged: !menu.asignable
+                                                        ? null
+                                                        : (value) => setState(
+                                                              () => value == true
+                                                                  ? _selectedMenus.add(menu.menuId)
+                                                                  : _selectedMenus.remove(menu.menuId),
+                                                            ),
+                                                    controlAffinity: ListTileControlAffinity.leading,
+                                                    secondary: menu.asignable
+                                                        ? null
+                                                        : Tooltip(
+                                                            message: 'Tu perfil puede consultar esta opción, pero no delegarla.',
+                                                            child: Icon(Icons.lock_outline_rounded, color: palette.textSecondary),
+                                                          ),
+                                                    title: Text(
+                                                      menu.nombre,
+                                                      style: TextStyle(
+                                                        color: menu.asignable ? palette.textPrimary : palette.textSecondary,
+                                                        fontWeight: FontWeight.w900,
+                                                      ),
+                                                    ),
+                                                    subtitle: Padding(
+                                                      padding: const EdgeInsets.only(top: 5),
+                                                      child: Column(
+                                                        crossAxisAlignment: CrossAxisAlignment.start,
+                                                        children: [
+                                                          Text(
+                                                            menu.descripcion,
+                                                            maxLines: 2,
+                                                            overflow: TextOverflow.ellipsis,
+                                                            style: TextStyle(color: palette.textSecondary, fontWeight: FontWeight.w600),
+                                                          ),
+                                                          const SizedBox(height: 7),
+                                                          Wrap(
+                                                            spacing: 5,
+                                                            runSpacing: 5,
+                                                            children: [
+                                                              for (final type in (menu.tipos.isEmpty ? const ['General'] : menu.tipos))
+                                                                Container(
+                                                                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                                                                  decoration: BoxDecoration(
+                                                                    color: palette.secondary.withOpacity(0.10),
+                                                                    borderRadius: BorderRadius.circular(999),
+                                                                    border: Border.all(color: palette.secondary.withOpacity(0.30)),
+                                                                  ),
+                                                                  child: Text(
+                                                                    type,
+                                                                    style: TextStyle(color: palette.textPrimary, fontSize: 11, fontWeight: FontWeight.w800),
+                                                                  ),
+                                                                ),
+                                                              if (!menu.asignable)
+                                                                Container(
+                                                                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                                                                  decoration: BoxDecoration(
+                                                                    color: palette.warning.withOpacity(0.10),
+                                                                    borderRadius: BorderRadius.circular(999),
+                                                                    border: Border.all(color: palette.warning.withOpacity(0.30)),
+                                                                  ),
+                                                                  child: Text(
+                                                                    'No delegable',
+                                                                    style: TextStyle(color: palette.warning, fontSize: 11, fontWeight: FontWeight.w900),
+                                                                  ),
+                                                                ),
+                                                            ],
+                                                          ),
+                                                        ],
+                                                      ),
+                                                    ),
+                                                    shape: RoundedRectangleBorder(
+                                                      borderRadius: BorderRadius.circular(16),
+                                                      side: BorderSide(
+                                                        color: _selectedMenus.contains(menu.menuId)
+                                                            ? palette.secondary
+                                                            : palette.cardBorder,
+                                                      ),
+                                                    ),
+                                                  ),
+                                                ),
+                                              ),
+                                          ],
+                                        );
+                                      },
+                                    ),
+                                ],
                               ),
                             ),
                             const SizedBox(height: 12),

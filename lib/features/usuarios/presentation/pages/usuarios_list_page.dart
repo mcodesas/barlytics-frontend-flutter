@@ -30,6 +30,7 @@ class _UsuariosListPageState extends ConsumerState<UsuariosListPage> {
 
   bool _loading = true;
   bool _deleting = false;
+  final Set<int> _resendingActivationIds = <int>{};
   String? _error;
   int? _statusFilter;
   bool? _blockedFilter;
@@ -305,6 +306,11 @@ class _UsuariosListPageState extends ConsumerState<UsuariosListPage> {
                   onRoles: usuario.usuaId == null
                       ? null
                       : () => context.go('/usuarios/${usuario.usuaId}/roles'),
+                  onResendActivation: usuario.usuaId == null ||
+                          usuario.usuaEstado != 1 ||
+                          _resendingActivationIds.contains(usuario.usuaId)
+                      ? null
+                      : () => _resendActivation(usuario),
                   onDeactivate: usuario.usuaId == null ? null : () => _delete(usuario),
                 ),
               ),
@@ -517,6 +523,18 @@ class _UsuariosListPageState extends ConsumerState<UsuariosListPage> {
                                   label: const Text('Editar'),
                                 ),
                                 OutlinedButton.icon(
+                                  onPressed: id == null ||
+                                          usuario.usuaEstado != 1 ||
+                                          _resendingActivationIds.contains(id)
+                                      ? null
+                                      : () {
+                                          Navigator.pop(sheetContext);
+                                          _resendActivation(usuario);
+                                        },
+                                  icon: const Icon(Icons.mark_email_unread_outlined),
+                                  label: const Text('Reenviar activación'),
+                                ),
+                                OutlinedButton.icon(
                                   style: OutlinedButton.styleFrom(
                                     foregroundColor: AppColors.danger,
                                     side: BorderSide(color: AppColors.danger.withOpacity(0.35)),
@@ -563,6 +581,42 @@ class _UsuariosListPageState extends ConsumerState<UsuariosListPage> {
         );
       },
     );
+  }
+
+  Future<void> _resendActivation(UsuariosResponseModel usuario) async {
+    final id = usuario.usuaId;
+    final email = usuario.usuaEmail?.trim() ?? '';
+    if (id == null || email.isEmpty || usuario.usuaEstado != 1) return;
+
+    final confirmed = await showConfirmationDialog(
+      context,
+      title: 'Reenviar correo de activación',
+      message: 'Se generará un nuevo código y un nuevo enlace de activación para $email. Los anteriores dejarán de funcionar. ¿Deseas continuar?',
+    );
+    if (!confirmed || !mounted) return;
+
+    setState(() => _resendingActivationIds.add(id));
+    try {
+      final api = ref.read(apiClientProvider);
+      await api.post<void>(
+        '${ApiPaths.usuarios}/$id/resend-activation',
+        null,
+        (_) {},
+      );
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Correo de activación reenviado a $email.')),
+      );
+    } catch (error) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('No fue posible reenviar el correo de activación: $error')),
+      );
+    } finally {
+      if (mounted) {
+        setState(() => _resendingActivationIds.remove(id));
+      }
+    }
   }
 
   Future<void> _delete(UsuariosResponseModel usuario) async {
@@ -1059,6 +1113,7 @@ class _UserCard extends StatelessWidget {
     required this.onOpen,
     required this.onEdit,
     required this.onRoles,
+    required this.onResendActivation,
     required this.onDeactivate,
   });
 
@@ -1072,6 +1127,7 @@ class _UserCard extends StatelessWidget {
   final VoidCallback onOpen;
   final VoidCallback? onEdit;
   final VoidCallback? onRoles;
+  final VoidCallback? onResendActivation;
   final VoidCallback? onDeactivate;
 
   @override
@@ -1149,6 +1205,9 @@ class _UserCard extends StatelessWidget {
                         case 'roles':
                           onRoles?.call();
                           break;
+                        case 'resend_activation':
+                          onResendActivation?.call();
+                          break;
                         case 'deactivate':
                           onDeactivate?.call();
                           break;
@@ -1177,6 +1236,15 @@ class _UserCard extends StatelessWidget {
                           dense: true,
                           leading: Icon(Icons.admin_panel_settings_outlined),
                           title: Text('Administrar roles'),
+                        ),
+                      ),
+                      PopupMenuItem<String>(
+                        value: 'resend_activation',
+                        enabled: onResendActivation != null,
+                        child: const ListTile(
+                          dense: true,
+                          leading: Icon(Icons.mark_email_unread_outlined),
+                          title: Text('Reenviar activación'),
                         ),
                       ),
                       const PopupMenuDivider(),

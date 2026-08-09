@@ -41,38 +41,44 @@ Color _selectedMenuForeground(AppPalette palette) {
 /// Controla la visibilidad del menú lateral operativo en escritorio.
 final operationalMenuOpenProvider = StateProvider<bool>((ref) => false);
 
-bool _isInventoryRole(String role) {
-  final normalized = role.toUpperCase();
-  return normalized.contains('INVENTARIO') ||
-      normalized.contains('INVENTORY') ||
-      normalized.contains('BODEGA') ||
-      normalized.contains('ALMACEN') ||
-      normalized.contains('ALMACÉN');
-}
-
-bool _isMesaCashierSellerRole(String role) {
-  final normalized = role.toUpperCase();
-  return normalized.contains('MESER') ||
-      normalized.contains('CAJER') ||
-      normalized.contains('VENDEDOR') ||
-      normalized.contains('VENTA') ||
-      normalized.contains('SELLER');
-}
-
-bool _isManagerRole(String role) {
-  final normalized = role
+String _normalizedRoleToken(String role) {
+  return role
       .toUpperCase()
       .replaceAll('Á', 'A')
       .replaceAll('É', 'E')
       .replaceAll('Í', 'I')
       .replaceAll('Ó', 'O')
-      .replaceAll('Ú', 'U');
-  return normalized.contains('GERENTE') ||
-      normalized.contains('MANAGER') ||
-      normalized.contains('SUPERVISOR');
+      .replaceAll('Ú', 'U')
+      .replaceAll(RegExp(r'^ROLE_'), '')
+      .replaceAll(RegExp(r'[^A-Z0-9]+'), '_')
+      .replaceAll(RegExp(r'^_+|_+$'), '');
+}
+
+bool _isPersonalizedRole(String role) => _normalizedRoleToken(role) == 'PERSONALIZADO';
+
+bool _isInventoryRole(String role) {
+  final normalized = _normalizedRoleToken(role);
+  return const {'INVENTARIO', 'INVENTORY', 'BODEGA', 'ALMACEN'}.contains(normalized);
+}
+
+bool _isMesaCashierSellerRole(String role) {
+  final normalized = _normalizedRoleToken(role);
+  return const {'MESERO', 'MESERA', 'CAJERO', 'CAJERA', 'VENDEDOR', 'VENDEDORA', 'VENTAS', 'SELLER'}
+      .contains(normalized);
+}
+
+bool _isManagerRole(String role) {
+  final normalized = _normalizedRoleToken(role);
+  return const {'GERENTE', 'MANAGER', 'SUPERVISOR'}.contains(normalized);
 }
 
 bool _isOperationalRole(String role) => _isMesaCashierSellerRole(role) || _isInventoryRole(role);
+
+bool _isGlobalAdminRole(String role) {
+  final normalized = _normalizedRoleToken(role);
+  return const {'ADMIN', 'ADMINISTRADOR', 'SUPERADMIN', 'SUPER_ADMIN'}.contains(normalized);
+}
+
 
 /// Scaffold principal con navegación adaptable y diseño tecnológico unificado.
 class AppScaffold extends ConsumerStatefulWidget {
@@ -91,9 +97,14 @@ class _AppScaffoldState extends ConsumerState<AppScaffold> {
     final isDesktop = ResponsiveUtils.isDesktop(context);
     final palette = ref.watch(selectedAppPaletteProvider);
     final roles = ref.watch(authControllerProvider).roles;
-    final isOperativo = roles.any(_isOperationalRole);
-    final isInventario = roles.any(_isInventoryRole);
-    final isManager = roles.any(_isManagerRole);
+    final hasPersonalizedRole = roles.any(_isPersonalizedRole);
+    // Un rol personalizado debe navegar exclusivamente con el catálogo que
+    // devuelve /me/menus. No debe heredar shells ni menús predefinidos por el
+    // nombre de otro rol que el usuario también tenga asignado.
+    final isOperativo = !hasPersonalizedRole && roles.any(_isOperationalRole);
+    final isInventario = !hasPersonalizedRole && roles.any(_isInventoryRole);
+    final isManager = !hasPersonalizedRole && roles.any(_isManagerRole);
+    final isGlobalAdmin = roles.any(_isGlobalAdminRole);
     final operationalMenuOpen = ref.watch(operationalMenuOpenProvider);
     final pageTitle = _resolveCurrentPageTitle(
       context,
@@ -183,6 +194,10 @@ class _AppScaffoldState extends ConsumerState<AppScaffold> {
                       onMenuPressed: () => setState(() => _mainMenuCollapsed = !_mainMenuCollapsed),
                     ),
                     Expanded(child: _PaletteAwareBody(child: widget.child, palette: palette)),
+                    if (isGlobalAdmin)
+                      const _AdminBottomNavigation()
+                    else
+                      const _ManagerBottomNavigation(),
                   ],
                 ),
               ),
@@ -246,6 +261,9 @@ class _AppScaffoldState extends ConsumerState<AppScaffold> {
           ],
         ),
       ),
+      bottomNavigationBar: isGlobalAdmin
+          ? const _AdminBottomNavigation()
+          : const _ManagerBottomNavigation(),
     );
   }
 
@@ -920,6 +938,90 @@ class _PaletteAwareBody extends StatelessWidget {
 
 enum _OperationalBottomMenuType { mesa, inventory }
 
+String _normalizeMenuSearch(String value) {
+  return value
+      .toLowerCase()
+      .trim()
+      .replaceAll('á', 'a')
+      .replaceAll('é', 'e')
+      .replaceAll('í', 'i')
+      .replaceAll('ó', 'o')
+      .replaceAll('ú', 'u')
+      .replaceAll('ü', 'u');
+}
+
+bool _matchesMenuSearch(String query, Iterable<String?> values) {
+  final normalizedQuery = _normalizeMenuSearch(query);
+  if (normalizedQuery.isEmpty) return true;
+  return values.whereType<String>().any(
+        (value) => _normalizeMenuSearch(value).contains(normalizedQuery),
+      );
+}
+
+Widget _menuSearchField({
+  required AppPalette palette,
+  required ValueChanged<String> onChanged,
+}) {
+  return TextField(
+    onChanged: onChanged,
+    textInputAction: TextInputAction.search,
+    style: TextStyle(
+      color: palette.textPrimary,
+      fontWeight: FontWeight.w700,
+    ),
+    decoration: InputDecoration(
+      hintText: 'Buscar menú...',
+      hintStyle: TextStyle(
+        color: palette.textSecondary,
+        fontWeight: FontWeight.w600,
+      ),
+      prefixIcon: Icon(Icons.search_rounded, color: palette.secondary),
+      filled: true,
+      fillColor: palette.background.withOpacity(palette.darkBackground ? 0.38 : 0.72),
+      contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+      enabledBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(palette.radius(16)),
+        borderSide: BorderSide(color: palette.cardBorder),
+      ),
+      focusedBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(palette.radius(16)),
+        borderSide: BorderSide(color: palette.secondary, width: 1.5),
+      ),
+    ),
+  );
+}
+
+Widget _emptyMenuSearchState(AppPalette palette) {
+  return Padding(
+    padding: const EdgeInsets.symmetric(vertical: 28),
+    child: Center(
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(Icons.search_off_rounded, color: palette.textSecondary, size: 34),
+          const SizedBox(height: 8),
+          Text(
+            'No se encontraron menús',
+            style: TextStyle(
+              color: palette.textPrimary,
+              fontWeight: FontWeight.w800,
+            ),
+          ),
+          const SizedBox(height: 3),
+          Text(
+            'Prueba con otro nombre o palabra.',
+            style: TextStyle(
+              color: palette.textSecondary,
+              fontWeight: FontWeight.w600,
+              fontSize: 12,
+            ),
+          ),
+        ],
+      ),
+    ),
+  );
+}
+
 class _DesktopMenuLauncher extends StatelessWidget {
   const _DesktopMenuLauncher({required this.palette, required this.onPressed});
 
@@ -1282,19 +1384,21 @@ class _MeseroSideNavigation extends ConsumerWidget {
                         const SizedBox(height: 6),
                         _NavTile(title: 'Inicio', keyName: 'home', path: '/home', compact: collapsed, palette: palette),
                         _NavTile(title: 'Apariencia', keyName: 'parametros', path: '__appearance__', compact: collapsed, palette: palette, onTap: () => showPaletteSettingsDialog(context)),
-                        if (isInventario && !collapsed) ...[
+                        if (!collapsed) ...[
                           const SizedBox(height: 8),
-                          _NavSectionLabel('Opciones de inventario', palette: palette),
-                        ],
-                        if (isInventario)
-                          ..._authorizedMenuWidgets(
-                            context: context,
-                            ref: ref,
-                            menuAsync: menuAsync.whenData(_ensureInventoryAnalysisMenus),
-                            dark: false,
-                            compact: collapsed,
+                          _NavSectionLabel(
+                            isInventario ? 'Opciones de inventario' : 'Opciones autorizadas',
                             palette: palette,
                           ),
+                        ],
+                        ..._authorizedMenuWidgets(
+                          context: context,
+                          ref: ref,
+                          menuAsync: menuAsync,
+                          dark: false,
+                          compact: collapsed,
+                          palette: palette,
+                        ),
                       ],
                     ),
                   ),
@@ -1339,17 +1443,15 @@ class _MeseroDrawerContent extends ConsumerWidget {
                   const SizedBox(height: 6),
                   _NavTile(title: 'Inicio', keyName: 'home', path: '/home', palette: palette),
                   _NavTile(title: 'Apariencia', keyName: 'parametros', path: '__appearance__', palette: palette, onTap: () => showPaletteSettingsDialog(context)),
-                  if (isInventario) ...[
-                    const Divider(),
-                    ..._authorizedMenuWidgets(
-                      context: context,
-                      ref: ref,
-                      menuAsync: menuAsync.whenData(_ensureInventoryAnalysisMenus),
-                      dark: false,
-                      compact: false,
-                      palette: palette,
-                    ),
-                  ],
+                  const Divider(),
+                  ..._authorizedMenuWidgets(
+                    context: context,
+                    ref: ref,
+                    menuAsync: menuAsync,
+                    dark: false,
+                    compact: false,
+                    palette: palette,
+                  ),
                 ],
               ),
             ),
@@ -1376,6 +1478,10 @@ class _OperationalBottomNavigation extends ConsumerWidget {
 
     final rawSelectedMode = ref.watch(meseroSelectedModeProvider);
     final palette = ref.watch(selectedAppPaletteProvider);
+    final authorizedMenus = ref.watch(userMenuProvider).maybeWhen(
+          data: (items) => items,
+          orElse: () => const <UserMenuItem>[],
+        );
     final roles = ref.watch(authControllerProvider).roles;
     final isCajero = roles.any((role) => role.toUpperCase().contains('CAJER'));
     final selectedMode = !isCajero &&
@@ -1448,10 +1554,36 @@ class _OperationalBottomNavigation extends ConsumerWidget {
       ],
     ];
 
+    final representedPaths = entries.map((entry) => entry.path).toSet();
+    final extraMenus = authorizedMenus.where((item) {
+      if (item.path.trim().isEmpty || item.keyName == 'mesero') return false;
+      return !representedPaths.contains(item.path);
+    }).toList(growable: false);
+    final hasExtraMenus = extraMenus.isNotEmpty;
+    final navigationEntries = <({
+      String path,
+      MeseroPageMode? mode,
+      BottomNavigationBarItem item,
+    })>[
+      ...entries,
+      if (hasExtraMenus)
+        (
+          path: '__more__',
+          mode: null,
+          item: const BottomNavigationBarItem(
+            icon: Icon(Icons.more_horiz_rounded),
+            label: 'Más',
+          ),
+        ),
+    ];
+
     final currentPath = GoRouterState.of(context).uri.path;
-    final selectedIndex = currentPath == '/home'
+    var selectedIndex = currentPath == '/home'
         ? 0
-        : entries.indexWhere((entry) => entry.mode == selectedMode);
+        : navigationEntries.indexWhere((entry) => entry.mode == selectedMode);
+    if (extraMenus.any((item) => currentPath == item.path || currentPath.startsWith('${item.path}/'))) {
+      selectedIndex = navigationEntries.indexWhere((entry) => entry.path == '__more__');
+    }
 
     return Container(
       decoration: BoxDecoration(
@@ -1478,7 +1610,16 @@ class _OperationalBottomNavigation extends ConsumerWidget {
           unselectedFontSize: 9.5,
           iconSize: 22,
           onTap: (index) {
-            final entry = entries[index];
+            final entry = navigationEntries[index];
+            if (entry.path == '__more__') {
+              _showOperationalMoreMenu(
+                context: context,
+                palette: palette,
+                items: extraMenus,
+                currentPath: currentPath,
+              );
+              return;
+            }
             if (entry.path == '/home') {
               context.go('/home');
               return;
@@ -1488,17 +1629,143 @@ class _OperationalBottomNavigation extends ConsumerWidget {
             }
             context.go(entry.path);
           },
-          items: [for (final entry in entries) entry.item],
+          items: [for (final entry in navigationEntries) entry.item],
         ),
       ),
     );
+  }
+
+  Future<void> _showOperationalMoreMenu({
+    required BuildContext context,
+    required AppPalette palette,
+    required List<UserMenuItem> items,
+    required String currentPath,
+  }) async {
+    var query = '';
+    final destination = await showModalBottomSheet<String>(
+      context: context,
+      backgroundColor: Colors.transparent,
+      isScrollControlled: true,
+      builder: (sheetContext) => StatefulBuilder(
+        builder: (sheetContext, setSheetState) {
+          final filteredItems = items.where((item) {
+            return _matchesMenuSearch(query, [
+              item.title,
+              item.description,
+              item.keyName,
+              item.path,
+            ]);
+          }).toList(growable: false);
+
+          return Padding(
+            padding: EdgeInsets.only(bottom: MediaQuery.viewInsetsOf(sheetContext).bottom),
+            child: SafeArea(
+              child: Container(
+                margin: const EdgeInsets.all(12),
+                constraints: BoxConstraints(maxHeight: MediaQuery.sizeOf(sheetContext).height * 0.76),
+                padding: const EdgeInsets.fromLTRB(14, 10, 14, 14),
+                decoration: BoxDecoration(
+                  color: palette.surface,
+                  borderRadius: BorderRadius.circular(palette.radius(26)),
+                  border: Border.all(color: palette.cardBorder),
+                  boxShadow: [
+                    BoxShadow(color: Colors.black.withOpacity(0.20), blurRadius: 28, offset: const Offset(0, 12)),
+                  ],
+                ),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Center(
+                      child: Container(
+                        width: 44,
+                        height: 4,
+                        margin: const EdgeInsets.only(bottom: 14),
+                        decoration: BoxDecoration(
+                          color: palette.textSecondary.withOpacity(0.30),
+                          borderRadius: BorderRadius.circular(99),
+                        ),
+                      ),
+                    ),
+                    Text(
+                      'Opciones autorizadas',
+                      style: TextStyle(color: palette.textPrimary, fontSize: 18, fontWeight: FontWeight.w900),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      'Incluye los menús adicionales asignados a tus roles.',
+                      style: TextStyle(color: palette.textSecondary, fontWeight: FontWeight.w600),
+                    ),
+                    const SizedBox(height: 12),
+                    _menuSearchField(
+                      palette: palette,
+                      onChanged: (value) => setSheetState(() => query = value),
+                    ),
+                    const SizedBox(height: 12),
+                    Flexible(
+                      child: filteredItems.isEmpty
+                          ? _emptyMenuSearchState(palette)
+                          : ListView(
+                              shrinkWrap: true,
+                              children: [
+                                for (final item in filteredItems)
+                                  Padding(
+                                    padding: const EdgeInsets.only(bottom: 7),
+                                    child: Material(
+                                      color: currentPath == item.path || currentPath.startsWith('${item.path}/')
+                                          ? palette.secondary.withOpacity(palette.darkBackground ? 0.20 : 0.10)
+                                          : palette.background.withOpacity(palette.darkBackground ? 0.34 : 0.70),
+                                      borderRadius: BorderRadius.circular(palette.radius(18)),
+                                      child: ListTile(
+                                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(palette.radius(18))),
+                                        leading: Container(
+                                          width: 42,
+                                          height: 42,
+                                          decoration: BoxDecoration(
+                                            color: palette.secondary.withOpacity(0.14),
+                                            borderRadius: BorderRadius.circular(14),
+                                          ),
+                                          child: Icon(ModuleVisuals.byKey(item.keyName).icon, color: palette.secondary),
+                                        ),
+                                        title: Text(
+                                          item.title.trim().isEmpty ? item.keyName : item.title.trim(),
+                                          style: TextStyle(color: palette.textPrimary, fontWeight: FontWeight.w900),
+                                        ),
+                                        subtitle: item.description == null
+                                            ? null
+                                            : Text(
+                                                item.description!,
+                                                maxLines: 1,
+                                                overflow: TextOverflow.ellipsis,
+                                                style: TextStyle(color: palette.textSecondary, fontWeight: FontWeight.w600),
+                                              ),
+                                        trailing: Icon(Icons.chevron_right_rounded, color: palette.textSecondary),
+                                        onTap: () => Navigator.of(sheetContext).pop(item.path),
+                                      ),
+                                    ),
+                                  ),
+                              ],
+                            ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          );
+        },
+      ),
+    );
+
+    if (destination != null && context.mounted) {
+      context.go(destination);
+    }
   }
 }
 
 class _InventoryBottomNavigation extends ConsumerWidget {
   const _InventoryBottomNavigation();
 
-  static const _allItems = <({String label, IconData icon, String path})>[
+  static const _standardItems = <({String label, IconData icon, String path})>[
     (label: 'Inicio', icon: Icons.home_rounded, path: '/home'),
     (label: 'Productos', icon: Icons.inventory_2_rounded, path: '/productos'),
     (label: 'Inventario', icon: Icons.fact_check_rounded, path: '/inventario'),
@@ -1508,6 +1775,7 @@ class _InventoryBottomNavigation extends ConsumerWidget {
     (label: 'Reportes', icon: Icons.analytics_rounded, path: '/reportes'),
     (label: 'Ganancias', icon: Icons.trending_up_rounded, path: '/ganancias'),
     (label: 'Pedido', icon: Icons.local_shipping_rounded, path: '/proximo_pedido'),
+    (label: 'Sincronizar', icon: Icons.sync_alt_rounded, path: '/sincronizar_catalogo'),
   ];
 
   static const _moreItem = (label: 'Más', icon: Icons.more_horiz_rounded, path: '__more__');
@@ -1517,47 +1785,59 @@ class _InventoryBottomNavigation extends ConsumerWidget {
     final palette = ref.watch(selectedAppPaletteProvider);
     final currentPath = GoRouterState.of(context).uri.path;
     final width = MediaQuery.sizeOf(context).width;
+    final authorizedMenus = ref.watch(userMenuProvider).maybeWhen(
+          data: (items) => items,
+          orElse: () => const <UserMenuItem>[],
+        );
+    final standardByPath = <String, ({String label, IconData icon, String path})>{
+      for (final item in _standardItems) item.path: item,
+    };
+    final byPath = <String, ({String label, IconData icon, String path})>{
+      '/home': standardByPath['/home']!,
+    };
+    for (final item in authorizedMenus) {
+      final path = item.path.trim();
+      if (path.isEmpty || path == '/home') continue;
+      final standard = standardByPath[path];
+      byPath.putIfAbsent(
+        path,
+        () => standard ?? (
+          label: item.title.trim().isEmpty ? item.keyName : item.title.trim(),
+          icon: ModuleVisuals.byKey(item.keyName).icon,
+          path: path,
+        ),
+      );
+    }
 
-    final visibleItems = width >= 1280
-        ? _allItems
-            .where((item) => const {
-                  '/home',
-                  '/productos',
-                  '/inventario',
-                  '/movimientos',
-                  '/reportes',
-                  '/ganancias',
-                  '/proximo_pedido',
-                }.contains(item.path))
-            .toList(growable: false)
+    // El orden puede ser conocido, pero la existencia de cada opción depende
+    // exclusivamente de los menús autorizados por el backend.
+    final allItems = byPath.values.toList()
+      ..sort((a, b) {
+        final ai = _standardItems.indexWhere((item) => item.path == a.path);
+        final bi = _standardItems.indexWhere((item) => item.path == b.path);
+        final ap = ai < 0 ? 999 : ai;
+        final bp = bi < 0 ? 999 : bi;
+        final byPriority = ap.compareTo(bp);
+        return byPriority != 0 ? byPriority : a.label.toLowerCase().compareTo(b.label.toLowerCase());
+      });
+
+    final maxVisible = width >= 1280
+        ? 7
         : width >= 720
-            ? _allItems
-                .where((item) => const {
-                      '/home',
-                      '/productos',
-                      '/inventario',
-                      '/movimientos',
-                      '/ganancias',
-                      '/proximo_pedido',
-                    }.contains(item.path))
-                .toList(growable: false)
-            : _allItems
-                .where((item) => const {
-                      '/home',
-                      '/productos',
-                      '/inventario',
-                      '/proximo_pedido',
-                    }.contains(item.path))
-                .toList(growable: false);
-
-    final visiblePaths = visibleItems.map((item) => item.path).toSet();
-    final overflowItems = _allItems.where((item) => !visiblePaths.contains(item.path)).toList(growable: false);
+            ? 5
+            : 4;
+    final hasOverflow = allItems.length > maxVisible;
+    final visibleCount = hasOverflow ? maxVisible - 1 : allItems.length;
+    final visibleItems = allItems.take(visibleCount).toList(growable: false);
+    final overflowItems = hasOverflow
+        ? allItems.skip(visibleCount).toList(growable: false)
+        : const <({String label, IconData icon, String path})>[];
     final navigationItems = <({String label, IconData icon, String path})>[
       ...visibleItems,
       if (overflowItems.isNotEmpty) _moreItem,
     ];
 
-    final selectedPath = _inventorySelectedPath(currentPath);
+    final selectedPath = _inventorySelectedPath(currentPath, allItems);
     var selectedIndex = navigationItems.indexWhere((item) => item.path == selectedPath);
     if (selectedIndex < 0 && overflowItems.any((item) => item.path == selectedPath)) {
       selectedIndex = navigationItems.indexWhere((item) => item.path == _moreItem.path);
@@ -1630,7 +1910,10 @@ class _InventoryBottomNavigation extends ConsumerWidget {
     );
   }
 
-  String _inventorySelectedPath(String currentPath) {
+  String _inventorySelectedPath(
+    String currentPath,
+    List<({String label, IconData icon, String path})> allItems,
+  ) {
     if (currentPath == '/home') return '/home';
 
     if (currentPath == '/tablas_parametricas' ||
@@ -1640,7 +1923,7 @@ class _InventoryBottomNavigation extends ConsumerWidget {
       return '/tablas_parametricas';
     }
 
-    for (final item in _allItems) {
+    for (final item in allItems) {
       if (currentPath == item.path || currentPath.startsWith('${item.path}/')) {
         return item.path;
       }
@@ -1654,74 +1937,105 @@ class _InventoryBottomNavigation extends ConsumerWidget {
     required List<({String label, IconData icon, String path})> items,
     required String selectedPath,
   }) async {
+    var query = '';
     final destination = await showModalBottomSheet<String>(
       context: context,
       backgroundColor: Colors.transparent,
-      builder: (sheetContext) => SafeArea(
-        child: Container(
-          margin: const EdgeInsets.all(12),
-          padding: const EdgeInsets.fromLTRB(14, 10, 14, 14),
-          decoration: BoxDecoration(
-            color: palette.surface,
-            borderRadius: BorderRadius.circular(palette.radius(26)),
-            border: Border.all(color: palette.cardBorder),
-            boxShadow: [
-              BoxShadow(color: Colors.black.withOpacity(0.20), blurRadius: 28, offset: const Offset(0, 12)),
-            ],
-          ),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Center(
-                child: Container(
-                  width: 44,
-                  height: 4,
-                  margin: const EdgeInsets.only(bottom: 14),
-                  decoration: BoxDecoration(
-                    color: palette.textSecondary.withOpacity(0.30),
-                    borderRadius: BorderRadius.circular(99),
-                  ),
+      isScrollControlled: true,
+      builder: (sheetContext) => StatefulBuilder(
+        builder: (sheetContext, setSheetState) {
+          final filteredItems = items.where((item) {
+            return _matchesMenuSearch(query, [item.label, item.path]);
+          }).toList(growable: false);
+
+          return Padding(
+            padding: EdgeInsets.only(bottom: MediaQuery.viewInsetsOf(sheetContext).bottom),
+            child: SafeArea(
+              child: Container(
+                margin: const EdgeInsets.all(12),
+                constraints: BoxConstraints(maxHeight: MediaQuery.sizeOf(sheetContext).height * 0.76),
+                padding: const EdgeInsets.fromLTRB(14, 10, 14, 14),
+                decoration: BoxDecoration(
+                  color: palette.surface,
+                  borderRadius: BorderRadius.circular(palette.radius(26)),
+                  border: Border.all(color: palette.cardBorder),
+                  boxShadow: [
+                    BoxShadow(color: Colors.black.withOpacity(0.20), blurRadius: 28, offset: const Offset(0, 12)),
+                  ],
                 ),
-              ),
-              Text(
-                'Más opciones de inventario',
-                style: TextStyle(color: palette.textPrimary, fontSize: 18, fontWeight: FontWeight.w900),
-              ),
-              const SizedBox(height: 4),
-              Text(
-                'Accede a precios, parámetros y reportes sin saturar la navegación principal.',
-                style: TextStyle(color: palette.textSecondary, fontWeight: FontWeight.w600),
-              ),
-              const SizedBox(height: 12),
-              for (final item in items)
-                Padding(
-                  padding: const EdgeInsets.only(bottom: 7),
-                  child: Material(
-                    color: item.path == selectedPath
-                        ? palette.secondary.withOpacity(palette.darkBackground ? 0.20 : 0.10)
-                        : palette.background.withOpacity(palette.darkBackground ? 0.34 : 0.70),
-                    borderRadius: BorderRadius.circular(palette.radius(18)),
-                    child: ListTile(
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(palette.radius(18))),
-                      leading: Container(
-                        width: 42,
-                        height: 42,
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Center(
+                      child: Container(
+                        width: 44,
+                        height: 4,
+                        margin: const EdgeInsets.only(bottom: 14),
                         decoration: BoxDecoration(
-                          color: palette.secondary.withOpacity(0.14),
-                          borderRadius: BorderRadius.circular(14),
+                          color: palette.textSecondary.withOpacity(0.30),
+                          borderRadius: BorderRadius.circular(99),
                         ),
-                        child: Icon(item.icon, color: palette.secondary),
                       ),
-                      title: Text(item.label, style: TextStyle(color: palette.textPrimary, fontWeight: FontWeight.w900)),
-                      trailing: Icon(Icons.chevron_right_rounded, color: palette.textSecondary),
-                      onTap: () => Navigator.of(sheetContext).pop(item.path),
                     ),
-                  ),
+                    Text(
+                      'Más opciones de inventario',
+                      style: TextStyle(color: palette.textPrimary, fontSize: 18, fontWeight: FontWeight.w900),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      'Accede a precios, parámetros y reportes sin saturar la navegación principal.',
+                      style: TextStyle(color: palette.textSecondary, fontWeight: FontWeight.w600),
+                    ),
+                    const SizedBox(height: 12),
+                    _menuSearchField(
+                      palette: palette,
+                      onChanged: (value) => setSheetState(() => query = value),
+                    ),
+                    const SizedBox(height: 12),
+                    Flexible(
+                      child: filteredItems.isEmpty
+                          ? _emptyMenuSearchState(palette)
+                          : ListView(
+                              shrinkWrap: true,
+                              children: [
+                                for (final item in filteredItems)
+                                  Padding(
+                                    padding: const EdgeInsets.only(bottom: 7),
+                                    child: Material(
+                                      color: item.path == selectedPath
+                                          ? palette.secondary.withOpacity(palette.darkBackground ? 0.20 : 0.10)
+                                          : palette.background.withOpacity(palette.darkBackground ? 0.34 : 0.70),
+                                      borderRadius: BorderRadius.circular(palette.radius(18)),
+                                      child: ListTile(
+                                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(palette.radius(18))),
+                                        leading: Container(
+                                          width: 42,
+                                          height: 42,
+                                          decoration: BoxDecoration(
+                                            color: palette.secondary.withOpacity(0.14),
+                                            borderRadius: BorderRadius.circular(14),
+                                          ),
+                                          child: Icon(item.icon, color: palette.secondary),
+                                        ),
+                                        title: Text(
+                                          item.label,
+                                          style: TextStyle(color: palette.textPrimary, fontWeight: FontWeight.w900),
+                                        ),
+                                        trailing: Icon(Icons.chevron_right_rounded, color: palette.textSecondary),
+                                        onTap: () => Navigator.of(sheetContext).pop(item.path),
+                                      ),
+                                    ),
+                                  ),
+                              ],
+                            ),
+                    ),
+                  ],
                 ),
-            ],
-          ),
-        ),
+              ),
+            ),
+          );
+        },
       ),
     );
 
@@ -1747,6 +2061,244 @@ class _ManagerNavigationItem {
   final String? description;
 }
 
+class _AdminBottomNavigation extends ConsumerWidget {
+  const _AdminBottomNavigation();
+
+  static const _coreItems = <_AdminNavigationItem>[
+    _AdminNavigationItem(label: 'Inicio', icon: Icons.home_rounded, path: '/home'),
+    _AdminNavigationItem(label: 'Clientes', icon: Icons.business_rounded, path: '/empresas'),
+    _AdminNavigationItem(label: 'Usuarios', icon: Icons.manage_accounts_rounded, path: '/usuarios'),
+    _AdminNavigationItem(label: 'Soporte', icon: Icons.help_outline_rounded, path: '/soporte_global'),
+    _AdminNavigationItem(label: 'Más', icon: Icons.more_horiz_rounded, path: '__more__'),
+  ];
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final palette = ref.watch(selectedAppPaletteProvider);
+    final currentPath = GoRouterState.of(context).uri.path;
+    final selectedIndex = _selectedIndex(currentPath);
+    final compact = MediaQuery.sizeOf(context).width < 720;
+    return Container(
+      decoration: BoxDecoration(
+        color: palette.surface.withOpacity(palette.darkBackground ? .96 : .99),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(palette.darkBackground ? .24 : .11),
+            blurRadius: 24,
+            offset: const Offset(0, -8),
+          ),
+        ],
+      ),
+      child: SafeArea(
+        top: false,
+        child: BottomNavigationBar(
+          currentIndex: selectedIndex,
+          type: BottomNavigationBarType.fixed,
+          backgroundColor: Colors.transparent,
+          elevation: 0,
+          selectedItemColor: palette.secondary,
+          unselectedItemColor: palette.textSecondary.withOpacity(.86),
+          selectedFontSize: compact ? 10 : 11.5,
+          unselectedFontSize: compact ? 9.5 : 11,
+          iconSize: compact ? 21 : 23,
+          selectedLabelStyle: const TextStyle(fontWeight: FontWeight.w900, height: 1.15),
+          unselectedLabelStyle: const TextStyle(fontWeight: FontWeight.w700, height: 1.15),
+          showSelectedLabels: true,
+          showUnselectedLabels: true,
+          onTap: (index) {
+            final item = _coreItems[index];
+            if (item.path == '__more__') {
+              _showMore(context, ref, palette);
+              return;
+            }
+            context.go(item.path);
+          },
+          items: [
+            for (final item in _coreItems)
+              BottomNavigationBarItem(
+                icon: Padding(padding: const EdgeInsets.only(bottom: 3), child: Icon(item.icon)),
+                activeIcon: Container(
+                  margin: const EdgeInsets.only(bottom: 3),
+                  padding: EdgeInsets.symmetric(horizontal: compact ? 10 : 13, vertical: 5),
+                  decoration: BoxDecoration(
+                    color: palette.secondary.withOpacity(palette.darkBackground ? .22 : .14),
+                    borderRadius: BorderRadius.circular(18),
+                  ),
+                  child: Icon(item.icon),
+                ),
+                label: item.label,
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  int _selectedIndex(String path) {
+    if (path == '/home') return 0;
+    if (path.startsWith('/empresas') || path.startsWith('/sucursales')) return 1;
+    if (path.startsWith('/usuarios') ||
+        path.startsWith('/roles') ||
+        path.startsWith('/tipos_usuario') ||
+        path.startsWith('/menus') ||
+        path.startsWith('/opciones_menu')) return 2;
+    if (path.startsWith('/soporte_global') ||
+        path.startsWith('/soporte_clientes') ||
+        path.startsWith('/soporte_accesos') ||
+        path.startsWith('/soporte_operacion') ||
+        path.startsWith('/soporte_configuracion') ||
+        path.startsWith('/soporte_mantenimiento') ||
+        path.startsWith('/explorador_datos') ||
+        path.startsWith('/diagnostico_sistema') ||
+        path.startsWith('/auditoria_soporte') ||
+        path.startsWith('/sincronizar_catalogo')) return 3;
+    return 4;
+  }
+
+  void _showMore(BuildContext context, WidgetRef ref, AppPalette palette) {
+    final authorized = ref.read(userMenuProvider).maybeWhen(
+          data: (items) => items,
+          orElse: () => const <UserMenuItem>[],
+        );
+    final entries = <_AdminNavigationItem>[
+      const _AdminNavigationItem(label: 'Sincronizar catálogo', icon: Icons.sync_alt_rounded, path: '/sincronizar_catalogo'),
+      const _AdminNavigationItem(label: 'Explorador de datos', icon: Icons.storage_rounded, path: '/explorador_datos'),
+      const _AdminNavigationItem(label: 'Diagnóstico', icon: Icons.monitor_heart_rounded, path: '/diagnostico_sistema'),
+      const _AdminNavigationItem(label: 'Auditoría', icon: Icons.history_rounded, path: '/auditoria_soporte'),
+      for (final item in authorized)
+        if (item.path.trim().isNotEmpty &&
+            !const {'/home', '/empresas', '/usuarios', '/soporte_global', '/explorador_datos', '/diagnostico_sistema', '/auditoria_soporte', '/sincronizar_catalogo'}.contains(item.path))
+          _AdminNavigationItem(
+            label: item.title.trim().isEmpty ? item.keyName : item.title.trim(),
+            icon: ModuleVisuals.byKey(item.keyName).icon,
+            path: item.path,
+            searchTerms: '${item.keyName} ${item.description ?? ''}',
+          ),
+      const _AdminNavigationItem(label: 'Perfil', icon: Icons.person_rounded, path: '/profile'),
+    ];
+    final unique = <String, _AdminNavigationItem>{};
+    for (final item in entries) {
+      unique.putIfAbsent(item.path, () => item);
+    }
+    var query = '';
+    showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (sheetContext) => StatefulBuilder(
+        builder: (sheetContext, setSheetState) {
+          final filteredItems = unique.values.where((item) {
+            return _matchesMenuSearch(query, [item.label, item.path, item.searchTerms]);
+          }).toList(growable: false);
+
+          return Padding(
+            padding: EdgeInsets.only(bottom: MediaQuery.viewInsetsOf(sheetContext).bottom),
+            child: SafeArea(
+              child: Container(
+                margin: const EdgeInsets.all(12),
+                constraints: BoxConstraints(maxHeight: MediaQuery.sizeOf(sheetContext).height * .80),
+                padding: const EdgeInsets.fromLTRB(14, 10, 14, 14),
+                decoration: BoxDecoration(
+                  color: palette.surface,
+                  borderRadius: BorderRadius.circular(palette.radius(26)),
+                  border: Border.all(color: palette.cardBorder),
+                  boxShadow: [BoxShadow(color: Colors.black.withOpacity(.20), blurRadius: 28, offset: const Offset(0, 12))],
+                ),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Center(
+                      child: Container(
+                        width: 44,
+                        height: 4,
+                        margin: const EdgeInsets.only(bottom: 14),
+                        decoration: BoxDecoration(color: palette.textSecondary.withOpacity(.30), borderRadius: BorderRadius.circular(99)),
+                      ),
+                    ),
+                    Text('Todas las herramientas', style: TextStyle(color: palette.textPrimary, fontSize: 18, fontWeight: FontWeight.w900)),
+                    const SizedBox(height: 4),
+                    Text('Accede a cualquier módulo autorizado sin perder el menú inferior.', style: TextStyle(color: palette.textSecondary, fontWeight: FontWeight.w600)),
+                    const SizedBox(height: 12),
+                    _menuSearchField(
+                      palette: palette,
+                      onChanged: (value) => setSheetState(() => query = value),
+                    ),
+                    const SizedBox(height: 12),
+                    Flexible(
+                      child: filteredItems.isEmpty
+                          ? _emptyMenuSearchState(palette)
+                          : GridView.builder(
+                              shrinkWrap: true,
+                              gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+                                crossAxisCount: MediaQuery.sizeOf(sheetContext).width >= 760 ? 3 : 2,
+                                crossAxisSpacing: 9,
+                                mainAxisSpacing: 9,
+                                childAspectRatio: 2.35,
+                              ),
+                              itemCount: filteredItems.length,
+                              itemBuilder: (itemContext, index) {
+                                final item = filteredItems[index];
+                                return InkWell(
+                                  onTap: () {
+                                    final destination = item.path;
+                                    Navigator.pop(sheetContext);
+                                    WidgetsBinding.instance.addPostFrameCallback((_) {
+                                      if (context.mounted) context.go(destination);
+                                    });
+                                  },
+                                  borderRadius: BorderRadius.circular(16),
+                                  child: Container(
+                                    padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 9),
+                                    decoration: BoxDecoration(
+                                      color: palette.background.withOpacity(.56),
+                                      borderRadius: BorderRadius.circular(16),
+                                      border: Border.all(color: palette.cardBorder),
+                                    ),
+                                    child: Row(
+                                      children: [
+                                        Icon(item.icon, color: palette.primary, size: 21),
+                                        const SizedBox(width: 9),
+                                        Expanded(
+                                          child: Text(
+                                            item.label,
+                                            maxLines: 2,
+                                            overflow: TextOverflow.ellipsis,
+                                            style: TextStyle(color: palette.textPrimary, fontWeight: FontWeight.w800, fontSize: 11.5),
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                );
+                              },
+                            ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          );
+        },
+      ),
+    );
+  }
+}
+
+class _AdminNavigationItem {
+  const _AdminNavigationItem({
+    required this.label,
+    required this.icon,
+    required this.path,
+    this.searchTerms = '',
+  });
+
+  final String label;
+  final IconData icon;
+  final String path;
+  final String searchTerms;
+}
+
 class _ManagerBottomNavigation extends ConsumerWidget {
   const _ManagerBottomNavigation();
 
@@ -1764,7 +2316,8 @@ class _ManagerBottomNavigation extends ConsumerWidget {
     'ventas': 2,
     'inventario': 3,
     'proximo_pedido': 4,
-    'productos': 5,
+    'sincronizar_catalogo': 5,
+    'productos': 6,
     'movimientos': 6,
     'precios': 7,
     'cierres_caja': 8,
@@ -1956,91 +2509,118 @@ class _ManagerBottomNavigation extends ConsumerWidget {
     required List<_ManagerNavigationItem> items,
     required String selectedPath,
   }) async {
+    var query = '';
     final destination = await showModalBottomSheet<String>(
       context: context,
       backgroundColor: Colors.transparent,
       isScrollControlled: true,
-      builder: (sheetContext) => SafeArea(
-        child: Container(
-          margin: const EdgeInsets.all(12),
-          constraints: BoxConstraints(maxHeight: MediaQuery.sizeOf(sheetContext).height * 0.78),
-          padding: const EdgeInsets.fromLTRB(14, 10, 14, 14),
-          decoration: BoxDecoration(
-            color: palette.surface,
-            borderRadius: BorderRadius.circular(palette.radius(26)),
-            border: Border.all(color: palette.cardBorder),
-            boxShadow: [
-              BoxShadow(color: Colors.black.withOpacity(0.20), blurRadius: 28, offset: const Offset(0, 12)),
-            ],
-          ),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Center(
-                child: Container(
-                  width: 44,
-                  height: 4,
-                  margin: const EdgeInsets.only(bottom: 14),
-                  decoration: BoxDecoration(
-                    color: palette.textSecondary.withOpacity(0.30),
-                    borderRadius: BorderRadius.circular(99),
-                  ),
+      builder: (sheetContext) => StatefulBuilder(
+        builder: (sheetContext, setSheetState) {
+          final filteredItems = items.where((item) {
+            return _matchesMenuSearch(query, [
+              item.label,
+              item.description,
+              item.keyName,
+              item.path,
+            ]);
+          }).toList(growable: false);
+
+          return Padding(
+            padding: EdgeInsets.only(bottom: MediaQuery.viewInsetsOf(sheetContext).bottom),
+            child: SafeArea(
+              child: Container(
+                margin: const EdgeInsets.all(12),
+                constraints: BoxConstraints(maxHeight: MediaQuery.sizeOf(sheetContext).height * 0.78),
+                padding: const EdgeInsets.fromLTRB(14, 10, 14, 14),
+                decoration: BoxDecoration(
+                  color: palette.surface,
+                  borderRadius: BorderRadius.circular(palette.radius(26)),
+                  border: Border.all(color: palette.cardBorder),
+                  boxShadow: [
+                    BoxShadow(color: Colors.black.withOpacity(0.20), blurRadius: 28, offset: const Offset(0, 12)),
+                  ],
                 ),
-              ),
-              Text(
-                'Más opciones de gestión',
-                style: TextStyle(color: palette.textPrimary, fontSize: 18, fontWeight: FontWeight.w900),
-              ),
-              const SizedBox(height: 4),
-              Text(
-                'Accede a los demás módulos autorizados para el rol gerente.',
-                style: TextStyle(color: palette.textSecondary, fontWeight: FontWeight.w600),
-              ),
-              const SizedBox(height: 12),
-              Flexible(
-                child: ListView(
-                  shrinkWrap: true,
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    for (final item in items)
-                      Padding(
-                        padding: const EdgeInsets.only(bottom: 7),
-                        child: Material(
-                          color: item.path == selectedPath
-                              ? palette.secondary.withOpacity(palette.darkBackground ? 0.20 : 0.10)
-                              : palette.background.withOpacity(palette.darkBackground ? 0.34 : 0.70),
-                          borderRadius: BorderRadius.circular(palette.radius(18)),
-                          child: ListTile(
-                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(palette.radius(18))),
-                            leading: Container(
-                              width: 42,
-                              height: 42,
-                              decoration: BoxDecoration(
-                                color: palette.secondary.withOpacity(0.14),
-                                borderRadius: BorderRadius.circular(14),
-                              ),
-                              child: Icon(item.icon, color: palette.secondary),
-                            ),
-                            title: Text(item.label, style: TextStyle(color: palette.textPrimary, fontWeight: FontWeight.w900)),
-                            subtitle: item.description == null
-                                ? null
-                                : Text(
-                                    item.description!,
-                                    maxLines: 1,
-                                    overflow: TextOverflow.ellipsis,
-                                    style: TextStyle(color: palette.textSecondary, fontWeight: FontWeight.w600),
-                                  ),
-                            trailing: Icon(Icons.chevron_right_rounded, color: palette.textSecondary),
-                            onTap: () => Navigator.of(sheetContext).pop(item.path),
-                          ),
+                    Center(
+                      child: Container(
+                        width: 44,
+                        height: 4,
+                        margin: const EdgeInsets.only(bottom: 14),
+                        decoration: BoxDecoration(
+                          color: palette.textSecondary.withOpacity(0.30),
+                          borderRadius: BorderRadius.circular(99),
                         ),
                       ),
+                    ),
+                    Text(
+                      'Más opciones de gestión',
+                      style: TextStyle(color: palette.textPrimary, fontSize: 18, fontWeight: FontWeight.w900),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      'Accede a los demás módulos autorizados para el rol gerente.',
+                      style: TextStyle(color: palette.textSecondary, fontWeight: FontWeight.w600),
+                    ),
+                    const SizedBox(height: 12),
+                    _menuSearchField(
+                      palette: palette,
+                      onChanged: (value) => setSheetState(() => query = value),
+                    ),
+                    const SizedBox(height: 12),
+                    Flexible(
+                      child: filteredItems.isEmpty
+                          ? _emptyMenuSearchState(palette)
+                          : ListView(
+                              shrinkWrap: true,
+                              children: [
+                                for (final item in filteredItems)
+                                  Padding(
+                                    padding: const EdgeInsets.only(bottom: 7),
+                                    child: Material(
+                                      color: item.path == selectedPath
+                                          ? palette.secondary.withOpacity(palette.darkBackground ? 0.20 : 0.10)
+                                          : palette.background.withOpacity(palette.darkBackground ? 0.34 : 0.70),
+                                      borderRadius: BorderRadius.circular(palette.radius(18)),
+                                      child: ListTile(
+                                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(palette.radius(18))),
+                                        leading: Container(
+                                          width: 42,
+                                          height: 42,
+                                          decoration: BoxDecoration(
+                                            color: palette.secondary.withOpacity(0.14),
+                                            borderRadius: BorderRadius.circular(14),
+                                          ),
+                                          child: Icon(item.icon, color: palette.secondary),
+                                        ),
+                                        title: Text(
+                                          item.label,
+                                          style: TextStyle(color: palette.textPrimary, fontWeight: FontWeight.w900),
+                                        ),
+                                        subtitle: item.description == null
+                                            ? null
+                                            : Text(
+                                                item.description!,
+                                                maxLines: 1,
+                                                overflow: TextOverflow.ellipsis,
+                                                style: TextStyle(color: palette.textSecondary, fontWeight: FontWeight.w600),
+                                              ),
+                                        trailing: Icon(Icons.chevron_right_rounded, color: palette.textSecondary),
+                                        onTap: () => Navigator.of(sheetContext).pop(item.path),
+                                      ),
+                                    ),
+                                  ),
+                              ],
+                            ),
+                    ),
                   ],
                 ),
               ),
-            ],
-          ),
-        ),
+            ),
+          );
+        },
       ),
     );
 
@@ -2171,47 +2751,6 @@ class _DrawerContent extends ConsumerWidget {
       ),
     );
   }
-}
-
-List<UserMenuItem> _ensureInventoryAnalysisMenus(List<UserMenuItem> items) {
-  final byKey = <String, UserMenuItem>{for (final item in items) item.keyName: item};
-
-  byKey.putIfAbsent(
-    'ganancias',
-    () => const UserMenuItem(
-      keyName: 'ganancias',
-      title: 'Ganancias',
-      path: '/ganancias',
-      description: 'Ganancia bruta, margen y rentabilidad',
-      system: true,
-    ),
-  );
-  byKey.putIfAbsent(
-    'proximo_pedido',
-    () => const UserMenuItem(
-      keyName: 'proximo_pedido',
-      title: 'Próximo pedido',
-      path: '/proximo_pedido',
-      description: 'Reposición sugerida según stock mínimo y máximo',
-      system: true,
-    ),
-  );
-
-  final result = byKey.values.toList(growable: false);
-  const priority = <String, int>{
-    'productos': 0,
-    'inventario': 1,
-    'precios': 2,
-    'movimientos': 3,
-    'tipos_producto': 4,
-    'marcas': 5,
-    'medios_pago': 6,
-    'reportes': 7,
-    'ganancias': 8,
-    'proximo_pedido': 9,
-  };
-  result.sort((a, b) => (priority[a.keyName] ?? 100).compareTo(priority[b.keyName] ?? 100));
-  return result;
 }
 
 List<Widget> _authorizedMenuWidgets({
