@@ -1,6 +1,7 @@
 # BarLytics / BarApp Frontend Flutter
 
-Cliente Flutter multiplataforma de BarLytics. Esta documentación fue revisada contra `lib/` y el backend el **2026-07-24**.
+Cliente Flutter multiplataforma de BarLytics. 
+Esta documentación fue revisada contra `lib/` y el backend el **2026-07-24**.
 
 ## Stack
 
