@@ -207,11 +207,20 @@ class _MeseroPageState extends ConsumerState<MeseroPage> {
     final today = DateTime.now();
     _historialDiaFiltro = DateTime(today.year, today.month, today.day);
     _dataSource = MeseroRemoteDataSource(ref.read(apiClientProvider));
-    final initialMode = widget.initialMode;
-    if (initialMode != null) {
-      ref.read(meseroSelectedModeProvider.notifier).state = initialMode;
-    }
+    _scheduleInitialMode(widget.initialMode);
     _future = _load();
+  }
+
+  void _scheduleInitialMode(MeseroPageMode? initialMode) {
+    if (initialMode == null) return;
+
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      final controller = ref.read(meseroSelectedModeProvider.notifier);
+      if (controller.state != initialMode) {
+        controller.state = initialMode;
+      }
+    });
   }
 
   @override
@@ -225,8 +234,8 @@ class _MeseroPageState extends ConsumerState<MeseroPage> {
   void didUpdateWidget(covariant MeseroPage oldWidget) {
     super.didUpdateWidget(oldWidget);
     final initialMode = widget.initialMode;
-    if (initialMode != null && oldWidget.initialMode != initialMode) {
-      ref.read(meseroSelectedModeProvider.notifier).state = initialMode;
+    if (oldWidget.initialMode != initialMode) {
+      _scheduleInitialMode(initialMode);
     }
   }
 

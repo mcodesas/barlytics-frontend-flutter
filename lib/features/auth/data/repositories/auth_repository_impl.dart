@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import '../../../../core/constants/storage_keys.dart';
 import '../../../../core/storage/secure_storage_service.dart';
 import '../../domain/repositories/auth_repository.dart';
@@ -25,10 +27,23 @@ class AuthRepositoryImpl implements AuthRepository {
 
   @override
   Future<void> logout() async {
+    // El logout del usuario es local primero: nunca se bloquea la salida de la
+    // aplicación esperando al backend. Se conserva el JWT solo para intentar
+    // registrar el evento LOGOUT de forma no bloqueante.
+    final token = await _storage.read(StorageKeys.authToken);
+    await _storage.clear();
+
+    if (token != null && token.trim().isNotEmpty) {
+      unawaited(_notifyRemoteLogout(token));
+    }
+  }
+
+  Future<void> _notifyRemoteLogout(String token) async {
     try {
-      await _remote.logout();
-    } finally {
-      await _storage.clear();
+      await _remote.logout(token: token);
+    } catch (_) {
+      // El registro remoto de logout es best-effort. La sesión local ya fue
+      // eliminada y no debe restaurarse ni mostrar errores por este fallo.
     }
   }
 

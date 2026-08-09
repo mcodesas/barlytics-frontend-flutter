@@ -27,10 +27,7 @@ class UserMenuRepository {
     for (final item in response.data ?? const <UserMenuItem>[]) {
       final normalizedKey = _normalizeModuleKey(item.keyName);
       final keyName = moduleAliases[normalizedKey] ?? normalizedKey;
-      if (!moduleByKey.containsKey(keyName) &&
-          !const {'reportes', 'ganancias', 'proximo_pedido', 'roles_personalizados', 'soporte_global', 'explorador_datos', 'auditoria_soporte', 'diagnostico_sistema', 'soporte_clientes', 'soporte_accesos', 'soporte_operacion', 'soporte_configuracion', 'soporte_mantenimiento', 'sincronizar_catalogo'}.contains(keyName)) {
-        continue;
-      }
+      if (keyName.isEmpty) continue;
       byKey[keyName] = item.copyWith(keyName: keyName, path: '/$keyName');
     }
 
@@ -73,10 +70,6 @@ class UserMenuRepository {
     return result;
   }
 }
-
-final moduleByKey = <String, dynamic>{
-  for (final module in moduleRegistry) module.key: module,
-};
 
 const moduleAliases = <String, String>{
   'cuentasventa': 'cuentas_venta',

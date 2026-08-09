@@ -17,8 +17,20 @@ class ApiClient {
     return _send(() => _dio.get(path, queryParameters: queryParameters), parser);
   }
 
-  Future<ApiResponse<T>> post<T>(String path, Object? body, T Function(Object? json) parser) async {
-    return _send(() => _dio.post(path, data: body), parser);
+  Future<ApiResponse<T>> post<T>(
+    String path,
+    Object? body,
+    T Function(Object? json) parser, {
+    Map<String, dynamic>? headers,
+  }) async {
+    return _send(
+      () => _dio.post(
+        path,
+        data: body,
+        options: headers == null ? null : Options(headers: headers),
+      ),
+      parser,
+    );
   }
 
   Future<ApiResponse<T>> put<T>(String path, Object? body, T Function(Object? json) parser) async {
