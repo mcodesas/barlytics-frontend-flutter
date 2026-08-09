@@ -161,6 +161,13 @@ class MeseroRemoteDataSource {
     );
   }
 
+  Future<void> cancelarVentaDirecta(int ventaId) async {
+    await _apiClient.delete<void>(
+      ApiPaths.meseroCancelarVentaDirecta(ventaId),
+      (_) {},
+    );
+  }
+
   Future<MeseroVentaModel> eliminarCuenta(int cuentaId) async {
     final response = await _apiClient.delete<MeseroVentaModel>(
       ApiPaths.meseroEliminarCuenta(cuentaId),
@@ -221,6 +228,17 @@ class MeseroRemoteDataSource {
     final response = await _apiClient.put<MeseroVentaModel>(
       ApiPaths.meseroMoverProductoCuenta(cuentaOrigenId, detalleId, cuentaDestinoId),
       const <String, dynamic>{},
+      (json) => MeseroVentaModel.fromJson(Map<String, dynamic>.from(json as Map)),
+    );
+    return response.data!;
+  }
+
+  Future<MeseroVentaModel> eliminarPagoCuenta({
+    required int cuentaId,
+    required int pagoId,
+  }) async {
+    final response = await _apiClient.delete<MeseroVentaModel>(
+      ApiPaths.meseroEliminarPagoCuenta(cuentaId, pagoId),
       (json) => MeseroVentaModel.fromJson(Map<String, dynamic>.from(json as Map)),
     );
     return response.data!;
