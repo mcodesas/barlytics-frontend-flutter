@@ -19,6 +19,7 @@ import '../../../../core/widgets/tech_background.dart';
 import '../../../marcas/data/models/marcas_response_model.dart';
 import '../../../marcas/presentation/providers/marcas_provider.dart';
 import '../../../movimientos/data/models/movimientos_response_model.dart';
+import '../../../precios/data/models/precios_response_model.dart';
 import '../../../sucursales/data/models/sucursales_response_model.dart';
 import '../../../tipos_producto/data/models/tipos_producto_response_model.dart';
 import '../../../tipos_producto/presentation/providers/tipos_producto_provider.dart';
@@ -349,27 +350,91 @@ class _ProductosListPageState extends ConsumerState<ProductosListPage> {
     Map<String, dynamic> body,
   ) async {
     final productId = item.prodId;
-    if (productId == null || _productSavingIds.contains(productId)) return false;
+    final branchId = item.sucuId;
+    if (productId == null ||
+        branchId == null ||
+        _productSavingIds.contains(productId)) {
+      return false;
+    }
+
+    final productBody = Map<String, dynamic>.from(body);
+    final salePrice = (productBody.remove('_uiPrecioVenta') as num?)?.toDouble();
+    final purchasePrice =
+        (productBody.remove('_uiPrecioCompra') as num?)?.toDouble();
+    final priceChanged = productBody.remove('_uiPrecioCambio') == true;
 
     setState(() => _productSavingIds.add(productId));
     try {
-      await ref.read(apiClientProvider).put<ProductosResponseModel>(
+      final client = ref.read(apiClientProvider);
+      await client.put<ProductosResponseModel>(
         '/api/v1/productos/$productId',
-        body,
+        productBody,
         (json) => ProductosResponseModel.fromJson(
           Map<String, dynamic>.from(json as Map),
         ),
       );
+
+      if (priceChanged) {
+        if (salePrice == null ||
+            purchasePrice == null ||
+            salePrice <= 0 ||
+            purchasePrice <= 0) {
+          throw StateError(
+            'Los precios de venta y compra deben ser mayores que cero.',
+          );
+        }
+        if (salePrice < purchasePrice) {
+          throw StateError(
+            'El precio de venta no puede ser menor que el precio de compra.',
+          );
+        }
+
+        final taxPercentage = item.precioPorcentajeImpuesto;
+        final appliesTax = item.precioAplicaImpuesto ?? 0;
+        final taxValue = appliesTax == 1 && taxPercentage != null
+            ? salePrice * (taxPercentage / 100)
+            : 0.0;
+
+        await client.post<PreciosResponseModel>(
+          '/api/v1/precios',
+          <String, dynamic>{
+            'prodId': productId,
+            'sucuId': branchId,
+            'precEstado': 1,
+            'precValorVenta': salePrice,
+            'precValorCompra': purchasePrice,
+            'precFechaInicia': DateTime.now().toIso8601String(),
+            'precFechaFinaliza': null,
+            'precAplicaImpuesto': appliesTax,
+            'precPorcentajeImpuesto': taxPercentage,
+            'precValorImpuesto': taxValue,
+          },
+          (json) => PreciosResponseModel.fromJson(
+            Map<String, dynamic>.from(json as Map),
+          ),
+        );
+      }
+
       await ref.read(productosPagedProvider.notifier).refresh();
       if (!mounted) return true;
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Datos del producto actualizados.')),
+        SnackBar(
+          content: Text(
+            priceChanged
+                ? 'Producto y precios actualizados. El precio anterior quedó en el historial.'
+                : 'Datos del producto actualizados.',
+          ),
+        ),
       );
       return true;
     } catch (error) {
       if (!mounted) return false;
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('No fue posible actualizar el producto: $error')),
+        SnackBar(
+          content: Text(
+            'No fue posible completar la actualización del producto: $error',
+          ),
+        ),
       );
       return false;
     } finally {
@@ -3298,6 +3363,7 @@ class _MovementPreviewValue extends StatelessWidget {
 }
 
 enum _MovementHistoryFilter { all, entries, exits }
+enum _ProductHistoryView { movements, prices }
 
 class _ProductMovementHistoryBottomSheet extends ConsumerStatefulWidget {
   const _ProductMovementHistoryBottomSheet({
@@ -3318,8 +3384,10 @@ class _ProductMovementHistoryBottomSheetState
   bool _loading = true;
   String? _error;
   List<MovimientosResponseModel> _movements = const [];
+  List<PreciosResponseModel> _prices = const [];
   Map<int, String> _movementTypeNames = const {};
   _MovementHistoryFilter _filter = _MovementHistoryFilter.all;
+  _ProductHistoryView _view = _ProductHistoryView.movements;
 
   @override
   void initState() {
@@ -3356,6 +3424,17 @@ class _ProductMovementHistoryBottomSheetState
             )
             .toList(growable: false),
       );
+      final pricesResponse = await client.get<List<PreciosResponseModel>>(
+        '/api/v1/precios/producto/$productId/sucursal/$branchId/historial',
+        (json) => (json is List ? json : const <Object?>[])
+            .whereType<Map>()
+            .map(
+              (item) => PreciosResponseModel.fromJson(
+                Map<String, dynamic>.from(item),
+              ),
+            )
+            .toList(growable: false),
+      );
       final typesResponse = await client.get<List<Map<String, dynamic>>>(
         '/api/v1/tiposmovimiento',
         (json) => (json is List ? json : const <Object?>[])
@@ -3367,6 +3446,9 @@ class _ProductMovementHistoryBottomSheetState
       final movements = List<MovimientosResponseModel>.of(
         movementsResponse.data ?? const <MovimientosResponseModel>[],
       )..sort(_compareMovementsNewestFirst);
+      final prices = List<PreciosResponseModel>.of(
+        pricesResponse.data ?? const <PreciosResponseModel>[],
+      )..sort(_comparePricesNewestFirst);
       final names = <int, String>{};
       for (final type in typesResponse.data ?? const <Map<String, dynamic>>[]) {
         final id = type['timoId'];
@@ -3379,6 +3461,7 @@ class _ProductMovementHistoryBottomSheetState
       if (!mounted) return;
       setState(() {
         _movements = movements;
+        _prices = prices;
         _movementTypeNames = names;
         _loading = false;
       });
@@ -3486,7 +3569,7 @@ class _ProductMovementHistoryBottomSheetState
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
                             Text(
-                              'Historial de movimientos',
+                              'Historial del producto',
                               style: TextStyle(
                                 color: palette.textPrimary,
                                 fontSize: 20,
@@ -3566,11 +3649,57 @@ class _ProductMovementHistoryBottomSheetState
       );
     }
 
-    final visible = _visibleMovements;
     return Column(
       children: [
         Padding(
           padding: const EdgeInsets.fromLTRB(16, 14, 16, 10),
+          child: Row(
+            children: [
+              Expanded(
+                child: _MovementFilterButton(
+                  label: 'Movimientos',
+                  selected: _view == _ProductHistoryView.movements,
+                  palette: palette,
+                  onPressed: () => setState(
+                    () => _view = _ProductHistoryView.movements,
+                  ),
+                ),
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: _MovementFilterButton(
+                  label: 'Historial de precios',
+                  selected: _view == _ProductHistoryView.prices,
+                  palette: palette,
+                  onPressed: () => setState(
+                    () => _view = _ProductHistoryView.prices,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+        _ProductLastUpdateCard(
+          item: widget.item,
+          palette: palette,
+        ),
+        Divider(height: 1, color: palette.cardBorder),
+        Expanded(
+          child: _view == _ProductHistoryView.movements
+              ? _buildMovementHistory()
+              : _buildPriceHistory(),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildMovementHistory() {
+    final palette = widget.palette;
+    final visible = _visibleMovements;
+    return Column(
+      children: [
+        Padding(
+          padding: const EdgeInsets.fromLTRB(16, 12, 16, 10),
           child: Column(
             children: [
               Row(
@@ -3690,6 +3819,334 @@ class _ProductMovementHistoryBottomSheetState
                 ),
         ),
       ],
+    );
+  }
+
+  Widget _buildPriceHistory() {
+    final palette = widget.palette;
+    if (_prices.isEmpty) {
+      return Center(
+        child: Padding(
+          padding: const EdgeInsets.all(28),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(
+                Icons.price_change_outlined,
+                size: 46,
+                color: palette.textSecondary,
+              ),
+              const SizedBox(height: 10),
+              Text(
+                'Este producto todavía no tiene historial de precios.',
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  color: palette.textPrimary,
+                  fontWeight: FontWeight.w800,
+                ),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+
+    return Column(
+      children: [
+        Padding(
+          padding: const EdgeInsets.fromLTRB(16, 12, 16, 10),
+          child: Row(
+            children: [
+              Expanded(
+                child: _MovementSummaryValue(
+                  label: 'Versiones',
+                  value: '${_prices.length}',
+                  icon: Icons.history_rounded,
+                  color: palette.secondary,
+                  palette: palette,
+                ),
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: _MovementSummaryValue(
+                  label: 'Venta actual',
+                  value: _formatNumber(_currentPrice?.precValorVenta),
+                  icon: Icons.point_of_sale_rounded,
+                  color: palette.success,
+                  palette: palette,
+                ),
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: _MovementSummaryValue(
+                  label: 'Compra actual',
+                  value: _formatNumber(_currentPrice?.precValorCompra),
+                  icon: Icons.shopping_cart_checkout_rounded,
+                  color: palette.warning,
+                  palette: palette,
+                ),
+              ),
+            ],
+          ),
+        ),
+        Divider(height: 1, color: palette.cardBorder),
+        Expanded(
+          child: ListView.separated(
+            padding: const EdgeInsets.fromLTRB(16, 14, 16, 24),
+            itemCount: _prices.length,
+            separatorBuilder: (_, __) => const SizedBox(height: 10),
+            itemBuilder: (context, index) => _PriceHistoryTile(
+              price: _prices[index],
+              palette: palette,
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  PreciosResponseModel? get _currentPrice {
+    for (final price in _prices) {
+      if (price.precEstado == 1) return price;
+    }
+    return _prices.isEmpty ? null : _prices.first;
+  }
+
+}
+
+class _ProductLastUpdateCard extends StatelessWidget {
+  const _ProductLastUpdateCard({
+    required this.item,
+    required this.palette,
+  });
+
+  final ProductosResponseModel item;
+  final AppPalette palette;
+
+  @override
+  Widget build(BuildContext context) {
+    final user = (item.prodCreadoPor ?? '').trim();
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+        decoration: BoxDecoration(
+          color: palette.secondary.withOpacity(0.07),
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(color: palette.secondary.withOpacity(0.16)),
+        ),
+        child: Row(
+          children: [
+            Icon(
+              Icons.edit_calendar_outlined,
+              size: 18,
+              color: palette.secondary,
+            ),
+            const SizedBox(width: 9),
+            Expanded(
+              child: Text(
+                'Última modificación del producto: '
+                '${_formatMovementDate(item.prodFechaCambio)}'
+                '${user.isEmpty ? '' : ' · $user'}',
+                style: TextStyle(
+                  color: palette.textSecondary,
+                  fontSize: 11,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _PriceHistoryTile extends StatelessWidget {
+  const _PriceHistoryTile({
+    required this.price,
+    required this.palette,
+  });
+
+  final PreciosResponseModel price;
+  final AppPalette palette;
+
+  @override
+  Widget build(BuildContext context) {
+    final active = price.precEstado == 1;
+    final color = active ? palette.success : palette.textSecondary;
+    final user = (price.precRegistradoPor ?? '').trim();
+    final start = _formatMovementDate(price.precFechaInicia);
+    final endValue = price.precFechaFinaliza?.trim();
+    final end = endValue == null || endValue.isEmpty
+        ? 'Sin fecha de cierre'
+        : _formatMovementDate(endValue);
+
+    return Container(
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: palette.background.withOpacity(
+          palette.darkBackground ? 0.38 : 0.66,
+        ),
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: color.withOpacity(0.20)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Container(
+                width: 40,
+                height: 40,
+                decoration: BoxDecoration(
+                  color: color.withOpacity(0.12),
+                  borderRadius: BorderRadius.circular(13),
+                ),
+                child: Icon(
+                  active ? Icons.sell_rounded : Icons.history_rounded,
+                  color: color,
+                  size: 20,
+                ),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Text(
+                  active ? 'Precio vigente' : 'Precio anterior',
+                  style: TextStyle(
+                    color: palette.textPrimary,
+                    fontSize: 14,
+                    fontWeight: FontWeight.w900,
+                  ),
+                ),
+              ),
+              Container(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 9,
+                  vertical: 5,
+                ),
+                decoration: BoxDecoration(
+                  color: color.withOpacity(0.11),
+                  borderRadius: BorderRadius.circular(999),
+                ),
+                child: Text(
+                  active ? 'VIGENTE' : 'HISTÓRICO',
+                  style: TextStyle(
+                    color: color,
+                    fontSize: 9,
+                    fontWeight: FontWeight.w900,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          Row(
+            children: [
+              Expanded(
+                child: _PriceHistoryValue(
+                  label: 'Precio de venta',
+                  value: _formatNumber(price.precValorVenta),
+                  icon: Icons.point_of_sale_rounded,
+                  color: palette.success,
+                  palette: palette,
+                ),
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: _PriceHistoryValue(
+                  label: 'Precio de compra',
+                  value: _formatNumber(price.precValorCompra),
+                  icon: Icons.shopping_cart_checkout_rounded,
+                  color: palette.warning,
+                  palette: palette,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 10),
+          _MovementMetadataLine(
+            icon: Icons.play_circle_outline_rounded,
+            text: 'Desde: $start',
+            palette: palette,
+          ),
+          const SizedBox(height: 5),
+          _MovementMetadataLine(
+            icon: Icons.stop_circle_outlined,
+            text: active ? 'Actualmente vigente' : 'Hasta: $end',
+            palette: palette,
+          ),
+          if (user.isNotEmpty) ...[
+            const SizedBox(height: 5),
+            _MovementMetadataLine(
+              icon: Icons.person_outline_rounded,
+              text: 'Registrado por: $user',
+              palette: palette,
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
+class _PriceHistoryValue extends StatelessWidget {
+  const _PriceHistoryValue({
+    required this.label,
+    required this.value,
+    required this.icon,
+    required this.color,
+    required this.palette,
+  });
+
+  final String label;
+  final String value;
+  final IconData icon;
+  final Color color;
+  final AppPalette palette;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 9),
+      decoration: BoxDecoration(
+        color: color.withOpacity(0.08),
+        borderRadius: BorderRadius.circular(13),
+        border: Border.all(color: color.withOpacity(0.16)),
+      ),
+      child: Row(
+        children: [
+          Icon(icon, size: 16, color: color),
+          const SizedBox(width: 7),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  value,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    color: color,
+                    fontSize: 14,
+                    fontWeight: FontWeight.w900,
+                  ),
+                ),
+                Text(
+                  label,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    color: palette.textSecondary,
+                    fontSize: 9.5,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
     );
   }
 }
@@ -3978,6 +4435,28 @@ class _MovementMetadataLine extends StatelessWidget {
   }
 }
 
+int _comparePricesNewestFirst(
+  PreciosResponseModel left,
+  PreciosResponseModel right,
+) {
+  DateTime? priceDate(PreciosResponseModel value) {
+    return DateTime.tryParse(value.precFechaInicia ?? '') ??
+        DateTime.tryParse(value.precFechaCambio ?? '');
+  }
+
+  final leftDate = priceDate(left);
+  final rightDate = priceDate(right);
+  if (leftDate != null && rightDate != null) {
+    final comparison = rightDate.compareTo(leftDate);
+    if (comparison != 0) return comparison;
+  } else if (leftDate != null) {
+    return -1;
+  } else if (rightDate != null) {
+    return 1;
+  }
+  return (right.precId ?? 0).compareTo(left.precId ?? 0);
+}
+
 int _compareMovementsNewestFirst(
   MovimientosResponseModel left,
   MovimientosResponseModel right,
@@ -4066,6 +4545,8 @@ class _ProductEditBottomSheetState extends State<_ProductEditBottomSheet> {
   late final TextEditingController _purchasePresentationController;
   late final TextEditingController _minimumController;
   late final TextEditingController _maximumController;
+  late final TextEditingController _salePriceController;
+  late final TextEditingController _purchasePriceController;
   int? _typeId;
   int? _brandId;
   bool _purchaseByQuantity = false;
@@ -4092,6 +4573,16 @@ class _ProductEditBottomSheetState extends State<_ProductEditBottomSheet> {
     _maximumController = TextEditingController(
       text: item.prodStockMaximo == null ? '' : _editableNumber(item.prodStockMaximo!),
     );
+    _salePriceController = TextEditingController(
+      text: item.precioVentaVigente == null
+          ? ''
+          : _editableNumber(item.precioVentaVigente!),
+    );
+    _purchasePriceController = TextEditingController(
+      text: item.precioCompraVigente == null
+          ? ''
+          : _editableNumber(item.precioCompraVigente!),
+    );
     _typeId = item.tpprId;
     _brandId = item.mrcaId;
     _purchaseByQuantity = item.prodCompraPorCantidad == 1;
@@ -4107,6 +4598,8 @@ class _ProductEditBottomSheetState extends State<_ProductEditBottomSheet> {
     _purchasePresentationController.dispose();
     _minimumController.dispose();
     _maximumController.dispose();
+    _salePriceController.dispose();
+    _purchasePriceController.dispose();
     super.dispose();
   }
 
@@ -4166,6 +4659,31 @@ class _ProductEditBottomSheetState extends State<_ProductEditBottomSheet> {
     final minimum = _parseNullable(_minimumController.text) ?? 0;
     final maximum = _parseNullable(_maximumController.text);
     final purchaseQuantity = _parseNullable(_purchaseQuantityController.text);
+    final saleRaw = _salePriceController.text.trim();
+    final purchaseRaw = _purchasePriceController.text.trim();
+    final salePrice = _parseNullable(saleRaw);
+    final purchasePrice = _parseNullable(purchaseRaw);
+    final noPriceRequested = saleRaw.isEmpty &&
+        purchaseRaw.isEmpty &&
+        item.precioVentaVigente == null &&
+        item.precioCompraVigente == null;
+
+    if (!noPriceRequested) {
+      if (salePrice == null || salePrice <= 0) {
+        _showMessage('Ingresa un precio de venta mayor que cero.');
+        return;
+      }
+      if (purchasePrice == null || purchasePrice <= 0) {
+        _showMessage('Ingresa un precio de compra mayor que cero.');
+        return;
+      }
+      if (salePrice < purchasePrice) {
+        _showMessage(
+          'El precio de venta no puede ser menor que el precio de compra.',
+        );
+        return;
+      }
+    }
 
     if (minimum < 0 || (maximum != null && maximum < 0)) {
       _showMessage('Los límites de stock no pueden ser negativos.');
@@ -4201,11 +4719,34 @@ class _ProductEditBottomSheetState extends State<_ProductEditBottomSheet> {
             : null,
         'prodStockMinimo': minimum,
         'prodStockMaximo': maximum,
+        '_uiPrecioVenta': salePrice,
+        '_uiPrecioCompra': purchasePrice,
+        '_uiPrecioCambio': !noPriceRequested &&
+            salePrice != null &&
+            purchasePrice != null &&
+            _priceChanged(
+              item,
+              salePrice,
+              purchasePrice,
+            ),
       },
     );
     if (!mounted) return;
     setState(() => _saving = false);
     if (ok) Navigator.of(context).pop(true);
+  }
+
+  bool _priceChanged(
+    ProductosResponseModel item,
+    double salePrice,
+    double purchasePrice,
+  ) {
+    final currentSale = item.precioVentaVigente;
+    final currentPurchase = item.precioCompraVigente;
+    if (currentSale == null || currentPurchase == null) return true;
+    const tolerance = 0.000001;
+    return (currentSale - salePrice).abs() > tolerance ||
+        (currentPurchase - purchasePrice).abs() > tolerance;
   }
 
   @override
@@ -4430,6 +4971,82 @@ class _ProductEditBottomSheetState extends State<_ProductEditBottomSheet> {
                                     icon: const Icon(Icons.close_rounded),
                                   ),
                           ),
+                        ),
+                        const SizedBox(height: 20),
+                        _EditSectionTitle(
+                          icon: Icons.payments_outlined,
+                          title: 'Precios',
+                          palette: palette,
+                        ),
+                        const SizedBox(height: 6),
+                        Text(
+                          'Puedes cambiar el precio de venta y de compra desde aquí. '
+                          'Si alguno cambia, el precio vigente actual se conserva en el historial.',
+                          style: TextStyle(
+                            color: palette.textSecondary,
+                            fontSize: 11.5,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                        const SizedBox(height: 10),
+                        LayoutBuilder(
+                          builder: (context, constraints) {
+                            String? validatePrice(String? value, String label) {
+                              final raw = (value ?? '').trim();
+                              if (raw.isEmpty) return null;
+                              final parsed = _parseNullable(raw);
+                              if (parsed == null || parsed <= 0) {
+                                return 'Ingresa $label.';
+                              }
+                              return null;
+                            }
+
+                            final saleField = TextFormField(
+                              controller: _salePriceController,
+                              enabled: !_saving,
+                              keyboardType: const TextInputType.numberWithOptions(
+                                decimal: true,
+                              ),
+                              textInputAction: TextInputAction.next,
+                              decoration: const InputDecoration(
+                                labelText: 'Precio de venta',
+                                prefixIcon: Icon(Icons.point_of_sale_rounded),
+                              ),
+                              validator: (value) =>
+                                  validatePrice(value, 'un precio de venta válido'),
+                            );
+                            final purchaseField = TextFormField(
+                              controller: _purchasePriceController,
+                              enabled: !_saving,
+                              keyboardType: const TextInputType.numberWithOptions(
+                                decimal: true,
+                              ),
+                              textInputAction: TextInputAction.next,
+                              decoration: const InputDecoration(
+                                labelText: 'Precio de compra',
+                                prefixIcon: Icon(Icons.shopping_cart_checkout_rounded),
+                              ),
+                              validator: (value) =>
+                                  validatePrice(value, 'un precio de compra válido'),
+                            );
+
+                            if (constraints.maxWidth < 560) {
+                              return Column(
+                                children: [
+                                  saleField,
+                                  const SizedBox(height: 10),
+                                  purchaseField,
+                                ],
+                              );
+                            }
+                            return Row(
+                              children: [
+                                Expanded(child: saleField),
+                                const SizedBox(width: 10),
+                                Expanded(child: purchaseField),
+                              ],
+                            );
+                          },
                         ),
                         const SizedBox(height: 20),
                         _EditSectionTitle(
