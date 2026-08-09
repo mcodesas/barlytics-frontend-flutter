@@ -7,7 +7,7 @@ enum EnvironmentType { local, androidEmulator, dev, prod }
 ///
 /// Reglas importantes:
 /// - Windows/IntelliJ local: usa http://127.0.0.1:8282.
-/// - Flutter Web local/LAN: si abres http://192.168.1.50:3000,
+/// - Flutter Web local/LAN: si abres http://192.168.1.50:8081,
 ///   automáticamente intenta consumir http://192.168.1.50:8282.
 /// - También puedes forzar la URL con API_BASE_URL, o solo host/puerto con
 ///   API_HOST y API_PORT.
@@ -15,7 +15,7 @@ enum EnvironmentType { local, androidEmulator, dev, prod }
 /// Ejemplo LAN:
 /// flutter run -d web-server ^
 ///   --web-hostname 0.0.0.0 ^
-///   --web-port 3000 ^
+///   --web-port 8081 ^
 ///   --dart-define=ENV=local ^
 ///   --dart-define=API_HOST=192.168.1.50 ^
 ///   --dart-define=API_PORT=8282
