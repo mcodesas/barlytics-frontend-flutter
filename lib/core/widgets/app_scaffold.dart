@@ -41,53 +41,42 @@ Color _selectedMenuForeground(AppPalette palette) {
 /// Controla la visibilidad del menú lateral operativo en escritorio.
 final operationalMenuOpenProvider = StateProvider<bool>((ref) => false);
 
-bool _isInventoryRole(String role) {
-  final normalized = role.toUpperCase();
-  return normalized.contains('INVENTARIO') ||
-      normalized.contains('INVENTORY') ||
-      normalized.contains('BODEGA') ||
-      normalized.contains('ALMACEN') ||
-      normalized.contains('ALMACÉN');
-}
-
-bool _isMesaCashierSellerRole(String role) {
-  final normalized = role.toUpperCase();
-  return normalized.contains('MESER') ||
-      normalized.contains('CAJER') ||
-      normalized.contains('VENDEDOR') ||
-      normalized.contains('VENTA') ||
-      normalized.contains('SELLER');
-}
-
-bool _isManagerRole(String role) {
-  final normalized = role
+String _normalizedRoleToken(String role) {
+  return role
       .toUpperCase()
-      .replaceAll('Á', 'A')
-      .replaceAll('É', 'E')
-      .replaceAll('Í', 'I')
-      .replaceAll('Ó', 'O')
-      .replaceAll('Ú', 'U');
-  return normalized.contains('GERENTE') ||
-      normalized.contains('MANAGER') ||
-      normalized.contains('SUPERVISOR');
-}
-
-bool _isOperationalRole(String role) => _isMesaCashierSellerRole(role) || _isInventoryRole(role);
-
-bool _isGlobalAdminRole(String role) {
-  final normalized = role
-      .toUpperCase()
-      .replaceAll('ROLE_', '')
       .replaceAll('Á', 'A')
       .replaceAll('É', 'E')
       .replaceAll('Í', 'I')
       .replaceAll('Ó', 'O')
       .replaceAll('Ú', 'U')
-      .trim();
-  return normalized == 'ADMIN' ||
-      normalized == 'ADMINISTRADOR' ||
-      normalized == 'SUPERADMIN' ||
-      normalized == 'SUPER_ADMIN';
+      .replaceAll(RegExp(r'^ROLE_'), '')
+      .replaceAll(RegExp(r'[^A-Z0-9]+'), '_')
+      .replaceAll(RegExp(r'^_+|_+$'), '');
+}
+
+bool _isPersonalizedRole(String role) => _normalizedRoleToken(role) == 'PERSONALIZADO';
+
+bool _isInventoryRole(String role) {
+  final normalized = _normalizedRoleToken(role);
+  return const {'INVENTARIO', 'INVENTORY', 'BODEGA', 'ALMACEN'}.contains(normalized);
+}
+
+bool _isMesaCashierSellerRole(String role) {
+  final normalized = _normalizedRoleToken(role);
+  return const {'MESERO', 'MESERA', 'CAJERO', 'CAJERA', 'VENDEDOR', 'VENDEDORA', 'VENTAS', 'SELLER'}
+      .contains(normalized);
+}
+
+bool _isManagerRole(String role) {
+  final normalized = _normalizedRoleToken(role);
+  return const {'GERENTE', 'MANAGER', 'SUPERVISOR'}.contains(normalized);
+}
+
+bool _isOperationalRole(String role) => _isMesaCashierSellerRole(role) || _isInventoryRole(role);
+
+bool _isGlobalAdminRole(String role) {
+  final normalized = _normalizedRoleToken(role);
+  return const {'ADMIN', 'ADMINISTRADOR', 'SUPERADMIN', 'SUPER_ADMIN'}.contains(normalized);
 }
 
 
@@ -108,9 +97,13 @@ class _AppScaffoldState extends ConsumerState<AppScaffold> {
     final isDesktop = ResponsiveUtils.isDesktop(context);
     final palette = ref.watch(selectedAppPaletteProvider);
     final roles = ref.watch(authControllerProvider).roles;
-    final isOperativo = roles.any(_isOperationalRole);
-    final isInventario = roles.any(_isInventoryRole);
-    final isManager = roles.any(_isManagerRole);
+    final hasPersonalizedRole = roles.any(_isPersonalizedRole);
+    // Un rol personalizado debe navegar exclusivamente con el catálogo que
+    // devuelve /me/menus. No debe heredar shells ni menús predefinidos por el
+    // nombre de otro rol que el usuario también tenga asignado.
+    final isOperativo = !hasPersonalizedRole && roles.any(_isOperationalRole);
+    final isInventario = !hasPersonalizedRole && roles.any(_isInventoryRole);
+    final isManager = !hasPersonalizedRole && roles.any(_isManagerRole);
     final isGlobalAdmin = roles.any(_isGlobalAdminRole);
     final operationalMenuOpen = ref.watch(operationalMenuOpenProvider);
     final pageTitle = _resolveCurrentPageTitle(
@@ -1401,9 +1394,7 @@ class _MeseroSideNavigation extends ConsumerWidget {
                         ..._authorizedMenuWidgets(
                           context: context,
                           ref: ref,
-                          menuAsync: isInventario
-                              ? menuAsync.whenData(_ensureInventoryAnalysisMenus)
-                              : menuAsync,
+                          menuAsync: menuAsync,
                           dark: false,
                           compact: collapsed,
                           palette: palette,
@@ -1456,9 +1447,7 @@ class _MeseroDrawerContent extends ConsumerWidget {
                   ..._authorizedMenuWidgets(
                     context: context,
                     ref: ref,
-                    menuAsync: isInventario
-                        ? menuAsync.whenData(_ensureInventoryAnalysisMenus)
-                        : menuAsync,
+                    menuAsync: menuAsync,
                     dark: false,
                     compact: false,
                     palette: palette,
@@ -1797,59 +1786,52 @@ class _InventoryBottomNavigation extends ConsumerWidget {
     final currentPath = GoRouterState.of(context).uri.path;
     final width = MediaQuery.sizeOf(context).width;
     final authorizedMenus = ref.watch(userMenuProvider).maybeWhen(
-          data: _ensureInventoryAnalysisMenus,
+          data: (items) => items,
           orElse: () => const <UserMenuItem>[],
         );
-    final byPath = <String, ({String label, IconData icon, String path})>{
+    final standardByPath = <String, ({String label, IconData icon, String path})>{
       for (final item in _standardItems) item.path: item,
     };
+    final byPath = <String, ({String label, IconData icon, String path})>{
+      '/home': standardByPath['/home']!,
+    };
     for (final item in authorizedMenus) {
-      if (item.path.trim().isEmpty || item.path == '/home') continue;
+      final path = item.path.trim();
+      if (path.isEmpty || path == '/home') continue;
+      final standard = standardByPath[path];
       byPath.putIfAbsent(
-        item.path,
-        () => (
+        path,
+        () => standard ?? (
           label: item.title.trim().isEmpty ? item.keyName : item.title.trim(),
           icon: ModuleVisuals.byKey(item.keyName).icon,
-          path: item.path,
+          path: path,
         ),
       );
     }
-    final allItems = byPath.values.toList(growable: false);
 
-    final visibleItems = width >= 1280
-        ? allItems
-            .where((item) => const {
-                  '/home',
-                  '/productos',
-                  '/inventario',
-                  '/movimientos',
-                  '/reportes',
-                  '/ganancias',
-                  '/proximo_pedido',
-                }.contains(item.path))
-            .toList(growable: false)
+    // El orden puede ser conocido, pero la existencia de cada opción depende
+    // exclusivamente de los menús autorizados por el backend.
+    final allItems = byPath.values.toList()
+      ..sort((a, b) {
+        final ai = _standardItems.indexWhere((item) => item.path == a.path);
+        final bi = _standardItems.indexWhere((item) => item.path == b.path);
+        final ap = ai < 0 ? 999 : ai;
+        final bp = bi < 0 ? 999 : bi;
+        final byPriority = ap.compareTo(bp);
+        return byPriority != 0 ? byPriority : a.label.toLowerCase().compareTo(b.label.toLowerCase());
+      });
+
+    final maxVisible = width >= 1280
+        ? 7
         : width >= 720
-            ? allItems
-                .where((item) => const {
-                      '/home',
-                      '/productos',
-                      '/inventario',
-                      '/movimientos',
-                      '/ganancias',
-                      '/proximo_pedido',
-                    }.contains(item.path))
-                .toList(growable: false)
-            : allItems
-                .where((item) => const {
-                      '/home',
-                      '/productos',
-                      '/inventario',
-                      '/proximo_pedido',
-                    }.contains(item.path))
-                .toList(growable: false);
-
-    final visiblePaths = visibleItems.map((item) => item.path).toSet();
-    final overflowItems = allItems.where((item) => !visiblePaths.contains(item.path)).toList(growable: false);
+            ? 5
+            : 4;
+    final hasOverflow = allItems.length > maxVisible;
+    final visibleCount = hasOverflow ? maxVisible - 1 : allItems.length;
+    final visibleItems = allItems.take(visibleCount).toList(growable: false);
+    final overflowItems = hasOverflow
+        ? allItems.skip(visibleCount).toList(growable: false)
+        : const <({String label, IconData icon, String path})>[];
     final navigationItems = <({String label, IconData icon, String path})>[
       ...visibleItems,
       if (overflowItems.isNotEmpty) _moreItem,
@@ -2769,48 +2751,6 @@ class _DrawerContent extends ConsumerWidget {
       ),
     );
   }
-}
-
-List<UserMenuItem> _ensureInventoryAnalysisMenus(List<UserMenuItem> items) {
-  final byKey = <String, UserMenuItem>{for (final item in items) item.keyName: item};
-
-  byKey.putIfAbsent(
-    'ganancias',
-    () => const UserMenuItem(
-      keyName: 'ganancias',
-      title: 'Ganancias',
-      path: '/ganancias',
-      description: 'Ganancia bruta, margen y rentabilidad',
-      system: true,
-    ),
-  );
-  byKey.putIfAbsent(
-    'proximo_pedido',
-    () => const UserMenuItem(
-      keyName: 'proximo_pedido',
-      title: 'Próximo pedido',
-      path: '/proximo_pedido',
-      description: 'Reposición sugerida según stock mínimo y máximo',
-      system: true,
-    ),
-  );
-
-  final result = byKey.values.toList(growable: false);
-  const priority = <String, int>{
-    'productos': 0,
-    'inventario': 1,
-    'precios': 2,
-    'movimientos': 3,
-    'tipos_producto': 4,
-    'marcas': 5,
-    'medios_pago': 6,
-    'reportes': 7,
-    'ganancias': 8,
-    'proximo_pedido': 9,
-    'sincronizar_catalogo': 10,
-  };
-  result.sort((a, b) => (priority[a.keyName] ?? 100).compareTo(priority[b.keyName] ?? 100));
-  return result;
 }
 
 List<Widget> _authorizedMenuWidgets({
