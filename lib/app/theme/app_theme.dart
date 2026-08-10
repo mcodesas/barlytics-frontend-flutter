@@ -467,17 +467,30 @@ class AppTheme {
       ),
       snackBarTheme: SnackBarThemeData(
         behavior: SnackBarBehavior.floating,
+        // Los avisos se comportan como una notificación independiente:
+        // flotan por encima de la navegación y nunca la cubren.
+        insetPadding: const EdgeInsets.fromLTRB(16, 12, 16, 100),
+        elevation: 18,
+        showCloseIcon: true,
+        closeIconColor: palette.textSecondary,
         backgroundColor: Color.lerp(
           palette.surface,
-          Colors.black,
-          isDark ? 0.14 : 0.38,
+          palette.secondary,
+          isDark ? 0.08 : 0.035,
         ),
         contentTextStyle: textTheme.bodyMedium?.copyWith(
-          color: Colors.white,
-          fontWeight: FontWeight.w700,
+          color: palette.textPrimary,
+          fontWeight: FontWeight.w800,
+          height: 1.30,
         ),
+        actionTextColor: palette.secondary,
+        disabledActionTextColor: palette.textSecondary.withOpacity(0.55),
         shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(palette.radius(16)),
+          borderRadius: BorderRadius.circular(palette.radius(18)),
+          side: BorderSide(
+            color: palette.secondary.withOpacity(isDark ? 0.42 : 0.24),
+            width: 1.1,
+          ),
         ),
       ),
       tooltipTheme: TooltipThemeData(
