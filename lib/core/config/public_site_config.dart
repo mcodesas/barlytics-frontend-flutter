@@ -7,8 +7,6 @@ class PublicSiteConfig {
     defaultValue: '',
   );
 
-
-
   /// Carpeta web o URL base donde se publican las grabaciones reales de la demo.
   /// Por defecto busca archivos en web/demos/{desktop|tablet|phone}/<modulo>.gif.
   static const demoMediaBaseUrl = String.fromEnvironment(
@@ -22,6 +20,10 @@ class PublicSiteConfig {
   );
   static const macDownloadUrl = String.fromEnvironment(
     'BARLYTICS_DOWNLOAD_MAC_URL',
+    defaultValue: '',
+  );
+  static const iosDownloadUrl = String.fromEnvironment(
+    'BARLYTICS_DOWNLOAD_IOS_URL',
     defaultValue: '',
   );
   static const androidDownloadUrl = String.fromEnvironment(
@@ -39,6 +41,8 @@ class PublicSiteConfig {
         return windowsDownloadUrl;
       case 'macos':
         return macDownloadUrl;
+      case 'ios':
+        return iosDownloadUrl;
       case 'android':
         return androidDownloadUrl;
       case 'linux':

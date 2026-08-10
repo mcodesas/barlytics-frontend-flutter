@@ -1677,12 +1677,19 @@ class _DownloadsSection extends StatelessWidget {
     final items = <(String, IconData, String)>[
       ('Windows', Icons.window_rounded, 'Aplicación de escritorio'),
       ('macOS', Icons.laptop_mac_rounded, 'Aplicación para Mac'),
+      ('iOS', Icons.phone_iphone_rounded, 'iPhone y iPad'),
       ('Android', Icons.android_rounded, 'Celulares y tablets'),
       ('Linux', Icons.computer_rounded, 'Distribución de escritorio'),
     ];
     return LayoutBuilder(
       builder: (context, constraints) {
-        final columns = constraints.maxWidth < 560 ? 1 : constraints.maxWidth < 920 ? 2 : 4;
+        final columns = constraints.maxWidth < 560
+            ? 1
+            : constraints.maxWidth < 820
+                ? 2
+                : constraints.maxWidth < 1080
+                    ? 3
+                    : 5;
         const gap = 12.0;
         final width = (constraints.maxWidth - gap * (columns - 1)) / columns;
         return Wrap(
