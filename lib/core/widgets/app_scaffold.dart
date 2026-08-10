@@ -2331,8 +2331,12 @@ class _ManagerBottomNavigation extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final palette = ref.watch(selectedAppPaletteProvider);
+    final hasPersonalizedRole = ref.watch(authControllerProvider).roles.any(_isPersonalizedRole);
     final menuItems = ref.watch(userMenuProvider).maybeWhen(
-          data: _buildManagerItems,
+          data: (items) => _buildManagerItems(
+            items,
+            preserveOrder: hasPersonalizedRole,
+          ),
           orElse: () => const <_ManagerNavigationItem>[
             _ManagerNavigationItem(
               keyName: 'home',
@@ -2439,7 +2443,10 @@ class _ManagerBottomNavigation extends ConsumerWidget {
     );
   }
 
-  List<_ManagerNavigationItem> _buildManagerItems(List<UserMenuItem> items) {
+  List<_ManagerNavigationItem> _buildManagerItems(
+    List<UserMenuItem> items, {
+    required bool preserveOrder,
+  }) {
     final authorized = <_ManagerNavigationItem>[];
     final seenPaths = <String>{'/home', '/profile'};
 
@@ -2457,11 +2464,13 @@ class _ManagerBottomNavigation extends ConsumerWidget {
       );
     }
 
-    authorized.sort((a, b) {
-      final priority = (_priority[a.keyName] ?? 999).compareTo(_priority[b.keyName] ?? 999);
-      if (priority != 0) return priority;
-      return a.label.compareTo(b.label);
-    });
+    if (!preserveOrder) {
+      authorized.sort((a, b) {
+        final priority = (_priority[a.keyName] ?? 999).compareTo(_priority[b.keyName] ?? 999);
+        if (priority != 0) return priority;
+        return a.label.compareTo(b.label);
+      });
+    }
 
     return <_ManagerNavigationItem>[
       const _ManagerNavigationItem(

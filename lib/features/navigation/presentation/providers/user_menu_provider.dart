@@ -16,5 +16,10 @@ final userMenuRepositoryProvider = Provider<UserMenuRepository>((ref) {
 final userMenuProvider = FutureProvider<List<UserMenuItem>>((ref) async {
   final authState = ref.watch(authControllerProvider);
   if (!authState.authenticated) return const <UserMenuItem>[];
-  return ref.watch(userMenuRepositoryProvider).findMyMenu();
+  final hasCustomRole = authState.roles.any(
+    (role) => role.toUpperCase().contains('PERSONALIZADO'),
+  );
+  return ref.watch(userMenuRepositoryProvider).findMyMenu(
+        preserveBackendOrder: hasCustomRole,
+      );
 });
