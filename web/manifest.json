@@ -3,9 +3,9 @@
   "short_name": "BarLytics",
   "start_url": ".",
   "display": "standalone",
-  "background_color": "#0F172A",
-  "theme_color": "#0F172A",
-  "description": "Sistema de bares, inventario, ventas y pagos.",
-  "orientation": "portrait-primary",
+  "background_color": "#061723",
+  "theme_color": "#061723",
+  "description": "BarLytics: ventas, mesas, cobros, inventario, productos, caja, reportes y administración para bares y gastrobares.",
+  "orientation": "any",
   "prefer_related_applications": false
 }

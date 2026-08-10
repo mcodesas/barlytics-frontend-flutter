@@ -13,7 +13,7 @@ class UserMenuRepository {
 
   final ApiClient _apiClient;
 
-  Future<List<UserMenuItem>> findMyMenu() async {
+  Future<List<UserMenuItem>> findMyMenu({bool preserveBackendOrder = false}) async {
     final response = await _apiClient.get<List<UserMenuItem>>(
       ApiPaths.authMeMenus,
       (json) => (json as List? ?? const <Object?>[])
@@ -32,7 +32,9 @@ class UserMenuRepository {
     }
 
 
-    return _sortByRegistry(byKey.values);
+    final items = byKey.values.toList(growable: false);
+    if (preserveBackendOrder) return items;
+    return _sortByRegistry(items);
   }
 
   List<UserMenuItem> _sortByRegistry(Iterable<UserMenuItem> items) {

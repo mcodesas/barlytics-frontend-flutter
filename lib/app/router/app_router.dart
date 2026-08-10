@@ -4,6 +4,8 @@ import 'package:go_router/go_router.dart';
 import '../../features/auth/presentation/pages/login_page.dart';
 import '../../features/auth/presentation/pages/forgot_password_page.dart';
 import '../../features/auth/presentation/pages/reset_password_page.dart';
+import '../../features/public/presentation/pages/public_landing_page.dart';
+import '../../features/public/presentation/pages/public_registration_page.dart';
 import '../../features/auth/presentation/providers/auth_provider.dart';
 import '../../features/home/presentation/pages/home_page.dart';
 import '../../features/admin_support/presentation/pages/admin_support_page.dart';
@@ -104,10 +106,16 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       final authState = ref.read(authControllerProvider);
       final path = state.uri.path;
       final matchedLocation = state.matchedLocation;
+      final isLandingRoute = path == '/' || matchedLocation == '/';
+      final isRegistrationRoute = path == '/registro' || matchedLocation == '/registro';
       final isLoginRoute = path == '/login' || matchedLocation == '/login';
       final isForgotPasswordRoute = path == '/forgot-password' || matchedLocation == '/forgot-password';
       final isResetPasswordRoute = path == '/reset-password' || matchedLocation == '/reset-password';
-      final isPublicRoute = isLoginRoute || isForgotPasswordRoute || isResetPasswordRoute;
+      final isPublicRoute = isLandingRoute ||
+          isRegistrationRoute ||
+          isLoginRoute ||
+          isForgotPasswordRoute ||
+          isResetPasswordRoute;
 
       if (!authState.authenticated && !isPublicRoute) return '/login';
 
@@ -136,7 +144,8 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       return null;
     },
     routes: [
-      GoRoute(path: '/', redirect: (context, state) => _normalizedHashPublicLocation(Uri.base) ?? '/login'),
+      GoRoute(path: '/', builder: (context, state) => const PublicLandingPage()),
+      GoRoute(path: '/registro', builder: (context, state) => const PublicRegistrationPage()),
       GoRoute(path: '/login', builder: (context, state) => const LoginPage()),
       GoRoute(path: '/forgot-password', builder: (context, state) => const ForgotPasswordPage()),
       GoRoute(path: '/reset-password', builder: (context, state) => ResetPasswordPage(code: _recoveryCodeFromState(state))),
@@ -468,8 +477,10 @@ String _resolveInitialLocation() {
   }
   if (currentUri.path == '/forgot-password') return '/forgot-password';
   if (currentUri.path == '/login') return '/login';
+  if (currentUri.path == '/registro') return '/registro';
+  if (currentUri.path == '/') return '/';
 
-  return '/login';
+  return '/';
 }
 
 String? _normalizedHashPublicLocation(Uri uri) {
@@ -484,6 +495,8 @@ String? _normalizedHashPublicLocation(Uri uri) {
   }
   if (parsedFragment.path == '/forgot-password') return '/forgot-password';
   if (parsedFragment.path == '/login') return '/login';
+  if (parsedFragment.path == '/registro') return '/registro';
+  if (parsedFragment.path == '/') return '/';
 
   return null;
 }

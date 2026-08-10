@@ -19,7 +19,10 @@ class HomePage extends ConsumerWidget {
     final authState = ref.watch(authControllerProvider);
     final menuAsync = ref.watch(userMenuProvider);
     final isGlobalAdmin = authState.roles.any(_isGlobalAdminRole);
-    final isManager = !isGlobalAdmin && authState.roles.any(_isManagerRole);
+    final hasPersonalizedRole = authState.roles.any(_isPersonalizedRole);
+    final isManager = !isGlobalAdmin &&
+        !hasPersonalizedRole &&
+        authState.roles.any(_isManagerRole);
 
     return AppScaffold(
       child: menuAsync.when(
@@ -64,6 +67,11 @@ class HomePage extends ConsumerWidget {
   }
 }
 
+
+bool _isPersonalizedRole(String role) {
+  final normalized = _normalizeRole(role).replaceFirst(RegExp(r'^ROLE_'), '');
+  return normalized == 'PERSONALIZADO';
+}
 
 bool _isGlobalAdminRole(String role) {
   final normalized = _normalizeRole(role).replaceFirst(RegExp(r'^ROLE_'), '');
