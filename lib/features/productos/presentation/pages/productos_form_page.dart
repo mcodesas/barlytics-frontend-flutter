@@ -916,7 +916,10 @@ class _ProductosFormPageState extends ConsumerState<ProductosFormPage> {
 
   void _goNext() {
     if (_currentStep == 0 && !_validateGeneral()) return;
-    if (_currentStep == 1 && !(_priceFormKey.currentState?.validate() ?? false)) return;
+    if (_currentStep == 1) {
+      if (!(_priceFormKey.currentState?.validate() ?? false)) return;
+      if (!_validatePriceRelationship()) return;
+    }
     if (_currentStep == 2 && !(_inventoryFormKey.currentState?.validate() ?? false)) return;
     setState(() => _currentStep = math.min(3, _currentStep + 1));
   }
@@ -939,12 +942,39 @@ class _ProductosFormPageState extends ConsumerState<ProductosFormPage> {
     return true;
   }
 
+  bool _validatePriceRelationship() {
+    final purchasePrice = _parseDouble(_valorCompraController.text);
+    final salePrice = _parseDouble(_valorVentaController.text);
+    if (purchasePrice == null || salePrice == null) return false;
+
+    final purchaseQuantity = _compraPorCantidad
+        ? _parseDouble(_cantidadCompraController.text)
+        : null;
+    if (_compraPorCantidad &&
+        (purchaseQuantity == null || purchaseQuantity <= 0)) {
+      _showError('Indica cuántas unidades contiene la presentación de compra.');
+      return false;
+    }
+
+    final unitPurchasePrice = _compraPorCantidad
+        ? purchasePrice / purchaseQuantity!
+        : purchasePrice;
+    if (salePrice < unitPurchasePrice) {
+      _showError(
+        'El precio de venta no puede ser menor que el costo unitario de compra.',
+      );
+      return false;
+    }
+    return true;
+  }
+
   Future<void> _confirmAndSave(BuildContext context, AppPalette palette) async {
     if (!_validateGeneral()) {
       setState(() => _currentStep = 0);
       return;
     }
-    if (!(_priceFormKey.currentState?.validate() ?? false)) {
+    if (!(_priceFormKey.currentState?.validate() ?? false) ||
+        !_validatePriceRelationship()) {
       setState(() => _currentStep = 1);
       return;
     }
