@@ -22,11 +22,13 @@ class ApiClient {
     Object? body,
     T Function(Object? json) parser, {
     Map<String, dynamic>? headers,
+    Map<String, dynamic>? queryParameters,
   }) async {
     return _send(
       () => _dio.post(
         path,
         data: body,
+        queryParameters: queryParameters,
         options: headers == null ? null : Options(headers: headers),
       ),
       parser,

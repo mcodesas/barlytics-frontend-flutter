@@ -570,6 +570,17 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
                   )
                   .toList(),
             ),
+          if (_roles.any((role) => role.toUpperCase().contains('GERENTE'))) ...[
+            const SizedBox(height: 16),
+            OutlinedButton.icon(
+              onPressed: () => context.go('/activar-suscripcion'),
+              icon: const Icon(Icons.workspace_premium_outlined),
+              label: const Text('Mi suscripción y plan'),
+              style: OutlinedButton.styleFrom(
+                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
+              ),
+            ),
+          ],
           const SizedBox(height: 16),
           Container(
             padding: const EdgeInsets.all(12),

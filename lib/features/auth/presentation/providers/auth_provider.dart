@@ -6,6 +6,8 @@ import '../../../../core/errors/failure.dart';
 import '../../../../core/providers/core_providers.dart';
 import '../../../../core/network/session_expiration_notifier.dart';
 import '../../data/datasources/auth_remote_datasource.dart';
+import '../../data/models/google_auth_models.dart';
+import '../../data/models/login_response_model.dart';
 import '../../data/repositories/auth_repository_impl.dart';
 import '../../domain/repositories/auth_repository.dart';
 import '../../domain/usecases/login_usecase.dart';
@@ -16,6 +18,10 @@ final authRepositoryProvider = Provider<AuthRepository>((ref) {
     AuthRemoteDataSource(ref.watch(apiClientProvider)),
     ref.watch(secureStorageProvider),
   );
+});
+
+final googleAuthConfigProvider = FutureProvider<GoogleAuthConfigModel>((ref) {
+  return ref.watch(authRepositoryProvider).googleConfig();
 });
 
 final authControllerProvider = StateNotifierProvider<AuthController, AuthState>((ref) {
@@ -34,6 +40,8 @@ class AuthState {
     this.loading = false,
     this.failure,
     this.roles = const <String>[],
+    this.subscriptionStatus,
+    this.subscriptionActive = true,
   });
 
   final bool authenticated;
@@ -43,18 +51,24 @@ class AuthState {
   /// Roles del usuario autenticado devueltos por el backend en el login.
   /// Se usan para consultar MENUS/OPCIONMENU y pintar la navegación permitida.
   final List<String> roles;
+  final String? subscriptionStatus;
+  final bool subscriptionActive;
 
   AuthState copyWith({
     bool? authenticated,
     bool? loading,
     Failure? failure,
     List<String>? roles,
+    String? subscriptionStatus,
+    bool? subscriptionActive,
   }) =>
       AuthState(
         authenticated: authenticated ?? this.authenticated,
         loading: loading ?? this.loading,
         failure: failure,
         roles: roles ?? this.roles,
+        subscriptionStatus: subscriptionStatus ?? this.subscriptionStatus,
+        subscriptionActive: subscriptionActive ?? this.subscriptionActive,
       );
 }
 
@@ -91,8 +105,15 @@ class AuthController extends StateNotifier<AuthState> {
   Future<void> checkSession() async {
     final hasSession = await _repository.hasSession();
     final roles = hasSession ? await _repository.getStoredRoles() : const <String>[];
-    state = state.copyWith(authenticated: hasSession, roles: roles);
-    if (hasSession) {
+    final subscriptionStatus = hasSession ? await _repository.getStoredSubscriptionStatus() : null;
+    final subscriptionActive = hasSession ? await _repository.getStoredSubscriptionActive() : true;
+    state = state.copyWith(
+      authenticated: hasSession,
+      roles: roles,
+      subscriptionStatus: subscriptionStatus,
+      subscriptionActive: subscriptionActive,
+    );
+    if (hasSession && subscriptionActive) {
       await _ref.read(branchScopeProvider.notifier).load();
     }
   }
@@ -101,12 +122,64 @@ class AuthController extends StateNotifier<AuthState> {
     state = state.copyWith(loading: true);
     try {
       final response = await _login(identificador, password);
-      state = AuthState(authenticated: true, roles: response.roles);
-      await _ref.read(branchScopeProvider.notifier).load();
+      state = AuthState(
+        authenticated: true,
+        roles: response.roles,
+        subscriptionStatus: response.subscriptionStatus,
+        subscriptionActive: response.subscriptionActive,
+      );
+      if (response.subscriptionActive) {
+        await _ref.read(branchScopeProvider.notifier).load();
+      } else {
+        _ref.invalidate(branchScopeProvider);
+      }
       return true;
     } catch (error) {
       state = state.copyWith(loading: false, failure: ErrorMapper.map(error));
       return false;
+    }
+  }
+
+  Future<bool> googleLogin(String idToken) async {
+    state = state.copyWith(loading: true, failure: null);
+    try {
+      final response = await _repository.googleLogin(idToken);
+      state = AuthState(
+        authenticated: true,
+        roles: response.roles,
+        subscriptionStatus: response.subscriptionStatus,
+        subscriptionActive: response.subscriptionActive,
+      );
+      if (response.subscriptionActive) {
+        await _ref.read(branchScopeProvider.notifier).load();
+      } else {
+        _ref.invalidate(branchScopeProvider);
+      }
+      return true;
+    } catch (error) {
+      state = state.copyWith(loading: false, failure: ErrorMapper.map(error));
+      return false;
+    }
+  }
+
+  Future<void> completeRegistration(LoginResponseModel response) async {
+    await _repository.saveSession(response);
+    _ref.invalidate(branchScopeProvider);
+    state = AuthState(
+      authenticated: true,
+      roles: response.roles,
+      subscriptionStatus: response.subscriptionStatus,
+      subscriptionActive: response.subscriptionActive,
+    );
+  }
+
+  Future<void> updateSubscription({required String status, required bool active}) async {
+    await _repository.updateSubscriptionState(status: status, active: active);
+    state = state.copyWith(subscriptionStatus: status, subscriptionActive: active);
+    if (active) {
+      await _ref.read(branchScopeProvider.notifier).load();
+    } else {
+      _ref.invalidate(branchScopeProvider);
     }
   }
 

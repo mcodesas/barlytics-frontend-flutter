@@ -1,12 +1,24 @@
 /// Rutas REST centralizadas obtenidas desde la colección Postman.
 class ApiPaths {
   static const authLogin = '/api/v1/auth/login';
+  static const authGoogleConfig = '/api/v1/auth/google/config';
+  static const authGoogleIdentity = '/api/v1/auth/google/identity';
+  static const authGoogleLogin = '/api/v1/auth/google';
   static const authLogout = '/api/v1/auth/logout';
   static const authForgotPassword = '/api/v1/auth/forgot-password';
   static const authPasswordRecoveryValidate = '/api/v1/auth/password-recovery/validate';
   static const authResetPassword = '/api/v1/auth/reset-password';
   static const authMe = '/api/v1/auth/me';
   static const authMeMenus = '/api/v1/auth/me/menus';
+  static const onboardingCatalogs = '/api/v1/onboarding/catalogs';
+  static const onboardingRegister = '/api/v1/onboarding/register';
+  static const onboardingRegisterGoogle = '/api/v1/onboarding/register/google';
+  static const subscriptionMe = '/api/v1/subscriptions/me';
+  static const subscriptionPlans = '/api/v1/subscriptions/plans';
+  static const subscriptionPlan = '/api/v1/subscriptions/plan';
+  static const subscriptionCheckout = '/api/v1/subscriptions/checkout';
+  static const subscriptionSync = '/api/v1/subscriptions/sync';
+  static const subscriptionPayments = '/api/v1/subscriptions/payments';
   static const profile = '/api/v1/profile';
   static const me = '/api/v1/me';
   static const ciudades = '/api/v1/ciudades';

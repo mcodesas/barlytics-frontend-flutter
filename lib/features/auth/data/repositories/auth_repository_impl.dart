@@ -4,6 +4,7 @@ import '../../../../core/constants/storage_keys.dart';
 import '../../../../core/storage/secure_storage_service.dart';
 import '../../domain/repositories/auth_repository.dart';
 import '../datasources/auth_remote_datasource.dart';
+import '../models/google_auth_models.dart';
 import '../models/login_request_model.dart';
 import '../models/login_response_model.dart';
 
@@ -16,13 +17,33 @@ class AuthRepositoryImpl implements AuthRepository {
   @override
   Future<LoginResponseModel> login(String identificador, String password) async {
     final response = await _remote.login(LoginRequestModel(identificador: identificador, password: password));
+    await saveSession(response);
+    return response;
+  }
+
+  @override
+  Future<GoogleAuthConfigModel> googleConfig() => _remote.googleConfig();
+
+  @override
+  Future<GoogleIdentityModel> googleIdentity(String idToken) => _remote.googleIdentity(idToken);
+
+  @override
+  Future<LoginResponseModel> googleLogin(String idToken) async {
+    final response = await _remote.googleLogin(idToken);
+    await saveSession(response);
+    return response;
+  }
+
+  @override
+  Future<void> saveSession(LoginResponseModel response) async {
     await _storage.write(StorageKeys.authToken, response.token);
     if (response.userId != null) await _storage.write(StorageKeys.userId, response.userId.toString());
     if (response.empresaId != null) await _storage.write(StorageKeys.empresaId, response.empresaId.toString());
     if (response.sucursalId != null) await _storage.write(StorageKeys.sucursalId, response.sucursalId.toString());
     if (response.email != null) await _storage.write(StorageKeys.email, response.email!);
     await _storage.write(StorageKeys.roles, response.roles.join(','));
-    return response;
+    await _storage.write(StorageKeys.subscriptionStatus, response.subscriptionStatus ?? '');
+    await _storage.write(StorageKeys.subscriptionActive, response.subscriptionActive ? 'true' : 'false');
   }
 
   @override
@@ -62,6 +83,22 @@ class AuthRepositoryImpl implements AuthRepository {
   @override
   Future<void> resetPassword({required String code, required String newPassword, required String confirmPassword}) {
     return _remote.resetPassword(code: code, newPassword: newPassword, confirmPassword: confirmPassword);
+  }
+
+  @override
+  Future<String?> getStoredSubscriptionStatus() => _storage.read(StorageKeys.subscriptionStatus);
+
+  @override
+  Future<bool> getStoredSubscriptionActive() async {
+    final raw = await _storage.read(StorageKeys.subscriptionActive);
+    // Sesiones anteriores al módulo SaaS se consideran activas para no romper compatibilidad.
+    return raw == null || raw.isEmpty || raw.toLowerCase() == 'true';
+  }
+
+  @override
+  Future<void> updateSubscriptionState({required String status, required bool active}) async {
+    await _storage.write(StorageKeys.subscriptionStatus, status);
+    await _storage.write(StorageKeys.subscriptionActive, active ? 'true' : 'false');
   }
 
   @override

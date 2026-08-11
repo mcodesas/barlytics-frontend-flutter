@@ -6,6 +6,7 @@ import '../../features/auth/presentation/pages/forgot_password_page.dart';
 import '../../features/auth/presentation/pages/reset_password_page.dart';
 import '../../features/public/presentation/pages/public_landing_page.dart';
 import '../../features/public/presentation/pages/public_registration_page.dart';
+import '../../features/subscription/presentation/pages/subscription_activation_page.dart';
 import '../../features/auth/presentation/providers/auth_provider.dart';
 import '../../features/home/presentation/pages/home_page.dart';
 import '../../features/admin_support/presentation/pages/admin_support_page.dart';
@@ -109,6 +110,7 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       final isLandingRoute = path == '/' || matchedLocation == '/';
       final isRegistrationRoute = path == '/registro' || matchedLocation == '/registro';
       final isLoginRoute = path == '/login' || matchedLocation == '/login';
+      final isSubscriptionRoute = path == '/activar-suscripcion' || matchedLocation == '/activar-suscripcion';
       final isForgotPasswordRoute = path == '/forgot-password' || matchedLocation == '/forgot-password';
       final isResetPasswordRoute = path == '/reset-password' || matchedLocation == '/reset-password';
       final isPublicRoute = isLandingRoute ||
@@ -119,6 +121,11 @@ final appRouterProvider = Provider<GoRouter>((ref) {
 
       if (!authState.authenticated && !isPublicRoute) return '/login';
 
+      // Una sesión con suscripción pendiente solo puede entrar a la activación.
+      // El backend aplica la misma regla para impedir saltarse este control.
+      if (authState.authenticated && !authState.subscriptionActive && !isSubscriptionRoute && !isResetPasswordRoute) {
+        return '/activar-suscripcion';
+      }
       final isInventario = authState.roles.any((role) {
         final normalized = role.toUpperCase();
         return normalized.contains('INVENTARIO') ||
@@ -137,8 +144,8 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       // Login y olvidé contraseña no se muestran cuando ya hay sesión activa.
       // Reset password sí se permite porque puede abrirse desde un enlace externo.
       // No se usa Uri.base dentro del redirect para no forzar de nuevo #/login en web.
-      if (authState.authenticated && (isLoginRoute || isForgotPasswordRoute)) {
-        return '/home';
+      if (authState.authenticated && (isLoginRoute || isForgotPasswordRoute || isRegistrationRoute || isLandingRoute)) {
+        return authState.subscriptionActive ? '/home' : '/activar-suscripcion';
       }
 
       return null;
@@ -146,6 +153,7 @@ final appRouterProvider = Provider<GoRouter>((ref) {
     routes: [
       GoRoute(path: '/', builder: (context, state) => const PublicLandingPage()),
       GoRoute(path: '/registro', builder: (context, state) => const PublicRegistrationPage()),
+      GoRoute(path: '/activar-suscripcion', builder: (context, state) => const SubscriptionActivationPage()),
       GoRoute(path: '/login', builder: (context, state) => const LoginPage()),
       GoRoute(path: '/forgot-password', builder: (context, state) => const ForgotPasswordPage()),
       GoRoute(path: '/reset-password', builder: (context, state) => ResetPasswordPage(code: _recoveryCodeFromState(state))),
@@ -478,6 +486,9 @@ String _resolveInitialLocation() {
   if (currentUri.path == '/forgot-password') return '/forgot-password';
   if (currentUri.path == '/login') return '/login';
   if (currentUri.path == '/registro') return '/registro';
+  if (currentUri.path == '/activar-suscripcion') {
+    return currentUri.hasQuery ? '/activar-suscripcion?${currentUri.query}' : '/activar-suscripcion';
+  }
   if (currentUri.path == '/') return '/';
 
   return '/';
@@ -496,6 +507,9 @@ String? _normalizedHashPublicLocation(Uri uri) {
   if (parsedFragment.path == '/forgot-password') return '/forgot-password';
   if (parsedFragment.path == '/login') return '/login';
   if (parsedFragment.path == '/registro') return '/registro';
+  if (parsedFragment.path == '/activar-suscripcion') {
+    return parsedFragment.hasQuery ? '/activar-suscripcion?${parsedFragment.query}' : '/activar-suscripcion';
+  }
   if (parsedFragment.path == '/') return '/';
 
   return null;
