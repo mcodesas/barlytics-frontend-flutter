@@ -515,9 +515,13 @@ class _PageTopBar extends ConsumerWidget {
     this.eyebrow,
     this.statusText,
     this.leadingContentIcon,
+    this.dense = false,
   });
 
   static const double height = 102;
+  static const double denseHeight = 92;
+
+  static double heightFor(bool dense) => dense ? denseHeight : height;
 
   final String title;
   final String? subtitle;
@@ -527,15 +531,19 @@ class _PageTopBar extends ConsumerWidget {
   final AppPalette palette;
   final bool menuOpen;
   final VoidCallback onMenuPressed;
+  final bool dense;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final compact = MediaQuery.sizeOf(context).width < 780;
     final showRichHeader = subtitle != null || eyebrow != null || statusText != null || leadingContentIcon != null;
+    final barHeight = heightFor(dense);
 
     return Container(
-      height: height,
-      padding: EdgeInsets.fromLTRB(compact ? 12 : 16, 12, compact ? 12 : 16, 10),
+      height: barHeight,
+      padding: dense
+          ? EdgeInsets.fromLTRB(compact ? 10 : 14, 9, compact ? 10 : 14, 8)
+          : EdgeInsets.fromLTRB(compact ? 12 : 16, 12, compact ? 12 : 16, 10),
       decoration: BoxDecoration(
         color: palette.surface.withOpacity(palette.darkBackground ? 0.985 : 0.99),
         boxShadow: [
@@ -555,11 +563,13 @@ class _PageTopBar extends ConsumerWidget {
             onTap: onMenuPressed,
             palette: palette,
           ),
-          SizedBox(width: compact ? 12 : 14),
+          SizedBox(width: dense ? (compact ? 10 : 12) : (compact ? 12 : 14)),
           Expanded(
             child: Container(
-              height: compact ? 68 : 76,
-              padding: EdgeInsets.symmetric(horizontal: compact ? 14 : 18, vertical: compact ? 10 : 12),
+              height: dense ? (compact ? 64 : 68) : (compact ? 68 : 76),
+              padding: dense
+                  ? EdgeInsets.symmetric(horizontal: compact ? 12 : 16, vertical: compact ? 8 : 9)
+                  : EdgeInsets.symmetric(horizontal: compact ? 14 : 18, vertical: compact ? 10 : 12),
               decoration: palette.panelDecoration(
                 baseRadius: 26,
                 tint: palette.secondary,
@@ -571,8 +581,8 @@ class _PageTopBar extends ConsumerWidget {
                 children: [
                   if (leadingContentIcon != null) ...[
                     Container(
-                      width: compact ? 40 : 46,
-                      height: compact ? 40 : 46,
+                      width: dense ? (compact ? 38 : 42) : (compact ? 40 : 46),
+                      height: dense ? (compact ? 38 : 42) : (compact ? 40 : 46),
                       decoration: BoxDecoration(
                         gradient: LinearGradient(
                           colors: [palette.primary, palette.secondary],
@@ -584,9 +594,9 @@ class _PageTopBar extends ConsumerWidget {
                           BoxShadow(color: palette.secondary.withOpacity(0.14), blurRadius: 16, offset: const Offset(0, 8)),
                         ],
                       ),
-                      child: Icon(leadingContentIcon, color: palette.onPrimary, size: compact ? 21 : 23),
+                      child: Icon(leadingContentIcon, color: palette.onPrimary, size: dense ? (compact ? 20 : 22) : (compact ? 21 : 23)),
                     ),
-                    SizedBox(width: compact ? 10 : 14),
+                    SizedBox(width: dense ? (compact ? 9 : 12) : (compact ? 10 : 14)),
                   ],
                   Expanded(
                     child: showRichHeader
@@ -626,7 +636,7 @@ class _PageTopBar extends ConsumerWidget {
                                       style: Theme.of(context).textTheme.titleLarge?.copyWith(
                                             color: palette.textPrimary,
                                             fontWeight: FontWeight.w900,
-                                            fontSize: compact ? 20.5 : 23,
+                                            fontSize: dense ? (compact ? 19.5 : 21.5) : (compact ? 20.5 : 23),
                                             letterSpacing: -0.35,
                                             height: 1,
                                           ),
@@ -635,7 +645,7 @@ class _PageTopBar extends ConsumerWidget {
                                 ],
                               ),
                               if ((subtitle ?? '').trim().isNotEmpty) ...[
-                                const SizedBox(height: 6),
+                                SizedBox(height: dense ? 4 : 6),
                                 Text(
                                   subtitle!,
                                   maxLines: 1,
@@ -644,7 +654,7 @@ class _PageTopBar extends ConsumerWidget {
                                   style: TextStyle(
                                     color: palette.textSecondary,
                                     fontWeight: FontWeight.w700,
-                                    fontSize: compact ? 11.8 : 12.6,
+                                    fontSize: dense ? (compact ? 11.2 : 12) : (compact ? 11.8 : 12.6),
                                     height: 1.15,
                                   ),
                                 ),
@@ -659,16 +669,16 @@ class _PageTopBar extends ConsumerWidget {
                             style: Theme.of(context).textTheme.titleLarge?.copyWith(
                                   color: palette.textPrimary,
                                   fontWeight: FontWeight.w900,
-                                  fontSize: compact ? 20.5 : 23,
+                                  fontSize: dense ? (compact ? 19.5 : 21.5) : (compact ? 20.5 : 23),
                                   letterSpacing: -0.35,
                                   height: 1,
                                 ),
                           ),
                   ),
                   if ((statusText ?? '').trim().isNotEmpty && !compact) ...[
-                    const SizedBox(width: 12),
+                    SizedBox(width: dense ? 10 : 12),
                     Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                      padding: EdgeInsets.symmetric(horizontal: dense ? 12 : 14, vertical: dense ? 8 : 10),
                       decoration: BoxDecoration(
                         color: palette.primary.withOpacity(0.10),
                         borderRadius: BorderRadius.circular(palette.radius(999)),
@@ -1136,6 +1146,8 @@ class _MeseroScaffold extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final isDesktop = ResponsiveUtils.isDesktop(context);
+    final denseMesasHeader = bottomMenuType == _OperationalBottomMenuType.mesa && pageTitle == 'Mesas y caja';
+    final topBarHeight = _PageTopBar.heightFor(denseMesasHeader);
 
     if (isDesktop) {
       return Scaffold(
@@ -1151,6 +1163,7 @@ class _MeseroScaffold extends StatelessWidget {
                       eyebrow: pageEyebrow,
                       statusText: pageStatusText,
                       leadingContentIcon: pageIcon,
+                      dense: denseMesasHeader,
                       palette: palette,
                       menuOpen: !collapsed,
                       onMenuPressed: onToggleCollapsed,
@@ -1162,7 +1175,7 @@ class _MeseroScaffold extends StatelessWidget {
               ),
               if (!collapsed) ...[
                 Positioned(
-                  top: _PageTopBar.height,
+                  top: topBarHeight,
                   left: 0,
                   right: 0,
                   bottom: 0,
@@ -1173,7 +1186,7 @@ class _MeseroScaffold extends StatelessWidget {
                   ),
                 ),
                 Positioned(
-                  top: _PageTopBar.height,
+                  top: topBarHeight,
                   left: 0,
                   bottom: 0,
                   child: _MeseroSideNavigation(
@@ -1211,6 +1224,7 @@ class _MeseroScaffold extends StatelessWidget {
                 eyebrow: pageEyebrow,
                 statusText: pageStatusText,
                 leadingContentIcon: pageIcon,
+                dense: denseMesasHeader,
                 palette: palette,
                 menuOpen: false,
                 onMenuPressed: () => Scaffold.of(scaffoldContext).openDrawer(),

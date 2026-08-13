@@ -63,6 +63,7 @@ class ApiPaths {
       '/api/v1/mesero/cuentas/$cuentaId/productos/$detalleId/mover/$cuentaDestinoId';
   static String meseroPagarCuenta(Object cuentaId) => '/api/v1/mesero/cuentas/$cuentaId/pagos';
   static String meseroEliminarPagoCuenta(Object cuentaId, Object pagoId) => '/api/v1/mesero/cuentas/$cuentaId/pagos/$pagoId';
+  static String pagoCambiarMedioPago(Object pagoId) => '/api/v1/pagos/$pagoId/medio-pago';
   static String meseroEliminarCuenta(Object cuentaId) => '/api/v1/mesero/cuentas/$cuentaId';
   static String meseroFinalizarVenta(Object ventaId) => '/api/v1/mesero/ventas/$ventaId/finalizar';
 }

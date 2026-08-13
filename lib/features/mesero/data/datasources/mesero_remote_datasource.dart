@@ -244,6 +244,17 @@ class MeseroRemoteDataSource {
     return response.data!;
   }
 
+  Future<void> cambiarMedioPagoCuenta({
+    required int pagoId,
+    required int medioPagoId,
+  }) async {
+    await _apiClient.put<Map<String, dynamic>>(
+      ApiPaths.pagoCambiarMedioPago(pagoId),
+      {'medioPagoId': medioPagoId},
+      (json) => Map<String, dynamic>.from(json as Map),
+    );
+  }
+
   Future<MeseroVentaModel> registrarPagosCuenta({
     required int cuentaId,
     required double propina,
