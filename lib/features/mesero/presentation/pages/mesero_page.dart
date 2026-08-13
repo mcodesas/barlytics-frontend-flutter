@@ -861,23 +861,7 @@ class _MeseroPageState extends ConsumerState<MeseroPage> {
           return content;
         }
 
-        if (!isCajero || selectedMode != MeseroPageMode.mesas) {
-          return content;
-        }
-
-        return Stack(
-          children: [
-            content,
-            Positioned(
-              right: 22,
-              bottom: 22,
-              child: _CrearMesaFloatingButton(
-                enabled: !_processing,
-                onPressed: _crearMesa,
-              ),
-            ),
-          ],
-        );
+        return content;
       },
     );
   }
@@ -887,12 +871,7 @@ class _MeseroPageState extends ConsumerState<MeseroPage> {
       key: PageStorageKey<String>('mesero-operational-scroll-${selectedMode.name}'),
       physics: const AlwaysScrollableScrollPhysics(),
       slivers: [
-        SliverPadding(
-          padding: const EdgeInsets.fromLTRB(24, 24, 24, 0),
-          sliver: const SliverToBoxAdapter(
-            child: SizedBox(height: 14),
-          ),
-        ),
+        const SliverToBoxAdapter(child: SizedBox(height: 14)),
         if (selectedMode == MeseroPageMode.mesas) ...[
           if (_mostrandoDetalleVenta && _ventaActiva != null)
             SliverPadding(
@@ -939,22 +918,10 @@ class _MeseroPageState extends ConsumerState<MeseroPage> {
     return [
       SliverPadding(
         padding: const EdgeInsets.fromLTRB(24, 0, 24, 0),
-        sliver: SliverToBoxAdapter(
-          child: _VentaDirectaActionCard(
-            ventasAbiertas: _ventasDirectasAbiertas,
-            enabled: !_processing,
-            onPressed: _gestionarVentasDirectas,
-            onVerAbiertas: _ventasDirectasAbiertas.isEmpty ? null : _mostrarVentasDirectasPendientes,
-          ),
-        ),
+        sliver: SliverToBoxAdapter(child: _buildMesasCommandArea()),
       ),
       if (hasMesas) ...[
-        const SliverToBoxAdapter(child: SizedBox(height: 14)),
-        SliverPadding(
-          padding: const EdgeInsets.fromLTRB(24, 0, 24, 0),
-          sliver: SliverToBoxAdapter(child: _MesasOperacionResumen(mesas: _mesas)),
-        ),
-        const SliverToBoxAdapter(child: SizedBox(height: 12)),
+        const SliverToBoxAdapter(child: SizedBox(height: 10)),
         SliverPadding(
           padding: const EdgeInsets.fromLTRB(24, 0, 24, 0),
           sliver: SliverToBoxAdapter(child: _buildMesaFilters()),
@@ -969,7 +936,14 @@ class _MeseroPageState extends ConsumerState<MeseroPage> {
               final availableWidth = constraints.crossAxisExtent.isFinite
                   ? constraints.crossAxisExtent
                   : MediaQuery.sizeOf(context).width;
-              final isSingleColumn = availableWidth < 600;
+              final targetColumns = availableWidth >= 1360
+                  ? 4
+                  : availableWidth >= 980
+                      ? 3
+                      : availableWidth >= 620
+                          ? 2
+                          : 1;
+              final crossAxisCount = mesasVisibles.length < targetColumns ? mesasVisibles.length : targetColumns;
 
               return SliverGrid(
                 delegate: SliverChildBuilderDelegate(
@@ -989,18 +963,12 @@ class _MeseroPageState extends ConsumerState<MeseroPage> {
                   },
                   childCount: mesasVisibles.length,
                 ),
-                gridDelegate: isSingleColumn
-                    ? const SliverGridDelegateWithFixedCrossAxisCount(
-                        crossAxisCount: 1,
-                        mainAxisExtent: 182,
-                        mainAxisSpacing: 9,
-                      )
-                    : const SliverGridDelegateWithMaxCrossAxisExtent(
-                        maxCrossAxisExtent: 310,
-                        mainAxisExtent: 182,
-                        crossAxisSpacing: 10,
-                        mainAxisSpacing: 10,
-                      ),
+                gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+                  crossAxisCount: crossAxisCount,
+                  mainAxisExtent: crossAxisCount == 1 ? 194 : 208,
+                  crossAxisSpacing: 12,
+                  mainAxisSpacing: 12,
+                ),
               );
             },
           ),
@@ -1027,6 +995,41 @@ class _MeseroPageState extends ConsumerState<MeseroPage> {
         ),
       ],
     ];
+  }
+
+  Widget _buildMesasCommandArea() {
+    final quickSale = _VentaDirectaActionCard(
+      ventasAbiertas: _ventasDirectasAbiertas,
+      enabled: !_processing,
+      onPressed: _gestionarVentasDirectas,
+      onVerAbiertas: _ventasDirectasAbiertas.isEmpty ? null : _mostrarVentasDirectasPendientes,
+    );
+    final summary = _MesasOperacionResumen(mesas: _mesas);
+
+    if (_mesas.isEmpty) return quickSale;
+
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        if (constraints.maxWidth < 1040) {
+          return Column(
+            children: [
+              quickSale,
+              const SizedBox(height: 10),
+              summary,
+            ],
+          );
+        }
+
+        return Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Expanded(flex: 5, child: SizedBox(height: 78, child: quickSale)),
+            const SizedBox(width: 12),
+            Expanded(flex: 7, child: SizedBox(height: 78, child: summary)),
+          ],
+        );
+      },
+    );
   }
 
   Widget _buildMesaFilters() {
@@ -1058,7 +1061,7 @@ class _MeseroPageState extends ConsumerState<MeseroPage> {
       builder: (context, constraints) {
         final compact = constraints.maxWidth < 720;
         final search = SizedBox(
-          width: compact ? double.infinity : 230,
+          width: compact ? double.infinity : 220,
           height: 42,
           child: TextField(
             controller: _mesaBuscarController,
@@ -1097,10 +1100,46 @@ class _MeseroPageState extends ConsumerState<MeseroPage> {
           ],
         );
 
+        final addMesaButton = _isCajeroOperativo()
+            ? FilledButton.icon(
+                onPressed: _processing ? null : _crearMesa,
+                icon: const Icon(Icons.add_rounded, size: 18),
+                label: const Text('Agregar mesa'),
+                style: FilledButton.styleFrom(
+                  backgroundColor: palette.secondary,
+                  foregroundColor: Theme.of(context).colorScheme.onSecondary,
+                  minimumSize: const Size(0, 42),
+                  padding: const EdgeInsets.symmetric(horizontal: 14),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                ),
+              )
+            : null;
+
         if (compact) {
-          return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [chips, const SizedBox(height: 9), search]);
+          return Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              chips,
+              const SizedBox(height: 9),
+              search,
+              if (addMesaButton != null) ...[
+                const SizedBox(height: 8),
+                SizedBox(width: double.infinity, child: addMesaButton),
+              ],
+            ],
+          );
         }
-        return Row(children: [Expanded(child: chips), const SizedBox(width: 12), search]);
+        return Row(
+          children: [
+            Expanded(child: chips),
+            const SizedBox(width: 12),
+            search,
+            if (addMesaButton != null) ...[
+              const SizedBox(width: 8),
+              addMesaButton,
+            ],
+          ],
+        );
       },
     );
   }
@@ -1111,29 +1150,37 @@ class _MeseroPageState extends ConsumerState<MeseroPage> {
       builder: (context, constraints) {
         final availableWidth = constraints.maxWidth.isFinite ? constraints.maxWidth : MediaQuery.sizeOf(context).width;
         final isSingleColumn = availableWidth < 600;
+        final targetColumns = availableWidth >= 1360
+            ? 4
+            : availableWidth >= 980
+                ? 3
+                : availableWidth >= 620
+                    ? 2
+                    : 1;
+        final visibleColumns = mesasVisibles.isEmpty
+            ? 1
+            : mesasVisibles.length < targetColumns
+                ? mesasVisibles.length
+                : targetColumns;
 
         return Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            _VentaDirectaActionCard(
-              ventasAbiertas: _ventasDirectasAbiertas,
-              enabled: !_processing,
-              onPressed: _gestionarVentasDirectas,
-              onVerAbiertas: _ventasDirectasAbiertas.isEmpty ? null : _mostrarVentasDirectasPendientes,
-            ),
+            _buildMesasCommandArea(),
             if (_mesas.isNotEmpty) ...[
-              const SizedBox(height: 14),
-              _MesasOperacionResumen(mesas: _mesas),
-              const SizedBox(height: 12),
+              const SizedBox(height: 10),
               _buildMesaFilters(),
               const SizedBox(height: 12),
               GridView.builder(
                 shrinkWrap: true,
                 physics: const NeverScrollableScrollPhysics(),
                 itemCount: mesasVisibles.length,
-                gridDelegate: isSingleColumn
-                    ? const SliverGridDelegateWithFixedCrossAxisCount(crossAxisCount: 1, mainAxisExtent: 182, mainAxisSpacing: 9)
-                    : const SliverGridDelegateWithMaxCrossAxisExtent(maxCrossAxisExtent: 310, mainAxisExtent: 182, crossAxisSpacing: 10, mainAxisSpacing: 10),
+                gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+                  crossAxisCount: visibleColumns,
+                  mainAxisExtent: isSingleColumn ? 194 : 208,
+                  crossAxisSpacing: 12,
+                  mainAxisSpacing: 12,
+                ),
                 itemBuilder: (context, index) {
                   final mesa = mesasVisibles[index];
                   final isCajero = _isCajeroOperativo();
@@ -1778,6 +1825,9 @@ class _MeseroPageState extends ConsumerState<MeseroPage> {
         builder: (_) => _DetalleHistorialVentaPage(venta: venta),
       ),
     );
+    if (mounted) {
+      await _reloadHistorialVentas();
+    }
   }
 
   Widget _buildProductoCatalogoToolbar({required int resultados}) {
@@ -7074,19 +7124,19 @@ class _VentaDirectaActionCard extends ConsumerWidget {
 
     return Material(
       color: Colors.transparent,
-      borderRadius: BorderRadius.circular(18),
+      borderRadius: BorderRadius.circular(16),
       child: InkWell(
         onTap: enabled ? onPressed : null,
-        borderRadius: BorderRadius.circular(18),
+        borderRadius: BorderRadius.circular(16),
         child: Opacity(
           opacity: enabled ? 1 : 0.62,
           child: Ink(
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
             decoration: BoxDecoration(
               color: cardColor,
-              borderRadius: BorderRadius.circular(18),
-              border: Border.all(color: accentColor.withOpacity(0.32)),
-              boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.07), blurRadius: 14, offset: const Offset(0, 6))],
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(color: accentColor.withOpacity(0.28)),
+              boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.055), blurRadius: 10, offset: const Offset(0, 4))],
             ),
             child: LayoutBuilder(
               builder: (context, constraints) {
@@ -7094,12 +7144,12 @@ class _VentaDirectaActionCard extends ConsumerWidget {
                 final info = Row(
                   children: [
                     Container(
-                      width: 48,
-                      height: 48,
-                      decoration: BoxDecoration(color: accentColor.withOpacity(0.16), borderRadius: BorderRadius.circular(15)),
-                      child: Icon(Icons.bolt_rounded, color: accentColor, size: 27),
+                      width: 40,
+                      height: 40,
+                      decoration: BoxDecoration(color: accentColor.withOpacity(0.15), borderRadius: BorderRadius.circular(12)),
+                      child: Icon(Icons.bolt_rounded, color: accentColor, size: 23),
                     ),
-                    const SizedBox(width: 12),
+                    const SizedBox(width: 10),
                     Expanded(
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
@@ -7111,25 +7161,25 @@ class _VentaDirectaActionCard extends ConsumerWidget {
                                   'Venta rápida',
                                   maxLines: 1,
                                   overflow: TextOverflow.ellipsis,
-                                  style: TextStyle(color: palette.textPrimary, fontWeight: FontWeight.w900, fontSize: 17.5),
+                                  style: TextStyle(color: palette.textPrimary, fontWeight: FontWeight.w900, fontSize: 16),
                                 ),
                               ),
-                              const SizedBox(width: 8),
+                              const SizedBox(width: 7),
                               Container(
-                                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                                padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
                                 decoration: BoxDecoration(color: accentColor.withOpacity(0.12), borderRadius: BorderRadius.circular(999)),
-                                child: Text('SIN MESA', style: TextStyle(color: accentColor, fontWeight: FontWeight.w900, fontSize: 9.5, letterSpacing: 0.25)),
+                                child: Text('SIN MESA', style: TextStyle(color: accentColor, fontWeight: FontWeight.w900, fontSize: 8.8, letterSpacing: 0.25)),
                               ),
                             ],
                           ),
-                          const SizedBox(height: 3),
+                          const SizedBox(height: 2),
                           Text(
                             abiertas == 0
                                 ? 'Cobra directamente sin abrir una mesa.'
                                 : '$abiertas venta${abiertas == 1 ? '' : 's'} abierta${abiertas == 1 ? '' : 's'} · ${CurrencyUtils.format(totalPendiente)} pendiente',
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
-                            style: TextStyle(color: palette.textSecondary, fontWeight: FontWeight.w700, fontSize: 11.8),
+                            style: TextStyle(color: palette.textSecondary, fontWeight: FontWeight.w700, fontSize: 10.8),
                           ),
                         ],
                       ),
@@ -7145,7 +7195,7 @@ class _VentaDirectaActionCard extends ConsumerWidget {
                         style: OutlinedButton.styleFrom(
                           foregroundColor: accentColor,
                           side: BorderSide(color: accentColor.withOpacity(0.30)),
-                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 11),
+                          padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 9),
                           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                         ),
                       )
@@ -7157,7 +7207,7 @@ class _VentaDirectaActionCard extends ConsumerWidget {
                   style: FilledButton.styleFrom(
                     backgroundColor: accentColor,
                     foregroundColor: Theme.of(context).colorScheme.onSecondary,
-                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 11),
+                    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 9),
                     shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                   ),
                 );
@@ -7183,9 +7233,9 @@ class _VentaDirectaActionCard extends ConsumerWidget {
                       );
 
                 if (compact) {
-                  return Column(children: [info, const SizedBox(height: 12), actions]);
+                  return Column(children: [info, const SizedBox(height: 9), actions]);
                 }
-                return Row(children: [Expanded(child: info), const SizedBox(width: 16), actions]);
+                return Row(children: [Expanded(child: info), const SizedBox(width: 12), actions]);
               },
             ),
           ),
@@ -7329,29 +7379,36 @@ class _MesasOperacionResumen extends ConsumerWidget {
     final disponibles = (mesas.length - abiertas - inactivas).clamp(0, mesas.length);
     final total = mesas.fold<double>(0, (sum, mesa) => sum + (mesa.totalPendiente ?? 0));
 
-    Widget metric(IconData icon, String value, String label, {bool emphasize = false}) {
-      return Expanded(
+    Widget metric(IconData icon, String value, String label, Color color) {
+      return Container(
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 9),
+        decoration: BoxDecoration(
+          color: color.withOpacity(palette.darkBackground ? 0.10 : 0.07),
+          borderRadius: BorderRadius.circular(13),
+          border: Border.all(color: color.withOpacity(0.18)),
+        ),
         child: Row(
-          mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Icon(icon, size: 17, color: emphasize ? palette.secondary : palette.textSecondary),
-            const SizedBox(width: 7),
-            Flexible(
+            Container(
+              width: 32,
+              height: 32,
+              decoration: BoxDecoration(color: color.withOpacity(0.13), borderRadius: BorderRadius.circular(10)),
+              child: Icon(icon, size: 17, color: color),
+            ),
+            const SizedBox(width: 8),
+            Expanded(
               child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
                 crossAxisAlignment: CrossAxisAlignment.start,
-                mainAxisSize: MainAxisSize.min,
                 children: [
                   Text(
                     value,
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
-                    style: TextStyle(
-                      color: emphasize ? palette.secondary : palette.textPrimary,
-                      fontWeight: FontWeight.w900,
-                      fontSize: emphasize ? 13.5 : 12.5,
-                    ),
+                    style: TextStyle(color: palette.textPrimary, fontWeight: FontWeight.w900, fontSize: 12.8, height: 1),
                   ),
-                  Text(label, maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(color: palette.textSecondary, fontWeight: FontWeight.w700, fontSize: 9.6)),
+                  const SizedBox(height: 3),
+                  Text(label, maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(color: palette.textSecondary, fontWeight: FontWeight.w700, fontSize: 9.4, height: 1)),
                 ],
               ),
             ),
@@ -7360,24 +7417,32 @@ class _MesasOperacionResumen extends ConsumerWidget {
       );
     }
 
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 11),
-      decoration: BoxDecoration(
-        color: palette.surface,
-        borderRadius: BorderRadius.circular(15),
-        border: Border.all(color: palette.cardBorder),
-      ),
-      child: Row(
-        children: [
-          metric(Icons.table_bar_rounded, '${mesas.length}', 'Mesas'),
-          _MesasSummaryDivider(color: palette.cardBorder),
-          metric(Icons.receipt_long_rounded, '$abiertas', 'Ocupadas'),
-          _MesasSummaryDivider(color: palette.cardBorder),
-          metric(Icons.event_available_rounded, '$disponibles', 'Libres'),
-          _MesasSummaryDivider(color: palette.cardBorder),
-          metric(Icons.payments_rounded, CurrencyUtils.format(total), 'Pendiente', emphasize: total > 0.009),
-        ],
-      ),
+    final metrics = <Widget>[
+      metric(Icons.table_bar_rounded, '${mesas.length}', 'Mesas', palette.secondary),
+      metric(Icons.receipt_long_rounded, '$abiertas', 'Ocupadas', AppColors.warning),
+      metric(Icons.event_available_rounded, '$disponibles', 'Libres', AppColors.success),
+      metric(Icons.payments_rounded, CurrencyUtils.format(total), 'Pendiente', total > 0.009 ? AppColors.warning : palette.secondary),
+    ];
+
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        if (constraints.maxWidth < 560) {
+          final width = (constraints.maxWidth - 8) / 2;
+          return Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: metrics.map((item) => SizedBox(width: width, child: item)).toList(growable: false),
+          );
+        }
+        return Row(
+          children: [
+            for (var i = 0; i < metrics.length; i++) ...[
+              if (i > 0) const SizedBox(width: 8),
+              Expanded(child: metrics[i]),
+            ],
+          ],
+        );
+      },
     );
   }
 }
@@ -7418,28 +7483,29 @@ class _MesaCard extends ConsumerWidget {
     final inactiva = estadoMesa == 'INACTIVA';
     final ocupada = abierta && !inactiva;
     final statusText = inactiva ? 'Inactiva' : ocupada ? 'Ocupada' : 'Libre';
-    final accentColor = inactiva ? palette.textSecondary : ocupada ? palette.secondary : palette.primary;
+    final stateColor = inactiva ? palette.textSecondary : ocupada ? AppColors.warning : AppColors.success;
+    final actionColor = palette.secondary;
     final cuentas = mesa.numeroCuentas ?? 0;
     final pendiente = mesa.totalPendiente ?? 0;
     final cardColor = palette.darkBackground
-        ? Color.lerp(palette.surface, accentColor, ocupada ? 0.10 : 0.05)!
-        : Color.lerp(palette.surface, accentColor, ocupada ? 0.055 : 0.025)!;
+        ? Color.lerp(palette.surface, stateColor, ocupada ? 0.10 : 0.045)!
+        : Color.lerp(palette.surface, stateColor, ocupada ? 0.055 : 0.025)!;
 
     return Material(
       color: Colors.transparent,
-      borderRadius: BorderRadius.circular(18),
+      borderRadius: BorderRadius.circular(20),
       child: InkWell(
-        borderRadius: BorderRadius.circular(18),
+        borderRadius: BorderRadius.circular(20),
         onTap: onTap,
         child: Opacity(
           opacity: inactiva ? 0.62 : 1,
           child: Container(
-            padding: const EdgeInsets.all(12),
+            padding: const EdgeInsets.all(14),
             decoration: BoxDecoration(
               color: cardColor,
-              borderRadius: BorderRadius.circular(18),
-              border: Border.all(color: accentColor.withOpacity(ocupada ? 0.34 : 0.18), width: ocupada ? 1.2 : 1),
-              boxShadow: [BoxShadow(color: Colors.black.withOpacity(palette.darkBackground ? 0.16 : 0.055), blurRadius: 12, offset: const Offset(0, 5))],
+              borderRadius: BorderRadius.circular(20),
+              border: Border.all(color: stateColor.withOpacity(ocupada ? 0.40 : 0.22), width: ocupada ? 1.3 : 1),
+              boxShadow: [BoxShadow(color: Colors.black.withOpacity(palette.darkBackground ? 0.18 : 0.06), blurRadius: 16, offset: const Offset(0, 7))],
             ),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -7449,15 +7515,15 @@ class _MesaCard extends ConsumerWidget {
                     _MesaNumberPhotoBadge(
                       mesaNumero: mesa.mesaNumero,
                       mesaFoto: mesa.mesaFoto,
-                      size: 44,
-                      radius: 13,
-                      accentColor: accentColor,
-                      backgroundColor: accentColor.withOpacity(0.12),
+                      size: 48,
+                      radius: 14,
+                      accentColor: stateColor,
+                      backgroundColor: stateColor.withOpacity(0.12),
                       textColor: palette.textPrimary,
                       compact: true,
                       veryTight: true,
                     ),
-                    const SizedBox(width: 9),
+                    const SizedBox(width: 11),
                     Expanded(
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
@@ -7469,16 +7535,21 @@ class _MesaCard extends ConsumerWidget {
                                   'Mesa ${mesa.mesaNumero ?? '-'}',
                                   maxLines: 1,
                                   overflow: TextOverflow.ellipsis,
-                                  style: TextStyle(color: palette.textPrimary, fontWeight: FontWeight.w900, fontSize: 15.5),
+                                  style: TextStyle(color: palette.textPrimary, fontWeight: FontWeight.w900, fontSize: 16.5),
                                 ),
                               ),
-                              const SizedBox(width: 6),
-                              _MesaStatusBadge(label: statusText, compact: true, color: accentColor),
+                              const SizedBox(width: 7),
+                              _MesaStatusBadge(label: statusText, compact: true, color: stateColor),
                             ],
                           ),
                           if (descripcion.isNotEmpty) ...[
-                            const SizedBox(height: 3),
-                            Text(descripcion, maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(color: palette.textSecondary, fontWeight: FontWeight.w600, fontSize: 10.5)),
+                            const SizedBox(height: 4),
+                            Text(
+                              descripcion,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: TextStyle(color: palette.textSecondary.withOpacity(0.82), fontWeight: FontWeight.w600, fontSize: 10.8),
+                            ),
                           ],
                         ],
                       ),
@@ -7508,23 +7579,49 @@ class _MesaCard extends ConsumerWidget {
                       ),
                   ],
                 ),
-                const SizedBox(height: 9),
+                const SizedBox(height: 12),
                 if (ocupada) ...[
-                  Text('PENDIENTE', style: TextStyle(color: palette.textSecondary, fontWeight: FontWeight.w900, fontSize: 9.3, letterSpacing: 0.45)),
-                  const SizedBox(height: 1),
-                  Text(
-                    CurrencyUtils.format(pendiente),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: TextStyle(color: palette.textPrimary, fontWeight: FontWeight.w900, fontSize: 22, height: 1.05),
-                  ),
-                  const SizedBox(height: 3),
-                  Row(
-                    children: [
-                      Icon(Icons.receipt_long_rounded, size: 14, color: palette.textSecondary),
-                      const SizedBox(width: 5),
-                      Text('$cuentas ${cuentas == 1 ? 'cuenta' : 'cuentas'} abierta${cuentas == 1 ? '' : 's'}', style: TextStyle(color: palette.textSecondary, fontWeight: FontWeight.w700, fontSize: 10.5)),
-                    ],
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                    decoration: BoxDecoration(
+                      color: stateColor.withOpacity(0.09),
+                      borderRadius: BorderRadius.circular(13),
+                      border: Border.all(color: stateColor.withOpacity(0.16)),
+                    ),
+                    child: Row(
+                      children: [
+                        Container(
+                          width: 34,
+                          height: 34,
+                          decoration: BoxDecoration(color: stateColor.withOpacity(0.14), borderRadius: BorderRadius.circular(10)),
+                          child: Icon(Icons.payments_rounded, color: stateColor, size: 18),
+                        ),
+                        const SizedBox(width: 9),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text('PENDIENTE', style: TextStyle(color: palette.textSecondary, fontWeight: FontWeight.w900, fontSize: 9.1, letterSpacing: 0.45)),
+                              const SizedBox(height: 2),
+                              Text(
+                                CurrencyUtils.format(pendiente),
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: TextStyle(color: palette.textPrimary, fontWeight: FontWeight.w900, fontSize: 18.5, height: 1),
+                              ),
+                            ],
+                          ),
+                        ),
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
+                          decoration: BoxDecoration(color: palette.surface.withOpacity(0.55), borderRadius: BorderRadius.circular(999)),
+                          child: Text(
+                            '$cuentas ${cuentas == 1 ? 'cuenta' : 'cuentas'}',
+                            style: TextStyle(color: palette.textSecondary, fontWeight: FontWeight.w800, fontSize: 9.7),
+                          ),
+                        ),
+                      ],
+                    ),
                   ),
                   const Spacer(),
                   Row(
@@ -7534,7 +7631,7 @@ class _MesaCard extends ConsumerWidget {
                           label: 'Continuar',
                           icon: Icons.arrow_forward_rounded,
                           onTap: onTap,
-                          accentColor: accentColor,
+                          accentColor: actionColor,
                           filled: false,
                         ),
                       ),
@@ -7544,7 +7641,7 @@ class _MesaCard extends ConsumerWidget {
                           label: 'Cobrar',
                           icon: Icons.payments_rounded,
                           onTap: onPagar,
-                          accentColor: accentColor,
+                          accentColor: actionColor,
                           filled: true,
                         ),
                       ),
@@ -7560,19 +7657,33 @@ class _MesaCard extends ConsumerWidget {
                   const Spacer(),
                   Row(
                     children: [
-                      Container(width: 8, height: 8, decoration: BoxDecoration(color: accentColor, shape: BoxShape.circle)),
-                      const SizedBox(width: 7),
-                      Expanded(child: Text('Lista para una nueva venta', style: TextStyle(color: palette.textSecondary, fontWeight: FontWeight.w700, fontSize: 11.2))),
+                      Container(
+                        width: 34,
+                        height: 34,
+                        decoration: BoxDecoration(color: stateColor.withOpacity(0.12), borderRadius: BorderRadius.circular(10)),
+                        child: Icon(Icons.event_available_rounded, color: stateColor, size: 18),
+                      ),
+                      const SizedBox(width: 9),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text('Sin venta activa', style: TextStyle(color: palette.textPrimary, fontWeight: FontWeight.w800, fontSize: 11.7)),
+                            const SizedBox(height: 2),
+                            Text('Disponible para atender', style: TextStyle(color: palette.textSecondary, fontWeight: FontWeight.w600, fontSize: 9.8)),
+                          ],
+                        ),
+                      ),
                     ],
                   ),
-                  const SizedBox(height: 10),
+                  const SizedBox(height: 12),
                   SizedBox(
                     width: double.infinity,
                     child: _MesaQuickActionButton(
                       label: 'Abrir venta',
                       icon: Icons.add_rounded,
                       onTap: onTap,
-                      accentColor: accentColor,
+                      accentColor: actionColor,
                       filled: true,
                     ),
                   ),
@@ -12734,13 +12845,116 @@ List<_FacturaProductoAgrupado> _agruparProductosFactura(Iterable<MeseroDetallePr
   return values;
 }
 
-class _DetalleHistorialVentaPage extends ConsumerWidget {
+class _DetalleHistorialVentaPage extends ConsumerStatefulWidget {
   const _DetalleHistorialVentaPage({required this.venta});
 
   final MeseroVentaModel venta;
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<_DetalleHistorialVentaPage> createState() => _DetalleHistorialVentaPageState();
+}
+
+class _DetalleHistorialVentaPageState extends ConsumerState<_DetalleHistorialVentaPage> {
+  late MeseroVentaModel _venta;
+  late MeseroRemoteDataSource _dataSource;
+  int? _actualizandoPagoId;
+
+  @override
+  void initState() {
+    super.initState();
+    _venta = widget.venta;
+    _dataSource = MeseroRemoteDataSource(ref.read(apiClientProvider));
+  }
+
+  Future<void> _cambiarMedioPago(MeseroCuentaModel cuenta, MeseroPagoModel pago) async {
+    final cuentaId = cuenta.cuentaId;
+    final pagoId = pago.pagoId;
+    if (cuentaId == null || pagoId == null || _actualizandoPagoId != null) return;
+
+    try {
+      final medios = await _dataSource.listarMediosPago();
+      if (!mounted) return;
+      final disponibles = medios
+          .where((medio) => medio.medioPagoId != null && medio.medioPagoId != pago.medioPagoId)
+          .toList(growable: false);
+      if (disponibles.isEmpty) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('No hay otro medio de pago activo disponible para realizar la corrección.')),
+        );
+        return;
+      }
+
+      final nuevoMedioId = await showDialog<int>(
+        context: context,
+        builder: (dialogContext) {
+          final palette = ref.read(selectedAppPaletteProvider);
+          return AlertDialog(
+            backgroundColor: palette.surface,
+            title: Text('Corregir medio de pago', style: TextStyle(color: palette.textPrimary, fontWeight: FontWeight.w900)),
+            content: ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 460),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Pago actual: ${pago.medioPagoNombre ?? 'Medio ${pago.medioPagoId ?? '-'}'} · ${CurrencyUtils.format(pago.valor)}',
+                    style: TextStyle(color: palette.textSecondary, fontWeight: FontWeight.w700),
+                  ),
+                  const SizedBox(height: 14),
+                  ...disponibles.map((medio) => Padding(
+                        padding: const EdgeInsets.only(bottom: 8),
+                        child: Material(
+                          color: palette.background.withOpacity(palette.darkBackground ? 0.55 : 0.72),
+                          borderRadius: BorderRadius.circular(14),
+                          child: ListTile(
+                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                            leading: Icon(_iconoMedioPago(medio), color: palette.secondary),
+                            title: Text(medio.nombre ?? 'Medio ${medio.medioPagoId}', style: TextStyle(color: palette.textPrimary, fontWeight: FontWeight.w900)),
+                            subtitle: (medio.descripcion ?? '').trim().isEmpty
+                                ? null
+                                : Text(medio.descripcion ?? '', style: TextStyle(color: palette.textSecondary)),
+                            trailing: const Icon(Icons.chevron_right_rounded),
+                            onTap: () => Navigator.of(dialogContext).pop(medio.medioPagoId),
+                          ),
+                        ),
+                      )),
+                ],
+              ),
+            ),
+            actions: [
+              TextButton(onPressed: () => Navigator.of(dialogContext).pop(), child: const Text('Cancelar')),
+            ],
+          );
+        },
+      );
+      if (nuevoMedioId == null || !mounted) return;
+
+      setState(() => _actualizandoPagoId = pagoId);
+      await _dataSource.cambiarMedioPagoCuenta(
+        pagoId: pagoId,
+        medioPagoId: nuevoMedioId,
+      );
+      final ventaId = _venta.ventaId;
+      final actualizada = ventaId == null ? _venta : await _dataSource.consultarVenta(ventaId);
+      if (!mounted) return;
+      setState(() {
+        _venta = actualizada;
+        _actualizandoPagoId = null;
+      });
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Medio de pago corregido. El valor de la venta no fue modificado.')),
+      );
+    } catch (error) {
+      if (!mounted) return;
+      setState(() => _actualizandoPagoId = null);
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(error.toString())));
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final venta = _venta;
     final palette = ref.watch(selectedAppPaletteProvider);
     final productos = _agruparProductosFactura(venta.cuentas.expand((cuenta) => cuenta.productos));
     final pagos = venta.cuentas.expand((cuenta) => cuenta.pagos.map((pago) => (cuenta: cuenta, pago: pago))).toList(growable: false);
@@ -12762,7 +12976,12 @@ class _DetalleHistorialVentaPage extends ConsumerWidget {
       totalPropina: totalPropina,
       totalCambio: totalCambio,
     );
-    final pagosPanel = _HistorialPagosPanel(pagos: pagos);
+    final ventaFinalizada = (venta.estado ?? '').trim().toUpperCase() == 'FINALIZADA';
+    final pagosPanel = _HistorialPagosPanel(
+      pagos: pagos,
+      onCambiarMedioPago: ventaFinalizada ? _cambiarMedioPago : null,
+      actualizandoPagoId: _actualizandoPagoId,
+    );
 
     return Scaffold(
       backgroundColor: palette.background,
@@ -13277,8 +13496,14 @@ class _HistorialCobroResumen extends ConsumerWidget {
 }
 
 class _HistorialPagosPanel extends ConsumerWidget {
-  const _HistorialPagosPanel({required this.pagos});
+  const _HistorialPagosPanel({
+    required this.pagos,
+    this.onCambiarMedioPago,
+    this.actualizandoPagoId,
+  });
   final List<({MeseroCuentaModel cuenta, MeseroPagoModel pago})> pagos;
+  final Future<void> Function(MeseroCuentaModel cuenta, MeseroPagoModel pago)? onCambiarMedioPago;
+  final int? actualizandoPagoId;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -13314,7 +13539,12 @@ class _HistorialPagosPanel extends ConsumerWidget {
             Text('No hay pagos registrados para esta venta.', style: TextStyle(color: palette.textSecondary, fontWeight: FontWeight.w700))
           else
             for (var i = 0; i < pagos.length; i++)
-              _HistorialPagoCompacto(item: pagos[i], last: i == pagos.length - 1),
+              _HistorialPagoCompacto(
+                item: pagos[i],
+                last: i == pagos.length - 1,
+                onCambiarMedioPago: onCambiarMedioPago,
+                actualizando: actualizandoPagoId == pagos[i].pago.pagoId,
+              ),
         ],
       ),
     );
@@ -13322,9 +13552,16 @@ class _HistorialPagosPanel extends ConsumerWidget {
 }
 
 class _HistorialPagoCompacto extends ConsumerWidget {
-  const _HistorialPagoCompacto({required this.item, required this.last});
+  const _HistorialPagoCompacto({
+    required this.item,
+    required this.last,
+    this.onCambiarMedioPago,
+    this.actualizando = false,
+  });
   final ({MeseroCuentaModel cuenta, MeseroPagoModel pago}) item;
   final bool last;
+  final Future<void> Function(MeseroCuentaModel cuenta, MeseroPagoModel pago)? onCambiarMedioPago;
+  final bool actualizando;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -13342,6 +13579,20 @@ class _HistorialPagoCompacto extends ConsumerWidget {
               const SizedBox(width: 8),
               Expanded(child: Text(pago.medioPagoNombre ?? 'Medio ${pago.medioPagoId ?? '-'}', style: TextStyle(color: palette.textPrimary, fontWeight: FontWeight.w900))),
               Text(CurrencyUtils.format(pago.valor), style: TextStyle(color: palette.secondary, fontWeight: FontWeight.w900)),
+              if (onCambiarMedioPago != null && pago.pagoId != null) ...[
+                const SizedBox(width: 6),
+                actualizando
+                    ? const SizedBox(width: 28, height: 28, child: Padding(padding: EdgeInsets.all(5), child: CircularProgressIndicator(strokeWidth: 2)))
+                    : Tooltip(
+                        message: 'Corregir medio de pago',
+                        child: IconButton(
+                          visualDensity: VisualDensity.compact,
+                          iconSize: 19,
+                          onPressed: () => onCambiarMedioPago?.call(item.cuenta, pago),
+                          icon: Icon(Icons.edit_rounded, color: palette.secondary),
+                        ),
+                      ),
+              ],
             ],
           ),
           const SizedBox(height: 5),

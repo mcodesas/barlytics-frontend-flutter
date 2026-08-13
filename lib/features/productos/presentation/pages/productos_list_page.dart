@@ -383,9 +383,26 @@ class _ProductosListPageState extends ConsumerState<ProductosListPage> {
             'Los precios de venta y compra deben ser mayores que cero.',
           );
         }
-        if (salePrice < purchasePrice) {
+        final purchaseByQuantity = switch (productBody['prodCompraPorCantidad']) {
+          final num value => value.toInt() == 1,
+          final bool value => value,
+          _ => item.prodCompraPorCantidad == 1,
+        };
+        final purchaseQuantity =
+            (productBody['prodCantidadCompra'] as num?)?.toDouble() ??
+            item.prodCantidadCompra;
+        if (purchaseByQuantity &&
+            (purchaseQuantity == null || purchaseQuantity <= 0)) {
           throw StateError(
-            'El precio de venta no puede ser menor que el precio de compra.',
+            'Indica cuántas unidades contiene la presentación de compra.',
+          );
+        }
+        final unitPurchasePrice = purchaseByQuantity
+            ? purchasePrice / purchaseQuantity!
+            : purchasePrice;
+        if (salePrice < unitPurchasePrice) {
+          throw StateError(
+            'El precio de venta no puede ser menor que el costo unitario de compra.',
           );
         }
 
@@ -4668,6 +4685,12 @@ class _ProductEditBottomSheetState extends State<_ProductEditBottomSheet> {
         item.precioVentaVigente == null &&
         item.precioCompraVigente == null;
 
+    if (_purchaseByQuantity &&
+        (purchaseQuantity == null || purchaseQuantity <= 0)) {
+      _showMessage('Indica cuántas unidades contiene la presentación de compra.');
+      return;
+    }
+
     if (!noPriceRequested) {
       if (salePrice == null || salePrice <= 0) {
         _showMessage('Ingresa un precio de venta mayor que cero.');
@@ -4677,9 +4700,12 @@ class _ProductEditBottomSheetState extends State<_ProductEditBottomSheet> {
         _showMessage('Ingresa un precio de compra mayor que cero.');
         return;
       }
-      if (salePrice < purchasePrice) {
+      final unitPurchasePrice = _purchaseByQuantity
+          ? purchasePrice / purchaseQuantity!
+          : purchasePrice;
+      if (salePrice < unitPurchasePrice) {
         _showMessage(
-          'El precio de venta no puede ser menor que el precio de compra.',
+          'El precio de venta no puede ser menor que el costo unitario de compra.',
         );
         return;
       }
@@ -4693,11 +4719,6 @@ class _ProductEditBottomSheetState extends State<_ProductEditBottomSheet> {
       _showMessage('El stock máximo debe ser mayor o igual al mínimo.');
       return;
     }
-    if (_purchaseByQuantity && (purchaseQuantity == null || purchaseQuantity <= 0)) {
-      _showMessage('Indica cuántas unidades contiene la presentación de compra.');
-      return;
-    }
-
     setState(() => _saving = true);
     final ok = await widget.onUpdateProduct(
       item,
