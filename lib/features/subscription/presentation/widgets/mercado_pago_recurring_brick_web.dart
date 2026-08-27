@@ -263,14 +263,25 @@ class _MercadoPagoRecurringBrickState extends State<MercadoPagoRecurringBrick> {
     // viene separado de formData. Lo agregamos como metadato de enrutamiento;
     // token, payer, issuer, installments, etc. permanecen exactamente como los
     // entrega Mercado Pago.
+    const normalizedSelectedPaymentMethod =
+      selectedPaymentMethod === 'credit_card' || selectedPaymentMethod === 'debit_card'
+        ? selectedPaymentMethod
+        : null;
+
+    // Mercado Pago documenta selectedPaymentMethod separado de formData. En
+    // algunos flujos de débito formData trae payment_method_id (ej. debmaster)
+    // pero no payment_type_id. Enviamos ambos para que el backend pueda resolver
+    // el tipo sin rechazar una tarjeta que el propio Brick ya tokenizó.
     const payloadToSend = {
       ...(formData || {}),
+      payment_type_id: formData?.payment_type_id || normalizedSelectedPaymentMethod,
       selected_payment_method: selectedPaymentMethod || null
     };
 
     console.info('[BarLytics / Mercado Pago] submit', {
       selectedPaymentMethod,
       paymentMethodId: formData?.payment_method_id || null,
+      paymentTypeId: payloadToSend.payment_type_id || null,
       hasToken: Boolean(formData?.token)
     });
 
@@ -337,10 +348,15 @@ class _MercadoPagoRecurringBrickState extends State<MercadoPagoRecurringBrick> {
             // en varias cuotas.
             minInstallments: 1,
             maxInstallments: 1,
-            creditCard: 'all'
+            creditCard: 'all',
+            // El mismo Payment Brick tokeniza tarjetas débito disponibles para
+            // la cuenta/país. El backend valida el payment_type_id antes de
+            // crear la preapproval recurrente.
+            debitCard: 'all'
           },
           visual: {
-            // Crédito abierto por defecto para la suscripción mensual, para el alta recurrente.
+            // Abrimos el formulario de tarjeta por defecto. El usuario puede
+            // ingresar crédito o débito y Mercado Pago identifica el tipo.
             defaultPaymentOption: {
               creditCardForm: true
             },

@@ -1417,7 +1417,7 @@ class _SubscriptionActivationPageState extends ConsumerState<SubscriptionActivat
                     const SizedBox(width: 8),
                     Expanded(
                       child: Text(
-                        'Crédito: suscripción con renovación automática',
+                        'Tarjeta de crédito o débito: renovación automática',
                         style: TextStyle(
                           color: palette.textPrimary,
                           fontWeight: FontWeight.w800,
@@ -1430,8 +1430,8 @@ class _SubscriptionActivationPageState extends ConsumerState<SubscriptionActivat
                 const SizedBox(height: 6),
                 Text(
                   trialDays > 0
-                      ? 'Con tarjeta de crédito tienes $trialDays días de prueba. Después se cobrará ${_money(price)} $recurringPeriod hasta que canceles.'
-                      : 'Con tarjeta de crédito se cobrará ${_money(price)} $recurringPeriod hasta que canceles.',
+                      ? 'Con tarjeta de crédito o débito tienes $trialDays días de prueba. Después se cobrará ${_money(price)} $recurringPeriod hasta que canceles.'
+                      : 'Con tarjeta de crédito o débito se cobrará ${_money(price)} $recurringPeriod hasta que canceles.',
                   style: TextStyle(
                     color: palette.textSecondary,
                     fontSize: 12.2,
@@ -1448,7 +1448,7 @@ class _SubscriptionActivationPageState extends ConsumerState<SubscriptionActivat
                     const SizedBox(width: 8),
                     Expanded(
                       child: Text(
-                        'Débito, prepago o PSE: pago único por $period',
+                        'PSE: pago único por $period',
                         style: TextStyle(
                           color: palette.textPrimary,
                           fontWeight: FontWeight.w800,
@@ -1460,7 +1460,7 @@ class _SubscriptionActivationPageState extends ConsumerState<SubscriptionActivat
                 ),
                 const SizedBox(height: 6),
                 Text(
-                  'Se cobra ${_money(price)} una sola vez y tu plan queda activo por $period. No hay renovación automática; al terminar puedes volver a pagar o cambiar a crédito.',
+                  'Se cobra ${_money(price)} una sola vez y tu plan queda activo por $period. No hay renovación automática; al terminar puedes volver a pagar o cambiar a una tarjeta recurrente.',
                   style: TextStyle(
                     color: palette.textSecondary,
                     fontSize: 12.2,
@@ -1475,7 +1475,7 @@ class _SubscriptionActivationPageState extends ConsumerState<SubscriptionActivat
                     const SizedBox(width: 7),
                     Expanded(
                       child: Text(
-                        'Si eliges crédito, puedes cancelar la renovación en cualquier momento para evitar futuros cobros.',
+                        'Si eliges tarjeta recurrente, puedes cancelar la renovación en cualquier momento para evitar futuros cobros.',
                         style: TextStyle(
                           color: palette.textSecondary,
                           fontSize: 12.2,
@@ -1532,7 +1532,7 @@ class _SubscriptionActivationPageState extends ConsumerState<SubscriptionActivat
                       ),
                       const SizedBox(height: 3),
                       Text(
-                        'Mercado Pago oficial: renovación automática con tarjeta o pago único directo por PSE',
+                        'Mercado Pago oficial: renovación automática con tarjeta de crédito o débito, o pago único directo por PSE',
                         style: TextStyle(color: palette.textSecondary, fontSize: 12),
                       ),
                     ],
@@ -1557,7 +1557,7 @@ class _SubscriptionActivationPageState extends ConsumerState<SubscriptionActivat
                 const SizedBox(width: 8),
                 Expanded(
                   child: Text(
-                    'Tarjeta de crédito: renovación automática por $period. Para pago único, completas los datos PSE aquí y solo sales de BarLytics al momento de autorizar en tu banco.',
+                    'Tarjeta de crédito o débito: renovación automática por $period. Mercado Pago identifica el tipo de tarjeta y procesa el cobro recurrente. Para pago único, completas PSE aquí y solo sales de BarLytics al autorizar en tu banco.',
                     style: TextStyle(
                       color: palette.textSecondary,
                       fontSize: 12,
@@ -1694,8 +1694,8 @@ class _SubscriptionActivationPageState extends ConsumerState<SubscriptionActivat
           icon: Icons.autorenew_rounded,
           title: 'Renovación automática',
           description: config.trialDays > 0
-              ? '${config.trialDays} días gratis y luego ${_money(config.amount)} por $period. Los datos de la tarjeta se capturan en el Payment Brick oficial de Mercado Pago.'
-              : '${_money(config.amount)} por $period. Los datos de la tarjeta se capturan en el Payment Brick oficial de Mercado Pago.',
+              ? '${config.trialDays} días gratis y luego ${_money(config.amount)} por $period. Puedes usar tarjeta de crédito o débito compatible. Los datos se capturan y tokenizan en el Payment Brick oficial de Mercado Pago.'
+              : '${_money(config.amount)} por $period. Puedes usar tarjeta de crédito o débito compatible. Los datos se capturan y tokenizan en el Payment Brick oficial de Mercado Pago.',
           onTap: () => setState(() => _automaticRenewalCheckout = true),
         ),
         const SizedBox(height: 10),
