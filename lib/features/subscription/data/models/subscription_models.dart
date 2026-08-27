@@ -195,6 +195,18 @@ class SubscriptionPrepaidOptionModel {
       );
 }
 
+class SubscriptionPseBankModel {
+  const SubscriptionPseBankModel({required this.id, required this.description});
+
+  final String id;
+  final String description;
+
+  factory SubscriptionPseBankModel.fromJson(Map<String, dynamic> json) => SubscriptionPseBankModel(
+        id: json['id']?.toString() ?? '',
+        description: json['description']?.toString() ?? '',
+      );
+}
+
 class SubscriptionPaymentConfigModel {
   const SubscriptionPaymentConfigModel({
     required this.enabled,

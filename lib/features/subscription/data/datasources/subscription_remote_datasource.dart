@@ -54,6 +54,56 @@ class SubscriptionRemoteDataSource {
     return response.data!;
   }
 
+  Future<List<SubscriptionPseBankModel>> pseBanks() async {
+    final response = await _api.get<List<SubscriptionPseBankModel>>(
+      ApiPaths.subscriptionPseBanks,
+      (json) => (json as List? ?? const <dynamic>[])
+          .whereType<Map>()
+          .map((item) => SubscriptionPseBankModel.fromJson(Map<String, dynamic>.from(item)))
+          .where((item) => item.id.isNotEmpty && item.description.isNotEmpty)
+          .toList(growable: false),
+    );
+    return response.data ?? const <SubscriptionPseBankModel>[];
+  }
+
+  Future<SubscriptionCheckoutModel> oneTimePse({
+    required int prepaidPeriods,
+    required String financialInstitution,
+    required String entityType,
+    required String identificationType,
+    required String identificationNumber,
+    required String firstName,
+    required String lastName,
+    required String phone,
+    required String zipCode,
+    required String streetName,
+    required String streetNumber,
+    required String neighborhood,
+    required String city,
+  }) async {
+    final response = await _api.post<SubscriptionCheckoutModel>(
+      ApiPaths.subscriptionOneTimePse,
+      <String, dynamic>{
+        'prepaid_periods': prepaidPeriods,
+        'financial_institution': financialInstitution,
+        'entity_type': entityType,
+        'identification_type': identificationType,
+        'identification_number': identificationNumber,
+        'first_name': firstName,
+        'last_name': lastName,
+        'phone': phone,
+        'zip_code': zipCode,
+        'street_name': streetName,
+        'street_number': streetNumber,
+        'neighborhood': neighborhood,
+        'city': city,
+      },
+      (json) => SubscriptionCheckoutModel.fromJson(Map<String, dynamic>.from(json as Map)),
+    );
+    if (response.data == null) throw StateError('No fue posible iniciar el pago PSE.');
+    return response.data!;
+  }
+
   Future<SubscriptionCheckoutModel> oneTimeCheckout(int prepaidPeriods) async {
     final response = await _api.post<SubscriptionCheckoutModel>(
       ApiPaths.subscriptionOneTimeCheckout,

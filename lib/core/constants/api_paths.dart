@@ -20,6 +20,8 @@ class ApiPaths {
   static const subscriptionPaymentConfig = '/api/v1/subscriptions/payment-config';
   static const subscriptionRecurringAuthorize = '/api/v1/subscriptions/checkout/recurring/authorize';
   static const subscriptionOneTimeCheckout = '/api/v1/subscriptions/checkout/one-time';
+  static const subscriptionPseBanks = '/api/v1/subscriptions/checkout/pse/banks';
+  static const subscriptionOneTimePse = '/api/v1/subscriptions/checkout/one-time/pse';
   static const subscriptionSync = '/api/v1/subscriptions/sync';
   static const subscriptionPayments = '/api/v1/subscriptions/payments';
   static const profile = '/api/v1/profile';

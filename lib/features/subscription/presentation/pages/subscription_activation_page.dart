@@ -31,6 +31,19 @@ class _SubscriptionActivationPageState extends ConsumerState<SubscriptionActivat
   String? _paymentConfigError;
   bool _automaticRenewalCheckout = true;
   int _prepaidPeriods = 1;
+  final GlobalKey<FormState> _pseFormKey = GlobalKey<FormState>();
+  List<SubscriptionPseBankModel> _pseBanks = const <SubscriptionPseBankModel>[];
+  bool _loadingPseBanks = false;
+  String? _selectedPseBank;
+  String _pseEntityType = 'individual';
+  String _pseIdentificationType = 'CC';
+  String _pseIdentificationNumber = '';
+  String _psePhone = '';
+  String _pseZipCode = '';
+  String _pseStreetName = '';
+  String _pseStreetNumber = 'S/N';
+  String _pseNeighborhood = '';
+  String _pseCity = '';
   bool _startingCheckout = false;
   String? _message;
   bool _loading = true;
@@ -138,6 +151,17 @@ class _SubscriptionActivationPageState extends ConsumerState<SubscriptionActivat
         _profile = profile;
         _company = company;
         _companyError = companyError;
+        if (_psePhone.isEmpty) {
+          _psePhone = (profile['telefonoPrincipal']?.toString() ?? '').replaceAll(RegExp(r'\D'), '');
+        }
+        if (_pseStreetName.isEmpty) {
+          _pseStreetName = (profile['direccion']?.toString().trim().isNotEmpty ?? false)
+              ? profile['direccion'].toString().trim()
+              : (company?['emprDireccion']?.toString().trim() ?? '');
+        }
+        if (_pseCity.isEmpty) {
+          _pseCity = profile['ciudadNombre']?.toString().trim() ?? '';
+        }
       });
     } catch (error) {
       if (!mounted) return;
@@ -482,25 +506,77 @@ class _SubscriptionActivationPageState extends ConsumerState<SubscriptionActivat
     }
   }
 
-  Future<void> _startMercadoPagoCheckout() async {
+  Future<void> _loadPseBanks() async {
+    if (_loadingPseBanks || _pseBanks.isNotEmpty) return;
+    if (mounted) setState(() => _loadingPseBanks = true);
+    try {
+      final banks = await ref.read(subscriptionRemoteDataSourceProvider).pseBanks();
+      if (!mounted) return;
+      setState(() {
+        _pseBanks = banks;
+        // No seleccionamos un banco automáticamente: el pagador debe elegir
+        // conscientemente la entidad desde la que realizará la transferencia.
+        if (_selectedPseBank != null && !banks.any((bank) => bank.id == _selectedPseBank)) {
+          _selectedPseBank = null;
+        }
+      });
+    } catch (error) {
+      if (mounted) setState(() => _message = _cleanError(error));
+    } finally {
+      if (mounted) setState(() => _loadingPseBanks = false);
+    }
+  }
+
+  String get _pseFirstName => <String>[
+        _profile?['primerNombre']?.toString().trim() ?? '',
+        _profile?['segundoNombre']?.toString().trim() ?? '',
+      ].where((value) => value.isNotEmpty).join(' ');
+
+  String get _pseLastName => <String>[
+        _profile?['primerApellido']?.toString().trim() ?? '',
+        _profile?['segundoApellido']?.toString().trim() ?? '',
+      ].where((value) => value.isNotEmpty).join(' ');
+
+  Future<void> _startPseCheckout() async {
     final config = _paymentConfig;
     if (config == null || _startingCheckout || _automaticRenewalCheckout) return;
+    if (!(_pseFormKey.currentState?.validate() ?? false)) return;
+    final bank = _selectedPseBank;
+    if (bank == null || bank.isEmpty) {
+      setState(() => _message = 'Selecciona el banco desde el cual realizarás el pago PSE.');
+      return;
+    }
+
     setState(() {
       _startingCheckout = true;
       _message = null;
     });
     try {
-      final checkout = await ref.read(subscriptionRemoteDataSourceProvider).oneTimeCheckout(_prepaidPeriods);
+      final checkout = await ref.read(subscriptionRemoteDataSourceProvider).oneTimePse(
+            prepaidPeriods: _prepaidPeriods,
+            financialInstitution: bank,
+            entityType: _pseEntityType,
+            identificationType: _pseIdentificationType,
+            identificationNumber: _pseIdentificationNumber,
+            firstName: _pseFirstName,
+            lastName: _pseLastName,
+            phone: _psePhone,
+            zipCode: _pseZipCode,
+            streetName: _pseStreetName,
+            streetNumber: _pseStreetNumber,
+            neighborhood: _pseNeighborhood,
+            city: _pseCity,
+          );
       final uri = Uri.tryParse(checkout.checkoutUrl);
       if (uri == null || !uri.hasScheme || uri.host.isEmpty) {
-        throw StateError('Mercado Pago no devolvió una URL de checkout válida.');
+        throw StateError('Mercado Pago no devolvió una URL PSE válida.');
       }
       final opened = await launchUrl(
         uri,
         mode: LaunchMode.platformDefault,
         webOnlyWindowName: '_self',
       );
-      if (!opened) throw StateError('No fue posible abrir Mercado Pago.');
+      if (!opened) throw StateError('No fue posible abrir el banco seleccionado.');
     } catch (error) {
       if (mounted) setState(() => _message = _cleanError(error));
     } finally {
@@ -1456,7 +1532,7 @@ class _SubscriptionActivationPageState extends ConsumerState<SubscriptionActivat
                       ),
                       const SizedBox(height: 3),
                       Text(
-                        'Mercado Pago oficial: renovación automática o pago único con PSE / débito',
+                        'Mercado Pago oficial: renovación automática con tarjeta o pago único directo por PSE',
                         style: TextStyle(color: palette.textSecondary, fontSize: 12),
                       ),
                     ],
@@ -1481,7 +1557,7 @@ class _SubscriptionActivationPageState extends ConsumerState<SubscriptionActivat
                 const SizedBox(width: 8),
                 Expanded(
                   child: Text(
-                    'Tarjeta de crédito: renovación automática por $period. Débito, prepago o PSE: pago único y puedes adelantar de 1 a 12 meses, sin cobros automáticos posteriores.',
+                    'Tarjeta de crédito: renovación automática por $period. Para pago único, completas los datos PSE aquí y solo sales de BarLytics al momento de autorizar en tu banco.',
                     style: TextStyle(
                       color: palette.textSecondary,
                       fontSize: 12,
@@ -1519,8 +1595,8 @@ class _SubscriptionActivationPageState extends ConsumerState<SubscriptionActivat
         child: Center(child: CircularProgressIndicator(strokeWidth: 2)),
       );
     }
-    if (!config.enabled || (config.providerPlanId?.trim().isEmpty ?? true)) {
-      return _notice(palette, 'Mercado Pago no está configurado o el plan aún no pudo sincronizarse.', error: true);
+    if (!config.enabled) {
+      return _notice(palette, 'Mercado Pago no está configurado para recibir pagos.', error: true);
     }
 
     final periodOptions = config.prepaidOptions;
@@ -1621,12 +1697,15 @@ class _SubscriptionActivationPageState extends ConsumerState<SubscriptionActivat
           selected: !_automaticRenewalCheckout,
           icon: Icons.account_balance_wallet_outlined,
           title: 'Pago único',
-          description: 'Paga por adelantado sin renovación automática. Mercado Pago abrirá su checkout oficial y mostrará PSE, débito y demás medios disponibles.',
-          onTap: () => setState(() => _automaticRenewalCheckout = false),
+          description: 'Paga por adelantado sin renovación automática. Selecciona banco y registra los datos PSE directamente en BarLytics; después irás únicamente a autorizar el pago en tu banco.',
+          onTap: () {
+            setState(() => _automaticRenewalCheckout = false);
+            _loadPseBanks();
+          },
         ),
         const SizedBox(height: 14),
         if (_automaticRenewalCheckout) ...[
-          if (!config.recurringEnabled || config.publicKey.trim().isEmpty)
+          if (!config.recurringEnabled || config.publicKey.trim().isEmpty || (config.providerPlanId?.trim().isEmpty ?? true))
             _notice(palette, 'La renovación automática requiere credenciales productivas y Public Key de Mercado Pago.', error: true)
           else if (token.isEmpty)
             _notice(palette, 'Tu sesión expiró. Inicia sesión nuevamente para pagar.', error: true)
@@ -1641,54 +1720,505 @@ class _SubscriptionActivationPageState extends ConsumerState<SubscriptionActivat
               returnUrl: _frontendReturnUrl,
             ),
         ] else ...[
-          DropdownButtonFormField<int>(
-            value: _prepaidPeriods,
-            decoration: const InputDecoration(
-              labelText: 'Periodos a pagar',
-              prefixIcon: Icon(Icons.calendar_month_outlined),
-            ),
-            items: periodOptions
-                .map((option) => DropdownMenuItem<int>(
-                      value: option.periods,
-                      child: Text('${option.periods} ${option.periods == 1 ? 'mes' : 'meses'} · ${_money(option.amount)}'),
-                    ))
-                .toList(growable: false),
-            onChanged: _startingCheckout
-                ? null
-                : (value) {
-                    if (value != null) setState(() => _prepaidPeriods = value);
-                  },
-          ),
-          const SizedBox(height: 10),
           Container(
-            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+            padding: const EdgeInsets.all(18),
             decoration: BoxDecoration(
-              color: palette.primary.withOpacity(.06),
-              borderRadius: BorderRadius.circular(14),
-            ),
-            child: Row(
-              children: [
-                Expanded(child: Text('Total a pagar', style: TextStyle(color: palette.textSecondary, fontSize: 12))),
-                Text(_money(oneTimeAmount), style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w900)),
+              color: palette.surface,
+              borderRadius: BorderRadius.circular(20),
+              border: Border.all(color: palette.primary.withOpacity(.20)),
+              boxShadow: [
+                BoxShadow(
+                  color: palette.primary.withOpacity(.06),
+                  blurRadius: 24,
+                  offset: const Offset(0, 10),
+                ),
               ],
             ),
-          ),
-          const SizedBox(height: 14),
-          FilledButton.icon(
-            onPressed: _startingCheckout || !config.oneTimeEnabled ? null : _startMercadoPagoCheckout,
-            icon: _startingCheckout
-                ? const SizedBox(width: 17, height: 17, child: CircularProgressIndicator(strokeWidth: 2))
-                : const Icon(Icons.open_in_new_rounded),
-            label: Text(_startingCheckout ? 'Abriendo Mercado Pago…' : 'Continuar con Mercado Pago'),
+            child: Form(
+              key: _pseFormKey,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Container(
+                        width: 48,
+                        height: 48,
+                        decoration: BoxDecoration(
+                          color: palette.primary.withOpacity(.10),
+                          borderRadius: BorderRadius.circular(15),
+                        ),
+                        child: Icon(Icons.account_balance_rounded, color: palette.primary, size: 25),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              'Pago único con PSE',
+                              style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w900),
+                            ),
+                            const SizedBox(height: 4),
+                            Text(
+                              'Completa los datos aquí. Al final irás directamente a tu banco para autorizar la transferencia.',
+                              style: TextStyle(color: palette.textSecondary, fontSize: 11.8, height: 1.4),
+                            ),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 6),
+                        decoration: BoxDecoration(
+                          color: palette.success.withOpacity(.09),
+                          borderRadius: BorderRadius.circular(999),
+                          border: Border.all(color: palette.success.withOpacity(.18)),
+                        ),
+                        child: Text(
+                          'Sin renovación',
+                          style: TextStyle(color: palette.success, fontSize: 10.5, fontWeight: FontWeight.w800),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 18),
+                  Wrap(
+                    spacing: 8,
+                    runSpacing: 8,
+                    children: [
+                      _pseFlowBadge(palette, '1', 'Elige periodo'),
+                      _pseFlowBadge(palette, '2', 'Completa tus datos'),
+                      _pseFlowBadge(palette, '3', 'Autoriza en tu banco'),
+                    ],
+                  ),
+                  const SizedBox(height: 20),
+                  _pseSectionHeader(
+                    palette,
+                    icon: Icons.calendar_month_outlined,
+                    title: '¿Cuánto tiempo quieres pagar?',
+                    subtitle: 'Selecciona el periodo. Verás el total antes de continuar.',
+                  ),
+                  const SizedBox(height: 10),
+                  LayoutBuilder(
+                    builder: (context, constraints) {
+                      final itemWidth = constraints.maxWidth < 560
+                          ? constraints.maxWidth
+                          : (constraints.maxWidth - 10) / 2;
+                      return Wrap(
+                        spacing: 10,
+                        runSpacing: 10,
+                        children: periodOptions.map((periodOption) {
+                          final selected = _prepaidPeriods == periodOption.periods;
+                          return SizedBox(
+                            width: itemWidth,
+                            child: InkWell(
+                              onTap: _startingCheckout
+                                  ? null
+                                  : () => setState(() => _prepaidPeriods = periodOption.periods),
+                              borderRadius: BorderRadius.circular(14),
+                              child: AnimatedContainer(
+                                duration: const Duration(milliseconds: 160),
+                                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 13),
+                                decoration: BoxDecoration(
+                                  color: selected ? palette.primary.withOpacity(.08) : palette.background.withOpacity(.45),
+                                  borderRadius: BorderRadius.circular(14),
+                                  border: Border.all(
+                                    color: selected ? palette.primary.withOpacity(.55) : palette.textSecondary.withOpacity(.12),
+                                    width: selected ? 1.4 : 1,
+                                  ),
+                                ),
+                                child: Row(
+                                  children: [
+                                    Container(
+                                      width: 34,
+                                      height: 34,
+                                      decoration: BoxDecoration(
+                                        color: (selected ? palette.primary : palette.textSecondary).withOpacity(.09),
+                                        borderRadius: BorderRadius.circular(10),
+                                      ),
+                                      child: Icon(
+                                        selected ? Icons.check_rounded : Icons.schedule_rounded,
+                                        color: selected ? palette.primary : palette.textSecondary,
+                                        size: 18,
+                                      ),
+                                    ),
+                                    const SizedBox(width: 10),
+                                    Expanded(
+                                      child: Column(
+                                        crossAxisAlignment: CrossAxisAlignment.start,
+                                        children: [
+                                          Text(
+                                            '${periodOption.periods} ${periodOption.periods == 1 ? 'mes' : 'meses'}',
+                                            style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 12.5),
+                                          ),
+                                          const SizedBox(height: 2),
+                                          Text(
+                                            _money(periodOption.amount),
+                                            style: TextStyle(
+                                              color: selected ? palette.primary : palette.textSecondary,
+                                              fontWeight: FontWeight.w800,
+                                              fontSize: 12,
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ),
+                          );
+                        }).toList(growable: false),
+                      );
+                    },
+                  ),
+                  const SizedBox(height: 14),
+                  Container(
+                    padding: const EdgeInsets.all(15),
+                    decoration: BoxDecoration(
+                      gradient: LinearGradient(
+                        colors: [
+                          palette.primary.withOpacity(.10),
+                          palette.secondary.withOpacity(.06),
+                        ],
+                      ),
+                      borderRadius: BorderRadius.circular(16),
+                      border: Border.all(color: palette.primary.withOpacity(.14)),
+                    ),
+                    child: Row(
+                      children: [
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text('Total a pagar', style: TextStyle(color: palette.textSecondary, fontSize: 11.5)),
+                              const SizedBox(height: 2),
+                              Text(
+                                '${_prepaidPeriods} ${_prepaidPeriods == 1 ? 'mes' : 'meses'} · pago único',
+                                style: TextStyle(color: palette.textSecondary, fontSize: 10.8),
+                              ),
+                            ],
+                          ),
+                        ),
+                        Text(
+                          _money(oneTimeAmount),
+                          style: TextStyle(color: palette.primary, fontSize: 21, fontWeight: FontWeight.w900),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 22),
+                  _pseSectionHeader(
+                    palette,
+                    icon: Icons.account_balance_outlined,
+                    title: 'Banco para pagar',
+                    subtitle: 'Elige la entidad desde la que autorizarás la transferencia PSE.',
+                  ),
+                  const SizedBox(height: 10),
+                  DropdownButtonFormField<String>(
+                    value: _pseBanks.any((item) => item.id == _selectedPseBank) ? _selectedPseBank : null,
+                    isExpanded: true,
+                    decoration: InputDecoration(
+                      labelText: _loadingPseBanks ? 'Cargando bancos…' : 'Selecciona tu banco',
+                      prefixIcon: const Icon(Icons.account_balance_rounded),
+                      suffixIcon: _loadingPseBanks
+                          ? const Padding(
+                              padding: EdgeInsets.all(14),
+                              child: SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2)),
+                            )
+                          : null,
+                    ),
+                    items: _pseBanks
+                        .map((bank) => DropdownMenuItem<String>(
+                              value: bank.id,
+                              child: Text(bank.description, overflow: TextOverflow.ellipsis),
+                            ))
+                        .toList(growable: false),
+                    onChanged: _startingCheckout || _loadingPseBanks
+                        ? null
+                        : (value) => setState(() => _selectedPseBank = value),
+                    validator: (value) => value == null || value.isEmpty ? 'Selecciona un banco' : null,
+                  ),
+                  if (_pseBanks.isEmpty && !_loadingPseBanks) ...[
+                    const SizedBox(height: 7),
+                    Align(
+                      alignment: Alignment.centerLeft,
+                      child: TextButton.icon(
+                        onPressed: _loadPseBanks,
+                        icon: const Icon(Icons.refresh_rounded, size: 17),
+                        label: const Text('Volver a cargar bancos'),
+                      ),
+                    ),
+                  ],
+                  const SizedBox(height: 22),
+                  _pseSectionHeader(
+                    palette,
+                    icon: Icons.person_outline_rounded,
+                    title: 'Datos del titular',
+                    subtitle: 'Deben corresponder a la persona o empresa que realizará el pago.',
+                  ),
+                  const SizedBox(height: 10),
+                  LayoutBuilder(
+                    builder: (context, constraints) {
+                      final compact = constraints.maxWidth < 620;
+                      final personType = DropdownButtonFormField<String>(
+                        value: _pseEntityType,
+                        decoration: const InputDecoration(
+                          labelText: 'Tipo de persona',
+                          prefixIcon: Icon(Icons.person_outline_rounded),
+                        ),
+                        items: const [
+                          DropdownMenuItem(value: 'individual', child: Text('Persona natural')),
+                          DropdownMenuItem(value: 'association', child: Text('Persona jurídica')),
+                        ],
+                        onChanged: _startingCheckout
+                            ? null
+                            : (value) {
+                                if (value == null) return;
+                                setState(() {
+                                  _pseEntityType = value;
+                                  _pseIdentificationType = value == 'association' ? 'NIT' : 'CC';
+                                });
+                              },
+                      );
+                      final docType = DropdownButtonFormField<String>(
+                        value: _pseIdentificationType,
+                        decoration: const InputDecoration(
+                          labelText: 'Documento',
+                          prefixIcon: Icon(Icons.badge_outlined),
+                        ),
+                        items: (_pseEntityType == 'association'
+                                ? const <String>['NIT']
+                                : const <String>['CC', 'CE', 'PAS', 'TE', 'TI', 'RC', 'DI'])
+                            .map((value) => DropdownMenuItem(value: value, child: Text(value)))
+                            .toList(growable: false),
+                        onChanged: _startingCheckout
+                            ? null
+                            : (value) => setState(() => _pseIdentificationType = value ?? 'CC'),
+                      );
+                      if (compact) return Column(children: [personType, const SizedBox(height: 10), docType]);
+                      return Row(children: [Expanded(child: personType), const SizedBox(width: 10), Expanded(child: docType)]);
+                    },
+                  ),
+                  const SizedBox(height: 10),
+                  LayoutBuilder(
+                    builder: (context, constraints) {
+                      final compact = constraints.maxWidth < 620;
+                      final document = TextFormField(
+                        initialValue: _pseIdentificationNumber,
+                        keyboardType: TextInputType.number,
+                        decoration: const InputDecoration(
+                          labelText: 'Número de documento',
+                          prefixIcon: Icon(Icons.numbers_rounded),
+                        ),
+                        onChanged: (value) => _pseIdentificationNumber = value,
+                        validator: (value) => (value ?? '').replaceAll(RegExp(r'\D'), '').length < 5
+                            ? 'Documento no válido'
+                            : null,
+                      );
+                      final phone = TextFormField(
+                        initialValue: _psePhone,
+                        keyboardType: TextInputType.phone,
+                        decoration: const InputDecoration(
+                          labelText: 'Celular',
+                          prefixIcon: Icon(Icons.phone_outlined),
+                          hintText: '3001234567',
+                        ),
+                        onChanged: (value) => _psePhone = value,
+                        validator: (value) => (value ?? '').replaceAll(RegExp(r'\D'), '').length < 7
+                            ? 'Teléfono no válido'
+                            : null,
+                      );
+                      if (compact) return Column(children: [document, const SizedBox(height: 10), phone]);
+                      return Row(children: [Expanded(child: document), const SizedBox(width: 10), Expanded(child: phone)]);
+                    },
+                  ),
+                  const SizedBox(height: 22),
+                  _pseSectionHeader(
+                    palette,
+                    icon: Icons.location_on_outlined,
+                    title: 'Dirección del pagador',
+                    subtitle: 'Mercado Pago solicita estos datos para procesar la operación PSE.',
+                  ),
+                  const SizedBox(height: 10),
+                  TextFormField(
+                    initialValue: _pseStreetName,
+                    decoration: const InputDecoration(
+                      labelText: 'Dirección / calle',
+                      prefixIcon: Icon(Icons.home_outlined),
+                    ),
+                    onChanged: (value) => _pseStreetName = value,
+                    validator: (value) => (value ?? '').trim().isEmpty ? 'Ingresa la dirección' : null,
+                  ),
+                  const SizedBox(height: 10),
+                  LayoutBuilder(
+                    builder: (context, constraints) {
+                      final compact = constraints.maxWidth < 620;
+                      final number = TextFormField(
+                        initialValue: _pseStreetNumber,
+                        decoration: const InputDecoration(labelText: 'Número', hintText: 'S/N'),
+                        onChanged: (value) => _pseStreetNumber = value,
+                        validator: (value) => (value ?? '').trim().isEmpty ? 'Ingresa S/N si no aplica' : null,
+                      );
+                      final neighborhood = TextFormField(
+                        initialValue: _pseNeighborhood,
+                        decoration: const InputDecoration(labelText: 'Barrio'),
+                        onChanged: (value) => _pseNeighborhood = value,
+                        validator: (value) => (value ?? '').trim().isEmpty ? 'Ingresa el barrio' : null,
+                      );
+                      if (compact) return Column(children: [number, const SizedBox(height: 10), neighborhood]);
+                      return Row(children: [Expanded(child: number), const SizedBox(width: 10), Expanded(child: neighborhood)]);
+                    },
+                  ),
+                  const SizedBox(height: 10),
+                  LayoutBuilder(
+                    builder: (context, constraints) {
+                      final compact = constraints.maxWidth < 620;
+                      final city = TextFormField(
+                        initialValue: _pseCity,
+                        decoration: const InputDecoration(labelText: 'Ciudad'),
+                        onChanged: (value) => _pseCity = value,
+                        validator: (value) => (value ?? '').trim().isEmpty ? 'Ingresa la ciudad' : null,
+                      );
+                      final zip = TextFormField(
+                        initialValue: _pseZipCode,
+                        keyboardType: TextInputType.number,
+                        decoration: const InputDecoration(labelText: 'Código postal'),
+                        onChanged: (value) => _pseZipCode = value,
+                        validator: (value) => (value ?? '').trim().length < 4 ? 'Código postal no válido' : null,
+                      );
+                      if (compact) return Column(children: [city, const SizedBox(height: 10), zip]);
+                      return Row(children: [Expanded(child: city), const SizedBox(width: 10), Expanded(child: zip)]);
+                    },
+                  ),
+                  const SizedBox(height: 18),
+                  Container(
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: palette.info.withOpacity(.07),
+                      borderRadius: BorderRadius.circular(14),
+                      border: Border.all(color: palette.info.withOpacity(.16)),
+                    ),
+                    child: Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Icon(Icons.lock_outline_rounded, color: palette.info, size: 19),
+                        const SizedBox(width: 9),
+                        Expanded(
+                          child: Text(
+                            'No ingresas claves bancarias en BarLytics. Después de continuar, PSE te llevará a tu banco para realizar la autorización.',
+                            style: TextStyle(color: palette.textSecondary, fontSize: 10.8, height: 1.4),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 14),
+                  SizedBox(
+                    height: 50,
+                    child: FilledButton.icon(
+                      onPressed: _startingCheckout || !config.oneTimeEnabled || _loadingPseBanks ? null : _startPseCheckout,
+                      icon: _startingCheckout
+                          ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2))
+                          : const Icon(Icons.arrow_forward_rounded),
+                      label: Text(
+                        _startingCheckout
+                            ? 'Preparando pago PSE…'
+                            : 'Ir a mi banco y pagar ${_money(oneTimeAmount)}',
+                        style: const TextStyle(fontWeight: FontWeight.w800),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    'Serás redirigido únicamente para autorizar el pago. Al terminar regresarás a BarLytics para validar el estado de la operación.',
+                    textAlign: TextAlign.center,
+                    style: TextStyle(color: palette.textSecondary, fontSize: 10.3, height: 1.35),
+                  ),
+                ],
+              ),
+            ),
           ),
         ],
         const SizedBox(height: 8),
         Text(
           _automaticRenewalCheckout
               ? 'Mercado Pago tokeniza la tarjeta dentro de su componente oficial. BarLytics recibe únicamente el token y lo asocia al plan sincronizado.'
-              : 'PSE, débito y credenciales bancarias se procesan completamente en el checkout oficial de Mercado Pago.',
+              : 'BarLytics envía los datos PSE de forma segura al backend. Solo serás redirigido fuera de la aplicación para autorizar la transferencia en el banco seleccionado.',
           textAlign: TextAlign.center,
           style: TextStyle(color: palette.textSecondary, fontSize: 10.8, height: 1.35),
+        ),
+      ],
+    );
+  }
+
+  Widget _pseFlowBadge(AppPalette palette, String step, String label) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
+      decoration: BoxDecoration(
+        color: palette.background.withOpacity(.55),
+        borderRadius: BorderRadius.circular(999),
+        border: Border.all(color: palette.textSecondary.withOpacity(.12)),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Container(
+            width: 22,
+            height: 22,
+            alignment: Alignment.center,
+            decoration: BoxDecoration(
+              color: palette.primary.withOpacity(.11),
+              shape: BoxShape.circle,
+            ),
+            child: Text(
+              step,
+              style: TextStyle(color: palette.primary, fontSize: 10.5, fontWeight: FontWeight.w900),
+            ),
+          ),
+          const SizedBox(width: 7),
+          Text(
+            label,
+            style: TextStyle(color: palette.textSecondary, fontSize: 10.8, fontWeight: FontWeight.w700),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _pseSectionHeader(
+    AppPalette palette, {
+    required IconData icon,
+    required String title,
+    required String subtitle,
+  }) {
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Container(
+          width: 34,
+          height: 34,
+          decoration: BoxDecoration(
+            color: palette.primary.withOpacity(.08),
+            borderRadius: BorderRadius.circular(10),
+          ),
+          child: Icon(icon, color: palette.primary, size: 18),
+        ),
+        const SizedBox(width: 10),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(title, style: const TextStyle(fontSize: 12.8, fontWeight: FontWeight.w900)),
+              const SizedBox(height: 2),
+              Text(
+                subtitle,
+                style: TextStyle(color: palette.textSecondary, fontSize: 10.8, height: 1.35),
+              ),
+            ],
+          ),
         ),
       ],
     );
