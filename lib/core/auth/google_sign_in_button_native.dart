@@ -41,10 +41,37 @@ class BarLyticsGoogleSignInButton extends StatefulWidget {
 class _BarLyticsGoogleSignInButtonState extends State<BarLyticsGoogleSignInButton> {
   bool _busy = false;
 
-  Future<void> _initialize() => _ensureGoogleSignInInitialized(
-        webClientId: widget.webClientId,
-        iosClientId: widget.iosClientId,
-      );
+  Future<void> _initialize() {
+    final webClientId = widget.webClientId?.trim();
+    if (webClientId == null || webClientId.isEmpty) {
+      throw StateError('Falta configurar el Client ID web de Google.');
+    }
+    final applePlatform = defaultTargetPlatform == TargetPlatform.iOS ||
+        defaultTargetPlatform == TargetPlatform.macOS;
+    final appleClientId = widget.iosClientId?.trim();
+    if (applePlatform && (appleClientId == null || appleClientId.isEmpty)) {
+      throw StateError('Falta configurar el Client ID de Google para iOS/macOS.');
+    }
+    return _ensureGoogleSignInInitialized(
+      webClientId: webClientId,
+      iosClientId: appleClientId,
+    );
+  }
+
+  Object _friendlyError(Object error) {
+    if (error is GoogleSignInException) {
+      switch (error.code) {
+        case GoogleSignInExceptionCode.canceled:
+          return StateError('Ingreso con Google cancelado.');
+        case GoogleSignInExceptionCode.clientConfigurationError:
+        case GoogleSignInExceptionCode.providerConfigurationError:
+          return StateError('Google Sign-In no está configurado correctamente para esta aplicación.');
+        default:
+          return StateError(error.description ?? 'No fue posible ingresar con Google.');
+      }
+    }
+    return error;
+  }
 
   Future<void> _signIn() async {
     if (_busy || !widget.enabled) return;
@@ -61,7 +88,7 @@ class _BarLyticsGoogleSignInButtonState extends State<BarLyticsGoogleSignInButto
       }
       await widget.onIdToken(token);
     } catch (error) {
-      widget.onError?.call(error);
+      widget.onError?.call(_friendlyError(error));
     } finally {
       if (mounted) setState(() => _busy = false);
     }

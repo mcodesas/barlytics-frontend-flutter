@@ -1,20 +1,27 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:intl/intl.dart';
 import 'package:go_router/go_router.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../../../../app/theme/app_palette.dart';
 import '../../../../app/theme/app_theme.dart';
 import '../../../../core/config/public_site_config.dart';
+import '../../../../core/constants/api_paths.dart';
+import '../../../../core/providers/core_providers.dart';
+import '../../../../core/widgets/barlytics_brand.dart';
 import '../widgets/public_product_demo.dart';
+import '../../../subscription/data/models/subscription_models.dart';
+import '../../../subscription/presentation/providers/subscription_provider.dart';
 
-class PublicLandingPage extends StatefulWidget {
+class PublicLandingPage extends ConsumerStatefulWidget {
   const PublicLandingPage({super.key});
 
   @override
-  State<PublicLandingPage> createState() => _PublicLandingPageState();
+  ConsumerState<PublicLandingPage> createState() => _PublicLandingPageState();
 }
 
-class _PublicLandingPageState extends State<PublicLandingPage> {
+class _PublicLandingPageState extends ConsumerState<PublicLandingPage> {
   final _inicioKey = GlobalKey();
   final _demoKey = GlobalKey();
   final _funcionesKey = GlobalKey();
@@ -28,6 +35,11 @@ class _PublicLandingPageState extends State<PublicLandingPage> {
 
   String _activeSection = 'inicio';
   bool _scrollSpyScheduled = false;
+  List<SubscriptionPlanModel> _publicPlans = const <SubscriptionPlanModel>[];
+  bool _plansLoading = true;
+  String? _plansError;
+  PublicSiteConfig _siteConfig = PublicSiteConfig.empty;
+  bool _siteConfigLoading = true;
 
   AppPalette get _palette => appPalettes.first;
 
@@ -35,7 +47,67 @@ class _PublicLandingPageState extends State<PublicLandingPage> {
   void initState() {
     super.initState();
     _scrollController.addListener(_scheduleScrollSpy);
-    WidgetsBinding.instance.addPostFrameCallback((_) => _updateActiveSection());
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _updateActiveSection();
+      _loadPublicPlans();
+      _loadPublicSiteConfig();
+    });
+  }
+
+  Future<void> _loadPublicSiteConfig() async {
+    if (mounted) {
+      setState(() => _siteConfigLoading = true);
+    }
+    try {
+      final response = await ref.read(apiClientProvider).get<PublicSiteConfig>(
+            ApiPaths.publicSiteConfig,
+            PublicSiteConfig.fromJson,
+          );
+      if (!mounted) return;
+      setState(() {
+        _siteConfig = response.data ?? PublicSiteConfig.empty;
+        _siteConfigLoading = false;
+      });
+    } catch (_) {
+      if (!mounted) return;
+      setState(() {
+        _siteConfig = PublicSiteConfig.empty;
+        _siteConfigLoading = false;
+      });
+    }
+  }
+
+  Future<void> _loadPublicPlans() async {
+    if (mounted) {
+      setState(() {
+        _plansLoading = true;
+        _plansError = null;
+      });
+    }
+    try {
+      final plans = await ref.read(subscriptionRemoteDataSourceProvider).publicPlans();
+      if (!mounted) return;
+      setState(() {
+        _publicPlans = plans;
+        _plansLoading = false;
+      });
+    } catch (error) {
+      if (!mounted) return;
+      setState(() {
+        _plansLoading = false;
+        _plansError = error.toString().replaceFirst('Exception: ', '').replaceFirst('ApiException: ', '');
+      });
+    }
+  }
+
+  void _openPlan(SubscriptionPlanModel plan) {
+    final action = plan.buttonAction.trim().toUpperCase();
+    if (plan.quoteRequired || action == 'WHATSAPP') {
+      _openWhatsApp(message: 'Hola, quiero información sobre el plan ${plan.name} de BarLytics.');
+      return;
+    }
+    if (action == 'NONE') return;
+    context.go('/registro?plan=${Uri.encodeQueryComponent(plan.code)}');
   }
 
   @override
@@ -112,14 +184,14 @@ class _PublicLandingPageState extends State<PublicLandingPage> {
   }
 
   Future<void> _openWhatsApp({String? message}) async {
-    final number = PublicSiteConfig.whatsappNumber.trim();
+    final number = _siteConfig.whatsappNumber.trim();
     if (number.isEmpty) {
       if (!mounted) return;
       ScaffoldMessenger.of(context)
         ..hideCurrentSnackBar()
         ..showSnackBar(
           const SnackBar(
-            content: Text('Configura BARLYTICS_WHATSAPP para activar el contacto comercial.'),
+            content: Text('Configura BARLYTICS_WHATSAPP en Parámetros para activar el contacto comercial.'),
           ),
         );
       return;
@@ -130,7 +202,7 @@ class _PublicLandingPageState extends State<PublicLandingPage> {
   }
 
   Future<void> _download(String platform) async {
-    final url = PublicSiteConfig.downloadUrlFor(platform).trim();
+    final url = _siteConfig.downloadUrlFor(platform).trim();
     if (url.isEmpty) {
       if (!mounted) return;
       ScaffoldMessenger.of(context)
@@ -279,8 +351,11 @@ class _PublicLandingPageState extends State<PublicLandingPage> {
                         maxWidth: 1180,
                         child: _PlansSection(
                           palette: palette,
-                          onRegister: () => context.go('/registro'),
-                          onWhatsApp: () => _openWhatsApp(message: 'Hola, quiero información sobre los planes de BarLytics.'),
+                          plans: _publicPlans,
+                          loading: _plansLoading,
+                          error: _plansError,
+                          onRetry: _loadPublicPlans,
+                          onPlanAction: _openPlan,
                         ),
                       ),
                       _PublicSection(
@@ -291,7 +366,12 @@ class _PublicLandingPageState extends State<PublicLandingPage> {
                         subtitle:
                             'Los instaladores se publican por plataforma. Cuando un paquete todavía no esté disponible, la web lo indicará sin abrir enlaces rotos.',
                         maxWidth: 1120,
-                        child: _DownloadsSection(palette: palette, onDownload: _download),
+                        child: _DownloadsSection(
+                          palette: palette,
+                          config: _siteConfig,
+                          loading: _siteConfigLoading,
+                          onDownload: _download,
+                        ),
                       ),
                       _ContactSection(
                         key: _contactoKey,
@@ -499,45 +579,15 @@ class _BrandNavButtonState extends State<_BrandNavButton> {
           child: Row(
             mainAxisSize: MainAxisSize.min,
             children: [
-              AnimatedContainer(
+              AnimatedScale(
                 duration: const Duration(milliseconds: 180),
-                width: 42,
-                height: 42,
-                decoration: BoxDecoration(
-                  borderRadius: BorderRadius.circular(13),
-                  gradient: LinearGradient(
-                    begin: Alignment.topLeft,
-                    end: Alignment.bottomRight,
-                    colors: [palette.primary, palette.secondary],
-                  ),
-                  boxShadow: [
-                    BoxShadow(
-                      color: palette.secondary.withOpacity(_hovered || widget.active ? 0.30 : 0.17),
-                      blurRadius: _hovered || widget.active ? 20 : 12,
-                      offset: const Offset(0, 6),
-                    ),
-                  ],
-                ),
-                child: const Icon(Icons.local_bar_rounded, color: Color(0xFF061723), size: 22),
-              ),
-              const SizedBox(width: 11),
-              Text(
-                'BarLytics',
-                style: TextStyle(
-                  color: palette.textPrimary,
-                  fontWeight: FontWeight.w900,
-                  fontSize: 19,
-                  letterSpacing: -0.65,
-                ),
-              ),
-              AnimatedContainer(
-                duration: const Duration(milliseconds: 180),
-                margin: const EdgeInsets.only(left: 7, top: 2),
-                width: 6,
-                height: 6,
-                decoration: BoxDecoration(
-                  shape: BoxShape.circle,
-                  color: _hovered || widget.active ? palette.primary : palette.secondary.withOpacity(0.65),
+                scale: _hovered || widget.active ? 1.025 : 1,
+                child: const BarLyticsBrandLockup(
+                  width: 220,
+                  height: 64,
+                  darkBackground: true,
+                  showTagline: false,
+                  alignment: Alignment.centerLeft,
                 ),
               ),
             ],
@@ -840,6 +890,14 @@ class _HeroSection extends StatelessWidget {
               final copy = Column(
                 crossAxisAlignment: compact ? CrossAxisAlignment.center : CrossAxisAlignment.start,
                 children: [
+                  BarLyticsBrandLockup(
+                    width: compact ? 248 : 292,
+                    height: compact ? 72 : 84,
+                    darkBackground: true,
+                    showTagline: false,
+                    alignment: compact ? Alignment.center : Alignment.centerLeft,
+                  ),
+                  const SizedBox(height: 16),
                   _Eyebrow(palette: palette, icon: Icons.auto_awesome_rounded, text: 'SOFTWARE PARA BARES Y GASTROBARES'),
                   const SizedBox(height: 20),
                   Text(
@@ -1334,69 +1392,66 @@ class _AboutSection extends StatelessWidget {
 class _PlansSection extends StatelessWidget {
   const _PlansSection({
     required this.palette,
-    required this.onRegister,
-    required this.onWhatsApp,
+    required this.plans,
+    required this.loading,
+    required this.error,
+    required this.onRetry,
+    required this.onPlanAction,
   });
 
   final AppPalette palette;
-  final VoidCallback onRegister;
-  final VoidCallback onWhatsApp;
+  final List<SubscriptionPlanModel> plans;
+  final bool loading;
+  final String? error;
+  final Future<void> Function() onRetry;
+  final ValueChanged<SubscriptionPlanModel> onPlanAction;
 
   @override
   Widget build(BuildContext context) {
-    final plans = <_PlanData>[
-      const _PlanData(
-        name: 'Inicial',
-        price: r'$40.000',
-        period: 'COP / mes',
-        description: 'Para bares que quieren empezar a controlar la operación sin complicarse.',
-        features: [
-          '1 sucursal',
-          'Hasta 3 usuarios',
-          'Ventas, mesas y venta directa',
-          'Productos y precios',
-          'Inventario y movimientos',
-          'Reportes esenciales',
-        ],
-      ),
-      const _PlanData(
-        name: 'BarLytics Pro',
-        price: r'$70.000',
-        period: 'COP / mes',
-        description: 'El plan recomendado para un bar en operación que necesita más control y trazabilidad.',
-        recommended: true,
-        features: [
-          '1 sucursal',
-          'Hasta 5 usuarios',
-          'Todo lo del plan Inicial',
-          'Cobro POS y múltiples medios',
-          'Roles personalizados',
-          'Reportes operativos y ganancias',
-          'Historial de precios y movimientos',
-        ],
-      ),
-      const _PlanData(
-        name: 'Multi-sucursal',
-        price: 'Cotizar',
-        period: 'según operación',
-        description: 'Para empresas con varias sedes que necesitan administración central y separación por sucursal.',
-        enterprise: true,
-        features: [
-          'Varias sucursales',
-          'Administración centralizada',
-          'Gerentes y permisos por sede',
-          'Sincronización de productos entre sucursales',
-          'Control por empresa y sucursal',
-          'Acompañamiento para configuración',
-        ],
-      ),
-    ];
+    if (loading) {
+      return const Padding(
+        padding: EdgeInsets.symmetric(vertical: 34),
+        child: Center(child: CircularProgressIndicator()),
+      );
+    }
+
+    if (error != null) {
+      return Container(
+        width: double.infinity,
+        padding: const EdgeInsets.all(22),
+        decoration: palette.panelDecoration(baseRadius: 22, tint: palette.primary, elevated: false),
+        child: Column(
+          children: [
+            Icon(Icons.cloud_off_rounded, color: palette.textSecondary, size: 30),
+            const SizedBox(height: 10),
+            Text('No fue posible cargar los planes.', style: TextStyle(color: palette.textPrimary, fontWeight: FontWeight.w900)),
+            const SizedBox(height: 5),
+            Text(error!, textAlign: TextAlign.center, style: TextStyle(color: palette.textSecondary, fontSize: 11.5)),
+            const SizedBox(height: 14),
+            OutlinedButton.icon(onPressed: onRetry, icon: const Icon(Icons.refresh_rounded), label: const Text('Volver a intentar')),
+          ],
+        ),
+      );
+    }
+
+    if (plans.isEmpty) {
+      return Container(
+        width: double.infinity,
+        padding: const EdgeInsets.all(22),
+        decoration: palette.panelDecoration(baseRadius: 22, tint: palette.primary, elevated: false),
+        child: Text(
+          'No hay planes comerciales activos para mostrar en este momento.',
+          textAlign: TextAlign.center,
+          style: TextStyle(color: palette.textSecondary, fontWeight: FontWeight.w700),
+        ),
+      );
+    }
 
     return Column(
       children: [
         LayoutBuilder(
           builder: (context, constraints) {
-            final columns = constraints.maxWidth < 760 ? 1 : 3;
+            final columns = constraints.maxWidth < 760 ? 1 : (plans.length == 2 ? 2 : 3);
             const gap = 16.0;
             final width = columns == 1
                 ? constraints.maxWidth
@@ -1412,7 +1467,7 @@ class _PlansSection extends StatelessWidget {
                     child: _PlanCard(
                       palette: palette,
                       plan: plan,
-                      onTap: plan.enterprise ? onWhatsApp : onRegister,
+                      onTap: () => onPlanAction(plan),
                     ),
                   ),
               ],
@@ -1445,26 +1500,6 @@ class _PlansSection extends StatelessWidget {
   }
 }
 
-class _PlanData {
-  const _PlanData({
-    required this.name,
-    required this.price,
-    required this.period,
-    required this.description,
-    required this.features,
-    this.recommended = false,
-    this.enterprise = false,
-  });
-
-  final String name;
-  final String price;
-  final String period;
-  final String description;
-  final List<String> features;
-  final bool recommended;
-  final bool enterprise;
-}
-
 class _PlanCard extends StatefulWidget {
   const _PlanCard({
     required this.palette,
@@ -1473,7 +1508,7 @@ class _PlanCard extends StatefulWidget {
   });
 
   final AppPalette palette;
-  final _PlanData plan;
+  final SubscriptionPlanModel plan;
   final VoidCallback onTap;
 
   @override
@@ -1483,11 +1518,41 @@ class _PlanCard extends StatefulWidget {
 class _PlanCardState extends State<_PlanCard> {
   bool _hovered = false;
 
+  String _money(double value) =>
+      NumberFormat.currency(locale: 'es_CO', symbol: r'$', decimalDigits: 0).format(value);
+
+  String _discount(double value) {
+    final rounded = value.roundToDouble();
+    return value == rounded ? value.toInt().toString() : value.toStringAsFixed(2).replaceAll('.', ',');
+  }
+
+  String _period(SubscriptionPlanModel plan) {
+    if (plan.quoteRequired) return 'según operación';
+    final frequency = plan.frequency < 1 ? 1 : plan.frequency;
+    final type = plan.frequencyType.trim().toLowerCase();
+    String unit;
+    if (type.startsWith('day')) {
+      unit = frequency == 1 ? 'día' : '$frequency días';
+    } else if (type.startsWith('week')) {
+      unit = frequency == 1 ? 'semana' : '$frequency semanas';
+    } else if (type.startsWith('year')) {
+      unit = frequency == 1 ? 'año' : '$frequency años';
+    } else {
+      unit = frequency == 1 ? 'mes' : '$frequency meses';
+    }
+    return '${plan.currency} / $unit';
+  }
+
   @override
   Widget build(BuildContext context) {
     final palette = widget.palette;
     final plan = widget.plan;
-    final tint = plan.recommended ? palette.primary : plan.enterprise ? palette.secondary : palette.textSecondary;
+    final tint = plan.recommended ? palette.primary : plan.quoteRequired ? palette.secondary : palette.textSecondary;
+    final promotionText = plan.promotionText?.trim();
+    final badge = (plan.badge?.trim().isNotEmpty ?? false)
+        ? plan.badge!.trim()
+        : (plan.recommended ? 'RECOMENDADO' : null);
+    final actionDisabled = plan.buttonAction.trim().toUpperCase() == 'NONE';
 
     return MouseRegion(
       onEnter: (_) => setState(() => _hovered = true),
@@ -1538,7 +1603,7 @@ class _PlanCardState extends State<_PlanCard> {
                   child: Icon(
                     plan.recommended
                         ? Icons.auto_awesome_rounded
-                        : plan.enterprise
+                        : plan.quoteRequired
                             ? Icons.apartment_rounded
                             : Icons.rocket_launch_rounded,
                     color: tint,
@@ -1546,52 +1611,107 @@ class _PlanCardState extends State<_PlanCard> {
                   ),
                 ),
                 const Spacer(),
-                if (plan.recommended)
+                if (badge != null)
                   Container(
                     padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
                     decoration: BoxDecoration(
-                      gradient: LinearGradient(colors: [palette.primary, palette.secondary]),
+                      gradient: plan.recommended ? LinearGradient(colors: [palette.primary, palette.secondary]) : null,
+                      color: plan.recommended ? null : tint.withOpacity(0.12),
                       borderRadius: BorderRadius.circular(999),
                     ),
-                    child: const Text(
-                      'RECOMENDADO',
-                      style: TextStyle(color: Color(0xFF061723), fontWeight: FontWeight.w900, fontSize: 8.5, letterSpacing: 0.55),
+                    child: Text(
+                      badge.toUpperCase(),
+                      style: TextStyle(
+                        color: plan.recommended ? const Color(0xFF061723) : tint,
+                        fontWeight: FontWeight.w900,
+                        fontSize: 9.5,
+                        letterSpacing: 0.7,
+                      ),
                     ),
                   ),
               ],
             ),
             const SizedBox(height: 18),
             Text(plan.name, style: TextStyle(color: palette.textPrimary, fontWeight: FontWeight.w900, fontSize: 20)),
-            const SizedBox(height: 12),
-            Row(
-              crossAxisAlignment: CrossAxisAlignment.end,
-              children: [
-                Flexible(
-                  child: Text(
-                    plan.price,
+            const SizedBox(height: 10),
+            if (plan.quoteRequired)
+              Text('Cotizar', style: TextStyle(color: palette.textPrimary, fontWeight: FontWeight.w900, fontSize: 30))
+            else ...[
+              if (plan.hasDiscount)
+                Row(
+                  children: [
+                    Text(
+                      _money(plan.regularPrice),
+                      style: TextStyle(
+                        color: palette.textSecondary,
+                        fontWeight: FontWeight.w700,
+                        fontSize: 14,
+                        decoration: TextDecoration.lineThrough,
+                        decorationThickness: 2,
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                      decoration: BoxDecoration(color: palette.success.withOpacity(.12), borderRadius: BorderRadius.circular(999)),
+                      child: Text(
+                        '-${_discount(plan.discountPercentage)}%',
+                        style: TextStyle(color: palette.success, fontWeight: FontWeight.w900, fontSize: 10.5),
+                      ),
+                    ),
+                  ],
+                ),
+              if (plan.hasDiscount) const SizedBox(height: 4),
+              Wrap(
+                crossAxisAlignment: WrapCrossAlignment.end,
+                spacing: 7,
+                children: [
+                  Text(
+                    _money(plan.price),
                     style: TextStyle(
                       color: plan.recommended ? palette.primary : palette.textPrimary,
                       fontWeight: FontWeight.w900,
-                      fontSize: plan.enterprise ? 30 : 34,
-                      letterSpacing: -1.1,
+                      fontSize: 34,
+                      height: 1,
                     ),
                   ),
+                  Padding(
+                    padding: const EdgeInsets.only(bottom: 3),
+                    child: Text(_period(plan), style: TextStyle(color: palette.textSecondary, fontWeight: FontWeight.w700, fontSize: 10.5)),
+                  ),
+                ],
+              ),
+            ],
+            if (plan.promotionActive && promotionText != null && promotionText.isNotEmpty) ...[
+              const SizedBox(height: 9),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
+                decoration: BoxDecoration(
+                  color: palette.primary.withOpacity(.08),
+                  borderRadius: BorderRadius.circular(10),
+                  border: Border.all(color: palette.primary.withOpacity(.17)),
                 ),
-                const SizedBox(width: 8),
-                Padding(
-                  padding: const EdgeInsets.only(bottom: 5),
-                  child: Text(plan.period, style: TextStyle(color: palette.textSecondary, fontWeight: FontWeight.w700, fontSize: 10.5)),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(Icons.local_offer_outlined, size: 15, color: palette.primary),
+                    const SizedBox(width: 6),
+                    Flexible(
+                      child: Text(
+                        promotionText,
+                        style: TextStyle(color: palette.primary, fontWeight: FontWeight.w900, fontSize: 10.8),
+                      ),
+                    ),
+                  ],
                 ),
-              ],
-            ),
-            const SizedBox(height: 13),
-            Text(plan.description, style: TextStyle(color: palette.textSecondary, fontWeight: FontWeight.w600, height: 1.45, fontSize: 12.2)),
-            const SizedBox(height: 19),
-            Container(height: 1, color: palette.translucentBorder.withOpacity(0.60)),
-            const SizedBox(height: 17),
+              ),
+            ],
+            const SizedBox(height: 14),
+            Text(plan.description ?? '', style: TextStyle(color: palette.textSecondary, fontWeight: FontWeight.w600, height: 1.45, fontSize: 12.2)),
+            const SizedBox(height: 16),
             for (final feature in plan.features)
               Padding(
-                padding: const EdgeInsets.only(bottom: 10),
+                padding: const EdgeInsets.only(bottom: 9),
                 child: Row(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
@@ -1617,20 +1737,21 @@ class _PlanCardState extends State<_PlanCard> {
                         borderRadius: BorderRadius.circular(13),
                       ),
                       child: FilledButton(
-                        onPressed: widget.onTap,
+                        onPressed: actionDisabled ? null : widget.onTap,
                         style: FilledButton.styleFrom(
                           backgroundColor: Colors.transparent,
                           foregroundColor: const Color(0xFF061723),
+                          disabledBackgroundColor: Colors.transparent,
                           shadowColor: Colors.transparent,
                           padding: const EdgeInsets.symmetric(vertical: 14),
                           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(13)),
                           textStyle: const TextStyle(fontWeight: FontWeight.w900),
                         ),
-                        child: const Text('Elegir BarLytics Pro'),
+                        child: Text(plan.buttonText?.trim().isNotEmpty == true ? plan.buttonText!.trim() : 'Elegir ${plan.name}'),
                       ),
                     )
                   : OutlinedButton(
-                      onPressed: widget.onTap,
+                      onPressed: actionDisabled ? null : widget.onTap,
                       style: OutlinedButton.styleFrom(
                         foregroundColor: palette.textPrimary,
                         side: BorderSide(color: tint.withOpacity(0.35)),
@@ -1638,7 +1759,11 @@ class _PlanCardState extends State<_PlanCard> {
                         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(13)),
                         textStyle: const TextStyle(fontWeight: FontWeight.w900),
                       ),
-                      child: Text(plan.enterprise ? 'Hablar con nosotros' : 'Empezar con este plan'),
+                      child: Text(
+                        plan.buttonText?.trim().isNotEmpty == true
+                            ? plan.buttonText!.trim()
+                            : (plan.quoteRequired ? 'Hablar con nosotros' : 'Empezar con este plan'),
+                      ),
                     ),
             ),
           ],
@@ -1668,8 +1793,15 @@ class _PlanIncludedItem extends StatelessWidget {
 }
 
 class _DownloadsSection extends StatelessWidget {
-  const _DownloadsSection({required this.palette, required this.onDownload});
+  const _DownloadsSection({
+    required this.palette,
+    required this.config,
+    required this.loading,
+    required this.onDownload,
+  });
   final AppPalette palette;
+  final PublicSiteConfig config;
+  final bool loading;
   final ValueChanged<String> onDownload;
 
   @override
@@ -1704,7 +1836,7 @@ class _DownloadsSection extends StatelessWidget {
                   platform: item.$1,
                   icon: item.$2,
                   description: item.$3,
-                  available: PublicSiteConfig.downloadUrlFor(item.$1).trim().isNotEmpty,
+                  available: !loading && config.downloadUrlFor(item.$1).trim().isNotEmpty,
                   onTap: () => onDownload(item.$1),
                 ),
               ),
@@ -1818,24 +1950,12 @@ class _Footer extends StatelessWidget {
           child: LayoutBuilder(
             builder: (context, constraints) {
               final compact = constraints.maxWidth < 760;
-              final brand = Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Container(
-                    width: 34,
-                    height: 34,
-                    decoration: BoxDecoration(
-                      shape: BoxShape.circle,
-                      gradient: LinearGradient(colors: [palette.primary, palette.secondary]),
-                    ),
-                    child: const Icon(Icons.local_bar_rounded, color: Color(0xFF061723), size: 18),
-                  ),
-                  const SizedBox(width: 8),
-                  Text(
-                    'BarLytics',
-                    style: TextStyle(color: palette.textPrimary, fontWeight: FontWeight.w900, fontSize: 15),
-                  ),
-                ],
+              const brand = BarLyticsBrandLockup(
+                width: 214,
+                height: 62,
+                darkBackground: true,
+                showTagline: false,
+                alignment: Alignment.centerLeft,
               );
               final text = Text(
                 'Gestión para bares · Ventas · Inventario · Caja · Reportes',

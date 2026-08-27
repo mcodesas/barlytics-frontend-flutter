@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 
 import '../../../../app/theme/app_palette.dart';
 import '../../../../app/theme/app_theme.dart';
+import '../../../../core/widgets/barlytics_brand.dart';
 import '../../../../core/auth/google_sign_in_button.dart';
 import '../../../auth/data/models/google_auth_models.dart';
 import '../../../auth/presentation/providers/auth_provider.dart';
@@ -11,7 +12,9 @@ import '../../../onboarding/data/models/onboarding_models.dart';
 import '../../../onboarding/presentation/providers/onboarding_provider.dart';
 
 class PublicRegistrationPage extends ConsumerStatefulWidget {
-  const PublicRegistrationPage({super.key});
+  const PublicRegistrationPage({super.key, this.planCode});
+
+  final String? planCode;
 
   @override
   ConsumerState<PublicRegistrationPage> createState() => _PublicRegistrationPageState();
@@ -183,6 +186,8 @@ class _PublicRegistrationPageState extends ConsumerState<PublicRegistrationPage>
         'ciudadId': _ciudadId,
         'direccion': _direccion.text.trim(),
         'telefono': _telefono.text.trim(),
+        if (widget.planCode != null && widget.planCode!.trim().isNotEmpty)
+          'planCode': widget.planCode!.trim(),
         'aceptaTerminos': true,
       };
       final registration = _googleIdToken != null
@@ -1029,41 +1034,19 @@ class _TopBar extends StatelessWidget {
                 final compact = constraints.maxWidth < 620;
                 return Row(
                   children: [
-                    Container(
-                      width: 40,
-                      height: 40,
-                      decoration: BoxDecoration(
-                        gradient: LinearGradient(
-                          colors: [palette.primary, palette.secondary],
-                          begin: Alignment.topLeft,
-                          end: Alignment.bottomRight,
-                        ),
-                        borderRadius: BorderRadius.circular(13),
-                        boxShadow: [
-                          BoxShadow(
-                            color: palette.primary.withOpacity(.22),
-                            blurRadius: 16,
-                            offset: const Offset(0, 6),
-                          ),
-                        ],
-                      ),
-                      child: Icon(Icons.local_bar_rounded, color: palette.onPrimary, size: 21),
-                    ),
-                    const SizedBox(width: 11),
                     Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       mainAxisSize: MainAxisSize.min,
                       children: [
-                        Text(
-                          'BarLytics',
-                          style: TextStyle(
-                            color: palette.textPrimary,
-                            fontWeight: FontWeight.w900,
-                            fontSize: 18,
-                            letterSpacing: -.25,
-                          ),
+                        BarLyticsBrandLockup(
+                          width: compact ? 154 : 190,
+                          height: compact ? 44 : 55,
+                          darkBackground: palette.darkBackground,
+                          showTagline: false,
+                          alignment: Alignment.centerLeft,
                         ),
-                        if (!compact)
+                        if (!compact) ...[
+                          const SizedBox(height: 2),
                           Text(
                             'Tecnología para operar mejor tu negocio',
                             style: TextStyle(
@@ -1072,6 +1055,7 @@ class _TopBar extends StatelessWidget {
                               fontWeight: FontWeight.w600,
                             ),
                           ),
+                        ],
                       ],
                     ),
                     const Spacer(),

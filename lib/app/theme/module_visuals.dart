@@ -77,6 +77,8 @@ class ModuleVisuals {
         return const ModuleVisual(icon: Icons.category_rounded, color: Color(0xFF9333EA), description: 'Categorías de productos');
       case 'tipos_movimiento':
         return const ModuleVisual(icon: Icons.sync_alt_rounded, color: Color(0xFF0D9488), description: 'Define cuáles movimientos aumentan, disminuyen o ajustan inventario');
+      case 'planes_suscripcion':
+        return const ModuleVisual(icon: Icons.workspace_premium_rounded, color: Color(0xFF06B6D4), description: 'Planes, precios, promociones y Mercado Pago');
       case 'parametros':
         return const ModuleVisual(icon: Icons.tune_rounded, color: Color(0xFF64748B), description: 'Configuración funcional del sistema');
       case 'paises':

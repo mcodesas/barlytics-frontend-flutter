@@ -5,10 +5,13 @@
 // 'flutter create' template.
 
 // The application's name. By default this is also the title of the Flutter window.
-PRODUCT_NAME = barlytics_frontend
+PRODUCT_NAME = BarLytics
 
 // The application's bundle identifier
 PRODUCT_BUNDLE_IDENTIFIER = com.barlytics.barlyticsFrontend
 
 // The copyright displayed in application information
-PRODUCT_COPYRIGHT = Copyright © 2026 com.barlytics. All rights reserved.
+PRODUCT_COPYRIGHT = Copyright © 2026 MCode SAS. All rights reserved.
+
+// Google Sign-In macOS: pega aquí el REVERSED_CLIENT_ID del cliente OAuth de macOS.
+GOOGLE_REVERSED_CLIENT_ID =

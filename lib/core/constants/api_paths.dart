@@ -15,8 +15,11 @@ class ApiPaths {
   static const onboardingRegisterGoogle = '/api/v1/onboarding/register/google';
   static const subscriptionMe = '/api/v1/subscriptions/me';
   static const subscriptionPlans = '/api/v1/subscriptions/plans';
+  static const publicSubscriptionPlans = '/api/v1/subscriptions/public/plans';
   static const subscriptionPlan = '/api/v1/subscriptions/plan';
-  static const subscriptionCheckout = '/api/v1/subscriptions/checkout';
+  static const subscriptionPaymentConfig = '/api/v1/subscriptions/payment-config';
+  static const subscriptionRecurringAuthorize = '/api/v1/subscriptions/checkout/recurring/authorize';
+  static const subscriptionOneTimeCheckout = '/api/v1/subscriptions/checkout/one-time';
   static const subscriptionSync = '/api/v1/subscriptions/sync';
   static const subscriptionPayments = '/api/v1/subscriptions/payments';
   static const profile = '/api/v1/profile';
@@ -36,6 +39,7 @@ class ApiPaths {
   static const pagos = '/api/v1/pagos';
   static const paises = '/api/v1/paises';
   static const parametros = '/api/v1/parametros';
+  static const publicSiteConfig = '/api/v1/parametros/public/site';
   static const precios = '/api/v1/precios';
   static const productos = '/api/v1/productos';
   static const regiones = '/api/v1/regiones';

@@ -25,6 +25,16 @@ class SubscriptionRemoteDataSource {
     return response.data ?? const <SubscriptionPlanModel>[];
   }
 
+  Future<List<SubscriptionPlanModel>> publicPlans() async {
+    final response = await _api.get<List<SubscriptionPlanModel>>(
+      ApiPaths.publicSubscriptionPlans,
+      (json) => (json as List? ?? const <dynamic>[])
+          .map((item) => SubscriptionPlanModel.fromJson(Map<String, dynamic>.from(item as Map)))
+          .toList(growable: false),
+    );
+    return response.data ?? const <SubscriptionPlanModel>[];
+  }
+
   Future<SubscriptionModel> changePlan(String planCode) async {
     final response = await _api.put<SubscriptionModel>(
       ApiPaths.subscriptionPlan,
@@ -35,17 +45,31 @@ class SubscriptionRemoteDataSource {
     return response.data!;
   }
 
-  Future<SubscriptionCheckoutModel> checkout(String paymentMethod) async {
-    final response = await _api.post<SubscriptionCheckoutModel>(
-      ApiPaths.subscriptionCheckout,
-      <String, dynamic>{'paymentMethod': paymentMethod},
-      (json) => SubscriptionCheckoutModel.fromJson(Map<String, dynamic>.from(json as Map)),
+  Future<SubscriptionPaymentConfigModel> paymentConfig() async {
+    final response = await _api.get<SubscriptionPaymentConfigModel>(
+      ApiPaths.subscriptionPaymentConfig,
+      (json) => SubscriptionPaymentConfigModel.fromJson(Map<String, dynamic>.from(json as Map)),
     );
-    if (response.data == null) throw StateError('Mercado Pago no devolvió una URL de pago.');
+    if (response.data == null) throw StateError('No fue posible cargar el formulario de pago.');
     return response.data!;
   }
 
-  Future<SubscriptionModel> sync({String? paymentId, String? preapprovalId}) async {
+  Future<SubscriptionCheckoutModel> oneTimeCheckout(int prepaidPeriods) async {
+    final response = await _api.post<SubscriptionCheckoutModel>(
+      ApiPaths.subscriptionOneTimeCheckout,
+      <String, dynamic>{'prepaid_periods': prepaidPeriods},
+      (json) => SubscriptionCheckoutModel.fromJson(Map<String, dynamic>.from(json as Map)),
+    );
+    if (response.data == null) throw StateError('No fue posible iniciar el checkout de Mercado Pago.');
+    return response.data!;
+  }
+
+  Future<SubscriptionModel> sync({
+    String? paymentId,
+    String? preapprovalId,
+    String? externalReference,
+    String? preferenceId,
+  }) async {
     final response = await _api.post<SubscriptionModel>(
       ApiPaths.subscriptionSync,
       null,
@@ -53,6 +77,8 @@ class SubscriptionRemoteDataSource {
       queryParameters: <String, dynamic>{
         if (paymentId != null && paymentId.isNotEmpty) 'paymentId': paymentId,
         if (preapprovalId != null && preapprovalId.isNotEmpty) 'preapprovalId': preapprovalId,
+        if (externalReference != null && externalReference.isNotEmpty) 'externalReference': externalReference,
+        if (preferenceId != null && preferenceId.isNotEmpty) 'preferenceId': preferenceId,
       },
     );
     if (response.data == null) throw StateError('No fue posible verificar el pago.');

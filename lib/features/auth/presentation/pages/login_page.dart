@@ -8,6 +8,7 @@ import '../../../../app/theme/app_palette.dart';
 import '../../../../core/auth/google_sign_in_button.dart';
 import '../../../../core/errors/failure.dart';
 import '../../../../core/utils/validators.dart';
+import '../../../../core/widgets/barlytics_brand.dart';
 import '../../../../core/widgets/tech_background.dart';
 import '../providers/auth_provider.dart';
 
@@ -362,68 +363,24 @@ class _WelcomeHeader extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final palette = ref.watch(selectedAppPaletteProvider);
-    const darkInk = Color(0xFF06111F);
 
-    return Row(
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Container(
-          width: 70,
-          height: 70,
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(24),
-            gradient: LinearGradient(
-              colors: [palette.primary, palette.secondary, palette.accent],
-            ),
-            boxShadow: [
-              BoxShadow(
-                color: palette.primary.withOpacity(0.32),
-                blurRadius: 26,
-                offset: const Offset(0, 12),
-              ),
-            ],
-          ),
-          child: Stack(
-            alignment: Alignment.center,
-            children: [
-              const Icon(Icons.bar_chart_rounded, color: darkInk, size: 31),
-              Positioned(
-                right: 8,
-                bottom: 7,
-                child: Container(
-                  padding: const EdgeInsets.all(4),
-                  decoration: const BoxDecoration(
-                    color: darkInk,
-                    shape: BoxShape.circle,
-                  ),
-                  child: Icon(Icons.local_bar_rounded, size: 13, color: palette.accent),
-                ),
-              ),
-            ],
-          ),
+        const BarLyticsBrandLockup(
+          width: 270,
+          height: 78,
+          darkBackground: true,
+          showTagline: false,
+          alignment: Alignment.centerLeft,
         ),
-        const SizedBox(width: 14),
-        Expanded(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                'BarLytics',
-                style: TextStyle(
-                  color: palette.textPrimary,
-                  fontSize: 29,
-                  fontWeight: FontWeight.w900,
-                  letterSpacing: -0.5,
-                ),
-              ),
-              const SizedBox(height: 4),
-              Text(
-                'Tecnología para administrar tu bar en tiempo real',
-                style: TextStyle(
-                  color: palette.textPrimary.withOpacity(0.78),
-                  height: 1.35,
-                ),
-              ),
-            ],
+        const SizedBox(height: 10),
+        Text(
+          'Tecnología para administrar tu bar en tiempo real',
+          style: TextStyle(
+            color: palette.textPrimary.withOpacity(0.78),
+            height: 1.35,
+            fontWeight: FontWeight.w600,
           ),
         ),
       ],

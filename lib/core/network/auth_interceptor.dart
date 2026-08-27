@@ -1,5 +1,6 @@
 import 'package:dio/dio.dart';
 
+import '../constants/api_paths.dart';
 import '../constants/storage_keys.dart';
 import '../storage/secure_storage_service.dart';
 import 'session_expiration_notifier.dart';
@@ -21,9 +22,13 @@ class AuthInterceptor extends Interceptor {
 
   @override
   void onRequest(RequestOptions options, RequestInterceptorHandler handler) async {
-    final token = await _storage.read(StorageKeys.authToken);
+    final isPublicRequest = options.path == ApiPaths.publicSiteConfig ||
+        options.path == ApiPaths.publicSubscriptionPlans;
+    final token = isPublicRequest ? null : await _storage.read(StorageKeys.authToken);
     if (token != null && token.isNotEmpty) {
       options.headers['Authorization'] = 'Bearer $token';
+    } else {
+      options.headers.remove('Authorization');
     }
     options.headers['Accept'] = 'application/json';
     super.onRequest(options, handler);

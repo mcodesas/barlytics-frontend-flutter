@@ -13,6 +13,7 @@ import '../../features/navigation/data/models/user_menu_item.dart';
 import '../../features/navigation/presentation/providers/user_menu_provider.dart';
 import '../../features/profile/presentation/providers/profile_header_provider.dart';
 import '../utils/responsive_utils.dart';
+import 'barlytics_brand.dart';
 import 'tech_background.dart';
 
 final ScrollController _desktopNavigationScrollController = ScrollController();
@@ -2337,9 +2338,10 @@ class _ManagerBottomNavigation extends ConsumerWidget {
     'cierres_caja': 8,
     'usuarios': 9,
     'roles_personalizados': 10,
-    'sucursales': 11,
-    'empresas': 12,
-    'parametros': 13,
+    'planes_suscripcion': 11,
+    'sucursales': 12,
+    'empresas': 13,
+    'parametros': 14,
   };
 
   @override
@@ -2884,35 +2886,12 @@ class _BrandHeader extends StatelessWidget {
                   BoxShadow(color: palette.cardShadow, blurRadius: 26, offset: const Offset(0, 14)),
                 ],
               ),
-              child: Row(
-                children: [
-                  const TechBrandMark(size: 56, icon: Icons.analytics_rounded),
-                  const SizedBox(width: 14),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          'BarLytics',
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: TextStyle(
-                            color: dark ? Colors.white : palette.textPrimary,
-                            fontWeight: FontWeight.w900,
-                            fontSize: 22,
-                          ),
-                        ),
-                        const SizedBox(height: 4),
-                        Text(
-                          'Gestión inteligente para bares',
-                          maxLines: 2,
-                          overflow: TextOverflow.ellipsis,
-                          style: TextStyle(color: dark ? Colors.white70 : palette.textSecondary, fontWeight: FontWeight.w700),
-                        ),
-                      ],
-                    ),
-                  ),
-                ],
+              child: BarLyticsBrandLockup(
+                width: 220,
+                height: 64,
+                darkBackground: dark || palette.darkBackground,
+                showTagline: false,
+                alignment: Alignment.centerLeft,
               ),
             );
           },
@@ -2928,7 +2907,7 @@ class _CollapsedBrand extends StatelessWidget {
   @override
   Widget build(BuildContext context) => const Padding(
         padding: EdgeInsets.fromLTRB(0, 8, 0, 14),
-        child: TechBrandMark(size: 48, icon: Icons.analytics_rounded),
+        child: BarLyticsBrandMark(size: 48),
       );
 }
 

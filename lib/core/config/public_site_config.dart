@@ -1,41 +1,52 @@
 class PublicSiteConfig {
-  const PublicSiteConfig._();
+  const PublicSiteConfig({
+    required this.whatsappNumber,
+    required this.windowsDownloadUrl,
+    required this.macDownloadUrl,
+    required this.iosDownloadUrl,
+    required this.androidDownloadUrl,
+    required this.linuxDownloadUrl,
+  });
 
-  /// Número en formato internacional, solo dígitos. Ejemplo Colombia: 573001234567.
-  static const whatsappNumber = String.fromEnvironment(
-    'BARLYTICS_WHATSAPP',
-    defaultValue: '',
+  /// Configuración vacía mientras el frontend consulta el backend.
+  static const empty = PublicSiteConfig(
+    whatsappNumber: '',
+    windowsDownloadUrl: '',
+    macDownloadUrl: '',
+    iosDownloadUrl: '',
+    androidDownloadUrl: '',
+    linuxDownloadUrl: '',
   );
 
   /// Carpeta web o URL base donde se publican las grabaciones reales de la demo.
-  /// Por defecto busca archivos en web/demos/{desktop|tablet|phone}/<modulo>.gif.
+  /// Esta clave no forma parte de los parámetros comerciales solicitados y se
+  /// mantiene como configuración de compilación del contenido estático.
   static const demoMediaBaseUrl = String.fromEnvironment(
     'BARLYTICS_DEMO_MEDIA_BASE_URL',
     defaultValue: 'demos',
   );
 
-  static const windowsDownloadUrl = String.fromEnvironment(
-    'BARLYTICS_DOWNLOAD_WINDOWS_URL',
-    defaultValue: '',
-  );
-  static const macDownloadUrl = String.fromEnvironment(
-    'BARLYTICS_DOWNLOAD_MAC_URL',
-    defaultValue: '',
-  );
-  static const iosDownloadUrl = String.fromEnvironment(
-    'BARLYTICS_DOWNLOAD_IOS_URL',
-    defaultValue: '',
-  );
-  static const androidDownloadUrl = String.fromEnvironment(
-    'BARLYTICS_DOWNLOAD_ANDROID_URL',
-    defaultValue: '',
-  );
-  static const linuxDownloadUrl = String.fromEnvironment(
-    'BARLYTICS_DOWNLOAD_LINUX_URL',
-    defaultValue: '',
-  );
+  final String whatsappNumber;
+  final String windowsDownloadUrl;
+  final String macDownloadUrl;
+  final String iosDownloadUrl;
+  final String androidDownloadUrl;
+  final String linuxDownloadUrl;
 
-  static String downloadUrlFor(String platform) {
+  factory PublicSiteConfig.fromJson(Object? json) {
+    if (json is! Map) return PublicSiteConfig.empty;
+    final data = Map<String, dynamic>.from(json);
+    return PublicSiteConfig(
+      whatsappNumber: data['whatsapp']?.toString() ?? '',
+      windowsDownloadUrl: data['windowsDownloadUrl']?.toString() ?? '',
+      macDownloadUrl: data['macDownloadUrl']?.toString() ?? '',
+      iosDownloadUrl: data['iosDownloadUrl']?.toString() ?? '',
+      androidDownloadUrl: data['androidDownloadUrl']?.toString() ?? '',
+      linuxDownloadUrl: data['linuxDownloadUrl']?.toString() ?? '',
+    );
+  }
+
+  String downloadUrlFor(String platform) {
     switch (platform.toLowerCase()) {
       case 'windows':
         return windowsDownloadUrl;

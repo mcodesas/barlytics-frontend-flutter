@@ -7,6 +7,7 @@ import '../../features/auth/presentation/pages/reset_password_page.dart';
 import '../../features/public/presentation/pages/public_landing_page.dart';
 import '../../features/public/presentation/pages/public_registration_page.dart';
 import '../../features/subscription/presentation/pages/subscription_activation_page.dart';
+import '../../features/subscription/presentation/pages/subscription_plans_admin_page.dart';
 import '../../features/auth/presentation/providers/auth_provider.dart';
 import '../../features/home/presentation/pages/home_page.dart';
 import '../../features/admin_support/presentation/pages/admin_support_page.dart';
@@ -111,6 +112,7 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       final isRegistrationRoute = path == '/registro' || matchedLocation == '/registro';
       final isLoginRoute = path == '/login' || matchedLocation == '/login';
       final isSubscriptionRoute = path == '/activar-suscripcion' || matchedLocation == '/activar-suscripcion';
+      final isSubscriptionPlanAdminRoute = path == '/planes_suscripcion' || matchedLocation == '/planes_suscripcion';
       final isForgotPasswordRoute = path == '/forgot-password' || matchedLocation == '/forgot-password';
       final isResetPasswordRoute = path == '/reset-password' || matchedLocation == '/reset-password';
       final isPublicRoute = isLandingRoute ||
@@ -123,7 +125,7 @@ final appRouterProvider = Provider<GoRouter>((ref) {
 
       // Una sesión con suscripción pendiente solo puede entrar a la activación.
       // El backend aplica la misma regla para impedir saltarse este control.
-      if (authState.authenticated && !authState.subscriptionActive && !isSubscriptionRoute && !isResetPasswordRoute) {
+      if (authState.authenticated && !authState.subscriptionActive && !isSubscriptionRoute && !isSubscriptionPlanAdminRoute && !isResetPasswordRoute) {
         return '/activar-suscripcion';
       }
       final isInventario = authState.roles.any((role) {
@@ -152,7 +154,7 @@ final appRouterProvider = Provider<GoRouter>((ref) {
     },
     routes: [
       GoRoute(path: '/', builder: (context, state) => const PublicLandingPage()),
-      GoRoute(path: '/registro', builder: (context, state) => const PublicRegistrationPage()),
+      GoRoute(path: '/registro', builder: (context, state) => PublicRegistrationPage(planCode: state.uri.queryParameters['plan'])),
       GoRoute(path: '/activar-suscripcion', builder: (context, state) => const SubscriptionActivationPage()),
       GoRoute(path: '/login', builder: (context, state) => const LoginPage()),
       GoRoute(path: '/forgot-password', builder: (context, state) => const ForgotPasswordPage()),
@@ -331,6 +333,11 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       ),
 
       GoRoute(
+        path: '/planes_suscripcion',
+        builder: (context, state) => AppScaffold(child: const SubscriptionPlansAdminPage()),
+      ),
+
+      GoRoute(
         path: '/parametros',
         builder: (context, state) => AppScaffold(child: const ParametrosListPage()),
         routes: [
@@ -480,6 +487,19 @@ String _resolveInitialLocation() {
   if (normalizedHashLocation != null) return normalizedHashLocation;
 
   final currentUri = Uri.base;
+
+  // PSE retorna a una URL HTTP sin fragmento porque Mercado Pago rechaza
+  // callback_url con #. Si el banco/Mercado Pago agrega datos del pago al
+  // query string, restauramos la ruta hash interna de activación conservando
+  // todos esos parámetros para sincronizar el estado.
+  final paymentReturn = currentUri.queryParameters.containsKey('payment_id') ||
+      currentUri.queryParameters.containsKey('collection_id') ||
+      currentUri.queryParameters.containsKey('external_reference') ||
+      currentUri.queryParameters.containsKey('status');
+  if (currentUri.path == '/' && paymentReturn) {
+    return currentUri.hasQuery ? '/activar-suscripcion?${currentUri.query}' : '/activar-suscripcion';
+  }
+
   if (currentUri.path == '/reset-password') {
     return currentUri.hasQuery ? '/reset-password?${currentUri.query}' : '/reset-password';
   }
