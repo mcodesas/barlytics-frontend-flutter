@@ -1600,6 +1600,12 @@ class _SubscriptionActivationPageState extends ConsumerState<SubscriptionActivat
     }
 
     final periodOptions = config.prepaidOptions;
+    final orderedPeriodOptions = [...periodOptions]
+      ..sort((a, b) => a.periods.compareTo(b.periods));
+    final selectedPeriodIndex = orderedPeriodOptions.indexWhere(
+      (item) => item.periods == _prepaidPeriods,
+    );
+    final safePeriodIndex = selectedPeriodIndex >= 0 ? selectedPeriodIndex : 0;
     final oneTimeAmount = config.amountForPeriods(_prepaidPeriods);
     final period = _billingPeriod(config.frequency, config.frequencyType);
 
@@ -1797,118 +1803,177 @@ class _SubscriptionActivationPageState extends ConsumerState<SubscriptionActivat
                   _pseSectionHeader(
                     palette,
                     icon: Icons.calendar_month_outlined,
-                    title: '¿Cuánto tiempo quieres pagar?',
-                    subtitle: 'Selecciona el periodo. Verás el total antes de continuar.',
+                    title: 'Periodo del pago',
+                    subtitle: 'Ajusta los meses con + / − o desliza la barra. El total cambia al instante.',
                   ),
                   const SizedBox(height: 10),
-                  LayoutBuilder(
-                    builder: (context, constraints) {
-                      final itemWidth = constraints.maxWidth < 560
-                          ? constraints.maxWidth
-                          : (constraints.maxWidth - 10) / 2;
-                      return Wrap(
-                        spacing: 10,
-                        runSpacing: 10,
-                        children: periodOptions.map((periodOption) {
-                          final selected = _prepaidPeriods == periodOption.periods;
-                          return SizedBox(
-                            width: itemWidth,
-                            child: InkWell(
-                              onTap: _startingCheckout
-                                  ? null
-                                  : () => setState(() => _prepaidPeriods = periodOption.periods),
-                              borderRadius: BorderRadius.circular(14),
-                              child: AnimatedContainer(
-                                duration: const Duration(milliseconds: 160),
-                                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 13),
-                                decoration: BoxDecoration(
-                                  color: selected ? palette.primary.withOpacity(.08) : palette.background.withOpacity(.45),
-                                  borderRadius: BorderRadius.circular(14),
-                                  border: Border.all(
-                                    color: selected ? palette.primary.withOpacity(.55) : palette.textSecondary.withOpacity(.12),
-                                    width: selected ? 1.4 : 1,
+                  if (orderedPeriodOptions.isEmpty)
+                    _notice(palette, 'Este plan no tiene periodos de pago único configurados.', error: true)
+                  else
+                    Container(
+                      padding: const EdgeInsets.fromLTRB(16, 15, 16, 14),
+                      decoration: BoxDecoration(
+                        color: palette.background.withOpacity(.42),
+                        borderRadius: BorderRadius.circular(18),
+                        border: Border.all(color: palette.primary.withOpacity(.14)),
+                      ),
+                      child: Column(
+                        children: [
+                          Row(
+                            children: [
+                              Expanded(
+                                child: Text(
+                                  'Periodo seleccionado',
+                                  style: TextStyle(
+                                    color: palette.textSecondary,
+                                    fontSize: 11.5,
+                                    fontWeight: FontWeight.w700,
                                   ),
                                 ),
-                                child: Row(
-                                  children: [
-                                    Container(
-                                      width: 34,
-                                      height: 34,
-                                      decoration: BoxDecoration(
-                                        color: (selected ? palette.primary : palette.textSecondary).withOpacity(.09),
-                                        borderRadius: BorderRadius.circular(10),
+                              ),
+                              Container(
+                                padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 5),
+                                decoration: BoxDecoration(
+                                  color: palette.success.withOpacity(.08),
+                                  borderRadius: BorderRadius.circular(999),
+                                ),
+                                child: Text(
+                                  'Pago único',
+                                  style: TextStyle(
+                                    color: palette.success,
+                                    fontSize: 10.3,
+                                    fontWeight: FontWeight.w800,
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 12),
+                          Row(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              _psePeriodControlButton(
+                                palette,
+                                icon: Icons.remove_rounded,
+                                enabled: !_startingCheckout && safePeriodIndex > 0,
+                                onPressed: () {
+                                  final previous = orderedPeriodOptions[safePeriodIndex - 1];
+                                  setState(() => _prepaidPeriods = previous.periods);
+                                },
+                              ),
+                              Expanded(
+                                child: AnimatedSwitcher(
+                                  duration: const Duration(milliseconds: 180),
+                                  child: Column(
+                                    key: ValueKey(_prepaidPeriods),
+                                    children: [
+                                      Text(
+                                        '$_prepaidPeriods',
+                                        style: TextStyle(
+                                          color: palette.primary,
+                                          fontSize: 34,
+                                          height: 1,
+                                          fontWeight: FontWeight.w900,
+                                        ),
                                       ),
-                                      child: Icon(
-                                        selected ? Icons.check_rounded : Icons.schedule_rounded,
-                                        color: selected ? palette.primary : palette.textSecondary,
-                                        size: 18,
+                                      const SizedBox(height: 3),
+                                      Text(
+                                        _prepaidPeriods == 1 ? 'mes' : 'meses',
+                                        style: TextStyle(
+                                          color: palette.textSecondary,
+                                          fontSize: 12,
+                                          fontWeight: FontWeight.w700,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              ),
+                              _psePeriodControlButton(
+                                palette,
+                                icon: Icons.add_rounded,
+                                enabled: !_startingCheckout && safePeriodIndex < orderedPeriodOptions.length - 1,
+                                onPressed: () {
+                                  final next = orderedPeriodOptions[safePeriodIndex + 1];
+                                  setState(() => _prepaidPeriods = next.periods);
+                                },
+                              ),
+                            ],
+                          ),
+                          if (orderedPeriodOptions.length > 1) ...[
+                            const SizedBox(height: 5),
+                            Slider(
+                              value: safePeriodIndex.toDouble(),
+                              min: 0,
+                              max: (orderedPeriodOptions.length - 1).toDouble(),
+                              divisions: orderedPeriodOptions.length - 1,
+                              label: '${orderedPeriodOptions[safePeriodIndex].periods} ${orderedPeriodOptions[safePeriodIndex].periods == 1 ? 'mes' : 'meses'}',
+                              onChanged: _startingCheckout
+                                  ? null
+                                  : (value) {
+                                      final option = orderedPeriodOptions[value.round()];
+                                      setState(() => _prepaidPeriods = option.periods);
+                                    },
+                            ),
+                            Padding(
+                              padding: const EdgeInsets.symmetric(horizontal: 4),
+                              child: Row(
+                                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                children: [
+                                  Text(
+                                    '${orderedPeriodOptions.first.periods} ${orderedPeriodOptions.first.periods == 1 ? 'mes' : 'meses'}',
+                                    style: TextStyle(color: palette.textSecondary, fontSize: 10.2),
+                                  ),
+                                  Text(
+                                    '${orderedPeriodOptions.last.periods} ${orderedPeriodOptions.last.periods == 1 ? 'mes' : 'meses'}',
+                                    style: TextStyle(color: palette.textSecondary, fontSize: 10.2),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ],
+                          const SizedBox(height: 12),
+                          Divider(height: 1, color: palette.textSecondary.withOpacity(.10)),
+                          const SizedBox(height: 13),
+                          Row(
+                            children: [
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      'Total a pagar',
+                                      style: TextStyle(
+                                        color: palette.textSecondary,
+                                        fontSize: 11.2,
+                                        fontWeight: FontWeight.w700,
                                       ),
                                     ),
-                                    const SizedBox(width: 10),
-                                    Expanded(
-                                      child: Column(
-                                        crossAxisAlignment: CrossAxisAlignment.start,
-                                        children: [
-                                          Text(
-                                            '${periodOption.periods} ${periodOption.periods == 1 ? 'mes' : 'meses'}',
-                                            style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 12.5),
-                                          ),
-                                          const SizedBox(height: 2),
-                                          Text(
-                                            _money(periodOption.amount),
-                                            style: TextStyle(
-                                              color: selected ? palette.primary : palette.textSecondary,
-                                              fontWeight: FontWeight.w800,
-                                              fontSize: 12,
-                                            ),
-                                          ),
-                                        ],
-                                      ),
+                                    const SizedBox(height: 2),
+                                    Text(
+                                      'Sin renovación automática',
+                                      style: TextStyle(color: palette.textSecondary, fontSize: 10.3),
                                     ),
                                   ],
                                 ),
                               ),
-                            ),
-                          );
-                        }).toList(growable: false),
-                      );
-                    },
-                  ),
-                  const SizedBox(height: 14),
-                  Container(
-                    padding: const EdgeInsets.all(15),
-                    decoration: BoxDecoration(
-                      gradient: LinearGradient(
-                        colors: [
-                          palette.primary.withOpacity(.10),
-                          palette.secondary.withOpacity(.06),
-                        ],
-                      ),
-                      borderRadius: BorderRadius.circular(16),
-                      border: Border.all(color: palette.primary.withOpacity(.14)),
-                    ),
-                    child: Row(
-                      children: [
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text('Total a pagar', style: TextStyle(color: palette.textSecondary, fontSize: 11.5)),
-                              const SizedBox(height: 2),
-                              Text(
-                                '${_prepaidPeriods} ${_prepaidPeriods == 1 ? 'mes' : 'meses'} · pago único',
-                                style: TextStyle(color: palette.textSecondary, fontSize: 10.8),
+                              AnimatedSwitcher(
+                                duration: const Duration(milliseconds: 180),
+                                child: Text(
+                                  _money(oneTimeAmount),
+                                  key: ValueKey(oneTimeAmount),
+                                  style: TextStyle(
+                                    color: palette.primary,
+                                    fontSize: 22,
+                                    fontWeight: FontWeight.w900,
+                                  ),
+                                ),
                               ),
                             ],
                           ),
-                        ),
-                        Text(
-                          _money(oneTimeAmount),
-                          style: TextStyle(color: palette.primary, fontSize: 21, fontWeight: FontWeight.w900),
-                        ),
-                      ],
+                        ],
+                      ),
                     ),
-                  ),
                   const SizedBox(height: 22),
                   _pseSectionHeader(
                     palette,
@@ -2184,6 +2249,31 @@ class _SubscriptionActivationPageState extends ConsumerState<SubscriptionActivat
             style: TextStyle(color: palette.textSecondary, fontSize: 10.8, fontWeight: FontWeight.w700),
           ),
         ],
+      ),
+    );
+  }
+
+  Widget _psePeriodControlButton(
+    AppPalette palette, {
+    required IconData icon,
+    required bool enabled,
+    required VoidCallback onPressed,
+  }) {
+    return Material(
+      color: enabled ? palette.primary.withOpacity(.09) : palette.textSecondary.withOpacity(.05),
+      borderRadius: BorderRadius.circular(13),
+      child: InkWell(
+        onTap: enabled ? onPressed : null,
+        borderRadius: BorderRadius.circular(13),
+        child: SizedBox(
+          width: 44,
+          height: 44,
+          child: Icon(
+            icon,
+            color: enabled ? palette.primary : palette.textSecondary.withOpacity(.35),
+            size: 22,
+          ),
+        ),
       ),
     );
   }
