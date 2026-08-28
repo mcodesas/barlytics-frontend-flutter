@@ -8,8 +8,9 @@ import 'session_expiration_notifier.dart';
 /// Interceptor que agrega JWT y fuerza el cierre local de sesión cuando una
 /// petición autenticada deja de ser confiable.
 ///
-/// Se invalida la sesión ante 401/403 y también cuando el backend no entrega
-/// ninguna respuesta (caída, timeout o error de conexión). Las peticiones
+/// Solo un 401 invalida la sesión local. Un 403 significa que la sesión sigue
+/// siendo válida pero la operación no está autorizada, y una caída de red tampoco
+/// debe borrar las credenciales del usuario. Las peticiones
 /// públicas, como el login, no disparan este comportamiento porque no llevan
 /// cabecera Authorization.
 class AuthInterceptor extends Interceptor {
@@ -40,14 +41,10 @@ class AuthInterceptor extends Interceptor {
         err.requestOptions.headers['Authorization']?.toString().trim().isNotEmpty == true;
     final statusCode = err.response?.statusCode;
 
-    // En Flutter Web, una caída del backend suele llegar como DioException sin
-    // response (XMLHttpRequest onError). Cancelaciones voluntarias no deben
-    // cerrar la sesión.
-    final backendUnavailable =
-        err.response == null && err.type != DioExceptionType.cancel;
-
-    final mustInvalidateSession = hadAuthenticatedRequest &&
-        (statusCode == 401 || statusCode == 403 || backendUnavailable);
+    // 401 = token ausente/expirado/inválido.
+    // 403 = sesión válida sin permiso: se conserva la sesión y la pantalla puede
+    // mostrar el error funcional sin expulsar al usuario.
+    final mustInvalidateSession = hadAuthenticatedRequest && statusCode == 401;
 
     if (mustInvalidateSession) {
       await _invalidateSessionOnce();

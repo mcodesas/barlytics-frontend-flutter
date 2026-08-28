@@ -13,6 +13,9 @@ import '../../../../core/widgets/app_button.dart';
 import '../../../../core/widgets/app_loader.dart';
 import '../../../../core/widgets/lookup_dropdown.dart';
 import '../../../../core/widgets/tech_background.dart';
+import '../../../auth/presentation/providers/auth_provider.dart';
+import '../../../subscription/data/models/subscription_models.dart';
+import '../../../subscription/presentation/providers/subscription_provider.dart';
 import '../providers/profile_header_provider.dart';
 
 class ProfilePage extends ConsumerStatefulWidget {
@@ -54,6 +57,12 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
   String? _empresaRazonSocial;
   String? _empresaIdentificacion;
   List<String> _roles = const <String>[];
+  SubscriptionModel? _subscription;
+  List<SubscriptionPlanModel> _subscriptionPlans = const <SubscriptionPlanModel>[];
+  bool _subscriptionLoading = false;
+  bool _changingSubscriptionPlan = false;
+  bool _cancellingSubscription = false;
+  String? _subscriptionError;
 
   List<CrudLookupOption> _countries = const <CrudLookupOption>[];
   List<CrudLookupOption> _regions = const <CrudLookupOption>[];
@@ -100,6 +109,9 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
     setState(() => _loading = true);
     try {
       await Future.wait([_loadLookups(), _loadProfile()]);
+      if (_canManageSubscription) {
+        await _loadSubscription();
+      }
     } finally {
       if (mounted) setState(() => _loading = false);
     }
@@ -135,6 +147,632 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
             .where((item) => item.trim().isNotEmpty)
             .toList()
         : const <String>[];
+  }
+
+  bool get _canManageSubscription => _roles.any((role) {
+        final normalized = role.toUpperCase().replaceAll('ROLE_', '').trim();
+        return normalized == 'GERENTE' || normalized == 'MANAGER';
+      });
+
+  Future<void> _loadSubscription() async {
+    if (!_canManageSubscription) return;
+    if (mounted) {
+      setState(() {
+        _subscriptionLoading = true;
+        _subscriptionError = null;
+      });
+    }
+    try {
+      final remote = ref.read(subscriptionRemoteDataSourceProvider);
+      final results = await Future.wait<Object>([remote.current(), remote.plans()]);
+      if (!mounted) return;
+      setState(() {
+        _subscription = results[0] as SubscriptionModel;
+        _subscriptionPlans = results[1] as List<SubscriptionPlanModel>;
+      });
+    } catch (error) {
+      if (!mounted) return;
+      setState(() => _subscriptionError = error.toString());
+    } finally {
+      if (mounted) setState(() => _subscriptionLoading = false);
+    }
+  }
+
+  Future<void> _showPlanSelector() async {
+    final subscription = _subscription;
+    if (subscription == null || _changingSubscriptionPlan || subscription.cancellationScheduled) return;
+
+    final selected = await showModalBottomSheet<SubscriptionPlanModel>(
+      context: context,
+      useSafeArea: true,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (sheetContext) {
+        final theme = Theme.of(sheetContext);
+        final scheme = theme.colorScheme;
+        final plans = [..._subscriptionPlans]..sort((a, b) => a.displayOrder.compareTo(b.displayOrder));
+
+        return DraggableScrollableSheet(
+          expand: false,
+          initialChildSize: 0.78,
+          minChildSize: 0.56,
+          maxChildSize: 0.94,
+          builder: (context, scrollController) => Material(
+            color: scheme.surface,
+            borderRadius: const BorderRadius.vertical(top: Radius.circular(30)),
+            clipBehavior: Clip.antiAlias,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                const SizedBox(height: 10),
+                Center(
+                  child: Container(
+                    width: 44,
+                    height: 5,
+                    decoration: BoxDecoration(
+                      color: scheme.onSurface.withOpacity(0.16),
+                      borderRadius: BorderRadius.circular(99),
+                    ),
+                  ),
+                ),
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(20, 16, 12, 14),
+                  child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Container(
+                        width: 48,
+                        height: 48,
+                        decoration: BoxDecoration(
+                          color: scheme.primary.withOpacity(0.10),
+                          borderRadius: BorderRadius.circular(15),
+                        ),
+                        child: Icon(Icons.workspace_premium_rounded, color: scheme.primary),
+                      ),
+                      const SizedBox(width: 14),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              'Elige el plan de tu empresa',
+                              style: theme.textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w900),
+                            ),
+                            const SizedBox(height: 4),
+                            Text(
+                              'Compara los planes y selecciona el que mejor se ajuste a tu operación.',
+                              style: theme.textTheme.bodyMedium?.copyWith(color: scheme.onSurfaceVariant),
+                            ),
+                          ],
+                        ),
+                      ),
+                      IconButton(
+                        tooltip: 'Cerrar',
+                        onPressed: () => Navigator.of(sheetContext).pop(),
+                        icon: const Icon(Icons.close_rounded),
+                      ),
+                    ],
+                  ),
+                ),
+                if (subscription.active && subscription.currentPeriodEnd != null)
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(20, 0, 20, 14),
+                    child: Container(
+                      padding: const EdgeInsets.all(12),
+                      decoration: BoxDecoration(
+                        color: scheme.primary.withOpacity(0.06),
+                        borderRadius: BorderRadius.circular(14),
+                        border: Border.all(color: scheme.primary.withOpacity(0.14)),
+                      ),
+                      child: Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Icon(Icons.schedule_rounded, size: 20, color: scheme.primary),
+                          const SizedBox(width: 9),
+                          Expanded(
+                            child: Text(
+                              'Tu período actual está pagado hasta ${_subscriptionDate(subscription.currentPeriodEnd)}. El nuevo plan se aplicará al siguiente ciclo.',
+                              style: theme.textTheme.bodySmall?.copyWith(fontWeight: FontWeight.w700),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                Divider(height: 1, color: scheme.outlineVariant.withOpacity(0.65)),
+                Expanded(
+                  child: ListView.separated(
+                    controller: scrollController,
+                    padding: const EdgeInsets.fromLTRB(16, 16, 16, 24),
+                    itemCount: plans.length,
+                    separatorBuilder: (_, __) => const SizedBox(height: 12),
+                    itemBuilder: (context, index) {
+                      final plan = plans[index];
+                      final isCurrent = plan.code == subscription.planCode || plan.current;
+                      final isScheduled = plan.scheduled;
+                      final canSelect = !isCurrent && !plan.quoteRequired;
+                      final accent = isCurrent ? scheme.primary : scheme.outlineVariant;
+
+                      return Material(
+                        color: Colors.transparent,
+                        child: InkWell(
+                          borderRadius: BorderRadius.circular(20),
+                          onTap: canSelect ? () => Navigator.of(sheetContext).pop(plan) : null,
+                          child: AnimatedContainer(
+                            duration: const Duration(milliseconds: 180),
+                            padding: const EdgeInsets.all(16),
+                            decoration: BoxDecoration(
+                              color: isCurrent ? scheme.primary.withOpacity(0.055) : scheme.surfaceContainerLowest,
+                              borderRadius: BorderRadius.circular(20),
+                              border: Border.all(
+                                color: isCurrent ? scheme.primary.withOpacity(0.55) : accent.withOpacity(0.72),
+                                width: isCurrent ? 1.5 : 1,
+                              ),
+                            ),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.stretch,
+                              children: [
+                                Row(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Container(
+                                      width: 42,
+                                      height: 42,
+                                      decoration: BoxDecoration(
+                                        color: isCurrent ? scheme.primary.withOpacity(0.12) : scheme.surfaceContainerHighest,
+                                        borderRadius: BorderRadius.circular(13),
+                                      ),
+                                      child: Icon(
+                                        isCurrent ? Icons.check_circle_rounded : Icons.auto_awesome_rounded,
+                                        color: isCurrent ? scheme.primary : scheme.onSurfaceVariant,
+                                      ),
+                                    ),
+                                    const SizedBox(width: 12),
+                                    Expanded(
+                                      child: Column(
+                                        crossAxisAlignment: CrossAxisAlignment.start,
+                                        children: [
+                                          Row(
+                                            children: [
+                                              Expanded(
+                                                child: Text(
+                                                  plan.name,
+                                                  style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w900),
+                                                ),
+                                              ),
+                                              if (isCurrent)
+                                                _SubscriptionPlanBadge(label: 'Plan actual', color: scheme.primary)
+                                              else if (isScheduled)
+                                                _SubscriptionPlanBadge(label: 'Programado', color: Colors.orange),
+                                            ],
+                                          ),
+                                          const SizedBox(height: 5),
+                                          Text(
+                                            _subscriptionMoney(plan.price, plan.currency),
+                                            style: theme.textTheme.titleLarge?.copyWith(
+                                              fontWeight: FontWeight.w900,
+                                              color: scheme.onSurface,
+                                            ),
+                                          ),
+                                          const SizedBox(height: 1),
+                                          Text(
+                                            _periodLabel(plan.frequency, plan.frequencyType),
+                                            style: theme.textTheme.bodySmall?.copyWith(color: scheme.onSurfaceVariant),
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                                if (plan.description?.trim().isNotEmpty == true) ...[
+                                  const SizedBox(height: 12),
+                                  Text(
+                                    plan.description!.trim(),
+                                    style: theme.textTheme.bodyMedium?.copyWith(color: scheme.onSurfaceVariant, height: 1.35),
+                                  ),
+                                ],
+                                const SizedBox(height: 14),
+                                Row(
+                                  children: [
+                                    if (plan.quoteRequired)
+                                      Expanded(
+                                        child: Text(
+                                          'Requiere cotización',
+                                          style: theme.textTheme.labelLarge?.copyWith(color: scheme.onSurfaceVariant),
+                                        ),
+                                      )
+                                    else if (isCurrent)
+                                      Expanded(
+                                        child: Text(
+                                          'Este es tu plan activo',
+                                          style: theme.textTheme.labelLarge?.copyWith(color: scheme.primary, fontWeight: FontWeight.w800),
+                                        ),
+                                      )
+                                    else
+                                      Expanded(
+                                        child: Text(
+                                          'Seleccionar este plan',
+                                          style: theme.textTheme.labelLarge?.copyWith(color: scheme.primary, fontWeight: FontWeight.w800),
+                                        ),
+                                      ),
+                                    if (canSelect) Icon(Icons.arrow_forward_rounded, size: 20, color: scheme.primary),
+                                  ],
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                      );
+                    },
+                  ),
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+
+    if (selected == null || !mounted) return;
+    final appliesLater = subscription.active && subscription.currentPeriodEnd != null;
+    final confirmed = await showDialog<bool>(
+          context: context,
+          builder: (dialogContext) {
+            final theme = Theme.of(dialogContext);
+            final scheme = theme.colorScheme;
+            return Dialog(
+              insetPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 24),
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(26)),
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 470),
+                child: Padding(
+                  padding: const EdgeInsets.all(22),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Container(
+                            width: 48,
+                            height: 48,
+                            decoration: BoxDecoration(
+                              color: scheme.primary.withOpacity(0.10),
+                              borderRadius: BorderRadius.circular(15),
+                            ),
+                            child: Icon(Icons.swap_horiz_rounded, color: scheme.primary),
+                          ),
+                          const SizedBox(width: 14),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  'Confirmar cambio de plan',
+                                  style: theme.textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w900),
+                                ),
+                                const SizedBox(height: 4),
+                                Text(
+                                  appliesLater ? 'El cambio se aplicará en tu próximo ciclo.' : 'El nuevo plan se aplicará a tu suscripción.',
+                                  style: theme.textTheme.bodyMedium?.copyWith(color: scheme.onSurfaceVariant),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 20),
+                      Container(
+                        padding: const EdgeInsets.all(14),
+                        decoration: BoxDecoration(
+                          color: scheme.surfaceContainerLow,
+                          borderRadius: BorderRadius.circular(16),
+                          border: Border.all(color: scheme.outlineVariant.withOpacity(0.7)),
+                        ),
+                        child: Row(
+                          children: [
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text('Plan actual', style: theme.textTheme.labelMedium?.copyWith(color: scheme.onSurfaceVariant)),
+                                  const SizedBox(height: 3),
+                                  Text(subscription.planName ?? 'Plan actual', style: const TextStyle(fontWeight: FontWeight.w800)),
+                                ],
+                              ),
+                            ),
+                            Icon(Icons.arrow_forward_rounded, color: scheme.primary),
+                            const SizedBox(width: 12),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text('Nuevo plan', style: theme.textTheme.labelMedium?.copyWith(color: scheme.onSurfaceVariant)),
+                                  const SizedBox(height: 3),
+                                  Text(selected.name, style: TextStyle(fontWeight: FontWeight.w900, color: scheme.primary)),
+                                ],
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(height: 12),
+                      Row(
+                        children: [
+                          Icon(Icons.payments_outlined, size: 20, color: scheme.onSurfaceVariant),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: Text(
+                              '${_subscriptionMoney(selected.price, selected.currency)} · ${_periodLabel(selected.frequency, selected.frequencyType)}',
+                              style: const TextStyle(fontWeight: FontWeight.w800),
+                            ),
+                          ),
+                        ],
+                      ),
+                      if (appliesLater) ...[
+                        const SizedBox(height: 14),
+                        Container(
+                          padding: const EdgeInsets.all(12),
+                          decoration: BoxDecoration(
+                            color: scheme.primary.withOpacity(0.06),
+                            borderRadius: BorderRadius.circular(14),
+                          ),
+                          child: Row(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Icon(Icons.info_outline_rounded, size: 20, color: scheme.primary),
+                              const SizedBox(width: 8),
+                              Expanded(
+                                child: Text(
+                                  'Conservarás ${subscription.planName ?? 'tu plan actual'} hasta ${_subscriptionDate(subscription.currentPeriodEnd)}. No pierdes el período que ya pagaste.',
+                                  style: theme.textTheme.bodySmall?.copyWith(fontWeight: FontWeight.w700),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
+                      const SizedBox(height: 22),
+                      Row(
+                        children: [
+                          Expanded(
+                            child: OutlinedButton(
+                              onPressed: () => Navigator.of(dialogContext).pop(false),
+                              child: const Text('Volver'),
+                            ),
+                          ),
+                          const SizedBox(width: 10),
+                          Expanded(
+                            child: FilledButton.icon(
+                              onPressed: () => Navigator.of(dialogContext).pop(true),
+                              icon: const Icon(Icons.check_rounded),
+                              label: const Text('Confirmar cambio'),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            );
+          },
+        ) ??
+        false;
+    if (!confirmed || !mounted) return;
+
+    setState(() => _changingSubscriptionPlan = true);
+    try {
+      final updated = await ref.read(subscriptionRemoteDataSourceProvider).changePlan(selected.code);
+      if (!mounted) return;
+      setState(() => _subscription = updated);
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            updated.scheduledPlanName == null
+                ? 'Plan actualizado a ${updated.planName ?? selected.name}.'
+                : 'Cambio a ${updated.scheduledPlanName} programado para ${_subscriptionDate(updated.scheduledPlanEffectiveAt)}.',
+          ),
+        ),
+      );
+    } catch (error) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('No fue posible cambiar el plan: $error')));
+    } finally {
+      if (mounted) setState(() => _changingSubscriptionPlan = false);
+    }
+  }
+
+  void _reactivateSubscription() {
+    final subscription = _subscription;
+    if (subscription == null || !subscription.cancellationScheduled) return;
+    context.go('/activar-suscripcion?reactivar=1');
+  }
+
+  Future<void> _cancelSubscription() async {
+    final subscription = _subscription;
+    if (subscription == null || _cancellingSubscription || subscription.cancellationScheduled) return;
+
+    final paidUntil = subscription.currentPeriodEnd;
+    final keepsPaidAccess = paidUntil != null && subscription.active;
+    final confirmed = await showDialog<bool>(
+          context: context,
+          builder: (dialogContext) {
+            final theme = Theme.of(dialogContext);
+            final scheme = theme.colorScheme;
+            return Dialog(
+              insetPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 24),
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(26)),
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 470),
+                child: Padding(
+                  padding: const EdgeInsets.all(22),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Container(
+                            width: 48,
+                            height: 48,
+                            decoration: BoxDecoration(
+                              color: Colors.red.withOpacity(0.08),
+                              borderRadius: BorderRadius.circular(15),
+                            ),
+                            child: const Icon(Icons.autorenew_rounded, color: Colors.red),
+                          ),
+                          const SizedBox(width: 14),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  'Cancelar renovación',
+                                  style: theme.textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w900),
+                                ),
+                                const SizedBox(height: 4),
+                                Text(
+                                  'Detendrás la renovación automática de tu plan.',
+                                  style: theme.textTheme.bodyMedium?.copyWith(color: scheme.onSurfaceVariant),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 18),
+                      Container(
+                        padding: const EdgeInsets.all(14),
+                        decoration: BoxDecoration(
+                          color: Colors.red.withOpacity(0.045),
+                          borderRadius: BorderRadius.circular(16),
+                          border: Border.all(color: Colors.red.withOpacity(0.15)),
+                        ),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            const Row(
+                              children: [
+                                Icon(Icons.credit_card_off_rounded, size: 20, color: Colors.red),
+                                SizedBox(width: 8),
+                                Expanded(
+                                  child: Text(
+                                    'No se realizarán más cobros automáticos',
+                                    style: TextStyle(fontWeight: FontWeight.w900),
+                                  ),
+                                ),
+                              ],
+                            ),
+                            const SizedBox(height: 8),
+                            Text(
+                              keepsPaidAccess
+                                  ? 'Tu período actual ya está pagado. BarLytics seguirá activo hasta ${_subscriptionDate(paidUntil)} y después finalizará el acceso.'
+                                  : 'La suscripción finalizará al confirmar la cancelación porque no hay un período pagado vigente.',
+                              style: theme.textTheme.bodyMedium?.copyWith(height: 1.35),
+                            ),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(height: 12),
+                      Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Icon(Icons.receipt_long_outlined, size: 20, color: scheme.onSurfaceVariant),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: Text(
+                              'Los pagos ya realizados y el historial se conservan. Cancelar la renovación no genera un reembolso automático.',
+                              style: theme.textTheme.bodySmall?.copyWith(color: scheme.onSurfaceVariant, height: 1.35),
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 22),
+                      Row(
+                        children: [
+                          Expanded(
+                            child: OutlinedButton(
+                              onPressed: () => Navigator.of(dialogContext).pop(false),
+                              child: const Text('Mantener suscripción'),
+                            ),
+                          ),
+                          const SizedBox(width: 10),
+                          Expanded(
+                            child: FilledButton.icon(
+                              style: FilledButton.styleFrom(backgroundColor: Colors.red),
+                              onPressed: () => Navigator.of(dialogContext).pop(true),
+                              icon: const Icon(Icons.block_rounded),
+                              label: Text(keepsPaidAccess ? 'Cancelar renovación' : 'Finalizar suscripción'),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            );
+          },
+        ) ??
+        false;
+    if (!confirmed || !mounted) return;
+
+    setState(() => _cancellingSubscription = true);
+    try {
+      final updated = await ref.read(subscriptionRemoteDataSourceProvider).cancel();
+      await ref.read(authControllerProvider.notifier).updateSubscription(status: updated.status, active: updated.active);
+      if (!mounted) return;
+      setState(() => _subscription = updated);
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            updated.cancellationScheduled
+                ? 'Renovación cancelada. No habrá más cobros automáticos y tendrás acceso hasta ${_subscriptionDate(updated.cancellationEffectiveAt)}.'
+                : 'Suscripción finalizada. No habrá más cobros automáticos.',
+          ),
+        ),
+      );
+      if (!updated.active && mounted) context.go('/activar-suscripcion');
+    } catch (error) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('No fue posible cancelar la renovación: $error')),
+      );
+    } finally {
+      if (mounted) setState(() => _cancellingSubscription = false);
+    }
+  }
+
+  static String _subscriptionDate(DateTime? value) {
+    if (value == null) return 'sin fecha definida';
+    final local = value.toLocal();
+    String two(int v) => v.toString().padLeft(2, '0');
+    return '${two(local.day)}/${two(local.month)}/${local.year}';
+  }
+
+  static String _subscriptionMoney(double? value, [String currency = 'COP']) {
+    if (value == null) return 'Precio no definido';
+    final raw = value.round().toString();
+    final chunks = <String>[];
+    for (var end = raw.length; end > 0; end -= 3) {
+      final start = end - 3 < 0 ? 0 : end - 3;
+      chunks.insert(0, raw.substring(start, end));
+    }
+    return r'$' + chunks.join('.') + ' $currency';
+  }
+
+  static String _periodLabel(int frequency, String frequencyType) {
+    final type = frequencyType.toLowerCase();
+    final unit = switch (type) {
+      'days' => frequency == 1 ? 'día' : 'días',
+      'weeks' => frequency == 1 ? 'semana' : 'semanas',
+      'years' => frequency == 1 ? 'año' : 'años',
+      _ => frequency == 1 ? 'mes' : 'meses',
+    };
+    return frequency == 1 ? 'cada $unit' : 'cada $frequency $unit';
   }
 
   Future<void> _loadLookups() async {
@@ -373,6 +1011,10 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
                   );
                 },
               ),
+              if (_canManageSubscription) ...[
+                const SizedBox(height: 16),
+                _subscriptionPanel(palette),
+              ],
               const SizedBox(height: 16),
               _passwordPanel(palette),
             ],
@@ -570,17 +1212,6 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
                   )
                   .toList(),
             ),
-          if (_roles.any((role) => role.toUpperCase().contains('GERENTE'))) ...[
-            const SizedBox(height: 16),
-            OutlinedButton.icon(
-              onPressed: () => context.go('/activar-suscripcion'),
-              icon: const Icon(Icons.workspace_premium_outlined),
-              label: const Text('Mi suscripción y plan'),
-              style: OutlinedButton.styleFrom(
-                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
-              ),
-            ),
-          ],
           const SizedBox(height: 16),
           Container(
             padding: const EdgeInsets.all(12),
@@ -614,6 +1245,233 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
         ],
       ),
     );
+  }
+
+  Widget _subscriptionPanel(AppPalette palette) {
+    final subscription = _subscription;
+    return TechGlassPanel(
+      dark: palette.darkBackground,
+      padding: const EdgeInsets.all(20),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          _sectionHeading(
+            palette: palette,
+            icon: Icons.workspace_premium_outlined,
+            title: 'Suscripción y plan',
+            subtitle: 'Administra el plan contratado por tu empresa y su renovación.',
+          ),
+          const SizedBox(height: 16),
+          if (_subscriptionLoading)
+            const Center(child: Padding(padding: EdgeInsets.all(18), child: CircularProgressIndicator()))
+          else if (_subscriptionError != null)
+            Container(
+              padding: const EdgeInsets.all(14),
+              decoration: BoxDecoration(
+                color: Colors.red.withOpacity(0.08),
+                borderRadius: BorderRadius.circular(15),
+                border: Border.all(color: Colors.red.withOpacity(0.2)),
+              ),
+              child: Row(
+                children: [
+                  const Icon(Icons.error_outline_rounded, color: Colors.red),
+                  const SizedBox(width: 10),
+                  Expanded(child: Text('No fue posible cargar la suscripción. $_subscriptionError')),
+                  TextButton(onPressed: _loadSubscription, child: const Text('Reintentar')),
+                ],
+              ),
+            )
+          else if (subscription == null)
+            const Text('No se encontró una suscripción asociada a la empresa.')
+          else ...[
+            LayoutBuilder(
+              builder: (context, constraints) {
+                final compact = constraints.maxWidth < 760;
+                final planCard = Container(
+                  padding: const EdgeInsets.all(16),
+                  decoration: BoxDecoration(
+                    color: palette.secondary.withOpacity(0.08),
+                    borderRadius: BorderRadius.circular(18),
+                    border: Border.all(color: palette.secondary.withOpacity(0.16)),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          Icon(Icons.workspace_premium_rounded, color: palette.secondary),
+                          const SizedBox(width: 10),
+                          Expanded(
+                            child: Text(
+                              subscription.planName ?? 'Plan sin nombre',
+                              style: TextStyle(color: palette.textPrimary, fontSize: 18, fontWeight: FontWeight.w900),
+                            ),
+                          ),
+                          _SubscriptionStatusChip(
+                            label: subscription.cancellationScheduled
+                                ? 'Cancelación programada'
+                                : _subscriptionStatusLabel(subscription.status),
+                            warning: subscription.cancellationScheduled || !subscription.active,
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 10),
+                      Text(
+                        '${_subscriptionMoney(subscription.price, subscription.currency)} · ${_periodLabel(subscription.frequency, subscription.frequencyType)}',
+                        style: TextStyle(color: palette.textPrimary, fontSize: 15, fontWeight: FontWeight.w800),
+                      ),
+                      if (subscription.planDescription?.trim().isNotEmpty == true) ...[
+                        const SizedBox(height: 6),
+                        Text(subscription.planDescription!.trim(), style: TextStyle(color: palette.textSecondary)),
+                      ],
+                    ],
+                  ),
+                );
+
+                final details = Container(
+                  padding: const EdgeInsets.all(16),
+                  decoration: BoxDecoration(
+                    borderRadius: BorderRadius.circular(18),
+                    border: Border.all(color: palette.cardBorder),
+                  ),
+                  child: Column(
+                    children: [
+                      _SubscriptionDetailRow(
+                        icon: subscription.automaticRenewal ? Icons.autorenew_rounded : Icons.event_available_outlined,
+                        label: 'Renovación',
+                        value: subscription.cancellationScheduled
+                            ? 'Cancelada'
+                            : (subscription.automaticRenewal ? 'Automática' : 'No automática'),
+                      ),
+                      const SizedBox(height: 10),
+                      _SubscriptionDetailRow(
+                        icon: Icons.event_outlined,
+                        label: subscription.cancellationScheduled ? 'Acceso hasta' : 'Período actual hasta',
+                        value: _subscriptionDate(
+                          subscription.cancellationScheduled ? subscription.cancellationEffectiveAt : subscription.currentPeriodEnd,
+                        ),
+                      ),
+                      if (subscription.nextChargeAt != null && !subscription.cancellationScheduled) ...[
+                        const SizedBox(height: 10),
+                        _SubscriptionDetailRow(
+                          icon: Icons.payments_outlined,
+                          label: 'Próximo cobro',
+                          value: _subscriptionDate(subscription.nextChargeAt),
+                        ),
+                      ],
+                    ],
+                  ),
+                );
+
+                if (compact) {
+                  return Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [planCard, const SizedBox(height: 12), details]);
+                }
+                return Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [Expanded(flex: 3, child: planCard), const SizedBox(width: 12), Expanded(flex: 2, child: details)],
+                );
+              },
+            ),
+            if (subscription.scheduledPlanName != null) ...[
+              const SizedBox(height: 12),
+              Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: palette.primary.withOpacity(0.07),
+                  borderRadius: BorderRadius.circular(14),
+                  border: Border.all(color: palette.primary.withOpacity(0.14)),
+                ),
+                child: Row(
+                  children: [
+                    Icon(Icons.schedule_rounded, color: palette.primary),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: Text(
+                        'Cambio programado a ${subscription.scheduledPlanName} para ${_subscriptionDate(subscription.scheduledPlanEffectiveAt)}.',
+                        style: TextStyle(color: palette.textPrimary, fontWeight: FontWeight.w700),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+            if (subscription.cancellationScheduled) ...[
+              const SizedBox(height: 12),
+              Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: Colors.orange.withOpacity(0.08),
+                  borderRadius: BorderRadius.circular(14),
+                  border: Border.all(color: Colors.orange.withOpacity(0.2)),
+                ),
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Icon(Icons.info_outline_rounded, color: Colors.orange),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: Text(
+                        'La renovación ya está cancelada. La empresa seguirá funcionando hasta ${_subscriptionDate(subscription.cancellationEffectiveAt)}. Si cambias de decisión, puedes volver a autorizar la renovación sin perder este período pagado.',
+                        style: TextStyle(color: palette.textPrimary, fontWeight: FontWeight.w700),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+            const SizedBox(height: 16),
+            Wrap(
+              spacing: 10,
+              runSpacing: 10,
+              alignment: WrapAlignment.end,
+              children: [
+                if (subscription.cancellationScheduled)
+                  FilledButton.icon(
+                    onPressed: _reactivateSubscription,
+                    icon: const Icon(Icons.autorenew_rounded),
+                    label: const Text('Volver a activar renovación'),
+                  )
+                else ...[
+                  OutlinedButton.icon(
+                    onPressed: _changingSubscriptionPlan || _cancellingSubscription
+                        ? null
+                        : _showPlanSelector,
+                    icon: _changingSubscriptionPlan
+                        ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2))
+                        : const Icon(Icons.swap_horiz_rounded),
+                    label: const Text('Cambiar plan'),
+                  ),
+                  OutlinedButton.icon(
+                    onPressed: _cancellingSubscription || _changingSubscriptionPlan
+                        ? null
+                        : _cancelSubscription,
+                    icon: _cancellingSubscription
+                        ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2))
+                        : const Icon(Icons.cancel_outlined),
+                    label: const Text('Cancelar renovación'),
+                    style: OutlinedButton.styleFrom(
+                      foregroundColor: Colors.red,
+                      side: const BorderSide(color: Colors.red),
+                    ),
+                  ),
+                ],
+              ],
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+
+  String _subscriptionStatusLabel(String status) {
+    return switch (status.toUpperCase()) {
+      'ACTIVE' => 'Activa',
+      'TRIAL' => 'Prueba',
+      'PENDING_PAYMENT' => 'Pendiente de pago',
+      'PAST_DUE' => 'Vencida',
+      'CANCELLED' => 'Cancelada',
+      _ => status.replaceAll('_', ' '),
+    };
   }
 
   Widget _personalInformationPanel(AppPalette palette) {
@@ -1173,6 +2031,80 @@ class _ProfileTag extends ConsumerWidget {
           ),
         ],
       ),
+    );
+  }
+}
+
+class _SubscriptionPlanBadge extends StatelessWidget {
+  const _SubscriptionPlanBadge({required this.label, required this.color});
+
+  final String label;
+  final Color color;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 5),
+      decoration: BoxDecoration(
+        color: color.withOpacity(0.10),
+        borderRadius: BorderRadius.circular(99),
+        border: Border.all(color: color.withOpacity(0.18)),
+      ),
+      child: Text(
+        label,
+        style: TextStyle(color: color, fontSize: 11, fontWeight: FontWeight.w900),
+      ),
+    );
+  }
+}
+
+class _SubscriptionStatusChip extends StatelessWidget {
+  const _SubscriptionStatusChip({required this.label, this.warning = false});
+
+  final String label;
+  final bool warning;
+
+  @override
+  Widget build(BuildContext context) {
+    final color = warning ? Colors.orange.shade700 : Colors.green.shade700;
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+      decoration: BoxDecoration(
+        color: color.withOpacity(0.10),
+        borderRadius: BorderRadius.circular(999),
+        border: Border.all(color: color.withOpacity(0.24)),
+      ),
+      child: Text(label, style: TextStyle(color: color, fontSize: 11.5, fontWeight: FontWeight.w900)),
+    );
+  }
+}
+
+class _SubscriptionDetailRow extends StatelessWidget {
+  const _SubscriptionDetailRow({required this.icon, required this.label, required this.value});
+
+  final IconData icon;
+  final String label;
+  final String value;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Icon(icon, size: 19, color: theme.colorScheme.primary),
+        const SizedBox(width: 9),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(label, style: theme.textTheme.labelMedium?.copyWith(fontWeight: FontWeight.w800)),
+              const SizedBox(height: 2),
+              Text(value, style: theme.textTheme.bodyMedium?.copyWith(fontWeight: FontWeight.w700)),
+            ],
+          ),
+        ),
+      ],
     );
   }
 }

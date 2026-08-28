@@ -409,9 +409,9 @@ class _ProductCatalogSyncPageState extends ConsumerState<ProductCatalogSyncPage>
         .toList(growable: false);
     return _Panel(
       palette: palette,
-      title: _crossCompanyAllowed ? 'Configurar sincronización entre empresas' : 'Configurar sincronización entre sucursales',
+      title: _crossCompanyAllowed ? 'Configurar sincronización de catálogo' : 'Configurar sincronización entre sucursales',
       subtitle: _crossCompanyAllowed
-          ? 'Selecciona de dónde tomar el catálogo y en cuáles sucursales de otra empresa debe quedar disponible.'
+          ? 'Selecciona el origen y una o varias sucursales destino. Pueden pertenecer a la misma empresa; la sucursal origen nunca puede ser destino.'
           : 'Selecciona una sucursal origen y una o varias sucursales destino de la misma empresa.',
       icon: Icons.tune_rounded,
       child: Column(
@@ -455,7 +455,7 @@ class _ProductCatalogSyncPageState extends ConsumerState<ProductCatalogSyncPage>
                 branches: sourceBranches,
                 companyId: _sourceCompanyId,
                 branchId: _sourceBranchId,
-                excludedCompanyId: _crossCompanyAllowed ? _targetCompanyId : null,
+                excludedCompanyId: null,
                 companyLocked: _companyLocked,
                 onCompanyChanged: (value) => setState(() {
                   _sourceCompanyId = value;
@@ -474,7 +474,7 @@ class _ProductCatalogSyncPageState extends ConsumerState<ProductCatalogSyncPage>
                 branches: targetBranches,
                 companyId: _targetCompanyId,
                 selectedBranchIds: _targetBranchIds,
-                excludedCompanyId: _crossCompanyAllowed ? _sourceCompanyId : null,
+                excludedCompanyId: null,
                 companyLocked: _companyLocked,
                 onCompanyChanged: (value) => setState(() {
                   _targetCompanyId = value;

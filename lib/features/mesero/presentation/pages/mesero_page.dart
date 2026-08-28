@@ -19,6 +19,7 @@ import '../../../../core/widgets/app_loader.dart';
 import '../../../../core/widgets/app_scaffold.dart';
 import '../../../../core/widgets/tech_background.dart';
 import '../../../auth/presentation/providers/auth_provider.dart';
+import '../../../navigation/presentation/providers/active_role_provider.dart';
 import '../../data/datasources/mesero_remote_datasource.dart';
 import '../../data/models/mesero_models.dart';
 import '../providers/mesero_tab_provider.dart';
@@ -779,7 +780,7 @@ class _MeseroPageState extends ConsumerState<MeseroPage> {
       .replaceAll(RegExp(r'[^A-Z0-9]+'), '_');
 
   bool _hasAnyRole(List<String> roleNames) {
-    final rawRoles = ref.watch(authControllerProvider).roles;
+    final rawRoles = ref.watch(activeRolesProvider);
     final normalizedRoles = rawRoles.map(_normalizeRole).toList(growable: false);
     final joinedRoles = normalizedRoles.join('_');
     final normalizedCandidates = roleNames.map(_normalizeRole).toList(growable: false);
@@ -796,7 +797,7 @@ class _MeseroPageState extends ConsumerState<MeseroPage> {
   }
 
   bool _isCajeroOperativo() {
-    final rawRoles = ref.watch(authControllerProvider).roles;
+    final rawRoles = ref.watch(activeRolesProvider);
     final joined = rawRoles.map(_normalizeRole).join('_');
     return _hasAnyRole(const [
           'CAJERO',
@@ -859,6 +860,23 @@ class _MeseroPageState extends ConsumerState<MeseroPage> {
 
         if (selectedMode == MeseroPageMode.mesas && _mostrandoDetalleVenta && _ventaActiva != null) {
           return content;
+        }
+
+        if (selectedMode == MeseroPageMode.mesas && isCajero && !_mostrandoDetalleVenta) {
+          return Stack(
+            fit: StackFit.expand,
+            children: [
+              content,
+              Positioned(
+                right: 20,
+                bottom: 20,
+                child: _CrearMesaFloatingButton(
+                  enabled: !_processing,
+                  onPressed: _crearMesa,
+                ),
+              ),
+            ],
+          );
         }
 
         return content;

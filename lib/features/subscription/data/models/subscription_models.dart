@@ -22,6 +22,9 @@ class SubscriptionModel {
     this.currentPeriodStart,
     this.currentPeriodEnd,
     this.nextChargeAt,
+    this.cancellationScheduled = false,
+    this.cancellationRequestedAt,
+    this.cancellationEffectiveAt,
     this.scheduledPlanCode,
     this.scheduledPlanName,
     this.scheduledPlanPrice,
@@ -51,6 +54,9 @@ class SubscriptionModel {
   final DateTime? currentPeriodStart;
   final DateTime? currentPeriodEnd;
   final DateTime? nextChargeAt;
+  final bool cancellationScheduled;
+  final DateTime? cancellationRequestedAt;
+  final DateTime? cancellationEffectiveAt;
   final String? scheduledPlanCode;
   final String? scheduledPlanName;
   final double? scheduledPlanPrice;
@@ -83,6 +89,9 @@ class SubscriptionModel {
         currentPeriodStart: DateTime.tryParse(json['currentPeriodStart']?.toString() ?? ''),
         currentPeriodEnd: DateTime.tryParse(json['currentPeriodEnd']?.toString() ?? ''),
         nextChargeAt: DateTime.tryParse(json['nextChargeAt']?.toString() ?? ''),
+        cancellationScheduled: json['cancellationScheduled'] == true,
+        cancellationRequestedAt: DateTime.tryParse(json['cancellationRequestedAt']?.toString() ?? ''),
+        cancellationEffectiveAt: DateTime.tryParse(json['cancellationEffectiveAt']?.toString() ?? ''),
         scheduledPlanCode: json['scheduledPlanCode']?.toString(),
         scheduledPlanName: json['scheduledPlanName']?.toString(),
         scheduledPlanPrice: (json['scheduledPlanPrice'] as num?)?.toDouble(),

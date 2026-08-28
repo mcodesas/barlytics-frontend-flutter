@@ -8,7 +8,12 @@ import '../../features/public/presentation/pages/public_landing_page.dart';
 import '../../features/public/presentation/pages/public_registration_page.dart';
 import '../../features/subscription/presentation/pages/subscription_activation_page.dart';
 import '../../features/subscription/presentation/pages/subscription_plans_admin_page.dart';
+import '../../features/business_setup/presentation/pages/business_setup_page.dart';
+import '../../features/business_setup/presentation/pages/business_setup_operational_parameters_page.dart';
+import '../../features/business_setup/presentation/widgets/business_setup_flow_shell.dart';
+import '../../features/business_setup/presentation/providers/business_setup_provider.dart';
 import '../../features/auth/presentation/providers/auth_provider.dart';
+import '../../features/navigation/presentation/providers/active_role_provider.dart';
 import '../../features/home/presentation/pages/home_page.dart';
 import '../../features/admin_support/presentation/pages/admin_support_page.dart';
 import '../../features/admin_support/presentation/pages/admin_data_explorer_page.dart';
@@ -112,7 +117,12 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       final isRegistrationRoute = path == '/registro' || matchedLocation == '/registro';
       final isLoginRoute = path == '/login' || matchedLocation == '/login';
       final isSubscriptionRoute = path == '/activar-suscripcion' || matchedLocation == '/activar-suscripcion';
+      final isBusinessSetupRoute = path == '/configurar-negocio' || matchedLocation == '/configurar-negocio';
       final isSubscriptionPlanAdminRoute = path == '/planes_suscripcion' || matchedLocation == '/planes_suscripcion';
+      final activeRoles = ref.read(activeRolesProvider);
+      final isGlobalAdmin = activeRoles.any(_isGlobalAdminRole);
+      final isPlatformAdminRoute = _isPlatformAdminRoute(path);
+      final isSetupConfigurationRoute = _isBusinessSetupConfigurationRoute(path);
       final isForgotPasswordRoute = path == '/forgot-password' || matchedLocation == '/forgot-password';
       final isResetPasswordRoute = path == '/reset-password' || matchedLocation == '/reset-password';
       final isPublicRoute = isLandingRoute ||
@@ -123,23 +133,102 @@ final appRouterProvider = Provider<GoRouter>((ref) {
 
       if (!authState.authenticated && !isPublicRoute) return '/login';
 
+      // Planes comerciales y soporte global son funciones exclusivas del
+      // administrador de plataforma. Un GERENTE no puede entrar por URL directa.
+      if (authState.authenticated && isPlatformAdminRoute && !isGlobalAdmin) {
+        if (!authState.subscriptionActive) return '/activar-suscripcion';
+        return authState.businessSetupComplete ? '/home' : '/configurar-negocio';
+      }
+
       // Una sesión con suscripción pendiente solo puede entrar a la activación.
       // El backend aplica la misma regla para impedir saltarse este control.
-      if (authState.authenticated && !authState.subscriptionActive && !isSubscriptionRoute && !isSubscriptionPlanAdminRoute && !isResetPasswordRoute) {
+      if (authState.authenticated && !authState.subscriptionActive && !isSubscriptionRoute && !isResetPasswordRoute && !(isSubscriptionPlanAdminRoute && isGlobalAdmin)) {
         return '/activar-suscripcion';
       }
-      final isInventario = authState.roles.any((role) {
-        final normalized = role.toUpperCase();
-        return normalized.contains('INVENTARIO') ||
-            normalized.contains('INVENTORY') ||
-            normalized.contains('BODEGA') ||
-            normalized.contains('ALMACEN') ||
-            normalized.contains('ALMACÉN');
-      });
 
-      // Un usuario de inventario no debe entrar al flujo operativo de mesas,
-      // incluso si también posee un rol comercial secundario.
-      if (authState.authenticated && isInventario && path.startsWith('/mesero')) {
+      // Después del pago, el GERENTE debe completar la parametrización esencial.
+      // Se permiten las rutas que forman parte del propio asistente para reutilizar
+      // los formularios existentes de empresa, sucursal, catálogo e inventario.
+      if (authState.authenticated &&
+          authState.subscriptionActive &&
+          !authState.businessSetupComplete &&
+          !isBusinessSetupRoute &&
+          !isSetupConfigurationRoute &&
+          !isResetPasswordRoute) {
+        return '/configurar-negocio';
+      }
+      final isInventario = activeRoles.any((role) {
+        final normalized = normalizeRoleName(role);
+        return const {'INVENTARIO', 'INVENTORY', 'BODEGA', 'ALMACEN'}.contains(normalized);
+      });
+      final canUseMesero = activeRoles.any((role) {
+        final normalized = normalizeRoleName(role);
+        return const {'MESERO', 'MESERA', 'CAJERO', 'CAJERA', 'VENDEDOR', 'VENDEDORA', 'VENTAS', 'SELLER', 'GERENTE', 'MANAGER', 'SUPERVISOR', 'ADMIN', 'ADMINISTRADOR', 'SUPERADMIN', 'SUPER_ADMIN'}.contains(normalized);
+      });
+      final inventoryOnly = activeRoles.isNotEmpty && activeRoles.every((role) {
+        final normalized = normalizeRoleName(role);
+        return const {'INVENTARIO', 'INVENTORY', 'BODEGA', 'ALMACEN'}.contains(normalized);
+      });
+      final movementsOnly = activeRoles.isNotEmpty && activeRoles.every((role) {
+        final normalized = normalizeRoleName(role);
+        return const {'MOVIMIENTOS', 'MOVIMIENTO'}.contains(normalized);
+      });
+      final pricesOnly = activeRoles.isNotEmpty && activeRoles.every((role) {
+        return normalizeRoleName(role) == 'PRECIOS';
+      });
+      final restrictedOperationalOnly = activeRoles.isNotEmpty && activeRoles.every((role) {
+        final normalized = normalizeRoleName(role);
+        return const {
+          'INVENTARIO',
+          'INVENTORY',
+          'BODEGA',
+          'ALMACEN',
+          'MOVIMIENTOS',
+          'MOVIMIENTO',
+          'PRECIOS',
+        }.contains(normalized);
+      });
+      final hasMovementRole = activeRoles.any((role) {
+        final normalized = normalizeRoleName(role);
+        return const {'MOVIMIENTOS', 'MOVIMIENTO'}.contains(normalized);
+      });
+      final hasPriceRole = activeRoles.any((role) => normalizeRoleName(role) == 'PRECIOS');
+
+      // Estos roles son deliberadamente operativos. Si son los únicos roles
+      // activos, no deben poder abrir por URL módulos administrativos que no
+      // aparecen en su menú.
+      if (authState.authenticated && inventoryOnly) {
+        final allowed = path == '/home' || path == '/profile' || path.startsWith('/inventario');
+        if (!allowed) return '/inventario';
+      }
+      if (authState.authenticated && movementsOnly) {
+        final allowed = path == '/home' || path == '/profile' || path == '/productos' || path.startsWith('/movimientos');
+        if (!allowed) return '/movimientos';
+      }
+      if (authState.authenticated && pricesOnly) {
+        final allowed = path == '/home' || path == '/profile' || path.startsWith('/precios');
+        if (!allowed) return '/precios';
+      }
+      if (authState.authenticated &&
+          restrictedOperationalOnly &&
+          !inventoryOnly &&
+          !movementsOnly &&
+          !pricesOnly) {
+        final allowed = path == '/home' ||
+            path == '/profile' ||
+            (isInventario && path.startsWith('/inventario')) ||
+            (hasMovementRole && (path == '/productos' || path.startsWith('/movimientos'))) ||
+            (hasPriceRole && path.startsWith('/precios'));
+        if (!allowed) {
+          if (hasMovementRole) return '/movimientos';
+          if (isInventario) return '/inventario';
+          return '/precios';
+        }
+      }
+
+      // Solo una vista exclusivamente de Inventario se mantiene fuera de Mesas.
+      // Si el usuario activa Mesero/Gerente o usa Todos, Vender / Mesas funciona.
+      if (authState.authenticated && isInventario && !canUseMesero && path.startsWith('/mesero')) {
         return '/productos';
       }
 
@@ -147,7 +236,8 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       // Reset password sí se permite porque puede abrirse desde un enlace externo.
       // No se usa Uri.base dentro del redirect para no forzar de nuevo #/login en web.
       if (authState.authenticated && (isLoginRoute || isForgotPasswordRoute || isRegistrationRoute || isLandingRoute)) {
-        return authState.subscriptionActive ? '/home' : '/activar-suscripcion';
+        if (!authState.subscriptionActive) return '/activar-suscripcion';
+        return authState.businessSetupComplete ? '/home' : '/configurar-negocio';
       }
 
       return null;
@@ -156,6 +246,15 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       GoRoute(path: '/', builder: (context, state) => const PublicLandingPage()),
       GoRoute(path: '/registro', builder: (context, state) => PublicRegistrationPage(planCode: state.uri.queryParameters['plan'])),
       GoRoute(path: '/activar-suscripcion', builder: (context, state) => const SubscriptionActivationPage()),
+      GoRoute(path: '/configurar-negocio', builder: (context, state) => const BusinessSetupPage()),
+      GoRoute(
+        path: '/parametros-operativos',
+        builder: (context, state) => _setupAwareScaffold(
+          ref,
+          state,
+          const BusinessSetupOperationalParametersPage(),
+        ),
+      ),
       GoRoute(path: '/login', builder: (context, state) => const LoginPage()),
       GoRoute(path: '/forgot-password', builder: (context, state) => const ForgotPasswordPage()),
       GoRoute(path: '/reset-password', builder: (context, state) => ResetPasswordPage(code: _recoveryCodeFromState(state))),
@@ -175,11 +274,11 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       GoRoute(path: '/soporte_configuracion', builder: (context, state) => AppScaffold(child: const AdminSupportWorkspacePage(type: AdminSupportWorkspaceType.configuration))),
       GoRoute(path: '/soporte_mantenimiento', builder: (context, state) => AppScaffold(child: const AdminSupportWorkspacePage(type: AdminSupportWorkspaceType.maintenance))),
       GoRoute(path: '/sincronizar_catalogo', builder: (context, state) => AppScaffold(child: const ProductCatalogSyncPage())),
-      GoRoute(path: '/profile', builder: (context, state) => AppScaffold(child: const ProfilePage())),
+      GoRoute(path: '/profile', builder: (context, state) => _setupAwareScaffold(ref, state, const ProfilePage())),
       GoRoute(path: '/reportes', builder: (context, state) => AppScaffold(child: const ReportesPage())),
       GoRoute(path: '/ganancias', builder: (context, state) => AppScaffold(child: const ReportesPage.ganancias())),
       GoRoute(path: '/proximo_pedido', builder: (context, state) => AppScaffold(child: const ReportesPage.proximoPedido())),
-      GoRoute(path: '/tablas_parametricas', builder: (context, state) => AppScaffold(child: const TablasParametricasPage())),
+      GoRoute(path: '/tablas_parametricas', builder: (context, state) => _setupAwareScaffold(ref, state, const TablasParametricasPage())),
       GoRoute(path: '/mesero', builder: (context, state) => AppScaffold(child: const MeseroPage())),
       GoRoute(path: '/mesero/productos', builder: (context, state) => AppScaffold(child: const MeseroPage(initialMode: MeseroPageMode.productos))),
       GoRoute(path: '/mesero/resumen', builder: (context, state) => AppScaffold(child: const MeseroPage(initialMode: MeseroPageMode.resumen))),
@@ -188,11 +287,11 @@ final appRouterProvider = Provider<GoRouter>((ref) {
 
       GoRoute(
         path: '/ciudades',
-        builder: (context, state) => AppScaffold(child: const CiudadesListPage()),
+        builder: (context, state) => _setupAwareScaffold(ref, state, const CiudadesListPage()),
         routes: [
-          GoRoute(path: 'nuevo', builder: (context, state) => AppScaffold(child: const CiudadesFormPage())),
-          GoRoute(path: ':id', builder: (context, state) => AppScaffold(child: CiudadesDetailPage(id: state.pathParameters['id']!))),
-          GoRoute(path: ':id/editar', builder: (context, state) => AppScaffold(child: CiudadesFormPage(id: state.pathParameters['id']))),
+          GoRoute(path: 'nuevo', builder: (context, state) => _setupAwareScaffold(ref, state, const CiudadesFormPage())),
+          GoRoute(path: ':id', builder: (context, state) => _setupAwareScaffold(ref, state, CiudadesDetailPage(id: state.pathParameters['id']!))),
+          GoRoute(path: ':id/editar', builder: (context, state) => _setupAwareScaffold(ref, state, CiudadesFormPage(id: state.pathParameters['id']))),
         ],
       ),
 
@@ -218,38 +317,38 @@ final appRouterProvider = Provider<GoRouter>((ref) {
 
       GoRoute(
         path: '/empresas',
-        builder: (context, state) => AppScaffold(child: const EmpresasListPage()),
+        builder: (context, state) => _setupAwareScaffold(ref, state, const EmpresasListPage()),
         routes: [
-          GoRoute(path: 'nuevo', builder: (context, state) => AppScaffold(child: const EmpresasFormPage())),
-          GoRoute(path: ':id', builder: (context, state) => AppScaffold(child: EmpresasDetailPage(id: state.pathParameters['id']!))),
-          GoRoute(path: ':id/editar', builder: (context, state) => AppScaffold(child: EmpresasFormPage(id: state.pathParameters['id']))),
-          GoRoute(path: ':id/sucursales-wizard', builder: (context, state) => AppScaffold(child: EmpresaSucursalesWizardPage(empresaId: state.pathParameters['id']!))),
+          GoRoute(path: 'nuevo', builder: (context, state) => _setupAwareScaffold(ref, state, const EmpresasFormPage())),
+          GoRoute(path: ':id', builder: (context, state) => _setupAwareScaffold(ref, state, EmpresasDetailPage(id: state.pathParameters['id']!))),
+          GoRoute(path: ':id/editar', builder: (context, state) => _setupAwareScaffold(ref, state, EmpresasFormPage(id: state.pathParameters['id']))),
+          GoRoute(path: ':id/sucursales-wizard', builder: (context, state) => _setupAwareScaffold(ref, state, EmpresaSucursalesWizardPage(empresaId: state.pathParameters['id']!))),
         ],
       ),
 
       GoRoute(
         path: '/inventario',
-        builder: (context, state) => AppScaffold(child: const InventarioListPage()),
+        builder: (context, state) => _setupAwareScaffold(ref, state, const InventarioListPage()),
         routes: [
-          GoRoute(path: 'nuevo', builder: (context, state) => AppScaffold(child: const InventarioFormPage())),
-          GoRoute(path: ':id', builder: (context, state) => AppScaffold(child: InventarioDetailPage(id: state.pathParameters['id']!))),
-          GoRoute(path: ':id/editar', builder: (context, state) => AppScaffold(child: InventarioFormPage(id: state.pathParameters['id']))),
+          GoRoute(path: 'nuevo', builder: (context, state) => _setupAwareScaffold(ref, state, const InventarioFormPage())),
+          GoRoute(path: ':id', builder: (context, state) => _setupAwareScaffold(ref, state, InventarioDetailPage(id: state.pathParameters['id']!))),
+          GoRoute(path: ':id/editar', builder: (context, state) => _setupAwareScaffold(ref, state, InventarioFormPage(id: state.pathParameters['id']))),
         ],
       ),
 
       GoRoute(
         path: '/marcas',
-        builder: (context, state) => AppScaffold(child: const MarcasListPage()),
+        builder: (context, state) => _setupAwareScaffold(ref, state, const MarcasListPage()),
         routes: [
-          GoRoute(path: 'nuevo', builder: (context, state) => AppScaffold(child: const MarcasFormPage())),
-          GoRoute(path: ':id', builder: (context, state) => AppScaffold(child: MarcasDetailPage(id: state.pathParameters['id']!))),
-          GoRoute(path: ':id/editar', builder: (context, state) => AppScaffold(child: MarcasFormPage(id: state.pathParameters['id']))),
+          GoRoute(path: 'nuevo', builder: (context, state) => _setupAwareScaffold(ref, state, const MarcasFormPage())),
+          GoRoute(path: ':id', builder: (context, state) => _setupAwareScaffold(ref, state, MarcasDetailPage(id: state.pathParameters['id']!))),
+          GoRoute(path: ':id/editar', builder: (context, state) => _setupAwareScaffold(ref, state, MarcasFormPage(id: state.pathParameters['id']))),
         ],
       ),
 
       GoRoute(
         path: '/medios_pago',
-        builder: (context, state) => AppScaffold(child: const MediosPagoListPage()),
+        builder: (context, state) => _setupAwareScaffold(ref, state, const MediosPagoListPage()),
       ),
 
       GoRoute(
@@ -264,21 +363,21 @@ final appRouterProvider = Provider<GoRouter>((ref) {
 
       GoRoute(
         path: '/mesas',
-        builder: (context, state) => AppScaffold(child: const MesasListPage()),
+        builder: (context, state) => _setupAwareScaffold(ref, state, const MesasListPage()),
         routes: [
-          GoRoute(path: 'nuevo', builder: (context, state) => AppScaffold(child: const MesasFormPage())),
-          GoRoute(path: ':id', builder: (context, state) => AppScaffold(child: MesasDetailPage(id: state.pathParameters['id']!))),
-          GoRoute(path: ':id/editar', builder: (context, state) => AppScaffold(child: MesasFormPage(id: state.pathParameters['id']))),
+          GoRoute(path: 'nuevo', builder: (context, state) => _setupAwareScaffold(ref, state, const MesasFormPage())),
+          GoRoute(path: ':id', builder: (context, state) => _setupAwareScaffold(ref, state, MesasDetailPage(id: state.pathParameters['id']!))),
+          GoRoute(path: ':id/editar', builder: (context, state) => _setupAwareScaffold(ref, state, MesasFormPage(id: state.pathParameters['id']))),
         ],
       ),
 
       GoRoute(
         path: '/monedas',
-        builder: (context, state) => AppScaffold(child: const MonedasListPage()),
+        builder: (context, state) => _setupAwareScaffold(ref, state, const MonedasListPage()),
         routes: [
-          GoRoute(path: 'nuevo', builder: (context, state) => AppScaffold(child: const MonedasFormPage())),
-          GoRoute(path: ':id', builder: (context, state) => AppScaffold(child: MonedasDetailPage(id: state.pathParameters['id']!))),
-          GoRoute(path: ':id/editar', builder: (context, state) => AppScaffold(child: MonedasFormPage(id: state.pathParameters['id']))),
+          GoRoute(path: 'nuevo', builder: (context, state) => _setupAwareScaffold(ref, state, const MonedasFormPage())),
+          GoRoute(path: ':id', builder: (context, state) => _setupAwareScaffold(ref, state, MonedasDetailPage(id: state.pathParameters['id']!))),
+          GoRoute(path: ':id/editar', builder: (context, state) => _setupAwareScaffold(ref, state, MonedasFormPage(id: state.pathParameters['id']))),
         ],
       ),
 
@@ -324,11 +423,11 @@ final appRouterProvider = Provider<GoRouter>((ref) {
 
       GoRoute(
         path: '/paises',
-        builder: (context, state) => AppScaffold(child: const PaisesListPage()),
+        builder: (context, state) => _setupAwareScaffold(ref, state, const PaisesListPage()),
         routes: [
-          GoRoute(path: 'nuevo', builder: (context, state) => AppScaffold(child: const PaisesFormPage())),
-          GoRoute(path: ':id', builder: (context, state) => AppScaffold(child: PaisesDetailPage(id: state.pathParameters['id']!))),
-          GoRoute(path: ':id/editar', builder: (context, state) => AppScaffold(child: PaisesFormPage(id: state.pathParameters['id']))),
+          GoRoute(path: 'nuevo', builder: (context, state) => _setupAwareScaffold(ref, state, const PaisesFormPage())),
+          GoRoute(path: ':id', builder: (context, state) => _setupAwareScaffold(ref, state, PaisesDetailPage(id: state.pathParameters['id']!))),
+          GoRoute(path: ':id/editar', builder: (context, state) => _setupAwareScaffold(ref, state, PaisesFormPage(id: state.pathParameters['id']))),
         ],
       ),
 
@@ -339,41 +438,41 @@ final appRouterProvider = Provider<GoRouter>((ref) {
 
       GoRoute(
         path: '/parametros',
-        builder: (context, state) => AppScaffold(child: const ParametrosListPage()),
+        builder: (context, state) => _setupAwareScaffold(ref, state, const ParametrosListPage()),
         routes: [
-          GoRoute(path: 'nuevo', builder: (context, state) => AppScaffold(child: const ParametrosFormPage())),
-          GoRoute(path: ':id', builder: (context, state) => AppScaffold(child: ParametrosDetailPage(id: state.pathParameters['id']!))),
-          GoRoute(path: ':id/editar', builder: (context, state) => AppScaffold(child: ParametrosFormPage(id: state.pathParameters['id']))),
+          GoRoute(path: 'nuevo', builder: (context, state) => _setupAwareScaffold(ref, state, const ParametrosFormPage())),
+          GoRoute(path: ':id', builder: (context, state) => _setupAwareScaffold(ref, state, ParametrosDetailPage(id: state.pathParameters['id']!))),
+          GoRoute(path: ':id/editar', builder: (context, state) => _setupAwareScaffold(ref, state, ParametrosFormPage(id: state.pathParameters['id']))),
         ],
       ),
 
       GoRoute(
         path: '/precios',
-        builder: (context, state) => AppScaffold(child: const PreciosListPage()),
+        builder: (context, state) => _setupAwareScaffold(ref, state, const PreciosListPage()),
         routes: [
-          GoRoute(path: 'nuevo', builder: (context, state) => AppScaffold(child: const PreciosFormPage())),
-          GoRoute(path: ':id', builder: (context, state) => AppScaffold(child: PreciosDetailPage(id: state.pathParameters['id']!))),
-          GoRoute(path: ':id/editar', builder: (context, state) => AppScaffold(child: PreciosFormPage(id: state.pathParameters['id']))),
+          GoRoute(path: 'nuevo', builder: (context, state) => _setupAwareScaffold(ref, state, const PreciosFormPage())),
+          GoRoute(path: ':id', builder: (context, state) => _setupAwareScaffold(ref, state, PreciosDetailPage(id: state.pathParameters['id']!))),
+          GoRoute(path: ':id/editar', builder: (context, state) => _setupAwareScaffold(ref, state, PreciosFormPage(id: state.pathParameters['id']))),
         ],
       ),
 
       GoRoute(
         path: '/productos',
-        builder: (context, state) => AppScaffold(child: const ProductosListPage()),
+        builder: (context, state) => _setupAwareScaffold(ref, state, const ProductosListPage()),
         routes: [
-          GoRoute(path: 'nuevo', builder: (context, state) => AppScaffold(child: const ProductosFormPage())),
-          GoRoute(path: ':id', builder: (context, state) => AppScaffold(child: ProductosDetailPage(id: state.pathParameters['id']!))),
-          GoRoute(path: ':id/editar', builder: (context, state) => AppScaffold(child: ProductosFormPage(id: state.pathParameters['id']))),
+          GoRoute(path: 'nuevo', builder: (context, state) => _setupAwareScaffold(ref, state, const ProductosFormPage())),
+          GoRoute(path: ':id', builder: (context, state) => _setupAwareScaffold(ref, state, ProductosDetailPage(id: state.pathParameters['id']!))),
+          GoRoute(path: ':id/editar', builder: (context, state) => _setupAwareScaffold(ref, state, ProductosFormPage(id: state.pathParameters['id']))),
         ],
       ),
 
       GoRoute(
         path: '/regiones',
-        builder: (context, state) => AppScaffold(child: const RegionesListPage()),
+        builder: (context, state) => _setupAwareScaffold(ref, state, const RegionesListPage()),
         routes: [
-          GoRoute(path: 'nuevo', builder: (context, state) => AppScaffold(child: const RegionesFormPage())),
-          GoRoute(path: ':id', builder: (context, state) => AppScaffold(child: RegionesDetailPage(id: state.pathParameters['id']!))),
-          GoRoute(path: ':id/editar', builder: (context, state) => AppScaffold(child: RegionesFormPage(id: state.pathParameters['id']))),
+          GoRoute(path: 'nuevo', builder: (context, state) => _setupAwareScaffold(ref, state, const RegionesFormPage())),
+          GoRoute(path: ':id', builder: (context, state) => _setupAwareScaffold(ref, state, RegionesDetailPage(id: state.pathParameters['id']!))),
+          GoRoute(path: ':id/editar', builder: (context, state) => _setupAwareScaffold(ref, state, RegionesFormPage(id: state.pathParameters['id']))),
         ],
       ),
 
@@ -390,16 +489,16 @@ final appRouterProvider = Provider<GoRouter>((ref) {
 
       GoRoute(
         path: '/roles_personalizados',
-        builder: (context, state) => const AppScaffold(child: RolesPersonalizadosPage()),
+        builder: (context, state) => _setupAwareScaffold(ref, state, const RolesPersonalizadosPage()),
       ),
 
       GoRoute(
         path: '/sucursales',
-        builder: (context, state) => AppScaffold(child: const SucursalesListPage()),
+        builder: (context, state) => _setupAwareScaffold(ref, state, const SucursalesListPage()),
         routes: [
-          GoRoute(path: 'nuevo', builder: (context, state) => AppScaffold(child: SucursalesFormPage())),
-          GoRoute(path: ':id', builder: (context, state) => AppScaffold(child: SucursalesDetailPage(id: state.pathParameters['id']!))),
-          GoRoute(path: ':id/editar', builder: (context, state) => AppScaffold(child: SucursalesFormPage(id: state.pathParameters['id']))),
+          GoRoute(path: 'nuevo', builder: (context, state) => _setupAwareScaffold(ref, state, const SucursalesFormPage())),
+          GoRoute(path: ':id', builder: (context, state) => _setupAwareScaffold(ref, state, SucursalesDetailPage(id: state.pathParameters['id']!))),
+          GoRoute(path: ':id/editar', builder: (context, state) => _setupAwareScaffold(ref, state, SucursalesFormPage(id: state.pathParameters['id']))),
         ],
       ),
 
@@ -438,22 +537,22 @@ final appRouterProvider = Provider<GoRouter>((ref) {
 
       GoRoute(
         path: '/tipos_producto',
-        builder: (context, state) => AppScaffold(child: const TiposProductoListPage()),
+        builder: (context, state) => _setupAwareScaffold(ref, state, const TiposProductoListPage()),
         routes: [
-          GoRoute(path: 'nuevo', builder: (context, state) => AppScaffold(child: const TiposProductoFormPage())),
-          GoRoute(path: ':id', builder: (context, state) => AppScaffold(child: TiposProductoDetailPage(id: state.pathParameters['id']!))),
-          GoRoute(path: ':id/editar', builder: (context, state) => AppScaffold(child: TiposProductoFormPage(id: state.pathParameters['id']))),
+          GoRoute(path: 'nuevo', builder: (context, state) => _setupAwareScaffold(ref, state, const TiposProductoFormPage())),
+          GoRoute(path: ':id', builder: (context, state) => _setupAwareScaffold(ref, state, TiposProductoDetailPage(id: state.pathParameters['id']!))),
+          GoRoute(path: ':id/editar', builder: (context, state) => _setupAwareScaffold(ref, state, TiposProductoFormPage(id: state.pathParameters['id']))),
         ],
       ),
 
       GoRoute(
         path: '/usuarios',
-        builder: (context, state) => AppScaffold(child: const UsuariosListPage()),
+        builder: (context, state) => _setupAwareScaffold(ref, state, const UsuariosListPage()),
         routes: [
-          GoRoute(path: 'nuevo', builder: (context, state) => AppScaffold(child: const UsuariosFormPage())),
-          GoRoute(path: ':id', builder: (context, state) => AppScaffold(child: UsuariosDetailPage(id: state.pathParameters['id']!))),
-          GoRoute(path: ':id/editar', builder: (context, state) => AppScaffold(child: UsuariosFormPage(id: state.pathParameters['id']))),
-          GoRoute(path: ':id/roles', builder: (context, state) => AppScaffold(child: UsuarioRolesPage(usuarioId: state.pathParameters['id']!))),
+          GoRoute(path: 'nuevo', builder: (context, state) => _setupAwareScaffold(ref, state, const UsuariosFormPage())),
+          GoRoute(path: ':id', builder: (context, state) => _setupAwareScaffold(ref, state, UsuariosDetailPage(id: state.pathParameters['id']!))),
+          GoRoute(path: ':id/editar', builder: (context, state) => _setupAwareScaffold(ref, state, UsuariosFormPage(id: state.pathParameters['id']))),
+          GoRoute(path: ':id/roles', builder: (context, state) => _setupAwareScaffold(ref, state, UsuarioRolesPage(usuarioId: state.pathParameters['id']!))),
         ],
       ),
 
@@ -469,11 +568,11 @@ final appRouterProvider = Provider<GoRouter>((ref) {
 
       GoRoute(
         path: '/zonas_horarias',
-        builder: (context, state) => AppScaffold(child: const ZonasHorariasListPage()),
+        builder: (context, state) => _setupAwareScaffold(ref, state, const ZonasHorariasListPage()),
         routes: [
-          GoRoute(path: 'nuevo', builder: (context, state) => AppScaffold(child: const ZonasHorariasFormPage())),
-          GoRoute(path: ':id', builder: (context, state) => AppScaffold(child: ZonasHorariasDetailPage(id: state.pathParameters['id']!))),
-          GoRoute(path: ':id/editar', builder: (context, state) => AppScaffold(child: ZonasHorariasFormPage(id: state.pathParameters['id']))),
+          GoRoute(path: 'nuevo', builder: (context, state) => _setupAwareScaffold(ref, state, const ZonasHorariasFormPage())),
+          GoRoute(path: ':id', builder: (context, state) => _setupAwareScaffold(ref, state, ZonasHorariasDetailPage(id: state.pathParameters['id']!))),
+          GoRoute(path: ':id/editar', builder: (context, state) => _setupAwareScaffold(ref, state, ZonasHorariasFormPage(id: state.pathParameters['id']))),
         ],
       ),
 
@@ -481,6 +580,75 @@ final appRouterProvider = Provider<GoRouter>((ref) {
   );
 });
 
+
+
+Widget _setupAwareScaffold(ProviderRef<GoRouter> ref, GoRouterState state, Widget child) {
+  final authState = ref.read(authControllerProvider);
+  final path = state.uri.path;
+  final guidedHelpMode = ref.read(businessSetupGuidedModeProvider);
+  final inGuidedSetup = authState.authenticated &&
+      authState.subscriptionActive &&
+      (!authState.businessSetupComplete || guidedHelpMode) &&
+      path != '/configurar-negocio' &&
+      _isBusinessSetupConfigurationRoute(path);
+
+  if (inGuidedSetup) {
+    return BusinessSetupFlowShell(location: path, child: child);
+  }
+
+  return AppScaffold(child: child);
+}
+
+
+bool _isGlobalAdminRole(String role) {
+  final normalized = role.toUpperCase().trim().replaceFirst(RegExp(r'^ROLE_'), '');
+  return normalized == 'ADMIN' ||
+      normalized == 'ADMINISTRADOR' ||
+      normalized == 'SUPERADMIN' ||
+      normalized == 'SUPER_ADMIN';
+}
+
+
+bool _isPlatformAdminRoute(String path) {
+  return path.startsWith('/planes_suscripcion') ||
+      path.startsWith('/soporte_global') ||
+      path.startsWith('/soporte_clientes') ||
+      path.startsWith('/soporte_accesos') ||
+      path.startsWith('/soporte_operacion') ||
+      path.startsWith('/soporte_configuracion') ||
+      path.startsWith('/soporte_mantenimiento') ||
+      path.startsWith('/explorador_datos') ||
+      path.startsWith('/auditoria_soporte') ||
+      path.startsWith('/diagnostico_sistema');
+}
+
+bool _isBusinessSetupConfigurationRoute(String path) {
+  const prefixes = <String>[
+    '/configurar-negocio',
+    '/profile',
+    '/empresas',
+    '/sucursales',
+    '/medios_pago',
+    '/productos',
+    '/precios',
+    '/inventario',
+    '/marcas',
+    '/tipos_producto',
+    '/tablas_parametricas',
+    '/monedas',
+    '/paises',
+    '/regiones',
+    '/ciudades',
+    '/zonas_horarias',
+    '/tipos_identificacion',
+    '/parametros-operativos',
+    '/parametros',
+    '/usuarios',
+    '/roles_personalizados',
+    '/mesas',
+  ];
+  return prefixes.any(path.startsWith);
+}
 
 String _resolveInitialLocation() {
   final normalizedHashLocation = _normalizedHashPublicLocation(Uri.base);
@@ -551,6 +719,7 @@ String _recoveryCodeFromState(GoRouterState state) {
 class _RouterRefresh extends ChangeNotifier {
   _RouterRefresh(this.ref) {
     ref.listen(authControllerProvider, (_, __) => notifyListeners());
+    ref.listen(selectedRolesProvider, (_, __) => notifyListeners());
   }
   final Ref ref;
 }

@@ -45,6 +45,16 @@ class SubscriptionRemoteDataSource {
     return response.data!;
   }
 
+  Future<SubscriptionModel> cancel() async {
+    final response = await _api.post<SubscriptionModel>(
+      ApiPaths.subscriptionCancel,
+      const <String, dynamic>{},
+      (json) => SubscriptionModel.fromJson(Map<String, dynamic>.from(json as Map)),
+    );
+    if (response.data == null) throw StateError('No fue posible cancelar la suscripción.');
+    return response.data!;
+  }
+
   Future<SubscriptionPaymentConfigModel> paymentConfig() async {
     final response = await _api.get<SubscriptionPaymentConfigModel>(
       ApiPaths.subscriptionPaymentConfig,

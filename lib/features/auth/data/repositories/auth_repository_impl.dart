@@ -44,6 +44,9 @@ class AuthRepositoryImpl implements AuthRepository {
     await _storage.write(StorageKeys.roles, response.roles.join(','));
     await _storage.write(StorageKeys.subscriptionStatus, response.subscriptionStatus ?? '');
     await _storage.write(StorageKeys.subscriptionActive, response.subscriptionActive ? 'true' : 'false');
+    if (!response.subscriptionActive) {
+      await _storage.write(StorageKeys.businessSetupComplete, 'false');
+    }
   }
 
   @override
@@ -100,6 +103,19 @@ class AuthRepositoryImpl implements AuthRepository {
     await _storage.write(StorageKeys.subscriptionStatus, status);
     await _storage.write(StorageKeys.subscriptionActive, active ? 'true' : 'false');
   }
+
+  @override
+  Future<bool> getStoredBusinessSetupComplete() async {
+    final raw = await _storage.read(StorageKeys.businessSetupComplete);
+    return raw != null && raw.toLowerCase() == 'true';
+  }
+
+  @override
+  Future<bool> fetchBusinessSetupComplete() => _remote.businessSetupComplete();
+
+  @override
+  Future<void> updateBusinessSetupState(bool complete) =>
+      _storage.write(StorageKeys.businessSetupComplete, complete ? 'true' : 'false');
 
   @override
   Future<List<String>> getStoredRoles() async {

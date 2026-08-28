@@ -11,6 +11,7 @@ import '../../features/auth/presentation/providers/auth_provider.dart';
 import '../../features/mesero/presentation/providers/mesero_tab_provider.dart';
 import '../../features/navigation/data/models/user_menu_item.dart';
 import '../../features/navigation/presentation/providers/user_menu_provider.dart';
+import '../../features/navigation/presentation/providers/active_role_provider.dart';
 import '../../features/profile/presentation/providers/profile_header_provider.dart';
 import '../utils/responsive_utils.dart';
 import 'barlytics_brand.dart';
@@ -62,6 +63,13 @@ bool _isInventoryRole(String role) {
   return const {'INVENTARIO', 'INVENTORY', 'BODEGA', 'ALMACEN'}.contains(normalized);
 }
 
+bool _isMovementRole(String role) {
+  final normalized = _normalizedRoleToken(role);
+  return const {'MOVIMIENTOS', 'MOVIMIENTO'}.contains(normalized);
+}
+
+bool _isPriceRole(String role) => _normalizedRoleToken(role) == 'PRECIOS';
+
 bool _isMesaCashierSellerRole(String role) {
   final normalized = _normalizedRoleToken(role);
   return const {'MESERO', 'MESERA', 'CAJERO', 'CAJERA', 'VENDEDOR', 'VENDEDORA', 'VENTAS', 'SELLER'}
@@ -73,7 +81,8 @@ bool _isManagerRole(String role) {
   return const {'GERENTE', 'MANAGER', 'SUPERVISOR'}.contains(normalized);
 }
 
-bool _isOperationalRole(String role) => _isMesaCashierSellerRole(role) || _isInventoryRole(role);
+bool _isOperationalRole(String role) =>
+    _isMesaCashierSellerRole(role) || _isInventoryRole(role) || _isMovementRole(role) || _isPriceRole(role);
 
 bool _isGlobalAdminRole(String role) {
   final normalized = _normalizedRoleToken(role);
@@ -97,7 +106,7 @@ class _AppScaffoldState extends ConsumerState<AppScaffold> {
   Widget build(BuildContext context) {
     final isDesktop = ResponsiveUtils.isDesktop(context);
     final palette = ref.watch(selectedAppPaletteProvider);
-    final roles = ref.watch(authControllerProvider).roles;
+    final roles = ref.watch(activeRolesProvider);
     final hasPersonalizedRole = roles.any(_isPersonalizedRole);
     // Un rol personalizado debe navegar exclusivamente con el catálogo que
     // devuelve /me/menus. No debe heredar shells ni menús predefinidos por el
@@ -676,6 +685,8 @@ class _PageTopBar extends ConsumerWidget {
                                 ),
                           ),
                   ),
+                  const SizedBox(width: 10),
+                  _RoleScopeSelector(palette: palette, compact: compact),
                   if ((statusText ?? '').trim().isNotEmpty && !compact) ...[
                     SizedBox(width: dense ? 10 : 12),
                     Container(
@@ -702,6 +713,166 @@ class _PageTopBar extends ConsumerWidget {
         ],
       ),
     );
+  }
+}
+
+class _RoleScopeSelector extends ConsumerWidget {
+  const _RoleScopeSelector({required this.palette, required this.compact});
+  final AppPalette palette;
+  final bool compact;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final assigned = ref.watch(authControllerProvider).roles;
+    if (assigned.length <= 1) return const SizedBox.shrink();
+    final selected = ref.watch(selectedRolesProvider);
+    final active = ref.watch(activeRolesProvider);
+    final all = selected == null;
+    final activeLabel = all
+        ? (compact ? 'Todos' : 'Todos los roles')
+        : active.length == 1
+            ? _displayRole(active.first)
+            : compact
+                ? '${active.length} roles'
+                : active.length == 2
+                    ? active.map(_displayRole).join(' + ')
+                    : '${active.length} roles seleccionados';
+
+    final selector = Material(
+      color: palette.secondary.withOpacity(palette.darkBackground ? 0.22 : 0.12),
+      borderRadius: BorderRadius.circular(palette.radius(16)),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(palette.radius(16)),
+        onTap: () => _showRoleSelector(context, ref, assigned, selected),
+        child: Container(
+          constraints: BoxConstraints(
+            minWidth: compact ? 86 : 150,
+            maxWidth: compact ? 96 : 210,
+          ),
+          padding: EdgeInsets.symmetric(horizontal: compact ? 7 : 10, vertical: compact ? 6 : 7),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(palette.radius(16)),
+            border: Border.all(color: palette.secondary.withOpacity(0.30), width: 1.1),
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(Icons.manage_accounts_rounded, color: palette.secondary, size: compact ? 17 : 19),
+              SizedBox(width: compact ? 5 : 7),
+              Flexible(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      compact ? 'VISTA' : 'VISTA POR ROL',
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        color: palette.secondary,
+                        fontWeight: FontWeight.w900,
+                        fontSize: compact ? 8.4 : 9.2,
+                        letterSpacing: 0.45,
+                        height: 1,
+                      ),
+                    ),
+                    const SizedBox(height: 3),
+                    Text(
+                      activeLabel,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        color: palette.textPrimary,
+                        fontWeight: FontWeight.w900,
+                        fontSize: compact ? 10.4 : 11.5,
+                        height: 1,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              SizedBox(width: compact ? 1 : 3),
+              Icon(Icons.keyboard_arrow_down_rounded, color: palette.secondary, size: compact ? 16 : 18),
+            ],
+          ),
+        ),
+      ),
+    );
+
+    return Semantics(
+      button: true,
+      label: 'Vista por rol: $activeLabel. Selecciona uno, varios o todos tus roles.',
+      child: Tooltip(
+        message: 'Cambia la interfaz según uno, varios o todos tus roles',
+        child: selector,
+      ),
+    );
+  }
+
+  static String _displayRole(String role) {
+    final value = role.replaceFirst(RegExp(r'^ROLE_', caseSensitive: false), '').replaceAll('_', ' ').trim();
+    if (value.isEmpty) return 'Rol';
+    return value.split(' ').map((w) => w.isEmpty ? w : '${w[0].toUpperCase()}${w.substring(1).toLowerCase()}').join(' ');
+  }
+
+  Future<void> _showRoleSelector(BuildContext context, WidgetRef ref, List<String> assigned, Set<String>? current) async {
+    Set<String>? draft = current == null ? null : {...current};
+    final applied = await showModalBottomSheet<Set<String>?>(
+      context: context,
+      backgroundColor: Colors.transparent,
+      isScrollControlled: true,
+      builder: (sheetContext) => StatefulBuilder(
+        builder: (sheetContext, setSheetState) {
+          final all = draft == null;
+          return SafeArea(
+            child: Container(
+              margin: const EdgeInsets.all(12),
+              padding: const EdgeInsets.fromLTRB(14, 12, 14, 14),
+              decoration: BoxDecoration(color: palette.surface, borderRadius: BorderRadius.circular(palette.radius(24)), border: Border.all(color: palette.cardBorder)),
+              child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
+                Text('Vista por roles', style: TextStyle(color: palette.textPrimary, fontSize: 18, fontWeight: FontWeight.w900)),
+                const SizedBox(height: 4),
+                Text('Elige cómo quieres ver BarLytics: un rol, varios roles o todos. La pantalla y los menús cambian según tu selección y nunca se repiten opciones.', style: TextStyle(color: palette.textSecondary, fontSize: 12, fontWeight: FontWeight.w600)),
+                const SizedBox(height: 10),
+                CheckboxListTile(
+                  value: all,
+                  contentPadding: EdgeInsets.zero,
+                  title: const Text('Todos los roles', style: TextStyle(fontWeight: FontWeight.w900)),
+                  subtitle: const Text('Combina todas las opciones autorizadas sin duplicados.'),
+                  onChanged: (_) => setSheetState(() => draft = null),
+                ),
+                const Divider(),
+                for (final role in assigned)
+                  CheckboxListTile(
+                    value: all || (draft?.any((r) => normalizeRoleName(r) == normalizeRoleName(role)) ?? false),
+                    contentPadding: EdgeInsets.zero,
+                    title: Text(_displayRole(role), style: const TextStyle(fontWeight: FontWeight.w800)),
+                    onChanged: (checked) {
+                      setSheetState(() {
+                        if (draft == null) draft = {role};
+                        else if (checked == true) draft = {...draft!, role};
+                        else {
+                          final next = {...draft!}..removeWhere((r) => normalizeRoleName(r) == normalizeRoleName(role));
+                          draft = next.isEmpty ? {role} : next;
+                        }
+                      });
+                    },
+                  ),
+                const SizedBox(height: 8),
+                SizedBox(width: double.infinity, child: FilledButton.icon(
+                  onPressed: () => Navigator.of(sheetContext).pop(draft ?? <String>{}),
+                  icon: const Icon(Icons.check_rounded), label: const Text('Aplicar vista'),
+                )),
+              ]),
+            ),
+          );
+        },
+      ),
+    );
+    if (!context.mounted || applied == null) return;
+    ref.read(selectedRolesProvider.notifier).state = applied.isEmpty ? null : applied;
+    ref.invalidate(userMenuProvider);
+    if (context.mounted) context.go('/home');
   }
 }
 
@@ -1373,7 +1544,7 @@ class _MeseroSideNavigation extends ConsumerWidget {
           data: (value) => value,
           orElse: () => const ProfileHeaderInfo(),
         );
-    final roles = ref.watch(authControllerProvider).roles;
+    final roles = ref.watch(activeRolesProvider);
     final isInventario = roles.any(_isInventoryRole);
     final menuAsync = ref.watch(userMenuProvider);
     return AnimatedContainer(
@@ -1441,7 +1612,7 @@ class _MeseroDrawerContent extends ConsumerWidget {
           data: (value) => value,
           orElse: () => const ProfileHeaderInfo(),
         );
-    final roles = ref.watch(authControllerProvider).roles;
+    final roles = ref.watch(activeRolesProvider);
     final isInventario = roles.any(_isInventoryRole);
     final menuAsync = ref.watch(userMenuProvider);
     return Container(
@@ -1497,7 +1668,7 @@ class _OperationalBottomNavigation extends ConsumerWidget {
           data: (items) => items,
           orElse: () => const <UserMenuItem>[],
         );
-    final roles = ref.watch(authControllerProvider).roles;
+    final roles = ref.watch(activeRolesProvider);
     final isCajero = roles.any((role) => role.toUpperCase().contains('CAJER'));
     final selectedMode = !isCajero &&
             (rawSelectedMode == MeseroPageMode.historial ||
@@ -2325,6 +2496,19 @@ class _ManagerBottomNavigation extends ConsumerWidget {
     description: 'Ver todas las opciones autorizadas',
   );
 
+  static const _managerBlockedKeys = <String>{
+    'planes_suscripcion',
+    'soporte_global',
+    'soporte_clientes',
+    'soporte_accesos',
+    'soporte_operacion',
+    'soporte_configuracion',
+    'soporte_mantenimiento',
+    'explorador_datos',
+    'auditoria_soporte',
+    'diagnostico_sistema',
+  };
+
   static const _priority = <String, int>{
     'reportes': 0,
     'ganancias': 1,
@@ -2338,7 +2522,6 @@ class _ManagerBottomNavigation extends ConsumerWidget {
     'cierres_caja': 8,
     'usuarios': 9,
     'roles_personalizados': 10,
-    'planes_suscripcion': 11,
     'sucursales': 12,
     'empresas': 13,
     'parametros': 14,
@@ -2347,7 +2530,7 @@ class _ManagerBottomNavigation extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final palette = ref.watch(selectedAppPaletteProvider);
-    final hasPersonalizedRole = ref.watch(authControllerProvider).roles.any(_isPersonalizedRole);
+    final hasPersonalizedRole = ref.watch(activeRolesProvider).any(_isPersonalizedRole);
     final menuItems = ref.watch(userMenuProvider).maybeWhen(
           data: (items) => _buildManagerItems(
             items,
@@ -2467,6 +2650,8 @@ class _ManagerBottomNavigation extends ConsumerWidget {
     final seenPaths = <String>{'/home', '/profile'};
 
     for (final item in items) {
+      final keyName = item.keyName.trim().toLowerCase();
+      if (_managerBlockedKeys.contains(keyName)) continue;
       if (item.path.trim().isEmpty || !seenPaths.add(item.path)) continue;
       final visual = ModuleVisuals.byKey(item.keyName);
       authorized.add(

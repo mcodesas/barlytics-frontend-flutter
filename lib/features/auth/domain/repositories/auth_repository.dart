@@ -18,5 +18,8 @@ abstract class AuthRepository {
   Future<List<String>> getStoredRoles();
   Future<String?> getStoredSubscriptionStatus();
   Future<bool> getStoredSubscriptionActive();
+  Future<bool> getStoredBusinessSetupComplete();
+  Future<bool> fetchBusinessSetupComplete();
+  Future<void> updateBusinessSetupState(bool complete);
   Future<void> updateSubscriptionState({required String status, required bool active});
 }

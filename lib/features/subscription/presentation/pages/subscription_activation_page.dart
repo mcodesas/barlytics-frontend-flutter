@@ -58,6 +58,12 @@ class _SubscriptionActivationPageState extends ConsumerState<SubscriptionActivat
 
   AppPalette get _palette => appPalettes.first;
 
+  bool get _reactivationMode {
+    final params = _returnParameters();
+    final value = params['reactivar']?.trim().toLowerCase();
+    return value == '1' || value == 'true' || value == 'si' || value == 'sí';
+  }
+
   @override
   void initState() {
     super.initState();
@@ -595,8 +601,12 @@ class _SubscriptionActivationPageState extends ConsumerState<SubscriptionActivat
           status: subscription.status,
           active: subscription.active,
         );
+    if (navigateIfActivated && _reactivationMode && subscription.automaticRenewal && !subscription.cancellationScheduled && mounted) {
+      context.go('/profile');
+      return;
+    }
     if (navigateIfActivated && !wasActive && subscription.active && mounted) {
-      context.go('/home');
+      context.go('/configurar-negocio');
     }
   }
 
@@ -644,7 +654,7 @@ class _SubscriptionActivationPageState extends ConsumerState<SubscriptionActivat
     return normalized;
   }
 
-  String get _frontendReturnUrl => '${Uri.base.scheme}://${Uri.base.authority}/#/activar-suscripcion';
+  String get _frontendReturnUrl => '${Uri.base.scheme}://${Uri.base.authority}/#/activar-suscripcion${_reactivationMode ? '?reactivar=1' : ''}';
 
   String _formatDate(DateTime? date) {
     if (date == null) return 'el próximo ciclo';
@@ -910,6 +920,21 @@ class _SubscriptionActivationPageState extends ConsumerState<SubscriptionActivat
       ),
       child: Row(
         children: [
+          if (_reactivationMode) ...[
+            if (phone)
+              IconButton(
+                tooltip: 'Volver a Mi perfil',
+                onPressed: () => context.go('/profile'),
+                icon: const Icon(Icons.arrow_back_rounded),
+              )
+            else
+              OutlinedButton.icon(
+                onPressed: () => context.go('/profile'),
+                icon: const Icon(Icons.arrow_back_rounded, size: 18),
+                label: const Text('Volver a Mi perfil'),
+              ),
+            SizedBox(width: phone ? 4 : 12),
+          ],
           BarLyticsBrandLockup(
             width: phone ? 128 : 156,
             height: phone ? 34 : 42,
@@ -938,13 +963,37 @@ class _SubscriptionActivationPageState extends ConsumerState<SubscriptionActivat
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        _progressCard(palette, active: subscription.active ? 4 : 2),
+        _progressCard(palette, active: _reactivationMode ? 3 : (subscription.active ? 4 : 2)),
         const SizedBox(height: 14),
+        if (_reactivationMode) ...[
+          Container(
+            padding: const EdgeInsets.all(14),
+            decoration: BoxDecoration(
+              color: palette.primary.withOpacity(.08),
+              borderRadius: BorderRadius.circular(18),
+              border: Border.all(color: palette.primary.withOpacity(.18)),
+            ),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Icon(Icons.autorenew_rounded, color: palette.primary),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Text(
+                    'Volver a activar renovación. Autoriza nuevamente tu tarjeta. Si todavía tienes un período pagado, el próximo cobro se programará para cuando termine.',
+                    style: TextStyle(color: palette.textPrimary, fontWeight: FontWeight.w800),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 12),
+        ],
         if (_message != null) ...[
           _notice(palette, _message!),
           const SizedBox(height: 12),
         ],
-        if (subscription.active)
+        if (subscription.active && !_reactivationMode)
           _activePanel(palette, subscription)
         else
           LayoutBuilder(
@@ -1689,6 +1738,9 @@ class _SubscriptionActivationPageState extends ConsumerState<SubscriptionActivat
           ),
         ),
         const SizedBox(height: 12),
+        if (_reactivationMode)
+          _notice(palette, 'Autoriza una tarjeta para restablecer la renovación automática. No se generará una nueva prueba gratis.', error: false)
+        else ...[
         option(
           selected: _automaticRenewalCheckout,
           icon: Icons.autorenew_rounded,
@@ -1709,8 +1761,9 @@ class _SubscriptionActivationPageState extends ConsumerState<SubscriptionActivat
             _loadPseBanks();
           },
         ),
+        ],
         const SizedBox(height: 14),
-        if (_automaticRenewalCheckout) ...[
+        if (_reactivationMode || _automaticRenewalCheckout) ...[
           if (!config.recurringEnabled || config.publicKey.trim().isEmpty || (config.providerPlanId?.trim().isEmpty ?? true))
             _notice(palette, 'La renovación automática requiere credenciales productivas y Public Key de Mercado Pago.', error: true)
           else if (token.isEmpty)

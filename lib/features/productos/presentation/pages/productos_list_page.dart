@@ -19,6 +19,7 @@ import '../../../../core/widgets/tech_background.dart';
 import '../../../marcas/data/models/marcas_response_model.dart';
 import '../../../marcas/presentation/providers/marcas_provider.dart';
 import '../../../movimientos/data/models/movimientos_response_model.dart';
+import '../../../navigation/presentation/providers/active_role_provider.dart';
 import '../../../precios/data/models/precios_response_model.dart';
 import '../../../sucursales/data/models/sucursales_response_model.dart';
 import '../../../tipos_producto/data/models/tipos_producto_response_model.dart';
@@ -70,6 +71,19 @@ class _ProductosListPageState extends ConsumerState<ProductosListPage> {
     final tiposState = ref.watch(tiposproductoProvider);
     final notifier = ref.read(productosPagedProvider.notifier);
     final items = state.items;
+    final activeRoles = ref.watch(activeRolesProvider);
+    final movementOnly = activeRoles.isNotEmpty &&
+        activeRoles.every((role) {
+          final normalized = normalizeRoleName(role);
+          return const {
+            'MOVIMIENTOS',
+            'MOVIMIENTO',
+            'INVENTARIO',
+            'INVENTORY',
+            'BODEGA',
+            'ALMACEN',
+          }.contains(normalized);
+        });
 
     if (!_branchInitialized && !branchState.loading && branchState.activeBranchId != null) {
       _branchInitialized = true;
@@ -119,18 +133,21 @@ class _ProductosListPageState extends ConsumerState<ProductosListPage> {
         onUpdateProduct: _updateProductInline,
         stockSavingIds: _stockSavingIds,
         productSavingIds: _productSavingIds,
+        allowProductManagement: !movementOnly,
       );
     }
 
     return Scaffold(
       backgroundColor: Colors.transparent,
-      floatingActionButton: FloatingActionButton.extended(
-        backgroundColor: palette.actionColor,
-        foregroundColor: palette.onAction,
-        onPressed: () => context.go('/productos/nuevo'),
-        icon: const Icon(Icons.add_rounded),
-        label: const Text('Nuevo producto'),
-      ),
+      floatingActionButton: movementOnly
+          ? null
+          : FloatingActionButton.extended(
+              backgroundColor: palette.actionColor,
+              foregroundColor: palette.onAction,
+              onPressed: () => context.go('/productos/nuevo'),
+              icon: const Icon(Icons.add_rounded),
+              label: const Text('Nuevo producto'),
+            ),
       body: Stack(
         children: [
           const Positioned.fill(child: AppPageBackground()),
@@ -1971,6 +1988,7 @@ class _ProductosResults extends StatelessWidget {
     required this.onUpdateProduct,
     required this.stockSavingIds,
     required this.productSavingIds,
+    required this.allowProductManagement,
   });
 
   final List<ProductosResponseModel> items;
@@ -1984,6 +2002,7 @@ class _ProductosResults extends StatelessWidget {
   final Future<bool> Function(ProductosResponseModel item, Map<String, dynamic> body) onUpdateProduct;
   final Set<int> stockSavingIds;
   final Set<int> productSavingIds;
+  final bool allowProductManagement;
 
   @override
   Widget build(BuildContext context) {
@@ -2017,6 +2036,7 @@ class _ProductosResults extends StatelessWidget {
                     productSaving: productSavingIds.contains(items[index].prodId),
                     onRegisterMovement: onRegisterMovement,
                     onUpdateProduct: onUpdateProduct,
+                    allowProductManagement: allowProductManagement,
                   ),
               ],
             ),
@@ -2057,6 +2077,7 @@ class _ProductosResults extends StatelessWidget {
                     productSaving: productSavingIds.contains(item.prodId),
                     onRegisterMovement: onRegisterMovement,
                     onUpdateProduct: onUpdateProduct,
+                    allowProductManagement: allowProductManagement,
                   ),
                 ),
             ],
@@ -2093,6 +2114,7 @@ class _SimpleProductoTile extends StatelessWidget {
     required this.productSaving,
     required this.onRegisterMovement,
     required this.onUpdateProduct,
+    required this.allowProductManagement,
   });
 
   final ProductosResponseModel item;
@@ -2109,6 +2131,7 @@ class _SimpleProductoTile extends StatelessWidget {
   final bool productSaving;
   final Future<bool> Function(ProductosResponseModel item, _QuickMovementDraft draft) onRegisterMovement;
   final Future<bool> Function(ProductosResponseModel item, Map<String, dynamic> body) onUpdateProduct;
+  final bool allowProductManagement;
 
   @override
   Widget build(BuildContext context) {
@@ -2173,35 +2196,36 @@ class _SimpleProductoTile extends StatelessWidget {
                             ),
                           ),
                         ),
-                        PopupMenuButton<String>(
-                          tooltip: 'Más opciones',
-                          padding: EdgeInsets.zero,
-                          color: palette.surface,
-                          icon: Icon(Icons.more_horiz_rounded, color: palette.textSecondary),
-                          onSelected: (value) {
-                            if (id == null) return;
-                            if (value == 'detail') context.go('/productos/$id');
-                            if (value == 'delete') onDelete(id);
-                          },
-                          itemBuilder: (_) => const <PopupMenuEntry<String>>[
-                            PopupMenuItem<String>(
-                              value: 'detail',
-                              child: ListTile(
-                                dense: true,
-                                leading: Icon(Icons.visibility_outlined),
-                                title: Text('Ver detalle'),
+                        if (allowProductManagement)
+                          PopupMenuButton<String>(
+                            tooltip: 'Más opciones',
+                            padding: EdgeInsets.zero,
+                            color: palette.surface,
+                            icon: Icon(Icons.more_horiz_rounded, color: palette.textSecondary),
+                            onSelected: (value) {
+                              if (id == null) return;
+                              if (value == 'detail') context.go('/productos/$id');
+                              if (value == 'delete') onDelete(id);
+                            },
+                            itemBuilder: (_) => const <PopupMenuEntry<String>>[
+                              PopupMenuItem<String>(
+                                value: 'detail',
+                                child: ListTile(
+                                  dense: true,
+                                  leading: Icon(Icons.visibility_outlined),
+                                  title: Text('Ver detalle'),
+                                ),
                               ),
-                            ),
-                            PopupMenuItem<String>(
-                              value: 'delete',
-                              child: ListTile(
-                                dense: true,
-                                leading: Icon(Icons.delete_outline_rounded),
-                                title: Text('Eliminar o inactivar'),
+                              PopupMenuItem<String>(
+                                value: 'delete',
+                                child: ListTile(
+                                  dense: true,
+                                  leading: Icon(Icons.delete_outline_rounded),
+                                  title: Text('Eliminar o inactivar'),
+                                ),
                               ),
-                            ),
-                          ],
-                        ),
+                            ],
+                          ),
                       ],
                     ),
                     const SizedBox(height: 5),
@@ -2289,6 +2313,7 @@ class _SimpleProductoTile extends StatelessWidget {
             productSaving: productSaving,
             onRegisterMovement: onRegisterMovement,
             onUpdateProduct: onUpdateProduct,
+            allowProductManagement: allowProductManagement,
           ),
         ],
       ),
@@ -2308,6 +2333,7 @@ class _InlineProductControls extends StatefulWidget {
     required this.productSaving,
     required this.onRegisterMovement,
     required this.onUpdateProduct,
+    required this.allowProductManagement,
   });
 
   final ProductosResponseModel item;
@@ -2318,6 +2344,7 @@ class _InlineProductControls extends StatefulWidget {
   final bool productSaving;
   final Future<bool> Function(ProductosResponseModel item, _QuickMovementDraft draft) onRegisterMovement;
   final Future<bool> Function(ProductosResponseModel item, Map<String, dynamic> body) onUpdateProduct;
+  final bool allowProductManagement;
 
   @override
   State<_InlineProductControls> createState() => _InlineProductControlsState();
@@ -2422,7 +2449,9 @@ class _InlineProductControlsState extends State<_InlineProductControls> {
       child: LayoutBuilder(
         builder: (context, constraints) {
           const gap = 6.0;
-          final columns = constraints.maxWidth < 315 ? 2 : 4;
+          final columns = widget.allowProductManagement
+              ? (constraints.maxWidth < 315 ? 2 : 4)
+              : (constraints.maxWidth < 315 ? 2 : 3);
           final itemWidth =
               (constraints.maxWidth - (gap * (columns - 1))) / columns;
           return Wrap(
@@ -2464,17 +2493,18 @@ class _InlineProductControlsState extends State<_InlineProductControls> {
                   onPressed: _openHistoryPanel,
                 ),
               ),
-              SizedBox(
-                width: itemWidth,
-                child: _CompactProductAction(
-                  label: 'Modificar',
-                  icon: Icons.edit_outlined,
-                  color: palette.secondary,
-                  palette: palette,
-                  busy: widget.productSaving,
-                  onPressed: widget.productSaving ? null : _openEditPanel,
+              if (widget.allowProductManagement)
+                SizedBox(
+                  width: itemWidth,
+                  child: _CompactProductAction(
+                    label: 'Modificar',
+                    icon: Icons.edit_outlined,
+                    color: palette.secondary,
+                    palette: palette,
+                    busy: widget.productSaving,
+                    onPressed: widget.productSaving ? null : _openEditPanel,
+                  ),
                 ),
-              ),
             ],
           );
         },

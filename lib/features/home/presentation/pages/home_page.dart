@@ -7,6 +7,7 @@ import '../../../../core/widgets/app_scaffold.dart';
 import '../../../auth/presentation/providers/auth_provider.dart';
 import '../../../navigation/data/models/user_menu_item.dart';
 import '../../../navigation/presentation/providers/user_menu_provider.dart';
+import '../../../navigation/presentation/providers/active_role_provider.dart';
 import '../../../admin_support/presentation/pages/admin_home_page.dart';
 import 'manager_home_page.dart';
 import 'role_home_page.dart';
@@ -18,11 +19,12 @@ class HomePage extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final authState = ref.watch(authControllerProvider);
     final menuAsync = ref.watch(userMenuProvider);
-    final isGlobalAdmin = authState.roles.any(_isGlobalAdminRole);
-    final hasPersonalizedRole = authState.roles.any(_isPersonalizedRole);
+    final activeRoles = ref.watch(activeRolesProvider);
+    final isGlobalAdmin = activeRoles.any(_isGlobalAdminRole);
+    final hasPersonalizedRole = activeRoles.any(_isPersonalizedRole);
     final isManager = !isGlobalAdmin &&
         !hasPersonalizedRole &&
-        authState.roles.any(_isManagerRole);
+        activeRoles.any(_isManagerRole);
 
     return AppScaffold(
       child: menuAsync.when(
@@ -47,19 +49,19 @@ class HomePage extends ConsumerWidget {
           if (isGlobalAdmin) {
             return AdminHomePage(
               items: _sortAdminItems(items),
-              rolesCount: authState.roles.length,
+              rolesCount: activeRoles.length,
             );
           }
           if (isManager) {
             return ManagerHomePage(
               items: _sortManagerItems(items),
-              rolesCount: authState.roles.length,
+              rolesCount: activeRoles.length,
             );
           }
 
           return RoleHomePage(
             items: items,
-            roles: authState.roles,
+            roles: activeRoles,
           );
         },
       ),
@@ -126,6 +128,18 @@ String _normalizeRole(String value) => value
     .replaceAll(RegExp(r'[^A-Z0-9]+'), '_');
 
 List<UserMenuItem> _sortManagerItems(List<UserMenuItem> items) {
+  const blocked = <String>{
+    'planes_suscripcion',
+    'soporte_global',
+    'soporte_clientes',
+    'soporte_accesos',
+    'soporte_operacion',
+    'soporte_configuracion',
+    'soporte_mantenimiento',
+    'explorador_datos',
+    'auditoria_soporte',
+    'diagnostico_sistema',
+  };
   const priority = <String, int>{
     'reportes': 0,
     'ganancias': 1,
@@ -143,7 +157,9 @@ List<UserMenuItem> _sortManagerItems(List<UserMenuItem> items) {
     'empresas': 12,
     'parametros': 13,
   };
-  final sorted = List<UserMenuItem>.of(items);
+  final sorted = items
+      .where((item) => !blocked.contains(item.keyName.trim().toLowerCase()))
+      .toList(growable: true);
   sorted.sort((a, b) {
     final byPriority =
         (priority[a.keyName] ?? 999).compareTo(priority[b.keyName] ?? 999);

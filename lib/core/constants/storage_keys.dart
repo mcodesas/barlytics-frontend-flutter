@@ -8,4 +8,5 @@ class StorageKeys {
   static const roles = 'roles';
   static const subscriptionStatus = 'subscription_status';
   static const subscriptionActive = 'subscription_active';
+  static const businessSetupComplete = 'business_setup_complete';
 }

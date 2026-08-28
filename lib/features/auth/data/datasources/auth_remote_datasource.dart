@@ -45,6 +45,14 @@ class AuthRemoteDataSource {
     return response.data!;
   }
 
+  Future<bool> businessSetupComplete() async {
+    final response = await _apiClient.get<Map<String, dynamic>>(
+      ApiPaths.businessSetupStatus,
+      (json) => Map<String, dynamic>.from(json as Map),
+    );
+    return response.data?['complete'] == true;
+  }
+
   Future<void> logout({String? token}) async {
     final authorization = token == null || token.trim().isEmpty ? null : 'Bearer $token';
     await _apiClient.post<void>(

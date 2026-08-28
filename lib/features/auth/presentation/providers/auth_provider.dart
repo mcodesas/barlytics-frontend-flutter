@@ -42,6 +42,7 @@ class AuthState {
     this.roles = const <String>[],
     this.subscriptionStatus,
     this.subscriptionActive = true,
+    this.businessSetupComplete = true,
   });
 
   final bool authenticated;
@@ -53,6 +54,7 @@ class AuthState {
   final List<String> roles;
   final String? subscriptionStatus;
   final bool subscriptionActive;
+  final bool businessSetupComplete;
 
   AuthState copyWith({
     bool? authenticated,
@@ -61,6 +63,7 @@ class AuthState {
     List<String>? roles,
     String? subscriptionStatus,
     bool? subscriptionActive,
+    bool? businessSetupComplete,
   }) =>
       AuthState(
         authenticated: authenticated ?? this.authenticated,
@@ -69,6 +72,7 @@ class AuthState {
         roles: roles ?? this.roles,
         subscriptionStatus: subscriptionStatus ?? this.subscriptionStatus,
         subscriptionActive: subscriptionActive ?? this.subscriptionActive,
+        businessSetupComplete: businessSetupComplete ?? this.businessSetupComplete,
       );
 }
 
@@ -107,13 +111,24 @@ class AuthController extends StateNotifier<AuthState> {
     final roles = hasSession ? await _repository.getStoredRoles() : const <String>[];
     final subscriptionStatus = hasSession ? await _repository.getStoredSubscriptionStatus() : null;
     final subscriptionActive = hasSession ? await _repository.getStoredSubscriptionActive() : true;
+    var businessSetupComplete = hasSession ? await _repository.getStoredBusinessSetupComplete() : true;
+    if (hasSession && subscriptionActive) {
+      try {
+        businessSetupComplete = await _repository.fetchBusinessSetupComplete();
+        await _repository.updateBusinessSetupState(businessSetupComplete);
+      } catch (_) {
+        // Si el backend no está disponible durante la restauración, conservamos
+        // el último estado conocido y lo recalcularemos al abrir el asistente.
+      }
+    }
     state = state.copyWith(
       authenticated: hasSession,
       roles: roles,
       subscriptionStatus: subscriptionStatus,
       subscriptionActive: subscriptionActive,
+      businessSetupComplete: businessSetupComplete,
     );
-    if (hasSession && subscriptionActive) {
+    if (hasSession && subscriptionActive && businessSetupComplete) {
       await _ref.read(branchScopeProvider.notifier).load();
     }
   }
@@ -122,13 +137,17 @@ class AuthController extends StateNotifier<AuthState> {
     state = state.copyWith(loading: true);
     try {
       final response = await _login(identificador, password);
+      final setupComplete = response.subscriptionActive
+          ? await _refreshBusinessSetupValue()
+          : false;
       state = AuthState(
         authenticated: true,
         roles: response.roles,
         subscriptionStatus: response.subscriptionStatus,
         subscriptionActive: response.subscriptionActive,
+        businessSetupComplete: setupComplete,
       );
-      if (response.subscriptionActive) {
+      if (response.subscriptionActive && setupComplete) {
         await _ref.read(branchScopeProvider.notifier).load();
       } else {
         _ref.invalidate(branchScopeProvider);
@@ -144,13 +163,17 @@ class AuthController extends StateNotifier<AuthState> {
     state = state.copyWith(loading: true, failure: null);
     try {
       final response = await _repository.googleLogin(idToken);
+      final setupComplete = response.subscriptionActive
+          ? await _refreshBusinessSetupValue()
+          : false;
       state = AuthState(
         authenticated: true,
         roles: response.roles,
         subscriptionStatus: response.subscriptionStatus,
         subscriptionActive: response.subscriptionActive,
+        businessSetupComplete: setupComplete,
       );
-      if (response.subscriptionActive) {
+      if (response.subscriptionActive && setupComplete) {
         await _ref.read(branchScopeProvider.notifier).load();
       } else {
         _ref.invalidate(branchScopeProvider);
@@ -165,21 +188,49 @@ class AuthController extends StateNotifier<AuthState> {
   Future<void> completeRegistration(LoginResponseModel response) async {
     await _repository.saveSession(response);
     _ref.invalidate(branchScopeProvider);
+    final setupComplete = response.subscriptionActive
+        ? await _refreshBusinessSetupValue()
+        : false;
     state = AuthState(
       authenticated: true,
       roles: response.roles,
       subscriptionStatus: response.subscriptionStatus,
       subscriptionActive: response.subscriptionActive,
+      businessSetupComplete: setupComplete,
     );
   }
 
   Future<void> updateSubscription({required String status, required bool active}) async {
     await _repository.updateSubscriptionState(status: status, active: active);
-    state = state.copyWith(subscriptionStatus: status, subscriptionActive: active);
-    if (active) {
+    final setupComplete = active ? await _refreshBusinessSetupValue() : false;
+    state = state.copyWith(
+      subscriptionStatus: status,
+      subscriptionActive: active,
+      businessSetupComplete: setupComplete,
+    );
+    if (active && setupComplete) {
       await _ref.read(branchScopeProvider.notifier).load();
     } else {
       _ref.invalidate(branchScopeProvider);
+    }
+  }
+
+  Future<bool> refreshBusinessSetup() async {
+    final complete = state.subscriptionActive ? await _refreshBusinessSetupValue() : false;
+    state = state.copyWith(businessSetupComplete: complete);
+    if (state.subscriptionActive && complete) {
+      await _ref.read(branchScopeProvider.notifier).load();
+    }
+    return complete;
+  }
+
+  Future<bool> _refreshBusinessSetupValue() async {
+    try {
+      final complete = await _repository.fetchBusinessSetupComplete();
+      await _repository.updateBusinessSetupState(complete);
+      return complete;
+    } catch (_) {
+      return _repository.getStoredBusinessSetupComplete();
     }
   }
 

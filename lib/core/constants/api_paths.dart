@@ -17,6 +17,7 @@ class ApiPaths {
   static const subscriptionPlans = '/api/v1/subscriptions/plans';
   static const publicSubscriptionPlans = '/api/v1/subscriptions/public/plans';
   static const subscriptionPlan = '/api/v1/subscriptions/plan';
+  static const subscriptionCancel = '/api/v1/subscriptions/cancel';
   static const subscriptionPaymentConfig = '/api/v1/subscriptions/payment-config';
   static const subscriptionRecurringAuthorize = '/api/v1/subscriptions/checkout/recurring/authorize';
   static const subscriptionOneTimeCheckout = '/api/v1/subscriptions/checkout/one-time';
@@ -25,6 +26,7 @@ class ApiPaths {
   static const subscriptionSync = '/api/v1/subscriptions/sync';
   static const subscriptionPayments = '/api/v1/subscriptions/payments';
   static const profile = '/api/v1/profile';
+  static const businessSetupStatus = '/api/v1/business-setup/status';
   static const me = '/api/v1/me';
   static const ciudades = '/api/v1/ciudades';
   static const cuentasventa = '/api/v1/cuentasventa';

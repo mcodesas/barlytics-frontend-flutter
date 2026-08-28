@@ -28,7 +28,14 @@ class UserMenuRepository {
       final normalizedKey = _normalizeModuleKey(item.keyName);
       final keyName = moduleAliases[normalizedKey] ?? normalizedKey;
       if (keyName.isEmpty) continue;
-      byKey[keyName] = item.copyWith(keyName: keyName, path: '/$keyName');
+      final normalizedItem = item.copyWith(keyName: keyName, path: '/$keyName');
+      final previous = byKey[keyName];
+      if (previous == null) {
+        byKey[keyName] = normalizedItem;
+      } else {
+        final mergedRoles = <String>{...previous.roles, ...normalizedItem.roles}.toList(growable: false);
+        byKey[keyName] = previous.copyWith(roles: mergedRoles);
+      }
     }
 
 
