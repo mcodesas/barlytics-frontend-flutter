@@ -1133,6 +1133,21 @@ class _RoleHomeProfile {
       );
     }
 
+    if (normalized.any((role) =>
+        role.replaceFirst('ROLE_', '') == 'PERSONALIZADO')) {
+      return const _RoleHomeProfile(
+        type: _RoleHomeType.custom,
+        label: 'Rol personalizado',
+        subtitle:
+            'Accede únicamente a las funciones configuradas específicamente para tu rol.',
+        workflowSubtitle:
+            'Los accesos se muestran en el orden definido al configurar el rol.',
+        icon: Icons.dashboard_customize_rounded,
+        color: Color(0xFF6366F1),
+        priority: [],
+      );
+    }
+
     if (!hasInventory && normalized.any((role) =>
         role.contains('CAJER') ||
         role.contains('CAJA') ||
@@ -1194,6 +1209,7 @@ class _RoleHomeProfile {
           'productos',
           'movimientos',
           'proximo_pedido',
+          'sincronizar_catalogo',
           'precios',
           'reportes',
           'ganancias',
@@ -1266,13 +1282,15 @@ List<UserMenuItem> _buildAvailableItems(
     add(item);
   }
 
-  result.sort((a, b) {
-    final aPriority = _priorityIndex(profile.priority, a.keyName);
-    final bPriority = _priorityIndex(profile.priority, b.keyName);
-    final byPriority = aPriority.compareTo(bPriority);
-    if (byPriority != 0) return byPriority;
-    return a.title.compareTo(b.title);
-  });
+  if (profile.type != _RoleHomeType.custom) {
+    result.sort((a, b) {
+      final aPriority = _priorityIndex(profile.priority, a.keyName);
+      final bPriority = _priorityIndex(profile.priority, b.keyName);
+      final byPriority = aPriority.compareTo(bPriority);
+      if (byPriority != 0) return byPriority;
+      return a.title.compareTo(b.title);
+    });
+  }
   return result;
 }
 
@@ -1281,6 +1299,9 @@ List<UserMenuItem> _featuredItems(
   List<UserMenuItem> items,
 ) {
   if (items.length <= 4) return items;
+  if (profile.type == _RoleHomeType.custom) {
+    return items.take(4).toList(growable: false);
+  }
   final ordered = List<UserMenuItem>.of(items)
     ..sort((a, b) {
       final byPriority = _priorityIndex(profile.priority, a.keyName)
@@ -1309,6 +1330,7 @@ List<_WorkflowStep> _workflowFor(
     _RoleHomeType.inventory => const [
         ('inventario', 'Consulta existencias', 'Identifica faltantes y diferencias.'),
         ('movimientos', 'Registra movimientos', 'Aplica entradas, salidas o ajustes.'),
+        ('sincronizar_catalogo', 'Comparte el catálogo', 'Copia productos y costos hacia otra sucursal autorizada.'),
         ('proximo_pedido', 'Prepara el pedido', 'Revisa la reposición sugerida.'),
       ],
     _RoleHomeType.prices => const [

@@ -51,28 +51,38 @@ class BranchScopeNotifier extends StateNotifier<BranchScopeState> {
   final Ref _ref;
 
   Future<void> load() async {
+    if (!mounted) return;
+
+    final apiClient = _ref.read(apiClientProvider);
+    final secureStorage = _ref.read(secureStorageProvider);
+
     state = state.copyWith(loading: true, clearFailure: true);
     try {
-      final response = await _ref.read(apiClientProvider).get<List<SucursalesResponseModel>>(
-            '/api/v1/sucursales/mis-sucursales',
-            (json) => (json as List? ?? const <dynamic>[])
-                .map((item) => SucursalesResponseModel.fromJson(
-                      Map<String, dynamic>.from(item as Map),
-                    ))
-                .toList(growable: false),
-          );
+      final response = await apiClient.get<List<SucursalesResponseModel>>(
+        '/api/v1/sucursales/mis-sucursales',
+        (json) => (json as List? ?? const <dynamic>[])
+            .map((item) => SucursalesResponseModel.fromJson(
+                  Map<String, dynamic>.from(item as Map),
+                ))
+            .toList(growable: false),
+      );
+      if (!mounted) return;
+
       final branches = (response.data ?? const <SucursalesResponseModel>[])
           .where((branch) => branch.sucuId != null && branch.sucuEstado != 0)
           .toList(growable: false)
         ..sort((a, b) => (a.sucuNombre ?? '').compareTo(b.sucuNombre ?? ''));
 
-      final storedRaw = await _ref.read(secureStorageProvider).read(StorageKeys.sucursalId);
+      final storedRaw = await secureStorage.read(StorageKeys.sucursalId);
+      if (!mounted) return;
+
       final storedId = int.tryParse(storedRaw ?? '');
       final storedAllowed = branches.any((branch) => branch.sucuId == storedId);
       final activeId = storedAllowed ? storedId : (branches.isEmpty ? null : branches.first.sucuId);
 
       if (activeId != null) {
-        await _ref.read(secureStorageProvider).write(StorageKeys.sucursalId, '$activeId');
+        await secureStorage.write(StorageKeys.sucursalId, '$activeId');
+        if (!mounted) return;
       }
 
       state = BranchScopeState(
@@ -81,6 +91,11 @@ class BranchScopeNotifier extends StateNotifier<BranchScopeState> {
         loading: false,
       );
     } catch (error) {
+      // Una operación asíncrona puede terminar después de que el provider
+      // haya sido destruido (por navegación, logout o hot restart).
+      // En ese caso no debemos leer ni escribir `state`.
+      if (!mounted) return;
+
       state = state.copyWith(
         loading: false,
         failure: ErrorMapper.map(error),
@@ -89,9 +104,16 @@ class BranchScopeNotifier extends StateNotifier<BranchScopeState> {
   }
 
   Future<void> select(int branchId) async {
-    if (!state.branches.any((branch) => branch.sucuId == branchId)) return;
-    if (state.activeBranchId == branchId) return;
-    await _ref.read(secureStorageProvider).write(StorageKeys.sucursalId, '$branchId');
+    if (!mounted) return;
+
+    final currentState = state;
+    if (!currentState.branches.any((branch) => branch.sucuId == branchId)) return;
+    if (currentState.activeBranchId == branchId) return;
+
+    final secureStorage = _ref.read(secureStorageProvider);
+    await secureStorage.write(StorageKeys.sucursalId, '$branchId');
+    if (!mounted) return;
+
     state = state.copyWith(activeBranchId: branchId, clearFailure: true);
   }
 }

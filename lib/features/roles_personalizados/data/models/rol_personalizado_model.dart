@@ -4,18 +4,27 @@ class MenuAsignableModel {
     required this.nombre,
     required this.descripcion,
     required this.parametro,
+    required this.tipos,
+    required this.asignable,
   });
 
   final int menuId;
   final String nombre;
   final String descripcion;
   final String parametro;
+  final List<String> tipos;
+  final bool asignable;
 
   factory MenuAsignableModel.fromJson(Map<String, dynamic> json) => MenuAsignableModel(
         menuId: (json['menuId'] as num).toInt(),
         nombre: json['nombre']?.toString() ?? 'Opción',
         descripcion: json['descripcion']?.toString() ?? '',
         parametro: json['parametro']?.toString() ?? '',
+        tipos: (json['tipos'] as List? ?? const <Object?>[])
+            .map((value) => value.toString().trim())
+            .where((value) => value.isNotEmpty)
+            .toList(),
+        asignable: json['asignable'] as bool? ?? true,
       );
 }
 

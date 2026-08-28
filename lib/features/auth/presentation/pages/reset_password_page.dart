@@ -20,6 +20,7 @@ class ResetPasswordPage extends ConsumerStatefulWidget {
 
 class _ResetPasswordPageState extends ConsumerState<ResetPasswordPage> {
   final _formKey = GlobalKey<FormState>();
+  final _activationCode = TextEditingController();
   final _newPassword = TextEditingController();
   final _confirmPassword = TextEditingController();
   bool _validationStarted = false;
@@ -27,35 +28,68 @@ class _ResetPasswordPageState extends ConsumerState<ResetPasswordPage> {
   bool _invalid = false;
   bool _invalidDialogShown = false;
   String? _message;
+  String _activeCode = '';
+  bool _manualMode = false;
 
   @override
   void initState() {
     super.initState();
-    WidgetsBinding.instance.addPostFrameCallback((_) => _validateCodeOnce());
+    final codeFromLink = widget.code.trim();
+    _manualMode = codeFromLink.isEmpty;
+    if (codeFromLink.isNotEmpty) {
+      WidgetsBinding.instance.addPostFrameCallback((_) => _validateCode(codeFromLink, fromLink: true));
+    }
   }
 
-  Future<void> _validateCodeOnce() async {
-    if (_validationStarted) return;
-    _validationStarted = true;
+  Future<void> _validateCode(String code, {required bool fromLink}) async {
+    final normalized = code.trim();
+    if (normalized.isEmpty || _validationStarted) return;
 
-    if (widget.code.trim().isEmpty) {
-      setState(() {
-        _invalid = true;
-        _message = 'El enlace no contiene código.';
-      });
-      await _showInvalidDialogIfNeeded();
-      return;
-    }
-
-    final ok = await ref.read(authControllerProvider.notifier).validatePasswordRecoveryCode(widget.code.trim());
-    if (!mounted) return;
     setState(() {
-      _validated = ok;
-      _invalid = !ok;
-      _message = ok ? null : ref.read(authControllerProvider).failure?.message ?? 'El enlace no es válido o expiró.';
+      _validationStarted = true;
+      _invalid = false;
+      _message = null;
     });
 
-    if (!ok) await _showInvalidDialogIfNeeded();
+    final ok = await ref.read(authControllerProvider.notifier).validatePasswordRecoveryCode(normalized);
+    if (!mounted) return;
+    setState(() {
+      _validationStarted = false;
+      _validated = ok;
+      _invalid = !ok;
+      _activeCode = ok ? normalized : '';
+      _message = ok
+          ? null
+          : ref.read(authControllerProvider).failure?.message ??
+              (fromLink ? 'El enlace no es válido o expiró.' : 'El código no es válido o expiró.');
+    });
+
+    if (!ok && fromLink) await _showInvalidDialogIfNeeded();
+  }
+
+  Future<void> _validateManualCode() async {
+    final code = _activationCode.text.trim();
+    if (!RegExp(r'^\d{6}$').hasMatch(code)) {
+      setState(() {
+        _invalid = false;
+        _message = 'Ingresa el código de activación de 6 dígitos enviado a tu correo.';
+      });
+      return;
+    }
+    await _validateCode(code, fromLink: false);
+  }
+
+  void _retryManualCode() {
+    setState(() {
+      _invalid = false;
+      _validated = false;
+      _validationStarted = false;
+      _invalidDialogShown = false;
+      _activeCode = '';
+      _manualMode = true;
+      _message = null;
+    });
+    _activationCode.clear();
   }
 
   Future<void> _showInvalidDialogIfNeeded() async {
@@ -76,6 +110,14 @@ class _ResetPasswordPageState extends ConsumerState<ResetPasswordPage> {
             },
             child: const Text('Volver al login'),
           ),
+          TextButton.icon(
+            onPressed: () {
+              Navigator.of(dialogContext).pop();
+              _retryManualCode();
+            },
+            icon: const Icon(Icons.pin_rounded),
+            label: const Text('Ingresar código'),
+          ),
           FilledButton.icon(
             onPressed: () {
               Navigator.of(dialogContext).pop();
@@ -91,6 +133,7 @@ class _ResetPasswordPageState extends ConsumerState<ResetPasswordPage> {
 
   @override
   void dispose() {
+    _activationCode.dispose();
     _newPassword.dispose();
     _confirmPassword.dispose();
     super.dispose();
@@ -116,7 +159,7 @@ class _ResetPasswordPageState extends ConsumerState<ResetPasswordPage> {
   }
 
   Widget _buildContent(BuildContext context, AuthState state) {
-    if (state.loading && !_validated && !_invalid) {
+    if (_validationStarted && state.loading && !_validated && !_invalid) {
       return const Padding(
         padding: EdgeInsets.all(28),
         child: Column(
@@ -126,7 +169,73 @@ class _ResetPasswordPageState extends ConsumerState<ResetPasswordPage> {
             SizedBox(height: 20),
             CircularProgressIndicator(),
             SizedBox(height: 18),
-            Text('Validando enlace...', style: TextStyle(fontWeight: FontWeight.w900)),
+            Text('Validando activación...', style: TextStyle(fontWeight: FontWeight.w900)),
+          ],
+        ),
+      );
+    }
+
+    if (!_validated && _manualMode) {
+      return Form(
+        key: _formKey,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            const TechSectionTitle(
+              icon: Icons.pin_rounded,
+              title: 'Activar con código',
+              subtitle: 'Ingresa el código de 6 dígitos que recibiste en el correo de activación.',
+            ),
+            const SizedBox(height: 24),
+            AppTextField(
+              controller: _activationCode,
+              label: 'Código de activación',
+              hintText: 'Ej. 483921',
+              prefixIcon: Icons.password_rounded,
+              keyboardType: TextInputType.number,
+              validator: (value) {
+                final required = Validators.required(value);
+                if (required != null) return required;
+                if (!RegExp(r'^\d{6}$').hasMatch(value!.trim())) {
+                  return 'El código debe tener 6 dígitos';
+                }
+                return null;
+              },
+              onChanged: (_) {
+                if (_message != null) setState(() => _message = null);
+              },
+            ),
+            if (_message != null) ...[
+              const SizedBox(height: 14),
+              Container(
+                padding: const EdgeInsets.all(14),
+                decoration: BoxDecoration(
+                  color: AppColors.warningSoft,
+                  borderRadius: BorderRadius.circular(18),
+                  border: Border.all(color: AppColors.warning.withOpacity(0.25)),
+                ),
+                child: Text(
+                  _message!,
+                  style: const TextStyle(color: AppColors.warning, fontWeight: FontWeight.w900),
+                ),
+              ),
+            ],
+            const SizedBox(height: 22),
+            AppButton(
+              label: 'Validar código',
+              icon: Icons.verified_rounded,
+              loading: state.loading || _validationStarted,
+              onPressed: () async {
+                if (!_formKey.currentState!.validate()) return;
+                await _validateManualCode();
+              },
+            ),
+            const SizedBox(height: 12),
+            TextButton(
+              onPressed: state.loading ? null : () => context.go('/login'),
+              child: const Text('Volver al login'),
+            ),
           ],
         ),
       );
@@ -139,8 +248,8 @@ class _ResetPasswordPageState extends ConsumerState<ResetPasswordPage> {
         children: [
           const TechSectionTitle(
             icon: Icons.link_off_rounded,
-            title: 'Enlace no válido',
-            subtitle: 'Debes solicitar un nuevo enlace de activación o recuperación.',
+            title: 'Código o enlace no válido',
+            subtitle: 'Puedes ingresar otro código o solicitar una nueva activación/recuperación.',
           ),
           const SizedBox(height: 20),
           Container(
@@ -150,13 +259,19 @@ class _ResetPasswordPageState extends ConsumerState<ResetPasswordPage> {
               borderRadius: BorderRadius.circular(18),
               border: Border.all(color: AppColors.warning.withOpacity(0.25)),
             ),
-            child: Text(_message ?? 'El enlace no es válido o expiró.', style: const TextStyle(color: AppColors.warning, fontWeight: FontWeight.w900)),
+            child: Text(_message ?? 'El código o enlace no es válido o expiró.', style: const TextStyle(color: AppColors.warning, fontWeight: FontWeight.w900)),
           ),
           const SizedBox(height: 20),
           AppButton(
-            label: 'Solicitar recuperación',
-            icon: Icons.refresh_rounded,
+            label: 'Ingresar otro código',
+            icon: Icons.pin_rounded,
+            onPressed: _retryManualCode,
+          ),
+          const SizedBox(height: 12),
+          OutlinedButton.icon(
             onPressed: () => context.go('/forgot-password'),
+            icon: const Icon(Icons.refresh_rounded),
+            label: const Text('Solicitar recuperación'),
           ),
           const SizedBox(height: 12),
           TextButton(onPressed: () => context.go('/login'), child: const Text('Volver al login')),
@@ -173,7 +288,7 @@ class _ResetPasswordPageState extends ConsumerState<ResetPasswordPage> {
           const TechSectionTitle(
             icon: Icons.lock_reset_rounded,
             title: 'Crear contraseña',
-            subtitle: 'Registra una clave para activar tu cuenta o recuperar el acceso.',
+            subtitle: 'Código validado. Registra una clave para completar la activación o recuperar el acceso.',
           ),
           const SizedBox(height: 24),
           AppTextField(
@@ -209,7 +324,7 @@ class _ResetPasswordPageState extends ConsumerState<ResetPasswordPage> {
             onPressed: () async {
               if (!_formKey.currentState!.validate()) return;
               final ok = await ref.read(authControllerProvider.notifier).resetPassword(
-                    code: widget.code.trim(),
+                    code: _activeCode,
                     newPassword: _newPassword.text,
                     confirmPassword: _confirmPassword.text,
                   );

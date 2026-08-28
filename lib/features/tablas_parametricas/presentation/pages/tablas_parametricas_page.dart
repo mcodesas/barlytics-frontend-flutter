@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../../app/theme/app_palette.dart';
+import '../../../business_setup/presentation/providers/business_setup_provider.dart';
 
 class TablasParametricasPage extends ConsumerWidget {
   const TablasParametricasPage({super.key});
@@ -11,45 +12,51 @@ class TablasParametricasPage extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final palette = ref.watch(selectedAppPaletteProvider);
     final width = MediaQuery.sizeOf(context).width;
+    final guidedSetup = ref.watch(businessSetupGuidedModeProvider);
     final columns = width >= 1120
         ? 3
         : width >= 720
             ? 2
             : 1;
 
-    final items = <_ParametricItem>[
-      const _ParametricItem(
-        title: 'Tipos de movimiento',
-        description: 'Define si cada operación aumenta, disminuye o solicita el sentido del ajuste.',
-        icon: Icons.sync_alt_rounded,
-        route: '/tipos_movimiento',
-        createRoute: '/tipos_movimiento/nuevo',
-        actionLabel: 'Administrar movimientos',
-      ),
-      const _ParametricItem(
+    const companyCatalogItems = <_ParametricItem>[
+      _ParametricItem(
         title: 'Tipos de producto',
-        description: 'Organiza los productos por categorías para encontrarlos y filtrarlos más rápido.',
+        description: 'Organiza los productos por categorías propias de tu empresa. Se comparten entre tus sucursales.',
         icon: Icons.category_rounded,
         route: '/tipos_producto',
         createRoute: '/tipos_producto/nuevo',
         actionLabel: 'Administrar tipos',
       ),
-      const _ParametricItem(
+      _ParametricItem(
         title: 'Marcas',
-        description: 'Mantén el catálogo de marcas utilizado al crear y consultar productos.',
+        description: 'Mantén las marcas que utiliza tu empresa. Ninguna otra empresa puede verlas ni modificarlas.',
         icon: Icons.sell_rounded,
         route: '/marcas',
         createRoute: '/marcas/nuevo',
         actionLabel: 'Administrar marcas',
       ),
-      const _ParametricItem(
-        title: 'Medios de pago',
-        description: 'Activa los medios disponibles y configura el código QR de cada sucursal.',
-        icon: Icons.payments_rounded,
-        route: '/medios_pago',
-        actionLabel: 'Configurar pagos',
-      ),
     ];
+    final items = guidedSetup
+        ? companyCatalogItems
+        : <_ParametricItem>[
+            const _ParametricItem(
+              title: 'Tipos de movimiento',
+              description: 'Define si cada operación aumenta, disminuye o solicita el sentido del ajuste.',
+              icon: Icons.sync_alt_rounded,
+              route: '/tipos_movimiento',
+              createRoute: '/tipos_movimiento/nuevo',
+              actionLabel: 'Administrar movimientos',
+            ),
+            ...companyCatalogItems,
+            const _ParametricItem(
+              title: 'Medios de pago',
+              description: 'Activa los medios disponibles y configura el código QR de cada sucursal.',
+              icon: Icons.payments_rounded,
+              route: '/medios_pago',
+              actionLabel: 'Configurar pagos',
+            ),
+          ];
 
     return Scaffold(
       backgroundColor: Colors.transparent,
@@ -66,7 +73,7 @@ class TablasParametricasPage extends ConsumerWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                _IntroStrip(palette: palette),
+                _IntroStrip(palette: palette, guidedSetup: guidedSetup),
                 SizedBox(height: 18 * palette.spacingScale),
                 LayoutBuilder(
                   builder: (context, constraints) {
@@ -98,9 +105,10 @@ class TablasParametricasPage extends ConsumerWidget {
 }
 
 class _IntroStrip extends StatelessWidget {
-  const _IntroStrip({required this.palette});
+  const _IntroStrip({required this.palette, required this.guidedSetup});
 
   final AppPalette palette;
+  final bool guidedSetup;
 
   @override
   Widget build(BuildContext context) {
@@ -134,7 +142,9 @@ class _IntroStrip extends StatelessWidget {
           const SizedBox(width: 13),
           Expanded(
             child: Text(
-              'Configura aquí los catálogos que apoyan la operación diaria del inventario.',
+              guidedSetup
+                  ? 'Revisa las marcas y tipos de producto iniciales. Estos catálogos pertenecen únicamente a tu empresa y son obligatorios para crear productos.'
+                  : 'Configura aquí los catálogos que apoyan la operación diaria del inventario.',
               style: TextStyle(
                 color: palette.textPrimary,
                 fontSize: 14.5,

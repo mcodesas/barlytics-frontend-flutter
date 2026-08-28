@@ -1,13 +1,32 @@
 /// Rutas REST centralizadas obtenidas desde la colección Postman.
 class ApiPaths {
   static const authLogin = '/api/v1/auth/login';
+  static const authGoogleConfig = '/api/v1/auth/google/config';
+  static const authGoogleIdentity = '/api/v1/auth/google/identity';
+  static const authGoogleLogin = '/api/v1/auth/google';
   static const authLogout = '/api/v1/auth/logout';
   static const authForgotPassword = '/api/v1/auth/forgot-password';
   static const authPasswordRecoveryValidate = '/api/v1/auth/password-recovery/validate';
   static const authResetPassword = '/api/v1/auth/reset-password';
   static const authMe = '/api/v1/auth/me';
   static const authMeMenus = '/api/v1/auth/me/menus';
+  static const onboardingCatalogs = '/api/v1/onboarding/catalogs';
+  static const onboardingRegister = '/api/v1/onboarding/register';
+  static const onboardingRegisterGoogle = '/api/v1/onboarding/register/google';
+  static const subscriptionMe = '/api/v1/subscriptions/me';
+  static const subscriptionPlans = '/api/v1/subscriptions/plans';
+  static const publicSubscriptionPlans = '/api/v1/subscriptions/public/plans';
+  static const subscriptionPlan = '/api/v1/subscriptions/plan';
+  static const subscriptionCancel = '/api/v1/subscriptions/cancel';
+  static const subscriptionPaymentConfig = '/api/v1/subscriptions/payment-config';
+  static const subscriptionRecurringAuthorize = '/api/v1/subscriptions/checkout/recurring/authorize';
+  static const subscriptionOneTimeCheckout = '/api/v1/subscriptions/checkout/one-time';
+  static const subscriptionPseBanks = '/api/v1/subscriptions/checkout/pse/banks';
+  static const subscriptionOneTimePse = '/api/v1/subscriptions/checkout/one-time/pse';
+  static const subscriptionSync = '/api/v1/subscriptions/sync';
+  static const subscriptionPayments = '/api/v1/subscriptions/payments';
   static const profile = '/api/v1/profile';
+  static const businessSetupStatus = '/api/v1/business-setup/status';
   static const me = '/api/v1/me';
   static const ciudades = '/api/v1/ciudades';
   static const cuentasventa = '/api/v1/cuentasventa';
@@ -24,6 +43,7 @@ class ApiPaths {
   static const pagos = '/api/v1/pagos';
   static const paises = '/api/v1/paises';
   static const parametros = '/api/v1/parametros';
+  static const publicSiteConfig = '/api/v1/parametros/public/site';
   static const precios = '/api/v1/precios';
   static const productos = '/api/v1/productos';
   static const regiones = '/api/v1/regiones';
@@ -43,6 +63,8 @@ class ApiPaths {
   static const meseroProductos = '/api/v1/mesero/productos';
   static const meseroMediosPago = '/api/v1/mesero/medios-pago';
   static const meseroAbrirVenta = '/api/v1/mesero/ventas/abrir';
+  static const meseroAbrirVentaDirecta = '/api/v1/mesero/ventas/directa';
+  static const meseroVentasDirectasAbiertas = '/api/v1/mesero/ventas/directas/abiertas';
   static const meseroHistorialVentas = '/api/v1/mesero/ventas/historial';
   static const meseroCierreCajaResumen = '/api/v1/mesero/cierre-caja/resumen';
   static const meseroCierreCaja = '/api/v1/mesero/cierre-caja';
@@ -52,6 +74,7 @@ class ApiPaths {
   static String meseroVenta(Object id) => '/api/v1/mesero/ventas/$id';
   static String meseroVentaCuentas(Object id) => '/api/v1/mesero/ventas/$id/cuentas';
   static String meseroLimpiarVentaSinConsumos(Object id) => '/api/v1/mesero/ventas/$id/cuentas-vacias';
+  static String meseroCancelarVentaDirecta(Object id) => '/api/v1/mesero/ventas/$id/directa';
   static String meseroAgregarProductoCuenta(Object cuentaId) => '/api/v1/mesero/cuentas/$cuentaId/productos';
   static String meseroActualizarCantidadProductoCuenta(Object cuentaId, Object detalleId) =>
       '/api/v1/mesero/cuentas/$cuentaId/productos/$detalleId/cantidad';
@@ -59,6 +82,8 @@ class ApiPaths {
   static String meseroMoverProductoCuenta(Object cuentaId, Object detalleId, Object cuentaDestinoId) =>
       '/api/v1/mesero/cuentas/$cuentaId/productos/$detalleId/mover/$cuentaDestinoId';
   static String meseroPagarCuenta(Object cuentaId) => '/api/v1/mesero/cuentas/$cuentaId/pagos';
+  static String meseroEliminarPagoCuenta(Object cuentaId, Object pagoId) => '/api/v1/mesero/cuentas/$cuentaId/pagos/$pagoId';
+  static String pagoCambiarMedioPago(Object pagoId) => '/api/v1/pagos/$pagoId/medio-pago';
   static String meseroEliminarCuenta(Object cuentaId) => '/api/v1/mesero/cuentas/$cuentaId';
   static String meseroFinalizarVenta(Object ventaId) => '/api/v1/mesero/ventas/$ventaId/finalizar';
 }

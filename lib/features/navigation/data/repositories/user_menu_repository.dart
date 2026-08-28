@@ -13,7 +13,7 @@ class UserMenuRepository {
 
   final ApiClient _apiClient;
 
-  Future<List<UserMenuItem>> findMyMenu() async {
+  Future<List<UserMenuItem>> findMyMenu({bool preserveBackendOrder = false}) async {
     final response = await _apiClient.get<List<UserMenuItem>>(
       ApiPaths.authMeMenus,
       (json) => (json as List? ?? const <Object?>[])
@@ -27,15 +27,21 @@ class UserMenuRepository {
     for (final item in response.data ?? const <UserMenuItem>[]) {
       final normalizedKey = _normalizeModuleKey(item.keyName);
       final keyName = moduleAliases[normalizedKey] ?? normalizedKey;
-      if (!moduleByKey.containsKey(keyName) &&
-          !const {'reportes', 'ganancias', 'proximo_pedido', 'roles_personalizados'}.contains(keyName)) {
-        continue;
+      if (keyName.isEmpty) continue;
+      final normalizedItem = item.copyWith(keyName: keyName, path: '/$keyName');
+      final previous = byKey[keyName];
+      if (previous == null) {
+        byKey[keyName] = normalizedItem;
+      } else {
+        final mergedRoles = <String>{...previous.roles, ...normalizedItem.roles}.toList(growable: false);
+        byKey[keyName] = previous.copyWith(roles: mergedRoles);
       }
-      byKey[keyName] = item.copyWith(keyName: keyName, path: '/$keyName');
     }
 
 
-    return _sortByRegistry(byKey.values);
+    final items = byKey.values.toList(growable: false);
+    if (preserveBackendOrder) return items;
+    return _sortByRegistry(items);
   }
 
   List<UserMenuItem> _sortByRegistry(Iterable<UserMenuItem> items) {
@@ -45,6 +51,16 @@ class UserMenuRepository {
       'ganancias': moduleRegistry.length + 2,
       'proximo_pedido': moduleRegistry.length + 3,
       'roles_personalizados': moduleRegistry.length + 4,
+      'soporte_global': moduleRegistry.length + 5,
+      'explorador_datos': moduleRegistry.length + 6,
+      'auditoria_soporte': moduleRegistry.length + 7,
+      'diagnostico_sistema': moduleRegistry.length + 8,
+      'soporte_clientes': moduleRegistry.length + 9,
+      'soporte_accesos': moduleRegistry.length + 10,
+      'soporte_operacion': moduleRegistry.length + 11,
+      'soporte_configuracion': moduleRegistry.length + 12,
+      'soporte_mantenimiento': moduleRegistry.length + 13,
+      'sincronizar_catalogo': moduleRegistry.length + 14,
     };
     final list = items.toList(growable: false);
     list.sort((a, b) => (order[a.keyName] ?? 9999).compareTo(order[b.keyName] ?? 9999));
@@ -63,10 +79,6 @@ class UserMenuRepository {
     return result;
   }
 }
-
-final moduleByKey = <String, dynamic>{
-  for (final module in moduleRegistry) module.key: module,
-};
 
 const moduleAliases = <String, String>{
   'cuentasventa': 'cuentas_venta',
@@ -94,4 +106,24 @@ const moduleAliases = <String, String>{
   'roles_personalizados': 'roles_personalizados',
   'pagocuentaventa': 'pagos',
   'pago_cuenta_venta': 'pagos',
+  'soporteglobal': 'soporte_global',
+  'soporte_global': 'soporte_global',
+  'exploradordatos': 'explorador_datos',
+  'explorador_datos': 'explorador_datos',
+  'auditoriasoporte': 'auditoria_soporte',
+  'auditoria_soporte': 'auditoria_soporte',
+  'diagnosticosistema': 'diagnostico_sistema',
+  'diagnostico_sistema': 'diagnostico_sistema',
+  'soporteclientes': 'soporte_clientes',
+  'soporte_clientes': 'soporte_clientes',
+  'soporteaccesos': 'soporte_accesos',
+  'soporte_accesos': 'soporte_accesos',
+  'soporteoperacion': 'soporte_operacion',
+  'soporte_operacion': 'soporte_operacion',
+  'soporteconfiguracion': 'soporte_configuracion',
+  'soporte_configuracion': 'soporte_configuracion',
+  'soportemantenimiento': 'soporte_mantenimiento',
+  'soporte_mantenimiento': 'soporte_mantenimiento',
+  'sincronizarcatalogo': 'sincronizar_catalogo',
+  'sincronizar_catalogo': 'sincronizar_catalogo',
 };
