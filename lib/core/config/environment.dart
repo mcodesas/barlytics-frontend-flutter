@@ -40,10 +40,17 @@ class Environment {
       return _buildWebLocalBaseUrl();
     }
 
+    // En produccion web la API se publica bajo el mismo dominio (por ejemplo
+    // https://barlytics.com/api/...). Caddy enruta /api/* hacia Spring Boot.
+    // Esto evita CORS y permite mover el dominio sin recompilar Flutter Web.
+    if (kIsWeb && current == EnvironmentType.prod) {
+      return Uri.base.origin;
+    }
+
     return switch (current) {
       EnvironmentType.androidEmulator => 'http://10.0.2.2:8282',
       EnvironmentType.dev => 'https://dev-api.barlytics.local',
-      EnvironmentType.prod => 'https://api.barlytics.local',
+      EnvironmentType.prod => 'https://barlytics.com',
       EnvironmentType.local => 'http://127.0.0.1:8282',
     };
   }
