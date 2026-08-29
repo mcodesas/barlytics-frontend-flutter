@@ -140,6 +140,12 @@ class AppPalette {
   /// Se usa en cierre de caja cuando hay diferencias o notas contables.
   Color get warning => darkBackground ? const Color(0xFFFBBF24) : const Color(0xFFD97706);
 
+  /// Color semántico para información, sincronización y estados en proceso.
+  Color get info => darkBackground ? const Color(0xFF38BDF8) : const Color(0xFF0284C7);
+
+  /// Color semántico para errores, bloqueos y operaciones críticas.
+  Color get danger => darkBackground ? const Color(0xFFFB7185) : const Color(0xFFDC2626);
+
   /// Color principal para botones y acciones funcionales.
   /// Se calcula más oscuro/sólido que el acento para que las acciones no queden
   /// con tonos demasiado claros al cambiar de paleta.

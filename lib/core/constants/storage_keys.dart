@@ -6,4 +6,7 @@ class StorageKeys {
   static const sucursalId = 'sucursal_id';
   static const email = 'email';
   static const roles = 'roles';
+  static const subscriptionStatus = 'subscription_status';
+  static const subscriptionActive = 'subscription_active';
+  static const businessSetupComplete = 'business_setup_complete';
 }

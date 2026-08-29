@@ -100,6 +100,25 @@ class MeseroRemoteDataSource {
     return response.data!;
   }
 
+  Future<MeseroVentaModel> abrirVentaDirecta() async {
+    final response = await _apiClient.post<MeseroVentaModel>(
+      ApiPaths.meseroAbrirVentaDirecta,
+      const <String, dynamic>{},
+      (json) => MeseroVentaModel.fromJson(Map<String, dynamic>.from(json as Map)),
+    );
+    return response.data!;
+  }
+
+  Future<List<MeseroVentaModel>> listarVentasDirectasAbiertas() async {
+    final response = await _apiClient.get<List<MeseroVentaModel>>(
+      ApiPaths.meseroVentasDirectasAbiertas,
+      (json) => (json as List? ?? const [])
+          .map((e) => MeseroVentaModel.fromJson(Map<String, dynamic>.from(e as Map)))
+          .toList(growable: false),
+    );
+    return response.data ?? const <MeseroVentaModel>[];
+  }
+
   Future<MeseroVentaModel> consultarVenta(int ventaId) async {
     final response = await _apiClient.get<MeseroVentaModel>(
       ApiPaths.meseroVenta(ventaId),
@@ -138,6 +157,13 @@ class MeseroRemoteDataSource {
   Future<void> limpiarVentaSinConsumos(int ventaId) async {
     await _apiClient.delete<void>(
       ApiPaths.meseroLimpiarVentaSinConsumos(ventaId),
+      (_) {},
+    );
+  }
+
+  Future<void> cancelarVentaDirecta(int ventaId) async {
+    await _apiClient.delete<void>(
+      ApiPaths.meseroCancelarVentaDirecta(ventaId),
       (_) {},
     );
   }
@@ -205,6 +231,28 @@ class MeseroRemoteDataSource {
       (json) => MeseroVentaModel.fromJson(Map<String, dynamic>.from(json as Map)),
     );
     return response.data!;
+  }
+
+  Future<MeseroVentaModel> eliminarPagoCuenta({
+    required int cuentaId,
+    required int pagoId,
+  }) async {
+    final response = await _apiClient.delete<MeseroVentaModel>(
+      ApiPaths.meseroEliminarPagoCuenta(cuentaId, pagoId),
+      (json) => MeseroVentaModel.fromJson(Map<String, dynamic>.from(json as Map)),
+    );
+    return response.data!;
+  }
+
+  Future<void> cambiarMedioPagoCuenta({
+    required int pagoId,
+    required int medioPagoId,
+  }) async {
+    await _apiClient.put<Map<String, dynamic>>(
+      ApiPaths.pagoCambiarMedioPago(pagoId),
+      {'medioPagoId': medioPagoId},
+      (json) => Map<String, dynamic>.from(json as Map),
+    );
   }
 
   Future<MeseroVentaModel> registrarPagosCuenta({

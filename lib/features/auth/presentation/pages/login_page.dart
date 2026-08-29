@@ -5,8 +5,10 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../../app/theme/app_palette.dart';
+import '../../../../core/auth/google_sign_in_button.dart';
 import '../../../../core/errors/failure.dart';
 import '../../../../core/utils/validators.dart';
+import '../../../../core/widgets/barlytics_brand.dart';
 import '../../../../core/widgets/tech_background.dart';
 import '../providers/auth_provider.dart';
 
@@ -38,7 +40,7 @@ class _LoginPageState extends ConsumerState<LoginPage> {
 
     ref.listen(authControllerProvider, (previous, next) {
       if (next.authenticated) {
-        context.go('/home');
+        context.go(next.subscriptionActive ? '/home' : '/activar-suscripcion');
         return;
       }
 
@@ -79,6 +81,20 @@ class _LoginPageState extends ConsumerState<LoginPage> {
         ),
       ),
     );
+  }
+
+  Future<void> _googleLogin(String idToken) async {
+    setState(() => _loginErrorMessage = null);
+    final ok = await ref.read(authControllerProvider.notifier).googleLogin(idToken);
+    if (!ok && mounted) {
+      final failure = ref.read(authControllerProvider).failure;
+      setState(() {
+        final raw = failure?.message ?? '';
+        _loginErrorMessage = raw.toLowerCase().contains('no encontrado')
+            ? 'Esta cuenta de Google aún no está registrada. Crea tu cuenta para continuar.'
+            : (raw.isEmpty ? 'No fue posible iniciar sesión con Google.' : raw);
+      });
+    }
   }
 
   Future<void> _login() async {
@@ -179,6 +195,19 @@ class _GlassLoginCard extends ConsumerWidget {
                   const SizedBox(height: 22),
                   const _AccessModeStrip(),
                   const SizedBox(height: 18),
+                  _GoogleLoginSection(state: state, loading: loading),
+                  const SizedBox(height: 16),
+                  Row(
+                    children: [
+                      Expanded(child: Divider(color: palette.translucentBorder)),
+                      Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 12),
+                        child: Text('o ingresa con tu correo', style: TextStyle(color: palette.textSecondary, fontSize: 11)),
+                      ),
+                      Expanded(child: Divider(color: palette.translucentBorder)),
+                    ],
+                  ),
+                  const SizedBox(height: 16),
                   _GlassTextField(
                     controller: state._identifier,
                     label: 'Usuario o correo',
@@ -270,6 +299,12 @@ class _GlassLoginCard extends ConsumerWidget {
                     child: const Text('Olvidé mi contraseña'),
                   ),
                   const SizedBox(height: 4),
+                  TextButton.icon(
+                    onPressed: loading ? null : () => context.go('/reset-password'),
+                    icon: const Icon(Icons.pin_rounded),
+                    label: const Text('Activar con código'),
+                  ),
+                  const SizedBox(height: 4),
                   OutlinedButton.icon(
                     onPressed: () => showPaletteSettingsDialog(context),
                     icon: const Icon(Icons.palette_outlined),
@@ -293,74 +328,59 @@ class _GlassLoginCard extends ConsumerWidget {
   }
 }
 
+class _GoogleLoginSection extends ConsumerWidget {
+  const _GoogleLoginSection({required this.state, required this.loading});
+  final _LoginPageState state;
+  final bool loading;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final config = ref.watch(googleAuthConfigProvider);
+    return config.when(
+      loading: () => const SizedBox(height: 46, child: Center(child: CircularProgressIndicator(strokeWidth: 2))),
+      error: (_, __) => const SizedBox.shrink(),
+      data: (google) {
+        if (!google.enabled) return const SizedBox.shrink();
+        return BarLyticsGoogleSignInButton(
+          webClientId: google.webClientId,
+          iosClientId: google.iosClientId,
+          loading: loading,
+          onIdToken: state._googleLogin,
+          onError: (error) {
+            state.setState(() {
+              state._loginErrorMessage = error.toString().replaceFirst('Bad state: ', '').replaceFirst('Exception: ', '');
+            });
+          },
+        );
+      },
+    );
+  }
+}
+
 class _WelcomeHeader extends ConsumerWidget {
   const _WelcomeHeader();
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final palette = ref.watch(selectedAppPaletteProvider);
-    const darkInk = Color(0xFF06111F);
 
-    return Row(
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Container(
-          width: 70,
-          height: 70,
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(24),
-            gradient: LinearGradient(
-              colors: [palette.primary, palette.secondary, palette.accent],
-            ),
-            boxShadow: [
-              BoxShadow(
-                color: palette.primary.withOpacity(0.32),
-                blurRadius: 26,
-                offset: const Offset(0, 12),
-              ),
-            ],
-          ),
-          child: Stack(
-            alignment: Alignment.center,
-            children: [
-              const Icon(Icons.bar_chart_rounded, color: darkInk, size: 31),
-              Positioned(
-                right: 8,
-                bottom: 7,
-                child: Container(
-                  padding: const EdgeInsets.all(4),
-                  decoration: const BoxDecoration(
-                    color: darkInk,
-                    shape: BoxShape.circle,
-                  ),
-                  child: Icon(Icons.local_bar_rounded, size: 13, color: palette.accent),
-                ),
-              ),
-            ],
-          ),
+        const BarLyticsBrandLockup(
+          width: 270,
+          height: 78,
+          darkBackground: true,
+          showTagline: false,
+          alignment: Alignment.centerLeft,
         ),
-        const SizedBox(width: 14),
-        Expanded(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                'BarLytics',
-                style: TextStyle(
-                  color: palette.textPrimary,
-                  fontSize: 29,
-                  fontWeight: FontWeight.w900,
-                  letterSpacing: -0.5,
-                ),
-              ),
-              const SizedBox(height: 4),
-              Text(
-                'Tecnología para administrar tu bar en tiempo real',
-                style: TextStyle(
-                  color: palette.textPrimary.withOpacity(0.78),
-                  height: 1.35,
-                ),
-              ),
-            ],
+        const SizedBox(height: 10),
+        Text(
+          'Tecnología para administrar tu bar en tiempo real',
+          style: TextStyle(
+            color: palette.textPrimary.withOpacity(0.78),
+            height: 1.35,
+            fontWeight: FontWeight.w600,
           ),
         ),
       ],
