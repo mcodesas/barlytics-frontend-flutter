@@ -7,7 +7,11 @@ COPY . .
 
 FROM base AS test
 RUN flutter analyze --no-fatal-infos --no-fatal-warnings
-RUN flutter test
+RUN if [ -d "test" ]; then \
+      flutter test; \
+    else \
+      echo "No existen pruebas Flutter; se omite flutter test"; \
+    fi
 
 FROM base AS build
 ARG APP_ENV=prod
