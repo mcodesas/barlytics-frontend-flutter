@@ -77,7 +77,7 @@ jobs:
           chmod 700 ~/.ssh
           chmod 600 ~/.ssh/id_ed25519 ~/.ssh/known_hosts
 
-      - name: Desplegar frontend en VPS
+      - name: Desplegar y verificar frontend en VPS
         env:
           VPS_HOST: ${{ secrets.VPS_HOST }}
           VPS_USER: ${{ secrets.VPS_USER }}
@@ -85,4 +85,51 @@ jobs:
           ssh -o BatchMode=yes -o IdentitiesOnly=yes \
             -i ~/.ssh/id_ed25519 \
             "$VPS_USER@$VPS_HOST" \
-            "cd /opt/barlytics && ./deploy.sh frontend sha-${GITHUB_SHA}"
+            "bash -s -- sha-${GITHUB_SHA}" <<'REMOTE'
+          set -euo pipefail
+          cd /opt/barlytics
+
+          TAG="$1"
+          COMPOSE_FILE="docker-compose.prod.yml"
+
+          ./deploy.sh frontend "$TAG"
+
+          container_id="$(docker compose -f "$COMPOSE_FILE" ps -q frontend)"
+          if [ -z "$container_id" ]; then
+            echo "ERROR: el contenedor frontend no fue creado."
+            docker compose -f "$COMPOSE_FILE" ps
+            exit 1
+          fi
+
+          echo "Esperando que el frontend quede healthy..."
+          for intento in $(seq 1 30); do
+            status="$(docker inspect -f '{{if .State.Health}}{{.State.Health.Status}}{{else}}{{.State.Status}}{{end}}' "$container_id" 2>/dev/null || true)"
+            echo "Intento ${intento}/30: estado=${status:-desconocido}"
+
+            if [ "$status" = "healthy" ]; then
+              echo "Validando HTTP interno del frontend..."
+              if docker exec "$container_id" wget -q -O /dev/null http://127.0.0.1/healthz; then
+                echo "Frontend desplegado correctamente, healthy y respondiendo HTTP."
+                docker compose -f "$COMPOSE_FILE" ps frontend
+                exit 0
+              fi
+
+              echo "ERROR: el contenedor esta healthy pero /healthz no responde correctamente."
+              docker compose -f "$COMPOSE_FILE" logs --tail=200 frontend || true
+              exit 1
+            fi
+
+            if [ "$status" = "unhealthy" ] || [ "$status" = "exited" ] || [ "$status" = "dead" ]; then
+              echo "ERROR: el frontend termino en estado $status."
+              docker compose -f "$COMPOSE_FILE" logs --tail=200 frontend || true
+              exit 1
+            fi
+
+            sleep 5
+          done
+
+          echo "ERROR: el frontend no quedo healthy dentro de 150 segundos."
+          docker compose -f "$COMPOSE_FILE" ps frontend || true
+          docker compose -f "$COMPOSE_FILE" logs --tail=200 frontend || true
+          exit 1
+          REMOTE
