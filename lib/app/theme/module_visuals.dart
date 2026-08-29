@@ -19,6 +19,26 @@ class ModuleVisual {
 class ModuleVisuals {
   static ModuleVisual byKey(String key) {
     switch (key) {
+      case 'soporte_global':
+        return const ModuleVisual(icon: Icons.help_outline_rounded, color: Color(0xFF2563EB), description: 'Centro global para atender cualquier cliente');
+      case 'soporte_clientes':
+        return const ModuleVisual(icon: Icons.business_center_rounded, color: Color(0xFF2563EB), description: 'Alta y soporte guiado de clientes y sucursales');
+      case 'soporte_accesos':
+        return const ModuleVisual(icon: Icons.security_rounded, color: Color(0xFF7C3AED), description: 'Usuarios, roles, permisos y recuperación de accesos');
+      case 'soporte_operacion':
+        return const ModuleVisual(icon: Icons.analytics_rounded, color: Color(0xFF0F766E), description: 'Ventas, pagos, inventario y caja');
+      case 'soporte_configuracion':
+        return const ModuleVisual(icon: Icons.tune_rounded, color: Color(0xFFB45309), description: 'Parámetros, catálogos y configuración técnica');
+      case 'soporte_mantenimiento':
+        return const ModuleVisual(icon: Icons.sync_rounded, color: Color(0xFFBE123C), description: 'Integridad, auditoría y mantenimiento seguro');
+      case 'explorador_datos':
+        return const ModuleVisual(icon: Icons.storage_rounded, color: Color(0xFF7C3AED), description: 'Todas las tablas y registros con auditoría');
+      case 'auditoria_soporte':
+        return const ModuleVisual(icon: Icons.history_rounded, color: Color(0xFF0F766E), description: 'Historial de cambios administrativos');
+      case 'diagnostico_sistema':
+        return const ModuleVisual(icon: Icons.monitor_heart_rounded, color: Color(0xFFDC2626), description: 'Integridad, permisos y secuencias');
+      case 'sincronizar_catalogo':
+        return const ModuleVisual(icon: Icons.sync_alt_rounded, color: Color(0xFF0F766E), description: 'Copia productos y costos entre empresas o sucursales sin inventario');
       case 'usuarios':
         return const ModuleVisual(icon: Icons.people_alt_rounded, color: AppColors.secondary, description: 'Personas, accesos y datos de contacto');
       case 'roles':
@@ -57,6 +77,8 @@ class ModuleVisuals {
         return const ModuleVisual(icon: Icons.category_rounded, color: Color(0xFF9333EA), description: 'Categorías de productos');
       case 'tipos_movimiento':
         return const ModuleVisual(icon: Icons.sync_alt_rounded, color: Color(0xFF0D9488), description: 'Define cuáles movimientos aumentan, disminuyen o ajustan inventario');
+      case 'planes_suscripcion':
+        return const ModuleVisual(icon: Icons.workspace_premium_rounded, color: Color(0xFF06B6D4), description: 'Planes, precios, promociones y Mercado Pago');
       case 'parametros':
         return const ModuleVisual(icon: Icons.tune_rounded, color: Color(0xFF64748B), description: 'Configuración funcional del sistema');
       case 'paises':

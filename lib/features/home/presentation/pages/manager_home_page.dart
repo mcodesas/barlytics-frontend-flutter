@@ -17,6 +17,8 @@ import '../../../../core/widgets/app_error_view.dart';
 import '../../../../core/widgets/app_loader.dart';
 import '../../../../core/widgets/tech_background.dart';
 import '../../../navigation/data/models/user_menu_item.dart';
+import '../../../business_setup/data/models/business_setup_models.dart';
+import '../../../business_setup/presentation/providers/business_setup_provider.dart';
 
 class ManagerHomePage extends ConsumerStatefulWidget {
   const ManagerHomePage({
@@ -46,6 +48,7 @@ class _ManagerHomePageState extends ConsumerState<ManagerHomePage> {
   String? _error;
   String? _liveError;
   DateTime? _updatedAt;
+  bool _hideTeamSetupAlert = false;
 
   @override
   void initState() {
@@ -65,6 +68,9 @@ class _ManagerHomePageState extends ConsumerState<ManagerHomePage> {
   @override
   Widget build(BuildContext context) {
     final palette = ref.watch(selectedAppPaletteProvider);
+    final setupStatus = ref.watch(businessSetupStatusProvider).asData?.value;
+    final teamStep = _findSetupStep(setupStatus, 'TEAM');
+    final showTeamSetupAlert = !_hideTeamSetupAlert && teamStep != null && !teamStep.complete;
     final branchState = ref.watch(branchScopeProvider);
     final branchId = branchState.activeBranchId;
 
@@ -147,6 +153,22 @@ class _ManagerHomePageState extends ConsumerState<ManagerHomePage> {
                     ),
                   ),
                 ),
+                if (showTeamSetupAlert)
+                  SliverToBoxAdapter(
+                    child: Center(
+                      child: ConstrainedBox(
+                        constraints: const BoxConstraints(maxWidth: 1440),
+                        child: Padding(
+                          padding: const EdgeInsets.fromLTRB(16, 6, 16, 0),
+                          child: _ManagerSetupRecommendationAlert(
+                            palette: palette,
+                            onOpen: () => context.go('/usuarios'),
+                            onDismiss: () => setState(() => _hideTeamSetupAlert = true),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
                 SliverToBoxAdapter(
                   child: Center(
                     child: ConstrainedBox(
@@ -1953,3 +1975,102 @@ String _managerCapitalize(String value) {
   if (value.isEmpty) return value;
   return '${value[0].toUpperCase()}${value.substring(1)}';
 }
+
+BusinessSetupStepModel? _findSetupStep(BusinessSetupStatusModel? status, String code) {
+  if (status == null) return null;
+  for (final step in status.steps) {
+    if (step.code.trim().toUpperCase() == code.trim().toUpperCase()) return step;
+  }
+  return null;
+}
+
+class _ManagerSetupRecommendationAlert extends StatelessWidget {
+  const _ManagerSetupRecommendationAlert({
+    required this.palette,
+    required this.onOpen,
+    required this.onDismiss,
+  });
+
+  final AppPalette palette;
+  final VoidCallback onOpen;
+  final VoidCallback onDismiss;
+
+  @override
+  Widget build(BuildContext context) {
+    final compact = MediaQuery.sizeOf(context).width < 720;
+    final content = Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Container(
+          width: 42,
+          height: 42,
+          decoration: BoxDecoration(
+            color: palette.accent.withOpacity(.12),
+            borderRadius: BorderRadius.circular(13),
+          ),
+          child: Icon(Icons.group_add_outlined, color: palette.accent, size: 22),
+        ),
+        const SizedBox(width: 12),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                '¿Vas a trabajar con más personas?',
+                style: TextStyle(
+                  color: palette.textPrimary,
+                  fontWeight: FontWeight.w900,
+                  fontSize: 14.5,
+                ),
+              ),
+              const SizedBox(height: 4),
+              Text(
+                'Puedes crear usuarios y asignarles rol y sucursal. No bloquea el uso de BarLytics, pero es recomendable antes de entregar accesos al equipo.',
+                style: TextStyle(
+                  color: palette.textSecondary,
+                  height: 1.4,
+                  fontSize: 12.5,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+
+    final actions = Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        TextButton(
+          onPressed: onDismiss,
+          child: const Text('Más tarde'),
+        ),
+        const SizedBox(width: 6),
+        FilledButton.icon(
+          onPressed: onOpen,
+          icon: const Icon(Icons.arrow_forward_rounded, size: 17),
+          label: const Text('Configurar usuarios'),
+        ),
+      ],
+    );
+
+    return Container(
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: palette.surface.withOpacity(.88),
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: palette.accent.withOpacity(.18)),
+      ),
+      child: compact
+          ? Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [content, const SizedBox(height: 10), Align(alignment: Alignment.centerRight, child: actions)],
+            )
+          : Row(
+              children: [Expanded(child: content), const SizedBox(width: 14), actions],
+            ),
+    );
+  }
+}
+

@@ -370,7 +370,7 @@ class _PagosListPageState extends ConsumerState<PagosListPage> {
               _page = 0;
             }),
             decoration: InputDecoration(
-              hintText: 'Buscar mesa, cuenta, responsable o referencia',
+              hintText: 'Buscar venta directa, mesa, cuenta, responsable o referencia',
               prefixIcon: const Icon(Icons.search_rounded),
               suffixIcon: _search.isEmpty
                   ? null
@@ -481,7 +481,7 @@ class _PagosListPageState extends ConsumerState<PagosListPage> {
               onSelectChanged: (_) => _showPaymentDetail(item),
               cells: [
                 DataCell(Text(_formatDate(item.date))),
-                DataCell(Column(mainAxisAlignment: MainAxisAlignment.center, crossAxisAlignment: CrossAxisAlignment.start, children: [Text('Mesa ${item.tableNumber ?? '-'}', style: const TextStyle(fontWeight: FontWeight.w900)), Text('Cuenta ${item.accountNumber ?? '-'} · Venta ${item.saleId ?? '-'}', style: TextStyle(color: palette.textSecondary, fontSize: 11))])),
+                DataCell(Column(mainAxisAlignment: MainAxisAlignment.center, crossAxisAlignment: CrossAxisAlignment.start, children: [Text(item.originLabel, style: const TextStyle(fontWeight: FontWeight.w900)), Text('Cuenta ${item.accountNumber ?? '-'} · Venta ${item.saleId ?? '-'}', style: TextStyle(color: palette.textSecondary, fontSize: 11))])),
                 DataCell(Row(mainAxisSize: MainAxisSize.min, children: [Icon(_methodIcon(item.methodName), size: 17, color: palette.secondary), const SizedBox(width: 6), Text(item.methodName)])),
                 DataCell(Text(_currency.format(item.amount), style: const TextStyle(fontWeight: FontWeight.w900))),
                 DataCell(Text(item.valueReceived == null ? '-' : _currency.format(item.valueReceived))),
@@ -517,7 +517,7 @@ class _PagosListPageState extends ConsumerState<PagosListPage> {
                 ],
               ),
               const SizedBox(height: 10),
-              Row(children: [Expanded(child: _miniInfo('Mesa', '${item.tableNumber ?? '-'}', palette)), Expanded(child: _miniInfo('Cuenta', '${item.accountNumber ?? '-'}', palette)), Expanded(child: _miniInfo('Saldo', _currency.format(item.accountBalance), palette))]),
+              Row(children: [Expanded(child: _miniInfo('Origen', item.originLabel, palette)), Expanded(child: _miniInfo('Cuenta', '${item.accountNumber ?? '-'}', palette)), Expanded(child: _miniInfo('Saldo', _currency.format(item.accountBalance), palette))]),
             ],
           ),
         ),
@@ -618,7 +618,7 @@ class _PagosListPageState extends ConsumerState<PagosListPage> {
                 _detailAmount(payment, palette),
                 const SizedBox(height: 10),
                 _detailSection('Operación', Icons.table_restaurant_rounded, palette, [
-                  _DetailItem('Mesa', '${payment.tableNumber ?? '-'}'),
+                  _DetailItem('Origen', payment.originLabel),
                   _DetailItem('Cuenta', '${payment.accountNumber ?? '-'}'),
                   _DetailItem('Venta', '#${payment.saleId ?? '-'}'),
                   _DetailItem('Estado venta', payment.saleState.isEmpty ? '-' : payment.saleState),
@@ -639,12 +639,135 @@ class _PagosListPageState extends ConsumerState<PagosListPage> {
                   _DetailItem('Saldo pendiente', _currency.format(payment.accountBalance)),
                   _DetailItem('Propina incluida', _currency.format(payment.accountTip)),
                 ]),
+                if (payment.saleState.trim().toUpperCase() == 'FINALIZADA' && payment.id != null) ...[
+                  const SizedBox(height: 14),
+                  FilledButton.icon(
+                    onPressed: () {
+                      Navigator.pop(sheetContext);
+                      Future.microtask(() => _showCorrectPaymentMethod(payment));
+                    },
+                    icon: const Icon(Icons.edit_rounded),
+                    label: const Text('Corregir medio de pago'),
+                  ),
+                  const SizedBox(height: 6),
+                  Text(
+                    'Solo cambia el medio utilizado. El valor, la cuenta, los productos y la propina permanecen iguales.',
+                    textAlign: TextAlign.center,
+                    style: TextStyle(color: palette.textSecondary, fontSize: 11, fontWeight: FontWeight.w600),
+                  ),
+                ],
               ],
             ),
           ),
         );
       },
     );
+  }
+
+  Future<void> _showCorrectPaymentMethod(_PaymentAdmin payment) async {
+    final paymentId = payment.id;
+    if (paymentId == null) return;
+    final methods = _methods.where((method) => method.id != null && method.id != payment.methodId).toList(growable: false);
+    if (methods.isEmpty) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('No hay otro medio de pago activo disponible para realizar la corrección.')),
+        );
+      }
+      return;
+    }
+
+    final selected = await showModalBottomSheet<_PaymentMethod>(
+      context: context,
+      useSafeArea: true,
+      isScrollControlled: true,
+      constraints: const BoxConstraints(maxWidth: 620),
+      builder: (sheetContext) {
+        final palette = ref.read(selectedAppPaletteProvider);
+        return Padding(
+          padding: const EdgeInsets.fromLTRB(16, 8, 16, 20),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Row(
+                children: [
+                  Container(
+                    width: 40,
+                    height: 40,
+                    decoration: BoxDecoration(color: palette.secondary.withOpacity(0.12), borderRadius: BorderRadius.circular(12)),
+                    child: Icon(Icons.swap_horiz_rounded, color: palette.secondary),
+                  ),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text('Corregir medio de pago', style: TextStyle(color: palette.textPrimary, fontWeight: FontWeight.w900, fontSize: 17)),
+                        Text(
+                          'Actual: ${payment.methodName} · ${_currency.format(payment.amount)}',
+                          style: TextStyle(color: palette.textSecondary, fontWeight: FontWeight.w600, fontSize: 12),
+                        ),
+                      ],
+                    ),
+                  ),
+                  IconButton(onPressed: () => Navigator.pop(sheetContext), icon: const Icon(Icons.close_rounded)),
+                ],
+              ),
+              const SizedBox(height: 12),
+              ConstrainedBox(
+                constraints: const BoxConstraints(maxHeight: 360),
+                child: SingleChildScrollView(
+                  child: Column(
+                    children: methods
+                        .map(
+                          (method) => Padding(
+                            padding: const EdgeInsets.only(bottom: 8),
+                            child: Material(
+                              color: palette.background.withOpacity(palette.darkBackground ? 0.50 : 0.70),
+                              borderRadius: BorderRadius.circular(14),
+                              child: ListTile(
+                                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                                leading: Icon(_methodIcon(method.name), color: palette.secondary),
+                                title: Text(method.name, style: TextStyle(color: palette.textPrimary, fontWeight: FontWeight.w900)),
+                                trailing: const Icon(Icons.chevron_right_rounded),
+                                onTap: () => Navigator.pop(sheetContext, method),
+                              ),
+                            ),
+                          ),
+                        )
+                        .toList(growable: false),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 8),
+              Text(
+                'La corrección queda auditada. Si esta venta ya fue incluida en un cierre de caja, el sistema no permitirá modificarla.',
+                textAlign: TextAlign.center,
+                style: TextStyle(color: palette.textSecondary, fontSize: 11, fontWeight: FontWeight.w600),
+              ),
+            ],
+          ),
+        );
+      },
+    );
+    if (selected?.id == null || !mounted) return;
+
+    try {
+      await ref.read(apiClientProvider).put<Map<String, dynamic>>(
+            ApiPaths.pagoCambiarMedioPago(paymentId),
+            {'medioPagoId': selected!.id},
+            (json) => Map<String, dynamic>.from(json as Map),
+          );
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Medio de pago cambiado de ${payment.methodName} a ${selected.name}.')),
+      );
+      await _loadData();
+    } catch (error) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(ErrorMapper.map(error).message)));
+    }
   }
 
   Widget _detailAmount(_PaymentAdmin payment, AppPalette palette) {
@@ -816,7 +939,7 @@ class _PaymentFormSheetState extends State<_PaymentFormSheet> {
                 value: _accountId,
                 isExpanded: true,
                 decoration: const InputDecoration(labelText: 'Cuenta pendiente', prefixIcon: Icon(Icons.table_restaurant_rounded)),
-                items: widget.accounts.map((item) => DropdownMenuItem<int>(value: item.id, child: Text('Mesa ${item.tableNumber} · Cuenta ${item.accountNumber} · ${widget.currency.format(item.balance)}', overflow: TextOverflow.ellipsis))).toList(growable: false),
+                items: widget.accounts.map((item) => DropdownMenuItem<int>(value: item.id, child: Text('${item.originLabel} · Cuenta ${item.accountNumber} · ${widget.currency.format(item.balance)}', overflow: TextOverflow.ellipsis))).toList(growable: false),
                 onChanged: _saving
                     ? null
                     : (value) {
@@ -1095,7 +1218,7 @@ class _PeriodSheetState extends State<_PeriodSheet> {
 }
 
 class _PaymentAdmin {
-  const _PaymentAdmin({required this.id, required this.accountId, required this.accountNumber, required this.accountDescription, required this.saleId, required this.saleState, required this.tableNumber, required this.methodId, required this.methodName, required this.amount, required this.valueReceived, required this.change, required this.observation, required this.registeredBy, required this.date, required this.accountTotal, required this.accountTip, required this.accountPaid, required this.accountBalance});
+  const _PaymentAdmin({required this.id, required this.accountId, required this.accountNumber, required this.accountDescription, required this.saleId, required this.saleState, required this.saleType, required this.tableNumber, required this.methodId, required this.methodName, required this.amount, required this.valueReceived, required this.change, required this.observation, required this.registeredBy, required this.date, required this.accountTotal, required this.accountTip, required this.accountPaid, required this.accountBalance});
 
   final int? id;
   final int? accountId;
@@ -1103,6 +1226,7 @@ class _PaymentAdmin {
   final String accountDescription;
   final int? saleId;
   final String saleState;
+  final String saleType;
   final int? tableNumber;
   final int? methodId;
   final String methodName;
@@ -1122,6 +1246,9 @@ class _PaymentAdmin {
     return value.contains('EFECTIVO') || value.contains('CASH');
   }
 
+  bool get isDirectSale => saleType.toUpperCase() == 'DIRECTA' || tableNumber == null;
+  String get originLabel => isDirectSale ? 'Venta directa' : 'Mesa ${tableNumber ?? '-'}';
+
   factory _PaymentAdmin.fromJson(Map<String, dynamic> json) => _PaymentAdmin(
         id: (json['pacvId'] as num?)?.toInt(),
         accountId: (json['cuveId'] as num?)?.toInt(),
@@ -1129,6 +1256,7 @@ class _PaymentAdmin {
         accountDescription: json['cuentaDescripcion']?.toString() ?? '',
         saleId: (json['ventId'] as num?)?.toInt(),
         saleState: json['ventaEstado']?.toString() ?? '',
+        saleType: json['tipoVenta']?.toString() ?? '',
         tableNumber: (json['mesaNumero'] as num?)?.toInt(),
         methodId: (json['mepaId'] as num?)?.toInt(),
         methodName: json['medioPagoNombre']?.toString() ?? 'Medio de pago',
@@ -1146,9 +1274,10 @@ class _PaymentAdmin {
 }
 
 class _PendingAccount {
-  const _PendingAccount({required this.id, required this.saleId, required this.tableNumber, required this.accountNumber, required this.description, required this.total, required this.paid, required this.balance, required this.responsible, required this.saleDate});
+  const _PendingAccount({required this.id, required this.saleId, required this.saleType, required this.tableNumber, required this.accountNumber, required this.description, required this.total, required this.paid, required this.balance, required this.responsible, required this.saleDate});
   final int? id;
   final int? saleId;
+  final String saleType;
   final int? tableNumber;
   final int? accountNumber;
   final String description;
@@ -1158,9 +1287,13 @@ class _PendingAccount {
   final String responsible;
   final DateTime? saleDate;
 
+  bool get isDirectSale => saleType.toUpperCase() == 'DIRECTA' || tableNumber == null;
+  String get originLabel => isDirectSale ? 'Venta directa' : 'Mesa ${tableNumber ?? '-'}';
+
   factory _PendingAccount.fromJson(Map<String, dynamic> json) => _PendingAccount(
         id: (json['cuveId'] as num?)?.toInt(),
         saleId: (json['ventId'] as num?)?.toInt(),
+        saleType: json['tipoVenta']?.toString() ?? '',
         tableNumber: (json['mesaNumero'] as num?)?.toInt(),
         accountNumber: (json['cuentaNumero'] as num?)?.toInt(),
         description: json['cuentaDescripcion']?.toString() ?? '',

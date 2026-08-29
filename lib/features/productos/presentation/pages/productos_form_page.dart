@@ -11,6 +11,7 @@ import '../../../../core/constants/storage_keys.dart';
 import '../../../../core/providers/core_providers.dart';
 import '../../../../core/widgets/app_loader.dart';
 import '../../../../core/widgets/tech_background.dart';
+import '../../../business_setup/presentation/providers/business_setup_provider.dart';
 import '../../../inventario/data/models/inventario_response_model.dart';
 import '../../../inventario/presentation/providers/inventario_provider.dart';
 import '../../../marcas/data/models/marcas_response_model.dart';
@@ -208,12 +209,15 @@ class _ProductosFormPageState extends ConsumerState<ProductosFormPage> {
                   ),
                 ),
                 SliverPadding(
-                  padding: const EdgeInsets.fromLTRB(16, 16, 16, 110),
+                  padding: const EdgeInsets.fromLTRB(12, 12, 12, 90),
                   sliver: SliverToBoxAdapter(
-                    child: Column(
-                      children: [
-                        LayoutBuilder(
-                          builder: (context, constraints) {
+                    child: Center(
+                      child: ConstrainedBox(
+                        constraints: const BoxConstraints(maxWidth: 1120),
+                        child: Column(
+                          children: [
+                            LayoutBuilder(
+                              builder: (context, constraints) {
                             final form = _StepShell(
                               palette: palette,
                               title: _titleForStep(_currentStep),
@@ -259,32 +263,34 @@ class _ProductosFormPageState extends ConsumerState<ProductosFormPage> {
                               currentStep: _currentStep,
                             );
 
-                            if (constraints.maxWidth >= 1120) {
-                              return Row(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Expanded(flex: 7, child: form),
-                                  const SizedBox(width: 16),
-                                  SizedBox(width: 330, child: overview),
-                                ],
-                              );
-                            }
-                            return Column(
-                              crossAxisAlignment: CrossAxisAlignment.stretch,
-                              children: [overview, const SizedBox(height: 14), form],
-                            );
-                          },
+                                if (constraints.maxWidth >= 980) {
+                                  return Row(
+                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    children: [
+                                      Expanded(child: form),
+                                      const SizedBox(width: 9),
+                                      SizedBox(width: 270, child: overview),
+                                    ],
+                                  );
+                                }
+                                // En tablet/móvil la vista previa completa ocupaba demasiado
+                                // espacio antes de llegar a los campos. El formulario queda
+                                // como protagonista y la confirmación mantiene el resumen.
+                                return form;
+                              },
+                            ),
+                            const SizedBox(height: 10),
+                            _NavigationButtons(
+                              palette: palette,
+                              saving: _saving,
+                              currentStep: _currentStep,
+                              onPrevious: _currentStep == 0 ? null : () => setState(() => _currentStep--),
+                              onNext: _goNext,
+                              onSave: () => _confirmAndSave(context, palette),
+                            ),
+                          ],
                         ),
-                        const SizedBox(height: 14),
-                        _NavigationButtons(
-                          palette: palette,
-                          saving: _saving,
-                          currentStep: _currentStep,
-                          onPrevious: _currentStep == 0 ? null : () => setState(() => _currentStep--),
-                          onNext: _goNext,
-                          onSave: () => _confirmAndSave(context, palette),
-                        ),
-                      ],
+                      ),
                     ),
                   ),
                 ),
@@ -306,9 +312,9 @@ class _ProductosFormPageState extends ConsumerState<ProductosFormPage> {
       key: _generalFormKey,
       child: LayoutBuilder(
         builder: (context, constraints) {
-          final wide = constraints.maxWidth >= 820;
+          final wide = constraints.maxWidth >= 760;
           final imagePanel = SizedBox(
-            width: wide ? 280 : double.infinity,
+            width: wide ? 210 : double.infinity,
             child: _ProductImagePicker(
               palette: palette,
               controller: _fotoController,
@@ -332,7 +338,7 @@ class _ProductosFormPageState extends ConsumerState<ProductosFormPage> {
                 label: 'Descripción',
                 icon: Icons.description_rounded,
                 validator: _required,
-                maxLines: 3,
+                maxLines: 2,
                 onChanged: (_) => setState(() {}),
               ),
               const SizedBox(height: 12),
@@ -381,12 +387,12 @@ class _ProductosFormPageState extends ConsumerState<ProductosFormPage> {
           if (!wide) {
             return Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [imagePanel, const SizedBox(height: 16), fields],
+              children: [imagePanel, const SizedBox(height: 12), fields],
             );
           }
           return Row(
             crossAxisAlignment: CrossAxisAlignment.start,
-            children: [imagePanel, const SizedBox(width: 18), Expanded(child: fields)],
+            children: [imagePanel, const SizedBox(width: 14), Expanded(child: fields)],
           );
         },
       ),
@@ -733,12 +739,12 @@ class _ProductosFormPageState extends ConsumerState<ProductosFormPage> {
             const SizedBox(height: 12),
             Container(
               width: double.infinity,
-              padding: const EdgeInsets.all(14),
+              padding: const EdgeInsets.all(12),
               decoration: BoxDecoration(
                 color: palette.darkBackground
                     ? Colors.white.withOpacity(0.04)
                     : palette.background.withOpacity(0.65),
-                borderRadius: BorderRadius.circular(18),
+                borderRadius: BorderRadius.circular(14),
                 border: Border.all(color: palette.cardBorder),
               ),
               child: Row(
@@ -791,7 +797,7 @@ class _ProductosFormPageState extends ConsumerState<ProductosFormPage> {
       children: [
         Container(
           width: double.infinity,
-          padding: const EdgeInsets.all(14),
+          padding: const EdgeInsets.all(10),
           decoration: BoxDecoration(
             color: palette.darkBackground
                 ? Colors.white.withOpacity(0.04)
@@ -916,7 +922,10 @@ class _ProductosFormPageState extends ConsumerState<ProductosFormPage> {
 
   void _goNext() {
     if (_currentStep == 0 && !_validateGeneral()) return;
-    if (_currentStep == 1 && !(_priceFormKey.currentState?.validate() ?? false)) return;
+    if (_currentStep == 1) {
+      if (!(_priceFormKey.currentState?.validate() ?? false)) return;
+      if (!_validatePriceRelationship()) return;
+    }
     if (_currentStep == 2 && !(_inventoryFormKey.currentState?.validate() ?? false)) return;
     setState(() => _currentStep = math.min(3, _currentStep + 1));
   }
@@ -939,12 +948,39 @@ class _ProductosFormPageState extends ConsumerState<ProductosFormPage> {
     return true;
   }
 
+  bool _validatePriceRelationship() {
+    final purchasePrice = _parseDouble(_valorCompraController.text);
+    final salePrice = _parseDouble(_valorVentaController.text);
+    if (purchasePrice == null || salePrice == null) return false;
+
+    final purchaseQuantity = _compraPorCantidad
+        ? _parseDouble(_cantidadCompraController.text)
+        : null;
+    if (_compraPorCantidad &&
+        (purchaseQuantity == null || purchaseQuantity <= 0)) {
+      _showError('Indica cuántas unidades contiene la presentación de compra.');
+      return false;
+    }
+
+    final unitPurchasePrice = _compraPorCantidad
+        ? purchasePrice / purchaseQuantity!
+        : purchasePrice;
+    if (salePrice < unitPurchasePrice) {
+      _showError(
+        'El precio de venta no puede ser menor que el costo unitario de compra.',
+      );
+      return false;
+    }
+    return true;
+  }
+
   Future<void> _confirmAndSave(BuildContext context, AppPalette palette) async {
     if (!_validateGeneral()) {
       setState(() => _currentStep = 0);
       return;
     }
-    if (!(_priceFormKey.currentState?.validate() ?? false)) {
+    if (!(_priceFormKey.currentState?.validate() ?? false) ||
+        !_validatePriceRelationship()) {
       setState(() => _currentStep = 1);
       return;
     }
@@ -1047,6 +1083,13 @@ class _ProductosFormPageState extends ConsumerState<ProductosFormPage> {
         ref.read(preciosProvider.notifier).load(),
         ref.read(inventarioProvider.notifier).load(),
       ]);
+
+      // Si el producto se está registrando dentro de la puesta en marcha,
+      // dejamos invalidado el estado del asistente para que al regresar se
+      // reevalúe contra los datos recién guardados.
+      if (ref.read(businessSetupGuidedModeProvider)) {
+        ref.invalidate(businessSetupStatusProvider);
+      }
 
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
@@ -1263,7 +1306,7 @@ class _ProductDraftOverview extends StatelessWidget {
 
     return Container(
       width: double.infinity,
-      padding: const EdgeInsets.all(14),
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
       decoration: BoxDecoration(
         gradient: LinearGradient(
           colors: [
@@ -1273,7 +1316,7 @@ class _ProductDraftOverview extends StatelessWidget {
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
         ),
-        borderRadius: BorderRadius.circular(26),
+        borderRadius: BorderRadius.circular(20),
         border: Border.all(color: palette.secondary.withOpacity(0.18)),
         boxShadow: [BoxShadow(color: palette.cardShadow, blurRadius: 20, offset: const Offset(0, 10))],
       ),
@@ -1283,8 +1326,8 @@ class _ProductDraftOverview extends StatelessWidget {
           Row(
             children: [
               Container(
-                width: 38,
-                height: 38,
+                width: 34,
+                height: 34,
                 decoration: BoxDecoration(
                   color: palette.secondary.withOpacity(0.14),
                   borderRadius: BorderRadius.circular(13),
@@ -1296,7 +1339,7 @@ class _ProductDraftOverview extends StatelessWidget {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text('Vista previa', style: TextStyle(color: palette.textPrimary, fontWeight: FontWeight.w900, fontSize: 16)),
+                    Text('Vista previa', style: TextStyle(color: palette.textPrimary, fontWeight: FontWeight.w900, fontSize: 14)),
                     Text('Paso ${currentStep + 1} de 4', style: TextStyle(color: palette.textSecondary, fontWeight: FontWeight.w700, fontSize: 12)),
                   ],
                 ),
@@ -1306,14 +1349,14 @@ class _ProductDraftOverview extends StatelessWidget {
           const SizedBox(height: 12),
           ClipRRect(
             borderRadius: BorderRadius.circular(20),
-            child: SizedBox(height: 190, child: _ImagePreview(value: image, palette: palette)),
+            child: SizedBox(height: 130, child: _ImagePreview(value: image, palette: palette, height: 130)),
           ),
           const SizedBox(height: 12),
           Text(
             productName,
             maxLines: 2,
             overflow: TextOverflow.ellipsis,
-            style: TextStyle(color: palette.textPrimary, fontWeight: FontWeight.w900, fontSize: 19),
+            style: TextStyle(color: palette.textPrimary, fontWeight: FontWeight.w900, fontSize: 16),
           ),
           const SizedBox(height: 4),
           Text(
@@ -1325,7 +1368,7 @@ class _ProductDraftOverview extends StatelessWidget {
           const SizedBox(height: 7),
           Text(
             productDescription,
-            maxLines: 3,
+            maxLines: 2,
             overflow: TextOverflow.ellipsis,
             style: TextStyle(color: palette.textSecondary, fontWeight: FontWeight.w600, height: 1.35),
           ),
@@ -1436,7 +1479,7 @@ class _WizardHeader extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return TechBackground(
-      padding: const EdgeInsets.fromLTRB(20, 18, 20, 20),
+      padding: const EdgeInsets.fromLTRB(14, 10, 14, 12),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -1446,11 +1489,11 @@ class _WizardHeader extends StatelessWidget {
                 onPressed: onBack,
                 icon: const Icon(Icons.arrow_back_rounded, color: Colors.white),
               ),
-              const SizedBox(width: 8),
+              const SizedBox(width: 4),
               Expanded(
                 child: Text(
                   editing ? 'Modificar producto' : 'Crear producto',
-                  style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+                  style: Theme.of(context).textTheme.titleLarge?.copyWith(
                         color: Colors.white,
                         fontWeight: FontWeight.w900,
                       ),
@@ -1458,13 +1501,13 @@ class _WizardHeader extends StatelessWidget {
               ),
             ],
           ),
-          const SizedBox(height: 12),
+          const SizedBox(height: 7),
           _WizardStepIndicator(currentStep: currentStep),
-          const SizedBox(height: 12),
+          const SizedBox(height: 8),
           ClipRRect(
             borderRadius: BorderRadius.circular(999),
             child: LinearProgressIndicator(
-              minHeight: 6,
+              minHeight: 4,
               value: (currentStep + 1) / 4,
               color: Colors.white,
               backgroundColor: Colors.white.withOpacity(0.16),
@@ -1485,12 +1528,12 @@ class _WizardStepIndicator extends StatelessWidget {
   Widget build(BuildContext context) {
     const steps = ['Información', 'Precio', 'Inventario', 'Confirmación'];
     return Wrap(
-      spacing: 8,
-      runSpacing: 8,
+      spacing: 6,
+      runSpacing: 6,
       children: [
         for (var index = 0; index < steps.length; index++)
           Container(
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+            padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 6),
             decoration: BoxDecoration(
               color: index == currentStep ? Colors.white : Colors.white.withOpacity(0.14),
               borderRadius: BorderRadius.circular(999),
@@ -1500,16 +1543,17 @@ class _WizardStepIndicator extends StatelessWidget {
               mainAxisSize: MainAxisSize.min,
               children: [
                 CircleAvatar(
-                  radius: 11,
+                  radius: 9,
                   backgroundColor: index == currentStep ? const Color(0xFF0F172A) : Colors.white.withOpacity(0.2),
-                  child: Text('${index + 1}', style: const TextStyle(fontSize: 11, color: Colors.white, fontWeight: FontWeight.w900)),
+                  child: Text('${index + 1}', style: const TextStyle(fontSize: 10, color: Colors.white, fontWeight: FontWeight.w900)),
                 ),
-                const SizedBox(width: 8),
+                const SizedBox(width: 6),
                 Text(
                   steps[index],
                   style: TextStyle(
                     color: index == currentStep ? const Color(0xFF0F172A) : Colors.white,
                     fontWeight: FontWeight.w900,
+                    fontSize: 12.5,
                   ),
                 ),
               ],
@@ -1537,20 +1581,20 @@ class _StepShell extends StatelessWidget {
   Widget build(BuildContext context) {
     return Container(
       width: double.infinity,
-      padding: const EdgeInsets.all(16),
+      padding: const EdgeInsets.all(13),
       decoration: BoxDecoration(
         color: palette.surface.withOpacity(palette.darkBackground ? 0.92 : 0.98),
-        borderRadius: BorderRadius.circular(26),
+        borderRadius: BorderRadius.circular(20),
         border: Border.all(color: palette.cardBorder),
         boxShadow: [BoxShadow(color: palette.cardShadow, blurRadius: 20, offset: const Offset(0, 10))],
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(title, style: TextStyle(fontSize: 20, color: palette.textPrimary, fontWeight: FontWeight.w900)),
+          Text(title, style: TextStyle(fontSize: 17, color: palette.textPrimary, fontWeight: FontWeight.w900)),
           const SizedBox(height: 4),
           Text(subtitle, style: TextStyle(color: palette.textSecondary, fontWeight: FontWeight.w700)),
-          const SizedBox(height: 16),
+          const SizedBox(height: 12),
           child,
         ],
       ),
@@ -1590,29 +1634,29 @@ class _ProductImagePickerState extends State<_ProductImagePicker> {
   Widget build(BuildContext context) {
     final value = widget.controller.text.trim();
     return Container(
-      padding: const EdgeInsets.all(14),
+      padding: const EdgeInsets.all(10),
       decoration: BoxDecoration(
         color: widget.palette.darkBackground ? Colors.white.withOpacity(0.04) : widget.palette.background.withOpacity(0.65),
-        borderRadius: BorderRadius.circular(24),
+        borderRadius: BorderRadius.circular(18),
         border: Border.all(color: widget.palette.cardBorder),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text('Foto del producto', style: TextStyle(color: widget.palette.textPrimary, fontWeight: FontWeight.w900)),
-          const SizedBox(height: 10),
+          Text('Foto del producto', style: TextStyle(color: widget.palette.textPrimary, fontWeight: FontWeight.w900, fontSize: 13)),
+          const SizedBox(height: 8),
           ClipRRect(
-            borderRadius: BorderRadius.circular(20),
-            child: _ImagePreview(value: value, palette: widget.palette),
+            borderRadius: BorderRadius.circular(14),
+            child: _ImagePreview(value: value, palette: widget.palette, height: 138),
           ),
-          const SizedBox(height: 12),
+          const SizedBox(height: 8),
           Row(
             children: [
               Expanded(
                 child: FilledButton.icon(
                   onPressed: _pickImage,
-                  icon: const Icon(Icons.upload_file_rounded),
-                  label: const Text('Cargar foto'),
+                  icon: const Icon(Icons.upload_file_rounded, size: 18),
+                  label: const Text('Cargar foto', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w800)),
                 ),
               ),
               if (value.isNotEmpty) ...[
@@ -1636,16 +1680,17 @@ class _ProductImagePickerState extends State<_ProductImagePicker> {
 }
 
 class _ImagePreview extends StatelessWidget {
-  const _ImagePreview({required this.value, required this.palette});
+  const _ImagePreview({required this.value, required this.palette, this.height = 160});
 
   final String value;
   final AppPalette palette;
+  final double height;
 
   @override
   Widget build(BuildContext context) {
     if (value.trim().isEmpty) {
       return Container(
-        height: 210,
+        height: height,
         width: double.infinity,
         color: palette.darkBackground ? Colors.white.withOpacity(0.06) : palette.surface,
         alignment: Alignment.center,
@@ -1656,17 +1701,17 @@ class _ImagePreview extends StatelessWidget {
       final index = value.indexOf(',');
       if (index > -1) {
         try {
-          return Image.memory(base64Decode(value.substring(index + 1)), height: 210, width: double.infinity, fit: BoxFit.cover);
+          return Image.memory(base64Decode(value.substring(index + 1)), height: height, width: double.infinity, fit: BoxFit.cover);
         } catch (_) {}
       }
     }
     return Image.network(
       value,
-      height: 210,
+      height: height,
       width: double.infinity,
       fit: BoxFit.cover,
       errorBuilder: (_, __, ___) => Container(
-        height: 210,
+        height: height,
         alignment: Alignment.center,
         color: palette.background,
         child: Text('No fue posible mostrar la foto', style: TextStyle(color: palette.textSecondary)),
@@ -1710,12 +1755,14 @@ class _FormTextField extends StatelessWidget {
       style: TextStyle(color: palette.textPrimary, fontWeight: FontWeight.w700),
       decoration: InputDecoration(
         labelText: label,
-        prefixIcon: Icon(icon, color: palette.secondary),
+        prefixIcon: Icon(icon, color: palette.secondary, size: 20),
+        isDense: true,
+        contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 13),
         filled: true,
         fillColor: palette.darkBackground ? Colors.white.withOpacity(0.04) : palette.background.withOpacity(0.65),
-        border: OutlineInputBorder(borderRadius: BorderRadius.circular(18), borderSide: BorderSide(color: palette.cardBorder)),
-        enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(18), borderSide: BorderSide(color: palette.cardBorder)),
-        focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(18), borderSide: BorderSide(color: palette.secondary, width: 1.4)),
+        border: OutlineInputBorder(borderRadius: BorderRadius.circular(14), borderSide: BorderSide(color: palette.cardBorder)),
+        enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(14), borderSide: BorderSide(color: palette.cardBorder)),
+        focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(14), borderSide: BorderSide(color: palette.secondary, width: 1.4)),
       ),
     );
   }
@@ -1748,7 +1795,9 @@ class _DateField extends StatelessWidget {
       decoration: InputDecoration(
         labelText: label,
         helperText: 'Puedes dejarla vacía si el producto no tiene vencimiento.',
-        prefixIcon: Icon(Icons.event_rounded, color: palette.secondary),
+        prefixIcon: Icon(Icons.event_rounded, color: palette.secondary, size: 20),
+        isDense: true,
+        contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
         suffixIcon: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
@@ -1785,10 +1834,10 @@ class _ReadOnlyInfoField extends StatelessWidget {
   Widget build(BuildContext context) {
     return Container(
       width: double.infinity,
-      padding: const EdgeInsets.all(14),
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
       decoration: BoxDecoration(
         color: palette.darkBackground ? Colors.white.withOpacity(0.04) : palette.background.withOpacity(0.65),
-        borderRadius: BorderRadius.circular(18),
+        borderRadius: BorderRadius.circular(14),
         border: Border.all(color: palette.cardBorder),
       ),
       child: Row(
@@ -1842,10 +1891,12 @@ class _LookupRow<T> extends StatelessWidget {
             isExpanded: true,
             decoration: InputDecoration(
               labelText: label,
-              prefixIcon: Icon(Icons.list_alt_rounded, color: palette.secondary),
+              prefixIcon: Icon(Icons.list_alt_rounded, color: palette.secondary, size: 20),
+              isDense: true,
+              contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
               filled: true,
               fillColor: palette.darkBackground ? Colors.white.withOpacity(0.04) : palette.background.withOpacity(0.65),
-              border: OutlineInputBorder(borderRadius: BorderRadius.circular(18), borderSide: BorderSide(color: palette.cardBorder)),
+              border: OutlineInputBorder(borderRadius: BorderRadius.circular(14), borderSide: BorderSide(color: palette.cardBorder)),
             ),
             items: [
               for (final item in items)
@@ -1858,11 +1909,11 @@ class _LookupRow<T> extends StatelessWidget {
         Tooltip(
           message: 'Crear $label',
           child: SizedBox(
-            height: 56,
-            width: 56,
+            height: 48,
+            width: 48,
             child: FilledButton(
               onPressed: onCreate,
-              style: FilledButton.styleFrom(padding: EdgeInsets.zero, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18))),
+              style: FilledButton.styleFrom(padding: EdgeInsets.zero, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14))),
               child: const Icon(Icons.add_rounded),
             ),
           ),
@@ -1885,23 +1936,23 @@ class _SwitchTile extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.all(14),
+      padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 9),
       decoration: BoxDecoration(
         color: palette.darkBackground ? Colors.white.withOpacity(0.04) : palette.background.withOpacity(0.65),
-        borderRadius: BorderRadius.circular(18),
+        borderRadius: BorderRadius.circular(14),
         border: Border.all(color: palette.cardBorder),
       ),
       child: Row(
         children: [
-          Icon(icon, color: palette.secondary),
-          const SizedBox(width: 12),
+          Icon(icon, color: palette.secondary, size: 20),
+          const SizedBox(width: 9),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(title, style: TextStyle(color: palette.textPrimary, fontWeight: FontWeight.w900)),
+                Text(title, style: TextStyle(color: palette.textPrimary, fontWeight: FontWeight.w900, fontSize: 13.5)),
                 const SizedBox(height: 3),
-                Text(subtitle, style: TextStyle(color: palette.textSecondary, fontWeight: FontWeight.w700)),
+                Text(subtitle, style: TextStyle(color: palette.textSecondary, fontWeight: FontWeight.w700, fontSize: 12.5, height: 1.25)),
               ],
             ),
           ),
@@ -2138,22 +2189,22 @@ class _WizardActionButton extends StatelessWidget {
       children: [
         loading
             ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2))
-            : Icon(icon),
-        const SizedBox(width: 10),
+            : Icon(icon, size: 19),
+        const SizedBox(width: 8),
         Flexible(
           child: Text(
             label,
             overflow: TextOverflow.ellipsis,
-            style: const TextStyle(fontWeight: FontWeight.w900),
+            style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 13.5),
           ),
         ),
       ],
     );
 
-    final shape = RoundedRectangleBorder(borderRadius: BorderRadius.circular(20));
+    final shape = RoundedRectangleBorder(borderRadius: BorderRadius.circular(14));
     if (outlined) {
       return SizedBox(
-        height: 58,
+        height: 48,
         child: OutlinedButton(
           onPressed: enabled ? onPressed : null,
           style: OutlinedButton.styleFrom(
@@ -2167,11 +2218,11 @@ class _WizardActionButton extends StatelessWidget {
     }
 
     return SizedBox(
-      height: 58,
+      height: 48,
       child: DecoratedBox(
         decoration: BoxDecoration(
           gradient: LinearGradient(colors: [palette.primary, palette.secondary]),
-          borderRadius: BorderRadius.circular(20),
+          borderRadius: BorderRadius.circular(14),
           boxShadow: [BoxShadow(color: palette.cardShadow, blurRadius: 18, offset: const Offset(0, 8))],
         ),
         child: FilledButton(
@@ -2190,10 +2241,10 @@ class _WizardActionButton extends StatelessWidget {
 }
 
 String _titleForStep(int step) => switch (step) {
-      0 => 'Paso 1 · Información general',
-      1 => 'Paso 2 · Precio, compra e impuesto',
-      2 => 'Paso 3 · Inventario',
-      _ => 'Paso 4 · Confirmación',
+      0 => 'Información general',
+      1 => 'Precio, compra e impuesto',
+      2 => 'Inventario y reposición',
+      _ => 'Revisión final',
     };
 
 String _subtitleForStep(int step) => switch (step) {

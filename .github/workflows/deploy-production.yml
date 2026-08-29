@@ -1,0 +1,88 @@
+name: Frontend Production
+
+on:
+  push:
+    branches: [main]
+
+concurrency:
+  group: barlytics-frontend-production
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+  packages: write
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Analisis y pruebas Flutter
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          target: test
+          push: false
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+  image:
+    needs: test
+    runs-on: ubuntu-latest
+    outputs:
+      tag: sha-${{ github.sha }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Login GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build y publicar imagen
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          push: true
+          tags: |
+            ghcr.io/${{ github.repository }}:latest
+            ghcr.io/${{ github.repository }}:sha-${{ github.sha }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+  deploy:
+    needs: image
+    runs-on: ubuntu-latest
+    environment: production
+    steps:
+      - name: Preparar SSH
+        env:
+          SSH_PRIVATE_KEY: ${{ secrets.VPS_SSH_PRIVATE_KEY }}
+          KNOWN_HOSTS: ${{ secrets.VPS_KNOWN_HOSTS }}
+        run: |
+          mkdir -p ~/.ssh
+          printf '%s\n' "$SSH_PRIVATE_KEY" > ~/.ssh/id_ed25519
+          printf '%s\n' "$KNOWN_HOSTS" > ~/.ssh/known_hosts
+          chmod 700 ~/.ssh
+          chmod 600 ~/.ssh/id_ed25519 ~/.ssh/known_hosts
+
+      - name: Desplegar frontend en VPS
+        env:
+          VPS_HOST: ${{ secrets.VPS_HOST }}
+          VPS_USER: ${{ secrets.VPS_USER }}
+        run: |
+          ssh -o BatchMode=yes -o IdentitiesOnly=yes \
+            -i ~/.ssh/id_ed25519 \
+            "$VPS_USER@$VPS_HOST" \
+            "cd /opt/barlytics && ./deploy.sh frontend sha-${GITHUB_SHA}"

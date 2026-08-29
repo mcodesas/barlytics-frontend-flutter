@@ -6,6 +6,8 @@ class LoginResponseModel {
     this.sucursalId,
     this.email,
     this.roles = const [],
+    this.subscriptionStatus,
+    this.subscriptionActive = true,
   });
 
   final String token;
@@ -14,6 +16,8 @@ class LoginResponseModel {
   final int? sucursalId;
   final String? email;
   final List<String> roles;
+  final String? subscriptionStatus;
+  final bool subscriptionActive;
 
   factory LoginResponseModel.fromJson(Map<String, dynamic> json) => LoginResponseModel(
         token: json['token']?.toString() ?? '',
@@ -22,5 +26,7 @@ class LoginResponseModel {
         sucursalId: (json['sucursalId'] as num?)?.toInt(),
         email: json['email']?.toString(),
         roles: (json['roles'] as List? ?? const []).map((e) => e.toString()).toList(),
+        subscriptionStatus: json['subscriptionStatus']?.toString(),
+        subscriptionActive: json['subscriptionActive'] == null ? true : json['subscriptionActive'] == true,
       );
 }

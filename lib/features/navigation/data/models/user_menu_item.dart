@@ -36,7 +36,7 @@ class UserMenuItem {
     );
   }
 
-  UserMenuItem copyWith({String? keyName, String? title, String? path}) => UserMenuItem(
+  UserMenuItem copyWith({String? keyName, String? title, String? path, List<String>? roles}) => UserMenuItem(
         keyName: keyName ?? this.keyName,
         title: title ?? this.title,
         path: path ?? this.path,
@@ -44,7 +44,7 @@ class UserMenuItem {
         menuId: menuId,
         roleId: roleId,
         optionId: optionId,
-        roles: roles,
+        roles: roles ?? this.roles,
         system: system,
       );
 
