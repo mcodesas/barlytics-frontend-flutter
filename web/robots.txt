@@ -1,0 +1,12 @@
+User-agent: *
+Allow: /
+
+# Las rutas autenticadas de la SPA no aportan contenido indexable.
+Disallow: /login
+Disallow: /forgot-password
+Disallow: /reset-password
+Disallow: /activar-suscripcion
+Disallow: /configurar-negocio
+Disallow: /home
+
+Sitemap: https://www.barlytics.com.co/sitemap.xml
