@@ -54,31 +54,46 @@ class _LoginPageState extends ConsumerState<LoginPage> {
     final wide = screen.width >= 920;
 
     return Scaffold(
-      body: TechBackground(
-        padding: const EdgeInsets.all(18),
-        child: Center(
-          child: ConstrainedBox(
-            constraints: const BoxConstraints(maxWidth: 1180),
-            child: SingleChildScrollView(
-              child: wide
-                  ? Row(
-                      crossAxisAlignment: CrossAxisAlignment.center,
-                      children: [
-                        const Expanded(child: _BarHero()),
-                        const SizedBox(width: 34),
-                        Expanded(child: _GlassLoginCard(state: this, loading: state.loading)),
-                      ],
-                    )
-                  : Column(
-                      children: [
-                        const _BarHero(compact: true),
-                        const SizedBox(height: 20),
-                        _GlassLoginCard(state: this, loading: state.loading),
-                      ],
-                    ),
+      body: Stack(
+        children: [
+          Positioned.fill(
+            child: TechBackground(
+              padding: const EdgeInsets.all(18),
+              child: Center(
+                child: ConstrainedBox(
+                  constraints: const BoxConstraints(maxWidth: 1180),
+                  child: SingleChildScrollView(
+                    child: wide
+                        ? Row(
+                            crossAxisAlignment: CrossAxisAlignment.center,
+                            children: [
+                              const Expanded(child: _BarHero()),
+                              const SizedBox(width: 34),
+                              Expanded(child: _GlassLoginCard(state: this, loading: state.loading)),
+                            ],
+                          )
+                        : Column(
+                            children: [
+                              const _BarHero(compact: true),
+                              const SizedBox(height: 20),
+                              _GlassLoginCard(state: this, loading: state.loading),
+                            ],
+                          ),
+                  ),
+                ),
+              ),
             ),
           ),
-        ),
+          const SafeArea(
+            child: Padding(
+              padding: EdgeInsets.all(16),
+              child: Align(
+                alignment: Alignment.topLeft,
+                child: _BackToPublicSiteButton(),
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -133,6 +148,38 @@ class _LoginPageState extends ConsumerState<LoginPage> {
     }
 
     return raw.isEmpty ? 'Usuario o contraseña incorrectos.' : raw;
+  }
+}
+
+class _BackToPublicSiteButton extends ConsumerWidget {
+  const _BackToPublicSiteButton();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final palette = ref.watch(selectedAppPaletteProvider);
+
+    return Semantics(
+      button: true,
+      label: 'Volver a la página principal de BarLytics',
+      child: OutlinedButton.icon(
+        onPressed: () {
+          if (context.canPop()) {
+            context.pop();
+          } else {
+            context.go('/');
+          }
+        },
+        icon: const Icon(Icons.arrow_back_rounded, size: 19),
+        label: const Text('Volver'),
+        style: OutlinedButton.styleFrom(
+          foregroundColor: palette.textPrimary,
+          backgroundColor: palette.surface.withOpacity(0.82),
+          side: BorderSide(color: palette.primary.withOpacity(0.36)),
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 13),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+        ),
+      ),
+    );
   }
 }
 

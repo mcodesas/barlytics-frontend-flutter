@@ -1,31 +1,89 @@
 <!DOCTYPE html>
-<html lang="es">
+<html lang="es-CO">
 <head>
   <base href="$FLUTTER_BASE_HREF">
   <meta charset="UTF-8">
   <meta content="IE=Edge" http-equiv="X-UA-Compatible">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <meta name="description" content="BarLytics: plataforma para bares y gastrobares con ventas, mesas, cobros, inventario, productos, caja, reportes, roles y multi-sucursal.">
-  <meta name="keywords" content="BarLytics, software para bares, POS bares, gastrobar, inventario, ventas, mesas, caja, reportes">
-  <meta name="robots" content="index,follow">
-  <link rel="canonical" href="https://www.barlytics.com.co/">
-  <meta property="og:title" content="BarLytics | Gestión para bares y gastrobares">
-  <meta property="og:description" content="Prueba una demo interactiva de BarLytics y conoce cómo funciona en escritorio, tablet y celular.">
-  <meta property="og:type" content="website">
-  <meta property="og:url" content="https://www.barlytics.com.co/">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+  <meta name="description" content="BarLytics Colombia es software para bares y gastrobares: ventas, mesas, cobros, inventario, caja, productos, reportes, usuarios y sucursales en una sola plataforma.">
+  <meta name="robots" content="index,follow,max-image-preview:large">
   <meta name="theme-color" content="#061723">
-  <title>BarLytics | Gestión para bares y gastrobares</title>
+  <meta name="color-scheme" content="dark">
+  <meta name="supported-color-schemes" content="dark">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="BarLytics">
+
+  <title>BarLytics Colombia | Software para bares e inventario</title>
+  <link rel="canonical" href="https://barlytics.com.co/">
+  <link rel="alternate" hreflang="es-CO" href="https://barlytics.com.co/">
+  <link rel="alternate" hreflang="x-default" href="https://barlytics.com.co/">
   <link rel="icon" type="image/png" href="favicon.png">
   <link rel="manifest" href="manifest.json">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="preload" as="image" href="branding/barlytics-logo-light.png">
+
+  <meta property="og:locale" content="es_CO">
+  <meta property="og:type" content="website">
+  <meta property="og:site_name" content="BarLytics">
+  <meta property="og:title" content="BarLytics Colombia | Software para bares e inventario">
+  <meta property="og:description" content="Gestiona ventas, mesas, cobros, caja, inventario, productos, reportes, usuarios y sucursales con BarLytics.">
+  <meta property="og:url" content="https://barlytics.com.co/">
+  <meta property="og:image" content="https://barlytics.com.co/branding/barlytics-logo-light.png">
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:title" content="BarLytics Colombia | Software para bares e inventario">
+  <meta name="twitter:description" content="Gestión inteligente para bares y gastrobares en Colombia.">
+  <meta name="twitter:image" content="https://barlytics.com.co/branding/barlytics-logo-light.png">
+
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@graph": [
+      {
+        "@type": "WebSite",
+        "@id": "https://barlytics.com.co/#website",
+        "url": "https://barlytics.com.co/",
+        "name": "BarLytics",
+        "alternateName": "BarLytics Colombia",
+        "inLanguage": "es-CO"
+      },
+      {
+        "@type": "Organization",
+        "@id": "https://barlytics.com.co/#organization",
+        "name": "BarLytics",
+        "url": "https://barlytics.com.co/",
+        "logo": "https://barlytics.com.co/branding/barlytics-logo-light.png",
+        "email": "soporte@barlytics.com.co",
+        "areaServed": {"@type": "Country", "name": "Colombia"}
+      },
+      {
+        "@type": "SoftwareApplication",
+        "@id": "https://barlytics.com.co/#software",
+        "name": "BarLytics",
+        "applicationCategory": "BusinessApplication",
+        "operatingSystem": "Web, Windows, macOS, Android, iOS, Linux",
+        "url": "https://barlytics.com.co/",
+        "description": "Software de gestión para bares y gastrobares con ventas, mesas, cobros, caja, inventario, productos, reportes, usuarios y sucursales.",
+        "areaServed": {"@type": "Country", "name": "Colombia"},
+        "publisher": {"@id": "https://barlytics.com.co/#organization"}
+      }
+    ]
+  }
+  </script>
 
   <style>
-    html,
-    body {
+    :root { color-scheme: dark; background: #061723; }
+    html, body {
       margin: 0;
       width: 100%;
       height: 100%;
-      background: #061723;
+      background: #061723 !important;
+      color-scheme: dark;
       overflow: hidden;
+      overscroll-behavior: none;
     }
 
     #barlytics-loader {
@@ -35,12 +93,12 @@
       display: flex;
       align-items: center;
       justify-content: center;
-      padding: 28px;
+      padding: calc(28px + env(safe-area-inset-top)) 28px calc(28px + env(safe-area-inset-bottom));
       box-sizing: border-box;
       background:
         radial-gradient(circle at 50% 42%, rgba(11, 217, 216, 0.16), transparent 36%),
         linear-gradient(145deg, #020817 0%, #061723 52%, #08283a 100%);
-      font-family: Inter, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      font-family: Roboto, sans-serif;
       transition: opacity 260ms ease, visibility 260ms ease;
     }
 
@@ -81,29 +139,16 @@
       margin-top: 12px;
       color: #cbd5e1;
       font-size: 12px;
-      font-weight: 650;
+      font-weight: 600;
       letter-spacing: 0.02em;
     }
 
-    @keyframes barlytics-spin {
-      to { transform: rotate(360deg); }
-    }
+    @keyframes barlytics-spin { to { transform: rotate(360deg); } }
 
     @media (max-width: 600px) {
-      #barlytics-loader { padding: 20px; }
+      #barlytics-loader { padding-left: 20px; padding-right: 20px; }
       .barlytics-loader__logo { width: min(520px, 92vw); }
       .barlytics-loader__spinner { margin-top: 20px; }
-    }
-
-    @media (prefers-color-scheme: light) {
-      html, body { background: #f6f9fc; }
-      #barlytics-loader {
-        background:
-          radial-gradient(circle at 50% 42%, rgba(11, 217, 216, 0.10), transparent 38%),
-          linear-gradient(145deg, #ffffff 0%, #f6f9fc 58%, #edf5f8 100%);
-      }
-      .barlytics-loader__status { color: #475569; }
-      .barlytics-loader__spinner { border-color: rgba(2, 24, 48, 0.10); border-top-color: #06b6d4; }
     }
 
     @media (prefers-reduced-motion: reduce) {
@@ -115,19 +160,37 @@
 <body>
   <div id="barlytics-loader" role="status" aria-live="polite" aria-label="Cargando BarLytics">
     <div class="barlytics-loader__content">
-      <picture>
-        <source media="(prefers-color-scheme: light)" srcset="branding/barlytics-logo-dark.png">
-        <img class="barlytics-loader__logo" src="branding/barlytics-logo-light.png" alt="BarLytics - Gestión inteligente para tu negocio">
-      </picture>
+      <img class="barlytics-loader__logo" src="branding/barlytics-logo-light.png" alt="BarLytics">
       <div class="barlytics-loader__spinner" aria-hidden="true"></div>
       <div class="barlytics-loader__status">Iniciando BarLytics...</div>
     </div>
   </div>
 
-  <noscript>BarLytics necesita JavaScript habilitado para funcionar.</noscript>
+  <noscript>
+    <p>BarLytics necesita JavaScript habilitado para ejecutar la aplicación. Puedes consultar la información pública en <a href="/software-para-bares/">software para bares</a>, <a href="/funcionalidades/">funcionalidades</a>, <a href="/planes/">planes</a>, <a href="/descargas/">descargas</a>, <a href="/contacto/">contacto</a> y <a href="/preguntas-frecuentes/">preguntas frecuentes</a>.</p>
+  </noscript>
 
   <script>
     (() => {
+      const BARLYTICS_THEME = '#061723';
+      document.documentElement.style.colorScheme = 'dark';
+      document.body.style.backgroundColor = BARLYTICS_THEME;
+      const theme = document.querySelector('meta[name="theme-color"]');
+      if (theme) theme.setAttribute('content', BARLYTICS_THEME);
+
+      const preventZoomKey = (event) => {
+        if ((event.ctrlKey || event.metaKey) && ['+', '-', '=', '0'].includes(event.key)) {
+          event.preventDefault();
+        }
+      };
+      window.addEventListener('keydown', preventZoomKey, { passive: false });
+      window.addEventListener('wheel', (event) => {
+        if (event.ctrlKey || event.metaKey) event.preventDefault();
+      }, { passive: false });
+      ['gesturestart', 'gesturechange', 'gestureend'].forEach((name) => {
+        document.addEventListener(name, (event) => event.preventDefault(), { passive: false });
+      });
+
       const loader = document.getElementById('barlytics-loader');
       let hidden = false;
       const hideLoader = () => {
