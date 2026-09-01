@@ -5,7 +5,7 @@
   <meta charset="UTF-8">
   <meta content="IE=Edge" http-equiv="X-UA-Compatible">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-  <meta name="description" content="BarLytics Colombia es software para bares y gastrobares: ventas, mesas, cobros, inventario, caja, productos, reportes, usuarios y sucursales en una sola plataforma.">
+  <meta name="description" content="BarLytics Colombia es software para bares y gastrobares desarrollado por MCode SAS: ventas, mesas, cobros, inventario, caja, productos, reportes, usuarios y sucursales en una sola plataforma.">
   <meta name="robots" content="index,follow,max-image-preview:large">
   <meta name="theme-color" content="#061723">
   <meta name="color-scheme" content="dark">
@@ -30,7 +30,7 @@
   <meta property="og:type" content="website">
   <meta property="og:site_name" content="BarLytics">
   <meta property="og:title" content="BarLytics Colombia | Software para bares e inventario">
-  <meta property="og:description" content="Gestiona ventas, mesas, cobros, caja, inventario, productos, reportes, usuarios y sucursales con BarLytics.">
+  <meta property="og:description" content="BarLytics Colombia, desarrollado por MCode SAS, conecta ventas, mesas, cobros, caja, inventario, productos, reportes, usuarios y sucursales.">
   <meta property="og:url" content="https://barlytics.com.co/">
   <meta property="og:image" content="https://barlytics.com.co/branding/barlytics-logo-light.png">
   <meta name="twitter:card" content="summary_large_image">
@@ -43,32 +43,75 @@
     "@context": "https://schema.org",
     "@graph": [
       {
+        "@type": "Organization",
+        "@id": "https://barlytics.com.co/#organization",
+        "name": "MCode SAS",
+        "legalName": "MCode SAS",
+        "url": "https://barlytics.com.co/nosotros/",
+        "email": "soporte@barlytics.com.co",
+        "description": "Empresa colombiana de desarrollo de software que desarrolla BarLytics, una plataforma de gestión para bares y gastrobares.",
+        "address": {
+          "@type": "PostalAddress",
+          "addressCountry": "CO"
+        },
+        "areaServed": {
+          "@type": "Country",
+          "name": "Colombia"
+        },
+        "knowsLanguage": "es-CO",
+        "brand": {
+          "@id": "https://barlytics.com.co/#brand"
+        },
+        "logo": "https://barlytics.com.co/branding/mcode-m-icon.png"
+      },
+      {
+        "@type": "Brand",
+        "@id": "https://barlytics.com.co/#brand",
+        "name": "BarLytics",
+        "alternateName": "BarLytics Colombia",
+        "url": "https://barlytics.com.co/",
+        "logo": "https://barlytics.com.co/branding/barlytics-logo-light.png",
+        "slogan": "Gestión inteligente para tu negocio"
+      },
+      {
         "@type": "WebSite",
         "@id": "https://barlytics.com.co/#website",
         "url": "https://barlytics.com.co/",
         "name": "BarLytics",
         "alternateName": "BarLytics Colombia",
-        "inLanguage": "es-CO"
-      },
-      {
-        "@type": "Organization",
-        "@id": "https://barlytics.com.co/#organization",
-        "name": "BarLytics",
-        "url": "https://barlytics.com.co/",
-        "logo": "https://barlytics.com.co/branding/barlytics-logo-light.png",
-        "email": "soporte@barlytics.com.co",
-        "areaServed": {"@type": "Country", "name": "Colombia"}
+        "description": "Sitio oficial de BarLytics Colombia, software para bares desarrollado por MCode SAS.",
+        "inLanguage": "es-CO",
+        "publisher": {
+          "@id": "https://barlytics.com.co/#organization"
+        },
+        "about": {
+          "@id": "https://barlytics.com.co/#software"
+        }
       },
       {
         "@type": "SoftwareApplication",
         "@id": "https://barlytics.com.co/#software",
         "name": "BarLytics",
-        "applicationCategory": "BusinessApplication",
-        "operatingSystem": "Web, Windows, macOS, Android, iOS, Linux",
+        "alternateName": "BarLytics Colombia",
         "url": "https://barlytics.com.co/",
-        "description": "Software de gestión para bares y gastrobares con ventas, mesas, cobros, caja, inventario, productos, reportes, usuarios y sucursales.",
-        "areaServed": {"@type": "Country", "name": "Colombia"},
-        "publisher": {"@id": "https://barlytics.com.co/#organization"}
+        "applicationCategory": "BusinessApplication",
+        "applicationSubCategory": "Software de gestión para bares y gastrobares",
+        "operatingSystem": "Web, Windows, macOS, Android, iOS, Linux",
+        "inLanguage": "es-CO",
+        "description": "Software colombiano para la gestión de bares y gastrobares: ventas, mesas, cobros, caja, productos, precios, inventario, movimientos, reportes, usuarios y sucursales.",
+        "areaServed": {
+          "@type": "Country",
+          "name": "Colombia"
+        },
+        "provider": {
+          "@id": "https://barlytics.com.co/#organization"
+        },
+        "publisher": {
+          "@id": "https://barlytics.com.co/#organization"
+        },
+        "brand": {
+          "@id": "https://barlytics.com.co/#brand"
+        }
       }
     ]
   }

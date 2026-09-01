@@ -362,10 +362,10 @@ class _PublicLandingPageState extends ConsumerState<PublicLandingPage> {
                       _PublicSection(
                         key: _nosotrosKey,
                         palette: palette,
-                        eyebrow: 'ACERCA DE NOSOTROS',
-                        title: 'Tecnología pensada para operar con confianza',
+                        eyebrow: 'BARLYTICS COLOMBIA · MCODE SAS',
+                        title: 'Software colombiano para operar bares con más control',
                         subtitle:
-                            'BarLytics busca que administrar un bar sea más claro, trazable y seguro, sin obligar al equipo a aprender procesos complicados.',
+                            'BarLytics es una plataforma colombiana de gestión para bares y gastrobares desarrollada por MCode SAS. Conecta la operación diaria para hacerla más clara, trazable y segura.',
                         maxWidth: 1120,
                         child: _AboutSection(palette: palette),
                       ),
@@ -2137,7 +2137,7 @@ class _Footer extends StatelessWidget {
                 alignment: Alignment.centerLeft,
               );
               final text = Text(
-                'Gestión para bares · Ventas · Inventario · Caja · Reportes',
+                'Software colombiano para bares · Desarrollado por MCode SAS',
                 textAlign: compact ? TextAlign.center : TextAlign.left,
                 style: TextStyle(color: palette.textSecondary, fontWeight: FontWeight.w700, fontSize: 10.5),
               );
