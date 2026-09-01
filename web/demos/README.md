@@ -12,10 +12,19 @@ Coloca los GIFs con estos nombres:
 - `web/demos/desktop/venta-rapida.gif`
 - `web/demos/desktop/cuenta.gif`
 - `web/demos/desktop/cobro.gif`
+- `web/demos/desktop/cierre-caja.gif`
+- `web/demos/desktop/historial-ventas.gif`
 - `web/demos/desktop/inventario.gif`
 - `web/demos/desktop/productos.gif`
+- `web/demos/desktop/precios.gif`
+- `web/demos/desktop/movimientos.gif`
+- `web/demos/desktop/pedidos.gif`
 - `web/demos/desktop/reportes.gif`
+- `web/demos/desktop/sucursales.gif`
+- `web/demos/desktop/usuarios.gif`
 - `web/demos/desktop/roles.gif`
+- `web/demos/desktop/configuracion.gif`
+- `web/demos/desktop/suscripcion.gif`
 
 ### Tablet
 Los mismos nombres dentro de `web/demos/tablet/`.

@@ -51,7 +51,23 @@ class _PublicLandingPageState extends ConsumerState<PublicLandingPage> {
       _updateActiveSection();
       _loadPublicPlans();
       _loadPublicSiteConfig();
+      _scrollToRequestedSection();
     });
+  }
+
+  void _scrollToRequestedSection() {
+    final section = Uri.base.queryParameters['section']?.trim().toLowerCase();
+    final target = switch (section) {
+      'demo' => _demoKey,
+      'funciones' => _funcionesKey,
+      'nosotros' => _nosotrosKey,
+      'planes' => _planesKey,
+      'descargas' => _descargasKey,
+      'contacto' => _contactoKey,
+      _ => null,
+    };
+    if (target == null) return;
+    WidgetsBinding.instance.addPostFrameCallback((_) => _scrollTo(target));
   }
 
   Future<void> _loadPublicSiteConfig() async {
@@ -129,6 +145,15 @@ class _PublicLandingPageState extends ConsumerState<PublicLandingPage> {
 
   void _updateActiveSection() {
     if (!mounted) return;
+    if (_scrollController.hasClients) {
+      final position = _scrollController.position;
+      if (position.pixels >= position.maxScrollExtent - 24) {
+        if (_activeSection != 'contacto') {
+          setState(() => _activeSection = 'contacto');
+        }
+        return;
+      }
+    }
     const activationLine = 118.0;
     final sections = <(String, GlobalKey)>[
       ('inicio', _inicioKey),
@@ -137,6 +162,7 @@ class _PublicLandingPageState extends ConsumerState<PublicLandingPage> {
       ('nosotros', _nosotrosKey),
       ('planes', _planesKey),
       ('descargas', _descargasKey),
+      ('contacto', _contactoKey),
     ];
 
     var nextActive = 'inicio';
@@ -164,6 +190,7 @@ class _PublicLandingPageState extends ConsumerState<PublicLandingPage> {
     if (identical(key, _nosotrosKey)) return 'nosotros';
     if (identical(key, _planesKey)) return 'planes';
     if (identical(key, _descargasKey)) return 'descargas';
+    if (identical(key, _contactoKey)) return 'contacto';
     return 'inicio';
   }
 
@@ -277,8 +304,9 @@ class _PublicLandingPageState extends ConsumerState<PublicLandingPage> {
                               onDemo: () => _scrollTo(_demoKey),
                               onFunciones: () => _scrollTo(_funcionesKey),
                               onPlanes: () => _scrollTo(_planesKey),
-                              onNosotros: () => _scrollTo(_nosotrosKey),
+                              onNosotros: () => launchUrl(Uri.base.resolve('/nosotros/'), webOnlyWindowName: '_self'),
                               onDescargas: () => _scrollTo(_descargasKey),
+                              onContacto: () => _scrollTo(_contactoKey),
                               onLogin: () => context.go('/login'),
                               onRegister: () => context.go('/registro'),
                             ),
@@ -493,6 +521,7 @@ class _PublicNavigation extends StatelessWidget {
     required this.onPlanes,
     required this.onNosotros,
     required this.onDescargas,
+    required this.onContacto,
     required this.onLogin,
     required this.onRegister,
   });
@@ -505,6 +534,7 @@ class _PublicNavigation extends StatelessWidget {
   final VoidCallback onPlanes;
   final VoidCallback onNosotros;
   final VoidCallback onDescargas;
+  final VoidCallback onContacto;
   final VoidCallback onLogin;
   final VoidCallback onRegister;
 
@@ -522,9 +552,10 @@ class _PublicNavigation extends StatelessWidget {
               if (!compact) ...[
                 _TopNavButton(palette: palette, label: 'Demo', active: activeSection == 'demo', onTap: onDemo),
                 _TopNavButton(palette: palette, label: 'Funciones', active: activeSection == 'funciones', onTap: onFunciones),
-                _TopNavButton(palette: palette, label: 'Planes', active: activeSection == 'planes', onTap: onPlanes),
                 _TopNavButton(palette: palette, label: 'Nosotros', active: activeSection == 'nosotros', onTap: onNosotros),
+                _TopNavButton(palette: palette, label: 'Planes', active: activeSection == 'planes', onTap: onPlanes),
                 _TopNavButton(palette: palette, label: 'Descargas', active: activeSection == 'descargas', onTap: onDescargas),
+                _TopNavButton(palette: palette, label: 'Contacto', active: activeSection == 'contacto', onTap: onContacto),
                 const SizedBox(width: 18),
                 Container(width: 1, height: 26, color: palette.translucentBorder.withOpacity(0.70)),
                 const SizedBox(width: 18),
@@ -540,6 +571,7 @@ class _PublicNavigation extends StatelessWidget {
                   onPlanes: onPlanes,
                   onNosotros: onNosotros,
                   onDescargas: onDescargas,
+                  onContacto: onContacto,
                   onLogin: onLogin,
                   onRegister: onRegister,
                 ),
@@ -586,7 +618,7 @@ class _BrandNavButtonState extends State<_BrandNavButton> {
                   width: 220,
                   height: 64,
                   darkBackground: true,
-                  showTagline: false,
+                  showTagline: true,
                   alignment: Alignment.centerLeft,
                 ),
               ),
@@ -758,6 +790,7 @@ class _CompactNavMenu extends StatelessWidget {
     required this.onPlanes,
     required this.onNosotros,
     required this.onDescargas,
+    required this.onContacto,
     required this.onLogin,
     required this.onRegister,
   });
@@ -769,6 +802,7 @@ class _CompactNavMenu extends StatelessWidget {
   final VoidCallback onPlanes;
   final VoidCallback onNosotros;
   final VoidCallback onDescargas;
+  final VoidCallback onContacto;
   final VoidCallback onLogin;
   final VoidCallback onRegister;
 
@@ -808,9 +842,10 @@ class _CompactNavMenu extends StatelessWidget {
           switch (value) {
             case 'demo': onDemo(); break;
             case 'funciones': onFunciones(); break;
-            case 'planes': onPlanes(); break;
             case 'nosotros': onNosotros(); break;
+            case 'planes': onPlanes(); break;
             case 'descargas': onDescargas(); break;
+            case 'contacto': onContacto(); break;
             case 'login': onLogin(); break;
             case 'registro': onRegister(); break;
           }
@@ -818,9 +853,10 @@ class _CompactNavMenu extends StatelessWidget {
         itemBuilder: (_) => [
           PopupMenuItem(value: 'demo', child: _PopupNavItem(icon: Icons.play_circle_outline_rounded, label: 'Demo interactiva', active: activeSection == 'demo', accent: palette.primary)),
           PopupMenuItem(value: 'funciones', child: _PopupNavItem(icon: Icons.grid_view_rounded, label: 'Funciones', active: activeSection == 'funciones', accent: palette.primary)),
-          PopupMenuItem(value: 'planes', child: _PopupNavItem(icon: Icons.workspace_premium_rounded, label: 'Planes y precios', active: activeSection == 'planes', accent: palette.primary)),
           PopupMenuItem(value: 'nosotros', child: _PopupNavItem(icon: Icons.apartment_rounded, label: 'Nosotros', active: activeSection == 'nosotros', accent: palette.primary)),
+          PopupMenuItem(value: 'planes', child: _PopupNavItem(icon: Icons.workspace_premium_rounded, label: 'Planes y precios', active: activeSection == 'planes', accent: palette.primary)),
           PopupMenuItem(value: 'descargas', child: _PopupNavItem(icon: Icons.download_rounded, label: 'Descargas', active: activeSection == 'descargas', accent: palette.primary)),
+          PopupMenuItem(value: 'contacto', child: _PopupNavItem(icon: Icons.support_agent_rounded, label: 'Contacto', active: activeSection == 'contacto', accent: palette.primary)),
           const PopupMenuDivider(),
           const PopupMenuItem(value: 'login', child: _PopupNavItem(icon: Icons.login_rounded, label: 'Iniciar sesión')),
           PopupMenuItem(
@@ -894,7 +930,7 @@ class _HeroSection extends StatelessWidget {
                     width: compact ? 248 : 292,
                     height: compact ? 72 : 84,
                     darkBackground: true,
-                    showTagline: false,
+                    showTagline: true,
                     alignment: compact ? Alignment.center : Alignment.centerLeft,
                   ),
                   const SizedBox(height: 16),
@@ -1883,30 +1919,173 @@ class _ContactSection extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    Widget channel({required IconData icon, required String eyebrow, required String title, required String description, required VoidCallback onTap}) {
+      return InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(20),
+        child: Container(
+          padding: const EdgeInsets.all(18),
+          decoration: BoxDecoration(
+            color: palette.background.withOpacity(0.36),
+            borderRadius: BorderRadius.circular(20),
+            border: Border.all(color: palette.translucentBorder.withOpacity(0.86)),
+          ),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Container(
+                width: 46,
+                height: 46,
+                decoration: BoxDecoration(
+                  color: palette.secondary.withOpacity(0.10),
+                  borderRadius: BorderRadius.circular(14),
+                  border: Border.all(color: palette.secondary.withOpacity(0.22)),
+                ),
+                child: Icon(icon, color: palette.primary, size: 21),
+              ),
+              const SizedBox(width: 14),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(eyebrow, style: TextStyle(color: palette.primary, fontSize: 10.5, fontWeight: FontWeight.w900, letterSpacing: 0.45)),
+                    const SizedBox(height: 4),
+                    Text(title, style: TextStyle(color: palette.textPrimary, fontSize: 15, fontWeight: FontWeight.w900)),
+                    const SizedBox(height: 5),
+                    Text(description, style: TextStyle(color: palette.textSecondary, fontSize: 11.5, fontWeight: FontWeight.w600, height: 1.42)),
+                  ],
+                ),
+              ),
+              const SizedBox(width: 8),
+              Icon(Icons.arrow_forward_rounded, size: 18, color: palette.secondary),
+            ],
+          ),
+        ),
+      );
+    }
+
     return Padding(
       padding: const EdgeInsets.fromLTRB(20, 84, 20, 76),
       child: Center(
         child: ConstrainedBox(
-          constraints: const BoxConstraints(maxWidth: 1080),
+          constraints: const BoxConstraints(maxWidth: 1120),
           child: Container(
             padding: const EdgeInsets.all(30),
             decoration: BoxDecoration(
-              gradient: LinearGradient(colors: [palette.primary.withOpacity(0.15), palette.surface.withOpacity(0.94), palette.secondary.withOpacity(0.14)], begin: Alignment.topLeft, end: Alignment.bottomRight),
+              gradient: LinearGradient(
+                colors: [palette.primary.withOpacity(0.14), palette.surface.withOpacity(0.96), palette.secondary.withOpacity(0.13)],
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+              ),
               borderRadius: BorderRadius.circular(32),
               border: Border.all(color: palette.translucentBorder),
               boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.25), blurRadius: 38, offset: const Offset(0, 18))],
             ),
             child: LayoutBuilder(
               builder: (context, constraints) {
-                final compact = constraints.maxWidth < 720;
-                final copy = Column(crossAxisAlignment: compact ? CrossAxisAlignment.center : CrossAxisAlignment.start, children: [Text('¿Quieres ver BarLytics en tu negocio?', textAlign: compact ? TextAlign.center : TextAlign.left, style: Theme.of(context).textTheme.headlineSmall?.copyWith(color: palette.textPrimary, fontWeight: FontWeight.w900)), const SizedBox(height: 8), Text('Solicita información, registra tu interés o escríbenos directamente por WhatsApp.', textAlign: compact ? TextAlign.center : TextAlign.left, style: TextStyle(color: palette.textSecondary, fontWeight: FontWeight.w600, height: 1.45, fontSize: 13))]);
-                final actions = Wrap(alignment: compact ? WrapAlignment.center : WrapAlignment.end, spacing: 9, runSpacing: 9, children: [FilledButton.icon(onPressed: onWhatsApp, icon: const Icon(Icons.chat_rounded), label: const Text('Hablar por WhatsApp')), OutlinedButton.icon(onPressed: onRegister, icon: const Icon(Icons.person_add_alt_1_rounded), label: const Text('Registrarme')), TextButton.icon(onPressed: onLogin, icon: const Icon(Icons.login_rounded), label: const Text('Ingresar'))]);
-                if (compact) return Column(children: [copy, const SizedBox(height: 22), actions]);
-                return Row(children: [Expanded(child: copy), const SizedBox(width: 24), actions]);
+                final compact = constraints.maxWidth < 820;
+                final intro = Column(
+                  crossAxisAlignment: compact ? CrossAxisAlignment.center : CrossAxisAlignment.start,
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 7),
+                      decoration: BoxDecoration(
+                        color: palette.secondary.withOpacity(0.08),
+                        borderRadius: BorderRadius.circular(999),
+                        border: Border.all(color: palette.secondary.withOpacity(0.22)),
+                      ),
+                      child: Text('CONTACTO BARLYTICS', style: TextStyle(color: palette.primary, fontSize: 10.5, fontWeight: FontWeight.w900, letterSpacing: 0.5)),
+                    ),
+                    const SizedBox(height: 14),
+                    Text(
+                      'Hablemos de tu operación',
+                      textAlign: compact ? TextAlign.center : TextAlign.left,
+                      style: Theme.of(context).textTheme.headlineSmall?.copyWith(color: palette.textPrimary, fontWeight: FontWeight.w900),
+                    ),
+                    const SizedBox(height: 9),
+                    Text(
+                      'Información comercial, registro y soporte desde los canales oficiales de BarLytics.',
+                      textAlign: compact ? TextAlign.center : TextAlign.left,
+                      style: TextStyle(color: palette.textSecondary, fontWeight: FontWeight.w600, height: 1.5, fontSize: 13),
+                    ),
+                    const SizedBox(height: 18),
+                    Wrap(
+                      alignment: compact ? WrapAlignment.center : WrapAlignment.start,
+                      spacing: 8,
+                      runSpacing: 8,
+                      children: [
+                        _ContactPill(palette: palette, icon: Icons.verified_outlined, label: 'Canales oficiales'),
+                        _ContactPill(palette: palette, icon: Icons.location_on_outlined, label: 'Colombia'),
+                        _ContactPill(palette: palette, icon: Icons.lock_outline_rounded, label: 'Contacto seguro'),
+                      ],
+                    ),
+                    const SizedBox(height: 18),
+                    Wrap(
+                      alignment: compact ? WrapAlignment.center : WrapAlignment.start,
+                      spacing: 9,
+                      runSpacing: 9,
+                      children: [
+                        FilledButton.icon(onPressed: onRegister, icon: const Icon(Icons.person_add_alt_1_rounded), label: const Text('Registrarme')),
+                        OutlinedButton.icon(onPressed: onLogin, icon: const Icon(Icons.login_rounded), label: const Text('Ingresar')),
+                      ],
+                    ),
+                  ],
+                );
+                final channels = Column(
+                  children: [
+                    channel(
+                      icon: Icons.chat_rounded,
+                      eyebrow: 'WHATSAPP',
+                      title: 'Hablar con BarLytics',
+                      description: 'Consulta comercial rápida cuando el número público esté configurado.',
+                      onTap: onWhatsApp,
+                    ),
+                    const SizedBox(height: 11),
+                    channel(
+                      icon: Icons.alternate_email_rounded,
+                      eyebrow: 'CORREO OFICIAL',
+                      title: 'soporte@barlytics.com.co',
+                      description: 'Soporte técnico y consultas que necesiten seguimiento por escrito.',
+                      onTap: () => launchUrl(Uri.parse('mailto:soporte@barlytics.com.co')),
+                    ),
+                  ],
+                );
+                if (compact) {
+                  return Column(children: [intro, const SizedBox(height: 24), channels]);
+                }
+                return Row(crossAxisAlignment: CrossAxisAlignment.center, children: [Expanded(child: intro), const SizedBox(width: 30), Expanded(child: channels)]);
               },
             ),
           ),
         ),
+      ),
+    );
+  }
+}
+
+class _ContactPill extends StatelessWidget {
+  const _ContactPill({required this.palette, required this.icon, required this.label});
+
+  final AppPalette palette;
+  final IconData icon;
+  final String label;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
+      decoration: BoxDecoration(
+        color: palette.background.withOpacity(0.30),
+        borderRadius: BorderRadius.circular(999),
+        border: Border.all(color: palette.translucentBorder.withOpacity(0.76)),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 14, color: palette.secondary),
+          const SizedBox(width: 6),
+          Text(label, style: TextStyle(color: palette.textSecondary, fontSize: 10.5, fontWeight: FontWeight.w800)),
+        ],
       ),
     );
   }
@@ -1954,13 +2133,27 @@ class _Footer extends StatelessWidget {
                 width: 214,
                 height: 62,
                 darkBackground: true,
-                showTagline: false,
+                showTagline: true,
                 alignment: Alignment.centerLeft,
               );
               final text = Text(
                 'Gestión para bares · Ventas · Inventario · Caja · Reportes',
                 textAlign: compact ? TextAlign.center : TextAlign.left,
                 style: TextStyle(color: palette.textSecondary, fontWeight: FontWeight.w700, fontSize: 10.5),
+              );
+              final publicLinks = Wrap(
+                alignment: compact ? WrapAlignment.center : WrapAlignment.start,
+                spacing: 4,
+                runSpacing: 2,
+                children: [
+                  _FooterPublicLink(palette: palette, label: 'Software para bares', path: '/software-para-bares/'),
+                  _FooterPublicLink(palette: palette, label: 'Funciones', path: '/funcionalidades/'),
+                  _FooterPublicLink(palette: palette, label: 'Nosotros', path: '/nosotros/'),
+                  _FooterPublicLink(palette: palette, label: 'Planes', path: '/planes/'),
+                  _FooterPublicLink(palette: palette, label: 'Descargas', path: '/descargas/'),
+                  _FooterPublicLink(palette: palette, label: 'Contacto', path: '/contacto/'),
+                  _FooterPublicLink(palette: palette, label: 'Preguntas frecuentes', path: '/preguntas-frecuentes/'),
+                ],
               );
               final signature = Container(
                 padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
@@ -2002,6 +2195,8 @@ class _Footer extends StatelessWidget {
                     brand,
                     const SizedBox(height: 10),
                     text,
+                    const SizedBox(height: 8),
+                    publicLinks,
                     const SizedBox(height: 18),
                     signature,
                   ],
@@ -2014,7 +2209,7 @@ class _Footer extends StatelessWidget {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       mainAxisSize: MainAxisSize.min,
-                      children: [brand, const SizedBox(height: 8), text],
+                      children: [brand, const SizedBox(height: 8), text, const SizedBox(height: 8), publicLinks],
                     ),
                   ),
                   const SizedBox(width: 18),
@@ -2025,6 +2220,27 @@ class _Footer extends StatelessWidget {
           ),
         ),
       ),
+    );
+  }
+}
+
+class _FooterPublicLink extends StatelessWidget {
+  const _FooterPublicLink({required this.palette, required this.label, required this.path});
+
+  final AppPalette palette;
+  final String label;
+  final String path;
+
+  @override
+  Widget build(BuildContext context) {
+    return TextButton(
+      onPressed: () => launchUrl(Uri.base.resolve(path), webOnlyWindowName: '_self'),
+      style: TextButton.styleFrom(
+        foregroundColor: palette.textSecondary,
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+        textStyle: const TextStyle(fontSize: 11, fontWeight: FontWeight.w800),
+      ),
+      child: Text(label),
     );
   }
 }

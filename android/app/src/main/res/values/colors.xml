@@ -1,4 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <color name="barlytics_splash_background">#020817</color>
+    <color name="barlytics_splash_background">#061723</color>
+    <color name="barlytics_system_bar">#061723</color>
 </resources>

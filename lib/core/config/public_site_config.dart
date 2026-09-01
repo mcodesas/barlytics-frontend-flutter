@@ -1,6 +1,7 @@
 class PublicSiteConfig {
   const PublicSiteConfig({
     required this.whatsappNumber,
+    required this.phoneNumber,
     required this.windowsDownloadUrl,
     required this.macDownloadUrl,
     required this.iosDownloadUrl,
@@ -11,6 +12,7 @@ class PublicSiteConfig {
   /// Configuración vacía mientras el frontend consulta el backend.
   static const empty = PublicSiteConfig(
     whatsappNumber: '',
+    phoneNumber: '',
     windowsDownloadUrl: '',
     macDownloadUrl: '',
     iosDownloadUrl: '',
@@ -27,6 +29,7 @@ class PublicSiteConfig {
   );
 
   final String whatsappNumber;
+  final String phoneNumber;
   final String windowsDownloadUrl;
   final String macDownloadUrl;
   final String iosDownloadUrl;
@@ -38,6 +41,7 @@ class PublicSiteConfig {
     final data = Map<String, dynamic>.from(json);
     return PublicSiteConfig(
       whatsappNumber: data['whatsapp']?.toString() ?? '',
+      phoneNumber: data['phone']?.toString() ?? '',
       windowsDownloadUrl: data['windowsDownloadUrl']?.toString() ?? '',
       macDownloadUrl: data['macDownloadUrl']?.toString() ?? '',
       iosDownloadUrl: data['iosDownloadUrl']?.toString() ?? '',

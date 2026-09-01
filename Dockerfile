@@ -25,6 +25,17 @@ RUN if [ -n "$API_BASE_URL" ]; then \
         --dart-define=ENV="$APP_ENV"; \
     fi
 
+# Flutter conserva los recursos de web/, pero esta copia explícita garantiza que
+# las páginas SEO y sus recursos estén siempre presentes en la imagen final.
+RUN set -eux; \
+    cp web/robots.txt web/sitemap.xml build/web/; \
+    rm -rf build/web/public-site; \
+    cp -R web/public-site build/web/public-site; \
+    for page in software-para-bares funcionalidades planes descargas contacto preguntas-frecuentes; do \
+      mkdir -p "build/web/$page"; \
+      cp "web/$page/index.html" "build/web/$page/index.html"; \
+    done
+
 FROM nginx:1.27-alpine
 COPY deploy/nginx.conf /etc/nginx/conf.d/default.conf
 COPY --from=build /app/build/web /usr/share/nginx/html
