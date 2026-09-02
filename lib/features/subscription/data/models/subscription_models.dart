@@ -125,6 +125,7 @@ class SubscriptionPlanModel {
     this.buttonText,
     this.buttonAction = 'REGISTER',
     this.features = const <String>[],
+    this.capabilities = const <String, String>{},
     this.current = false,
     this.scheduled = false,
     this.effectiveAt,
@@ -153,6 +154,7 @@ class SubscriptionPlanModel {
   final String? buttonText;
   final String buttonAction;
   final List<String> features;
+  final Map<String, String> capabilities;
   final bool current;
   final bool scheduled;
   final DateTime? effectiveAt;
@@ -186,9 +188,48 @@ class SubscriptionPlanModel {
             .map((item) => item.toString())
             .where((item) => item.trim().isNotEmpty)
             .toList(growable: false),
+        capabilities: (json['capabilities'] as Map? ?? const <dynamic, dynamic>{})
+            .map((key, value) => MapEntry(key.toString(), value.toString())),
         current: json['current'] == true,
         scheduled: json['scheduled'] == true,
         effectiveAt: DateTime.tryParse(json['effectiveAt']?.toString() ?? ''),
+      );
+}
+
+class PlanCapabilitiesModel {
+  const PlanCapabilitiesModel({required this.planName, required this.limits, required this.features});
+  final String planName;
+  final Map<String, PlanLimitUsageModel> limits;
+  final Map<String, bool> features;
+
+  bool includes(String code) => features[code] == true;
+  bool reached(String code) {
+    final item = limits[code];
+    return item != null && item.limit != -1 && item.used >= item.limit;
+  }
+
+  factory PlanCapabilitiesModel.fromJson(Map<String, dynamic> json) => PlanCapabilitiesModel(
+        planName: (json['plan'] as Map?)?['name']?.toString() ?? '',
+        limits: (json['limits'] as Map? ?? const <dynamic, dynamic>{}).map((key, value) => MapEntry(
+              key.toString(),
+              PlanLimitUsageModel.fromJson(Map<String, dynamic>.from(value as Map)),
+            )),
+        features: (json['features'] as Map? ?? const <dynamic, dynamic>{})
+            .map((key, value) => MapEntry(key.toString(), value == true)),
+      );
+}
+
+class PlanLimitUsageModel {
+  const PlanLimitUsageModel({required this.limit, required this.used, required this.remaining, required this.exceeded});
+  final int limit;
+  final int used;
+  final int remaining;
+  final bool exceeded;
+  factory PlanLimitUsageModel.fromJson(Map<String, dynamic> json) => PlanLimitUsageModel(
+        limit: (json['limit'] as num?)?.toInt() ?? 0,
+        used: (json['used'] as num?)?.toInt() ?? 0,
+        remaining: (json['remaining'] as num?)?.toInt() ?? 0,
+        exceeded: json['exceeded'] == true,
       );
 }
 

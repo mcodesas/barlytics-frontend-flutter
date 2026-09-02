@@ -99,14 +99,16 @@ class _BarLyticsGoogleSignInButtonState extends State<BarLyticsGoogleSignInButto
     final busy = _busy || widget.loading;
     return SizedBox(
       width: double.infinity,
-      height: 52,
+      height: 48,
       child: OutlinedButton(
         onPressed: widget.enabled && !busy ? _signIn : null,
         style: OutlinedButton.styleFrom(
           backgroundColor: Colors.white,
           foregroundColor: const Color(0xFF1F1F1F),
-          side: const BorderSide(color: Color(0xFFDADCE0)),
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+          side: const BorderSide(color: Color(0xFFDADCE0), width: 1.1),
+          elevation: 0,
+          padding: const EdgeInsets.symmetric(horizontal: 18),
+          shape: const StadiumBorder(),
         ),
         child: Row(
           mainAxisAlignment: MainAxisAlignment.center,
@@ -121,8 +123,8 @@ class _BarLyticsGoogleSignInButtonState extends State<BarLyticsGoogleSignInButto
               const _GoogleMark(),
             const SizedBox(width: 12),
             Text(
-              busy ? 'Conectando con Google...' : 'Continuar con Google',
-              style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 15),
+              busy ? 'Conectando...' : 'Continuar con Google',
+              style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 14.5, letterSpacing: .1),
             ),
           ],
         ),

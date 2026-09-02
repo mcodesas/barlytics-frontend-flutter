@@ -18,6 +18,7 @@ import '../../../../core/widgets/app_error_view.dart';
 import '../../../../core/widgets/app_loader.dart';
 import '../../../../core/widgets/tech_background.dart';
 import '../../services/reporte_pdf_service.dart';
+import '../../../subscription/presentation/providers/subscription_provider.dart';
 
 class ReportesPage extends ConsumerWidget {
   const ReportesPage({super.key}) : _initialKind = null;
@@ -171,6 +172,10 @@ class ReportesPage extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final entitlement = ref.watch(planCapabilitiesProvider).valueOrNull;
+    if (entitlement != null && !entitlement.includes('REPORTES_OPERATIVOS')) {
+      return const _PlanFeatureBlocked();
+    }
     if (_initialKind != null) {
       final definition = reports.firstWhere(
         (item) => item.kind == _initialKind,
@@ -245,6 +250,19 @@ class ReportesPage extends ConsumerWidget {
       ),
     );
   }
+}
+
+class _PlanFeatureBlocked extends StatelessWidget {
+  const _PlanFeatureBlocked();
+  @override
+  Widget build(BuildContext context) => const Scaffold(
+        backgroundColor: Colors.transparent,
+        body: Center(
+          child: AppEmptyView(
+            message: 'Los reportes operativos no están incluidos en tu plan actual. Puedes habilitarlos cambiando de plan.',
+          ),
+        ),
+      );
 }
 
 class _ReportsToolbar extends StatelessWidget {

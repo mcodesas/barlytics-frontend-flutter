@@ -341,6 +341,20 @@ class _GlassLoginCard extends ConsumerWidget {
                     ),
                   ),
                   const SizedBox(height: 12),
+                  OutlinedButton.icon(
+                    onPressed: loading ? null : () => context.go('/registro'),
+                    icon: const Icon(Icons.person_add_alt_1_rounded),
+                    label: const Text('Registrarse'),
+                    style: OutlinedButton.styleFrom(
+                      foregroundColor: palette.textPrimary,
+                      side: BorderSide(color: palette.primary.withOpacity(0.42)),
+                      backgroundColor: palette.primary.withOpacity(0.07),
+                      padding: const EdgeInsets.symmetric(vertical: 15),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                      textStyle: const TextStyle(fontWeight: FontWeight.w800),
+                    ),
+                  ),
+                  const SizedBox(height: 8),
                   TextButton(
                     onPressed: loading ? null : () => context.go('/forgot-password'),
                     child: const Text('Olvidé mi contraseña'),

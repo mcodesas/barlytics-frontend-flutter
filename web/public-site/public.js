@@ -3,7 +3,7 @@
 
   const THEME = '#061723';
   const PUBLIC_ROUTES = new Set([
-    '/software-para-bares/', '/funcionalidades/', '/nosotros/', '/planes/', '/descargas/', '/contacto/', '/preguntas-frecuentes/', '/documentacion/'
+    '/software-para-bares/', '/funcionalidades/', '/nosotros/', '/planes/', '/descargas/', '/contacto/', '/preguntas-frecuentes/', '/documentacion/', '/privacidad/', '/terminos/'
   ]);
 
   const FEATURES = [

@@ -15,6 +15,7 @@ import '../../../productos/data/models/productos_response_model.dart';
 import '../../../sucursales/data/models/sucursales_response_model.dart';
 import '../../data/models/inventario_response_model.dart';
 import '../providers/inventario_conteo_provider.dart';
+import '../../../subscription/presentation/providers/subscription_provider.dart';
 
 enum _ConteoFilter { pendientes, registrados, todos }
 
@@ -39,6 +40,13 @@ class _InventarioListPageState extends ConsumerState<InventarioListPage> {
 
   @override
   Widget build(BuildContext context) {
+    final entitlement = ref.watch(planCapabilitiesProvider).valueOrNull;
+    if (entitlement != null && !entitlement.includes('INVENTARIO')) {
+      return const Scaffold(
+        backgroundColor: Colors.transparent,
+        body: Center(child: Text('Esta funcionalidad no está incluida en tu plan actual.')),
+      );
+    }
     final palette = ref.watch(selectedAppPaletteProvider);
     final branchState = ref.watch(branchScopeProvider);
     final state = ref.watch(inventarioConteoProvider);
