@@ -15,6 +15,15 @@ class SubscriptionRemoteDataSource {
     return response.data!;
   }
 
+  Future<PlanCapabilitiesModel> capabilities() async {
+    final response = await _api.get<PlanCapabilitiesModel>(
+      ApiPaths.subscriptionCapabilities,
+      (json) => PlanCapabilitiesModel.fromJson(Map<String, dynamic>.from(json as Map)),
+    );
+    if (response.data == null) throw StateError('No fue posible consultar las capacidades del plan.');
+    return response.data!;
+  }
+
   Future<List<SubscriptionPlanModel>> plans() async {
     final response = await _api.get<List<SubscriptionPlanModel>>(
       ApiPaths.subscriptionPlans,

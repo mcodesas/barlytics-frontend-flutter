@@ -1284,6 +1284,8 @@ class _PlanEditorSheetState extends ConsumerState<_PlanEditorSheet> {
   late final TextEditingController _buttonText;
   late final TextEditingController _discount;
   late final TextEditingController _promoText;
+  late final TextEditingController _maxUsers;
+  late final TextEditingController _maxBranches;
 
   late String _currency;
   late String _frequencyType;
@@ -1297,6 +1299,7 @@ class _PlanEditorSheetState extends ConsumerState<_PlanEditorSheet> {
   DateTime? _promoFrom;
   DateTime? _promoUntil;
   late List<_EditableItem> _items;
+  late Map<String, bool> _planFeatures;
 
   @override
   void initState() {
@@ -1314,6 +1317,15 @@ class _PlanEditorSheetState extends ConsumerState<_PlanEditorSheet> {
     _buttonText = TextEditingController(text: p?.buttonText ?? 'Empezar con este plan');
     _discount = TextEditingController(text: p == null ? '0' : _plainNumber(p.discountPercentage));
     _promoText = TextEditingController(text: p?.promotionText ?? '');
+    _maxUsers = TextEditingController(text: p?.capabilities['MAX_USUARIOS'] ?? '5');
+    _maxBranches = TextEditingController(text: p?.capabilities['MAX_SUCURSALES'] ?? '1');
+    _planFeatures = {
+      'REPORTES_OPERATIVOS': p?.capabilities['REPORTES_OPERATIVOS'] != 'false',
+      'INVENTARIO': p?.capabilities['INVENTARIO'] != 'false',
+      'MOVIMIENTOS_INVENTARIO': p?.capabilities['MOVIMIENTOS_INVENTARIO'] != 'false',
+      'GESTION_PRECIOS': p?.capabilities['GESTION_PRECIOS'] != 'false',
+      'PEDIDOS': p?.capabilities['PEDIDOS'] != 'false',
+    };
     _currency = p?.currency ?? 'COP';
     _frequencyType = p?.frequencyType ?? 'months';
     _buttonAction = p?.buttonAction ?? 'REGISTER';
@@ -1330,7 +1342,7 @@ class _PlanEditorSheetState extends ConsumerState<_PlanEditorSheet> {
 
   @override
   void dispose() {
-    for (final c in [_code, _name, _description, _price, _frequency, _trialDays, _order, _badge, _buttonText, _discount, _promoText]) {
+    for (final c in [_code, _name, _description, _price, _frequency, _trialDays, _order, _badge, _buttonText, _discount, _promoText, _maxUsers, _maxBranches]) {
       c.dispose();
     }
     for (final item in _items) {
@@ -1400,6 +1412,37 @@ class _PlanEditorSheetState extends ConsumerState<_PlanEditorSheet> {
                                 maxLines: 3,
                                 maxLength: 500,
                               ),
+                            ],
+                          ),
+                        ),
+                        const SizedBox(height: 12),
+                        _section(
+                          palette,
+                          icon: Icons.tune_rounded,
+                          title: 'Capacidades y límites',
+                          subtitle: 'Estas reglas se aplican realmente en el backend para cada empresa.',
+                          child: Column(
+                            children: [
+                              _twoColumns(
+                                _field(controller: _maxUsers, label: 'Usuarios activos', hint: '5 o -1 para ilimitado', icon: Icons.people_outline, validator: _planLimit),
+                                _field(controller: _maxBranches, label: 'Sucursales activas', hint: '1 o -1 para ilimitado', icon: Icons.store_outlined, validator: _planLimit),
+                              ),
+                              const SizedBox(height: 12),
+                              for (final entry in const {
+                                'REPORTES_OPERATIVOS': 'Reportes operativos',
+                                'INVENTARIO': 'Inventario',
+                                'MOVIMIENTOS_INVENTARIO': 'Movimientos de inventario',
+                                'GESTION_PRECIOS': 'Gestión de precios',
+                                'PEDIDOS': 'Pedidos',
+                              }.entries)
+                                SwitchListTile.adaptive(
+                                  dense: true,
+                                  contentPadding: EdgeInsets.zero,
+                                  title: Text(entry.value),
+                                  subtitle: Text(entry.key),
+                                  value: _planFeatures[entry.key] ?? false,
+                                  onChanged: (value) => setState(() => _planFeatures[entry.key] = value),
+                                ),
                             ],
                           ),
                         ),
@@ -1957,6 +2000,11 @@ class _PlanEditorSheetState extends ConsumerState<_PlanEditorSheet> {
       'promotionText': _nullable(_promoText.text),
       'active': _active,
       'syncProvider': _syncProvider,
+      'capabilities': [
+        {'code': 'MAX_USUARIOS', 'value': _maxUsers.text.trim()},
+        {'code': 'MAX_SUCURSALES', 'value': _maxBranches.text.trim()},
+        for (final entry in _planFeatures.entries) {'code': entry.key, 'value': entry.value.toString()},
+      ],
       'items': [
         for (var i = 0; i < _items.length; i++)
           {
@@ -1971,6 +2019,10 @@ class _PlanEditorSheetState extends ConsumerState<_PlanEditorSheet> {
   String? _required(String? value) => value == null || value.trim().isEmpty ? 'Campo obligatorio' : null;
   String? _positiveInt(String? value) => (int.tryParse(value ?? '') ?? 0) < 1 ? 'Debe ser mayor a 0' : null;
   String? _nonNegativeInt(String? value) => (int.tryParse(value ?? '') ?? -1) < 0 ? 'Debe ser 0 o mayor' : null;
+  String? _planLimit(String? value) {
+    final parsed = int.tryParse(value ?? '');
+    return parsed == null || parsed < -1 ? 'Usa -1 (ilimitado), 0 o un valor mayor' : null;
+  }
   String? _nonNegativeNumber(String? value) {
     final n = _doubleOrNull(value);
     if (n == null || n < 0) return 'Número inválido';
@@ -2077,6 +2129,7 @@ class _AdminPlan {
     required this.buttonAction,
     required this.active,
     required this.items,
+    required this.capabilities,
     this.description,
     this.promotionText,
     this.promotionFrom,
@@ -2111,6 +2164,7 @@ class _AdminPlan {
   final String? providerPlanId;
   final bool active;
   final List<_AdminItem> items;
+  final Map<String, String> capabilities;
 
   factory _AdminPlan.fromJson(Map<String, dynamic> json) => _AdminPlan(
         id: (json['id'] as num?)?.toInt() ?? 0,
@@ -2141,6 +2195,8 @@ class _AdminPlan {
             .whereType<Map>()
             .map((item) => _AdminItem.fromJson(Map<String, dynamic>.from(item)))
             .toList(growable: false),
+        capabilities: (json['capabilities'] as Map? ?? const <dynamic, dynamic>{})
+            .map((key, value) => MapEntry(key.toString(), value.toString())),
       );
 }
 

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 import '../../../../app/theme/app_palette.dart';
 import '../../../../app/theme/app_theme.dart';
@@ -10,6 +11,8 @@ import '../../../auth/data/models/google_auth_models.dart';
 import '../../../auth/presentation/providers/auth_provider.dart';
 import '../../../onboarding/data/models/onboarding_models.dart';
 import '../../../onboarding/presentation/providers/onboarding_provider.dart';
+import '../../../subscription/data/models/subscription_models.dart';
+import '../../../subscription/presentation/providers/subscription_provider.dart';
 
 class PublicRegistrationPage extends ConsumerStatefulWidget {
   const PublicRegistrationPage({super.key, this.planCode});
@@ -46,8 +49,87 @@ class _PublicRegistrationPageState extends ConsumerState<PublicRegistrationPage>
   String? _googleIdToken;
   GoogleIdentityModel? _googleIdentity;
   int _currentStep = 0;
+  String? _selectedPlanCode;
+  String? _selectedPlanName;
+  bool _recommendedPlan = false;
+  bool _planLoading = false;
 
   AppPalette get _palette => appPalettes.first;
+
+  @override
+  void initState() {
+    super.initState();
+    final requestedPlan = widget.planCode?.trim();
+    if (requestedPlan != null && requestedPlan.isNotEmpty) {
+      _selectedPlanCode = requestedPlan;
+    }
+    WidgetsBinding.instance.addPostFrameCallback((_) => _resolveRegistrationPlan());
+  }
+
+  Future<void> _resolveRegistrationPlan() async {
+    if (_planLoading) return;
+    setState(() => _planLoading = true);
+    try {
+      final plans = await ref.read(subscriptionRemoteDataSourceProvider).publicPlans();
+      if (!mounted) return;
+
+      final requested = widget.planCode?.trim();
+      SubscriptionPlanModel? selected;
+      if (requested != null && requested.isNotEmpty) {
+        for (final plan in plans) {
+          if (plan.code.trim().toLowerCase() == requested.toLowerCase()) {
+            selected = plan;
+            break;
+          }
+        }
+      }
+
+      if (selected == null && (requested == null || requested.isEmpty)) {
+        for (final plan in plans) {
+          final action = plan.buttonAction.trim().toUpperCase();
+          if (plan.recommended &&
+              plan.publicVisible &&
+              !plan.quoteRequired &&
+              action != 'NONE' &&
+              action != 'WHATSAPP') {
+            selected = plan;
+            break;
+          }
+        }
+      }
+
+      if (selected == null && (requested == null || requested.isEmpty)) {
+        for (final plan in plans) {
+          final action = plan.buttonAction.trim().toUpperCase();
+          if (plan.publicVisible &&
+              !plan.quoteRequired &&
+              action != 'NONE' &&
+              action != 'WHATSAPP') {
+            selected = plan;
+            break;
+          }
+        }
+      }
+
+      setState(() {
+        if (selected != null) {
+          _selectedPlanCode = selected!.code.trim();
+          _selectedPlanName = selected!.name.trim();
+          _recommendedPlan = selected!.recommended;
+        } else {
+          _selectedPlanCode = requested != null && requested.isNotEmpty ? requested : null;
+          _selectedPlanName = null;
+          _recommendedPlan = false;
+        }
+      });
+    } catch (_) {
+      // Si el usuario llegó desde un plan concreto conservamos su código.
+      // Para una entrada directa, el backend aplicará sus validaciones si no
+      // fue posible consultar temporalmente los planes públicos.
+    } finally {
+      if (mounted) setState(() => _planLoading = false);
+    }
+  }
 
   @override
   void dispose() {
@@ -166,6 +248,18 @@ class _PublicRegistrationPageState extends ConsumerState<PublicRegistrationPage>
   }
 
   Future<void> _submit() async {
+    if (_planLoading) {
+      _showMessage('Estamos seleccionando el plan recomendado. Intenta nuevamente en un momento.');
+      return;
+    }
+    if (_selectedPlanCode == null || _selectedPlanCode!.trim().isEmpty) {
+      await _resolveRegistrationPlan();
+      if (!mounted) return;
+      if (_selectedPlanCode == null || _selectedPlanCode!.trim().isEmpty) {
+        _showMessage('No fue posible seleccionar el plan recomendado. Intenta nuevamente.');
+        return;
+      }
+    }
     if (!_aceptaTerminos) {
       _showMessage('Debes aceptar los términos y la política de privacidad.');
       return;
@@ -186,8 +280,8 @@ class _PublicRegistrationPageState extends ConsumerState<PublicRegistrationPage>
         'ciudadId': _ciudadId,
         'direccion': _direccion.text.trim(),
         'telefono': _telefono.text.trim(),
-        if (widget.planCode != null && widget.planCode!.trim().isNotEmpty)
-          'planCode': widget.planCode!.trim(),
+        if (_selectedPlanCode != null && _selectedPlanCode!.trim().isNotEmpty)
+          'planCode': _selectedPlanCode!.trim(),
         'aceptaTerminos': true,
       };
       final registration = _googleIdToken != null
@@ -222,6 +316,14 @@ class _PublicRegistrationPageState extends ConsumerState<PublicRegistrationPage>
         behavior: SnackBarBehavior.floating,
       ),
     );
+  }
+
+  Future<void> _openLegalPage(String path) async {
+    final uri = Uri.parse('https://www.barlytics.com.co$path');
+    final opened = await launchUrl(uri, webOnlyWindowName: '_blank');
+    if (!opened && mounted) {
+      _showMessage('No fue posible abrir el documento. Visita www.barlytics.com.co$path');
+    }
   }
 
   @override
@@ -658,51 +760,96 @@ class _PublicRegistrationPageState extends ConsumerState<PublicRegistrationPage>
                   _SummaryItem(label: 'Teléfono', value: _telefono.text.trim()),
                 ],
               ),
+              if (_selectedPlanCode != null && _selectedPlanCode!.isNotEmpty) ...[
+                const SizedBox(height: 12),
+                _SummaryGroup(
+                  palette: palette,
+                  title: 'PLAN',
+                  icon: Icons.workspace_premium_outlined,
+                  items: [
+                    _SummaryItem(
+                      label: _recommendedPlan ? 'Plan recomendado' : 'Plan seleccionado',
+                      value: (_selectedPlanName != null && _selectedPlanName!.isNotEmpty)
+                          ? _selectedPlanName!
+                          : _selectedPlanCode!,
+                    ),
+                  ],
+                ),
+              ],
             ],
           ),
         ),
         const SizedBox(height: 16),
-        InkWell(
-          onTap: () => setState(() => _aceptaTerminos = !_aceptaTerminos),
-          borderRadius: BorderRadius.circular(18),
-          child: Container(
-            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-            decoration: BoxDecoration(
-              color: _aceptaTerminos ? palette.primary.withOpacity(.08) : palette.surface.withOpacity(.55),
-              borderRadius: BorderRadius.circular(18),
-              border: Border.all(
-                color: _aceptaTerminos ? palette.primary.withOpacity(.45) : palette.translucentBorder,
-              ),
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+          decoration: BoxDecoration(
+            color: _aceptaTerminos ? palette.primary.withOpacity(.08) : palette.surface.withOpacity(.55),
+            borderRadius: BorderRadius.circular(18),
+            border: Border.all(
+              color: _aceptaTerminos ? palette.primary.withOpacity(.45) : palette.translucentBorder,
             ),
-            child: Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Checkbox(
-                  value: _aceptaTerminos,
-                  onChanged: (value) => setState(() => _aceptaTerminos = value ?? false),
-                ),
-                const SizedBox(width: 4),
-                Expanded(
-                  child: Padding(
-                    padding: const EdgeInsets.only(top: 5),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        const Text(
-                          'Acepto los términos y la política de privacidad',
-                          style: TextStyle(fontWeight: FontWeight.w800),
+          ),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Checkbox(
+                value: _aceptaTerminos,
+                onChanged: (value) => setState(() => _aceptaTerminos = value ?? false),
+              ),
+              const SizedBox(width: 4),
+              Expanded(
+                child: Padding(
+                  padding: const EdgeInsets.only(top: 2),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      InkWell(
+                        onTap: () => setState(() => _aceptaTerminos = !_aceptaTerminos),
+                        borderRadius: BorderRadius.circular(8),
+                        child: const Padding(
+                          padding: EdgeInsets.symmetric(vertical: 3),
+                          child: Text(
+                            'Acepto las condiciones legales de BarLytics',
+                            style: TextStyle(fontWeight: FontWeight.w800),
+                          ),
                         ),
-                        const SizedBox(height: 3),
-                        Text(
-                          'La cuenta se crea sin cobro. Después pasarás a Mercado Pago para activar la suscripción.',
-                          style: TextStyle(color: palette.textSecondary, fontSize: 12, height: 1.4),
-                        ),
-                      ],
-                    ),
+                      ),
+                      Wrap(
+                        crossAxisAlignment: WrapCrossAlignment.center,
+                        spacing: 2,
+                        runSpacing: 0,
+                        children: [
+                          TextButton(
+                            onPressed: () => _openLegalPage('/terminos/'),
+                            style: TextButton.styleFrom(
+                              minimumSize: Size.zero,
+                              padding: const EdgeInsets.symmetric(horizontal: 2, vertical: 4),
+                              tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                            ),
+                            child: const Text('Términos y condiciones'),
+                          ),
+                          Text('y', style: TextStyle(color: palette.textSecondary, fontSize: 12)),
+                          TextButton(
+                            onPressed: () => _openLegalPage('/privacidad/'),
+                            style: TextButton.styleFrom(
+                              minimumSize: Size.zero,
+                              padding: const EdgeInsets.symmetric(horizontal: 2, vertical: 4),
+                              tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                            ),
+                            child: const Text('Política de privacidad'),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        'La cuenta se crea sin cobro. Después pasarás a Mercado Pago para activar la suscripción.',
+                        style: TextStyle(color: palette.textSecondary, fontSize: 12, height: 1.4),
+                      ),
+                    ],
                   ),
                 ),
-              ],
-            ),
+              ),
+            ],
           ),
         ),
       ],
@@ -752,16 +899,17 @@ class _PublicRegistrationPageState extends ConsumerState<PublicRegistrationPage>
     return LayoutBuilder(
       builder: (context, constraints) {
         final compact = constraints.maxWidth < 520;
+        final busy = _submitting || (_currentStep == 2 && _planLoading);
         final back = OutlinedButton.icon(
-          onPressed: _submitting ? null : _goBack,
+          onPressed: busy ? null : _goBack,
           icon: const Icon(Icons.arrow_back_rounded, size: 18),
           label: const Text('Atrás'),
         );
         final next = FilledButton.icon(
-          onPressed: _submitting
+          onPressed: busy
               ? null
               : (_currentStep == 1 ? _continueFromNegocio : _submit),
-          icon: _submitting
+          icon: busy
               ? const SizedBox(
                   width: 18,
                   height: 18,
@@ -774,7 +922,9 @@ class _PublicRegistrationPageState extends ConsumerState<PublicRegistrationPage>
           label: Text(
             _submitting
                 ? 'Creando cuenta...'
-                : (_currentStep == 1 ? 'Continuar' : 'Crear cuenta y pasar al pago'),
+                : (_currentStep == 2 && _planLoading
+                    ? 'Seleccionando plan...'
+                    : (_currentStep == 1 ? 'Continuar' : 'Crear cuenta y pasar al pago')),
           ),
         );
 

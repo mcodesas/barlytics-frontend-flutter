@@ -14,6 +14,7 @@ class ApiPaths {
   static const onboardingRegister = '/api/v1/onboarding/register';
   static const onboardingRegisterGoogle = '/api/v1/onboarding/register/google';
   static const subscriptionMe = '/api/v1/subscriptions/me';
+  static const subscriptionCapabilities = '/api/v1/subscriptions/me/capabilities';
   static const subscriptionPlans = '/api/v1/subscriptions/plans';
   static const publicSubscriptionPlans = '/api/v1/subscriptions/public/plans';
   static const subscriptionPlan = '/api/v1/subscriptions/plan';
