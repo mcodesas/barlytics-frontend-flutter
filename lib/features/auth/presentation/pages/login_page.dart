@@ -3,6 +3,7 @@ import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 import '../../../../app/theme/app_palette.dart';
 import '../../../../core/auth/google_sign_in_button.dart';
@@ -379,6 +380,8 @@ class _GlassLoginCard extends ConsumerWidget {
                   ),
                   const SizedBox(height: 16),
                   const _SecurityNote(),
+                  const SizedBox(height: 14),
+                  const _LoginLegalFooter(),
                 ],
               ),
             ),
@@ -895,3 +898,67 @@ class _SecurityNote extends ConsumerWidget {
     );
   }
 }
+
+class _LoginLegalFooter extends ConsumerWidget {
+  const _LoginLegalFooter();
+
+  Future<void> _openLegalPage(BuildContext context, String path) async {
+    final uri = Uri.parse('https://www.barlytics.com.co$path');
+    final opened = await launchUrl(uri, webOnlyWindowName: '_blank');
+    if (!opened && context.mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('No fue posible abrir www.barlytics.com.co$path'),
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+    }
+  }
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final palette = ref.watch(selectedAppPaletteProvider);
+    final linkStyle = TextButton.styleFrom(
+      foregroundColor: palette.primary,
+      minimumSize: Size.zero,
+      padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 3),
+      tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+      textStyle: const TextStyle(fontSize: 11.5, fontWeight: FontWeight.w700),
+    );
+
+    return Wrap(
+      alignment: WrapAlignment.center,
+      crossAxisAlignment: WrapCrossAlignment.center,
+      spacing: 2,
+      runSpacing: 2,
+      children: [
+        Text(
+          '© BarLytics',
+          style: TextStyle(
+            color: palette.textSecondary.withOpacity(.82),
+            fontSize: 11.5,
+          ),
+        ),
+        Text(
+          '·',
+          style: TextStyle(color: palette.textSecondary.withOpacity(.60)),
+        ),
+        TextButton(
+          onPressed: () => _openLegalPage(context, '/terminos/'),
+          style: linkStyle,
+          child: const Text('Términos y condiciones'),
+        ),
+        Text(
+          '·',
+          style: TextStyle(color: palette.textSecondary.withOpacity(.60)),
+        ),
+        TextButton(
+          onPressed: () => _openLegalPage(context, '/privacidad/'),
+          style: linkStyle,
+          child: const Text('Política de privacidad'),
+        ),
+      ],
+    );
+  }
+}
+

@@ -461,6 +461,34 @@ details p { padding: 0 20px 18px; margin: 0; color: var(--muted); line-height: 1
 .faq-search { width: 100%; margin: 0 0 24px; padding: 14px 16px; border: 1px solid var(--line); border-radius: 14px; outline: 0; background: rgba(2,12,24,.65); color: #fff; }
 .faq-search:focus { border-color: rgba(33,230,190,.45); box-shadow: 0 0 0 3px rgba(33,230,190,.08); }
 
+/* Enlaces públicos visibles en FAQ y documentación */
+.faq-category details p a,
+.public-url {
+  color:#8df4df;
+  font-weight:800;
+  text-decoration:underline;
+  text-decoration-color:rgba(141,244,223,.30);
+  text-underline-offset:3px;
+  overflow-wrap:anywhere;
+  word-break:break-word;
+}
+.faq-category details p a:hover,
+.public-url:hover { color:#c8fff4; text-decoration-color:currentColor; }
+.hero-direct-links {
+  display:grid;
+  gap:7px;
+  margin-top:18px;
+  padding:14px 16px;
+  border:1px solid rgba(33,230,190,.14);
+  border-radius:14px;
+  background:rgba(3,17,31,.42);
+  color:#aebdca;
+  font-size:12.5px;
+  line-height:1.5;
+}
+.hero-direct-links strong { color:#eaf4f7; }
+.hero-direct-links a { color:#8df4df; font-weight:800; text-decoration:underline; text-underline-offset:3px; overflow-wrap:anywhere; }
+
 
 /* Centro de documentación */
 .docs-layout { display:grid; grid-template-columns:260px minmax(0,1fr); gap:28px; align-items:start; }

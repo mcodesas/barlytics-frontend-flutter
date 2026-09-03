@@ -367,32 +367,73 @@ class _PublicRegistrationPageState extends ConsumerState<PublicRegistrationPage>
       child: Center(
         child: ConstrainedBox(
           constraints: const BoxConstraints(maxWidth: 1240),
-          child: LayoutBuilder(
-            builder: (context, constraints) {
-              final compact = constraints.maxWidth < 980;
-              final intro = _IntroPanel(palette: palette, compact: compact);
-              final form = _formPanel(palette, catalogs);
-              if (compact) {
-                return Column(
-                  children: [
-                    intro,
-                    const SizedBox(height: 18),
-                    form,
-                  ],
-                );
-              }
-              return Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  SizedBox(width: 390, child: intro),
-                  const SizedBox(width: 28),
-                  Expanded(child: form),
-                ],
-              );
-            },
+          child: Column(
+            children: [
+              LayoutBuilder(
+                builder: (context, constraints) {
+                  final compact = constraints.maxWidth < 980;
+                  final intro = _IntroPanel(palette: palette, compact: compact);
+                  final form = _formPanel(palette, catalogs);
+                  if (compact) {
+                    return Column(
+                      children: [
+                        intro,
+                        const SizedBox(height: 18),
+                        form,
+                      ],
+                    );
+                  }
+                  return Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      SizedBox(width: 390, child: intro),
+                      const SizedBox(width: 28),
+                      Expanded(child: form),
+                    ],
+                  );
+                },
+              ),
+              const SizedBox(height: 22),
+              _buildLegalFooter(palette),
+            ],
           ),
         ),
       ),
+    );
+  }
+
+  Widget _buildLegalFooter(AppPalette palette) {
+    final linkStyle = TextButton.styleFrom(
+      foregroundColor: palette.primary,
+      minimumSize: Size.zero,
+      padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 3),
+      tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+      textStyle: const TextStyle(fontSize: 12, fontWeight: FontWeight.w700),
+    );
+
+    return Wrap(
+      alignment: WrapAlignment.center,
+      crossAxisAlignment: WrapCrossAlignment.center,
+      spacing: 3,
+      runSpacing: 3,
+      children: [
+        Text(
+          '© BarLytics',
+          style: TextStyle(color: palette.textSecondary, fontSize: 12),
+        ),
+        Text('·', style: TextStyle(color: palette.textSecondary)),
+        TextButton(
+          onPressed: () => _openLegalPage('/terminos/'),
+          style: linkStyle,
+          child: const Text('Términos y condiciones'),
+        ),
+        Text('·', style: TextStyle(color: palette.textSecondary)),
+        TextButton(
+          onPressed: () => _openLegalPage('/privacidad/'),
+          style: linkStyle,
+          child: const Text('Política de privacidad'),
+        ),
+      ],
     );
   }
 
@@ -809,7 +850,7 @@ class _PublicRegistrationPageState extends ConsumerState<PublicRegistrationPage>
                         child: const Padding(
                           padding: EdgeInsets.symmetric(vertical: 3),
                           child: Text(
-                            'Acepto las condiciones legales de BarLytics',
+                            'Acepto los Términos y condiciones y la Política de privacidad',
                             style: TextStyle(fontWeight: FontWeight.w800),
                           ),
                         ),
@@ -905,8 +946,9 @@ class _PublicRegistrationPageState extends ConsumerState<PublicRegistrationPage>
           icon: const Icon(Icons.arrow_back_rounded, size: 18),
           label: const Text('Atrás'),
         );
+        final canContinue = _currentStep != 2 || _aceptaTerminos;
         final next = FilledButton.icon(
-          onPressed: busy
+          onPressed: busy || !canContinue
               ? null
               : (_currentStep == 1 ? _continueFromNegocio : _submit),
           icon: busy
@@ -927,21 +969,43 @@ class _PublicRegistrationPageState extends ConsumerState<PublicRegistrationPage>
                     : (_currentStep == 1 ? 'Continuar' : 'Crear cuenta y pasar al pago')),
           ),
         );
+        final requiresLegalAcceptance = _currentStep == 2 && !_aceptaTerminos;
 
         if (compact) {
           return Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
               SizedBox(width: double.infinity, child: next),
+              if (requiresLegalAcceptance) ...[
+                const SizedBox(height: 7),
+                Text(
+                  'Marca “Acepto los Términos y condiciones y la Política de privacidad” para crear la cuenta.',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(color: palette.textSecondary, fontSize: 11, height: 1.35),
+                ),
+              ],
               const SizedBox(height: 10),
               SizedBox(width: double.infinity, child: back),
             ],
           );
         }
         return Row(
+          crossAxisAlignment: CrossAxisAlignment.end,
           children: [
             back,
             const Spacer(),
+            if (requiresLegalAcceptance) ...[
+              Flexible(
+                child: Padding(
+                  padding: const EdgeInsets.only(right: 12, bottom: 3),
+                  child: Text(
+                    'Acepta los Términos y condiciones y la Política de privacidad para continuar.',
+                    textAlign: TextAlign.right,
+                    style: TextStyle(color: palette.textSecondary, fontSize: 11, height: 1.3),
+                  ),
+                ),
+              ),
+            ],
             next,
           ],
         );

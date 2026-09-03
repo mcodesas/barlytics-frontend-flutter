@@ -116,16 +116,26 @@ class _BarLyticsGoogleSignInButtonState
               width: double.infinity,
               height: 48,
               child: Center(
-                child: web.renderButton(
-                  configuration: web.GSIButtonConfiguration(
-                    type: web.GSIButtonType.standard,
-                    theme: web.GSIButtonTheme.outline,
-                    size: web.GSIButtonSize.large,
-                    text: web.GSIButtonText.continueWith,
-                    shape: web.GSIButtonShape.pill,
-                    logoAlignment: web.GSIButtonLogoAlignment.left,
-                    minimumWidth: buttonWidth,
-                    locale: 'es',
+                // Google limita el ancho del botón web a 400 px. Recortamos
+                // exactamente el área que pinta GIS para evitar el rectángulo
+                // blanco que quedaba visible alrededor del botón tipo pill.
+                child: ClipRRect(
+                  borderRadius: BorderRadius.circular(22),
+                  child: SizedBox(
+                    width: buttonWidth,
+                    height: 40,
+                    child: web.renderButton(
+                      configuration: web.GSIButtonConfiguration(
+                        type: web.GSIButtonType.standard,
+                        theme: web.GSIButtonTheme.outline,
+                        size: web.GSIButtonSize.large,
+                        text: web.GSIButtonText.continueWith,
+                        shape: web.GSIButtonShape.pill,
+                        logoAlignment: web.GSIButtonLogoAlignment.left,
+                        minimumWidth: buttonWidth,
+                        locale: 'es',
+                      ),
+                    ),
                   ),
                 ),
               ),

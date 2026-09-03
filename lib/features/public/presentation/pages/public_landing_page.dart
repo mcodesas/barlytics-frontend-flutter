@@ -304,7 +304,6 @@ class _PublicLandingPageState extends ConsumerState<PublicLandingPage> {
                               onDemo: () => _scrollTo(_demoKey),
                               onFunciones: () => _scrollTo(_funcionesKey),
                               onPlanes: () => _scrollTo(_planesKey),
-                              onNosotros: () => launchUrl(Uri.base.resolve('/nosotros/'), webOnlyWindowName: '_self'),
                               onDescargas: () => _scrollTo(_descargasKey),
                               onContacto: () => _scrollTo(_contactoKey),
                               onLogin: () => context.go('/login'),
@@ -519,7 +518,6 @@ class _PublicNavigation extends StatelessWidget {
     required this.onDemo,
     required this.onFunciones,
     required this.onPlanes,
-    required this.onNosotros,
     required this.onDescargas,
     required this.onContacto,
     required this.onLogin,
@@ -532,7 +530,6 @@ class _PublicNavigation extends StatelessWidget {
   final VoidCallback onDemo;
   final VoidCallback onFunciones;
   final VoidCallback onPlanes;
-  final VoidCallback onNosotros;
   final VoidCallback onDescargas;
   final VoidCallback onContacto;
   final VoidCallback onLogin;
@@ -552,7 +549,6 @@ class _PublicNavigation extends StatelessWidget {
               if (!compact) ...[
                 _TopNavButton(palette: palette, label: 'Demo', active: activeSection == 'demo', onTap: onDemo),
                 _TopNavButton(palette: palette, label: 'Funciones', active: activeSection == 'funciones', onTap: onFunciones),
-                _TopNavButton(palette: palette, label: 'Nosotros', active: activeSection == 'nosotros', onTap: onNosotros),
                 _TopNavButton(palette: palette, label: 'Planes', active: activeSection == 'planes', onTap: onPlanes),
                 _TopNavButton(palette: palette, label: 'Descargas', active: activeSection == 'descargas', onTap: onDescargas),
                 _TopNavButton(palette: palette, label: 'Contacto', active: activeSection == 'contacto', onTap: onContacto),
@@ -569,7 +565,6 @@ class _PublicNavigation extends StatelessWidget {
                   onDemo: onDemo,
                   onFunciones: onFunciones,
                   onPlanes: onPlanes,
-                  onNosotros: onNosotros,
                   onDescargas: onDescargas,
                   onContacto: onContacto,
                   onLogin: onLogin,
@@ -788,7 +783,6 @@ class _CompactNavMenu extends StatelessWidget {
     required this.onDemo,
     required this.onFunciones,
     required this.onPlanes,
-    required this.onNosotros,
     required this.onDescargas,
     required this.onContacto,
     required this.onLogin,
@@ -800,7 +794,6 @@ class _CompactNavMenu extends StatelessWidget {
   final VoidCallback onDemo;
   final VoidCallback onFunciones;
   final VoidCallback onPlanes;
-  final VoidCallback onNosotros;
   final VoidCallback onDescargas;
   final VoidCallback onContacto;
   final VoidCallback onLogin;
@@ -842,7 +835,6 @@ class _CompactNavMenu extends StatelessWidget {
           switch (value) {
             case 'demo': onDemo(); break;
             case 'funciones': onFunciones(); break;
-            case 'nosotros': onNosotros(); break;
             case 'planes': onPlanes(); break;
             case 'descargas': onDescargas(); break;
             case 'contacto': onContacto(); break;
@@ -853,7 +845,6 @@ class _CompactNavMenu extends StatelessWidget {
         itemBuilder: (_) => [
           PopupMenuItem(value: 'demo', child: _PopupNavItem(icon: Icons.play_circle_outline_rounded, label: 'Demo interactiva', active: activeSection == 'demo', accent: palette.primary)),
           PopupMenuItem(value: 'funciones', child: _PopupNavItem(icon: Icons.grid_view_rounded, label: 'Funciones', active: activeSection == 'funciones', accent: palette.primary)),
-          PopupMenuItem(value: 'nosotros', child: _PopupNavItem(icon: Icons.apartment_rounded, label: 'Nosotros', active: activeSection == 'nosotros', accent: palette.primary)),
           PopupMenuItem(value: 'planes', child: _PopupNavItem(icon: Icons.workspace_premium_rounded, label: 'Planes y precios', active: activeSection == 'planes', accent: palette.primary)),
           PopupMenuItem(value: 'descargas', child: _PopupNavItem(icon: Icons.download_rounded, label: 'Descargas', active: activeSection == 'descargas', accent: palette.primary)),
           PopupMenuItem(value: 'contacto', child: _PopupNavItem(icon: Icons.support_agent_rounded, label: 'Contacto', active: activeSection == 'contacto', accent: palette.primary)),
