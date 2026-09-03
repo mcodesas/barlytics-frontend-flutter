@@ -603,6 +603,7 @@ class _PublicRegistrationPageState extends ConsumerState<PublicRegistrationPage>
               webClientId: google.webClientId,
               iosClientId: google.iosClientId,
               desktopClientId: google.desktopClientId,
+              desktopClientSecret: google.desktopClientSecret,
               loading: _googleLoading,
               onIdToken: _handleGoogleIdToken,
               onError: (error) => _showMessage(
