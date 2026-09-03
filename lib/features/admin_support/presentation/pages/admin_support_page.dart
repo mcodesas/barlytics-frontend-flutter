@@ -488,6 +488,8 @@ class _SupportFilters extends StatelessWidget {
       child: LayoutBuilder(
         builder: (context, constraints) {
           final search = TextField(
+            maxLength: 120,
+            buildCounter: (_, {required currentLength, required isFocused, maxLength}) => null,
             onChanged: onSearchChanged,
             decoration: const InputDecoration(labelText: 'Buscar funcionalidad', prefixIcon: Icon(Icons.search_rounded), isDense: true),
           );

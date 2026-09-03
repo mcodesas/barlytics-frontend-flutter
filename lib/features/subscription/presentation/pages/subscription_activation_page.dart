@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
@@ -216,10 +217,16 @@ class _SubscriptionActivationPageState extends ConsumerState<SubscriptionActivat
         final bottom = MediaQuery.viewInsetsOf(sheetContext).bottom;
         final phoneLayout = MediaQuery.sizeOf(sheetContext).width < 640;
         Widget field(TextEditingController controller, String label, {bool required = true, TextInputType? keyboardType, bool enabled = true}) {
+          final maxLength = label.contains('Correo') ? 100 : label.contains('Teléfono') ? 13 : 20;
           return TextFormField(
             controller: controller,
             keyboardType: keyboardType,
             enabled: enabled,
+            maxLength: maxLength,
+            buildCounter: (_, {required currentLength, required isFocused, maxLength}) => null,
+            inputFormatters: keyboardType == TextInputType.phone
+                ? <TextInputFormatter>[FilteringTextInputFormatter.allow(RegExp(r'[0-9+()\-\s]')), LengthLimitingTextInputFormatter(maxLength)]
+                : <TextInputFormatter>[LengthLimitingTextInputFormatter(maxLength)],
             decoration: InputDecoration(labelText: label),
             validator: (value) {
               final text = value?.trim() ?? '';
@@ -368,9 +375,24 @@ class _SubscriptionActivationPageState extends ConsumerState<SubscriptionActivat
       builder: (sheetContext) {
         final bottom = MediaQuery.viewInsetsOf(sheetContext).bottom;
         Widget field(TextEditingController controller, String label, {bool required = true, TextInputType? keyboardType}) {
+          final maxLength = switch (label) {
+            'Nombre comercial' => 100,
+            'Razón social' => 300,
+            'Identificación' => 20,
+            'Dirección' => 100,
+            'Teléfono' => 15,
+            'Correo de la empresa' => 200,
+            'Sitio web' => 300,
+            _ => 300,
+          };
           return TextFormField(
             controller: controller,
             keyboardType: keyboardType,
+            maxLength: maxLength,
+            buildCounter: (_, {required currentLength, required isFocused, maxLength}) => null,
+            inputFormatters: keyboardType == TextInputType.phone
+                ? <TextInputFormatter>[FilteringTextInputFormatter.allow(RegExp(r'[0-9+()\-\s]')), LengthLimitingTextInputFormatter(maxLength)]
+                : <TextInputFormatter>[LengthLimitingTextInputFormatter(maxLength)],
             decoration: InputDecoration(labelText: label),
             validator: (value) {
               final text = value?.trim() ?? '';
@@ -2127,6 +2149,9 @@ class _SubscriptionActivationPageState extends ConsumerState<SubscriptionActivat
                       final document = TextFormField(
                         initialValue: _pseIdentificationNumber,
                         keyboardType: TextInputType.number,
+                        maxLength: 30,
+                        buildCounter: (_, {required currentLength, required isFocused, maxLength}) => null,
+                        inputFormatters: <TextInputFormatter>[FilteringTextInputFormatter.digitsOnly, LengthLimitingTextInputFormatter(30)],
                         decoration: const InputDecoration(
                           labelText: 'Número de documento',
                           prefixIcon: Icon(Icons.numbers_rounded),
@@ -2139,6 +2164,9 @@ class _SubscriptionActivationPageState extends ConsumerState<SubscriptionActivat
                       final phone = TextFormField(
                         initialValue: _psePhone,
                         keyboardType: TextInputType.phone,
+                        maxLength: 30,
+                        buildCounter: (_, {required currentLength, required isFocused, maxLength}) => null,
+                        inputFormatters: <TextInputFormatter>[FilteringTextInputFormatter.allow(RegExp(r'[0-9+()\-\s]')), LengthLimitingTextInputFormatter(30)],
                         decoration: const InputDecoration(
                           labelText: 'Celular',
                           prefixIcon: Icon(Icons.phone_outlined),
@@ -2163,6 +2191,9 @@ class _SubscriptionActivationPageState extends ConsumerState<SubscriptionActivat
                   const SizedBox(height: 10),
                   TextFormField(
                     initialValue: _pseStreetName,
+                    maxLength: 150,
+                    buildCounter: (_, {required currentLength, required isFocused, maxLength}) => null,
+                    inputFormatters: <TextInputFormatter>[LengthLimitingTextInputFormatter(150)],
                     decoration: const InputDecoration(
                       labelText: 'Dirección / calle',
                       prefixIcon: Icon(Icons.home_outlined),
@@ -2176,12 +2207,18 @@ class _SubscriptionActivationPageState extends ConsumerState<SubscriptionActivat
                       final compact = constraints.maxWidth < 620;
                       final number = TextFormField(
                         initialValue: _pseStreetNumber,
+                        maxLength: 30,
+                        buildCounter: (_, {required currentLength, required isFocused, maxLength}) => null,
+                        inputFormatters: <TextInputFormatter>[LengthLimitingTextInputFormatter(30)],
                         decoration: const InputDecoration(labelText: 'Número', hintText: 'S/N'),
                         onChanged: (value) => _pseStreetNumber = value,
                         validator: (value) => (value ?? '').trim().isEmpty ? 'Ingresa S/N si no aplica' : null,
                       );
                       final neighborhood = TextFormField(
                         initialValue: _pseNeighborhood,
+                        maxLength: 100,
+                        buildCounter: (_, {required currentLength, required isFocused, maxLength}) => null,
+                        inputFormatters: <TextInputFormatter>[LengthLimitingTextInputFormatter(100)],
                         decoration: const InputDecoration(labelText: 'Barrio'),
                         onChanged: (value) => _pseNeighborhood = value,
                         validator: (value) => (value ?? '').trim().isEmpty ? 'Ingresa el barrio' : null,
@@ -2196,6 +2233,9 @@ class _SubscriptionActivationPageState extends ConsumerState<SubscriptionActivat
                       final compact = constraints.maxWidth < 620;
                       final city = TextFormField(
                         initialValue: _pseCity,
+                        maxLength: 100,
+                        buildCounter: (_, {required currentLength, required isFocused, maxLength}) => null,
+                        inputFormatters: <TextInputFormatter>[LengthLimitingTextInputFormatter(100)],
                         decoration: const InputDecoration(labelText: 'Ciudad'),
                         onChanged: (value) => _pseCity = value,
                         validator: (value) => (value ?? '').trim().isEmpty ? 'Ingresa la ciudad' : null,
@@ -2203,6 +2243,9 @@ class _SubscriptionActivationPageState extends ConsumerState<SubscriptionActivat
                       final zip = TextFormField(
                         initialValue: _pseZipCode,
                         keyboardType: TextInputType.number,
+                        maxLength: 20,
+                        buildCounter: (_, {required currentLength, required isFocused, maxLength}) => null,
+                        inputFormatters: <TextInputFormatter>[FilteringTextInputFormatter.digitsOnly, LengthLimitingTextInputFormatter(20)],
                         decoration: const InputDecoration(labelText: 'Código postal'),
                         onChanged: (value) => _pseZipCode = value,
                         validator: (value) => (value ?? '').trim().length < 4 ? 'Código postal no válido' : null,

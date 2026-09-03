@@ -9,6 +9,7 @@ import 'package:go_router/go_router.dart';
 import '../../../../app/theme/app_control_metrics.dart';
 import '../../../../app/theme/app_palette.dart';
 import '../../../../core/widgets/tech_background.dart';
+import '../../../../core/utils/input_constraints.dart';
 import '../../data/models/marcas_response_model.dart';
 import '../providers/marcas_provider.dart';
 
@@ -50,8 +51,8 @@ class _MarcasListPageState extends ConsumerState<MarcasListPage> {
         _showMessage('No fue posible leer la imagen.', error: true);
         return;
       }
-      if (bytes.length > 4 * 1024 * 1024) {
-        _showMessage('El logo no puede superar 4 MB.', error: true);
+      if (bytes.length > InputConstraints.imageMaxBytes) {
+        _showMessage('El logo no puede superar 2 MB.', error: true);
         return;
       }
       final extension = (file.extension ?? 'png').toLowerCase();
@@ -136,6 +137,8 @@ class _MarcasListPageState extends ConsumerState<MarcasListPage> {
                         children: [
                           TextFormField(
                             controller: nameController,
+                            maxLength: 30,
+                            buildCounter: (_, {required currentLength, required isFocused, maxLength}) => null,
                             autofocus: item == null,
                             textCapitalization: TextCapitalization.words,
                             onChanged: (_) => setLocalState(() {}),
@@ -149,6 +152,8 @@ class _MarcasListPageState extends ConsumerState<MarcasListPage> {
                           const SizedBox(height: 14),
                           TextFormField(
                             controller: identificationController,
+                            maxLength: 50,
+                            buildCounter: (_, {required currentLength, required isFocused, maxLength}) => null,
                             textCapitalization: TextCapitalization.characters,
                             decoration: const InputDecoration(
                               labelText: 'Identificación o código',
@@ -496,6 +501,8 @@ class _TopControls extends StatelessWidget {
           label: const Text('Parámetros'),
         );
         final search = TextField(
+          maxLength: 120,
+          buildCounter: (_, {required currentLength, required isFocused, maxLength}) => null,
           controller: controller,
           onChanged: onChanged,
           decoration: InputDecoration(

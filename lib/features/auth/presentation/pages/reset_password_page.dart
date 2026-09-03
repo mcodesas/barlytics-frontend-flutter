@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../../app/theme/app_colors.dart';
+import '../../../../core/utils/input_constraints.dart';
 import '../../../../core/utils/validators.dart';
 import '../../../../core/widgets/app_button.dart';
 import '../../../../core/widgets/app_text_field.dart';
@@ -191,6 +192,8 @@ class _ResetPasswordPageState extends ConsumerState<ResetPasswordPage> {
             AppTextField(
               controller: _activationCode,
               label: 'Código de activación',
+                        maxLength: 6,
+              inputFormatters: InputConstraints.digitsFormatters(6),
               hintText: 'Ej. 483921',
               prefixIcon: Icons.password_rounded,
               keyboardType: TextInputType.number,
@@ -294,6 +297,7 @@ class _ResetPasswordPageState extends ConsumerState<ResetPasswordPage> {
           AppTextField(
             controller: _newPassword,
             label: 'Contraseña',
+                        maxLength: 72,
             prefixIcon: Icons.lock_outline_rounded,
             obscureText: true,
             validator: (value) {
@@ -307,6 +311,7 @@ class _ResetPasswordPageState extends ConsumerState<ResetPasswordPage> {
           AppTextField(
             controller: _confirmPassword,
             label: 'Confirmar contraseña',
+                        maxLength: 72,
             prefixIcon: Icons.lock_person_outlined,
             obscureText: true,
             validator: (value) {

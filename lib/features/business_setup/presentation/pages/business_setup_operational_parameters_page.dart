@@ -302,8 +302,10 @@ class _BusinessSetupOperationalParametersPageState
                   requiredField: true,
                   child: TextField(
                     controller: _generalController,
+                    maxLength: 15,
+                    buildCounter: (_, {required currentLength, required isFocused, maxLength}) => null,
                     keyboardType: TextInputType.phone,
-                    inputFormatters: [FilteringTextInputFormatter.allow(RegExp(r'[0-9+()\-\s]'))],
+                    inputFormatters: [FilteringTextInputFormatter.digitsOnly, LengthLimitingTextInputFormatter(15)],
                     decoration: const InputDecoration(
                       labelText: 'Número con indicativo de país',
                       hintText: 'Ej. 573001234567',
@@ -323,9 +325,12 @@ class _BusinessSetupOperationalParametersPageState
                         for (var i = 0; i < _branches.length; i++) ...[
                           TextField(
                             controller: _branchControllers[_branches[i].sucuId],
+                            maxLength: 15,
+                            buildCounter: (_, {required currentLength, required isFocused, maxLength}) => null,
                             keyboardType: TextInputType.phone,
                             inputFormatters: [
-                              FilteringTextInputFormatter.allow(RegExp(r'[0-9+()\-\s]')),
+                              FilteringTextInputFormatter.digitsOnly,
+                              LengthLimitingTextInputFormatter(15),
                             ],
                             decoration: InputDecoration(
                               labelText: _branches[i].label(),

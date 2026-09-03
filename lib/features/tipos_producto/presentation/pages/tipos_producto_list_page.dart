@@ -104,6 +104,8 @@ class _TiposProductoListPageState extends ConsumerState<TiposProductoListPage> {
                   const SizedBox(height: 16),
                   TextFormField(
                     controller: nameController,
+                    maxLength: 30,
+                    buildCounter: (_, {required currentLength, required isFocused, maxLength}) => null,
                     autofocus: item == null,
                     textCapitalization: TextCapitalization.words,
                     decoration: const InputDecoration(
@@ -116,6 +118,8 @@ class _TiposProductoListPageState extends ConsumerState<TiposProductoListPage> {
                   const SizedBox(height: 12),
                   TextFormField(
                     controller: descriptionController,
+                    maxLength: 300,
+                    buildCounter: (_, {required currentLength, required isFocused, maxLength}) => null,
                     minLines: 2,
                     maxLines: 3,
                     textCapitalization: TextCapitalization.sentences,
@@ -433,6 +437,8 @@ class _TopControls extends StatelessWidget {
           label: const Text('Parámetros'),
         );
         final search = TextField(
+          maxLength: 120,
+          buildCounter: (_, {required currentLength, required isFocused, maxLength}) => null,
           controller: controller,
           onChanged: onChanged,
           decoration: InputDecoration(

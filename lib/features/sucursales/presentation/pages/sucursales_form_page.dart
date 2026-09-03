@@ -8,6 +8,7 @@ import '../../../../core/constants/storage_keys.dart';
 import '../../../../core/crud/crud_field.dart';
 import '../../../../core/providers/core_providers.dart';
 import '../../../../core/utils/validators.dart';
+import '../../../../core/utils/input_constraints.dart';
 import '../../../../core/widgets/app_button.dart';
 import '../../../../core/widgets/app_loader.dart';
 import '../../../../core/widgets/app_text_field.dart';
@@ -780,6 +781,7 @@ class _FormSections extends StatelessWidget {
               hintText: 'Ej. Sede Centro',
               prefixIcon: Icons.storefront_rounded,
               validator: Validators.required,
+              maxLength: 100,
             ),
             AppTextField(
               controller: codigo,
@@ -787,6 +789,7 @@ class _FormSections extends StatelessWidget {
               hintText: 'Ej. CENTRO-01',
               prefixIcon: Icons.qr_code_rounded,
               validator: Validators.required,
+              maxLength: 50,
             ),
             LookupDropdown(
               controller: empresa,
@@ -817,6 +820,7 @@ class _FormSections extends StatelessWidget {
               hintText: 'Calle, carrera, número y referencia',
               prefixIcon: Icons.location_on_rounded,
               validator: Validators.required,
+              maxLength: 100,
             ),
             LookupDropdown(
               controller: zona,
@@ -852,6 +856,8 @@ class _FormSections extends StatelessWidget {
               prefixIcon: Icons.phone_rounded,
               keyboardType: TextInputType.phone,
               validator: Validators.required,
+              maxLength: 20,
+              inputFormatters: InputConstraints.phoneFormatters(20),
             ),
           ],
         ),

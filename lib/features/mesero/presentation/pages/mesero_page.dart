@@ -12,6 +12,7 @@ import '../../../../app/theme/app_colors.dart';
 import '../../../../app/theme/app_palette.dart';
 import '../../../../core/providers/core_providers.dart';
 import '../../../../core/utils/currency_utils.dart';
+import '../../../../core/utils/input_constraints.dart';
 import '../../../../core/utils/file_download_helper.dart';
 import '../../../../core/widgets/app_empty_view.dart';
 import '../../../../core/widgets/app_error_view.dart';
@@ -119,11 +120,29 @@ String _formatIntegerWithThousands(String digits) {
 }
 
 class _CurrencyThousandsInputFormatter extends TextInputFormatter {
-  const _CurrencyThousandsInputFormatter();
+  const _CurrencyThousandsInputFormatter({
+    required this.maxIntegerDigits,
+    this.fractionDigits = 0,
+  });
+
+  final int maxIntegerDigits;
+  final int fractionDigits;
 
   @override
   TextEditingValue formatEditUpdate(TextEditingValue oldValue, TextEditingValue newValue) {
-    final formatted = _formatRawCurrencyText(newValue.text);
+    final raw = newValue.text.trim();
+    if (raw.isEmpty) return newValue;
+
+    final commaIndex = raw.indexOf(',');
+    final dotIndex = raw.indexOf('.');
+    final separatorIndex = commaIndex >= 0
+        ? commaIndex
+        : (fractionDigits > 0 && dotIndex >= 0 ? dotIndex : -1);
+    final integerRaw = separatorIndex >= 0 ? raw.substring(0, separatorIndex) : raw;
+    final integerDigits = integerRaw.replaceAll(RegExp(r'\D'), '');
+    if (integerDigits.length > maxIntegerDigits) return oldValue;
+
+    final formatted = _formatRawCurrencyText(raw);
     return TextEditingValue(
       text: formatted,
       selection: TextSelection.collapsed(offset: formatted.length),
@@ -134,7 +153,9 @@ class _CurrencyThousandsInputFormatter extends TextInputFormatter {
     final raw = value.trim();
     if (raw.isEmpty) return '';
 
-    final commaIndex = raw.indexOf(',');
+    // El punto se usa como separador de miles en la UI; la coma es el
+    // separador decimal. Para campos enteros se eliminan ambos separadores.
+    final commaIndex = fractionDigits > 0 ? raw.indexOf(',') : -1;
     final hasDecimal = commaIndex >= 0;
     final integerRaw = hasDecimal ? raw.substring(0, commaIndex) : raw;
     final decimalRaw = hasDecimal ? raw.substring(commaIndex + 1) : '';
@@ -143,16 +164,29 @@ class _CurrencyThousandsInputFormatter extends TextInputFormatter {
     final decimalDigits = decimalRaw.replaceAll(RegExp(r'\D'), '');
     final formattedInteger = _formatIntegerWithThousands(integerDigits);
 
-    if (!hasDecimal) return formattedInteger;
+    if (!hasDecimal || fractionDigits == 0) return formattedInteger;
     if (formattedInteger.isEmpty && decimalDigits.isEmpty) return '';
 
-    final decimals = decimalDigits.length > 2 ? decimalDigits.substring(0, 2) : decimalDigits;
+    final decimals = decimalDigits.length > fractionDigits
+        ? decimalDigits.substring(0, fractionDigits)
+        : decimalDigits;
     return '$formattedInteger,$decimals';
   }
 }
 
+// Cierre de caja: NUMERIC(20,2) => 18 enteros + 2 decimales.
 const List<TextInputFormatter> _currencyInputFormatters = [
-  _CurrencyThousandsInputFormatter(),
+  _CurrencyThousandsInputFormatter(maxIntegerDigits: 18, fractionDigits: 2),
+];
+
+// Pagos de cuenta: NUMERIC(20,0).
+const List<TextInputFormatter> _wholeCurrencyInputFormatters = [
+  _CurrencyThousandsInputFormatter(maxIntegerDigits: 20),
+];
+
+// Propina de venta: NUMERIC(10,0).
+const List<TextInputFormatter> _tipCurrencyInputFormatters = [
+  _CurrencyThousandsInputFormatter(maxIntegerDigits: 10),
 ];
 
 class MeseroPage extends ConsumerStatefulWidget {
@@ -680,6 +714,8 @@ class _MeseroPageState extends ConsumerState<MeseroPage> {
         builder: (context, constraints) {
           final compact = constraints.maxWidth < 760;
           final searchField = TextField(
+            maxLength: 120,
+            buildCounter: (_, {required currentLength, required isFocused, maxLength}) => null,
             controller: _productoFiltroController,
             decoration: InputDecoration(
               labelText: 'Buscar productos',
@@ -1082,6 +1118,8 @@ class _MeseroPageState extends ConsumerState<MeseroPage> {
           width: compact ? double.infinity : 220,
           height: 42,
           child: TextField(
+            maxLength: 120,
+            buildCounter: (_, {required currentLength, required isFocused, maxLength}) => null,
             controller: _mesaBuscarController,
             onChanged: (value) => setState(() => _mesaBuscar = value),
             style: TextStyle(color: palette.textPrimary, fontWeight: FontWeight.w700, fontSize: 12),
@@ -1650,6 +1688,8 @@ class _MeseroPageState extends ConsumerState<MeseroPage> {
         builder: (context, constraints) {
           final compact = constraints.maxWidth < 760;
           final search = TextField(
+            maxLength: 120,
+            buildCounter: (_, {required currentLength, required isFocused, maxLength}) => null,
             controller: _historialBuscarController,
             onChanged: (value) => setState(() => _historialBuscar = value),
             decoration: InputDecoration(
@@ -1866,6 +1906,8 @@ class _MeseroPageState extends ConsumerState<MeseroPage> {
     }
 
     final searchField = TextField(
+      maxLength: 120,
+      buildCounter: (_, {required currentLength, required isFocused, maxLength}) => null,
       controller: _productoFiltroController,
       decoration: InputDecoration(
         labelText: 'Buscar productos',
@@ -3421,6 +3463,8 @@ class _MeseroPageState extends ConsumerState<MeseroPage> {
                       ),
                       const SizedBox(height: 16),
                       TextField(
+                        maxLength: 120,
+                        buildCounter: (_, {required currentLength, required isFocused, maxLength}) => null,
                         controller: controller,
                         decoration: const InputDecoration(
                           labelText: 'Buscar productos',
@@ -4491,9 +4535,12 @@ class _MeseroPageState extends ConsumerState<MeseroPage> {
                       builder: (context, constraints) {
                         final description = TextField(
                           controller: gasto.descripcion,
+                          maxLength: 300,
+                          inputFormatters: [LengthLimitingTextInputFormatter(300)],
                           decoration: InputDecoration(
                             labelText: 'Descripción del gasto',
                             hintText: 'Ej. hielo o transporte',
+                            counterText: '',
                             isDense: true,
                             border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
                           ),
@@ -4553,8 +4600,11 @@ class _MeseroPageState extends ConsumerState<MeseroPage> {
               controller: observacionController,
               minLines: 2,
               maxLines: 3,
+              maxLength: 500,
+              inputFormatters: [LengthLimitingTextInputFormatter(500)],
               decoration: InputDecoration(
                 labelText: 'Nota del cierre (opcional)',
+                counterText: '',
                 prefixIcon: const Icon(Icons.notes_rounded),
                 isDense: compact,
                 border: OutlineInputBorder(borderRadius: BorderRadius.circular(14)),
@@ -15725,7 +15775,7 @@ class _PagarCuentaDialogState extends State<_PagarCuentaDialog> {
           final field = TextFormField(
             controller: _propinaController,
             keyboardType: const TextInputType.numberWithOptions(decimal: true),
-            inputFormatters: _currencyInputFormatters,
+            inputFormatters: _tipCurrencyInputFormatters,
             decoration: const InputDecoration(
               labelText: 'Agregar propina adicional',
               hintText: '0',
@@ -16246,7 +16296,7 @@ class _PagarCuentaDialogState extends State<_PagarCuentaDialog> {
     final valueField = TextFormField(
       controller: pago.valorController,
       keyboardType: const TextInputType.numberWithOptions(decimal: true),
-      inputFormatters: _currencyInputFormatters,
+      inputFormatters: _wholeCurrencyInputFormatters,
       textAlign: TextAlign.center,
       style: TextStyle(color: palette.textPrimary, fontWeight: FontWeight.w900, fontSize: 28),
       decoration: InputDecoration(
@@ -16548,7 +16598,7 @@ class _PagarCuentaDialogState extends State<_PagarCuentaDialog> {
           TextFormField(
             controller: pago.valorRecibidoController,
             keyboardType: const TextInputType.numberWithOptions(decimal: true),
-            inputFormatters: _currencyInputFormatters,
+            inputFormatters: _wholeCurrencyInputFormatters,
             decoration: const InputDecoration(
               labelText: 'Total recibido',
               hintText: '50.000',
@@ -17306,6 +17356,7 @@ class _SumarCantidadProductoDialogState extends ConsumerState<_SumarCantidadProd
                       autofocus: true,
                       textAlign: TextAlign.center,
                       keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                      inputFormatters: InputConstraints.decimalFormatters(integerDigits: 10, fractionDigits: 0),
                       decoration: const InputDecoration(
                         labelText: 'Cantidad a sumar',
                         hintText: 'Ejemplo: 5',
@@ -18162,6 +18213,8 @@ class _AgregarProductosOverlayPanelState extends ConsumerState<_AgregarProductos
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           TextField(
+            maxLength: 120,
+            buildCounter: (_, {required currentLength, required isFocused, maxLength}) => null,
             controller: _busquedaController,
             enabled: !_guardando,
             onChanged: (_) => setState(() {}),
@@ -18639,7 +18692,7 @@ class _CantidadProductoExistenteDialogState extends ConsumerState<_CantidadProdu
                     autofocus: true,
                     textAlign: TextAlign.center,
                     keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                    inputFormatters: [FilteringTextInputFormatter.allow(RegExp(r'[0-9.,]'))],
+                    inputFormatters: InputConstraints.decimalFormatters(integerDigits: 10, fractionDigits: 0),
                     onChanged: (_) => setState(() {}),
                     decoration: const InputDecoration(labelText: 'Cantidad'),
                   ),
@@ -18829,7 +18882,7 @@ class _CantidadAgregarDesdePanelDialogState extends ConsumerState<_CantidadAgreg
               controller: _controller,
               autofocus: true,
               keyboardType: const TextInputType.numberWithOptions(decimal: true),
-              inputFormatters: [FilteringTextInputFormatter.allow(RegExp(r'[0-9.,]'))],
+              inputFormatters: InputConstraints.decimalFormatters(integerDigits: 10, fractionDigits: 0),
               onChanged: (_) => setState(() {}),
               decoration: const InputDecoration(
                 labelText: 'Cantidad',
@@ -18990,6 +19043,7 @@ class _CantidadProductoDialogState extends ConsumerState<_CantidadProductoDialog
                       autofocus: true,
                       textAlign: TextAlign.center,
                       keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                      inputFormatters: InputConstraints.decimalFormatters(integerDigits: 10, fractionDigits: 0),
                       decoration: const InputDecoration(
                         labelText: 'Cantidad',
                         hintText: 'Ejemplo: 3',
@@ -19104,9 +19158,12 @@ class _CrearMesaDialogState extends State<_CrearMesaDialog> {
                 TextFormField(
                   controller: _mesaNumero,
                   keyboardType: TextInputType.number,
+                  maxLength: 10,
+                  inputFormatters: InputConstraints.integerFormatters(maxValue: 2147483647),
                   decoration: const InputDecoration(
                     labelText: 'Número de mesa',
                     hintText: 'Ejemplo: 12',
+                    counterText: '',
                   ),
                   validator: (value) {
                     final parsed = int.tryParse((value ?? '').trim());
@@ -19201,7 +19258,9 @@ class _EditarMesaDialogState extends State<_EditarMesaDialog> {
                 TextFormField(
                   controller: _mesaNumero,
                   keyboardType: TextInputType.number,
-                  decoration: const InputDecoration(labelText: 'Número de mesa'),
+                  maxLength: 10,
+                  inputFormatters: InputConstraints.integerFormatters(maxValue: 2147483647),
+                  decoration: const InputDecoration(labelText: 'Número de mesa', counterText: ''),
                   validator: (value) {
                     final parsed = int.tryParse((value ?? '').trim());
                     if (parsed == null || parsed <= 0) return 'Ingresa un número de mesa válido';
@@ -19299,10 +19358,10 @@ class _LocalImagePickerFieldState extends State<_LocalImagePickerField> {
     final bytes = file?.bytes;
     if (bytes == null || bytes.isEmpty) return;
 
-    if (bytes.length > 3 * 1024 * 1024) {
+    if (bytes.length > InputConstraints.imageMaxBytes) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('La imagen es demasiado pesada. Usa una foto menor a 3 MB.')),
+        const SnackBar(content: Text('La imagen es demasiado pesada. Usa una foto de máximo 2 MB.')),
       );
       return;
     }
@@ -19508,10 +19567,13 @@ class _AjustarCuentasDialogState extends State<_AjustarCuentasDialog> {
                   TextFormField(
                     controller: _numeroCuentasController,
                     keyboardType: TextInputType.number,
+                    maxLength: 10,
+                    inputFormatters: InputConstraints.integerFormatters(maxValue: 2147483647),
                     decoration: const InputDecoration(
                       labelText: 'Número de cuentas',
                       hintText: 'Ejemplo: 6',
-                      helperText: 'No hay límite fijo desde la aplicación.',
+                      helperText: 'Sin límite funcional; el valor debe ser un entero válido.',
+                      counterText: '',
                     ),
                     onChanged: (value) {
                       final parsed = int.tryParse(value.trim());
@@ -19673,10 +19735,13 @@ class _AbrirVentaDialogState extends State<_AbrirVentaDialog> {
                   TextFormField(
                     controller: _numeroCuentasController,
                     keyboardType: TextInputType.number,
+                    maxLength: 10,
+                    inputFormatters: InputConstraints.integerFormatters(maxValue: 2147483647),
                     decoration: const InputDecoration(
                       labelText: 'Número de cuentas',
                       hintText: 'Ejemplo: 3',
                       helperText: 'Puedes registrar las cuentas que necesites.',
+                      counterText: '',
                     ),
                     onChanged: (value) {
                       final parsed = int.tryParse(value.trim());

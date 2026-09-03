@@ -262,6 +262,7 @@ class _GlassLoginCard extends ConsumerWidget {
                     hint: 'correo@barlytics.com',
                     icon: Icons.alternate_email_rounded,
                     keyboardType: TextInputType.emailAddress,
+                    maxLength: 255,
                     validator: Validators.required,
                     onChanged: (_) {
                       if (state._loginErrorMessage != null) {
@@ -276,6 +277,7 @@ class _GlassLoginCard extends ConsumerWidget {
                     hint: 'Clave segura',
                     icon: Icons.lock_outline_rounded,
                     obscureText: state._hidePassword,
+                    maxLength: 72,
                     validator: Validators.required,
                     onChanged: (_) {
                       if (state._loginErrorMessage != null) {
@@ -535,6 +537,7 @@ class _GlassTextField extends ConsumerWidget {
     this.suffixIcon,
     this.validator,
     this.onChanged,
+    this.maxLength,
   });
 
   final TextEditingController controller;
@@ -546,6 +549,7 @@ class _GlassTextField extends ConsumerWidget {
   final Widget? suffixIcon;
   final String? Function(String?)? validator;
   final ValueChanged<String>? onChanged;
+  final int? maxLength;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -557,6 +561,7 @@ class _GlassTextField extends ConsumerWidget {
       obscureText: obscureText,
       validator: validator,
       onChanged: onChanged,
+      maxLength: maxLength,
       style: TextStyle(
         color: palette.textPrimary,
         fontWeight: FontWeight.w700,
@@ -566,6 +571,7 @@ class _GlassTextField extends ConsumerWidget {
         hintText: hint,
         prefixIcon: Icon(icon),
         suffixIcon: suffixIcon,
+        counterText: maxLength == null ? null : '',
         filled: true,
         fillColor: palette.textPrimary.withOpacity(0.095),
         labelStyle: TextStyle(color: palette.textPrimary.withOpacity(0.82)),

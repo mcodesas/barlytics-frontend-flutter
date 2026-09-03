@@ -617,6 +617,8 @@ class _EmpresasListPageState extends ConsumerState<EmpresasListPage> {
             ],
           );
           final search = TextField(
+            maxLength: 120,
+            buildCounter: (_, {required currentLength, required isFocused, maxLength}) => null,
             controller: _searchController,
             onChanged: (value) => setState(() => _search = value),
             decoration: InputDecoration(

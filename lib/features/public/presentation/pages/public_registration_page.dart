@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter/services.dart';
 import 'package:go_router/go_router.dart';
 import 'package:url_launcher/url_launcher.dart';
 
@@ -636,10 +637,10 @@ class _PublicRegistrationPageState extends ConsumerState<PublicRegistrationPage>
                 _OrDivider(palette: palette, label: 'o crea tu acceso con correo'),
                 const SizedBox(height: 20),
                 _responsiveFields([
-                  _field(_primerNombre, 'Primer nombre', icon: Icons.badge_outlined),
-                  _field(_segundoNombre, 'Segundo nombre', isRequired: false, icon: Icons.badge_outlined),
-                  _field(_primerApellido, 'Primer apellido', icon: Icons.badge_outlined),
-                  _field(_segundoApellido, 'Segundo apellido', isRequired: false, icon: Icons.badge_outlined),
+                  _field(_primerNombre, 'Primer nombre', icon: Icons.badge_outlined, maxLength: 20),
+                  _field(_segundoNombre, 'Segundo nombre', isRequired: false, icon: Icons.badge_outlined, maxLength: 20),
+                  _field(_primerApellido, 'Primer apellido', icon: Icons.badge_outlined, maxLength: 20),
+                  _field(_segundoApellido, 'Segundo apellido', isRequired: false, icon: Icons.badge_outlined, maxLength: 20),
                 ]),
                 const SizedBox(height: 12),
                 _responsiveFields([
@@ -649,6 +650,7 @@ class _PublicRegistrationPageState extends ConsumerState<PublicRegistrationPage>
                     icon: Icons.alternate_email_rounded,
                     keyboardType: TextInputType.emailAddress,
                     validator: _emailValidator,
+                    maxLength: 100,
                   ),
                   _passwordField(
                     'Contraseña',
@@ -687,8 +689,8 @@ class _PublicRegistrationPageState extends ConsumerState<PublicRegistrationPage>
                   const SizedBox(height: 18),
                 ],
                 _responsiveFields([
-                  _field(_nombreComercial, 'Nombre comercial', icon: Icons.store_mall_directory_outlined),
-                  _field(_razonSocial, 'Razón social', isRequired: false, icon: Icons.business_outlined),
+                  _field(_nombreComercial, 'Nombre comercial', icon: Icons.store_mall_directory_outlined, maxLength: 100),
+                  _field(_razonSocial, 'Razón social', isRequired: false, icon: Icons.business_outlined, maxLength: 300),
                 ]),
                 const SizedBox(height: 12),
                 _responsiveFields([
@@ -707,7 +709,7 @@ class _PublicRegistrationPageState extends ConsumerState<PublicRegistrationPage>
                     onChanged: (value) => setState(() => _tipoIdentificacionId = value),
                     validator: (value) => value == null ? 'Campo obligatorio' : null,
                   ),
-                  _field(_identificacion, 'NIT / identificación', icon: Icons.numbers_rounded),
+                  _field(_identificacion, 'NIT / identificación', icon: Icons.numbers_rounded, maxLength: 20),
                 ]),
                 const SizedBox(height: 12),
                 _responsiveFields([
@@ -726,7 +728,7 @@ class _PublicRegistrationPageState extends ConsumerState<PublicRegistrationPage>
                     onChanged: (value) => setState(() => _ciudadId = value),
                     validator: (value) => value == null ? 'Campo obligatorio' : null,
                   ),
-                  _field(_direccion, 'Dirección', icon: Icons.location_on_outlined),
+                  _field(_direccion, 'Dirección', icon: Icons.location_on_outlined, maxLength: 100),
                   _field(
                     _telefono,
                     'Teléfono',
@@ -1054,6 +1056,12 @@ class _PublicRegistrationPageState extends ConsumerState<PublicRegistrationPage>
       controller: controller,
       keyboardType: keyboardType,
       maxLength: maxLength,
+      inputFormatters: keyboardType == TextInputType.phone
+          ? <TextInputFormatter>[
+              FilteringTextInputFormatter.allow(RegExp(r'[0-9+()\-\s]')),
+              if (maxLength != null) LengthLimitingTextInputFormatter(maxLength),
+            ]
+          : null,
       decoration: InputDecoration(
         labelText: '$label${isRequired ? ' *' : ''}',
         prefixIcon: icon == null ? null : Icon(icon, size: 20),
@@ -1076,9 +1084,11 @@ class _PublicRegistrationPageState extends ConsumerState<PublicRegistrationPage>
     return TextFormField(
       controller: controller,
       obscureText: obscure,
+      maxLength: 72,
       decoration: InputDecoration(
         labelText: '$label *',
         prefixIcon: const Icon(Icons.lock_outline_rounded, size: 20),
+        counterText: '',
         suffixIcon: IconButton(
           tooltip: obscure ? 'Mostrar contraseña' : 'Ocultar contraseña',
           onPressed: onToggle,
@@ -1087,6 +1097,7 @@ class _PublicRegistrationPageState extends ConsumerState<PublicRegistrationPage>
       ),
       validator: (value) {
         if (value == null || value.length < 8) return 'Mínimo 8 caracteres';
+        if (value.length > 72) return 'Máximo 72 caracteres';
         if (confirm && value != _password.text) return 'Las contraseñas no coinciden';
         return null;
       },

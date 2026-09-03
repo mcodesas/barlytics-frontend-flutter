@@ -441,6 +441,8 @@ class _CuentasVentaListPageState extends ConsumerState<CuentasVentaListPage> {
           LayoutBuilder(
             builder: (context, constraints) {
               final search = TextField(
+                maxLength: 120,
+                buildCounter: (_, {required currentLength, required isFocused, maxLength}) => null,
                 controller: _searchController,
                 onChanged: (_) => setState(() => _page = 0),
                 style: TextStyle(color: palette.textPrimary, fontWeight: FontWeight.w700),

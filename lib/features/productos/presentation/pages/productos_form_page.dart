@@ -3,12 +3,14 @@ import 'dart:math' as math;
 
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../../app/theme/app_palette.dart';
 import '../../../../core/constants/storage_keys.dart';
 import '../../../../core/providers/core_providers.dart';
+import '../../../../core/utils/input_constraints.dart';
 import '../../../../core/widgets/app_loader.dart';
 import '../../../../core/widgets/tech_background.dart';
 import '../../../business_setup/presentation/providers/business_setup_provider.dart';
@@ -327,6 +329,7 @@ class _ProductosFormPageState extends ConsumerState<ProductosFormPage> {
                 palette: palette,
                 controller: _nombreController,
                 label: 'Nombre del producto',
+                maxLength: 120,
                 icon: Icons.local_bar_rounded,
                 validator: _required,
                 onChanged: (_) => setState(() {}),
@@ -336,6 +339,7 @@ class _ProductosFormPageState extends ConsumerState<ProductosFormPage> {
                 palette: palette,
                 controller: _descripcionController,
                 label: 'Descripción',
+                maxLength: 400,
                 icon: Icons.description_rounded,
                 validator: _required,
                 maxLines: 2,
@@ -428,6 +432,7 @@ class _ProductosFormPageState extends ConsumerState<ProductosFormPage> {
                       palette: palette,
                       controller: _valorCompraController,
                       label: 'Valor compra',
+                      inputFormatters: InputConstraints.decimalFormatters(integerDigits: 15, fractionDigits: 0),
                       icon: Icons.shopping_cart_rounded,
                       keyboardType: const TextInputType.numberWithOptions(decimal: true),
                       validator: _requiredPositive,
@@ -440,6 +445,7 @@ class _ProductosFormPageState extends ConsumerState<ProductosFormPage> {
                       palette: palette,
                       controller: _valorVentaController,
                       label: 'Valor venta',
+                      inputFormatters: InputConstraints.decimalFormatters(integerDigits: 15, fractionDigits: 0),
                       icon: Icons.payments_rounded,
                       keyboardType: const TextInputType.numberWithOptions(decimal: true),
                       validator: _requiredPositive,
@@ -476,6 +482,7 @@ class _ProductosFormPageState extends ConsumerState<ProductosFormPage> {
                         palette: palette,
                         controller: _presentacionCompraController,
                         label: 'Presentación de compra',
+                        maxLength: 60,
                         icon: Icons.shopping_bag_rounded,
                         validator: _required,
                         onChanged: (_) => setState(() {}),
@@ -487,6 +494,7 @@ class _ProductosFormPageState extends ConsumerState<ProductosFormPage> {
                         palette: palette,
                         controller: _cantidadCompraController,
                         label: 'Unidades incluidas',
+                        inputFormatters: InputConstraints.decimalFormatters(integerDigits: 13, fractionDigits: 2),
                         icon: Icons.numbers_rounded,
                         keyboardType: const TextInputType.numberWithOptions(decimal: true),
                         validator: _requiredPositive,
@@ -513,6 +521,7 @@ class _ProductosFormPageState extends ConsumerState<ProductosFormPage> {
               palette: palette,
               controller: _porcentajeImpuestoController,
               label: 'Porcentaje de impuesto',
+              inputFormatters: InputConstraints.decimalFormatters(integerDigits: 3, fractionDigits: 2),
               icon: Icons.percent_rounded,
               keyboardType: const TextInputType.numberWithOptions(decimal: true),
               validator: _requiredPositiveOrZero,
@@ -611,6 +620,7 @@ class _ProductosFormPageState extends ConsumerState<ProductosFormPage> {
                       palette: palette,
                       controller: _stockMinimoController,
                       label: 'Stock mínimo',
+                      inputFormatters: InputConstraints.decimalFormatters(integerDigits: 28, fractionDigits: 2),
                       icon: Icons.notification_important_rounded,
                       keyboardType:
                           const TextInputType.numberWithOptions(decimal: true),
@@ -624,6 +634,7 @@ class _ProductosFormPageState extends ConsumerState<ProductosFormPage> {
                       palette: palette,
                       controller: _stockMaximoController,
                       label: 'Stock máximo (opcional)',
+                      inputFormatters: InputConstraints.decimalFormatters(integerDigits: 28, fractionDigits: 2),
                       icon: Icons.inventory_rounded,
                       keyboardType:
                           const TextInputType.numberWithOptions(decimal: true),
@@ -731,6 +742,7 @@ class _ProductosFormPageState extends ConsumerState<ProductosFormPage> {
               palette: palette,
               controller: _inventarioCantidadController,
               label: 'Cantidad a agregar',
+              inputFormatters: InputConstraints.decimalFormatters(integerDigits: 30, fractionDigits: 0),
               icon: Icons.add_box_rounded,
               keyboardType: const TextInputType.numberWithOptions(decimal: true),
               validator: _requiredPositive,
@@ -1193,6 +1205,9 @@ class _ProductosFormPageState extends ConsumerState<ProductosFormPage> {
     required AppPalette palette,
     bool secondaryRequired = true,
   }) {
+    final isBrand = title.toLowerCase().contains('marca');
+    final primaryMaxLength = 30;
+    final secondaryMaxLength = isBrand ? 50 : 300;
     final formKey = GlobalKey<FormState>();
     return showDialog<bool>(
       context: context,
@@ -1205,12 +1220,18 @@ class _ProductosFormPageState extends ConsumerState<ProductosFormPage> {
             children: [
               TextFormField(
                 controller: primaryController,
+                maxLength: primaryMaxLength,
+                buildCounter: (_, {required currentLength, required isFocused, maxLength}) => null,
+                inputFormatters: <TextInputFormatter>[LengthLimitingTextInputFormatter(primaryMaxLength)],
                 decoration: InputDecoration(labelText: primaryLabel),
                 validator: _required,
               ),
               const SizedBox(height: 12),
               TextFormField(
                 controller: secondaryController,
+                maxLength: secondaryMaxLength,
+                buildCounter: (_, {required currentLength, required isFocused, maxLength}) => null,
+                inputFormatters: <TextInputFormatter>[LengthLimitingTextInputFormatter(secondaryMaxLength)],
                 decoration: InputDecoration(labelText: secondaryLabel),
                 validator: secondaryRequired ? _required : null,
               ),
@@ -1619,6 +1640,13 @@ class _ProductImagePickerState extends State<_ProductImagePicker> {
     final file = result?.files.single;
     final bytes = file?.bytes;
     if (bytes == null || bytes.isEmpty) return;
+    if (bytes.length > InputConstraints.imageMaxBytes) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('La imagen no puede superar 2 MB.')),
+      );
+      return;
+    }
     final ext = (file?.extension ?? 'png').toLowerCase();
     final mime = ext == 'jpg' || ext == 'jpeg'
         ? 'image/jpeg'
@@ -1728,6 +1756,8 @@ class _FormTextField extends StatelessWidget {
     required this.icon,
     this.validator,
     this.keyboardType,
+    this.maxLength,
+    this.inputFormatters,
     this.maxLines = 1,
     this.onChanged,
     this.enabled = true,
@@ -1739,6 +1769,8 @@ class _FormTextField extends StatelessWidget {
   final IconData icon;
   final String? Function(String?)? validator;
   final TextInputType? keyboardType;
+  final int? maxLength;
+  final List<TextInputFormatter>? inputFormatters;
   final int maxLines;
   final ValueChanged<String>? onChanged;
   final bool enabled;
@@ -1749,6 +1781,9 @@ class _FormTextField extends StatelessWidget {
       controller: controller,
       validator: validator,
       keyboardType: keyboardType,
+      maxLength: maxLength,
+      buildCounter: (_, {required currentLength, required isFocused, maxLength}) => null,
+      inputFormatters: inputFormatters ?? (maxLength == null ? null : <TextInputFormatter>[LengthLimitingTextInputFormatter(maxLength!)]),
       maxLines: maxLines,
       enabled: enabled,
       onChanged: onChanged,

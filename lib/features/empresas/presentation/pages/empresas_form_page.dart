@@ -4,6 +4,7 @@ import 'dart:typed_data';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter/services.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../../app/theme/app_colors.dart';
@@ -13,6 +14,7 @@ import '../../../../core/constants/api_paths.dart';
 import '../../../../core/constants/storage_keys.dart';
 import '../../../../core/crud/crud_field.dart';
 import '../../../../core/providers/core_providers.dart';
+import '../../../../core/utils/input_constraints.dart';
 import '../../../../core/widgets/app_button.dart';
 import '../../../../core/widgets/app_loader.dart';
 import '../../../../core/widgets/lookup_dropdown.dart';
@@ -754,10 +756,10 @@ class _EmpresasFormPageState extends ConsumerState<EmpresasFormPage> {
           title: 'Identidad de la empresa',
           description: 'Nombre comercial, razón social e identificación tributaria.',
           children: [
-            _textField(_nombreComercial, 'Nombre comercial', Icons.storefront_rounded),
-            _textField(_razonSocial, 'Razón social', Icons.apartment_rounded),
+            _textField(_nombreComercial, 'Nombre comercial', Icons.storefront_rounded, maxLength: 100),
+            _textField(_razonSocial, 'Razón social', Icons.apartment_rounded, maxLength: 300),
             _lookupField(_tipoIdentificacion, _tipoIdentificacionField),
-            _textField(_identificacion, 'Número de identificación', Icons.badge_outlined),
+            _textField(_identificacion, 'Número de identificación', Icons.badge_outlined, maxLength: 20),
           ],
         ),
       1 => _editSection(
@@ -766,9 +768,9 @@ class _EmpresasFormPageState extends ConsumerState<EmpresasFormPage> {
           title: 'Contacto comercial',
           description: 'Información que se mostrará en documentos y canales de atención.',
           children: [
-            _textField(_correo, 'Correo electrónico', Icons.email_outlined, keyboardType: TextInputType.emailAddress, validator: _emailValidator),
-            _textField(_telefono, 'Teléfono', Icons.phone_outlined, keyboardType: TextInputType.phone),
-            _textField(_sitioWeb, 'Sitio web', Icons.language_rounded, required: false, validator: _optionalUrlValidator),
+            _textField(_correo, 'Correo electrónico', Icons.email_outlined, keyboardType: TextInputType.emailAddress, validator: _emailValidator, maxLength: 200),
+            _textField(_telefono, 'Teléfono', Icons.phone_outlined, keyboardType: TextInputType.phone, maxLength: 15),
+            _textField(_sitioWeb, 'Sitio web', Icons.language_rounded, required: false, validator: _optionalUrlValidator, maxLength: 300),
             _lookupField(_paisTelefono, _paisTelefonoField),
           ],
         ),
@@ -779,8 +781,8 @@ class _EmpresasFormPageState extends ConsumerState<EmpresasFormPage> {
           description: 'Dirección principal, ciudad y zona horaria del negocio.',
           children: [
             _lookupField(_ciudad, _ciudadField),
-            _textField(_direccion, 'Dirección principal', Icons.location_on_outlined),
-            _textField(_codigoPostal, 'Código postal', Icons.local_post_office_outlined, required: false),
+            _textField(_direccion, 'Dirección principal', Icons.location_on_outlined, maxLength: 100),
+            _textField(_codigoPostal, 'Código postal', Icons.local_post_office_outlined, required: false, maxLength: 30),
             _lookupField(_zona, _zonaField),
           ],
         ),
@@ -1025,7 +1027,7 @@ class _EmpresasFormPageState extends ConsumerState<EmpresasFormPage> {
       final file = result?.files.single;
       final bytes = file?.bytes;
       if (bytes == null || bytes.isEmpty) return;
-      if (bytes.length > 2 * 1024 * 1024) {
+      if (bytes.length > InputConstraints.imageMaxBytes) {
         _showLogoMessage('El logo no puede superar 2 MB.');
         return;
       }
@@ -1057,7 +1059,7 @@ class _EmpresasFormPageState extends ConsumerState<EmpresasFormPage> {
             const SizedBox(height: 6),
             const Text('La dirección debe ser pública y comenzar con http:// o https://.'),
             const SizedBox(height: 16),
-            TextField(controller: controller, autofocus: true, keyboardType: TextInputType.url, decoration: const InputDecoration(labelText: 'URL del logo', prefixIcon: Icon(Icons.link_rounded))),
+            TextField(controller: controller, autofocus: true, keyboardType: TextInputType.url, maxLength: 3000000, buildCounter: (_, {required currentLength, required isFocused, maxLength}) => null, inputFormatters: <TextInputFormatter>[LengthLimitingTextInputFormatter(3000000)], decoration: const InputDecoration(labelText: 'URL del logo', prefixIcon: Icon(Icons.link_rounded))),
             const SizedBox(height: 16),
             FilledButton.icon(onPressed: () => Navigator.of(sheetContext).pop(controller.text.trim()), icon: const Icon(Icons.check_rounded), label: const Text('Aplicar URL')),
           ],
@@ -1126,18 +1128,18 @@ class _EmpresasFormPageState extends ConsumerState<EmpresasFormPage> {
                 spacing: 20,
                 runSpacing: 16,
                 children: [
-                  SizedBox(width: fieldWidth, child: _textField(_nombreComercial, 'Nombre comercial', Icons.storefront_rounded)),
-                  SizedBox(width: fieldWidth, child: _textField(_razonSocial, 'Razón social', Icons.apartment_rounded)),
+                  SizedBox(width: fieldWidth, child: _textField(_nombreComercial, 'Nombre comercial', Icons.storefront_rounded, maxLength: 100)),
+                  SizedBox(width: fieldWidth, child: _textField(_razonSocial, 'Razón social', Icons.apartment_rounded, maxLength: 300)),
                   SizedBox(width: fieldWidth, child: _lookupField(_tipoIdentificacion, _tipoIdentificacionField)),
-                  SizedBox(width: fieldWidth, child: _textField(_identificacion, 'Identificación', Icons.badge_outlined)),
+                  SizedBox(width: fieldWidth, child: _textField(_identificacion, 'Identificación', Icons.badge_outlined, maxLength: 20)),
                   SizedBox(width: fieldWidth, child: _lookupField(_ciudad, _ciudadField)),
                   SizedBox(width: fieldWidth, child: _lookupField(_zona, _zonaField)),
                   SizedBox(width: fieldWidth, child: _lookupField(_paisTelefono, _paisTelefonoField)),
-                  SizedBox(width: fieldWidth, child: _textField(_telefono, 'Teléfono', Icons.phone_outlined, keyboardType: TextInputType.phone)),
-                  SizedBox(width: fieldWidth, child: _textField(_correo, 'Correo electrónico', Icons.email_outlined, keyboardType: TextInputType.emailAddress, validator: _emailValidator)),
-                  SizedBox(width: fieldWidth, child: _textField(_direccion, 'Dirección', Icons.location_on_outlined)),
-                  SizedBox(width: fieldWidth, child: _textField(_codigoPostal, 'Código postal', Icons.local_post_office_outlined, required: false)),
-                  SizedBox(width: fieldWidth, child: _textField(_sitioWeb, 'Sitio web (opcional)', Icons.language_rounded, required: false, validator: _optionalUrlValidator)),
+                  SizedBox(width: fieldWidth, child: _textField(_telefono, 'Teléfono', Icons.phone_outlined, keyboardType: TextInputType.phone, maxLength: 15)),
+                  SizedBox(width: fieldWidth, child: _textField(_correo, 'Correo electrónico', Icons.email_outlined, keyboardType: TextInputType.emailAddress, validator: _emailValidator, maxLength: 200)),
+                  SizedBox(width: fieldWidth, child: _textField(_direccion, 'Dirección', Icons.location_on_outlined, maxLength: 100)),
+                  SizedBox(width: fieldWidth, child: _textField(_codigoPostal, 'Código postal', Icons.local_post_office_outlined, required: false, maxLength: 30)),
+                  SizedBox(width: fieldWidth, child: _textField(_sitioWeb, 'Sitio web (opcional)', Icons.language_rounded, required: false, validator: _optionalUrlValidator, maxLength: 300)),
                   SizedBox(width: fieldWidth, child: _statusField()),
                 ],
               );
@@ -1276,11 +1278,26 @@ class _EmpresasFormPageState extends ConsumerState<EmpresasFormPage> {
     TextInputType? keyboardType,
     bool required = true,
     String? Function(String?)? validator,
+    int? maxLength,
+    List<TextInputFormatter>? inputFormatters,
   }) {
+    final effectiveFormatters = inputFormatters ??
+        (keyboardType == TextInputType.phone
+            ? <TextInputFormatter>[
+                FilteringTextInputFormatter.allow(RegExp(r'[0-9+()\-\s]')),
+                if (maxLength != null) LengthLimitingTextInputFormatter(maxLength),
+              ]
+            : keyboardType == TextInputType.number
+                ? <TextInputFormatter>[FilteringTextInputFormatter.digitsOnly]
+                : maxLength == null
+                    ? null
+                    : <TextInputFormatter>[LengthLimitingTextInputFormatter(maxLength)]);
     return TextFormField(
       controller: controller,
       keyboardType: keyboardType,
-      decoration: InputDecoration(labelText: label, prefixIcon: Icon(icon)),
+      maxLength: maxLength,
+      inputFormatters: effectiveFormatters,
+      decoration: InputDecoration(labelText: label, prefixIcon: Icon(icon), counterText: maxLength == null ? null : ''),
       validator: validator ?? (required ? _requiredValidator : null),
     );
   }
@@ -1440,15 +1457,15 @@ class _SucursalDialogState extends State<_SucursalDialog> {
                   spacing: 20,
                   runSpacing: 16,
                   children: [
-                    SizedBox(width: fieldWidth, child: _textField(_nombre, 'Nombre sucursal', Icons.storefront_outlined)),
-                    SizedBox(width: fieldWidth, child: _textField(_codigo, 'Código interno', Icons.tag_rounded)),
+                    SizedBox(width: fieldWidth, child: _textField(_nombre, 'Nombre sucursal', Icons.storefront_outlined, maxLength: 100)),
+                    SizedBox(width: fieldWidth, child: _textField(_codigo, 'Código interno', Icons.tag_rounded, maxLength: 50)),
                     SizedBox(width: fieldWidth, child: _lookupField(_ciudad, _ciudadField)),
                     SizedBox(width: fieldWidth, child: _lookupField(_zona, _zonaField)),
                     SizedBox(width: fieldWidth, child: _lookupField(_moneda, _monedaField)),
                     SizedBox(width: fieldWidth, child: _lookupField(_paisTelefono, _paisTelefonoField)),
-                    SizedBox(width: fieldWidth, child: _textField(_direccion, 'Dirección', Icons.location_on_outlined)),
-                    SizedBox(width: fieldWidth, child: _textField(_telefono, 'Teléfono', Icons.phone_outlined, keyboardType: TextInputType.phone)),
-                    SizedBox(width: fieldWidth, child: _textField(_estado, 'Estado', Icons.toggle_on_outlined, keyboardType: TextInputType.number)),
+                    SizedBox(width: fieldWidth, child: _textField(_direccion, 'Dirección', Icons.location_on_outlined, maxLength: 100)),
+                    SizedBox(width: fieldWidth, child: _textField(_telefono, 'Teléfono', Icons.phone_outlined, keyboardType: TextInputType.phone, maxLength: 20)),
+                    SizedBox(width: fieldWidth, child: _textField(_estado, 'Estado', Icons.toggle_on_outlined, keyboardType: TextInputType.number, maxLength: 1, inputFormatters: InputConstraints.digitsFormatters(1), validator: (value) => value == '0' || value == '1' ? null : 'Usa 1 para activa o 0 para inactiva')),
                   ],
                 );
               },
@@ -1473,12 +1490,33 @@ class _SucursalDialogState extends State<_SucursalDialog> {
     );
   }
 
-  Widget _textField(TextEditingController controller, String label, IconData icon, {TextInputType? keyboardType}) {
+  Widget _textField(
+    TextEditingController controller,
+    String label,
+    IconData icon, {
+    TextInputType? keyboardType,
+    int? maxLength,
+    List<TextInputFormatter>? inputFormatters,
+    String? Function(String?)? validator,
+  }) {
+    final effectiveFormatters = inputFormatters ??
+        (keyboardType == TextInputType.phone
+            ? <TextInputFormatter>[
+                FilteringTextInputFormatter.allow(RegExp(r'[0-9+()\-\s]')),
+                if (maxLength != null) LengthLimitingTextInputFormatter(maxLength),
+              ]
+            : keyboardType == TextInputType.number
+                ? <TextInputFormatter>[FilteringTextInputFormatter.digitsOnly]
+                : maxLength == null
+                    ? null
+                    : <TextInputFormatter>[LengthLimitingTextInputFormatter(maxLength)]);
     return TextFormField(
       controller: controller,
       keyboardType: keyboardType,
-      decoration: InputDecoration(labelText: label, prefixIcon: Icon(icon)),
-      validator: (value) => value == null || value.trim().isEmpty ? 'Campo obligatorio' : null,
+      maxLength: maxLength,
+      inputFormatters: effectiveFormatters,
+      decoration: InputDecoration(labelText: label, prefixIcon: Icon(icon), counterText: maxLength == null ? null : ''),
+      validator: validator ?? (value) => value == null || value.trim().isEmpty ? 'Campo obligatorio' : null,
     );
   }
 

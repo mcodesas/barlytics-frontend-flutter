@@ -17,6 +17,7 @@ import '../crud/crud_repository.dart';
 import '../crud/crud_state.dart';
 import '../providers/core_providers.dart';
 import '../utils/responsive_utils.dart';
+import '../utils/input_constraints.dart';
 import '../utils/validators.dart';
 import 'app_button.dart';
 import 'app_loader.dart';
@@ -353,14 +354,45 @@ class _DynamicCrudFormPageState<T> extends ConsumerState<DynamicCrudFormPage<T>>
       );
     }
 
+    final maxLength = InputConstraints.maxLengthFor(field.name);
+    final numeric = field.type == CrudFieldType.number;
+    final decimal = field.type == CrudFieldType.decimal;
+    final validators = <String? Function(String?)>[
+      if (field.required) Validators.required,
+      if (maxLength != null) (value) => Validators.maxLength(value, maxLength),
+    ];
     return AppTextField(
       controller: _controllers[field.name]!,
       label: field.label,
       prefixIcon: _iconForField(field),
       keyboardType: _keyboardType(field.type),
-      validator: field.required ? Validators.required : null,
+      validator: validators.isEmpty ? null : Validators.combine(validators),
       readOnly: field.readOnly,
+      maxLength: numeric || decimal ? null : maxLength,
+      inputFormatters: InputConstraints.formattersForField(
+        field.name,
+        numeric: numeric,
+        decimal: decimal,
+      ),
+      maxLines: maxLength != null && maxLength >= 300 ? 3 : 1,
+      textCapitalization: _capitalizationForField(field),
     );
+  }
+
+
+  TextCapitalization _capitalizationForField(CrudField field) {
+    final name = field.name.toLowerCase();
+    if (name.contains('email') ||
+        name.contains('correo') ||
+        name.contains('codigo') ||
+        name.contains('parametro') ||
+        name.contains('url') ||
+        name.contains('sitio')) {
+      return TextCapitalization.none;
+    }
+    return field.type == CrudFieldType.text
+        ? TextCapitalization.sentences
+        : TextCapitalization.none;
   }
 
   IconData _iconForField(CrudField field) {
@@ -575,6 +607,13 @@ class _ImageFieldState extends State<_ImageField> {
     final file = result?.files.single;
     final bytes = file?.bytes;
     if (bytes == null || bytes.isEmpty) return;
+    if (bytes.length > InputConstraints.imageMaxBytes) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('La imagen no puede superar 2 MB.')),
+      );
+      return;
+    }
     final ext = (file?.extension ?? 'png').toLowerCase();
     final mime = ext == 'jpg' || ext == 'jpeg'
         ? 'image/jpeg'

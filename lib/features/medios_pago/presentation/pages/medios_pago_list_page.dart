@@ -9,6 +9,7 @@ import 'package:go_router/go_router.dart';
 import '../../../../app/theme/app_control_metrics.dart';
 import '../../../../app/theme/app_palette.dart';
 import '../../../../core/providers/core_providers.dart';
+import '../../../../core/utils/input_constraints.dart';
 import '../../../../core/widgets/tech_background.dart';
 import '../../../sucursales/data/models/sucursales_response_model.dart';
 import '../../data/models/medios_pago_response_model.dart';
@@ -164,8 +165,8 @@ class _MediosPagoListPageState extends ConsumerState<MediosPagoListPage> {
       _showMessage('No fue posible leer la imagen seleccionada.', error: true);
       return;
     }
-    if (bytes.length > 4 * 1024 * 1024) {
-      _showMessage('El QR no puede superar 4 MB.', error: true);
+    if (bytes.length > InputConstraints.imageMaxBytes) {
+      _showMessage('El QR no puede superar 2 MB.', error: true);
       return;
     }
     final extension = (file.extension ?? 'png').toLowerCase();
@@ -563,6 +564,8 @@ class _Toolbar extends StatelessWidget {
             builder: (context, constraints) {
               final compact = constraints.maxWidth < 760;
               final search = TextField(
+                maxLength: 120,
+                buildCounter: (_, {required currentLength, required isFocused, maxLength}) => null,
                 controller: controller,
                 onChanged: onQueryChanged,
                 decoration: InputDecoration(

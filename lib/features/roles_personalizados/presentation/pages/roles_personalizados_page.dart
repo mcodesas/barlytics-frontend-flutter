@@ -512,6 +512,8 @@ class _Filters extends StatelessWidget {
       child: LayoutBuilder(
         builder: (context, constraints) {
           final searchField = TextField(
+            maxLength: 120,
+            buildCounter: (_, {required currentLength, required isFocused, maxLength}) => null,
             controller: search,
             onChanged: (_) => onChanged(),
             decoration: const InputDecoration(
@@ -1218,6 +1220,8 @@ class _RolPersonalizadoFormSheetState extends ConsumerState<_RolPersonalizadoFor
                                   LayoutBuilder(
                                     builder: (context, constraints) {
                                       final search = TextField(
+                                        maxLength: 120,
+                                        buildCounter: (_, {required currentLength, required isFocused, maxLength}) => null,
                                         controller: _menuSearch,
                                         onChanged: (_) => setState(() {}),
                                         decoration: InputDecoration(

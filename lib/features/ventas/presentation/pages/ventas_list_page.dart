@@ -541,6 +541,8 @@ class _VentasListPageState extends ConsumerState<VentasListPage> {
               final search = SizedBox(
                 height: 44,
                 child: TextField(
+                  maxLength: 120,
+                  buildCounter: (_, {required currentLength, required isFocused, maxLength}) => null,
                   controller: _searchController,
                   onChanged: (_) => setState(() => _page = 0),
                   decoration: InputDecoration(
