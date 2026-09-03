@@ -2144,6 +2144,7 @@ class _Footer extends StatelessWidget {
                   _FooterPublicLink(palette: palette, label: 'Descargas', path: '/descargas/'),
                   _FooterPublicLink(palette: palette, label: 'Contacto', path: '/contacto/'),
                   _FooterPublicLink(palette: palette, label: 'Preguntas frecuentes', path: '/preguntas-frecuentes/'),
+                  _FooterPublicLink(palette: palette, label: 'Documentación', path: '/documentacion/'),
                 ],
               );
               final signature = Container(
