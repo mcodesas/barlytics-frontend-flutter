@@ -6,7 +6,8 @@ enum EnvironmentType { local, androidEmulator, dev, prod }
 /// Configuración de ambiente y URL base del backend.
 ///
 /// Reglas importantes:
-/// - Windows/IntelliJ local: usa http://127.0.0.1:8282.
+/// - Apps instalables sin ENV explícito: usan https://www.barlytics.com.co.
+/// - Para desarrollo local de escritorio/iOS simulator: usa ENV=local.
 /// - Flutter Web local/LAN: si abres http://192.168.1.50:8081,
 ///   automáticamente intenta consumir http://192.168.1.50:8282.
 /// - También puedes forzar la URL con API_BASE_URL, o solo host/puerto con
@@ -20,17 +21,26 @@ enum EnvironmentType { local, androidEmulator, dev, prod }
 ///   --dart-define=API_HOST=192.168.1.50 ^
 ///   --dart-define=API_PORT=8282
 class Environment {
-  static const _value = String.fromEnvironment('ENV', defaultValue: 'local');
+  static const _value = String.fromEnvironment('ENV', defaultValue: 'auto');
   static const _apiBaseOverride = String.fromEnvironment('API_BASE_URL');
   static const _apiHostOverride = String.fromEnvironment('API_HOST');
   static const _apiPortOverride = int.fromEnvironment('API_PORT', defaultValue: 8282);
 
-  static EnvironmentType get current => switch (_value) {
-        'android' => EnvironmentType.androidEmulator,
-        'dev' => EnvironmentType.dev,
-        'prod' => EnvironmentType.prod,
-        _ => EnvironmentType.local,
-      };
+  static EnvironmentType get current {
+    if (_value == 'auto') {
+      // La web mantiene el flujo de desarrollo local cuando no se indica ENV.
+      // Las aplicaciones instalables (Windows, macOS, Linux, Android e iOS)
+      // se conectan por defecto al entorno productivo de BarLytics.
+      return kIsWeb ? EnvironmentType.local : EnvironmentType.prod;
+    }
+
+    return switch (_value) {
+      'android' => EnvironmentType.androidEmulator,
+      'dev' => EnvironmentType.dev,
+      'prod' => EnvironmentType.prod,
+      _ => EnvironmentType.local,
+    };
+  }
 
   static String get baseUrl {
     final override = _normalizeBaseUrl(_apiBaseOverride);
@@ -41,7 +51,7 @@ class Environment {
     }
 
     // En produccion web la API se publica bajo el mismo dominio (por ejemplo
-    // https://barlytics.com/api/...). Caddy enruta /api/* hacia Spring Boot.
+    // https://www.barlytics.com.co/api/...). Caddy enruta /api/* hacia Spring Boot.
     // Esto evita CORS y permite mover el dominio sin recompilar Flutter Web.
     if (kIsWeb && current == EnvironmentType.prod) {
       return Uri.base.origin;
@@ -50,7 +60,7 @@ class Environment {
     return switch (current) {
       EnvironmentType.androidEmulator => 'http://10.0.2.2:8282',
       EnvironmentType.dev => 'https://dev-api.barlytics.local',
-      EnvironmentType.prod => 'https://barlytics.com',
+      EnvironmentType.prod => 'https://www.barlytics.com.co',
       EnvironmentType.local => 'http://127.0.0.1:8282',
     };
   }

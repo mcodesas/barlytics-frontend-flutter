@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -125,7 +126,11 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       final isSetupConfigurationRoute = _isBusinessSetupConfigurationRoute(path);
       final isForgotPasswordRoute = path == '/forgot-password' || matchedLocation == '/forgot-password';
       final isResetPasswordRoute = path == '/reset-password' || matchedLocation == '/reset-password';
-      final isPublicRoute = isLandingRoute ||
+      // La landing comercial pertenece exclusivamente a Flutter Web.
+      // En Android, iOS, Windows, macOS y Linux la aplicación instalada
+      // comienza en autenticación y solo conserva las rutas públicas
+      // necesarias para acceso, registro y recuperación de contraseña.
+      final isPublicRoute = (kIsWeb && isLandingRoute) ||
           isRegistrationRoute ||
           isLoginRoute ||
           isForgotPasswordRoute ||
@@ -243,7 +248,11 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       return null;
     },
     routes: [
-      GoRoute(path: '/', builder: (context, state) => const PublicLandingPage()),
+      GoRoute(
+        path: '/',
+        builder: (context, state) =>
+            kIsWeb ? const PublicLandingPage() : const LoginPage(),
+      ),
       GoRoute(path: '/registro', builder: (context, state) => PublicRegistrationPage(planCode: state.uri.queryParameters['plan'])),
       GoRoute(path: '/activar-suscripcion', builder: (context, state) => const SubscriptionActivationPage()),
       GoRoute(path: '/configurar-negocio', builder: (context, state) => const BusinessSetupPage()),
@@ -651,6 +660,11 @@ bool _isBusinessSetupConfigurationRoute(String path) {
 }
 
 String _resolveInitialLocation() {
+  // Las aplicaciones instalables no exponen el sitio comercial. Su punto de
+  // entrada es siempre Login; GoRouter se encargará de llevar una sesión ya
+  // autenticada a suscripción, puesta en marcha o inicio según corresponda.
+  if (!kIsWeb) return '/login';
+
   final normalizedHashLocation = _normalizedHashPublicLocation(Uri.base);
   if (normalizedHashLocation != null) return normalizedHashLocation;
 
