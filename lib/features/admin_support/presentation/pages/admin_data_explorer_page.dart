@@ -1,10 +1,12 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../../app/theme/app_palette.dart';
+import '../../../../core/utils/input_constraints.dart';
 import '../../data/admin_support_repository.dart';
 
 class AdminDataExplorerPage extends ConsumerStatefulWidget {
@@ -423,6 +425,8 @@ class _ExplorerHeader extends StatelessWidget {
                 onChanged: onTableChanged,
               );
               final search = TextField(
+                maxLength: 120,
+                buildCounter: (_, {required currentLength, required isFocused, maxLength}) => null,
                 controller: searchController,
                 onChanged: onSearch,
                 decoration: const InputDecoration(labelText: 'Buscar registros', prefixIcon: Icon(Icons.search_rounded), isDense: true),
@@ -653,6 +657,9 @@ class _RecordEditorSheetState extends ConsumerState<_RecordEditorSheet> {
                   const SizedBox(height: 14),
                   TextField(
                     controller: _reasonController,
+                    maxLength: 500,
+                    buildCounter: (_, {required currentLength, required isFocused, maxLength}) => null,
+                    inputFormatters: <TextInputFormatter>[LengthLimitingTextInputFormatter(500)],
                     maxLines: 2,
                     decoration: InputDecoration(
                       labelText: widget.creating ? 'Motivo o referencia de creación' : 'Motivo del cambio',
@@ -681,6 +688,9 @@ class _RecordEditorSheetState extends ConsumerState<_RecordEditorSheet> {
                       children: [
                         TextField(
                           controller: _deleteConfirmationController,
+                          maxLength: 120,
+                          buildCounter: (_, {required currentLength, required isFocused, maxLength}) => null,
+                          inputFormatters: <TextInputFormatter>[LengthLimitingTextInputFormatter(120)],
                           decoration: InputDecoration(labelText: 'Escribe ELIMINAR ${widget.table.toUpperCase()}', prefixIcon: const Icon(Icons.warning_amber_rounded)),
                         ),
                         const SizedBox(height: 10),
@@ -861,9 +871,25 @@ class _DynamicField extends StatelessWidget {
     final isNumber = type.contains('numeric') || type.contains('integer') || type.contains('decimal') || type == 'real' || type.contains('double');
     final isDate = type == 'date';
     final isDateTime = type.contains('timestamp');
+    final maxLength = ((column['characterMaximumLength'] ?? column['maxLength']) as num?)?.toInt();
+    final precision = (column['numericPrecision'] as num?)?.toInt();
+    final scale = (column['numericScale'] as num?)?.toInt() ?? 0;
+    final numericIntegerDigits = precision == null ? null : (precision - scale).clamp(1, precision).toInt();
+    final formatters = isNumber && numericIntegerDigits != null
+        ? InputConstraints.decimalFormatters(
+            integerDigits: numericIntegerDigits,
+            fractionDigits: scale,
+            allowNegative: true,
+          )
+        : maxLength == null
+            ? null
+            : <TextInputFormatter>[LengthLimitingTextInputFormatter(maxLength)];
     return TextField(
       controller: controller,
       keyboardType: isNumber ? const TextInputType.numberWithOptions(decimal: true, signed: true) : TextInputType.text,
+      maxLength: maxLength,
+      buildCounter: (_, {required currentLength, required isFocused, maxLength}) => null,
+      inputFormatters: formatters,
       maxLines: type.contains('text') ? 2 : 1,
       decoration: InputDecoration(
         labelText: label,

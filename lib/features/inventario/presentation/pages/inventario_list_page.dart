@@ -8,6 +8,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../../app/theme/app_control_metrics.dart';
 import '../../../../app/theme/app_palette.dart';
 import '../../../../core/branch/branch_scope_provider.dart';
+import '../../../../core/utils/input_constraints.dart';
 import '../../../../core/widgets/app_error_view.dart';
 import '../../../../core/widgets/app_loader.dart';
 import '../../../../core/widgets/tech_background.dart';
@@ -756,6 +757,8 @@ class _InventoryToolbar extends StatelessWidget {
         builder: (context, constraints) {
           final compact = constraints.maxWidth < 760;
           final search = TextField(
+            maxLength: 120,
+            buildCounter: (_, {required currentLength, required isFocused, maxLength}) => null,
             controller: searchController,
             onChanged: onSearchChanged,
             style: TextStyle(
@@ -1422,11 +1425,7 @@ class _InventoryCountSheetState extends State<_InventoryCountSheet> {
                                   keyboardType: const TextInputType.numberWithOptions(
                                     decimal: true,
                                   ),
-                                  inputFormatters: [
-                                    FilteringTextInputFormatter.allow(
-                                      RegExp(r'[0-9.,]'),
-                                    ),
-                                  ],
+                                  inputFormatters: InputConstraints.decimalFormatters(integerDigits: 30, fractionDigits: 0),
                                   onChanged: _parseValue,
                                   style: TextStyle(
                                     color: palette.textPrimary,

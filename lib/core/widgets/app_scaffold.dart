@@ -1145,6 +1145,8 @@ Widget _menuSearchField({
   required ValueChanged<String> onChanged,
 }) {
   return TextField(
+    maxLength: 120,
+    buildCounter: (_, {required currentLength, required isFocused, maxLength}) => null,
     onChanged: onChanged,
     textInputAction: TextInputAction.search,
     style: TextStyle(

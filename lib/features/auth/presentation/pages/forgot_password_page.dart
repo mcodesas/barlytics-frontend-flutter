@@ -55,6 +55,7 @@ class _ForgotPasswordPageState extends ConsumerState<ForgotPasswordPage> {
                       label: 'Correo electrónico',
                       prefixIcon: Icons.email_outlined,
                       keyboardType: TextInputType.emailAddress,
+                      maxLength: 100,
                       validator: (value) {
                         final required = Validators.required(value);
                         if (required != null) return required;

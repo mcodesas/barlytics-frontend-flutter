@@ -9,6 +9,7 @@ import '../../../../app/theme/app_control_metrics.dart';
 import '../../../../app/theme/app_palette.dart';
 import '../../../../core/branch/branch_scope_provider.dart';
 import '../../../../core/providers/core_providers.dart';
+import '../../../../core/utils/input_constraints.dart';
 import '../../../../core/widgets/tech_background.dart';
 import '../../../productos/data/models/productos_response_model.dart';
 import '../../data/models/movimientos_response_model.dart';
@@ -1029,6 +1030,8 @@ class _ProductCatalogPanel extends StatelessWidget {
                   builder: (context, constraints) {
                     final compact = constraints.maxWidth < 660;
                     final search = TextField(
+                      maxLength: 120,
+                      buildCounter: (_, {required currentLength, required isFocused, maxLength}) => null,
                       controller: searchController,
                       onChanged: onSearchChanged,
                       style: TextStyle(color: palette.textPrimary),
@@ -1424,6 +1427,9 @@ class _MovementSummaryPanel extends StatelessWidget {
               children: [
                 TextField(
                   controller: referenceController,
+                  maxLength: 300,
+                  buildCounter: (_, {required currentLength, required isFocused, maxLength}) => null,
+                  inputFormatters: <TextInputFormatter>[LengthLimitingTextInputFormatter(300)],
                   style: TextStyle(color: palette.textPrimary),
                   decoration: _fieldDecoration(
                     palette,
@@ -1435,6 +1441,9 @@ class _MovementSummaryPanel extends StatelessWidget {
                 const SizedBox(height: 10),
                 TextField(
                   controller: reasonController,
+                  maxLength: 100,
+                  buildCounter: (_, {required currentLength, required isFocused, maxLength}) => null,
+                  inputFormatters: <TextInputFormatter>[LengthLimitingTextInputFormatter(100)],
                   style: TextStyle(color: palette.textPrimary),
                   maxLines: 2,
                   minLines: 1,
@@ -1735,11 +1744,10 @@ class _QuantityDialogState extends State<_QuantityDialog> {
         keyboardType: TextInputType.numberWithOptions(
           decimal: widget.allowDecimals,
         ),
-        inputFormatters: [
-          FilteringTextInputFormatter.allow(
-            widget.allowDecimals ? RegExp(r'[0-9.,]') : RegExp(r'[0-9]'),
-          ),
-        ],
+        inputFormatters: InputConstraints.decimalFormatters(
+          integerDigits: 13,
+          fractionDigits: widget.allowDecimals ? 2 : 0,
+        ),
         onSubmitted: (_) => _save(),
         style: TextStyle(color: palette.textPrimary),
         decoration: InputDecoration(

@@ -266,6 +266,8 @@ class _ModuleHeader extends StatelessWidget {
               );
 
               final search = TextField(
+                maxLength: 120,
+                buildCounter: (_, {required currentLength, required isFocused, maxLength}) => null,
                 controller: searchController,
                 onChanged: onSearchChanged,
                 decoration: InputDecoration(

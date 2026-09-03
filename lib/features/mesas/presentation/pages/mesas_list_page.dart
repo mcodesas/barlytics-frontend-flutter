@@ -4,6 +4,7 @@ import 'dart:math' as math;
 
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 
@@ -13,6 +14,7 @@ import '../../../../core/constants/api_paths.dart';
 import '../../../../core/errors/error_mapper.dart';
 import '../../../../core/providers/core_providers.dart';
 import '../../../../core/utils/currency_utils.dart';
+import '../../../../core/utils/input_constraints.dart';
 import '../../../../core/widgets/app_error_view.dart';
 import '../../../../core/widgets/app_loader.dart';
 import '../../../../core/widgets/tech_background.dart';
@@ -360,6 +362,8 @@ class _MesasListPageState extends ConsumerState<MesasListPage> {
       child: LayoutBuilder(
         builder: (context, constraints) {
           final search = TextField(
+            maxLength: 120,
+            buildCounter: (_, {required currentLength, required isFocused, maxLength}) => null,
             controller: _searchController,
             onChanged: (_) => setState(() {
               _page = 0;
@@ -1216,6 +1220,9 @@ class _TableFormSheetState extends ConsumerState<_TableFormSheet> {
                           children: [
                             TextFormField(
                               controller: _numberController,
+                              maxLength: 10,
+                              buildCounter: (_, {required currentLength, required isFocused, maxLength}) => null,
+                              inputFormatters: InputConstraints.integerFormatters(maxValue: 2147483647),
                               keyboardType: TextInputType.number,
                               decoration: const InputDecoration(labelText: 'Número de mesa', prefixIcon: Icon(Icons.numbers_rounded)),
                               validator: (value) {
@@ -1361,10 +1368,10 @@ class _PhotoEditorState extends State<_PhotoEditor> {
       final file = result?.files.single;
       final bytes = file?.bytes;
       if (bytes == null || bytes.isEmpty) return;
-      if (bytes.length > 3 * 1024 * 1024) {
+      if (bytes.length > InputConstraints.imageMaxBytes) {
         if (!mounted) return;
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('La imagen debe pesar menos de 3 MB.')),
+          const SnackBar(content: Text('La imagen no puede superar 2 MB.')),
         );
         return;
       }

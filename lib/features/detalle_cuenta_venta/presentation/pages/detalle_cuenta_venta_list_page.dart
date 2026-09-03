@@ -661,6 +661,8 @@ class _DetalleCuentaVentaListPageState
           ),
           const SizedBox(height: 11),
           TextField(
+            maxLength: 120,
+            buildCounter: (_, {required currentLength, required isFocused, maxLength}) => null,
             controller: _searchController,
             onChanged: (_) => setState(() => _page = 0),
             decoration: InputDecoration(

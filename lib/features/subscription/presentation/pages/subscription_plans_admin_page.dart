@@ -1,10 +1,12 @@
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../../app/theme/app_palette.dart';
 import '../../../../core/providers/core_providers.dart';
+import '../../../../core/utils/input_constraints.dart';
 import '../../../../core/widgets/app_loader.dart';
 import '../../../../core/widgets/tech_background.dart';
 
@@ -1089,6 +1091,8 @@ class _PlanFilters extends StatelessWidget {
         child: LayoutBuilder(
           builder: (context, constraints) {
             final search = TextField(
+              maxLength: 120,
+              buildCounter: (_, {required currentLength, required isFocused, maxLength}) => null,
               controller: controller,
               onChanged: onSearch,
               decoration: InputDecoration(
@@ -1384,6 +1388,7 @@ class _PlanEditorSheetState extends ConsumerState<_PlanEditorSheet> {
                                 _field(
                                   controller: _name,
                                   label: 'Nombre del plan',
+                                  maxLength: 100,
                                   hint: 'Ej. BarLytics Pro',
                                   icon: Icons.workspace_premium_outlined,
                                   validator: _required,
@@ -1397,6 +1402,7 @@ class _PlanEditorSheetState extends ConsumerState<_PlanEditorSheet> {
                                 _field(
                                   controller: _code,
                                   label: 'Código interno',
+                                  maxLength: 60,
                                   hint: 'BARLYTICS_PRO_MENSUAL',
                                   icon: Icons.code_rounded,
                                   validator: _required,
@@ -1424,8 +1430,8 @@ class _PlanEditorSheetState extends ConsumerState<_PlanEditorSheet> {
                           child: Column(
                             children: [
                               _twoColumns(
-                                _field(controller: _maxUsers, label: 'Usuarios activos', hint: '5 o -1 para ilimitado', icon: Icons.people_outline, validator: _planLimit),
-                                _field(controller: _maxBranches, label: 'Sucursales activas', hint: '1 o -1 para ilimitado', icon: Icons.store_outlined, validator: _planLimit),
+                                _field(controller: _maxUsers, label: 'Usuarios activos', hint: '5 o -1 para ilimitado', icon: Icons.people_outline, maxLength: 10, inputFormatters: InputConstraints.integerFormatters(minValue: -1, maxValue: 2147483647), validator: _planLimit),
+                                _field(controller: _maxBranches, label: 'Sucursales activas', hint: '1 o -1 para ilimitado', icon: Icons.store_outlined, maxLength: 10, inputFormatters: InputConstraints.integerFormatters(minValue: -1, maxValue: 2147483647), validator: _planLimit),
                               ),
                               const SizedBox(height: 12),
                               for (final entry in const {
@@ -1458,6 +1464,7 @@ class _PlanEditorSheetState extends ConsumerState<_PlanEditorSheet> {
                                 _field(
                                   controller: _price,
                                   label: 'Precio de lista',
+                                  inputFormatters: InputConstraints.decimalFormatters(integerDigits: 13, fractionDigits: 2),
                                   hint: _currency == 'COP' ? 'Ej. 50000 para mostrar \$50.000' : 'Ej. 50',
                                   icon: Icons.attach_money_rounded,
                                   keyboardType: const TextInputType.numberWithOptions(decimal: true),
@@ -1479,6 +1486,8 @@ class _PlanEditorSheetState extends ConsumerState<_PlanEditorSheet> {
                               _twoColumns(
                                 _field(
                                   controller: _frequency,
+                                  maxLength: 5,
+                                  inputFormatters: InputConstraints.digitsFormatters(5),
                                   label: 'Cada',
                                   icon: Icons.repeat_rounded,
                                   keyboardType: TextInputType.number,
@@ -1502,6 +1511,8 @@ class _PlanEditorSheetState extends ConsumerState<_PlanEditorSheet> {
                               _twoColumns(
                                 _field(
                                   controller: _trialDays,
+                                  maxLength: 5,
+                                  inputFormatters: InputConstraints.digitsFormatters(5),
                                   label: 'Días de prueba',
                                   icon: Icons.hourglass_empty_rounded,
                                   keyboardType: TextInputType.number,
@@ -1509,6 +1520,8 @@ class _PlanEditorSheetState extends ConsumerState<_PlanEditorSheet> {
                                 ),
                                 _field(
                                   controller: _order,
+                                  maxLength: 5,
+                                  inputFormatters: InputConstraints.digitsFormatters(5),
                                   label: 'Orden en la portada',
                                   icon: Icons.sort_rounded,
                                   keyboardType: TextInputType.number,
@@ -1530,6 +1543,7 @@ class _PlanEditorSheetState extends ConsumerState<_PlanEditorSheet> {
                                 _field(
                                   controller: _discount,
                                   label: 'Descuento',
+                                  inputFormatters: InputConstraints.decimalFormatters(integerDigits: 3, fractionDigits: 2),
                                   hint: '0',
                                   suffixText: '%',
                                   icon: Icons.percent_rounded,
@@ -1745,6 +1759,7 @@ class _PlanEditorSheetState extends ConsumerState<_PlanEditorSheet> {
     String? suffixText,
     int maxLines = 1,
     int? maxLength,
+    List<TextInputFormatter>? inputFormatters,
     TextInputType? keyboardType,
     String? Function(String?)? validator,
     ValueChanged<String>? onChanged,
@@ -1754,6 +1769,8 @@ class _PlanEditorSheetState extends ConsumerState<_PlanEditorSheet> {
         keyboardType: keyboardType,
         maxLines: maxLines,
         maxLength: maxLength,
+        buildCounter: (_, {required currentLength, required isFocused, maxLength}) => null,
+        inputFormatters: inputFormatters ?? (maxLength == null ? null : <TextInputFormatter>[LengthLimitingTextInputFormatter(maxLength)]),
         validator: validator,
         onChanged: onChanged,
         decoration: InputDecoration(
@@ -1918,6 +1935,9 @@ class _PlanEditorSheetState extends ConsumerState<_PlanEditorSheet> {
           Expanded(
             child: TextFormField(
               controller: item.controller,
+              maxLength: 220,
+              buildCounter: (_, {required currentLength, required isFocused, maxLength}) => null,
+              inputFormatters: <TextInputFormatter>[LengthLimitingTextInputFormatter(220)],
               validator: _required,
               decoration: const InputDecoration(
                 hintText: 'Ej. Inventario y control de stock',

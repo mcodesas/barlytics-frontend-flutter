@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter/services.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../../app/theme/app_control_metrics.dart';
@@ -12,6 +13,7 @@ import '../../../../core/constants/api_paths.dart';
 import '../../../../core/constants/storage_keys.dart';
 import '../../../../core/crud/crud_field.dart';
 import '../../../../core/providers/core_providers.dart';
+import '../../../../core/utils/input_constraints.dart';
 import '../../../../core/widgets/app_button.dart';
 import '../../../../core/widgets/app_loader.dart';
 import '../../../../core/widgets/lookup_dropdown.dart';
@@ -596,10 +598,10 @@ class _UsuariosFormPageState extends ConsumerState<UsuariosFormPage> {
             subtitle: 'Nombre, apellidos y fecha de nacimiento.',
             icon: Icons.badge_outlined,
             child: grid([
-              _textField(_primerNombreController, 'Primer nombre', Icons.person_outline_rounded, required: true),
-              _textField(_segundoNombreController, 'Segundo nombre', Icons.person_outline_rounded),
-              _textField(_primerApellidoController, 'Primer apellido', Icons.badge_outlined, required: true),
-              _textField(_segundoApellidoController, 'Segundo apellido', Icons.badge_outlined, required: true),
+              _textField(_primerNombreController, 'Primer nombre', Icons.person_outline_rounded, required: true, maxLength: 20),
+              _textField(_segundoNombreController, 'Segundo nombre', Icons.person_outline_rounded, maxLength: 20),
+              _textField(_primerApellidoController, 'Primer apellido', Icons.badge_outlined, required: true, maxLength: 20),
+              _textField(_segundoApellidoController, 'Segundo apellido', Icons.badge_outlined, required: true, maxLength: 20),
               _dateField(),
             ]),
           ),
@@ -613,11 +615,11 @@ class _UsuariosFormPageState extends ConsumerState<UsuariosFormPage> {
               children: [
                 grid([
                   _emailField(),
-                  _textField(_telefonoPrincipalController, 'Teléfono principal', Icons.phone_outlined, keyboardType: TextInputType.phone),
-                  _textField(_telefonoSecundarioController, 'Teléfono secundario', Icons.phone_android_outlined, keyboardType: TextInputType.phone),
+                  _textField(_telefonoPrincipalController, 'Teléfono principal', Icons.phone_outlined, keyboardType: TextInputType.phone, maxLength: 13),
+                  _textField(_telefonoSecundarioController, 'Teléfono secundario', Icons.phone_android_outlined, keyboardType: TextInputType.phone, maxLength: 13),
                 ]),
                 const SizedBox(height: 12),
-                _textField(_direccionController, 'Dirección', Icons.location_on_outlined),
+                _textField(_direccionController, 'Dirección', Icons.location_on_outlined, maxLength: 200),
               ],
             ),
           ),
@@ -879,7 +881,7 @@ class _UsuariosFormPageState extends ConsumerState<UsuariosFormPage> {
                       Expanded(
                         child: Text(
                           photo.isEmpty
-                              ? 'Puedes cargar JPG, PNG o WEBP de máximo 5 MB.'
+                              ? 'Puedes cargar JPG, PNG o WEBP de máximo 2 MB.'
                               : 'La foto actual se conservará al modificar los demás datos.',
                           style: TextStyle(color: palette.textSecondary, fontWeight: FontWeight.w700, fontSize: 11.5),
                         ),
@@ -902,8 +904,8 @@ class _UsuariosFormPageState extends ConsumerState<UsuariosFormPage> {
       final file = result?.files.single;
       final bytes = file?.bytes;
       if (bytes == null || bytes.isEmpty) return;
-      if (bytes.length > 5 * 1024 * 1024) {
-        _showMessage('La foto no puede superar 5 MB.');
+      if (bytes.length > InputConstraints.imageMaxBytes) {
+        _showMessage('La foto no puede superar 2 MB.');
         return;
       }
       final extension = (file?.extension ?? 'png').toLowerCase();
@@ -1259,15 +1261,24 @@ class _UsuariosFormPageState extends ConsumerState<UsuariosFormPage> {
     IconData icon, {
     bool required = false,
     TextInputType keyboardType = TextInputType.text,
+    int? maxLength,
   }) {
+    final formatters = keyboardType == TextInputType.phone
+        ? <TextInputFormatter>[
+            FilteringTextInputFormatter.allow(RegExp(r'[0-9+()\-\s]')),
+            if (maxLength != null) LengthLimitingTextInputFormatter(maxLength),
+          ]
+        : null;
     return TextFormField(
       controller: controller,
       readOnly: _isReadOnly,
       enabled: !_isReadOnly,
       keyboardType: keyboardType,
+      maxLength: maxLength,
+      inputFormatters: formatters,
       onChanged: (_) => setState(() {}),
       validator: required ? (value) => value == null || value.trim().isEmpty ? 'Campo obligatorio' : null : null,
-      decoration: InputDecoration(labelText: label, prefixIcon: Icon(icon)).compactFilter(fixedHeight: false),
+      decoration: InputDecoration(labelText: label, prefixIcon: Icon(icon), counterText: maxLength == null ? null : '').compactFilter(fixedHeight: false),
     );
   }
 
@@ -1277,6 +1288,7 @@ class _UsuariosFormPageState extends ConsumerState<UsuariosFormPage> {
       readOnly: _isReadOnly,
       enabled: !_isReadOnly,
       keyboardType: TextInputType.emailAddress,
+      maxLength: 100,
       onChanged: (_) => setState(() {}),
       validator: (value) {
         final text = value?.trim() ?? '';
@@ -1284,7 +1296,7 @@ class _UsuariosFormPageState extends ConsumerState<UsuariosFormPage> {
         if (!text.contains('@') || !text.contains('.')) return 'Correo inválido';
         return null;
       },
-      decoration: const InputDecoration(labelText: 'Correo electrónico', prefixIcon: Icon(Icons.email_outlined)).compactFilter(fixedHeight: false),
+      decoration: const InputDecoration(labelText: 'Correo electrónico', prefixIcon: Icon(Icons.email_outlined), counterText: '').compactFilter(fixedHeight: false),
     );
   }
 
@@ -1489,6 +1501,8 @@ class _UsuariosFormPageState extends ConsumerState<UsuariosFormPage> {
                       ),
                       const SizedBox(height: 12),
                       TextField(
+                        maxLength: 120,
+                        buildCounter: (_, {required currentLength, required isFocused, maxLength}) => null,
                         onChanged: (value) => setSheetState(() => query = value),
                         decoration: const InputDecoration(
                           hintText: 'Buscar sucursal',

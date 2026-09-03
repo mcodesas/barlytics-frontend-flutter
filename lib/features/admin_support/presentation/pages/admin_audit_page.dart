@@ -78,6 +78,8 @@ class _AdminAuditPageState extends ConsumerState<AdminAuditPage> {
                 ),
                 const SizedBox(height: 12),
                 TextField(
+                  maxLength: 120,
+                  buildCounter: (_, {required currentLength, required isFocused, maxLength}) => null,
                   controller: _searchController,
                   onChanged: (_) {
                     _debounce?.cancel();

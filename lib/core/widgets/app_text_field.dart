@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter/services.dart';
 
 import '../../app/theme/app_palette.dart';
 
@@ -16,6 +17,11 @@ class AppTextField extends ConsumerWidget {
     this.prefixIcon,
     this.hintText,
     this.onChanged,
+    this.maxLength,
+    this.inputFormatters,
+    this.maxLines = 1,
+    this.minLines,
+    this.textCapitalization = TextCapitalization.none,
   });
 
   final TextEditingController controller;
@@ -27,6 +33,11 @@ class AppTextField extends ConsumerWidget {
   final IconData? prefixIcon;
   final String? hintText;
   final ValueChanged<String>? onChanged;
+  final int? maxLength;
+  final List<TextInputFormatter>? inputFormatters;
+  final int? maxLines;
+  final int? minLines;
+  final TextCapitalization textCapitalization;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -55,6 +66,7 @@ class AppTextField extends ConsumerWidget {
                 child: Icon(prefixIcon, color: palette.secondary),
               ),
         suffixIcon: readOnly ? Icon(Icons.lock_outline_rounded, size: 18, color: palette.textSecondary) : null,
+        counterText: maxLength == null ? null : '',
       ),
       style: TextStyle(color: palette.textPrimary, fontWeight: FontWeight.w700),
       validator: validator,
@@ -62,6 +74,11 @@ class AppTextField extends ConsumerWidget {
       obscureText: obscureText,
       readOnly: readOnly,
       onChanged: onChanged,
+      maxLength: maxLength,
+      inputFormatters: inputFormatters,
+      maxLines: obscureText ? 1 : maxLines,
+      minLines: obscureText ? 1 : minLines,
+      textCapitalization: textCapitalization,
     );
   }
 }

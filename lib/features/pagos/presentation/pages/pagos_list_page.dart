@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 
@@ -11,6 +12,7 @@ import '../../../../core/branch/branch_scope_provider.dart';
 import '../../../../core/constants/api_paths.dart';
 import '../../../../core/errors/error_mapper.dart';
 import '../../../../core/providers/core_providers.dart';
+import '../../../../core/utils/input_constraints.dart';
 import '../../../../core/widgets/app_button.dart';
 import '../../../../core/widgets/app_loader.dart';
 import '../../../../core/widgets/tech_background.dart';
@@ -364,6 +366,8 @@ class _PagosListPageState extends ConsumerState<PagosListPage> {
         builder: (context, constraints) {
           final compact = constraints.maxWidth < 760;
           final search = TextField(
+            maxLength: 120,
+            buildCounter: (_, {required currentLength, required isFocused, maxLength}) => null,
             controller: _searchController,
             onChanged: (value) => setState(() {
               _search = value;
@@ -987,6 +991,7 @@ class _PaymentFormSheetState extends State<_PaymentFormSheet> {
                   final amountField = TextFormField(
                     controller: _amount,
                     enabled: !_saving,
+                    inputFormatters: InputConstraints.decimalFormatters(integerDigits: 20, fractionDigits: 0),
                     keyboardType: const TextInputType.numberWithOptions(decimal: true),
                     onChanged: (_) => setState(() {}),
                     decoration: const InputDecoration(labelText: 'Valor aplicado', prefixText: r'$ ', prefixIcon: Icon(Icons.attach_money_rounded)),
@@ -1000,6 +1005,9 @@ class _PaymentFormSheetState extends State<_PaymentFormSheet> {
                   final referenceField = TextFormField(
                     controller: _reference,
                     enabled: !_saving,
+                    maxLength: 30,
+                    buildCounter: (_, {required currentLength, required isFocused, maxLength}) => null,
+                    inputFormatters: InputConstraints.digitsFormatters(30),
                     keyboardType: TextInputType.number,
                     decoration: const InputDecoration(labelText: 'Número de referencia (opcional)', prefixIcon: Icon(Icons.numbers_rounded)),
                     validator: (value) {
@@ -1017,6 +1025,7 @@ class _PaymentFormSheetState extends State<_PaymentFormSheet> {
                 TextFormField(
                   controller: _received,
                   enabled: !_saving,
+                  inputFormatters: InputConstraints.decimalFormatters(integerDigits: 18, fractionDigits: 2),
                   keyboardType: const TextInputType.numberWithOptions(decimal: true),
                   onChanged: (_) => setState(() {}),
                   decoration: InputDecoration(labelText: 'Valor recibido', prefixText: r'$ ', prefixIcon: const Icon(Icons.payments_rounded), suffixText: 'Cambio ${widget.currency.format(change)}'),

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 
@@ -228,6 +229,9 @@ class _ProductCatalogSyncPageState extends ConsumerState<ProductCatalogSyncPage>
                   const SizedBox(height: 14),
                   TextField(
                     controller: _reasonController,
+                    maxLength: 500,
+                    buildCounter: (_, {required currentLength, required isFocused, maxLength}) => null,
+                    inputFormatters: <TextInputFormatter>[LengthLimitingTextInputFormatter(500)],
                     minLines: 2,
                     maxLines: 4,
                     autofocus: true,
@@ -532,6 +536,8 @@ class _ProductCatalogSyncPageState extends ConsumerState<ProductCatalogSyncPage>
           LayoutBuilder(
             builder: (context, constraints) {
               final search = TextField(
+                maxLength: 120,
+                buildCounter: (_, {required currentLength, required isFocused, maxLength}) => null,
                 controller: _searchController,
                 onSubmitted: (_) => _previewCatalog(),
                 decoration: const InputDecoration(

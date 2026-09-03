@@ -1,11 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter/services.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../../app/theme/app_palette.dart';
 import '../../../../core/constants/api_paths.dart';
 import '../../../../core/crud/crud_field.dart';
 import '../../../../core/providers/core_providers.dart';
+import '../../../../core/utils/input_constraints.dart';
 import '../../../../core/widgets/app_button.dart';
 import '../../../../core/widgets/app_loader.dart';
 import '../../../../core/widgets/lookup_dropdown.dart';
@@ -337,15 +339,15 @@ class _EmpresaSucursalesWizardPageState extends ConsumerState<EmpresaSucursalesW
                                       spacing: 20,
                                       runSpacing: 16,
                                       children: [
-                                        SizedBox(width: fieldWidth, child: _textField(_nombre, 'Nombre sucursal', Icons.storefront_outlined)),
-                                        SizedBox(width: fieldWidth, child: _textField(_codigo, 'Código interno', Icons.tag_rounded)),
-                                        SizedBox(width: fieldWidth, child: _textField(_direccion, 'Dirección', Icons.location_on_outlined)),
-                                        SizedBox(width: fieldWidth, child: _textField(_telefono, 'Teléfono', Icons.phone_outlined)),
+                                        SizedBox(width: fieldWidth, child: _textField(_nombre, 'Nombre sucursal', Icons.storefront_outlined, maxLength: 100)),
+                                        SizedBox(width: fieldWidth, child: _textField(_codigo, 'Código interno', Icons.tag_rounded, maxLength: 50)),
+                                        SizedBox(width: fieldWidth, child: _textField(_direccion, 'Dirección', Icons.location_on_outlined, maxLength: 100)),
+                                        SizedBox(width: fieldWidth, child: _textField(_telefono, 'Teléfono', Icons.phone_outlined, keyboardType: TextInputType.phone, maxLength: 20)),
                                         SizedBox(width: fieldWidth, child: _lookupField(_ciudad, _ciudadField)),
                                         SizedBox(width: fieldWidth, child: _lookupField(_zona, _zonaField)),
                                         SizedBox(width: fieldWidth, child: _lookupField(_moneda, _monedaField)),
                                         SizedBox(width: fieldWidth, child: _lookupField(_paisTelefono, _paisTelefonoField)),
-                                        SizedBox(width: fieldWidth, child: _textField(_estado, 'Estado', Icons.toggle_on_outlined, keyboardType: TextInputType.number)),
+                                        SizedBox(width: fieldWidth, child: _textField(_estado, 'Estado', Icons.toggle_on_outlined, keyboardType: TextInputType.number, maxLength: 1, inputFormatters: InputConstraints.digitsFormatters(1), validator: (value) => value == '0' || value == '1' ? null : 'Usa 1 para activa o 0 para inactiva')),
                                       ],
                                     ),
                                     const SizedBox(height: 22),
@@ -389,15 +391,37 @@ class _EmpresaSucursalesWizardPageState extends ConsumerState<EmpresaSucursalesW
     );
   }
 
-  Widget _textField(TextEditingController controller, String label, IconData icon, {TextInputType? keyboardType}) {
+  Widget _textField(
+    TextEditingController controller,
+    String label,
+    IconData icon, {
+    TextInputType? keyboardType,
+    int? maxLength,
+    List<TextInputFormatter>? inputFormatters,
+    String? Function(String?)? validator,
+  }) {
+    final effectiveFormatters = inputFormatters ??
+        (keyboardType == TextInputType.phone
+            ? <TextInputFormatter>[
+                FilteringTextInputFormatter.allow(RegExp(r'[0-9+()\-\s]')),
+                if (maxLength != null) LengthLimitingTextInputFormatter(maxLength),
+              ]
+            : keyboardType == TextInputType.number
+                ? <TextInputFormatter>[FilteringTextInputFormatter.digitsOnly]
+                : maxLength == null
+                    ? null
+                    : <TextInputFormatter>[LengthLimitingTextInputFormatter(maxLength)]);
     return TextFormField(
       controller: controller,
       keyboardType: keyboardType,
+      maxLength: maxLength,
+      inputFormatters: effectiveFormatters,
       decoration: InputDecoration(
         labelText: label,
         prefixIcon: Icon(icon),
+        counterText: maxLength == null ? null : '',
       ),
-      validator: (value) => value == null || value.trim().isEmpty ? 'Campo obligatorio' : null,
+      validator: validator ?? (value) => value == null || value.trim().isEmpty ? 'Campo obligatorio' : null,
     );
   }
 }

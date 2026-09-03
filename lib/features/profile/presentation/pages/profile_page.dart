@@ -2,6 +2,7 @@ import 'dart:convert';
 
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
@@ -9,6 +10,7 @@ import '../../../../app/theme/app_palette.dart';
 import '../../../../core/constants/api_paths.dart';
 import '../../../../core/crud/crud_field.dart';
 import '../../../../core/providers/core_providers.dart';
+import '../../../../core/utils/input_constraints.dart';
 import '../../../../core/widgets/app_button.dart';
 import '../../../../core/widgets/app_loader.dart';
 import '../../../../core/widgets/lookup_dropdown.dart';
@@ -1505,20 +1507,22 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
                   spacing: 14,
                   runSpacing: 14,
                   children: [
-                    _field(_firstName, 'Primer nombre', width: width),
+                    _field(_firstName, 'Primer nombre', width: width, maxLength: 20),
                     _field(
                       _secondName,
                       'Segundo nombre',
                       required: false,
                       width: width,
+                      maxLength: 20,
                     ),
-                    _field(_firstLastName, 'Primer apellido', width: width),
-                    _field(_secondLastName, 'Segundo apellido', width: width),
+                    _field(_firstLastName, 'Primer apellido', width: width, maxLength: 20),
+                    _field(_secondLastName, 'Segundo apellido', width: width, maxLength: 20),
                     _field(
                       _email,
                       'Correo',
                       email: true,
                       width: width,
+                      maxLength: 100,
                       keyboardType: TextInputType.emailAddress,
                     ),
                   ],
@@ -1573,6 +1577,7 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
                       'Dirección',
                       required: false,
                       width: width,
+                      maxLength: 200,
                     ),
                     _field(
                       _phone,
@@ -1580,6 +1585,8 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
                       required: false,
                       width: width,
                       keyboardType: TextInputType.phone,
+                      maxLength: 13,
+                      phone: true,
                     ),
                     _field(
                       _phone2,
@@ -1587,6 +1594,8 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
                       required: false,
                       width: width,
                       keyboardType: TextInputType.phone,
+                      maxLength: 13,
+                      phone: true,
                     ),
                   ],
                 );
@@ -1939,6 +1948,8 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
     required double width,
     bool required = true,
     bool email = false,
+    bool phone = false,
+    int? maxLength,
     TextInputType? keyboardType,
   }) {
     return SizedBox(
@@ -1946,6 +1957,16 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
       child: TextFormField(
         controller: controller,
         keyboardType: keyboardType,
+        maxLength: maxLength,
+        buildCounter: (_, {required currentLength, required isFocused, maxLength}) => null,
+        inputFormatters: phone && maxLength != null
+            ? <TextInputFormatter>[
+                FilteringTextInputFormatter.allow(RegExp(r'[0-9+()\-\s]')),
+                LengthLimitingTextInputFormatter(maxLength),
+              ]
+            : maxLength != null
+                ? <TextInputFormatter>[LengthLimitingTextInputFormatter(maxLength)]
+                : null,
         decoration: InputDecoration(
           labelText: label,
           prefixIcon: Icon(
@@ -1955,6 +1976,9 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
         validator: (value) {
           if (required && (value == null || value.trim().isEmpty)) {
             return 'Campo obligatorio';
+          }
+          if (maxLength != null && value != null && value.length > maxLength) {
+            return 'Máximo $maxLength caracteres';
           }
           if (email && value != null && value.trim().isNotEmpty) {
             final isValid = RegExp(
@@ -1983,6 +2007,9 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
         obscureText: obscure,
         enableSuggestions: false,
         autocorrect: false,
+        maxLength: 72,
+        buildCounter: (_, {required currentLength, required isFocused, maxLength}) => null,
+        inputFormatters: <TextInputFormatter>[LengthLimitingTextInputFormatter(72)],
         decoration: InputDecoration(
           labelText: label,
           prefixIcon: const Icon(Icons.lock_outline_rounded),
@@ -2242,6 +2269,13 @@ class _ProfileImageFieldState extends ConsumerState<_ProfileImageField> {
     final file = result?.files.single;
     final bytes = file?.bytes;
     if (bytes == null || bytes.isEmpty) return;
+    if (bytes.length > InputConstraints.imageMaxBytes) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('La foto no puede superar 2 MB.')),
+      );
+      return;
+    }
     final ext = (file?.extension ?? 'png').toLowerCase();
     final mime = ext == 'jpg' || ext == 'jpeg'
         ? 'image/jpeg'

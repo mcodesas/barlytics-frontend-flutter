@@ -118,6 +118,8 @@ class LookupDropdown extends StatelessWidget {
                 child: Column(
                   children: [
                     TextField(
+                      maxLength: 120,
+                      buildCounter: (_, {required currentLength, required isFocused, maxLength}) => null,
                       controller: searchController,
                       autofocus: true,
                       decoration: const InputDecoration(

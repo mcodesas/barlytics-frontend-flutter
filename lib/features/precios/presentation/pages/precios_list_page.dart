@@ -10,6 +10,7 @@ import '../../../../app/theme/app_control_metrics.dart';
 import '../../../../app/theme/app_palette.dart';
 import '../../../../core/branch/branch_scope_provider.dart';
 import '../../../../core/providers/core_providers.dart';
+import '../../../../core/utils/input_constraints.dart';
 import '../../../../core/widgets/app_empty_view.dart';
 import '../../../../core/widgets/app_error_view.dart';
 import '../../../../core/widgets/app_loader.dart';
@@ -607,6 +608,8 @@ class _PricingToolbar extends StatelessWidget {
           );
 
           final search = TextField(
+            maxLength: 120,
+            buildCounter: (_, {required currentLength, required isFocused, maxLength}) => null,
             controller: searchController,
             onChanged: onSearchChanged,
             decoration: InputDecoration(
@@ -1166,7 +1169,7 @@ class _MoneyField extends StatelessWidget {
     return TextField(
       controller: controller,
       keyboardType: const TextInputType.numberWithOptions(decimal: true),
-      inputFormatters: [FilteringTextInputFormatter.allow(RegExp(r'[0-9.,]'))],
+      inputFormatters: InputConstraints.decimalFormatters(integerDigits: 15, fractionDigits: 0),
       onChanged: onChanged,
       onSubmitted: onSubmitted,
       textInputAction: TextInputAction.done,

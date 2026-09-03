@@ -2274,6 +2274,8 @@ class _ProfitFilterBar extends StatelessWidget {
       builder: (context, constraints) {
         final compact = constraints.maxWidth < 720;
         final search = TextField(
+          maxLength: 120,
+          buildCounter: (_, {required currentLength, required isFocused, maxLength}) => null,
           controller: controller,
           onChanged: onSearchChanged,
           decoration: InputDecoration(
@@ -3738,6 +3740,8 @@ class _OrderWorkspaceToolbar extends StatelessWidget {
             final search = SizedBox(
               width: compact ? double.infinity : 300,
               child: TextField(
+                maxLength: 120,
+                buildCounter: (_, {required currentLength, required isFocused, maxLength}) => null,
                 controller: controller,
                 onChanged: onSearchChanged,
                 decoration: InputDecoration(
@@ -6863,6 +6867,8 @@ class _ReportTableState extends State<_ReportTable> {
         final columns = _resolveColumns(filteredRows.isEmpty ? widget.rows : filteredRows);
 
         final search = TextField(
+          maxLength: 120,
+          buildCounter: (_, {required currentLength, required isFocused, maxLength}) => null,
           controller: _searchController,
           onChanged: (_) => setState(() {
             _visibleCount = 24;

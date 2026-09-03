@@ -4,6 +4,7 @@ import 'dart:math' as math;
 
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
@@ -15,6 +16,7 @@ import '../../../../core/widgets/app_error_view.dart';
 import '../../../../core/widgets/app_loader.dart';
 import '../../../../core/widgets/confirmation_dialog.dart';
 import '../../../../core/providers/core_providers.dart';
+import '../../../../core/utils/input_constraints.dart';
 import '../../../../core/widgets/tech_background.dart';
 import '../../../marcas/data/models/marcas_response_model.dart';
 import '../../../marcas/presentation/providers/marcas_provider.dart';
@@ -1540,6 +1542,9 @@ class _SearchField extends StatelessWidget {
   Widget build(BuildContext context) {
     return TextField(
       controller: controller,
+      maxLength: InputConstraints.search,
+      buildCounter: (_, {required currentLength, required isFocused, maxLength}) => null,
+      inputFormatters: <TextInputFormatter>[LengthLimitingTextInputFormatter(InputConstraints.search)],
       onChanged: onChanged,
       style: TextStyle(
         color: palette.textPrimary,
@@ -2999,6 +3004,7 @@ class _QuickMovementPanelState extends State<_QuickMovementPanel> {
                                     child: TextField(
                                       controller: _quantityController,
                                       enabled: !_saving,
+                                      inputFormatters: InputConstraints.decimalFormatters(integerDigits: 13, fractionDigits: 2),
                                       keyboardType:
                                           const TextInputType.numberWithOptions(
                                         decimal: true,
@@ -3086,6 +3092,9 @@ class _QuickMovementPanelState extends State<_QuickMovementPanel> {
                         TextField(
                           controller: _reasonController,
                           enabled: !_saving,
+                          maxLength: 100,
+                          buildCounter: (_, {required currentLength, required isFocused, maxLength}) => null,
+                          inputFormatters: <TextInputFormatter>[LengthLimitingTextInputFormatter(100)],
                           decoration: const InputDecoration(
                             labelText: 'Motivo',
                             prefixIcon: Icon(Icons.notes_rounded),
@@ -3095,6 +3104,9 @@ class _QuickMovementPanelState extends State<_QuickMovementPanel> {
                         TextField(
                           controller: _referenceController,
                           enabled: !_saving,
+                          maxLength: 300,
+                          buildCounter: (_, {required currentLength, required isFocused, maxLength}) => null,
+                          inputFormatters: <TextInputFormatter>[LengthLimitingTextInputFormatter(300)],
                           decoration: const InputDecoration(
                             labelText: 'Referencia',
                             prefixIcon: Icon(Icons.receipt_long_rounded),
@@ -4662,6 +4674,10 @@ class _ProductEditBottomSheetState extends State<_ProductEditBottomSheet> {
       final file = result?.files.single;
       final bytes = file?.bytes;
       if (bytes == null || bytes.isEmpty) return;
+      if (bytes.length > InputConstraints.imageMaxBytes) {
+        if (mounted) _showMessage('La imagen no puede superar 2 MB.');
+        return;
+      }
       final extension = (file?.extension ?? 'png').toLowerCase();
       final mime = switch (extension) {
         'jpg' || 'jpeg' => 'image/jpeg',
@@ -4935,6 +4951,9 @@ class _ProductEditBottomSheetState extends State<_ProductEditBottomSheet> {
                         TextFormField(
                           controller: _nameController,
                           enabled: !_saving,
+                          maxLength: 120,
+                          buildCounter: (_, {required currentLength, required isFocused, maxLength}) => null,
+                          inputFormatters: <TextInputFormatter>[LengthLimitingTextInputFormatter(120)],
                           textInputAction: TextInputAction.next,
                           decoration: const InputDecoration(
                             labelText: 'Nombre del producto',
@@ -4948,6 +4967,9 @@ class _ProductEditBottomSheetState extends State<_ProductEditBottomSheet> {
                         TextFormField(
                           controller: _descriptionController,
                           enabled: !_saving,
+                          maxLength: 400,
+                          buildCounter: (_, {required currentLength, required isFocused, maxLength}) => null,
+                          inputFormatters: <TextInputFormatter>[LengthLimitingTextInputFormatter(400)],
                           minLines: 2,
                           maxLines: 4,
                           decoration: const InputDecoration(
@@ -5055,6 +5077,7 @@ class _ProductEditBottomSheetState extends State<_ProductEditBottomSheet> {
                             final saleField = TextFormField(
                               controller: _salePriceController,
                               enabled: !_saving,
+                              inputFormatters: InputConstraints.decimalFormatters(integerDigits: 15, fractionDigits: 0),
                               keyboardType: const TextInputType.numberWithOptions(
                                 decimal: true,
                               ),
@@ -5069,6 +5092,7 @@ class _ProductEditBottomSheetState extends State<_ProductEditBottomSheet> {
                             final purchaseField = TextFormField(
                               controller: _purchasePriceController,
                               enabled: !_saving,
+                              inputFormatters: InputConstraints.decimalFormatters(integerDigits: 15, fractionDigits: 0),
                               keyboardType: const TextInputType.numberWithOptions(
                                 decimal: true,
                               ),
@@ -5143,6 +5167,7 @@ class _ProductEditBottomSheetState extends State<_ProductEditBottomSheet> {
                                       final quantityField = TextFormField(
                                         controller: _purchaseQuantityController,
                                         enabled: !_saving,
+                                        inputFormatters: InputConstraints.decimalFormatters(integerDigits: 13, fractionDigits: 2),
                                         keyboardType: const TextInputType.numberWithOptions(decimal: true),
                                         decoration: const InputDecoration(
                                           labelText: 'Unidades por presentación',
@@ -5152,6 +5177,9 @@ class _ProductEditBottomSheetState extends State<_ProductEditBottomSheet> {
                                       final presentationField = TextFormField(
                                         controller: _purchasePresentationController,
                                         enabled: !_saving,
+                                        maxLength: 60,
+                                        buildCounter: (_, {required currentLength, required isFocused, maxLength}) => null,
+                                        inputFormatters: <TextInputFormatter>[LengthLimitingTextInputFormatter(60)],
                                         decoration: const InputDecoration(
                                           labelText: 'Nombre de presentación',
                                           hintText: 'Canasta, paquete, caja...',
@@ -5187,6 +5215,7 @@ class _ProductEditBottomSheetState extends State<_ProductEditBottomSheet> {
                             final minimumField = TextFormField(
                               controller: _minimumController,
                               enabled: !_saving,
+                              inputFormatters: InputConstraints.decimalFormatters(integerDigits: 28, fractionDigits: 2),
                               keyboardType: const TextInputType.numberWithOptions(decimal: true),
                               decoration: const InputDecoration(
                                 labelText: 'Stock mínimo',
@@ -5196,6 +5225,7 @@ class _ProductEditBottomSheetState extends State<_ProductEditBottomSheet> {
                             final maximumField = TextFormField(
                               controller: _maximumController,
                               enabled: !_saving,
+                              inputFormatters: InputConstraints.decimalFormatters(integerDigits: 28, fractionDigits: 2),
                               keyboardType: const TextInputType.numberWithOptions(decimal: true),
                               decoration: const InputDecoration(
                                 labelText: 'Stock máximo',

@@ -737,6 +737,8 @@ class _Filters extends StatelessWidget {
         builder: (context, constraints) {
           final compact = constraints.maxWidth < 720;
           final search = TextField(
+            maxLength: 120,
+            buildCounter: (_, {required currentLength, required isFocused, maxLength}) => null,
             controller: controller,
             onChanged: onSearch,
             decoration: InputDecoration(
