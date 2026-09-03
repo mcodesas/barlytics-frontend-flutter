@@ -1,6 +1,9 @@
+import 'dart:async';
+
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:google_sign_in/google_sign_in.dart';
+import 'package:openid_client/openid_client_io.dart' as oidc;
 
 
 Future<void>? _googleSignInInitialization;
@@ -21,6 +24,7 @@ class BarLyticsGoogleSignInButton extends StatefulWidget {
     super.key,
     required this.webClientId,
     required this.iosClientId,
+    required this.desktopClientId,
     required this.onIdToken,
     this.onError,
     this.enabled = true,
@@ -29,6 +33,7 @@ class BarLyticsGoogleSignInButton extends StatefulWidget {
 
   final String? webClientId;
   final String? iosClientId;
+  final String? desktopClientId;
   final Future<void> Function(String idToken) onIdToken;
   final void Function(Object error)? onError;
   final bool enabled;
@@ -73,10 +78,63 @@ class _BarLyticsGoogleSignInButtonState extends State<BarLyticsGoogleSignInButto
     return error;
   }
 
+  bool get _desktopGoogleFlow =>
+      defaultTargetPlatform == TargetPlatform.windows ||
+      defaultTargetPlatform == TargetPlatform.linux;
+
+  Future<String> _desktopIdToken() async {
+    final clientId = widget.desktopClientId?.trim();
+    if (clientId == null || clientId.isEmpty) {
+      throw StateError(
+        'Falta configurar el Client ID OAuth de tipo Aplicación de escritorio para Google.',
+      );
+    }
+
+    final issuer = await oidc.Issuer.discover(oidc.Issuer.google);
+    final client = oidc.Client(issuer, clientId);
+    final flow = oidc.Flow.authorizationCodeWithPKCE(
+      client,
+      scopes: const ['openid', 'email', 'profile'],
+      prompt: 'select_account',
+    )..redirectUri = Uri.parse('http://127.0.0.1:42837/');
+    final authenticator = oidc.Authenticator.fromFlow(
+      flow,
+      redirectMessage:
+          'Ingreso completado. Ya puedes cerrar esta ventana y volver a BarLytics.',
+    );
+
+    try {
+      final credential = await authenticator
+          .authorize()
+          .timeout(const Duration(minutes: 3));
+      final violations = await credential.validateToken().toList();
+      if (violations.isNotEmpty) {
+        throw StateError('Google devolvió una identidad que no pudo validarse.');
+      }
+      final response = credential.response;
+      final token = response == null ? null : response['id_token']?.toString();
+      if (token == null || token.trim().isEmpty) {
+        throw StateError('Google no devolvió un token de identidad válido.');
+      }
+      return token;
+    } on TimeoutException {
+      await authenticator.cancel();
+      throw StateError(
+        'El ingreso con Google tardó demasiado. Inténtalo nuevamente.',
+      );
+    }
+  }
+
   Future<void> _signIn() async {
     if (_busy || !widget.enabled) return;
     setState(() => _busy = true);
     try {
+      if (_desktopGoogleFlow) {
+        final token = await _desktopIdToken();
+        await widget.onIdToken(token);
+        return;
+      }
+
       await _initialize();
       if (!GoogleSignIn.instance.supportsAuthenticate()) {
         throw StateError('Google Sign-In no está disponible en esta plataforma.');

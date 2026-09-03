@@ -1,5 +1,6 @@
 import 'dart:ui';
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -85,15 +86,16 @@ class _LoginPageState extends ConsumerState<LoginPage> {
               ),
             ),
           ),
-          const SafeArea(
-            child: Padding(
-              padding: EdgeInsets.all(16),
-              child: Align(
-                alignment: Alignment.topLeft,
-                child: _BackToPublicSiteButton(),
+          if (kIsWeb)
+            const SafeArea(
+              child: Padding(
+                padding: EdgeInsets.all(16),
+                child: Align(
+                  alignment: Alignment.topLeft,
+                  child: _BackToPublicSiteButton(),
+                ),
               ),
             ),
-          ),
         ],
       ),
     );
@@ -410,6 +412,7 @@ class _GoogleLoginSection extends ConsumerWidget {
         return BarLyticsGoogleSignInButton(
           webClientId: google.webClientId,
           iosClientId: google.iosClientId,
+          desktopClientId: google.desktopClientId,
           loading: loading,
           onIdToken: state._googleLogin,
           onError: (error) {

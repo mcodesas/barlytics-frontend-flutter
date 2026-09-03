@@ -602,6 +602,7 @@ class _PublicRegistrationPageState extends ConsumerState<PublicRegistrationPage>
             BarLyticsGoogleSignInButton(
               webClientId: google.webClientId,
               iosClientId: google.iosClientId,
+              desktopClientId: google.desktopClientId,
               loading: _googleLoading,
               onIdToken: _handleGoogleIdToken,
               onError: (error) => _showMessage(

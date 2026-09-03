@@ -16,6 +16,7 @@ class BarLyticsGoogleSignInButton extends StatefulWidget {
     super.key,
     required this.webClientId,
     required this.iosClientId,
+    required this.desktopClientId,
     required this.onIdToken,
     this.onError,
     this.enabled = true,
@@ -24,6 +25,7 @@ class BarLyticsGoogleSignInButton extends StatefulWidget {
 
   final String? webClientId;
   final String? iosClientId;
+  final String? desktopClientId;
   final Future<void> Function(String idToken) onIdToken;
   final void Function(Object error)? onError;
   final bool enabled;

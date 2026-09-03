@@ -36,11 +36,25 @@ lib/
 
 El puerto local vigente es **8282**, no 8080.
 
-- Windows, iOS simulator y escritorio: `http://127.0.0.1:8282`.
-- Android emulator: `http://10.0.2.2:8282`.
+- Apps instalables (Windows, macOS, Linux, Android e iOS) sin `ENV` explícito: `https://www.barlytics.com.co`.
+- Desarrollo local de Windows/macOS/Linux/iOS simulator: `--dart-define=ENV=local` usa `http://127.0.0.1:8282`.
+- Android emulator local: `--dart-define=ENV=android` usa `http://10.0.2.2:8282`.
 - Flutter Web local: usa automáticamente el host del navegador y el puerto 8282.
 - Puede forzarse con `--dart-define=API_BASE_URL=...`.
 - También pueden usarse `API_HOST` y `API_PORT`.
+
+
+Para ejecutar una app instalable contra producción no necesitas parámetros adicionales:
+
+```bash
+flutter run -d windows
+```
+
+Para forzar un backend local en escritorio:
+
+```bash
+flutter run -d windows --dart-define=ENV=local
+```
 
 Ejemplo web accesible por LAN:
 
