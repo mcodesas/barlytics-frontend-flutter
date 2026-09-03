@@ -4,6 +4,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:google_sign_in/google_sign_in.dart';
 import 'package:openid_client/openid_client_io.dart' as oidc;
+import 'package:url_launcher/url_launcher.dart';
 
 
 Future<void>? _googleSignInInitialization;
@@ -25,6 +26,7 @@ class BarLyticsGoogleSignInButton extends StatefulWidget {
     required this.webClientId,
     required this.iosClientId,
     required this.desktopClientId,
+    required this.desktopClientSecret,
     required this.onIdToken,
     this.onError,
     this.enabled = true,
@@ -34,6 +36,7 @@ class BarLyticsGoogleSignInButton extends StatefulWidget {
   final String? webClientId;
   final String? iosClientId;
   final String? desktopClientId;
+  final String? desktopClientSecret;
   final Future<void> Function(String idToken) onIdToken;
   final void Function(Object error)? onError;
   final bool enabled;
@@ -82,6 +85,29 @@ class _BarLyticsGoogleSignInButtonState extends State<BarLyticsGoogleSignInButto
       defaultTargetPlatform == TargetPlatform.windows ||
       defaultTargetPlatform == TargetPlatform.linux;
 
+  Future<void> _openDesktopBrowser(String url) async {
+    final uri = Uri.tryParse(url);
+    if (uri == null ||
+        (uri.scheme.toLowerCase() != 'https' &&
+            uri.scheme.toLowerCase() != 'http')) {
+      throw StateError('Google devolvió una URL de autorización no válida.');
+    }
+
+    // En Windows no usamos el launcher interno de openid_client porque puede
+    // terminar interpretando la URL como una ruta del sistema y abrir Explorer.
+    // url_launcher con externalApplication delega la URI HTTP(S) al navegador
+    // predeterminado del sistema operativo.
+    final launched = await launchUrl(
+      uri,
+      mode: LaunchMode.externalApplication,
+    );
+    if (!launched) {
+      throw StateError(
+        'No fue posible abrir el navegador para continuar con Google.',
+      );
+    }
+  }
+
   Future<String> _desktopIdToken() async {
     final clientId = widget.desktopClientId?.trim();
     if (clientId == null || clientId.isEmpty) {
@@ -90,8 +116,15 @@ class _BarLyticsGoogleSignInButtonState extends State<BarLyticsGoogleSignInButto
       );
     }
 
+    final clientSecret = widget.desktopClientSecret?.trim();
+    if (clientSecret == null || clientSecret.isEmpty) {
+      throw StateError(
+        'Falta configurar el Client Secret OAuth de la aplicación de escritorio para Google.',
+      );
+    }
+
     final issuer = await oidc.Issuer.discover(oidc.Issuer.google);
-    final client = oidc.Client(issuer, clientId);
+    final client = oidc.Client(issuer, clientId, clientSecret: clientSecret);
     final flow = oidc.Flow.authorizationCodeWithPKCE(
       client,
       scopes: const ['openid', 'email', 'profile'],
@@ -99,6 +132,7 @@ class _BarLyticsGoogleSignInButtonState extends State<BarLyticsGoogleSignInButto
     )..redirectUri = Uri.parse('http://127.0.0.1:42837/');
     final authenticator = oidc.Authenticator.fromFlow(
       flow,
+      urlLancher: _openDesktopBrowser,
       redirectMessage:
           'Ingreso completado. Ya puedes cerrar esta ventana y volver a BarLytics.',
     );

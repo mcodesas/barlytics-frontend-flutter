@@ -413,6 +413,7 @@ class _GoogleLoginSection extends ConsumerWidget {
           webClientId: google.webClientId,
           iosClientId: google.iosClientId,
           desktopClientId: google.desktopClientId,
+          desktopClientSecret: google.desktopClientSecret,
           loading: loading,
           onIdToken: state._googleLogin,
           onError: (error) {
