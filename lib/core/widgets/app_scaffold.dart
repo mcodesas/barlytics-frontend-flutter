@@ -824,46 +824,160 @@ class _RoleScopeSelector extends ConsumerWidget {
       builder: (sheetContext) => StatefulBuilder(
         builder: (sheetContext, setSheetState) {
           final all = draft == null;
+          final maxSheetHeight = MediaQuery.sizeOf(sheetContext).height * 0.88;
+
+          Widget option({
+            required bool value,
+            required String title,
+            String? subtitle,
+            required ValueChanged<bool?> onChanged,
+          }) {
+            return Material(
+              color: Colors.transparent,
+              child: InkWell(
+                borderRadius: BorderRadius.circular(14),
+                onTap: () => onChanged(!value),
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 8),
+                  child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      SizedBox(
+                        width: 40,
+                        height: 40,
+                        child: Center(
+                          child: Checkbox(
+                            value: value,
+                            onChanged: onChanged,
+                            visualDensity: VisualDensity.compact,
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 6),
+                      Expanded(
+                        child: Padding(
+                          padding: const EdgeInsets.only(top: 3, right: 4),
+                          child: Column(
+                            mainAxisSize: MainAxisSize.min,
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                title,
+                                maxLines: 2,
+                                overflow: TextOverflow.ellipsis,
+                                style: TextStyle(
+                                  color: palette.textPrimary,
+                                  fontWeight: FontWeight.w900,
+                                ),
+                              ),
+                              if (subtitle != null) ...[
+                                const SizedBox(height: 3),
+                                Text(
+                                  subtitle,
+                                  maxLines: 3,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: TextStyle(
+                                    color: palette.textSecondary,
+                                    fontSize: 12,
+                                    fontWeight: FontWeight.w600,
+                                    height: 1.25,
+                                  ),
+                                ),
+                              ],
+                            ],
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            );
+          }
+
           return SafeArea(
             child: Container(
               margin: const EdgeInsets.all(12),
               padding: const EdgeInsets.fromLTRB(14, 12, 14, 14),
-              decoration: BoxDecoration(color: palette.surface, borderRadius: BorderRadius.circular(palette.radius(24)), border: Border.all(color: palette.cardBorder)),
-              child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
-                Text('Vista por roles', style: TextStyle(color: palette.textPrimary, fontSize: 18, fontWeight: FontWeight.w900)),
-                const SizedBox(height: 4),
-                Text('Elige cómo quieres ver BarLytics: un rol, varios roles o todos. La pantalla y los menús cambian según tu selección y nunca se repiten opciones.', style: TextStyle(color: palette.textSecondary, fontSize: 12, fontWeight: FontWeight.w600)),
-                const SizedBox(height: 10),
-                CheckboxListTile(
-                  value: all,
-                  contentPadding: EdgeInsets.zero,
-                  title: const Text('Todos los roles', style: TextStyle(fontWeight: FontWeight.w900)),
-                  subtitle: const Text('Combina todas las opciones autorizadas sin duplicados.'),
-                  onChanged: (_) => setSheetState(() => draft = null),
-                ),
-                const Divider(),
-                for (final role in assigned)
-                  CheckboxListTile(
-                    value: all || (draft?.any((r) => normalizeRoleName(r) == normalizeRoleName(role)) ?? false),
-                    contentPadding: EdgeInsets.zero,
-                    title: Text(_displayRole(role), style: const TextStyle(fontWeight: FontWeight.w800)),
-                    onChanged: (checked) {
-                      setSheetState(() {
-                        if (draft == null) draft = {role};
-                        else if (checked == true) draft = {...draft!, role};
-                        else {
-                          final next = {...draft!}..removeWhere((r) => normalizeRoleName(r) == normalizeRoleName(role));
-                          draft = next.isEmpty ? {role} : next;
-                        }
-                      });
-                    },
+              constraints: BoxConstraints(maxHeight: maxSheetHeight),
+              decoration: BoxDecoration(
+                color: palette.surface,
+                borderRadius: BorderRadius.circular(palette.radius(24)),
+                border: Border.all(color: palette.cardBorder),
+              ),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Vista por roles',
+                    style: TextStyle(
+                      color: palette.textPrimary,
+                      fontSize: 18,
+                      fontWeight: FontWeight.w900,
+                    ),
                   ),
-                const SizedBox(height: 8),
-                SizedBox(width: double.infinity, child: FilledButton.icon(
-                  onPressed: () => Navigator.of(sheetContext).pop(draft ?? <String>{}),
-                  icon: const Icon(Icons.check_rounded), label: const Text('Aplicar vista'),
-                )),
-              ]),
+                  const SizedBox(height: 4),
+                  Text(
+                    'Elige cómo quieres ver BarLytics: un rol, varios roles o todos. La pantalla y los menús cambian según tu selección y nunca se repiten opciones.',
+                    style: TextStyle(
+                      color: palette.textSecondary,
+                      fontSize: 12,
+                      fontWeight: FontWeight.w600,
+                      height: 1.3,
+                    ),
+                  ),
+                  const SizedBox(height: 10),
+                  Flexible(
+                    child: ListView(
+                      shrinkWrap: true,
+                      padding: EdgeInsets.zero,
+                      children: [
+                        option(
+                          value: all,
+                          title: 'Todos los roles',
+                          subtitle: 'Combina todas las opciones autorizadas sin duplicados.',
+                          onChanged: (_) => setSheetState(() => draft = null),
+                        ),
+                        const Divider(height: 12),
+                        for (final role in assigned)
+                          option(
+                            value: all ||
+                                (draft?.any(
+                                      (r) => normalizeRoleName(r) == normalizeRoleName(role),
+                                    ) ??
+                                    false),
+                            title: _displayRole(role),
+                            onChanged: (checked) {
+                              setSheetState(() {
+                                if (draft == null) {
+                                  draft = {role};
+                                } else if (checked == true) {
+                                  draft = {...draft!, role};
+                                } else {
+                                  final next = {...draft!}
+                                    ..removeWhere(
+                                      (r) => normalizeRoleName(r) == normalizeRoleName(role),
+                                    );
+                                  draft = next.isEmpty ? {role} : next;
+                                }
+                              });
+                            },
+                          ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  SizedBox(
+                    width: double.infinity,
+                    child: FilledButton.icon(
+                      onPressed: () => Navigator.of(sheetContext).pop(draft ?? <String>{}),
+                      icon: const Icon(Icons.check_rounded),
+                      label: const Text('Aplicar vista'),
+                    ),
+                  ),
+                ],
+              ),
             ),
           );
         },
@@ -874,6 +988,7 @@ class _RoleScopeSelector extends ConsumerWidget {
     ref.invalidate(userMenuProvider);
     if (context.mounted) context.go('/home');
   }
+
 }
 
 class _TopBarIconButton extends StatelessWidget {
@@ -1786,7 +1901,12 @@ class _OperationalBottomNavigation extends ConsumerWidget {
       ),
       child: SafeArea(
         top: false,
-        child: BottomNavigationBar(
+        child: MediaQuery.withClampedTextScaling(
+          minScaleFactor: 1.0,
+          maxScaleFactor: 1.0,
+          child: SizedBox(
+            height: 68,
+            child: BottomNavigationBar(
           currentIndex: selectedIndex < 0 ? 0 : selectedIndex,
           selectedItemColor: palette.secondary,
           unselectedItemColor: palette.textSecondary,
@@ -1794,9 +1914,13 @@ class _OperationalBottomNavigation extends ConsumerWidget {
           elevation: 0,
           showUnselectedLabels: true,
           type: BottomNavigationBarType.fixed,
-          selectedFontSize: 10.5,
+          selectedFontSize: 10,
           unselectedFontSize: 9.5,
-          iconSize: 22,
+          iconSize: 20,
+          selectedIconTheme: const IconThemeData(size: 20),
+          unselectedIconTheme: const IconThemeData(size: 19),
+          selectedLabelStyle: const TextStyle(fontWeight: FontWeight.w900, height: 1.0),
+          unselectedLabelStyle: const TextStyle(fontWeight: FontWeight.w700, height: 1.0),
           onTap: (index) {
             final entry = navigationEntries[index];
             if (entry.path == '__more__') {
@@ -1818,6 +1942,8 @@ class _OperationalBottomNavigation extends ConsumerWidget {
             context.go(entry.path);
           },
           items: [for (final entry in navigationEntries) entry.item],
+            ),
+          ),
         ),
       ),
     );
@@ -2047,18 +2173,25 @@ class _InventoryBottomNavigation extends ConsumerWidget {
       ),
       child: SafeArea(
         top: false,
-        child: BottomNavigationBar(
+        child: MediaQuery.withClampedTextScaling(
+          minScaleFactor: 1.0,
+          maxScaleFactor: 1.0,
+          child: SizedBox(
+            height: 68,
+            child: BottomNavigationBar(
           currentIndex: selectedIndex,
           type: BottomNavigationBarType.fixed,
           backgroundColor: Colors.transparent,
           elevation: 0,
           selectedItemColor: palette.secondary,
           unselectedItemColor: palette.textSecondary.withOpacity(0.86),
-          selectedFontSize: isCompact ? 10 : 11.5,
-          unselectedFontSize: isCompact ? 9.5 : 11,
-          iconSize: isCompact ? 21 : 23,
-          selectedLabelStyle: const TextStyle(fontWeight: FontWeight.w900, height: 1.15),
-          unselectedLabelStyle: const TextStyle(fontWeight: FontWeight.w700, height: 1.15),
+          selectedFontSize: isCompact ? 9.5 : 10.5,
+          unselectedFontSize: isCompact ? 9 : 10,
+          iconSize: isCompact ? 19 : 20,
+          selectedIconTheme: IconThemeData(size: isCompact ? 19 : 20),
+          unselectedIconTheme: IconThemeData(size: isCompact ? 18 : 19),
+          selectedLabelStyle: const TextStyle(fontWeight: FontWeight.w900, height: 1.0),
+          unselectedLabelStyle: const TextStyle(fontWeight: FontWeight.w700, height: 1.0),
           showSelectedLabels: true,
           showUnselectedLabels: true,
           onTap: (index) {
@@ -2077,22 +2210,12 @@ class _InventoryBottomNavigation extends ConsumerWidget {
           items: [
             for (final item in navigationItems)
               BottomNavigationBarItem(
-                icon: Padding(
-                  padding: const EdgeInsets.only(bottom: 3),
-                  child: Icon(item.icon),
-                ),
-                activeIcon: Container(
-                  margin: const EdgeInsets.only(bottom: 3),
-                  padding: EdgeInsets.symmetric(horizontal: isCompact ? 10 : 13, vertical: 5),
-                  decoration: BoxDecoration(
-                    color: palette.secondary.withOpacity(palette.darkBackground ? 0.22 : 0.14),
-                    borderRadius: BorderRadius.circular(18),
-                  ),
-                  child: Icon(item.icon),
-                ),
+                icon: Icon(item.icon),
                 label: item.label,
               ),
           ],
+            ),
+          ),
         ),
       ),
     );
@@ -2279,18 +2402,25 @@ class _AdminBottomNavigation extends ConsumerWidget {
       ),
       child: SafeArea(
         top: false,
-        child: BottomNavigationBar(
+        child: MediaQuery.withClampedTextScaling(
+          minScaleFactor: 1.0,
+          maxScaleFactor: 1.0,
+          child: SizedBox(
+            height: 68,
+            child: BottomNavigationBar(
           currentIndex: selectedIndex,
           type: BottomNavigationBarType.fixed,
           backgroundColor: Colors.transparent,
           elevation: 0,
           selectedItemColor: palette.secondary,
           unselectedItemColor: palette.textSecondary.withOpacity(.86),
-          selectedFontSize: compact ? 10 : 11.5,
-          unselectedFontSize: compact ? 9.5 : 11,
-          iconSize: compact ? 21 : 23,
-          selectedLabelStyle: const TextStyle(fontWeight: FontWeight.w900, height: 1.15),
-          unselectedLabelStyle: const TextStyle(fontWeight: FontWeight.w700, height: 1.15),
+          selectedFontSize: compact ? 9.5 : 10.5,
+          unselectedFontSize: compact ? 9 : 10,
+          iconSize: compact ? 19 : 20,
+          selectedIconTheme: IconThemeData(size: compact ? 19 : 20),
+          unselectedIconTheme: IconThemeData(size: compact ? 18 : 19),
+          selectedLabelStyle: const TextStyle(fontWeight: FontWeight.w900, height: 1.0),
+          unselectedLabelStyle: const TextStyle(fontWeight: FontWeight.w700, height: 1.0),
           showSelectedLabels: true,
           showUnselectedLabels: true,
           onTap: (index) {
@@ -2304,19 +2434,12 @@ class _AdminBottomNavigation extends ConsumerWidget {
           items: [
             for (final item in _coreItems)
               BottomNavigationBarItem(
-                icon: Padding(padding: const EdgeInsets.only(bottom: 3), child: Icon(item.icon)),
-                activeIcon: Container(
-                  margin: const EdgeInsets.only(bottom: 3),
-                  padding: EdgeInsets.symmetric(horizontal: compact ? 10 : 13, vertical: 5),
-                  decoration: BoxDecoration(
-                    color: palette.secondary.withOpacity(palette.darkBackground ? .22 : .14),
-                    borderRadius: BorderRadius.circular(18),
-                  ),
-                  child: Icon(item.icon),
-                ),
+                icon: Icon(item.icon),
                 label: item.label,
               ),
           ],
+            ),
+          ),
         ),
       ),
     );
@@ -2593,18 +2716,25 @@ class _ManagerBottomNavigation extends ConsumerWidget {
       ),
       child: SafeArea(
         top: false,
-        child: BottomNavigationBar(
+        child: MediaQuery.withClampedTextScaling(
+          minScaleFactor: 1.0,
+          maxScaleFactor: 1.0,
+          child: SizedBox(
+            height: 68,
+            child: BottomNavigationBar(
           currentIndex: selectedIndex,
           type: BottomNavigationBarType.fixed,
           backgroundColor: Colors.transparent,
           elevation: 0,
           selectedItemColor: palette.secondary,
           unselectedItemColor: palette.textSecondary.withOpacity(0.86),
-          selectedFontSize: isCompact ? 10 : 11.5,
-          unselectedFontSize: isCompact ? 9.5 : 11,
-          iconSize: isCompact ? 21 : 23,
-          selectedLabelStyle: const TextStyle(fontWeight: FontWeight.w900, height: 1.15),
-          unselectedLabelStyle: const TextStyle(fontWeight: FontWeight.w700, height: 1.15),
+          selectedFontSize: isCompact ? 9.5 : 10.5,
+          unselectedFontSize: isCompact ? 9 : 10,
+          iconSize: isCompact ? 19 : 20,
+          selectedIconTheme: IconThemeData(size: isCompact ? 19 : 20),
+          unselectedIconTheme: IconThemeData(size: isCompact ? 18 : 19),
+          selectedLabelStyle: const TextStyle(fontWeight: FontWeight.w900, height: 1.0),
+          unselectedLabelStyle: const TextStyle(fontWeight: FontWeight.w700, height: 1.0),
           showSelectedLabels: true,
           showUnselectedLabels: true,
           onTap: (index) {
@@ -2623,22 +2753,12 @@ class _ManagerBottomNavigation extends ConsumerWidget {
           items: [
             for (final item in navigationItems)
               BottomNavigationBarItem(
-                icon: Padding(
-                  padding: const EdgeInsets.only(bottom: 3),
-                  child: Icon(item.icon),
-                ),
-                activeIcon: Container(
-                  margin: const EdgeInsets.only(bottom: 3),
-                  padding: EdgeInsets.symmetric(horizontal: isCompact ? 10 : 13, vertical: 5),
-                  decoration: BoxDecoration(
-                    color: palette.secondary.withOpacity(palette.darkBackground ? 0.22 : 0.14),
-                    borderRadius: BorderRadius.circular(18),
-                  ),
-                  child: Icon(item.icon),
-                ),
+                icon: Icon(item.icon),
                 label: item.label,
               ),
           ],
+            ),
+          ),
         ),
       ),
     );

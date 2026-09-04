@@ -1074,12 +1074,26 @@ class _MeseroPageState extends ConsumerState<MeseroPage> {
           );
         }
 
+        final availableWidth = constraints.maxWidth - 12;
+        final quickSaleWidth = availableWidth * 5 / 12;
+        final quickSaleUsesCompactLayout = quickSaleWidth < 620;
+        final commandAreaHeight = quickSaleUsesCompactLayout ? 128.0 : 78.0;
+
         return Row(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Expanded(flex: 5, child: SizedBox(height: 78, child: quickSale)),
+            Expanded(
+              flex: 5,
+              child: SizedBox(height: commandAreaHeight, child: quickSale),
+            ),
             const SizedBox(width: 12),
-            Expanded(flex: 7, child: SizedBox(height: 78, child: summary)),
+            Expanded(
+              flex: 7,
+              child: SizedBox(
+                height: commandAreaHeight,
+                child: Align(alignment: Alignment.topCenter, child: summary),
+              ),
+            ),
           ],
         );
       },
@@ -9613,8 +9627,11 @@ class _CuentaDetalle extends ConsumerWidget {
 
     return LayoutBuilder(
       builder: (context, constraints) {
-        final desktopCheckout = constraints.maxWidth >= 1080;
-        if (!desktopCheckout) {
+        // En escritorio se prioriza mantener el resumen de cobro visible al lado.
+        // La tabla de productos se adapta internamente a un modo compacto cuando
+        // el panel izquierdo queda más angosto. En móvil sí apilamos todo.
+        final sideCheckout = constraints.maxWidth >= 920;
+        if (!sideCheckout) {
           return Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
@@ -9626,6 +9643,12 @@ class _CuentaDetalle extends ConsumerWidget {
             ],
           );
         }
+
+        final checkoutWidth = constraints.maxWidth >= 1320
+            ? 360.0
+            : constraints.maxWidth >= 1120
+                ? 330.0
+                : 300.0;
 
         return Row(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -9641,7 +9664,7 @@ class _CuentaDetalle extends ConsumerWidget {
               ),
             ),
             const SizedBox(width: 16),
-            SizedBox(width: 360, child: checkoutPanel),
+            SizedBox(width: checkoutWidth, child: checkoutPanel),
           ],
         );
       },
@@ -10550,8 +10573,10 @@ class _CuentaProductosTabla extends ConsumerWidget {
         borderRadius: BorderRadius.circular(16),
         child: LayoutBuilder(
           builder: (context, constraints) {
-            final compact = constraints.maxWidth < 680;
-            if (compact) {
+            final mobileCards = constraints.maxWidth < 600;
+            final compactTable = constraints.maxWidth < 980;
+
+            if (mobileCards) {
               return Column(
                 children: [
                   ...productos.map(
@@ -10571,22 +10596,157 @@ class _CuentaProductosTabla extends ConsumerWidget {
               );
             }
 
-            final tableWidth = constraints.maxWidth.isFinite && constraints.maxWidth > 980 ? constraints.maxWidth : 980.0;
-            return SingleChildScrollView(
-              scrollDirection: Axis.horizontal,
-              child: SizedBox(
-                width: tableWidth,
-                child: Column(
-                  children: [
-                    _buildHeader(palette),
-                    ...productos.map((producto) => _buildRow(producto, palette)),
-                    if (showTotals) _CuentaTotalesBajoTabla(cuenta: cuenta),
-                  ],
-                ),
+            return SizedBox(
+              width: constraints.maxWidth,
+              child: Column(
+                children: [
+                  compactTable ? _buildCompactHeader(palette) : _buildHeader(palette),
+                  ...productos.map(
+                    (producto) => compactTable
+                        ? _buildCompactRow(producto, palette)
+                        : _buildRow(producto, palette),
+                  ),
+                  if (showTotals) _CuentaTotalesBajoTabla(cuenta: cuenta, compact: compactTable),
+                ],
               ),
             );
           },
         ),
+      ),
+    );
+  }
+
+  Widget _buildCompactHeader(AppPalette palette) {
+    return Container(
+      height: 42,
+      padding: const EdgeInsets.symmetric(horizontal: 10),
+      decoration: BoxDecoration(
+        color: palette.secondary.withOpacity(palette.darkBackground ? 0.16 : 0.08),
+        border: Border(bottom: BorderSide(color: palette.cardBorder)),
+      ),
+      child: const Row(
+        children: [
+          SizedBox(width: 48, child: _CuentaProductoHeaderCell('Foto')),
+          Expanded(flex: 4, child: _CuentaProductoHeaderCell('Producto')),
+          SizedBox(width: 8),
+          SizedBox(width: 122, child: _CuentaProductoHeaderCell('Cantidad')),
+          SizedBox(width: 8),
+          SizedBox(width: 82, child: _CuentaProductoHeaderCell('Total', alignEnd: true)),
+          SizedBox(width: 10),
+          SizedBox(width: 80, child: _CuentaProductoHeaderCell('Estado')),
+          SizedBox(width: 8),
+          SizedBox(width: 72, child: _CuentaProductoHeaderCell('Acciones', alignEnd: true)),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildCompactRow(MeseroDetalleProductoModel producto, AppPalette palette) {
+    final pagado = producto.pagado == true;
+    final actualizando = productoActualizando?.call(producto) ?? false;
+    final puedeIncrementar = !pagado && !actualizando && onIncrementarProducto != null;
+    final puedeDisminuir = !pagado && !actualizando && onDisminuirProducto != null;
+    final puedeSumarCantidad = !pagado && !actualizando && onSumarCantidadProducto != null;
+    final puedeEliminar = !pagado && !actualizando && onEliminarProducto != null;
+    final puedeMover = !pagado && !actualizando && onMoverProducto != null;
+
+    return Container(
+      constraints: const BoxConstraints(minHeight: 58),
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+      decoration: BoxDecoration(border: Border(bottom: BorderSide(color: palette.cardBorder))),
+      child: Row(
+        children: [
+          SizedBox(width: 48, child: _ProductImageThumb(value: producto.productoFoto, size: 40)),
+          Expanded(
+            flex: 4,
+            child: Row(
+              children: [
+                Tooltip(
+                  message: pagado ? 'Producto ya pagado' : 'Producto pendiente de pago',
+                  child: Icon(
+                    pagado ? Icons.lock_rounded : Icons.lock_open_rounded,
+                    size: 16,
+                    color: pagado ? AppColors.textSecondary : AppColors.secondaryDark,
+                  ),
+                ),
+                const SizedBox(width: 6),
+                Expanded(
+                  child: Text(
+                    producto.productoNombre ?? 'Producto ${producto.productoId ?? '-'}',
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 12.5),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(width: 8),
+          SizedBox(
+            width: 122,
+            child: _ProductoCantidadStepper(
+              cantidad: producto.cantidad ?? 0,
+              habilitado: !pagado && !actualizando,
+              cargando: actualizando,
+              onDisminuir: puedeDisminuir ? () => onDisminuirProducto!(producto) : null,
+              onIncrementar: puedeIncrementar ? () => onIncrementarProducto!(producto) : null,
+              onCantidadTap: puedeSumarCantidad ? () => onSumarCantidadProducto!(producto) : null,
+            ),
+          ),
+          const SizedBox(width: 8),
+          SizedBox(
+            width: 82,
+            child: _CuentaProductoValueCell(
+              CurrencyUtils.format(producto.subtotal),
+              alignEnd: true,
+              strong: true,
+            ),
+          ),
+          const SizedBox(width: 10),
+          SizedBox(
+            width: 80,
+            child: Align(
+              alignment: Alignment.centerLeft,
+              child: _EstadoPagoChip(pagado: pagado),
+            ),
+          ),
+          const SizedBox(width: 8),
+          SizedBox(
+            width: 72,
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              mainAxisAlignment: MainAxisAlignment.end,
+              children: [
+                IconButton(
+                  style: IconButton.styleFrom(
+                    minimumSize: const Size(32, 32),
+                    maximumSize: const Size(32, 32),
+                    padding: EdgeInsets.zero,
+                    tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                  ),
+                  visualDensity: VisualDensity.compact,
+                  iconSize: 18,
+                  tooltip: pagado ? 'No se puede mover porque ya fue pagado' : 'Pasar producto a otra cuenta',
+                  onPressed: puedeMover ? () => onMoverProducto!(producto) : null,
+                  icon: const Icon(Icons.swap_horiz_rounded),
+                ),
+                IconButton(
+                  style: IconButton.styleFrom(
+                    minimumSize: const Size(32, 32),
+                    maximumSize: const Size(32, 32),
+                    padding: EdgeInsets.zero,
+                    tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                  ),
+                  visualDensity: VisualDensity.compact,
+                  iconSize: 18,
+                  tooltip: pagado ? 'No se puede eliminar porque ya fue pagado' : 'Eliminar producto no pagado',
+                  onPressed: puedeEliminar ? () => onEliminarProducto!(producto) : null,
+                  icon: const Icon(Icons.delete_outline_rounded),
+                ),
+              ],
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -10868,6 +11028,7 @@ class _ProductoCantidadStepper extends ConsumerWidget {
     final puedeDisminuir = habilitado && !cargando && onDisminuir != null;
     final puedeIncrementar = habilitado && !cargando && onIncrementar != null;
     final puedeEditar = habilitado && !cargando && onCantidadTap != null;
+    final compacto = !expandido;
 
     final quantityButton = Semantics(
       button: puedeEditar,
@@ -10879,31 +11040,42 @@ class _ProductoCantidadStepper extends ConsumerWidget {
         child: InkWell(
           onTap: puedeEditar ? onCantidadTap : null,
           child: ConstrainedBox(
-            constraints: BoxConstraints(minWidth: expandido ? 86 : 58, minHeight: 32),
+            constraints: BoxConstraints(
+              minWidth: expandido ? 86 : 46,
+              maxWidth: expandido ? double.infinity : 46,
+              minHeight: compacto ? 28 : 32,
+            ),
             child: Center(
               child: cargando
                   ? SizedBox(
-                      width: 18,
-                      height: 18,
+                      width: compacto ? 16 : 18,
+                      height: compacto ? 16 : 18,
                       child: CircularProgressIndicator(strokeWidth: 2.2, color: palette.secondary),
                     )
-                  : Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Text(
-                          _formatCantidadGeneral(cantidad),
-                          textAlign: TextAlign.center,
-                          style: TextStyle(
-                            color: habilitado ? palette.textPrimary : palette.textSecondary,
-                            fontWeight: FontWeight.w900,
-                            fontSize: 14,
+                  : FittedBox(
+                      fit: BoxFit.scaleDown,
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Text(
+                            _formatCantidadGeneral(cantidad),
+                            textAlign: TextAlign.center,
+                            style: TextStyle(
+                              color: habilitado ? palette.textPrimary : palette.textSecondary,
+                              fontWeight: FontWeight.w900,
+                              fontSize: compacto ? 13 : 14,
+                            ),
                           ),
-                        ),
-                        if (puedeEditar) ...[
-                          const SizedBox(width: 5),
-                          Icon(Icons.edit_rounded, size: 14, color: palette.secondary),
+                          if (puedeEditar) ...[
+                            SizedBox(width: compacto ? 3 : 5),
+                            Icon(
+                              Icons.edit_rounded,
+                              size: compacto ? 12 : 14,
+                              color: palette.secondary,
+                            ),
+                          ],
                         ],
-                      ],
+                      ),
                     ),
             ),
           ),
@@ -10928,16 +11100,20 @@ class _ProductoCantidadStepper extends ConsumerWidget {
             icon: cantidad <= 1 ? Icons.delete_outline_rounded : Icons.remove_rounded,
             onTap: puedeDisminuir ? onDisminuir : null,
             palette: palette,
+            size: compacto ? 28 : 34,
+            iconSize: compacto ? 17 : 19,
           ),
-          if (expandido) const Spacer() else const SizedBox(width: 5),
+          if (expandido) const Spacer() else const SizedBox(width: 3),
           quantityButton,
-          if (expandido) const Spacer() else const SizedBox(width: 5),
+          if (expandido) const Spacer() else const SizedBox(width: 3),
           _CantidadStepperButton(
             semanticLabel: 'Aumentar una unidad',
             icon: Icons.add_rounded,
             onTap: puedeIncrementar ? onIncrementar : null,
             palette: palette,
             destacado: true,
+            size: compacto ? 28 : 34,
+            iconSize: compacto ? 17 : 19,
           ),
         ],
       ),
@@ -10952,6 +11128,8 @@ class _CantidadStepperButton extends StatelessWidget {
     required this.onTap,
     required this.palette,
     this.destacado = false,
+    this.size = 34,
+    this.iconSize = 19,
   });
 
   final String semanticLabel;
@@ -10959,6 +11137,8 @@ class _CantidadStepperButton extends StatelessWidget {
   final VoidCallback? onTap;
   final AppPalette palette;
   final bool destacado;
+  final double size;
+  final double iconSize;
 
   @override
   Widget build(BuildContext context) {
@@ -10976,11 +11156,11 @@ class _CantidadStepperButton extends StatelessWidget {
         child: InkWell(
           onTap: onTap,
           child: SizedBox(
-            width: 34,
-            height: 34,
+            width: size,
+            height: size,
             child: Icon(
               icon,
-              size: 19,
+              size: iconSize,
               color: enabled
                   ? (destacado ? palette.primary : palette.textPrimary)
                   : palette.textSecondary.withOpacity(0.42),
