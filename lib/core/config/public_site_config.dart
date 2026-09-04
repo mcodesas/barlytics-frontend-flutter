@@ -7,6 +7,7 @@ class PublicSiteConfig {
     required this.iosDownloadUrl,
     required this.androidDownloadUrl,
     required this.linuxDownloadUrl,
+    required this.updateManifestUrl,
   });
 
   /// Configuración vacía mientras el frontend consulta el backend.
@@ -18,6 +19,7 @@ class PublicSiteConfig {
     iosDownloadUrl: '',
     androidDownloadUrl: '',
     linuxDownloadUrl: '',
+    updateManifestUrl: '',
   );
 
   /// Carpeta web o URL base donde se publican las grabaciones reales de la demo.
@@ -35,6 +37,7 @@ class PublicSiteConfig {
   final String iosDownloadUrl;
   final String androidDownloadUrl;
   final String linuxDownloadUrl;
+  final String updateManifestUrl;
 
   factory PublicSiteConfig.fromJson(Object? json) {
     if (json is! Map) return PublicSiteConfig.empty;
@@ -47,6 +50,7 @@ class PublicSiteConfig {
       iosDownloadUrl: data['iosDownloadUrl']?.toString() ?? '',
       androidDownloadUrl: data['androidDownloadUrl']?.toString() ?? '',
       linuxDownloadUrl: data['linuxDownloadUrl']?.toString() ?? '',
+      updateManifestUrl: data['updateManifestUrl']?.toString() ?? '',
     );
   }
 

@@ -111,16 +111,45 @@
     const button = document.querySelector('[data-menu-toggle]');
     const menu = document.querySelector('[data-menu]');
     if (!button || !menu || button.dataset.bound === 'true') return;
+
     button.dataset.bound = 'true';
-    button.addEventListener('click', () => {
-      const open = menu.classList.toggle('is-open');
-      button.setAttribute('aria-expanded', String(open));
+
+    const closeMenu = ({focusButton = false} = {}) => {
+      if (!menu.classList.contains('is-open')) return;
+      menu.classList.remove('is-open');
+      button.setAttribute('aria-expanded', 'false');
+      if (focusButton) button.focus({preventScroll: true});
+    };
+
+    const openMenu = () => {
+      menu.classList.add('is-open');
+      button.setAttribute('aria-expanded', 'true');
+    };
+
+    button.addEventListener('click', (event) => {
+      event.stopPropagation();
+      if (menu.classList.contains('is-open')) closeMenu();
+      else openMenu();
     });
+
     menu.addEventListener('click', (event) => {
-      if (event.target.closest('a')) {
-        menu.classList.remove('is-open');
-        button.setAttribute('aria-expanded', 'false');
+      if (event.target.closest('a')) closeMenu();
+    });
+
+    document.addEventListener('click', (event) => {
+      if (!menu.classList.contains('is-open')) return;
+      if (menu.contains(event.target) || button.contains(event.target)) return;
+      closeMenu();
+    });
+
+    document.addEventListener('keydown', (event) => {
+      if (event.key === 'Escape' && menu.classList.contains('is-open')) {
+        closeMenu({focusButton: true});
       }
+    });
+
+    window.addEventListener('resize', () => {
+      if (window.innerWidth > 1100) closeMenu();
     });
   };
 

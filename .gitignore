@@ -10,3 +10,7 @@ coverage/
 *.iml
 .DS_Store
 .env
+
+# Instaladores generados por CI/CD; solo se conserva la carpeta publica.
+web/downloads/*
+!web/downloads/.gitkeep

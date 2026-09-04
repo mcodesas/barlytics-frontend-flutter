@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'router/app_router.dart';
 import 'theme/app_palette.dart';
 import 'theme/app_theme.dart';
+import '../core/update/app_update_gate.dart';
 
 /// Widget raíz de la aplicación.
 class BarLyticsApp extends ConsumerWidget {
@@ -36,7 +37,9 @@ class BarLyticsApp extends ConsumerWidget {
           data: media.copyWith(
             textScaler: TextScaler.linear(palette.fontScale),
           ),
-          child: child ?? const SizedBox.shrink(),
+          child: AppUpdateGate(
+            child: child ?? const SizedBox.shrink(),
+          ),
         );
       },
     );

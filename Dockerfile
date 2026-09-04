@@ -31,6 +31,8 @@ RUN set -eux; \
     cp web/robots.txt web/sitemap.xml build/web/; \
     rm -rf build/web/public-site; \
     cp -R web/public-site build/web/public-site; \
+    mkdir -p build/web/downloads; \
+    if [ -d web/downloads ]; then cp -R web/downloads/. build/web/downloads/; fi; \
     for page in software-para-bares funcionalidades planes descargas contacto preguntas-frecuentes; do \
       mkdir -p "build/web/$page"; \
       cp "web/$page/index.html" "build/web/$page/index.html"; \
