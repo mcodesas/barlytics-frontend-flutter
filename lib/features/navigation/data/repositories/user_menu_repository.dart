@@ -34,14 +34,43 @@ class UserMenuRepository {
         byKey[keyName] = normalizedItem;
       } else {
         final mergedRoles = <String>{...previous.roles, ...normalizedItem.roles}.toList(growable: false);
-        byKey[keyName] = previous.copyWith(roles: mergedRoles);
+        final bottomSource = normalizedItem.bottomVisible &&
+                (!previous.bottomVisible || normalizedItem.bottomOrder < previous.bottomOrder)
+            ? normalizedItem
+            : previous;
+        byKey[keyName] = previous.copyWith(
+          roles: mergedRoles,
+          bottomCode: bottomSource.bottomCode,
+          bottomName: bottomSource.bottomName,
+          bottomIcon: bottomSource.bottomIcon,
+          bottomOrder: bottomSource.bottomOrder,
+          bottomVisible: previous.bottomVisible || normalizedItem.bottomVisible,
+          bottomPrimary: previous.bottomPrimary || normalizedItem.bottomPrimary,
+        );
       }
     }
 
 
     final items = byKey.values.toList(growable: false);
     if (preserveBackendOrder) return items;
-    return _sortByRegistry(items);
+    return _sortByDatabaseNavigation(items);
+  }
+
+  List<UserMenuItem> _sortByDatabaseNavigation(Iterable<UserMenuItem> items) {
+    final list = items.toList(growable: false);
+    final hasDatabaseOrder = list.any((item) =>
+        item.groupCode != 'OTROS' || item.groupOrder != 99 || item.menuOrder != 99);
+    if (hasDatabaseOrder) {
+      list.sort((a, b) {
+        final group = a.groupOrder.compareTo(b.groupOrder);
+        if (group != 0) return group;
+        final menu = a.menuOrder.compareTo(b.menuOrder);
+        if (menu != 0) return menu;
+        return a.title.toLowerCase().compareTo(b.title.toLowerCase());
+      });
+      return list;
+    }
+    return _sortByRegistry(list);
   }
 
   List<UserMenuItem> _sortByRegistry(Iterable<UserMenuItem> items) {
