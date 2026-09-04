@@ -1834,11 +1834,11 @@ class _DownloadsSection extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final items = <(String, IconData, String)>[
-      ('Windows', Icons.window_rounded, 'Aplicación de escritorio'),
-      ('macOS', Icons.laptop_mac_rounded, 'Aplicación para Mac'),
+      ('Windows', Icons.window_rounded, 'Instalador .exe'),
+      ('macOS', Icons.laptop_mac_rounded, 'Instalador .dmg para Mac'),
       ('iOS', Icons.phone_iphone_rounded, 'iPhone y iPad'),
       ('Android', Icons.android_rounded, 'Celulares y tablets'),
-      ('Linux', Icons.computer_rounded, 'Distribución de escritorio'),
+      ('Linux', Icons.computer_rounded, 'Paquete .deb para Linux'),
     ];
     return LayoutBuilder(
       builder: (context, constraints) {

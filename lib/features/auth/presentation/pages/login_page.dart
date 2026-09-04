@@ -54,31 +54,46 @@ class _LoginPageState extends ConsumerState<LoginPage> {
 
     final screen = MediaQuery.sizeOf(context);
     final wide = screen.width >= 920;
+    final compactHeight = wide && screen.height <= 760;
 
     return Scaffold(
       body: Stack(
         children: [
           Positioned.fill(
             child: TechBackground(
-              padding: const EdgeInsets.all(18),
+              padding: EdgeInsets.all(compactHeight ? 10 : 18),
               child: Center(
                 child: ConstrainedBox(
                   constraints: const BoxConstraints(maxWidth: 1180),
                   child: SingleChildScrollView(
+                    padding: EdgeInsets.symmetric(
+                      vertical: compactHeight ? 4 : 10,
+                    ),
                     child: wide
                         ? Row(
                             crossAxisAlignment: CrossAxisAlignment.center,
                             children: [
-                              const Expanded(child: _BarHero()),
-                              const SizedBox(width: 34),
-                              Expanded(child: _GlassLoginCard(state: this, loading: state.loading)),
+                              Expanded(
+                                child: _BarHero(dense: compactHeight),
+                              ),
+                              SizedBox(width: compactHeight ? 22 : 34),
+                              Expanded(
+                                child: _GlassLoginCard(
+                                  state: this,
+                                  loading: state.loading,
+                                  dense: compactHeight,
+                                ),
+                              ),
                             ],
                           )
                         : Column(
                             children: [
                               const _BarHero(compact: true),
                               const SizedBox(height: 20),
-                              _GlassLoginCard(state: this, loading: state.loading),
+                              _GlassLoginCard(
+                                state: this,
+                                loading: state.loading,
+                              ),
                             ],
                           ),
                   ),
@@ -106,8 +121,12 @@ class _LoginPageState extends ConsumerState<LoginPage> {
     final ok = await ref.read(authControllerProvider.notifier).googleLogin(idToken);
     if (!ok && mounted) {
       final failure = ref.read(authControllerProvider).failure;
+      // Si la sesión fue invalidada de forma preventiva (por ejemplo, usuario
+      // sin roles), el controlador vuelve al login sin failure. No mostramos un
+      // error falso encima de la pantalla.
+      if (failure == null) return;
       setState(() {
-        final raw = failure?.message ?? '';
+        final raw = failure.message;
         _loginErrorMessage = raw.toLowerCase().contains('no encontrado')
             ? 'Esta cuenta de Google aún no está registrada. Crea tu cuenta para continuar.'
             : (raw.isEmpty ? 'No fue posible iniciar sesión con Google.' : raw);
@@ -187,24 +206,31 @@ class _BackToPublicSiteButton extends ConsumerWidget {
 }
 
 class _GlassLoginCard extends ConsumerWidget {
-  const _GlassLoginCard({required this.state, required this.loading});
+  const _GlassLoginCard({
+    required this.state,
+    required this.loading,
+    this.dense = false,
+  });
 
   final _LoginPageState state;
   final bool loading;
+  final bool dense;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final palette = ref.watch(selectedAppPaletteProvider);
     const darkInk = Color(0xFF06111F);
+    final outerRadius = dense ? 24.0 : 28.0;
+    final innerRadius = dense ? 22.0 : 26.0;
 
     return ClipRRect(
-      borderRadius: BorderRadius.circular(28),
+      borderRadius: BorderRadius.circular(outerRadius),
       child: BackdropFilter(
         filter: ImageFilter.blur(sigmaX: 22, sigmaY: 22),
         child: Container(
           padding: const EdgeInsets.all(2.2),
           decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(28),
+            borderRadius: BorderRadius.circular(outerRadius),
             gradient: LinearGradient(
               begin: Alignment.topLeft,
               end: Alignment.bottomRight,
@@ -218,20 +244,22 @@ class _GlassLoginCard extends ConsumerWidget {
             boxShadow: [
               BoxShadow(
                 color: palette.primary.withOpacity(0.22),
-                blurRadius: 42,
-                offset: const Offset(0, 18),
+                blurRadius: dense ? 28 : 42,
+                offset: Offset(0, dense ? 10 : 18),
               ),
               BoxShadow(
                 color: palette.secondary.withOpacity(0.22),
-                blurRadius: 58,
-                offset: const Offset(-12, 20),
+                blurRadius: dense ? 38 : 58,
+                offset: Offset(dense ? -8 : -12, dense ? 12 : 20),
               ),
             ],
           ),
           child: Container(
-            padding: const EdgeInsets.fromLTRB(28, 26, 28, 26),
+            padding: dense
+                ? const EdgeInsets.fromLTRB(22, 15, 22, 14)
+                : const EdgeInsets.fromLTRB(28, 26, 28, 26),
             decoration: BoxDecoration(
-              borderRadius: BorderRadius.circular(26),
+              borderRadius: BorderRadius.circular(innerRadius),
               color: palette.surface.withOpacity(0.86),
               border: Border.all(color: palette.textPrimary.withOpacity(0.16)),
             ),
@@ -241,23 +269,29 @@ class _GlassLoginCard extends ConsumerWidget {
                 mainAxisSize: MainAxisSize.min,
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  const _WelcomeHeader(),
-                  const SizedBox(height: 22),
-                  const _AccessModeStrip(),
-                  const SizedBox(height: 18),
+                  _WelcomeHeader(dense: dense),
+                  SizedBox(height: dense ? 10 : 22),
+                  _AccessModeStrip(dense: dense),
+                  SizedBox(height: dense ? 10 : 18),
                   _GoogleLoginSection(state: state, loading: loading),
-                  const SizedBox(height: 16),
+                  SizedBox(height: dense ? 8 : 16),
                   Row(
                     children: [
                       Expanded(child: Divider(color: palette.translucentBorder)),
                       Padding(
-                        padding: const EdgeInsets.symmetric(horizontal: 12),
-                        child: Text('o ingresa con tu correo', style: TextStyle(color: palette.textSecondary, fontSize: 11)),
+                        padding: EdgeInsets.symmetric(horizontal: dense ? 9 : 12),
+                        child: Text(
+                          'o ingresa con tu correo',
+                          style: TextStyle(
+                            color: palette.textSecondary,
+                            fontSize: dense ? 10.5 : 11,
+                          ),
+                        ),
                       ),
                       Expanded(child: Divider(color: palette.translucentBorder)),
                     ],
                   ),
-                  const SizedBox(height: 16),
+                  SizedBox(height: dense ? 8 : 16),
                   _GlassTextField(
                     controller: state._identifier,
                     label: 'Usuario o correo',
@@ -266,13 +300,14 @@ class _GlassLoginCard extends ConsumerWidget {
                     keyboardType: TextInputType.emailAddress,
                     maxLength: 255,
                     validator: Validators.required,
+                    dense: dense,
                     onChanged: (_) {
                       if (state._loginErrorMessage != null) {
                         state.setState(() => state._loginErrorMessage = null);
                       }
                     },
                   ),
-                  const SizedBox(height: 14),
+                  SizedBox(height: dense ? 8 : 14),
                   _GlassTextField(
                     controller: state._password,
                     label: 'Contraseña',
@@ -281,13 +316,17 @@ class _GlassLoginCard extends ConsumerWidget {
                     obscureText: state._hidePassword,
                     maxLength: 72,
                     validator: Validators.required,
+                    dense: dense,
                     onChanged: (_) {
                       if (state._loginErrorMessage != null) {
                         state.setState(() => state._loginErrorMessage = null);
                       }
                     },
                     suffixIcon: IconButton(
-                      onPressed: () => state.setState(() => state._hidePassword = !state._hidePassword),
+                      visualDensity: dense ? VisualDensity.compact : VisualDensity.standard,
+                      onPressed: () => state.setState(
+                        () => state._hidePassword = !state._hidePassword,
+                      ),
                       icon: Icon(
                         state._hidePassword
                             ? Icons.visibility_outlined
@@ -297,23 +336,23 @@ class _GlassLoginCard extends ConsumerWidget {
                     ),
                   ),
                   if (state._loginErrorMessage != null) ...[
-                    const SizedBox(height: 14),
+                    SizedBox(height: dense ? 8 : 14),
                     _LoginAlert(message: state._loginErrorMessage!),
                   ],
-                  const SizedBox(height: 22),
+                  SizedBox(height: dense ? 10 : 22),
                   SizedBox(
-                    height: 56,
+                    height: dense ? 48 : 56,
                     child: DecoratedBox(
                       decoration: BoxDecoration(
-                        borderRadius: BorderRadius.circular(18),
+                        borderRadius: BorderRadius.circular(dense ? 16 : 18),
                         gradient: LinearGradient(
                           colors: [palette.primary, palette.secondary, palette.accent],
                         ),
                         boxShadow: [
                           BoxShadow(
                             color: palette.primary.withOpacity(0.28),
-                            blurRadius: 26,
-                            offset: const Offset(0, 12),
+                            blurRadius: dense ? 18 : 26,
+                            offset: Offset(0, dense ? 7 : 12),
                           ),
                         ],
                       ),
@@ -324,7 +363,7 @@ class _GlassLoginCard extends ConsumerWidget {
                           shadowColor: Colors.transparent,
                           foregroundColor: darkInk,
                           shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(18),
+                            borderRadius: BorderRadius.circular(dense ? 16 : 18),
                           ),
                         ),
                         onPressed: loading ? null : state._login,
@@ -345,7 +384,7 @@ class _GlassLoginCard extends ConsumerWidget {
                       ),
                     ),
                   ),
-                  const SizedBox(height: 12),
+                  SizedBox(height: dense ? 8 : 12),
                   OutlinedButton.icon(
                     onPressed: loading ? null : () => context.go('/registro'),
                     icon: const Icon(Icons.person_add_alt_1_rounded),
@@ -354,38 +393,89 @@ class _GlassLoginCard extends ConsumerWidget {
                       foregroundColor: palette.textPrimary,
                       side: BorderSide(color: palette.primary.withOpacity(0.42)),
                       backgroundColor: palette.primary.withOpacity(0.07),
-                      padding: const EdgeInsets.symmetric(vertical: 15),
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                      padding: EdgeInsets.symmetric(vertical: dense ? 10 : 15),
+                      minimumSize: Size.fromHeight(dense ? 40 : 48),
+                      tapTargetSize: dense
+                          ? MaterialTapTargetSize.shrinkWrap
+                          : MaterialTapTargetSize.padded,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(dense ? 14 : 16),
+                      ),
                       textStyle: const TextStyle(fontWeight: FontWeight.w800),
                     ),
                   ),
-                  const SizedBox(height: 8),
-                  TextButton(
-                    onPressed: loading ? null : () => context.go('/forgot-password'),
-                    child: const Text('Olvidé mi contraseña'),
-                  ),
-                  const SizedBox(height: 4),
-                  TextButton.icon(
-                    onPressed: loading ? null : () => context.go('/reset-password'),
-                    icon: const Icon(Icons.pin_rounded),
-                    label: const Text('Activar con código'),
-                  ),
-                  const SizedBox(height: 4),
+                  if (dense) ...[
+                    const SizedBox(height: 2),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: TextButton(
+                            onPressed: loading
+                                ? null
+                                : () => context.go('/forgot-password'),
+                            style: TextButton.styleFrom(
+                              minimumSize: const Size(0, 34),
+                              padding: const EdgeInsets.symmetric(horizontal: 4),
+                              tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                              textStyle: const TextStyle(fontSize: 12.5),
+                            ),
+                            child: const Text('Olvidé mi contraseña'),
+                          ),
+                        ),
+                        Expanded(
+                          child: TextButton.icon(
+                            onPressed: loading
+                                ? null
+                                : () => context.go('/reset-password'),
+                            style: TextButton.styleFrom(
+                              minimumSize: const Size(0, 34),
+                              padding: const EdgeInsets.symmetric(horizontal: 4),
+                              tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                              textStyle: const TextStyle(fontSize: 12.5),
+                            ),
+                            icon: const Icon(Icons.pin_rounded, size: 16),
+                            label: const Text('Activar con código'),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ] else ...[
+                    const SizedBox(height: 8),
+                    TextButton(
+                      onPressed: loading
+                          ? null
+                          : () => context.go('/forgot-password'),
+                      child: const Text('Olvidé mi contraseña'),
+                    ),
+                    const SizedBox(height: 4),
+                    TextButton.icon(
+                      onPressed: loading
+                          ? null
+                          : () => context.go('/reset-password'),
+                      icon: const Icon(Icons.pin_rounded),
+                      label: const Text('Activar con código'),
+                    ),
+                  ],
+                  SizedBox(height: dense ? 2 : 4),
                   OutlinedButton.icon(
                     onPressed: () => showPaletteSettingsDialog(context),
-                    icon: const Icon(Icons.palette_outlined),
+                    icon: Icon(Icons.palette_outlined, size: dense ? 17 : 20),
                     label: const Text('Personalizar colores'),
                     style: OutlinedButton.styleFrom(
                       foregroundColor: palette.textPrimary,
                       side: BorderSide(color: palette.primary.withOpacity(0.30)),
                       backgroundColor: palette.textPrimary.withOpacity(0.055),
-                      padding: const EdgeInsets.symmetric(vertical: 15),
+                      padding: EdgeInsets.symmetric(vertical: dense ? 9 : 15),
+                      minimumSize: Size.fromHeight(dense ? 38 : 48),
+                      tapTargetSize: dense
+                          ? MaterialTapTargetSize.shrinkWrap
+                          : MaterialTapTargetSize.padded,
                     ),
                   ),
-                  const SizedBox(height: 16),
-                  const _SecurityNote(),
-                  const SizedBox(height: 14),
-                  const _LoginLegalFooter(),
+                  SizedBox(height: dense ? 8 : 16),
+                  _SecurityNote(dense: dense),
+                  SizedBox(height: dense ? 5 : 14),
+                  _LoginLegalFooter(dense: dense),
                 ],
               ),
             ),
@@ -406,7 +496,14 @@ class _GoogleLoginSection extends ConsumerWidget {
     final config = ref.watch(googleAuthConfigProvider);
     return config.when(
       loading: () => const SizedBox(height: 46, child: Center(child: CircularProgressIndicator(strokeWidth: 2))),
-      error: (_, __) => const SizedBox.shrink(),
+      error: (_, __) => SizedBox(
+        height: 48,
+        child: OutlinedButton.icon(
+          onPressed: () => ref.invalidate(googleAuthConfigProvider),
+          icon: const Icon(Icons.refresh_rounded, size: 19),
+          label: const Text('Reintentar ingreso con Google'),
+        ),
+      ),
       data: (google) {
         if (!google.enabled) return const SizedBox.shrink();
         return BarLyticsGoogleSignInButton(
@@ -428,7 +525,9 @@ class _GoogleLoginSection extends ConsumerWidget {
 }
 
 class _WelcomeHeader extends ConsumerWidget {
-  const _WelcomeHeader();
+  const _WelcomeHeader({this.dense = false});
+
+  final bool dense;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -437,20 +536,23 @@ class _WelcomeHeader extends ConsumerWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        const BarLyticsBrandLockup(
-          width: 270,
-          height: 78,
+        BarLyticsBrandLockup(
+          width: dense ? 225 : 270,
+          height: dense ? 58 : 78,
           darkBackground: true,
           showTagline: false,
           alignment: Alignment.centerLeft,
         ),
-        const SizedBox(height: 10),
+        SizedBox(height: dense ? 4 : 10),
         Text(
           'Tecnología para administrar tu bar en tiempo real',
+          maxLines: dense ? 1 : 2,
+          overflow: TextOverflow.ellipsis,
           style: TextStyle(
             color: palette.textPrimary.withOpacity(0.78),
-            height: 1.35,
+            height: dense ? 1.20 : 1.35,
             fontWeight: FontWeight.w600,
+            fontSize: dense ? 12.3 : null,
           ),
         ),
       ],
@@ -459,25 +561,35 @@ class _WelcomeHeader extends ConsumerWidget {
 }
 
 class _AccessModeStrip extends ConsumerWidget {
-  const _AccessModeStrip();
+  const _AccessModeStrip({this.dense = false});
+
+  final bool dense;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final palette = ref.watch(selectedAppPaletteProvider);
 
     return Container(
-      padding: const EdgeInsets.all(12),
+      padding: EdgeInsets.all(dense ? 8 : 12),
       decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(18),
+        borderRadius: BorderRadius.circular(dense ? 15 : 18),
         color: palette.textPrimary.withOpacity(0.055),
         border: Border.all(color: palette.primary.withOpacity(0.16)),
       ),
       child: Row(
         children: [
-          const _MiniTechChip(icon: Icons.point_of_sale_rounded, label: 'Caja'),
-          const SizedBox(width: 8),
-          const _MiniTechChip(icon: Icons.table_bar_rounded, label: 'Mesas'),
-          const SizedBox(width: 8),
+          _MiniTechChip(
+            icon: Icons.point_of_sale_rounded,
+            label: 'Caja',
+            dense: dense,
+          ),
+          SizedBox(width: dense ? 6 : 8),
+          _MiniTechChip(
+            icon: Icons.table_bar_rounded,
+            label: 'Mesas',
+            dense: dense,
+          ),
+          SizedBox(width: dense ? 6 : 8),
           Expanded(
             child: Text(
               'Acceso inteligente',
@@ -485,7 +597,7 @@ class _AccessModeStrip extends ConsumerWidget {
               style: TextStyle(
                 color: palette.textPrimary.withOpacity(0.60),
                 fontWeight: FontWeight.w700,
-                fontSize: 12,
+                fontSize: dense ? 11 : 12,
               ),
             ),
           ),
@@ -496,16 +608,24 @@ class _AccessModeStrip extends ConsumerWidget {
 }
 
 class _MiniTechChip extends ConsumerWidget {
-  const _MiniTechChip({required this.icon, required this.label});
+  const _MiniTechChip({
+    required this.icon,
+    required this.label,
+    this.dense = false,
+  });
 
   final IconData icon;
   final String label;
+  final bool dense;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final palette = ref.watch(selectedAppPaletteProvider);
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+      padding: EdgeInsets.symmetric(
+        horizontal: dense ? 8 : 10,
+        vertical: dense ? 6 : 8,
+      ),
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(999),
         color: palette.primary.withOpacity(0.10),
@@ -514,14 +634,14 @@ class _MiniTechChip extends ConsumerWidget {
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(icon, size: 15, color: palette.primary),
-          const SizedBox(width: 6),
+          Icon(icon, size: dense ? 14 : 15, color: palette.primary),
+          SizedBox(width: dense ? 5 : 6),
           Text(
             label,
             style: TextStyle(
               color: palette.textPrimary,
               fontWeight: FontWeight.w900,
-              fontSize: 12,
+              fontSize: dense ? 11.3 : 12,
             ),
           ),
         ],
@@ -542,6 +662,7 @@ class _GlassTextField extends ConsumerWidget {
     this.validator,
     this.onChanged,
     this.maxLength,
+    this.dense = false,
   });
 
   final TextEditingController controller;
@@ -554,10 +675,12 @@ class _GlassTextField extends ConsumerWidget {
   final String? Function(String?)? validator;
   final ValueChanged<String>? onChanged;
   final int? maxLength;
+  final bool dense;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final palette = ref.watch(selectedAppPaletteProvider);
+    final radius = dense ? 16.0 : 20.0;
 
     return TextFormField(
       controller: controller,
@@ -566,36 +689,59 @@ class _GlassTextField extends ConsumerWidget {
       validator: validator,
       onChanged: onChanged,
       maxLength: maxLength,
+      textAlignVertical: TextAlignVertical.center,
       style: TextStyle(
         color: palette.textPrimary,
         fontWeight: FontWeight.w700,
+        fontSize: dense ? 14.0 : null,
       ),
       decoration: InputDecoration(
         labelText: label,
         hintText: hint,
-        prefixIcon: Icon(icon),
+        prefixIcon: Icon(icon, size: dense ? 20 : 24),
+        prefixIconConstraints: dense
+            ? const BoxConstraints(minWidth: 42, minHeight: 42)
+            : null,
         suffixIcon: suffixIcon,
+        suffixIconConstraints: dense
+            ? const BoxConstraints(minWidth: 42, minHeight: 42)
+            : null,
         counterText: maxLength == null ? null : '',
+        isDense: dense,
+        contentPadding: EdgeInsets.symmetric(
+          horizontal: dense ? 13 : 16,
+          vertical: dense ? 12 : 16,
+        ),
         filled: true,
         fillColor: palette.textPrimary.withOpacity(0.095),
-        labelStyle: TextStyle(color: palette.textPrimary.withOpacity(0.82)),
-        hintStyle: TextStyle(color: palette.textPrimary.withOpacity(0.38)),
+        labelStyle: TextStyle(
+          color: palette.textPrimary.withOpacity(0.82),
+          fontSize: dense ? 13.5 : null,
+        ),
+        hintStyle: TextStyle(
+          color: palette.textPrimary.withOpacity(0.38),
+          fontSize: dense ? 13.0 : null,
+        ),
         prefixIconColor: palette.primary,
         enabledBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(20),
+          borderRadius: BorderRadius.circular(radius),
           borderSide: BorderSide(color: palette.primary.withOpacity(0.18)),
         ),
         focusedBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(20),
+          borderRadius: BorderRadius.circular(radius),
           borderSide: BorderSide(color: palette.primary, width: 1.6),
         ),
         errorBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(20),
+          borderRadius: BorderRadius.circular(radius),
           borderSide: const BorderSide(color: Colors.redAccent, width: 1.3),
         ),
         focusedErrorBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(20),
+          borderRadius: BorderRadius.circular(radius),
           borderSide: const BorderSide(color: Colors.redAccent, width: 1.6),
+        ),
+        errorStyle: TextStyle(
+          fontSize: dense ? 10.5 : null,
+          height: dense ? 1.05 : null,
         ),
       ),
     );
@@ -603,26 +749,30 @@ class _GlassTextField extends ConsumerWidget {
 }
 
 class _BarHero extends ConsumerWidget {
-  const _BarHero({this.compact = false});
+  const _BarHero({this.compact = false, this.dense = false});
 
   final bool compact;
+  final bool dense;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final palette = ref.watch(selectedAppPaletteProvider);
+    final padding = compact ? 18.0 : (dense ? 22.0 : 32.0);
+    final radius = compact ? 30.0 : (dense ? 34.0 : 44.0);
+    final avatarSize = compact ? 54.0 : (dense ? 62.0 : 76.0);
 
     return Container(
       width: double.infinity,
-      padding: EdgeInsets.all(compact ? 18 : 32),
+      padding: EdgeInsets.all(padding),
       decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(compact ? 30 : 44),
+        borderRadius: BorderRadius.circular(radius),
         color: palette.textPrimary.withOpacity(0.070),
         border: Border.all(color: palette.primary.withOpacity(0.18)),
         boxShadow: [
           BoxShadow(
             color: palette.primary.withOpacity(0.11),
-            blurRadius: 42,
-            offset: const Offset(0, 20),
+            blurRadius: dense ? 28 : 42,
+            offset: Offset(0, dense ? 12 : 20),
           ),
         ],
       ),
@@ -633,7 +783,7 @@ class _BarHero extends ConsumerWidget {
             top: -20,
             child: Icon(
               Icons.blur_on_rounded,
-              size: compact ? 88 : 140,
+              size: compact ? 88 : (dense ? 108 : 140),
               color: palette.primary.withOpacity(0.07),
             ),
           ),
@@ -647,56 +797,72 @@ class _BarHero extends ConsumerWidget {
                   _BarAvatar(
                     icon: Icons.sports_bar_rounded,
                     color: palette.primary,
-                    size: compact ? 54 : 76,
+                    size: avatarSize,
                   ),
-                  SizedBox(width: compact ? 10 : 14),
+                  SizedBox(width: compact ? 10 : (dense ? 11 : 14)),
                   _BarAvatar(
                     icon: Icons.local_bar_rounded,
                     color: palette.secondary,
-                    size: compact ? 54 : 76,
+                    size: avatarSize,
                   ),
-                  SizedBox(width: compact ? 10 : 14),
+                  SizedBox(width: compact ? 10 : (dense ? 11 : 14)),
                   _BarAvatar(
                     icon: Icons.wine_bar_rounded,
                     color: palette.accent,
-                    size: compact ? 54 : 76,
+                    size: avatarSize,
                   ),
                 ],
               ),
               if (!compact) ...[
-                const SizedBox(height: 30),
+                SizedBox(height: dense ? 20 : 30),
                 Text(
                   'BarLytics para tu negocio',
                   style: TextStyle(
                     color: palette.textPrimary,
-                    fontSize: 36,
+                    fontSize: dense ? 30 : 36,
                     fontWeight: FontWeight.w900,
                     height: 1.04,
-                    letterSpacing: -0.8,
+                    letterSpacing: dense ? -0.5 : -0.8,
                   ),
                 ),
-                const SizedBox(height: 12),
+                SizedBox(height: dense ? 8 : 12),
                 Text(
                   'Una plataforma para administrar mesas, ventas, caja e inventario con una experiencia moderna y cercana.',
                   style: TextStyle(
                     color: palette.textPrimary.withOpacity(0.79),
-                    height: 1.45,
-                    fontSize: 16,
+                    height: dense ? 1.34 : 1.45,
+                    fontSize: dense ? 14 : 16,
                   ),
                 ),
-                const SizedBox(height: 24),
-                const Wrap(
-                  spacing: 10,
-                  runSpacing: 10,
+                SizedBox(height: dense ? 14 : 24),
+                Wrap(
+                  spacing: dense ? 8 : 10,
+                  runSpacing: dense ? 8 : 10,
                   children: [
-                    _HeroChip(icon: Icons.point_of_sale_rounded, label: 'Ventas rápidas'),
-                    _HeroChip(icon: Icons.memory_outlined, label: 'Bar Tech'),
-                    _HeroChip(icon: Icons.inventory_2_outlined, label: 'Inventario inteligente'),
-                    _HeroChip(icon: Icons.auto_graph_outlined, label: 'Gestión operativa'),
+                    _HeroChip(
+                      icon: Icons.point_of_sale_rounded,
+                      label: 'Ventas rápidas',
+                      dense: dense,
+                    ),
+                    _HeroChip(
+                      icon: Icons.memory_outlined,
+                      label: 'Bar Tech',
+                      dense: dense,
+                    ),
+                    _HeroChip(
+                      icon: Icons.inventory_2_outlined,
+                      label: 'Inventario inteligente',
+                      dense: dense,
+                    ),
+                    _HeroChip(
+                      icon: Icons.auto_graph_outlined,
+                      label: 'Gestión operativa',
+                      dense: dense,
+                    ),
                   ],
                 ),
-                const SizedBox(height: 24),
-                const _TelemetryPanel(),
+                SizedBox(height: dense ? 14 : 24),
+                _TelemetryPanel(dense: dense),
               ],
             ],
           ),
@@ -741,17 +907,25 @@ class _BarAvatar extends StatelessWidget {
 }
 
 class _HeroChip extends ConsumerWidget {
-  const _HeroChip({required this.icon, required this.label});
+  const _HeroChip({
+    required this.icon,
+    required this.label,
+    this.dense = false,
+  });
 
   final IconData icon;
   final String label;
+  final bool dense;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final palette = ref.watch(selectedAppPaletteProvider);
 
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+      padding: EdgeInsets.symmetric(
+        horizontal: dense ? 11 : 14,
+        vertical: dense ? 8 : 10,
+      ),
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(999),
         color: palette.textPrimary.withOpacity(0.055),
@@ -760,14 +934,14 @@ class _HeroChip extends ConsumerWidget {
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(icon, size: 17, color: palette.primary),
-          const SizedBox(width: 7),
+          Icon(icon, size: dense ? 15 : 17, color: palette.primary),
+          SizedBox(width: dense ? 6 : 7),
           Text(
             label,
             style: TextStyle(
               color: palette.textPrimary,
               fontWeight: FontWeight.w900,
-              fontSize: 12.5,
+              fontSize: dense ? 11.5 : 12.5,
             ),
           ),
         ],
@@ -777,26 +951,46 @@ class _HeroChip extends ConsumerWidget {
 }
 
 class _TelemetryPanel extends ConsumerWidget {
-  const _TelemetryPanel();
+  const _TelemetryPanel({this.dense = false});
+
+  final bool dense;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final palette = ref.watch(selectedAppPaletteProvider);
 
     return Container(
-      padding: const EdgeInsets.all(16),
+      padding: EdgeInsets.all(dense ? 12 : 16),
       decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(24),
+        borderRadius: BorderRadius.circular(dense ? 18 : 24),
         color: palette.surface.withOpacity(0.48),
         border: Border.all(color: palette.primary.withOpacity(0.16)),
       ),
-      child: const Row(
+      child: Row(
         children: [
-          Expanded(child: _TelemetryItem(label: 'Ventas', value: 'Live')),
-          SizedBox(width: 12),
-          Expanded(child: _TelemetryItem(label: 'Mesas', value: 'Smart')),
-          SizedBox(width: 12),
-          Expanded(child: _TelemetryItem(label: 'Inventario', value: 'Track')),
+          Expanded(
+            child: _TelemetryItem(
+              label: 'Ventas',
+              value: 'Live',
+              dense: dense,
+            ),
+          ),
+          SizedBox(width: dense ? 8 : 12),
+          Expanded(
+            child: _TelemetryItem(
+              label: 'Mesas',
+              value: 'Smart',
+              dense: dense,
+            ),
+          ),
+          SizedBox(width: dense ? 8 : 12),
+          Expanded(
+            child: _TelemetryItem(
+              label: 'Inventario',
+              value: 'Track',
+              dense: dense,
+            ),
+          ),
         ],
       ),
     );
@@ -804,10 +998,15 @@ class _TelemetryPanel extends ConsumerWidget {
 }
 
 class _TelemetryItem extends ConsumerWidget {
-  const _TelemetryItem({required this.label, required this.value});
+  const _TelemetryItem({
+    required this.label,
+    required this.value,
+    this.dense = false,
+  });
 
   final String label;
   final String value;
+  final bool dense;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -820,16 +1019,16 @@ class _TelemetryItem extends ConsumerWidget {
           value,
           style: TextStyle(
             color: palette.primary,
-            fontSize: 17,
+            fontSize: dense ? 15 : 17,
             fontWeight: FontWeight.w900,
           ),
         ),
-        const SizedBox(height: 4),
+        SizedBox(height: dense ? 2 : 4),
         Text(
           label,
           style: TextStyle(
             color: palette.textPrimary.withOpacity(0.64),
-            fontSize: 12,
+            fontSize: dense ? 11 : 12,
             fontWeight: FontWeight.w700,
           ),
         ),
@@ -873,33 +1072,39 @@ class _LoginAlert extends ConsumerWidget {
 }
 
 class _SecurityNote extends ConsumerWidget {
-  const _SecurityNote();
+  const _SecurityNote({this.dense = false});
+
+  final bool dense;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final palette = ref.watch(selectedAppPaletteProvider);
 
     return Container(
-      padding: const EdgeInsets.all(12),
+      padding: EdgeInsets.all(dense ? 8 : 12),
       decoration: BoxDecoration(
         color: palette.primary.withOpacity(0.08),
-        borderRadius: BorderRadius.circular(18),
+        borderRadius: BorderRadius.circular(dense ? 14 : 18),
         border: Border.all(color: palette.primary.withOpacity(0.20)),
       ),
       child: Row(
         children: [
           Icon(
             Icons.verified_user_outlined,
-            size: 20,
+            size: dense ? 17 : 20,
             color: palette.primary.withOpacity(0.95),
           ),
-          const SizedBox(width: 10),
+          SizedBox(width: dense ? 7 : 10),
           Expanded(
             child: Text(
-              'Acceso seguro para meseros, cajeros y administración. JWT + roles + API protegida.',
+              dense
+                  ? 'Acceso seguro con JWT, roles y API protegida.'
+                  : 'Acceso seguro para meseros, cajeros y administración. JWT + roles + API protegida.',
+              maxLines: dense ? 1 : 3,
+              overflow: TextOverflow.ellipsis,
               style: TextStyle(
                 color: palette.textPrimary.withOpacity(0.76),
-                fontSize: 12.5,
+                fontSize: dense ? 11.2 : 12.5,
               ),
             ),
           ),
@@ -910,7 +1115,9 @@ class _SecurityNote extends ConsumerWidget {
 }
 
 class _LoginLegalFooter extends ConsumerWidget {
-  const _LoginLegalFooter();
+  const _LoginLegalFooter({this.dense = false});
+
+  final bool dense;
 
   Future<void> _openLegalPage(BuildContext context, String path) async {
     final uri = Uri.parse('https://www.barlytics.com.co$path');
@@ -931,9 +1138,15 @@ class _LoginLegalFooter extends ConsumerWidget {
     final linkStyle = TextButton.styleFrom(
       foregroundColor: palette.primary,
       minimumSize: Size.zero,
-      padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 3),
+      padding: EdgeInsets.symmetric(
+        horizontal: dense ? 3 : 4,
+        vertical: dense ? 1 : 3,
+      ),
       tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-      textStyle: const TextStyle(fontSize: 11.5, fontWeight: FontWeight.w700),
+      textStyle: TextStyle(
+        fontSize: dense ? 10.5 : 11.5,
+        fontWeight: FontWeight.w700,
+      ),
     );
 
     return Wrap(
@@ -946,7 +1159,7 @@ class _LoginLegalFooter extends ConsumerWidget {
           '© BarLytics',
           style: TextStyle(
             color: palette.textSecondary.withOpacity(.82),
-            fontSize: 11.5,
+            fontSize: dense ? 10.5 : 11.5,
           ),
         ),
         Text(

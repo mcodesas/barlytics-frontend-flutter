@@ -106,8 +106,11 @@ import '../../features/zonas_horarias/presentation/pages/zonas_horarias_list_pag
 import '../../features/zonas_horarias/presentation/pages/zonas_horarias_form_page.dart';
 import '../../features/zonas_horarias/presentation/pages/zonas_horarias_detail_page.dart';
 
+final appNavigatorKey = GlobalKey<NavigatorState>();
+
 final appRouterProvider = Provider<GoRouter>((ref) {
   return GoRouter(
+    navigatorKey: appNavigatorKey,
     initialLocation: _resolveInitialLocation(),
     refreshListenable: _RouterRefresh(ref),
     redirect: (context, state) {

@@ -34,6 +34,11 @@ constexpr COLORREF kBarLyticsCaptionColor = RGB(7, 31, 44);
 constexpr COLORREF kBarLyticsCaptionTextColor = RGB(242, 247, 249);
 constexpr COLORREF kBarLyticsBorderColor = RGB(19, 79, 96);
 
+// Evita que la aplicación de escritorio se reduzca hasta romper paneles,
+// formularios o la navegación inferior. Valores en píxeles lógicos (96 DPI).
+constexpr int kMinimumWindowWidth = 1024;
+constexpr int kMinimumWindowHeight = 720;
+
 constexpr const wchar_t kWindowClassName[] = L"FLUTTER_RUNNER_WIN32_WINDOW";
 
 // The number of Win32Window objects that currently exist.
@@ -189,6 +194,34 @@ Win32Window::MessageHandler(HWND hwnd,
                             WPARAM const wparam,
                             LPARAM const lparam) noexcept {
   switch (message) {
+    case WM_GETMINMAXINFO: {
+      auto min_max_info = reinterpret_cast<MINMAXINFO*>(lparam);
+      const HMONITOR monitor =
+          MonitorFromWindow(hwnd, MONITOR_DEFAULTTONEAREST);
+      const UINT dpi = FlutterDesktopGetDpiForMonitor(monitor);
+      const double scale_factor = dpi / 96.0;
+
+      int minimum_width = Scale(kMinimumWindowWidth, scale_factor);
+      int minimum_height = Scale(kMinimumWindowHeight, scale_factor);
+
+      // En pantallas pequeñas o con escalado alto, nunca exigimos un tamaño
+      // superior al área de trabajo real (sin contar la barra de tareas).
+      MONITORINFO monitor_info{};
+      monitor_info.cbSize = sizeof(MONITORINFO);
+      if (GetMonitorInfo(monitor, &monitor_info)) {
+        const int work_width =
+            monitor_info.rcWork.right - monitor_info.rcWork.left;
+        const int work_height =
+            monitor_info.rcWork.bottom - monitor_info.rcWork.top;
+        if (minimum_width > work_width) minimum_width = work_width;
+        if (minimum_height > work_height) minimum_height = work_height;
+      }
+
+      min_max_info->ptMinTrackSize.x = minimum_width;
+      min_max_info->ptMinTrackSize.y = minimum_height;
+      return 0;
+    }
+
     case WM_DESTROY:
       window_handle_ = nullptr;
       Destroy();

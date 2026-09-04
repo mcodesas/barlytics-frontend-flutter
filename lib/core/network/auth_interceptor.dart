@@ -21,15 +21,39 @@ class AuthInterceptor extends Interceptor {
 
   bool _invalidatingSession = false;
 
+  static const Set<String> _publicPaths = <String>{
+    ApiPaths.authLogin,
+    ApiPaths.authGoogleConfig,
+    ApiPaths.authGoogleIdentity,
+    ApiPaths.authGoogleLogin,
+    ApiPaths.authForgotPassword,
+    ApiPaths.authPasswordRecoveryValidate,
+    ApiPaths.authResetPassword,
+    ApiPaths.onboardingCatalogs,
+    ApiPaths.onboardingRegister,
+    ApiPaths.onboardingRegisterGoogle,
+    ApiPaths.publicSubscriptionPlans,
+    ApiPaths.publicSiteConfig,
+  };
+
   @override
   void onRequest(RequestOptions options, RequestInterceptorHandler handler) async {
-    final isPublicRequest = options.path == ApiPaths.publicSiteConfig ||
-        options.path == ApiPaths.publicSubscriptionPlans;
-    final token = isPublicRequest ? null : await _storage.read(StorageKeys.authToken);
-    if (token != null && token.isNotEmpty) {
-      options.headers['Authorization'] = 'Bearer $token';
-    } else {
+    // Nunca enviamos un JWT antiguo a endpoints públicos. En particular, esto
+    // evita que /auth/google/config falle con 401 al volver al login después
+    // de que una sesión haya expirado y desaparezca el botón de Google.
+    final isPublicRequest = _publicPaths.contains(options.path);
+    final explicitAuthorization =
+        options.headers['Authorization']?.toString().trim();
+
+    if (isPublicRequest) {
       options.headers.remove('Authorization');
+    } else if (explicitAuthorization == null || explicitAuthorization.isEmpty) {
+      final token = await _storage.read(StorageKeys.authToken);
+      if (token != null && token.isNotEmpty) {
+        options.headers['Authorization'] = 'Bearer $token';
+      } else {
+        options.headers.remove('Authorization');
+      }
     }
     options.headers['Accept'] = 'application/json';
     super.onRequest(options, handler);
@@ -56,12 +80,14 @@ class AuthInterceptor extends Interceptor {
   Future<void> _invalidateSessionOnce() async {
     if (_invalidatingSession) return;
     _invalidatingSession = true;
+
+    // La navegación debe reaccionar en el mismo instante en que llega el 401.
+    // No esperamos a Secure Storage ni mostramos primero el error de la vista.
+    _sessionExpirationNotifier.sessionExpired();
+
     try {
       await _storage.clear();
     } finally {
-      // La navegación depende del estado de autenticación, no de que el
-      // backend haya podido responder. Por eso siempre notificamos.
-      _sessionExpirationNotifier.sessionExpired();
       _invalidatingSession = false;
     }
   }

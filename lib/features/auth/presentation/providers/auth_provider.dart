@@ -1,3 +1,6 @@
+import 'dart:async';
+
+import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../../core/branch/branch_scope_provider.dart';
@@ -20,8 +23,28 @@ final authRepositoryProvider = Provider<AuthRepository>((ref) {
   );
 });
 
-final googleAuthConfigProvider = FutureProvider<GoogleAuthConfigModel>((ref) {
-  return ref.watch(authRepositoryProvider).googleConfig();
+final googleAuthConfigProvider = FutureProvider<GoogleAuthConfigModel>((ref) async {
+  final repository = ref.watch(authRepositoryProvider);
+  final desktop = !kIsWeb &&
+      (defaultTargetPlatform == TargetPlatform.windows ||
+          defaultTargetPlatform == TargetPlatform.macOS ||
+          defaultTargetPlatform == TargetPlatform.linux);
+
+  // El backend embebido de escritorio puede tardar unos segundos en quedar
+  // disponible. Un fallo transitorio no debe hacer desaparecer Google del login
+  // durante toda la vida de este provider.
+  final attempts = desktop ? 5 : 1;
+  Object? lastError;
+  for (var attempt = 1; attempt <= attempts; attempt++) {
+    try {
+      return await repository.googleConfig();
+    } catch (error) {
+      lastError = error;
+      if (attempt == attempts) rethrow;
+      await Future<void>.delayed(Duration(milliseconds: 650 * attempt));
+    }
+  }
+  throw lastError ?? StateError('No fue posible cargar Google Sign-In.');
 });
 
 final authControllerProvider = StateNotifierProvider<AuthController, AuthState>((ref) {
@@ -95,8 +118,11 @@ class AuthController extends StateNotifier<AuthState> {
   final Ref _ref;
 
   void _handleSessionExpired() {
-    if (!state.authenticated) return;
+    // También se ejecuta durante checkSession(). Si el token vence mientras se
+    // restaura una sesión, el estado todavía puede estar en authenticated=false;
+    // aun así debemos cancelar la restauración y volver al login.
     _ref.invalidate(branchScopeProvider);
+    _ref.invalidate(googleAuthConfigProvider);
     state = const AuthState();
   }
 
@@ -108,27 +134,50 @@ class AuthController extends StateNotifier<AuthState> {
 
   Future<void> checkSession() async {
     final hasSession = await _repository.hasSession();
-    final roles = hasSession ? await _repository.getStoredRoles() : const <String>[];
-    final subscriptionStatus = hasSession ? await _repository.getStoredSubscriptionStatus() : null;
-    final subscriptionActive = hasSession ? await _repository.getStoredSubscriptionActive() : true;
-    var businessSetupComplete = hasSession ? await _repository.getStoredBusinessSetupComplete() : true;
-    if (hasSession && subscriptionActive) {
+    if (!hasSession) {
+      state = const AuthState();
+      return;
+    }
+
+    final roles = await _repository.getStoredRoles();
+    if (roles.isEmpty) {
+      // Un JWT sin roles útiles no puede conservar una sesión operativa. Se
+      // elimina silenciosamente para evitar pantallas de "menú sin roles".
+      await _repository.logout();
+      _ref.invalidate(branchScopeProvider);
+      state = const AuthState();
+      return;
+    }
+
+    final subscriptionStatus = await _repository.getStoredSubscriptionStatus();
+    final subscriptionActive = await _repository.getStoredSubscriptionActive();
+    var businessSetupComplete = await _repository.getStoredBusinessSetupComplete();
+    if (subscriptionActive) {
       try {
         businessSetupComplete = await _repository.fetchBusinessSetupComplete();
         await _repository.updateBusinessSetupState(businessSetupComplete);
       } catch (_) {
-        // Si el backend no está disponible durante la restauración, conservamos
-        // el último estado conocido y lo recalcularemos al abrir el asistente.
+        // Un 401 limpia Secure Storage desde AuthInterceptor. Los errores de red
+        // normales conservan el último estado conocido.
       }
     }
-    state = state.copyWith(
-      authenticated: hasSession,
+
+    // Es obligatorio volver a consultar el almacenamiento: un 401 puede haber
+    // invalidado la sesión mientras esperábamos fetchBusinessSetupComplete().
+    if (!await _repository.hasSession()) {
+      _ref.invalidate(branchScopeProvider);
+      state = const AuthState();
+      return;
+    }
+
+    state = AuthState(
+      authenticated: true,
       roles: roles,
       subscriptionStatus: subscriptionStatus,
       subscriptionActive: subscriptionActive,
       businessSetupComplete: businessSetupComplete,
     );
-    if (hasSession && subscriptionActive && businessSetupComplete) {
+    if (subscriptionActive && businessSetupComplete) {
       await _ref.read(branchScopeProvider.notifier).load();
     }
   }
@@ -137,6 +186,12 @@ class AuthController extends StateNotifier<AuthState> {
     state = state.copyWith(loading: true);
     try {
       final response = await _login(identificador, password);
+      if (response.roles.isEmpty) {
+        await _repository.logout();
+        _ref.invalidate(branchScopeProvider);
+        state = const AuthState();
+        return false;
+      }
       final setupComplete = response.subscriptionActive
           ? await _refreshBusinessSetupValue()
           : false;
@@ -163,6 +218,12 @@ class AuthController extends StateNotifier<AuthState> {
     state = state.copyWith(loading: true, failure: null);
     try {
       final response = await _repository.googleLogin(idToken);
+      if (response.roles.isEmpty) {
+        await _repository.logout();
+        _ref.invalidate(branchScopeProvider);
+        state = const AuthState();
+        return false;
+      }
       final setupComplete = response.subscriptionActive
           ? await _refreshBusinessSetupValue()
           : false;
@@ -187,6 +248,12 @@ class AuthController extends StateNotifier<AuthState> {
 
   Future<void> completeRegistration(LoginResponseModel response) async {
     await _repository.saveSession(response);
+    if (response.roles.isEmpty) {
+      await _repository.logout();
+      _ref.invalidate(branchScopeProvider);
+      state = const AuthState();
+      return;
+    }
     _ref.invalidate(branchScopeProvider);
     final setupComplete = response.subscriptionActive
         ? await _refreshBusinessSetupValue()
