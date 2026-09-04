@@ -1145,8 +1145,6 @@ Widget _menuSearchField({
   required ValueChanged<String> onChanged,
 }) {
   return TextField(
-    maxLength: 120,
-    buildCounter: (_, {required currentLength, required isFocused, maxLength}) => null,
     onChanged: onChanged,
     textInputAction: TextInputAction.search,
     style: TextStyle(
@@ -1546,8 +1544,6 @@ class _MeseroSideNavigation extends ConsumerWidget {
           data: (value) => value,
           orElse: () => const ProfileHeaderInfo(),
         );
-    final roles = ref.watch(activeRolesProvider);
-    final isInventario = roles.any(_isInventoryRole);
     final menuAsync = ref.watch(userMenuProvider);
     return AnimatedContainer(
         duration: const Duration(milliseconds: 220),
@@ -1571,16 +1567,8 @@ class _MeseroSideNavigation extends ConsumerWidget {
                         _MenuProfileCard(profile: profile, palette: palette, compact: collapsed),
                         const SizedBox(height: 6),
                         _NavTile(title: 'Inicio', keyName: 'home', path: '/home', compact: collapsed, palette: palette),
-                        _NavTile(title: 'Apariencia', keyName: 'parametros', path: '__appearance__', compact: collapsed, palette: palette, onTap: () => showPaletteSettingsDialog(context)),
-                        if (!collapsed) ...[
-                          const SizedBox(height: 8),
-                          _NavSectionLabel(
-                            isInventario ? 'Opciones de inventario' : 'Opciones autorizadas',
-                            palette: palette,
-                          ),
-                        ],
+                        if (!collapsed) const SizedBox(height: 8),
                         ..._authorizedMenuWidgets(
-                          context: context,
                           ref: ref,
                           menuAsync: menuAsync,
                           dark: false,
@@ -1614,8 +1602,6 @@ class _MeseroDrawerContent extends ConsumerWidget {
           data: (value) => value,
           orElse: () => const ProfileHeaderInfo(),
         );
-    final roles = ref.watch(activeRolesProvider);
-    final isInventario = roles.any(_isInventoryRole);
     final menuAsync = ref.watch(userMenuProvider);
     return Container(
         decoration: BoxDecoration(gradient: palette.softGradient),
@@ -1630,10 +1616,8 @@ class _MeseroDrawerContent extends ConsumerWidget {
                   _MenuProfileCard(profile: profile, palette: palette),
                   const SizedBox(height: 6),
                   _NavTile(title: 'Inicio', keyName: 'home', path: '/home', palette: palette),
-                  _NavTile(title: 'Apariencia', keyName: 'parametros', path: '__appearance__', palette: palette, onTap: () => showPaletteSettingsDialog(context)),
                   const Divider(),
                   ..._authorizedMenuWidgets(
-                    context: context,
                     ref: ref,
                     menuAsync: menuAsync,
                     dark: false,
@@ -1830,34 +1814,52 @@ class _OperationalBottomNavigation extends ConsumerWidget {
     required String currentPath,
   }) async {
     var query = '';
+    var expandedCode = '';
+    for (final item in items) {
+      if (currentPath == item.path || currentPath.startsWith('${item.path}/')) {
+        expandedCode = item.groupCode.trim().isEmpty
+            ? 'OTROS'
+            : item.groupCode.trim().toUpperCase();
+        break;
+      }
+    }
     final destination = await showModalBottomSheet<String>(
       context: context,
       backgroundColor: Colors.transparent,
       isScrollControlled: true,
       builder: (sheetContext) => StatefulBuilder(
         builder: (sheetContext, setSheetState) {
+          final searchActive = _normalizeMenuSearch(query).isNotEmpty;
           final filteredItems = items.where((item) {
             return _matchesMenuSearch(query, [
               item.title,
               item.description,
               item.keyName,
+              item.groupName,
               item.path,
             ]);
           }).toList(growable: false);
+          final groups = _groupOperationalMoreItems(filteredItems);
+
+          final openCode = expandedCode;
 
           return Padding(
             padding: EdgeInsets.only(bottom: MediaQuery.viewInsetsOf(sheetContext).bottom),
             child: SafeArea(
               child: Container(
                 margin: const EdgeInsets.all(12),
-                constraints: BoxConstraints(maxHeight: MediaQuery.sizeOf(sheetContext).height * 0.76),
+                constraints: BoxConstraints(maxHeight: MediaQuery.sizeOf(sheetContext).height * 0.82),
                 padding: const EdgeInsets.fromLTRB(14, 10, 14, 14),
                 decoration: BoxDecoration(
                   color: palette.surface,
                   borderRadius: BorderRadius.circular(palette.radius(26)),
                   border: Border.all(color: palette.cardBorder),
                   boxShadow: [
-                    BoxShadow(color: Colors.black.withOpacity(0.20), blurRadius: 28, offset: const Offset(0, 12)),
+                    BoxShadow(
+                      color: Colors.black.withOpacity(0.20),
+                      blurRadius: 28,
+                      offset: const Offset(0, 12),
+                    ),
                   ],
                 ),
                 child: Column(
@@ -1876,13 +1878,20 @@ class _OperationalBottomNavigation extends ConsumerWidget {
                       ),
                     ),
                     Text(
-                      'Opciones autorizadas',
-                      style: TextStyle(color: palette.textPrimary, fontSize: 18, fontWeight: FontWeight.w900),
+                      'Más opciones',
+                      style: TextStyle(
+                        color: palette.textPrimary,
+                        fontSize: 18,
+                        fontWeight: FontWeight.w900,
+                      ),
                     ),
                     const SizedBox(height: 4),
                     Text(
-                      'Incluye los menús adicionales asignados a tus roles.',
-                      style: TextStyle(color: palette.textSecondary, fontWeight: FontWeight.w600),
+                      'Organizadas por áreas según los permisos de tus roles.',
+                      style: TextStyle(
+                        color: palette.textSecondary,
+                        fontWeight: FontWeight.w600,
+                      ),
                     ),
                     const SizedBox(height: 12),
                     _menuSearchField(
@@ -1891,48 +1900,172 @@ class _OperationalBottomNavigation extends ConsumerWidget {
                     ),
                     const SizedBox(height: 12),
                     Flexible(
-                      child: filteredItems.isEmpty
+                      child: groups.isEmpty
                           ? _emptyMenuSearchState(palette)
-                          : ListView(
+                          : ListView.builder(
                               shrinkWrap: true,
-                              children: [
-                                for (final item in filteredItems)
-                                  Padding(
-                                    padding: const EdgeInsets.only(bottom: 7),
-                                    child: Material(
-                                      color: currentPath == item.path || currentPath.startsWith('${item.path}/')
-                                          ? palette.secondary.withOpacity(palette.darkBackground ? 0.20 : 0.10)
-                                          : palette.background.withOpacity(palette.darkBackground ? 0.34 : 0.70),
-                                      borderRadius: BorderRadius.circular(palette.radius(18)),
-                                      child: ListTile(
-                                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(palette.radius(18))),
-                                        leading: Container(
-                                          width: 42,
-                                          height: 42,
-                                          decoration: BoxDecoration(
-                                            color: palette.secondary.withOpacity(0.14),
-                                            borderRadius: BorderRadius.circular(14),
-                                          ),
-                                          child: Icon(ModuleVisuals.byKey(item.keyName).icon, color: palette.secondary),
-                                        ),
-                                        title: Text(
-                                          item.title.trim().isEmpty ? item.keyName : item.title.trim(),
-                                          style: TextStyle(color: palette.textPrimary, fontWeight: FontWeight.w900),
-                                        ),
-                                        subtitle: item.description == null
-                                            ? null
-                                            : Text(
-                                                item.description!,
-                                                maxLines: 1,
-                                                overflow: TextOverflow.ellipsis,
-                                                style: TextStyle(color: palette.textSecondary, fontWeight: FontWeight.w600),
-                                              ),
-                                        trailing: Icon(Icons.chevron_right_rounded, color: palette.textSecondary),
-                                        onTap: () => Navigator.of(sheetContext).pop(item.path),
-                                      ),
+                              itemCount: groups.length,
+                              itemBuilder: (itemContext, index) {
+                                final group = groups[index];
+                                final expanded = searchActive || group.code == openCode;
+                                final selected = group.items.any(
+                                  (item) => currentPath == item.path || currentPath.startsWith('${item.path}/'),
+                                );
+
+                                return Container(
+                                  margin: const EdgeInsets.only(bottom: 9),
+                                  decoration: BoxDecoration(
+                                    color: selected
+                                        ? palette.secondary.withOpacity(palette.darkBackground ? 0.11 : 0.06)
+                                        : palette.background.withOpacity(palette.darkBackground ? 0.32 : 0.66),
+                                    borderRadius: BorderRadius.circular(palette.radius(20)),
+                                    border: Border.all(
+                                      color: selected
+                                          ? palette.secondary.withOpacity(0.34)
+                                          : palette.cardBorder,
                                     ),
                                   ),
-                              ],
+                                  child: Column(
+                                    children: [
+                                      Material(
+                                        color: Colors.transparent,
+                                        child: InkWell(
+                                          borderRadius: BorderRadius.circular(palette.radius(20)),
+                                          onTap: searchActive
+                                              ? null
+                                              : () => setSheetState(() {
+                                                    expandedCode = expanded ? '' : group.code;
+                                                  }),
+                                          child: Padding(
+                                            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 11),
+                                            child: Row(
+                                              children: [
+                                                Container(
+                                                  width: 38,
+                                                  height: 38,
+                                                  decoration: BoxDecoration(
+                                                    color: palette.secondary.withOpacity(0.13),
+                                                    borderRadius: BorderRadius.circular(13),
+                                                  ),
+                                                  child: Icon(
+                                                    _menuGroupIcon(group.iconToken),
+                                                    color: palette.secondary,
+                                                    size: 20,
+                                                  ),
+                                                ),
+                                                const SizedBox(width: 11),
+                                                Expanded(
+                                                  child: Column(
+                                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                                    children: [
+                                                      Text(
+                                                        group.name,
+                                                        style: TextStyle(
+                                                          color: palette.textPrimary,
+                                                          fontWeight: FontWeight.w900,
+                                                          fontSize: 14,
+                                                        ),
+                                                      ),
+                                                      const SizedBox(height: 2),
+                                                      Text(
+                                                        '${group.items.length} ${group.items.length == 1 ? 'opción' : 'opciones'}',
+                                                        style: TextStyle(
+                                                          color: palette.textSecondary,
+                                                          fontWeight: FontWeight.w600,
+                                                          fontSize: 11,
+                                                        ),
+                                                      ),
+                                                    ],
+                                                  ),
+                                                ),
+                                                AnimatedRotation(
+                                                  duration: const Duration(milliseconds: 180),
+                                                  turns: expanded ? 0.5 : 0,
+                                                  child: Icon(
+                                                    Icons.keyboard_arrow_down_rounded,
+                                                    color: palette.textSecondary,
+                                                  ),
+                                                ),
+                                              ],
+                                            ),
+                                          ),
+                                        ),
+                                      ),
+                                      AnimatedCrossFade(
+                                        duration: const Duration(milliseconds: 180),
+                                        crossFadeState: expanded
+                                            ? CrossFadeState.showSecond
+                                            : CrossFadeState.showFirst,
+                                        firstChild: const SizedBox(width: double.infinity),
+                                        secondChild: Padding(
+                                          padding: const EdgeInsets.fromLTRB(8, 0, 8, 8),
+                                          child: Column(
+                                            children: [
+                                              for (final item in group.items)
+                                                Padding(
+                                                  padding: const EdgeInsets.only(top: 4),
+                                                  child: Material(
+                                                    color: currentPath == item.path ||
+                                                            currentPath.startsWith('${item.path}/')
+                                                        ? palette.secondary.withOpacity(
+                                                            palette.darkBackground ? 0.18 : 0.09,
+                                                          )
+                                                        : Colors.transparent,
+                                                    borderRadius: BorderRadius.circular(palette.radius(15)),
+                                                    child: ListTile(
+                                                      dense: true,
+                                                      visualDensity: const VisualDensity(vertical: -2),
+                                                      shape: RoundedRectangleBorder(
+                                                        borderRadius: BorderRadius.circular(palette.radius(15)),
+                                                      ),
+                                                      leading: Container(
+                                                        width: 34,
+                                                        height: 34,
+                                                        decoration: BoxDecoration(
+                                                          color: palette.secondary.withOpacity(0.11),
+                                                          borderRadius: BorderRadius.circular(11),
+                                                        ),
+                                                        child: Icon(
+                                                          ModuleVisuals.byKey(item.keyName).icon,
+                                                          color: palette.secondary,
+                                                          size: 18,
+                                                        ),
+                                                      ),
+                                                      title: Text(
+                                                        item.title.trim().isEmpty ? item.keyName : item.title.trim(),
+                                                        style: TextStyle(
+                                                          color: palette.textPrimary,
+                                                          fontWeight: FontWeight.w800,
+                                                        ),
+                                                      ),
+                                                      subtitle: item.description == null
+                                                          ? null
+                                                          : Text(
+                                                              item.description!,
+                                                              maxLines: 1,
+                                                              overflow: TextOverflow.ellipsis,
+                                                              style: TextStyle(
+                                                                color: palette.textSecondary,
+                                                                fontWeight: FontWeight.w600,
+                                                                fontSize: 11,
+                                                              ),
+                                                            ),
+                                                      trailing: Icon(
+                                                        Icons.chevron_right_rounded,
+                                                        color: palette.textSecondary,
+                                                      ),
+                                                      onTap: () => Navigator.of(sheetContext).pop(item.path),
+                                                    ),
+                                                  ),
+                                                ),
+                                            ],
+                                          ),
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                );
+                              },
                             ),
                     ),
                   ],
@@ -1948,6 +2081,43 @@ class _OperationalBottomNavigation extends ConsumerWidget {
       context.go(destination);
     }
   }
+
+  List<_MenuGroupData> _groupOperationalMoreItems(List<UserMenuItem> items) {
+    final byCode = <String, List<UserMenuItem>>{};
+    final metadata = <String, UserMenuItem>{};
+
+    for (final item in items) {
+      final code = item.groupCode.trim().isEmpty ? 'OTROS' : item.groupCode.trim().toUpperCase();
+      byCode.putIfAbsent(code, () => <UserMenuItem>[]).add(item);
+      metadata.putIfAbsent(code, () => item);
+    }
+
+    final groups = <_MenuGroupData>[];
+    for (final entry in byCode.entries) {
+      final meta = metadata[entry.key]!;
+      final groupItems = List<UserMenuItem>.of(entry.value)
+        ..sort((a, b) {
+          final order = a.menuOrder.compareTo(b.menuOrder);
+          return order != 0 ? order : a.title.toLowerCase().compareTo(b.title.toLowerCase());
+        });
+      groups.add(
+        _MenuGroupData(
+          code: entry.key,
+          name: meta.groupName.trim().isEmpty ? 'Otros' : meta.groupName.trim(),
+          iconToken: meta.groupIcon,
+          order: meta.groupOrder,
+          items: groupItems,
+        ),
+      );
+    }
+
+    groups.sort((a, b) {
+      final order = a.order.compareTo(b.order);
+      return order != 0 ? order : a.name.toLowerCase().compareTo(b.name.toLowerCase());
+    });
+    return groups;
+  }
+
 }
 
 class _InventoryBottomNavigation extends ConsumerWidget {
@@ -2233,22 +2403,6 @@ class _InventoryBottomNavigation extends ConsumerWidget {
   }
 }
 
-class _ManagerNavigationItem {
-  const _ManagerNavigationItem({
-    required this.keyName,
-    required this.label,
-    required this.icon,
-    required this.path,
-    this.description,
-  });
-
-  final String keyName;
-  final String label;
-  final IconData icon;
-  final String path;
-  final String? description;
-}
-
 class _AdminBottomNavigation extends ConsumerWidget {
   const _AdminBottomNavigation();
 
@@ -2487,16 +2641,38 @@ class _AdminNavigationItem {
   final String searchTerms;
 }
 
+class _ManagerBottomGroup {
+  const _ManagerBottomGroup({
+    required this.code,
+    required this.label,
+    required this.iconToken,
+    required this.order,
+    required this.items,
+  });
+
+  final String code;
+  final String label;
+  final String iconToken;
+  final int order;
+  final List<UserMenuItem> items;
+
+  String get primaryPath {
+    for (final item in items) {
+      if (item.bottomPrimary) return item.path;
+    }
+    return items.first.path;
+  }
+
+  bool containsPath(String currentPath) {
+    return items.any(
+      (item) => currentPath == item.path ||
+          (item.path != '/home' && currentPath.startsWith('${item.path}/')),
+    );
+  }
+}
+
 class _ManagerBottomNavigation extends ConsumerWidget {
   const _ManagerBottomNavigation();
-
-  static const _moreItem = _ManagerNavigationItem(
-    keyName: '__more__',
-    label: 'Más',
-    icon: Icons.more_horiz_rounded,
-    path: '__more__',
-    description: 'Ver todas las opciones autorizadas',
-  );
 
   static const _managerBlockedKeys = <String>{
     'planes_suscripcion',
@@ -2511,75 +2687,31 @@ class _ManagerBottomNavigation extends ConsumerWidget {
     'diagnostico_sistema',
   };
 
-  static const _priority = <String, int>{
-    'reportes': 0,
-    'ganancias': 1,
-    'ventas': 2,
-    'inventario': 3,
-    'proximo_pedido': 4,
-    'sincronizar_catalogo': 5,
-    'productos': 6,
-    'movimientos': 6,
-    'precios': 7,
-    'cierres_caja': 8,
-    'usuarios': 9,
-    'roles_personalizados': 10,
-    'sucursales': 12,
-    'empresas': 13,
-    'parametros': 14,
-  };
-
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final palette = ref.watch(selectedAppPaletteProvider);
-    final hasPersonalizedRole = ref.watch(activeRolesProvider).any(_isPersonalizedRole);
-    final menuItems = ref.watch(userMenuProvider).maybeWhen(
-          data: (items) => _buildManagerItems(
-            items,
-            preserveOrder: hasPersonalizedRole,
-          ),
-          orElse: () => const <_ManagerNavigationItem>[
-            _ManagerNavigationItem(
-              keyName: 'home',
-              label: 'Inicio',
-              icon: Icons.home_rounded,
-              path: '/home',
-              description: 'Panel gerencial',
-            ),
-            _ManagerNavigationItem(
-              keyName: 'profile',
-              label: 'Perfil',
-              icon: Icons.person_rounded,
-              path: '/profile',
-              description: 'Datos y seguridad de la cuenta',
-            ),
-          ],
-        );
     final currentPath = GoRouterState.of(context).uri.path;
-    final width = MediaQuery.sizeOf(context).width;
-    final maxVisible = width >= 1280
-        ? 7
-        : width >= 720
-            ? 5
-            : 4;
+    final compact = MediaQuery.sizeOf(context).width < 720;
+    final menuItems = ref.watch(userMenuProvider).maybeWhen(
+          data: (items) => items
+              .where((item) => !_managerBlockedKeys.contains(item.keyName.trim().toLowerCase()))
+              .where((item) => item.path.trim().isNotEmpty)
+              .toList(growable: false),
+          orElse: () => const <UserMenuItem>[],
+        );
 
-    final hasOverflow = menuItems.length > maxVisible;
-    final visibleCount = hasOverflow ? maxVisible - 1 : menuItems.length;
-    final visibleItems = menuItems.take(visibleCount).toList(growable: false);
-    final overflowItems = hasOverflow ? menuItems.skip(visibleCount).toList(growable: false) : const <_ManagerNavigationItem>[];
-    final navigationItems = <_ManagerNavigationItem>[
-      ...visibleItems,
-      if (overflowItems.isNotEmpty) _moreItem,
-    ];
+    // La BD decide qué grupos merecen acceso principal. El shell conserva
+    // Inicio y Más como elementos estructurales; entre ambos se muestran como
+    // máximo tres grupos para mantener siempre una barra inferior de 5 items.
+    final allBottomGroups = _buildBottomGroups(menuItems);
+    final visibleGroups = allBottomGroups.take(3).toList(growable: false);
 
-    final selectedPath = _selectedManagerPath(currentPath, menuItems);
-    var selectedIndex = navigationItems.indexWhere((item) => item.path == selectedPath);
-    if (selectedIndex < 0 && overflowItems.any((item) => item.path == selectedPath)) {
-      selectedIndex = navigationItems.indexWhere((item) => item.path == _moreItem.path);
+    var selectedIndex = 0;
+    if (currentPath != '/home') {
+      final groupIndex = visibleGroups.indexWhere((group) => group.containsPath(currentPath));
+      selectedIndex = groupIndex >= 0 ? groupIndex + 1 : visibleGroups.length + 1;
     }
-    if (selectedIndex < 0) selectedIndex = 0;
 
-    final isCompact = width < 720;
     return Container(
       decoration: BoxDecoration(
         color: palette.surface.withOpacity(palette.darkBackground ? 0.96 : 0.99),
@@ -2600,127 +2732,166 @@ class _ManagerBottomNavigation extends ConsumerWidget {
           elevation: 0,
           selectedItemColor: palette.secondary,
           unselectedItemColor: palette.textSecondary.withOpacity(0.86),
-          selectedFontSize: isCompact ? 10 : 11.5,
-          unselectedFontSize: isCompact ? 9.5 : 11,
-          iconSize: isCompact ? 21 : 23,
+          selectedFontSize: compact ? 10 : 11.5,
+          unselectedFontSize: compact ? 9.5 : 11,
+          iconSize: compact ? 21 : 23,
           selectedLabelStyle: const TextStyle(fontWeight: FontWeight.w900, height: 1.15),
           unselectedLabelStyle: const TextStyle(fontWeight: FontWeight.w700, height: 1.15),
           showSelectedLabels: true,
           showUnselectedLabels: true,
           onTap: (index) {
-            final item = navigationItems[index];
-            if (item.path == _moreItem.path) {
+            if (index == 0) {
+              context.go('/home');
+              return;
+            }
+
+            final moreIndex = visibleGroups.length + 1;
+            if (index == moreIndex) {
               _showManagerMoreMenu(
                 context: context,
                 palette: palette,
-                items: overflowItems,
-                selectedPath: selectedPath,
+                items: menuItems,
+                selectedPath: currentPath,
               );
               return;
             }
-            context.go(item.path);
+
+            context.go(visibleGroups[index - 1].primaryPath);
           },
           items: [
-            for (final item in navigationItems)
+            BottomNavigationBarItem(
+              icon: const Padding(
+                padding: EdgeInsets.only(bottom: 3),
+                child: Icon(Icons.home_rounded),
+              ),
+              activeIcon: _activeBottomIcon(
+                icon: Icons.home_rounded,
+                palette: palette,
+                compact: compact,
+              ),
+              label: 'Inicio',
+            ),
+            for (final group in visibleGroups)
               BottomNavigationBarItem(
                 icon: Padding(
                   padding: const EdgeInsets.only(bottom: 3),
-                  child: Icon(item.icon),
+                  child: Icon(_menuGroupIcon(group.iconToken)),
                 ),
-                activeIcon: Container(
-                  margin: const EdgeInsets.only(bottom: 3),
-                  padding: EdgeInsets.symmetric(horizontal: isCompact ? 10 : 13, vertical: 5),
-                  decoration: BoxDecoration(
-                    color: palette.secondary.withOpacity(palette.darkBackground ? 0.22 : 0.14),
-                    borderRadius: BorderRadius.circular(18),
-                  ),
-                  child: Icon(item.icon),
+                activeIcon: _activeBottomIcon(
+                  icon: _menuGroupIcon(group.iconToken),
+                  palette: palette,
+                  compact: compact,
                 ),
-                label: item.label,
+                label: group.label,
               ),
+            BottomNavigationBarItem(
+              icon: const Padding(
+                padding: EdgeInsets.only(bottom: 3),
+                child: Icon(Icons.more_horiz_rounded),
+              ),
+              activeIcon: _activeBottomIcon(
+                icon: Icons.more_horiz_rounded,
+                palette: palette,
+                compact: compact,
+              ),
+              label: 'Más',
+            ),
           ],
         ),
       ),
     );
   }
 
-  List<_ManagerNavigationItem> _buildManagerItems(
-    List<UserMenuItem> items, {
-    required bool preserveOrder,
+  Widget _activeBottomIcon({
+    required IconData icon,
+    required AppPalette palette,
+    required bool compact,
   }) {
-    final authorized = <_ManagerNavigationItem>[];
-    final seenPaths = <String>{'/home', '/profile'};
+    return Container(
+      margin: const EdgeInsets.only(bottom: 3),
+      padding: EdgeInsets.symmetric(horizontal: compact ? 10 : 13, vertical: 5),
+      decoration: BoxDecoration(
+        color: palette.secondary.withOpacity(palette.darkBackground ? 0.22 : 0.14),
+        borderRadius: BorderRadius.circular(18),
+      ),
+      child: Icon(icon),
+    );
+  }
+
+  List<_ManagerBottomGroup> _buildBottomGroups(List<UserMenuItem> items) {
+    final byCode = <String, List<UserMenuItem>>{};
+    final metadata = <String, UserMenuItem>{};
 
     for (final item in items) {
-      final keyName = item.keyName.trim().toLowerCase();
-      if (_managerBlockedKeys.contains(keyName)) continue;
-      if (item.path.trim().isEmpty || !seenPaths.add(item.path)) continue;
-      final visual = ModuleVisuals.byKey(item.keyName);
-      authorized.add(
-        _ManagerNavigationItem(
-          keyName: item.keyName,
-          label: _managerLabel(item),
-          icon: visual.icon,
-          path: item.path,
-          description: item.description ?? visual.description,
+      if (!item.bottomVisible) continue;
+      final code = item.bottomCode.trim().isEmpty ? 'OTROS' : item.bottomCode.trim().toUpperCase();
+      byCode.putIfAbsent(code, () => <UserMenuItem>[]).add(item);
+      final current = metadata[code];
+      if (current == null || item.bottomOrder < current.bottomOrder) {
+        metadata[code] = item;
+      }
+    }
+
+    final groups = <_ManagerBottomGroup>[];
+    for (final entry in byCode.entries) {
+      final meta = metadata[entry.key]!;
+      final groupItems = List<UserMenuItem>.of(entry.value)
+        ..sort((a, b) {
+          if (a.bottomPrimary != b.bottomPrimary) return a.bottomPrimary ? -1 : 1;
+          final menuOrder = a.menuOrder.compareTo(b.menuOrder);
+          if (menuOrder != 0) return menuOrder;
+          return a.title.toLowerCase().compareTo(b.title.toLowerCase());
+        });
+      groups.add(
+        _ManagerBottomGroup(
+          code: entry.key,
+          label: meta.bottomName.trim().isEmpty ? meta.groupName : meta.bottomName.trim(),
+          iconToken: meta.bottomIcon.trim().isEmpty ? meta.groupIcon : meta.bottomIcon.trim(),
+          order: meta.bottomOrder,
+          items: groupItems,
         ),
       );
     }
 
-    if (!preserveOrder) {
-      authorized.sort((a, b) {
-        final priority = (_priority[a.keyName] ?? 999).compareTo(_priority[b.keyName] ?? 999);
-        if (priority != 0) return priority;
-        return a.label.compareTo(b.label);
-      });
-    }
-
-    return <_ManagerNavigationItem>[
-      const _ManagerNavigationItem(
-        keyName: 'home',
-        label: 'Inicio',
-        icon: Icons.home_rounded,
-        path: '/home',
-        description: 'Panel gerencial',
-      ),
-      ...authorized,
-      const _ManagerNavigationItem(
-        keyName: 'profile',
-        label: 'Perfil',
-        icon: Icons.person_rounded,
-        path: '/profile',
-        description: 'Datos y seguridad de la cuenta',
-      ),
-    ];
-  }
-
-  String _managerLabel(UserMenuItem item) {
-    return switch (item.keyName) {
-      'proximo_pedido' => 'Pedido',
-      'tablas_parametricas' => 'Parámetros',
-      'tipos_producto' => 'Tipos',
-      'medios_pago' => 'Pagos',
-      'zonas_horarias' => 'Zonas',
-      _ => item.title.trim().isEmpty ? item.keyName : item.title.trim(),
-    };
-  }
-
-  String _selectedManagerPath(String currentPath, List<_ManagerNavigationItem> items) {
-    _ManagerNavigationItem? selected;
-    for (final item in items) {
-      final matches = currentPath == item.path || (item.path != '/home' && currentPath.startsWith('${item.path}/'));
-      if (!matches) continue;
-      if (selected == null || item.path.length > selected.path.length) selected = item;
-    }
-    return selected?.path ?? '/home';
+    groups.sort((a, b) {
+      final order = a.order.compareTo(b.order);
+      return order != 0 ? order : a.label.toLowerCase().compareTo(b.label.toLowerCase());
+    });
+    return groups;
   }
 
   Future<void> _showManagerMoreMenu({
     required BuildContext context,
     required AppPalette palette,
-    required List<_ManagerNavigationItem> items,
+    required List<UserMenuItem> items,
     required String selectedPath,
   }) async {
+    const appearanceItem = UserMenuItem(
+      keyName: 'apariencia',
+      title: 'Apariencia',
+      path: '__appearance__',
+      description: 'Colores y apariencia de la aplicación',
+      groupCode: 'CONFIGURACION',
+      groupName: 'Configuración',
+      groupIcon: 'settings',
+      groupOrder: 50,
+      menuOrder: 15,
+      system: true,
+    );
+    const profileItem = UserMenuItem(
+      keyName: 'profile',
+      title: 'Perfil',
+      path: '/profile',
+      description: 'Datos y seguridad de la cuenta',
+      groupCode: 'CONFIGURACION',
+      groupName: 'Configuración',
+      groupIcon: 'settings',
+      groupOrder: 50,
+      menuOrder: 999,
+      system: true,
+    );
+
+    final allItems = <UserMenuItem>[...items, appearanceItem, profileItem];
     var query = '';
     final destination = await showModalBottomSheet<String>(
       context: context,
@@ -2728,28 +2899,36 @@ class _ManagerBottomNavigation extends ConsumerWidget {
       isScrollControlled: true,
       builder: (sheetContext) => StatefulBuilder(
         builder: (sheetContext, setSheetState) {
-          final filteredItems = items.where((item) {
+          final normalizedQuery = _normalizeMenuSearch(query);
+          final filtered = allItems.where((item) {
+            if (normalizedQuery.isEmpty) return true;
             return _matchesMenuSearch(query, [
-              item.label,
+              item.title,
               item.description,
               item.keyName,
+              item.groupName,
               item.path,
             ]);
           }).toList(growable: false);
+          final groups = _groupMoreItems(filtered);
 
           return Padding(
             padding: EdgeInsets.only(bottom: MediaQuery.viewInsetsOf(sheetContext).bottom),
             child: SafeArea(
               child: Container(
                 margin: const EdgeInsets.all(12),
-                constraints: BoxConstraints(maxHeight: MediaQuery.sizeOf(sheetContext).height * 0.78),
+                constraints: BoxConstraints(maxHeight: MediaQuery.sizeOf(sheetContext).height * 0.82),
                 padding: const EdgeInsets.fromLTRB(14, 10, 14, 14),
                 decoration: BoxDecoration(
                   color: palette.surface,
                   borderRadius: BorderRadius.circular(palette.radius(26)),
                   border: Border.all(color: palette.cardBorder),
                   boxShadow: [
-                    BoxShadow(color: Colors.black.withOpacity(0.20), blurRadius: 28, offset: const Offset(0, 12)),
+                    BoxShadow(
+                      color: Colors.black.withOpacity(0.20),
+                      blurRadius: 28,
+                      offset: const Offset(0, 12),
+                    ),
                   ],
                 ),
                 child: Column(
@@ -2768,13 +2947,20 @@ class _ManagerBottomNavigation extends ConsumerWidget {
                       ),
                     ),
                     Text(
-                      'Más opciones de gestión',
-                      style: TextStyle(color: palette.textPrimary, fontSize: 18, fontWeight: FontWeight.w900),
+                      'Más opciones',
+                      style: TextStyle(
+                        color: palette.textPrimary,
+                        fontSize: 18,
+                        fontWeight: FontWeight.w900,
+                      ),
                     ),
                     const SizedBox(height: 4),
                     Text(
-                      'Accede a los demás módulos autorizados para el rol gerente.',
-                      style: TextStyle(color: palette.textSecondary, fontWeight: FontWeight.w600),
+                      'Los módulos están organizados por las mismas categorías configuradas en la base de datos.',
+                      style: TextStyle(
+                        color: palette.textSecondary,
+                        fontWeight: FontWeight.w600,
+                      ),
                     ),
                     const SizedBox(height: 12),
                     _menuSearchField(
@@ -2783,48 +2969,112 @@ class _ManagerBottomNavigation extends ConsumerWidget {
                     ),
                     const SizedBox(height: 12),
                     Flexible(
-                      child: filteredItems.isEmpty
+                      child: groups.isEmpty
                           ? _emptyMenuSearchState(palette)
-                          : ListView(
+                          : ListView.builder(
                               shrinkWrap: true,
-                              children: [
-                                for (final item in filteredItems)
-                                  Padding(
-                                    padding: const EdgeInsets.only(bottom: 7),
-                                    child: Material(
-                                      color: item.path == selectedPath
-                                          ? palette.secondary.withOpacity(palette.darkBackground ? 0.20 : 0.10)
-                                          : palette.background.withOpacity(palette.darkBackground ? 0.34 : 0.70),
-                                      borderRadius: BorderRadius.circular(palette.radius(18)),
-                                      child: ListTile(
-                                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(palette.radius(18))),
-                                        leading: Container(
-                                          width: 42,
-                                          height: 42,
-                                          decoration: BoxDecoration(
-                                            color: palette.secondary.withOpacity(0.14),
-                                            borderRadius: BorderRadius.circular(14),
-                                          ),
-                                          child: Icon(item.icon, color: palette.secondary),
-                                        ),
-                                        title: Text(
-                                          item.label,
-                                          style: TextStyle(color: palette.textPrimary, fontWeight: FontWeight.w900),
-                                        ),
-                                        subtitle: item.description == null
-                                            ? null
-                                            : Text(
-                                                item.description!,
-                                                maxLines: 1,
-                                                overflow: TextOverflow.ellipsis,
-                                                style: TextStyle(color: palette.textSecondary, fontWeight: FontWeight.w600),
-                                              ),
-                                        trailing: Icon(Icons.chevron_right_rounded, color: palette.textSecondary),
-                                        onTap: () => Navigator.of(sheetContext).pop(item.path),
-                                      ),
+                              itemCount: groups.length,
+                              itemBuilder: (itemContext, index) {
+                                final group = groups[index];
+                                return Container(
+                                  margin: const EdgeInsets.only(bottom: 10),
+                                  padding: const EdgeInsets.fromLTRB(10, 10, 10, 6),
+                                  decoration: BoxDecoration(
+                                    color: palette.background.withOpacity(
+                                      palette.darkBackground ? 0.32 : 0.66,
                                     ),
+                                    borderRadius: BorderRadius.circular(palette.radius(20)),
+                                    border: Border.all(color: palette.cardBorder),
                                   ),
-                              ],
+                                  child: Column(
+                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    children: [
+                                      Padding(
+                                        padding: const EdgeInsets.fromLTRB(4, 2, 4, 7),
+                                        child: Row(
+                                          children: [
+                                            Container(
+                                              width: 34,
+                                              height: 34,
+                                              decoration: BoxDecoration(
+                                                color: palette.secondary.withOpacity(0.13),
+                                                borderRadius: BorderRadius.circular(12),
+                                              ),
+                                              child: Icon(
+                                                _menuGroupIcon(group.iconToken),
+                                                color: palette.secondary,
+                                                size: 19,
+                                              ),
+                                            ),
+                                            const SizedBox(width: 9),
+                                            Expanded(
+                                              child: Text(
+                                                group.name,
+                                                style: TextStyle(
+                                                  color: palette.textPrimary,
+                                                  fontWeight: FontWeight.w900,
+                                                  fontSize: 13,
+                                                ),
+                                              ),
+                                            ),
+                                          ],
+                                        ),
+                                      ),
+                                      for (final item in group.items)
+                                        Material(
+                                          color: item.path == selectedPath
+                                              ? palette.secondary.withOpacity(
+                                                  palette.darkBackground ? 0.18 : 0.09,
+                                                )
+                                              : Colors.transparent,
+                                          borderRadius: BorderRadius.circular(palette.radius(15)),
+                                          child: ListTile(
+                                            dense: true,
+                                            visualDensity: const VisualDensity(vertical: -2),
+                                            shape: RoundedRectangleBorder(
+                                              borderRadius: BorderRadius.circular(palette.radius(15)),
+                                            ),
+                                            leading: Icon(
+                                              item.keyName == 'profile'
+                                                  ? Icons.person_rounded
+                                                  : item.path == '__appearance__'
+                                                      ? Icons.palette_outlined
+                                                      : ModuleVisuals.byKey(item.keyName).icon,
+                                              color: item.path == selectedPath
+                                                  ? palette.secondary
+                                                  : palette.textSecondary,
+                                              size: 20,
+                                            ),
+                                            title: Text(
+                                              _managerLabel(item),
+                                              style: TextStyle(
+                                                color: palette.textPrimary,
+                                                fontWeight: FontWeight.w800,
+                                              ),
+                                            ),
+                                            subtitle: item.description == null
+                                                ? null
+                                                : Text(
+                                                    item.description!,
+                                                    maxLines: 1,
+                                                    overflow: TextOverflow.ellipsis,
+                                                    style: TextStyle(
+                                                      color: palette.textSecondary,
+                                                      fontWeight: FontWeight.w600,
+                                                      fontSize: 11,
+                                                    ),
+                                                  ),
+                                            trailing: Icon(
+                                              Icons.chevron_right_rounded,
+                                              color: palette.textSecondary,
+                                            ),
+                                            onTap: () => Navigator.of(sheetContext).pop(item.path),
+                                          ),
+                                        ),
+                                    ],
+                                  ),
+                                );
+                              },
                             ),
                     ),
                   ],
@@ -2836,7 +3086,60 @@ class _ManagerBottomNavigation extends ConsumerWidget {
       ),
     );
 
-    if (destination != null && context.mounted) context.go(destination);
+    if (destination == '__appearance__' && context.mounted) {
+      showPaletteSettingsDialog(context);
+      return;
+    }
+    if (destination != null && context.mounted) {
+      context.go(destination);
+    }
+  }
+
+  List<_MenuGroupData> _groupMoreItems(List<UserMenuItem> items) {
+    final byCode = <String, List<UserMenuItem>>{};
+    final metadata = <String, UserMenuItem>{};
+
+    for (final item in items) {
+      final code = item.groupCode.trim().isEmpty ? 'OTROS' : item.groupCode.trim().toUpperCase();
+      byCode.putIfAbsent(code, () => <UserMenuItem>[]).add(item);
+      metadata.putIfAbsent(code, () => item);
+    }
+
+    final groups = <_MenuGroupData>[];
+    for (final entry in byCode.entries) {
+      final meta = metadata[entry.key]!;
+      final groupItems = List<UserMenuItem>.of(entry.value)
+        ..sort((a, b) {
+          final order = a.menuOrder.compareTo(b.menuOrder);
+          return order != 0 ? order : a.title.toLowerCase().compareTo(b.title.toLowerCase());
+        });
+      groups.add(
+        _MenuGroupData(
+          code: entry.key,
+          name: meta.groupName.trim().isEmpty ? 'Otros' : meta.groupName.trim(),
+          iconToken: meta.groupIcon,
+          order: meta.groupOrder,
+          items: groupItems,
+        ),
+      );
+    }
+
+    groups.sort((a, b) {
+      final order = a.order.compareTo(b.order);
+      return order != 0 ? order : a.name.toLowerCase().compareTo(b.name.toLowerCase());
+    });
+    return groups;
+  }
+
+  String _managerLabel(UserMenuItem item) {
+    return switch (item.keyName) {
+      'proximo_pedido' => 'Pedido',
+      'tablas_parametricas' => 'Parámetros',
+      'tipos_producto' => 'Tipos',
+      'medios_pago' => 'Pagos',
+      'zonas_horarias' => 'Zonas',
+      _ => item.title.trim().isEmpty ? item.keyName : item.title.trim(),
+    };
   }
 }
 
@@ -2885,13 +3188,8 @@ class _SideNavigation extends ConsumerWidget {
                       _MenuProfileCard(profile: profile, palette: palette, compact: collapsed),
                       const SizedBox(height: 6),
                       _NavTile(title: 'Inicio', keyName: 'home', path: '/home', compact: collapsed, palette: palette),
-                      _NavTile(title: 'Apariencia', keyName: 'parametros', path: '__appearance__', compact: collapsed, palette: palette, onTap: () => showPaletteSettingsDialog(context)),
-                      if (!collapsed) ...[
-                        const SizedBox(height: 8),
-                        _NavSectionLabel('Opciones autorizadas', palette: palette),
-                      ],
+                      if (!collapsed) const SizedBox(height: 8),
                       ..._authorizedMenuWidgets(
-                        context: context,
                         ref: ref,
                         menuAsync: menuAsync,
                         dark: false,
@@ -2942,10 +3240,8 @@ class _DrawerContent extends ConsumerWidget {
                 _MenuProfileCard(profile: profile, palette: palette),
                 const SizedBox(height: 6),
                 _NavTile(title: 'Inicio', keyName: 'home', path: '/home', palette: palette),
-                _NavTile(title: 'Apariencia', keyName: 'parametros', path: '__appearance__', palette: palette, onTap: () => showPaletteSettingsDialog(context)),
                 const Divider(),
                 ..._authorizedMenuWidgets(
-                  context: context,
                   ref: ref,
                   menuAsync: menuAsync,
                   dark: false,
@@ -2966,7 +3262,6 @@ class _DrawerContent extends ConsumerWidget {
 }
 
 List<Widget> _authorizedMenuWidgets({
-  required BuildContext context,
   required WidgetRef ref,
   required AsyncValue<List<UserMenuItem>> menuAsync,
   required bool dark,
@@ -3032,18 +3327,346 @@ List<Widget> _authorizedMenuWidgets({
       }
 
       return [
-        for (final item in items)
-          _NavTile(
-            title: item.title,
-            keyName: item.keyName,
-            path: item.path,
-            dark: dark,
-            compact: compact,
-            palette: palette,
-          ),
+        _AuthorizedMenuGroups(
+          items: items,
+          dark: dark,
+          compact: compact,
+          palette: palette,
+        ),
       ];
     },
   );
+}
+
+class _MenuGroupData {
+  const _MenuGroupData({
+    required this.code,
+    required this.name,
+    required this.iconToken,
+    required this.order,
+    required this.items,
+  });
+
+  final String code;
+  final String name;
+  final String iconToken;
+  final int order;
+  final List<UserMenuItem> items;
+}
+
+class _AuthorizedMenuGroups extends StatefulWidget {
+  const _AuthorizedMenuGroups({
+    required this.items,
+    required this.dark,
+    required this.compact,
+    required this.palette,
+  });
+
+  final List<UserMenuItem> items;
+  final bool dark;
+  final bool compact;
+  final AppPalette palette;
+
+  @override
+  State<_AuthorizedMenuGroups> createState() => _AuthorizedMenuGroupsState();
+}
+
+class _AuthorizedMenuGroupsState extends State<_AuthorizedMenuGroups> {
+  String? _expandedCode;
+  String _lastPath = '';
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    final path = _currentPath();
+    if (path != _lastPath) {
+      _lastPath = path;
+      _expandedCode = _selectedGroupCode(_buildGroups(), path);
+    }
+  }
+
+  @override
+  void didUpdateWidget(covariant _AuthorizedMenuGroups oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (!identical(oldWidget.items, widget.items)) {
+      _expandedCode = _selectedGroupCode(_buildGroups(), _currentPath());
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final groups = _buildGroups();
+    if (groups.isEmpty) return const SizedBox.shrink();
+
+    if (widget.compact) {
+      return Column(
+        children: [
+          for (final group in groups) _buildCompactGroup(group),
+        ],
+      );
+    }
+
+    return Column(
+      children: [
+        for (final group in groups) _buildExpandedGroup(group),
+      ],
+    );
+  }
+
+  List<_MenuGroupData> _buildGroups() {
+    final byCode = <String, List<UserMenuItem>>{};
+    final metadata = <String, UserMenuItem>{};
+
+    for (final item in widget.items) {
+      final code = item.groupCode.trim().isEmpty ? 'OTROS' : item.groupCode.trim().toUpperCase();
+      byCode.putIfAbsent(code, () => <UserMenuItem>[]).add(item);
+      metadata.putIfAbsent(code, () => item);
+    }
+
+    // Apariencia es una utilidad local del cliente, no un permiso de negocio.
+    // Se integra visualmente en Configuración sin alterar OPCIONMENU.
+    const appearance = UserMenuItem(
+      keyName: 'parametros',
+      title: 'Apariencia',
+      path: '__appearance__',
+      groupCode: 'CONFIGURACION',
+      groupName: 'Configuración',
+      groupIcon: 'settings',
+      groupOrder: 50,
+      menuOrder: 15,
+      system: true,
+    );
+    byCode.putIfAbsent('CONFIGURACION', () => <UserMenuItem>[]).add(appearance);
+    metadata.putIfAbsent('CONFIGURACION', () => appearance);
+
+    final groups = <_MenuGroupData>[];
+    for (final entry in byCode.entries) {
+      final meta = metadata[entry.key]!;
+      final items = List<UserMenuItem>.of(entry.value)
+        ..sort((a, b) {
+          final order = a.menuOrder.compareTo(b.menuOrder);
+          return order != 0 ? order : a.title.toLowerCase().compareTo(b.title.toLowerCase());
+        });
+      groups.add(_MenuGroupData(
+        code: entry.key,
+        name: meta.groupName.trim().isEmpty ? 'Otros' : meta.groupName.trim(),
+        iconToken: meta.groupIcon,
+        order: meta.groupOrder,
+        items: items,
+      ));
+    }
+
+    groups.sort((a, b) {
+      final order = a.order.compareTo(b.order);
+      return order != 0 ? order : a.name.toLowerCase().compareTo(b.name.toLowerCase());
+    });
+    return groups;
+  }
+
+  Widget _buildExpandedGroup(_MenuGroupData group) {
+    if (group.items.length == 1) {
+      return _menuItem(group.items.first);
+    }
+
+    final expanded = _expandedCode == group.code;
+    final selected = _groupContainsPath(group, _currentPath());
+    final foreground = widget.dark ? Colors.white : widget.palette.textPrimary;
+    final secondary = widget.dark ? Colors.white70 : widget.palette.textSecondary;
+    final accent = widget.dark ? widget.palette.accent : widget.palette.secondary;
+
+    return Container(
+      margin: const EdgeInsets.symmetric(vertical: 4),
+      decoration: BoxDecoration(
+        color: selected
+            ? accent.withOpacity(widget.palette.darkBackground ? 0.16 : 0.09)
+            : Colors.transparent,
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(
+          color: expanded || selected ? accent.withOpacity(0.18) : Colors.transparent,
+        ),
+      ),
+      child: Column(
+        children: [
+          Material(
+            color: Colors.transparent,
+            child: InkWell(
+              borderRadius: BorderRadius.circular(20),
+              onTap: () => setState(() => _expandedCode = expanded ? '' : group.code),
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 9),
+                child: Row(
+                  children: [
+                    Container(
+                      width: 38,
+                      height: 38,
+                      decoration: BoxDecoration(
+                        color: accent.withOpacity(0.12),
+                        borderRadius: BorderRadius.circular(14),
+                      ),
+                      child: Icon(_menuGroupIcon(group.iconToken), size: 20, color: accent),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Text(
+                        group.name,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                          color: foreground,
+                          fontWeight: selected ? FontWeight.w900 : FontWeight.w800,
+                        ),
+                      ),
+                    ),
+                    Text(
+                      '${group.items.length}',
+                      style: TextStyle(color: secondary, fontSize: 11, fontWeight: FontWeight.w800),
+                    ),
+                    const SizedBox(width: 6),
+                    AnimatedRotation(
+                      turns: expanded ? 0.5 : 0,
+                      duration: const Duration(milliseconds: 180),
+                      child: Icon(Icons.keyboard_arrow_down_rounded, color: secondary),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+          AnimatedSize(
+            duration: const Duration(milliseconds: 180),
+            curve: Curves.easeOutCubic,
+            child: expanded
+                ? Padding(
+                    padding: const EdgeInsets.fromLTRB(10, 0, 6, 8),
+                    child: Column(children: [for (final item in group.items) _menuItem(item)]),
+                  )
+                : const SizedBox.shrink(),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildCompactGroup(_MenuGroupData group) {
+    if (group.items.length == 1) {
+      return _menuItem(group.items.first);
+    }
+
+    final selected = _groupContainsPath(group, _currentPath());
+    final accent = widget.dark ? widget.palette.accent : widget.palette.secondary;
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 4),
+      child: Tooltip(
+        message: group.name,
+        child: PopupMenuButton<UserMenuItem>(
+          tooltip: group.name,
+          onSelected: _openItem,
+          itemBuilder: (context) => [
+            for (final item in group.items)
+              PopupMenuItem<UserMenuItem>(
+                value: item,
+                child: Row(
+                  children: [
+                    Icon(
+                      item.system && item.path == '__appearance__'
+                          ? Icons.palette_outlined
+                          : ModuleVisuals.byKey(item.keyName).icon,
+                      size: 19,
+                    ),
+                    const SizedBox(width: 10),
+                    Expanded(child: Text(item.title)),
+                  ],
+                ),
+              ),
+          ],
+          child: Container(
+            width: 50,
+            height: 50,
+            decoration: BoxDecoration(
+              gradient: selected ? widget.palette.mainGradient : null,
+              color: selected ? null : accent.withOpacity(0.11),
+              borderRadius: BorderRadius.circular(18),
+            ),
+            child: Icon(
+              _menuGroupIcon(group.iconToken),
+              color: selected ? _selectedMenuForeground(widget.palette) : accent,
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _menuItem(UserMenuItem item) {
+    return _NavTile(
+      title: item.title,
+      keyName: item.keyName,
+      path: item.path,
+      dark: widget.dark,
+      compact: widget.compact,
+      palette: widget.palette,
+      onTap: item.system && item.path == '__appearance__'
+          ? () => showPaletteSettingsDialog(context)
+          : null,
+    );
+  }
+
+  void _openItem(UserMenuItem item) {
+    if (item.system && item.path == '__appearance__') {
+      showPaletteSettingsDialog(context);
+      return;
+    }
+    GoRouter.of(context).go(item.path);
+  }
+
+  String _currentPath() {
+    try {
+      return GoRouterState.of(context).uri.path;
+    } catch (_) {
+      return '';
+    }
+  }
+
+  String? _selectedGroupCode(List<_MenuGroupData> groups, String path) {
+    for (final group in groups) {
+      if (_groupContainsPath(group, path)) return group.code;
+    }
+    return null;
+  }
+
+  bool _groupContainsPath(_MenuGroupData group, String path) {
+    return group.items.any((item) =>
+        item.path.startsWith('/') &&
+        (path == item.path || (item.path != '/home' && path.startsWith('${item.path}/'))));
+  }
+}
+
+IconData _menuGroupIcon(String token) {
+  switch (token.trim().toLowerCase()) {
+    case 'point_of_sale':
+    case 'operacion':
+      return Icons.point_of_sale_rounded;
+    case 'inventory_2':
+    case 'inventario':
+      return Icons.inventory_2_outlined;
+    case 'analytics':
+    case 'reportes':
+      return Icons.analytics_outlined;
+    case 'store':
+    case 'negocio':
+      return Icons.storefront_outlined;
+    case 'settings':
+    case 'configuracion':
+      return Icons.tune_rounded;
+    case 'admin_panel_settings':
+    case 'administracion':
+      return Icons.admin_panel_settings_outlined;
+    case 'support_agent':
+    case 'soporte':
+      return Icons.support_agent_rounded;
+    default:
+      return Icons.more_horiz_rounded;
+  }
 }
 
 class _BrandHeader extends StatelessWidget {
@@ -3126,26 +3749,6 @@ class _NavigationCollapseButton extends StatelessWidget {
                 ),
               ),
             ),
-          ),
-        ),
-      );
-}
-
-class _NavSectionLabel extends StatelessWidget {
-  const _NavSectionLabel(this.text, {required this.palette});
-  final String text;
-  final AppPalette palette;
-
-  @override
-  Widget build(BuildContext context) => Padding(
-        padding: const EdgeInsets.fromLTRB(14, 14, 14, 8),
-        child: Text(
-          text.toUpperCase(),
-          style: TextStyle(
-            color: palette.textSecondary,
-            fontWeight: FontWeight.w900,
-            letterSpacing: 1.1,
-            fontSize: 11,
           ),
         ),
       );

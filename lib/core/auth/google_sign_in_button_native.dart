@@ -9,6 +9,136 @@ import 'package:url_launcher/url_launcher.dart';
 
 Future<void>? _googleSignInInitialization;
 
+
+const String _desktopOAuthSuccessHtml = r'''<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="dark">
+  <title>BarLytics - Inicio de sesión completado</title>
+  <style>
+    * { box-sizing: border-box; }
+    html, body { margin: 0; min-height: 100%; }
+    body {
+      min-height: 100vh;
+      display: grid;
+      place-items: center;
+      padding: 24px;
+      color: #f4fbff;
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      background:
+        radial-gradient(circle at 16% 18%, rgba(22, 214, 194, .18), transparent 34%),
+        radial-gradient(circle at 84% 82%, rgba(0, 178, 255, .16), transparent 38%),
+        #071f2c;
+    }
+    .card {
+      width: min(520px, 100%);
+      padding: 34px 32px 30px;
+      text-align: center;
+      border: 1px solid rgba(62, 229, 214, .36);
+      border-radius: 26px;
+      background: rgba(9, 51, 66, .94);
+      box-shadow: 0 28px 80px rgba(0, 0, 0, .34);
+    }
+    .brand {
+      display: inline-flex;
+      align-items: center;
+      gap: 10px;
+      margin-bottom: 28px;
+      font-size: 30px;
+      font-weight: 900;
+      letter-spacing: -1.4px;
+    }
+    .mark {
+      width: 44px;
+      height: 44px;
+      display: grid;
+      place-items: center;
+      border-radius: 12px;
+      color: #062b39;
+      font-size: 28px;
+      font-weight: 1000;
+      background: linear-gradient(145deg, #21e2c6 0%, #00bdf2 56%, #087cff 100%);
+      box-shadow: 0 10px 26px rgba(0, 190, 238, .22);
+    }
+    .brand-word { color: #ffffff; }
+    .brand-word span {
+      background: linear-gradient(90deg, #16e1c5, #00bdf2);
+      -webkit-background-clip: text;
+      background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+    .success {
+      width: 68px;
+      height: 68px;
+      margin: 0 auto 20px;
+      display: grid;
+      place-items: center;
+      border-radius: 50%;
+      color: #052d36;
+      font-size: 36px;
+      font-weight: 1000;
+      background: linear-gradient(145deg, #28e2c3, #70efbe);
+      box-shadow: 0 12px 34px rgba(40, 226, 195, .22);
+    }
+    h1 {
+      margin: 0 0 10px;
+      font-size: 26px;
+      line-height: 1.18;
+      letter-spacing: -.45px;
+    }
+    p {
+      margin: 0 auto;
+      max-width: 390px;
+      color: #b9cbd3;
+      font-size: 15px;
+      line-height: 1.55;
+    }
+    .hint {
+      margin-top: 22px;
+      padding-top: 18px;
+      border-top: 1px solid rgba(151, 211, 222, .16);
+      color: #7f9eaa;
+      font-size: 12.5px;
+    }
+    button {
+      margin-top: 22px;
+      min-height: 44px;
+      padding: 0 22px;
+      border: 0;
+      border-radius: 999px;
+      color: #052d36;
+      font: inherit;
+      font-weight: 800;
+      cursor: pointer;
+      background: linear-gradient(90deg, #22dec5, #42c8ed);
+      box-shadow: 0 10px 26px rgba(25, 217, 219, .18);
+    }
+    button:hover { filter: brightness(1.06); }
+  </style>
+</head>
+<body>
+  <main class="card">
+    <div class="brand">
+      <div class="mark">B</div>
+      <div class="brand-word">Bar<span>Lytics</span></div>
+    </div>
+    <div class="success">✓</div>
+    <h1>Inicio de sesión completado</h1>
+    <p>Tu cuenta de Google fue verificada correctamente. Ya puedes volver a BarLytics y continuar trabajando.</p>
+    <button type="button" onclick="window.close()">Volver a BarLytics</button>
+    <div class="hint">Esta pestaña intentará cerrarse automáticamente. Si permanece abierta, puedes cerrarla de forma segura.</div>
+  </main>
+  <script>
+    setTimeout(function () {
+      try { window.close(); } catch (_) {}
+    }, 1800);
+  </script>
+</body>
+</html>''';
+
+
 Future<void> _ensureGoogleSignInInitialized({String? webClientId, String? iosClientId}) {
   final normalizedWeb = webClientId?.trim();
   final normalizedIos = iosClientId?.trim();
@@ -133,8 +263,7 @@ class _BarLyticsGoogleSignInButtonState extends State<BarLyticsGoogleSignInButto
     final authenticator = oidc.Authenticator.fromFlow(
       flow,
       urlLancher: _openDesktopBrowser,
-      redirectMessage:
-          'Ingreso completado. Ya puedes cerrar esta ventana y volver a BarLytics.',
+      htmlPage: _desktopOAuthSuccessHtml,
     );
 
     try {

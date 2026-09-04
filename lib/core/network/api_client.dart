@@ -2,6 +2,7 @@ import 'package:dio/dio.dart';
 
 import '../errors/app_exception.dart';
 import 'api_response.dart';
+import 'json_payload_normalizer.dart';
 
 /// Cliente HTTP centralizado. Ningún widget debe llamar directamente a Dio.
 class ApiClient {
@@ -14,7 +15,10 @@ class ApiClient {
     T Function(Object? json) parser, {
     Map<String, dynamic>? queryParameters,
   }) async {
-    return _send(() => _dio.get(path, queryParameters: queryParameters), parser);
+    return _send(
+      () => _dio.get(path, queryParameters: normalizeJsonMap(queryParameters)),
+      parser,
+    );
   }
 
   Future<ApiResponse<T>> post<T>(
@@ -27,8 +31,8 @@ class ApiClient {
     return _send(
       () => _dio.post(
         path,
-        data: body,
-        queryParameters: queryParameters,
+        data: normalizeJsonPayload(body),
+        queryParameters: normalizeJsonMap(queryParameters),
         options: headers == null ? null : Options(headers: headers),
       ),
       parser,
@@ -36,7 +40,7 @@ class ApiClient {
   }
 
   Future<ApiResponse<T>> put<T>(String path, Object? body, T Function(Object? json) parser) async {
-    return _send(() => _dio.put(path, data: body), parser);
+    return _send(() => _dio.put(path, data: normalizeJsonPayload(body)), parser);
   }
 
   Future<ApiResponse<T>> delete<T>(String path, T Function(Object? json) parser) async {
@@ -48,7 +52,7 @@ class ApiClient {
     Object? body,
     T Function(Object? json) parser,
   ) async {
-    return _send(() => _dio.delete(path, data: body), parser);
+    return _send(() => _dio.delete(path, data: normalizeJsonPayload(body)), parser);
   }
 
   Future<ApiResponse<T>> _send<T>(Future<Response<dynamic>> Function() request, T Function(Object? json) parser) async {
