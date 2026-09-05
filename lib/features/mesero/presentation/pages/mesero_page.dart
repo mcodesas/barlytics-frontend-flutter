@@ -642,31 +642,19 @@ class _MeseroPageState extends ConsumerState<MeseroPage> {
 
   Future<Map<int, double>> _cargarProductosMasPedidosHoy() async {
     final hoy = DateTime.now();
-    List<MeseroVentaModel> ventas = _historialVentas;
 
     try {
-      ventas = await _dataSource.historialVentas();
-      _historialVentas = ventas;
+      return await _dataSource.productosMasPedidosHoy(fecha: _fechaIso(hoy));
     } catch (_) {
-      // Si el historial no está disponible, se conserva el orden del catálogo
-      // y al menos se contabiliza la venta activa que el usuario está operando.
+      // Fallback operativo: si el agregado no está disponible, se conserva el
+      // catálogo funcional y se contabiliza al menos la venta activa.
+      final acumulado = <int, double>{};
+      final ventaActiva = _ventaActiva;
+      if (ventaActiva != null && _ventaCorrespondeAlDia(ventaActiva, hoy)) {
+        _acumularProductosVenta(acumulado, ventaActiva);
+      }
+      return acumulado;
     }
-
-    final acumulado = <int, double>{};
-    final ventaActivaId = _ventaActiva?.ventaId;
-
-    for (final venta in ventas) {
-      if (venta.ventaId == ventaActivaId) continue;
-      if (!_ventaCorrespondeAlDia(venta, hoy)) continue;
-      _acumularProductosVenta(acumulado, venta);
-    }
-
-    final ventaActiva = _ventaActiva;
-    if (ventaActiva != null && _ventaCorrespondeAlDia(ventaActiva, hoy)) {
-      _acumularProductosVenta(acumulado, ventaActiva);
-    }
-
-    return acumulado;
   }
 
   List<MeseroProductoModel> _ordenarProductosPorPedidosHoy(
