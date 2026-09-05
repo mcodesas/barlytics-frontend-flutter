@@ -1,4 +1,4 @@
-package com.barlytics.barlytics_frontend
+package com.mcode.barlytics
 
 import io.flutter.embedding.android.FlutterActivity
 
