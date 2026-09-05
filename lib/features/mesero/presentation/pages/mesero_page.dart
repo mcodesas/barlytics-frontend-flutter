@@ -367,6 +367,20 @@ class _MeseroPageState extends ConsumerState<MeseroPage> {
     await future;
   }
 
+  String? _fotoDetalleProducto(MeseroDetalleProductoModel detalle) {
+    final fotoDetalle = (detalle.productoFoto ?? '').trim();
+    if (fotoDetalle.isNotEmpty) return fotoDetalle;
+    final productoId = detalle.productoId;
+    if (productoId == null) return null;
+    for (final producto in _productos) {
+      if (producto.prodId == productoId) {
+        final fotoCatalogo = (producto.foto ?? '').trim();
+        return fotoCatalogo.isEmpty ? null : fotoCatalogo;
+      }
+    }
+    return null;
+  }
+
   String _fechaIso(DateTime value) => '${value.year.toString().padLeft(4, '0')}-${value.month.toString().padLeft(2, '0')}-${value.day.toString().padLeft(2, '0')}';
 
   DateTime get _fechaCierreActual {
@@ -10680,7 +10694,7 @@ class _CuentaProductosTabla extends ConsumerWidget {
       decoration: BoxDecoration(border: Border(bottom: BorderSide(color: palette.cardBorder))),
       child: Row(
         children: [
-          SizedBox(width: 48, child: _ProductImageThumb(value: producto.productoFoto, size: 40)),
+          SizedBox(width: 48, child: _ProductImageThumb(value: _fotoDetalleProducto(producto), size: 40)),
           Expanded(
             flex: 4,
             child: Row(
@@ -10817,7 +10831,7 @@ class _CuentaProductosTabla extends ConsumerWidget {
       decoration: BoxDecoration(border: Border(bottom: BorderSide(color: palette.cardBorder))),
       child: Row(
         children: [
-          SizedBox(width: 58, child: _ProductImageThumb(value: producto.productoFoto, size: 42)),
+          SizedBox(width: 58, child: _ProductImageThumb(value: _fotoDetalleProducto(producto), size: 42)),
           Expanded(
             flex: 5,
             child: Row(
@@ -17512,7 +17526,7 @@ class _SumarCantidadProductoDialogState extends ConsumerState<_SumarCantidadProd
               Row(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  _ProductImageThumb(value: producto.productoFoto, size: 68),
+                  _ProductImageThumb(value: _fotoDetalleProducto(producto), size: 68),
                   const SizedBox(width: 12),
                   Expanded(
                     child: Column(
@@ -18036,7 +18050,7 @@ class _AgregarProductosOverlayPanelState extends ConsumerState<_AgregarProductos
       ),
       child: Row(
         children: [
-          _ProductImageThumb(value: producto.productoFoto, size: 42),
+          _ProductImageThumb(value: _fotoDetalleProducto(producto), size: 42),
           const SizedBox(width: 8),
           Expanded(
             child: Column(
@@ -18255,7 +18269,7 @@ class _AgregarProductosOverlayPanelState extends ConsumerState<_AgregarProductos
           final compact = constraints.maxWidth < 460;
           final info = Row(
             children: [
-              _ProductImageThumb(value: producto.productoFoto, size: 48),
+              _ProductImageThumb(value: _fotoDetalleProducto(producto), size: 48),
               const SizedBox(width: 10),
               Expanded(
                 child: Column(
