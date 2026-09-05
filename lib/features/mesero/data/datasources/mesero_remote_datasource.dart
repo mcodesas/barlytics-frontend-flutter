@@ -17,7 +17,6 @@ class MeseroRemoteDataSource {
     return response.data ?? const <MeseroMesaResumenModel>[];
   }
 
-
   Future<MeseroMesaResumenModel> crearMesa({required int mesaNumero, String? mesaDescripcion, String? mesaFoto}) async {
     final response = await _apiClient.post<MeseroMesaResumenModel>(
       ApiPaths.meseroCrearMesa,
@@ -127,12 +126,23 @@ class MeseroRemoteDataSource {
     return response.data!;
   }
 
-  Future<List<MeseroVentaModel>> historialVentas() async {
+  Future<List<MeseroVentaModel>> historialVentas({
+    String? desde,
+    String? hasta,
+    int pagina = 0,
+    int tamano = 100,
+  }) async {
     final response = await _apiClient.get<List<MeseroVentaModel>>(
       ApiPaths.meseroHistorialVentas,
       (json) => (json as List? ?? const [])
           .map((e) => MeseroVentaModel.fromJson(Map<String, dynamic>.from(e as Map)))
           .toList(growable: false),
+      queryParameters: {
+        if ((desde ?? '').trim().isNotEmpty) 'desde': desde!.trim(),
+        if ((hasta ?? '').trim().isNotEmpty) 'hasta': hasta!.trim(),
+        'pagina': pagina,
+        'tamano': tamano,
+      },
     );
     return response.data ?? const <MeseroVentaModel>[];
   }
@@ -175,7 +185,6 @@ class MeseroRemoteDataSource {
     return response.data!;
   }
 
-
   Future<void> limpiarVentaSinConsumos(int ventaId) async {
     await _apiClient.delete<void>(
       ApiPaths.meseroLimpiarVentaSinConsumos(ventaId),
@@ -216,7 +225,6 @@ class MeseroRemoteDataSource {
     return response.data!;
   }
 
-
   Future<MeseroVentaModel> actualizarCantidadProductoCuenta({
     required int cuentaId,
     required int detalleId,
@@ -229,7 +237,6 @@ class MeseroRemoteDataSource {
     );
     return response.data!;
   }
-
 
   Future<MeseroVentaModel> eliminarProductoCuenta({
     required int cuentaId,
@@ -331,7 +338,6 @@ class MeseroRemoteDataSource {
     );
     return response.data!;
   }
-
 
   Future<CierreCajaResumenModel> actualizarCierreCaja({
     required int cierreCajaId,
