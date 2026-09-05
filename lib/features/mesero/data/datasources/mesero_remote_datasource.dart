@@ -137,6 +137,28 @@ class MeseroRemoteDataSource {
     return response.data ?? const <MeseroVentaModel>[];
   }
 
+  Future<Map<int, double>> productosMasPedidosHoy({required String fecha}) async {
+    final response = await _apiClient.get<Map<int, double>>(
+      ApiPaths.meseroProductosMasPedidosHoy,
+      (json) {
+        final values = Map<String, dynamic>.from(json as Map? ?? const <String, dynamic>{});
+        final result = <int, double>{};
+        for (final entry in values.entries) {
+          final productoId = int.tryParse(entry.key);
+          final cantidad = entry.value is num
+              ? (entry.value as num).toDouble()
+              : double.tryParse(entry.value?.toString() ?? '');
+          if (productoId != null && cantidad != null && cantidad > 0) {
+            result[productoId] = cantidad;
+          }
+        }
+        return result;
+      },
+      queryParameters: {'fecha': fecha},
+    );
+    return response.data ?? const <int, double>{};
+  }
+
   Future<MeseroVentaModel> cambiarNumeroCuentas({
     required int ventaId,
     required int numeroCuentas,
