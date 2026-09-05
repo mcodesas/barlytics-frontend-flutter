@@ -229,7 +229,7 @@ jobs:
       - name: Compilar Android App Bundle
         run: |
           VERSION="$(sed -nE 's/^version:[[:space:]]*([^+[:space:]]+).*/\1/p' pubspec.yaml | head -n1)"
-          BUILD="${GITHUB_RUN_NUMBER}"
+          BUILD="$((GITHUB_RUN_NUMBER * 100 + GITHUB_RUN_ATTEMPT))"
           test -n "$VERSION"
           flutter build appbundle --release \
             --build-name="$VERSION" \
@@ -245,3 +245,30 @@ jobs:
           path: build/app/outputs/bundle/release/app-release.aab
           if-no-files-found: error
           retention-days: 5
+
+      - name: Restaurar credenciales Google Play
+        if: github.event.pull_request.draft == false
+        env:
+          PLAY_SERVICE_ACCOUNT_JSON_BASE64: ${{ secrets.PLAY_SERVICE_ACCOUNT_JSON_BASE64 }}
+        run: |
+          test -n "$PLAY_SERVICE_ACCOUNT_JSON_BASE64" || { echo "Falta el secret PLAY_SERVICE_ACCOUNT_JSON_BASE64"; exit 1; }
+          printf '%s' "$PLAY_SERVICE_ACCOUNT_JSON_BASE64" | base64 --decode > "$RUNNER_TEMP/play-service-account.json"
+          jq -e '.type == "service_account" and (.client_email | length > 0) and (.private_key | length > 0)' "$RUNNER_TEMP/play-service-account.json" > /dev/null
+
+      - name: Instalar Fastlane
+        if: github.event.pull_request.draft == false
+        run: sudo gem install fastlane --no-document
+
+      - name: Publicar en Google Play Internal Testing
+        if: github.event.pull_request.draft == false
+        run: |
+          fastlane supply \
+            --json_key "$RUNNER_TEMP/play-service-account.json" \
+            --package_name "com.mcode.barlytics" \
+            --aab build/app/outputs/bundle/release/app-release.aab \
+            --track internal \
+            --release_status completed \
+            --skip_upload_metadata true \
+            --skip_upload_images true \
+            --skip_upload_screenshots true \
+            --skip_upload_changelogs true
