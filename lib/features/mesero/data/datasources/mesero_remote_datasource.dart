@@ -5,7 +5,17 @@ import '../models/mesero_models.dart';
 class MeseroRemoteDataSource {
   MeseroRemoteDataSource(this._apiClient);
 
+  static const Duration _catalogCacheTtl = Duration(minutes: 2);
+
   final ApiClient _apiClient;
+
+  List<MeseroProductoModel>? _productosCache;
+  DateTime? _productosCachedAt;
+  Future<List<MeseroProductoModel>>? _productosInFlight;
+
+  List<MeseroMedioPagoModel>? _mediosPagoCache;
+  DateTime? _mediosPagoCachedAt;
+  Future<List<MeseroMedioPagoModel>>? _mediosPagoInFlight;
 
   Future<List<MeseroMesaResumenModel>> listarMesas() async {
     final response = await _apiClient.get<List<MeseroMesaResumenModel>>(
@@ -58,7 +68,29 @@ class MeseroRemoteDataSource {
     );
   }
 
-  Future<List<MeseroProductoModel>> listarProductos() async {
+  Future<List<MeseroProductoModel>> listarProductos({bool forceRefresh = false}) async {
+    if (!forceRefresh && _isFresh(_productosCachedAt) && _productosCache != null) {
+      return _productosCache!;
+    }
+
+    final currentRequest = _productosInFlight;
+    if (!forceRefresh && currentRequest != null) return currentRequest;
+
+    final request = _fetchProductos();
+    _productosInFlight = request;
+    try {
+      final productos = await request;
+      _productosCache = productos;
+      _productosCachedAt = DateTime.now();
+      return productos;
+    } finally {
+      if (identical(_productosInFlight, request)) {
+        _productosInFlight = null;
+      }
+    }
+  }
+
+  Future<List<MeseroProductoModel>> _fetchProductos() async {
     final response = await _apiClient.get<List<MeseroProductoModel>>(
       ApiPaths.meseroProductos,
       (json) => (json as List? ?? const [])
@@ -68,7 +100,29 @@ class MeseroRemoteDataSource {
     return response.data ?? const <MeseroProductoModel>[];
   }
 
-  Future<List<MeseroMedioPagoModel>> listarMediosPago() async {
+  Future<List<MeseroMedioPagoModel>> listarMediosPago({bool forceRefresh = false}) async {
+    if (!forceRefresh && _isFresh(_mediosPagoCachedAt) && _mediosPagoCache != null) {
+      return _mediosPagoCache!;
+    }
+
+    final currentRequest = _mediosPagoInFlight;
+    if (!forceRefresh && currentRequest != null) return currentRequest;
+
+    final request = _fetchMediosPago();
+    _mediosPagoInFlight = request;
+    try {
+      final medios = await request;
+      _mediosPagoCache = medios;
+      _mediosPagoCachedAt = DateTime.now();
+      return medios;
+    } finally {
+      if (identical(_mediosPagoInFlight, request)) {
+        _mediosPagoInFlight = null;
+      }
+    }
+  }
+
+  Future<List<MeseroMedioPagoModel>> _fetchMediosPago() async {
     final response = await _apiClient.get<List<MeseroMedioPagoModel>>(
       ApiPaths.meseroMediosPago,
       (json) => (json as List? ?? const [])
@@ -76,6 +130,18 @@ class MeseroRemoteDataSource {
           .toList(growable: false),
     );
     return response.data ?? const <MeseroMedioPagoModel>[];
+  }
+
+  void invalidateCatalogCache() {
+    _productosCache = null;
+    _productosCachedAt = null;
+    _mediosPagoCache = null;
+    _mediosPagoCachedAt = null;
+  }
+
+  bool _isFresh(DateTime? cachedAt) {
+    if (cachedAt == null) return false;
+    return DateTime.now().difference(cachedAt) < _catalogCacheTtl;
   }
 
   Future<MeseroVentaModel> abrirVenta({
@@ -126,11 +192,14 @@ class MeseroRemoteDataSource {
     return response.data!;
   }
 
+  /// Mantiene compatibilidad con la pantalla actual: si no se especifican
+  /// filtros ni paginación, el backend conserva el comportamiento histórico.
+  /// Las nuevas vistas pueden consultar un día/página concretos sin cargar todo.
   Future<List<MeseroVentaModel>> historialVentas({
     String? desde,
     String? hasta,
-    int pagina = 0,
-    int tamano = 100,
+    int? pagina,
+    int? tamano,
   }) async {
     final response = await _apiClient.get<List<MeseroVentaModel>>(
       ApiPaths.meseroHistorialVentas,
@@ -140,8 +209,8 @@ class MeseroRemoteDataSource {
       queryParameters: {
         if ((desde ?? '').trim().isNotEmpty) 'desde': desde!.trim(),
         if ((hasta ?? '').trim().isNotEmpty) 'hasta': hasta!.trim(),
-        'pagina': pagina,
-        'tamano': tamano,
+        if (pagina != null) 'pagina': pagina,
+        if (tamano != null) 'tamano': tamano,
       },
     );
     return response.data ?? const <MeseroVentaModel>[];
