@@ -1,0 +1,104 @@
+name: Temporary fix product image helper
+
+on:
+  push:
+    branches:
+      - perf/optimizar-tiempos-respuesta-round2
+
+permissions:
+  contents: write
+
+jobs:
+  apply-fix:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout branch
+        uses: actions/checkout@v4
+        with:
+          ref: perf/optimizar-tiempos-respuesta-round2
+          fetch-depth: 0
+
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.41.9'
+          channel: stable
+          cache: true
+
+      - name: Apply source fix
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+
+          path = Path('lib/features/mesero/presentation/pages/mesero_page.dart')
+          text = path.read_text(encoding='utf-8')
+
+          marker = "bool _ventaEsDirecta(MeseroVentaModel venta) =>"
+          helper = """final Map<int, String> _productoFotoCache = <int, String>{};
+
+void _actualizarProductoFotoCache(Iterable<MeseroProductoModel> productos) {
+  _productoFotoCache.clear();
+  for (final producto in productos) {
+    final productoId = producto.prodId;
+    if (productoId == null) continue;
+    final foto = (producto.foto ?? '').trim();
+    if (foto.isNotEmpty) {
+      _productoFotoCache[productoId] = foto;
+    }
+  }
+}
+
+String? _fotoDetalleProducto(MeseroDetalleProductoModel detalle) {
+  final fotoDetalle = (detalle.productoFoto ?? '').trim();
+  if (fotoDetalle.isNotEmpty) return fotoDetalle;
+
+  final productoId = detalle.productoId;
+  if (productoId == null) return null;
+
+  final fotoCatalogo = (_productoFotoCache[productoId] ?? '').trim();
+  return fotoCatalogo.isEmpty ? null : fotoCatalogo;
+}
+
+"""
+
+          if "final Map<int, String> _productoFotoCache" not in text:
+              if marker not in text:
+                  raise SystemExit('No se encontró el punto de inserción del helper')
+              text = text.replace(marker, helper + marker, 1)
+
+          old = """      final productos = await productosFuture;
+      if (!mounted) return;
+      setState(() => _productos = productos);
+"""
+          new = """      final productos = await productosFuture;
+      if (!mounted) return;
+      _actualizarProductoFotoCache(productos);
+      setState(() => _productos = productos);
+"""
+          if old in text:
+              text = text.replace(old, new, 1)
+          elif "_actualizarProductoFotoCache(productos);" not in text:
+              raise SystemExit('No se encontró la asignación del catálogo para actualizar el caché')
+
+          path.write_text(text, encoding='utf-8')
+          PY
+
+          dart format lib/features/mesero/presentation/pages/mesero_page.dart
+
+      - name: Validate analyzer
+        run: flutter analyze --no-fatal-infos --no-fatal-warnings
+
+      - name: Validate tests
+        run: flutter test
+
+      - name: Commit fix and remove temporary workflow
+        shell: bash
+        run: |
+          rm -f .github/workflows/tmp-fix-product-image-helper.yml
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add lib/features/mesero/presentation/pages/mesero_page.dart .github/workflows/tmp-fix-product-image-helper.yml
+          git commit -m "fix: resolver imágenes de detalle desde caché del catálogo"
+          git push origin HEAD:perf/optimizar-tiempos-respuesta-round2
