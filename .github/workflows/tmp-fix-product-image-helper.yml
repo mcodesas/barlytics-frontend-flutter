@@ -10,7 +10,7 @@ permissions:
 
 jobs:
   apply-fix:
-    if: github.actor != 'github-actions[bot]'
+    if: ${{ github.actor != 'github-actions[bot]' }}
     runs-on: ubuntu-latest
     steps:
       - name: Checkout branch
@@ -29,54 +29,50 @@ jobs:
       - name: Apply source fix
         shell: bash
         run: |
-          python3 - <<'PY'
+          cat > /tmp/fix_mesero.py <<'PY'
           from pathlib import Path
 
           path = Path('lib/features/mesero/presentation/pages/mesero_page.dart')
           text = path.read_text(encoding='utf-8')
 
           marker = "bool _ventaEsDirecta(MeseroVentaModel venta) =>"
-          helper = """final Map<int, String> _productoFotoCache = <int, String>{};
+          helper = '''final Map<int, String> _productoFotoCache = <int, String>{};
 
-void _actualizarProductoFotoCache(Iterable<MeseroProductoModel> productos) {
-  _productoFotoCache.clear();
-  for (final producto in productos) {
-    final productoId = producto.prodId;
-    if (productoId == null) continue;
-    final foto = (producto.foto ?? '').trim();
-    if (foto.isNotEmpty) {
-      _productoFotoCache[productoId] = foto;
-    }
-  }
-}
+          void _actualizarProductoFotoCache(Iterable<MeseroProductoModel> productos) {
+            _productoFotoCache.clear();
+            for (final producto in productos) {
+              final productoId = producto.prodId;
+              if (productoId == null) continue;
+              final foto = (producto.foto ?? '').trim();
+              if (foto.isNotEmpty) {
+                _productoFotoCache[productoId] = foto;
+              }
+            }
+          }
 
-String? _fotoDetalleProducto(MeseroDetalleProductoModel detalle) {
-  final fotoDetalle = (detalle.productoFoto ?? '').trim();
-  if (fotoDetalle.isNotEmpty) return fotoDetalle;
+          String? _fotoDetalleProducto(MeseroDetalleProductoModel detalle) {
+            final fotoDetalle = (detalle.productoFoto ?? '').trim();
+            if (fotoDetalle.isNotEmpty) return fotoDetalle;
 
-  final productoId = detalle.productoId;
-  if (productoId == null) return null;
+            final productoId = detalle.productoId;
+            if (productoId == null) return null;
 
-  final fotoCatalogo = (_productoFotoCache[productoId] ?? '').trim();
-  return fotoCatalogo.isEmpty ? null : fotoCatalogo;
-}
+            final fotoCatalogo = (_productoFotoCache[productoId] ?? '').trim();
+            return fotoCatalogo.isEmpty ? null : fotoCatalogo;
+          }
 
-"""
+          '''
+
+          helper = '\n'.join(line[10:] if line.startswith('          ') else line for line in helper.splitlines()) + '\n'
 
           if "final Map<int, String> _productoFotoCache" not in text:
               if marker not in text:
                   raise SystemExit('No se encontró el punto de inserción del helper')
               text = text.replace(marker, helper + marker, 1)
 
-          old = """      final productos = await productosFuture;
-      if (!mounted) return;
-      setState(() => _productos = productos);
-"""
-          new = """      final productos = await productosFuture;
-      if (!mounted) return;
-      _actualizarProductoFotoCache(productos);
-      setState(() => _productos = productos);
-"""
+          old = "      final productos = await productosFuture;\n      if (!mounted) return;\n      setState(() => _productos = productos);\n"
+          new = "      final productos = await productosFuture;\n      if (!mounted) return;\n      _actualizarProductoFotoCache(productos);\n      setState(() => _productos = productos);\n"
+
           if old in text:
               text = text.replace(old, new, 1)
           elif "_actualizarProductoFotoCache(productos);" not in text:
@@ -85,6 +81,7 @@ String? _fotoDetalleProducto(MeseroDetalleProductoModel detalle) {
           path.write_text(text, encoding='utf-8')
           PY
 
+          python3 /tmp/fix_mesero.py
           dart format lib/features/mesero/presentation/pages/mesero_page.dart
 
       - name: Validate analyzer
