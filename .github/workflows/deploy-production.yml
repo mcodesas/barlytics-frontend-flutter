@@ -12,6 +12,9 @@ permissions:
   contents: read
   packages: write
 
+env:
+  DOCKER_BUILD_RECORD_UPLOAD: "false"
+
 jobs:
   test:
     runs-on: ubuntu-latest
@@ -84,7 +87,7 @@ jobs:
           name: barlytics-windows-installer
           path: build/installers/windows/BarLytics-Windows-Setup.exe
           if-no-files-found: error
-          retention-days: 14
+          retention-days: 1
 
   linux-installer:
     needs: test
@@ -138,7 +141,7 @@ jobs:
           name: barlytics-linux-installer
           path: build/installers/linux/barlytics-linux-amd64.deb
           if-no-files-found: error
-          retention-days: 14
+          retention-days: 1
 
   macos-installer:
     needs: test
@@ -179,7 +182,7 @@ jobs:
           name: barlytics-macos-installer
           path: build/installers/macos/BarLytics-macOS.dmg
           if-no-files-found: error
-          retention-days: 14
+          retention-days: 1
 
   android-bundle:
     needs: test
@@ -237,13 +240,6 @@ jobs:
             --dart-define=BARLYTICS_APP_VERSION="$VERSION" \
             --dart-define=BARLYTICS_APP_BUILD="$BUILD"
 
-      - name: Subir AAB Android
-        uses: actions/upload-artifact@v4
-        with:
-          name: barlytics-android-aab
-          path: build/app/outputs/bundle/release/app-release.aab
-          if-no-files-found: error
-          retention-days: 14
 
   image:
     needs: [test, windows-installer, linux-installer, macos-installer, android-bundle]

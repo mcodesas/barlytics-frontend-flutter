@@ -9,6 +9,9 @@ on:
 permissions:
   contents: read
 
+env:
+  DOCKER_BUILD_RECORD_UPLOAD: "false"
+
 jobs:
   test:
     runs-on: ubuntu-latest
@@ -241,14 +244,6 @@ jobs:
             --dart-define=BARLYTICS_APP_VERSION="$VERSION" \
             --dart-define=BARLYTICS_APP_BUILD="$BUILD"
 
-      - name: Publicar AAB Android como artefacto del PR
-        continue-on-error: true
-        uses: actions/upload-artifact@v4
-        with:
-          name: barlytics-android-aab
-          path: build/app/outputs/bundle/release/app-release.aab
-          if-no-files-found: error
-          retention-days: 1
 
       - name: Restaurar credenciales Google Play
         if: github.event.pull_request.draft == false
