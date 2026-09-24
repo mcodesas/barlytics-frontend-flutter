@@ -1,0 +1,36 @@
+﻿require "base64"
+
+default_platform(:ios)
+
+def app_store_key
+  app_store_connect_api_key(
+    key_id: ENV.fetch("APP_STORE_CONNECT_KEY_ID"),
+    issuer_id: ENV.fetch("APP_STORE_CONNECT_ISSUER_ID"),
+    key_content: ENV.fetch("APP_STORE_CONNECT_KEY_BASE64"),
+    is_key_content_base64: true
+  )
+end
+
+def match_basic_auth
+  Base64.strict_encode64(
+    "x-access-token:#{ENV.fetch("MATCH_GIT_TOKEN")}"
+  )
+end
+
+platform :ios do
+
+  desc "Crear y guardar certificados de distribución de BarLytics"
+  lane :setup_signing do
+    setup_ci if ENV["CI"]
+
+    match(
+      api_key: app_store_key,
+      type: "appstore",
+      app_identifier: "com.mcode.barlytics",
+      team_id: ENV.fetch("APPLE_TEAM_ID"),
+      readonly: false,
+      git_basic_authorization: match_basic_auth
+    )
+  end
+
+end
