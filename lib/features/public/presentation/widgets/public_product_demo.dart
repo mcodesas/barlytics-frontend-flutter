@@ -134,13 +134,13 @@ extension on PublicDemoDevice {
 
   double get targetWidth => switch (this) {
         PublicDemoDevice.desktop => 1120,
-        PublicDemoDevice.tablet => 760,
+        PublicDemoDevice.tablet => 512,
         PublicDemoDevice.phone => 390,
       };
 
   double get heightRatio => switch (this) {
         PublicDemoDevice.desktop => 0.62,
-        PublicDemoDevice.tablet => 0.82,
+        PublicDemoDevice.tablet => 1.50,
         PublicDemoDevice.phone => 1.95,
       };
 }
@@ -563,9 +563,9 @@ class _DemoMedia extends StatelessWidget {
       children: [
         Image.network(
           url,
-          fit: BoxFit.cover,
+          fit: BoxFit.contain,
           gaplessPlayback: false,
-          filterQuality: FilterQuality.medium,
+          filterQuality: FilterQuality.high,
           loadingBuilder: (context, child, progress) {
             if (progress == null) return child;
             return _MediaLoading(palette: palette, info: info);
@@ -948,7 +948,7 @@ class _MiniDeviceFrame extends StatelessWidget {
   Widget build(BuildContext context) {
     final aspect = switch (device) {
       PublicDemoDevice.desktop => 16 / 10,
-      PublicDemoDevice.tablet => 4 / 3,
+      PublicDemoDevice.tablet => 2 / 3,
       PublicDemoDevice.phone => 9 / 19.5,
     };
     return AspectRatio(
