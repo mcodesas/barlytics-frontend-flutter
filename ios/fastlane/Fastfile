@@ -1,4 +1,4 @@
-﻿require "base64"
+require "base64"
 
 default_platform(:ios)
 
@@ -17,6 +17,13 @@ def match_basic_auth
   )
 end
 
+def match_git_url
+  ENV.fetch(
+    "MATCH_GIT_URL",
+    "https://github.com/mcodesas/barlytics-ios-certificates.git"
+  )
+end
+
 platform :ios do
 
   desc "Crear y guardar certificados de distribución de BarLytics"
@@ -28,8 +35,73 @@ platform :ios do
       type: "appstore",
       app_identifier: "com.mcode.barlytics",
       team_id: ENV.fetch("APPLE_TEAM_ID"),
+      git_url: match_git_url,
       readonly: false,
       git_basic_authorization: match_basic_auth
+    )
+  end
+
+  desc "Compilar BarLytics y publicar una build en TestFlight"
+  lane :testflight do
+    setup_ci if ENV["CI"]
+
+    api_key = app_store_key
+    version = ENV.fetch("IOS_VERSION")
+    build_number = ENV.fetch("IOS_BUILD_NUMBER")
+
+    match(
+      api_key: api_key,
+      type: "appstore",
+      app_identifier: "com.mcode.barlytics",
+      team_id: ENV.fetch("APPLE_TEAM_ID"),
+      git_url: match_git_url,
+      readonly: false,
+      git_basic_authorization: match_basic_auth
+    )
+
+    profile_name = ENV["sigh_com.mcode.barlytics_appstore_profile-name"]
+    UI.user_error!("Fastlane Match no entregó el provisioning profile de com.mcode.barlytics") if profile_name.to_s.empty?
+
+    sh("cd .. && flutter pub get")
+    sh(
+      "cd .. && flutter build ios --release --no-codesign " \
+      "--build-name=#{version} " \
+      "--build-number=#{build_number} " \
+      "--dart-define=ENV=prod " \
+      "--dart-define=BARLYTICS_APP_VERSION=#{version} " \
+      "--dart-define=BARLYTICS_APP_BUILD=#{build_number}"
+    )
+
+    update_code_signing_settings(
+      use_automatic_signing: false,
+      path: "Runner.xcodeproj",
+      team_id: ENV.fetch("APPLE_TEAM_ID"),
+      code_sign_identity: "Apple Distribution",
+      profile_name: profile_name,
+      targets: ["Runner"]
+    )
+
+    build_app(
+      workspace: "Runner.xcworkspace",
+      scheme: "Runner",
+      configuration: "Release",
+      clean: false,
+      export_method: "app-store",
+      output_directory: "../build/ios/ipa",
+      output_name: "BarLytics.ipa",
+      export_options: {
+        provisioningProfiles: {
+          "com.mcode.barlytics" => profile_name
+        }
+      },
+      xcargs: "FLUTTER_BUILD_NAME=#{version} FLUTTER_BUILD_NUMBER=#{build_number}"
+    )
+
+    upload_to_testflight(
+      api_key: api_key,
+      ipa: "../build/ios/ipa/BarLytics.ipa",
+      changelog: ENV["IOS_CHANGELOG"],
+      skip_waiting_for_build_processing: true
     )
   end
 
