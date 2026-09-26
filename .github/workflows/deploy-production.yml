@@ -6,7 +6,6 @@ on:
     paths-ignore:
       - 'ios/**'
       - '.github/workflows/ios-*.yml'
-      - '.github/workflows/deploy-production.yml'
   workflow_dispatch:
 
 concurrency:
@@ -21,233 +20,7 @@ env:
   DOCKER_BUILD_RECORD_UPLOAD: "false"
 
 jobs:
-  test:
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Docker Buildx
-        uses: docker/setup-buildx-action@v3
-
-      - name: Analisis y pruebas Flutter
-        uses: docker/build-push-action@v6
-        with:
-          context: .
-          target: test
-          push: false
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
-
-  windows-installer:
-    needs: test
-    runs-on: windows-latest
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Configurar Flutter
-        uses: subosito/flutter-action@v2
-        with:
-          flutter-version: '3.41.9'
-          channel: stable
-          cache: true
-
-      - name: Preparar dependencias
-        shell: pwsh
-        run: |
-          flutter config --enable-windows-desktop
-          flutter pub get
-
-      - name: Compilar Windows release
-        shell: pwsh
-        run: |
-          $versionLine = Select-String -Path pubspec.yaml -Pattern '^version:\s*([^+\s]+)\+([0-9]+)'
-          if (-not $versionLine) { throw 'No fue posible obtener version y build desde pubspec.yaml' }
-          $version = $versionLine.Matches[0].Groups[1].Value
-          $build = $env:GITHUB_RUN_NUMBER
-          flutter build windows --release `
-            --dart-define=ENV=prod `
-            --dart-define=BARLYTICS_APP_VERSION=$version `
-            --dart-define=BARLYTICS_APP_BUILD=$build
-
-      - name: Generar instalador EXE
-        shell: pwsh
-        run: |
-          $versionLine = Select-String -Path pubspec.yaml -Pattern '^version:\s*([0-9]+\.[0-9]+\.[0-9]+)'
-          if (-not $versionLine) { throw 'No fue posible obtener la version desde pubspec.yaml' }
-          $version = $versionLine.Matches[0].Groups[1].Value
-
-          choco install innosetup -y --no-progress
-          $iscc = "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe"
-          if (-not (Test-Path $iscc)) { throw "No se encontro ISCC.exe en $iscc" }
-
-          $buildDir = (Resolve-Path 'build\windows\x64\runner\Release').Path
-          & $iscc "/DMyAppVersion=$version" "/DBuildDir=$buildDir" "deploy\windows\barlytics.iss"
-          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-
-      - name: Subir instalador Windows
-        uses: actions/upload-artifact@v4
-        with:
-          name: barlytics-windows-installer
-          path: build/installers/windows/BarLytics-Windows-Setup.exe
-          if-no-files-found: error
-          retention-days: 1
-
-  linux-installer:
-    needs: test
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Dependencias Linux
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y \
-            clang cmake ninja-build pkg-config libgtk-3-dev liblzma-dev \
-            libsecret-1-dev libjsoncpp-dev dpkg-dev
-
-      - name: Configurar Flutter
-        uses: subosito/flutter-action@v2
-        with:
-          flutter-version: '3.41.9'
-          channel: stable
-          cache: true
-
-      - name: Preparar plataforma Linux
-        run: |
-          flutter config --enable-linux-desktop
-          if [ ! -d linux ]; then
-            flutter create --platforms=linux --project-name=barlytics_frontend .
-          fi
-          flutter pub get
-
-      - name: Compilar Linux release
-        run: |
-          VERSION="$(sed -nE 's/^version:[[:space:]]*([^+[:space:]]+)\+([0-9]+).*/\1/p' pubspec.yaml | head -n1)"
-          BUILD="$GITHUB_RUN_NUMBER"
-          test -n "$VERSION"
-          test -n "$BUILD"
-          flutter build linux --release \
-            --dart-define=ENV=prod \
-            --dart-define=BARLYTICS_APP_VERSION="$VERSION" \
-            --dart-define=BARLYTICS_APP_BUILD="$BUILD"
-
-      - name: Generar paquete DEB
-        run: |
-          VERSION="$(sed -nE 's/^version:[[:space:]]*([0-9]+\.[0-9]+\.[0-9]+).*/\1/p' pubspec.yaml | head -n1)"
-          test -n "$VERSION"
-          bash deploy/linux/build-deb.sh "$VERSION"
-
-      - name: Subir instalador Linux
-        uses: actions/upload-artifact@v4
-        with:
-          name: barlytics-linux-installer
-          path: build/installers/linux/barlytics-linux-amd64.deb
-          if-no-files-found: error
-          retention-days: 1
-
-  macos-installer:
-    needs: test
-    runs-on: macos-latest
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Configurar Flutter
-        uses: subosito/flutter-action@v2
-        with:
-          flutter-version: '3.41.9'
-          channel: stable
-          cache: true
-
-      - name: Preparar dependencias
-        run: |
-          flutter config --enable-macos-desktop
-          flutter pub get
-
-      - name: Compilar macOS release
-        run: |
-          VERSION="$(sed -nE 's/^version:[[:space:]]*([^+[:space:]]+)\+([0-9]+).*/\1/p' pubspec.yaml | head -n1)"
-          BUILD="$GITHUB_RUN_NUMBER"
-          test -n "$VERSION"
-          test -n "$BUILD"
-          flutter build macos --release \
-            --dart-define=ENV=prod \
-            --dart-define=BARLYTICS_APP_VERSION="$VERSION" \
-            --dart-define=BARLYTICS_APP_BUILD="$BUILD"
-
-      - name: Generar instalador DMG
-        run: bash deploy/macos/build-dmg.sh
-
-      - name: Subir instalador macOS
-        uses: actions/upload-artifact@v4
-        with:
-          name: barlytics-macos-installer
-          path: build/installers/macos/BarLytics-macOS.dmg
-          if-no-files-found: error
-          retention-days: 1
-
-  android-bundle:
-    needs: test
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Java 17
-        uses: actions/setup-java@v4
-        with:
-          distribution: temurin
-          java-version: '17'
-
-      - name: Configurar Flutter
-        uses: subosito/flutter-action@v2
-        with:
-          flutter-version: '3.41.9'
-          channel: stable
-          cache: true
-
-      - name: Preparar dependencias
-        run: flutter pub get
-
-      - name: Restaurar firma Android
-        env:
-          ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
-          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
-          ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
-          ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
-        run: |
-          test -n "$ANDROID_KEYSTORE_BASE64" || { echo "Falta el secret ANDROID_KEYSTORE_BASE64"; exit 1; }
-          test -n "$ANDROID_KEYSTORE_PASSWORD" || { echo "Falta el secret ANDROID_KEYSTORE_PASSWORD"; exit 1; }
-          test -n "$ANDROID_KEY_ALIAS" || { echo "Falta el secret ANDROID_KEY_ALIAS"; exit 1; }
-          test -n "$ANDROID_KEY_PASSWORD" || { echo "Falta el secret ANDROID_KEY_PASSWORD"; exit 1; }
-
-          printf '%s' "$ANDROID_KEYSTORE_BASE64" | base64 --decode > android/app/upload-keystore.jks
-
-          cat > android/key.properties <<EOF
-          storePassword=$ANDROID_KEYSTORE_PASSWORD
-          keyPassword=$ANDROID_KEY_PASSWORD
-          keyAlias=$ANDROID_KEY_ALIAS
-          storeFile=upload-keystore.jks
-          EOF
-
-      - name: Compilar Android App Bundle
-        run: |
-          VERSION="$(sed -nE 's/^version:[[:space:]]*([^+[:space:]]+).*/\1/p' pubspec.yaml | head -n1)"
-          BUILD="${GITHUB_RUN_NUMBER}"
-          test -n "$VERSION"
-          flutter build appbundle --release \
-            --build-name="$VERSION" \
-            --build-number="$BUILD" \
-            --dart-define=ENV=prod \
-            --dart-define=BARLYTICS_APP_VERSION="$VERSION" \
-            --dart-define=BARLYTICS_APP_BUILD="$BUILD"
-
-
   image:
-    needs: [test, windows-installer, linux-installer, macos-installer, android-bundle]
     runs-on: ubuntu-latest
     outputs:
       tag: sha-${{ github.sha }}
@@ -255,87 +28,17 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Descargar instalador Windows para el sitio publico
-        uses: actions/download-artifact@v4
-        with:
-          name: barlytics-windows-installer
-          path: web/downloads
-
-      - name: Descargar instalador Linux para el sitio publico
-        uses: actions/download-artifact@v4
-        with:
-          name: barlytics-linux-installer
-          path: web/downloads
-
-      - name: Descargar instalador macOS para el sitio publico
-        uses: actions/download-artifact@v4
-        with:
-          name: barlytics-macos-installer
-          path: web/downloads
-
-      - name: Generar manifiesto de actualizaciones
-        env:
-          ANDROID_UPDATE_ENABLED: ${{ vars.BARLYTICS_ANDROID_UPDATE_ENABLED }}
-          IOS_UPDATE_ENABLED: ${{ vars.BARLYTICS_IOS_UPDATE_ENABLED }}
-          UPDATE_MANDATORY: ${{ vars.BARLYTICS_UPDATE_MANDATORY }}
+      - name: Conservar instaladores publicados
         run: |
-          VERSION="$(sed -nE 's/^version:[[:space:]]*([^+[:space:]]+).*/\1/p' pubspec.yaml | head -n1)"
-          BUILD="$GITHUB_RUN_NUMBER"
-          test -n "$VERSION"
-          test -n "$BUILD"
-
-          WINDOWS_SHA256="$(sha256sum web/downloads/BarLytics-Windows-Setup.exe | awk '{print $1}')"
-          MACOS_SHA256="$(sha256sum web/downloads/BarLytics-macOS.dmg | awk '{print $1}')"
-          LINUX_SHA256="$(sha256sum web/downloads/barlytics-linux-amd64.deb | awk '{print $1}')"
-          ANDROID_ENABLED=false
-          IOS_ENABLED=false
-          MANDATORY=false
-          if [ "${ANDROID_UPDATE_ENABLED:-}" = "true" ]; then ANDROID_ENABLED=true; fi
-          if [ "${IOS_UPDATE_ENABLED:-}" = "true" ]; then IOS_ENABLED=true; fi
-          if [ "${UPDATE_MANDATORY:-}" = "true" ]; then MANDATORY=true; fi
-
-          cat > web/downloads/latest.json <<JSON
-          {
-            "schemaVersion": 1,
-            "version": "$VERSION",
-            "build": $BUILD,
-            "publishedAt": "$(date -u +%Y-%m-%dT%H:%M:%SZ)",
-            "mandatory": $MANDATORY,
-            "releaseNotes": "Nueva versión de BarLytics con mejoras y correcciones.",
-            "commit": "${GITHUB_SHA}",
-            "windows": "https://www.barlytics.com.co/downloads/BarLytics-Windows-Setup.exe",
-            "macos": "https://www.barlytics.com.co/downloads/BarLytics-macOS.dmg",
-            "linux": "https://www.barlytics.com.co/downloads/barlytics-linux-amd64.deb",
-            "platforms": {
-              "windows": {
-                "url": "https://www.barlytics.com.co/downloads/BarLytics-Windows-Setup.exe",
-                "sha256": "$WINDOWS_SHA256"
-              },
-              "macos": {
-                "url": "https://www.barlytics.com.co/downloads/BarLytics-macOS.dmg",
-                "sha256": "$MACOS_SHA256"
-              },
-              "linux": {
-                "url": "https://www.barlytics.com.co/downloads/barlytics-linux-amd64.deb",
-                "sha256": "$LINUX_SHA256"
-              },
-              "android": {
-                "enabled": $ANDROID_ENABLED
-              },
-              "ios": {
-                "enabled": $IOS_ENABLED
-              }
-            }
-          }
-          JSON
-
-      - name: Verificar descargas publicas
-        run: |
+          mkdir -p web/downloads
+          curl --fail --location --retry 3 -o web/downloads/BarLytics-Windows-Setup.exe https://www.barlytics.com.co/downloads/BarLytics-Windows-Setup.exe
+          curl --fail --location --retry 3 -o web/downloads/BarLytics-macOS.dmg https://www.barlytics.com.co/downloads/BarLytics-macOS.dmg
+          curl --fail --location --retry 3 -o web/downloads/barlytics-linux-amd64.deb https://www.barlytics.com.co/downloads/barlytics-linux-amd64.deb
+          curl --fail --location --retry 3 -o web/downloads/latest.json https://www.barlytics.com.co/downloads/latest.json
           test -s web/downloads/BarLytics-Windows-Setup.exe
           test -s web/downloads/BarLytics-macOS.dmg
           test -s web/downloads/barlytics-linux-amd64.deb
           test -s web/downloads/latest.json
-          ls -lh web/downloads
 
       - name: Docker Buildx
         uses: docker/setup-buildx-action@v3
@@ -347,7 +50,7 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Build y publicar imagen con instaladores
+      - name: Build y publicar frontend web
         uses: docker/build-push-action@v6
         with:
           context: .
@@ -404,34 +107,22 @@ jobs:
             echo "Intento ${intento}/30: estado=${status:-desconocido}"
 
             if [ "$status" = "healthy" ]; then
-              echo "Validando HTTP interno del frontend..."
-              if docker exec "$container_id" wget -q -O /dev/null http://127.0.0.1/healthz; then
-                echo "Validando instaladores publicados..."
-                docker exec "$container_id" test -s /usr/share/nginx/html/downloads/BarLytics-Windows-Setup.exe
-                docker exec "$container_id" test -s /usr/share/nginx/html/downloads/BarLytics-macOS.dmg
-                docker exec "$container_id" test -s /usr/share/nginx/html/downloads/barlytics-linux-amd64.deb
-                docker exec "$container_id" test -s /usr/share/nginx/html/downloads/latest.json
-                echo "Frontend e instaladores desplegados correctamente."
-                docker compose -f "$COMPOSE_FILE" ps frontend
-                exit 0
-              fi
-
-              echo "ERROR: el contenedor esta healthy pero /healthz no responde correctamente."
-              docker compose -f "$COMPOSE_FILE" logs --tail=200 frontend || true
-              exit 1
+              docker exec "$container_id" wget -q -O /dev/null http://127.0.0.1/healthz
+              docker exec "$container_id" test -s /usr/share/nginx/html/downloads/BarLytics-Windows-Setup.exe
+              docker exec "$container_id" test -s /usr/share/nginx/html/downloads/BarLytics-macOS.dmg
+              docker exec "$container_id" test -s /usr/share/nginx/html/downloads/barlytics-linux-amd64.deb
+              docker exec "$container_id" test -s /usr/share/nginx/html/downloads/latest.json
+              echo "Frontend web desplegado correctamente."
+              exit 0
             fi
 
             if [ "$status" = "unhealthy" ] || [ "$status" = "exited" ] || [ "$status" = "dead" ]; then
-              echo "ERROR: el frontend termino en estado $status."
               docker compose -f "$COMPOSE_FILE" logs --tail=200 frontend || true
               exit 1
             fi
-
             sleep 5
           done
 
-          echo "ERROR: el frontend no quedo healthy dentro de 150 segundos."
-          docker compose -f "$COMPOSE_FILE" ps frontend || true
           docker compose -f "$COMPOSE_FILE" logs --tail=200 frontend || true
           exit 1
           REMOTE
