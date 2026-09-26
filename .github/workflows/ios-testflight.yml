@@ -40,6 +40,9 @@ jobs:
         with:
           ruby-version: "3.3"
 
+      - name: Instalar CocoaPods
+        run: gem install cocoapods --no-document
+
       - name: Validar secretos de Apple
         env:
           APP_STORE_CONNECT_KEY_ID: ${{ secrets.APP_STORE_CONNECT_KEY_ID }}
