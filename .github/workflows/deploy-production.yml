@@ -3,6 +3,10 @@ name: Frontend Production
 on:
   push:
     branches: [main]
+    paths-ignore:
+      - 'ios/**'
+      - '.github/workflows/ios-*.yml'
+      - '.github/workflows/deploy-production.yml'
   workflow_dispatch:
 
 concurrency:
