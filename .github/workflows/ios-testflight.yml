@@ -8,6 +8,11 @@ on:
         required: false
         default: "Nueva versión de BarLytics con mejoras y correcciones."
   push:
+    branches:
+      - main
+    paths:
+      - 'ios/**'
+      - '.github/workflows/ios-testflight.yml'
     tags:
       - "ios-v*"
 
