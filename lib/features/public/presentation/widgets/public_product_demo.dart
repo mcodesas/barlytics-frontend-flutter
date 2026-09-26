@@ -2,6 +2,7 @@ import 'dart:math' as math;
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:video_player/video_player.dart';
 
 import '../../../../app/theme/app_palette.dart';
 import '../../../../core/config/public_site_config.dart';
@@ -134,13 +135,13 @@ extension on PublicDemoDevice {
 
   double get targetWidth => switch (this) {
         PublicDemoDevice.desktop => 1120,
-        PublicDemoDevice.tablet => 512,
+        PublicDemoDevice.tablet => 736,
         PublicDemoDevice.phone => 390,
       };
 
   double get heightRatio => switch (this) {
         PublicDemoDevice.desktop => 0.62,
-        PublicDemoDevice.tablet => 1.50,
+        PublicDemoDevice.tablet => 0.74,
         PublicDemoDevice.phone => 1.95,
       };
 }
@@ -558,24 +559,28 @@ class _DemoMedia extends StatelessWidget {
       return _MediaPlaceholder(palette: palette, device: device, info: info);
     }
 
+    final media = device == PublicDemoDevice.tablet
+        ? _TabletDemoVideo(url: url, palette: palette, info: info)
+        : Image.network(
+            url,
+            fit: BoxFit.contain,
+            gaplessPlayback: false,
+            filterQuality: FilterQuality.high,
+            loadingBuilder: (context, child, progress) {
+              if (progress == null) return child;
+              return _MediaLoading(palette: palette, info: info);
+            },
+            errorBuilder: (context, error, stackTrace) => _MediaPlaceholder(
+              palette: palette,
+              device: device,
+              info: info,
+            ),
+          );
+
     return Stack(
       fit: StackFit.expand,
       children: [
-        Image.network(
-          url,
-          fit: BoxFit.contain,
-          gaplessPlayback: false,
-          filterQuality: FilterQuality.high,
-          loadingBuilder: (context, child, progress) {
-            if (progress == null) return child;
-            return _MediaLoading(palette: palette, info: info);
-          },
-          errorBuilder: (context, error, stackTrace) => _MediaPlaceholder(
-            palette: palette,
-            device: device,
-            info: info,
-          ),
-        ),
+        media,
         Positioned(
           left: 12,
           bottom: 12,
@@ -597,6 +602,73 @@ class _DemoMedia extends StatelessWidget {
           ),
         ),
       ],
+    );
+  }
+}
+
+class _TabletDemoVideo extends StatefulWidget {
+  const _TabletDemoVideo({required this.url, required this.palette, required this.info});
+
+  final String url;
+  final AppPalette palette;
+  final _DemoModuleInfo info;
+
+  @override
+  State<_TabletDemoVideo> createState() => _TabletDemoVideoState();
+}
+
+class _TabletDemoVideoState extends State<_TabletDemoVideo> {
+  late final VideoPlayerController _controller;
+  bool _failed = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = VideoPlayerController.networkUrl(
+      Uri.parse(widget.url),
+      videoPlayerOptions: VideoPlayerOptions(mixWithOthers: true),
+    );
+    _initialize();
+  }
+
+  Future<void> _initialize() async {
+    try {
+      await _controller.initialize();
+      await _controller.setLooping(true);
+      await _controller.setVolume(0);
+      await _controller.play();
+      if (mounted) setState(() {});
+    } catch (_) {
+      if (mounted) setState(() => _failed = true);
+    }
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (_failed) {
+      return _MediaPlaceholder(
+        palette: widget.palette,
+        device: PublicDemoDevice.tablet,
+        info: widget.info,
+      );
+    }
+    if (!_controller.value.isInitialized) {
+      return _MediaLoading(palette: widget.palette, info: widget.info);
+    }
+    return ColoredBox(
+      color: Colors.black,
+      child: Center(
+        child: AspectRatio(
+          aspectRatio: _controller.value.aspectRatio,
+          child: VideoPlayer(_controller),
+        ),
+      ),
     );
   }
 }
@@ -634,7 +706,8 @@ class _MediaPlaceholder extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final relativePath = 'web/demos/${device.folder}/${info.slug}.gif';
+    final extension = device == PublicDemoDevice.tablet ? 'mp4' : 'gif';
+    final relativePath = 'web/demos/${device.folder}/${info.slug}.$extension';
     return DecoratedBox(
       decoration: BoxDecoration(
         gradient: LinearGradient(
@@ -745,7 +818,7 @@ class _MediaPlaceholder extends StatelessWidget {
                           ),
                           const SizedBox(height: 8),
                           Text(
-                            'No mostramos una maqueta inventada. Cuando agregues el GIF capturado desde BarLytics, aparecerá automáticamente en este marco.',
+                            'No mostramos una maqueta inventada. Cuando agregues la grabación real de BarLytics, aparecerá automáticamente en este marco.',
                             textAlign: TextAlign.center,
                             style: TextStyle(color: palette.textSecondary, fontWeight: FontWeight.w600, height: 1.45, fontSize: 11.5),
                           ),
@@ -948,7 +1021,7 @@ class _MiniDeviceFrame extends StatelessWidget {
   Widget build(BuildContext context) {
     final aspect = switch (device) {
       PublicDemoDevice.desktop => 16 / 10,
-      PublicDemoDevice.tablet => 2 / 3,
+      PublicDemoDevice.tablet => 736 / 512,
       PublicDemoDevice.phone => 9 / 19.5,
     };
     return AspectRatio(
@@ -1024,7 +1097,8 @@ String _demoMediaUrl(PublicDemoDevice device, String slug) {
   final base = PublicSiteConfig.demoMediaBaseUrl.trim();
   if (base.isEmpty) return '';
   final normalized = base.endsWith('/') ? base.substring(0, base.length - 1) : base;
-  final relative = '$normalized/${device.folder}/$slug.gif';
+  final extension = device == PublicDemoDevice.tablet ? 'mp4' : 'gif';
+  final relative = '$normalized/${device.folder}/$slug.$extension';
   if (normalized.startsWith('http://') || normalized.startsWith('https://')) return relative;
   if (!kIsWeb) return '';
   return Uri.base.resolve(relative).toString();
