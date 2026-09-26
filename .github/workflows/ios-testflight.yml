@@ -40,9 +40,6 @@ jobs:
         with:
           ruby-version: "3.3"
 
-      - name: Instalar CocoaPods
-        run: gem install cocoapods --no-document
-
       - name: Validar secretos de Apple
         env:
           APP_STORE_CONNECT_KEY_ID: ${{ secrets.APP_STORE_CONNECT_KEY_ID }}
@@ -62,13 +59,19 @@ jobs:
       - name: Preparar dependencias Flutter
         run: flutter pub get
 
-      - name: Instalar dependencias Ruby
+      - name: Instalar dependencias Ruby y CocoaPods
         working-directory: ios
-        run: bundle install
+        run: |
+          bundle install
+          RUBY_BINDIR="$(ruby -e 'require "rbconfig"; print RbConfig::CONFIG["bindir"]')"
+          GEM_BINDIR="$(ruby -e 'print Gem.bindir')"
+          echo "$RUBY_BINDIR" >> "$GITHUB_PATH"
+          echo "$GEM_BINDIR" >> "$GITHUB_PATH"
+          "$GEM_BINDIR/pod" --version
 
       - name: Instalar Pods
         working-directory: ios
-        run: bundle exec pod install --repo-update || pod install --repo-update
+        run: bundle exec pod install --repo-update
 
       - name: Preparar versión y número de build
         shell: bash
