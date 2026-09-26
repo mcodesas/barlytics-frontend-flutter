@@ -1,0 +1,103 @@
+name: iOS - TestFlight
+
+on:
+  workflow_dispatch:
+    inputs:
+      release_notes:
+        description: "Notas de esta build para TestFlight"
+        required: false
+        default: "Nueva versión de BarLytics con mejoras y correcciones."
+  push:
+    tags:
+      - "ios-v*"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: barlytics-ios-testflight
+  cancel-in-progress: false
+
+jobs:
+  testflight:
+    name: Compilar IPA y publicar en TestFlight
+    runs-on: macos-latest
+    timeout-minutes: 60
+
+    steps:
+      - name: Descargar proyecto
+        uses: actions/checkout@v4
+
+      - name: Configurar Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: "3.41.9"
+          channel: stable
+          cache: true
+
+      - name: Configurar Ruby
+        uses: ruby/setup-ruby@v1
+        with:
+          ruby-version: "3.3"
+
+      - name: Validar secretos de Apple
+        env:
+          APP_STORE_CONNECT_KEY_ID: ${{ secrets.APP_STORE_CONNECT_KEY_ID }}
+          APP_STORE_CONNECT_ISSUER_ID: ${{ secrets.APP_STORE_CONNECT_ISSUER_ID }}
+          APP_STORE_CONNECT_KEY_BASE64: ${{ secrets.APP_STORE_CONNECT_KEY_BASE64 }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+          MATCH_GIT_TOKEN: ${{ secrets.MATCH_GIT_TOKEN }}
+          MATCH_PASSWORD: ${{ secrets.MATCH_PASSWORD }}
+        run: |
+          test -n "$APP_STORE_CONNECT_KEY_ID" || { echo "Falta APP_STORE_CONNECT_KEY_ID"; exit 1; }
+          test -n "$APP_STORE_CONNECT_ISSUER_ID" || { echo "Falta APP_STORE_CONNECT_ISSUER_ID"; exit 1; }
+          test -n "$APP_STORE_CONNECT_KEY_BASE64" || { echo "Falta APP_STORE_CONNECT_KEY_BASE64"; exit 1; }
+          test -n "$APPLE_TEAM_ID" || { echo "Falta APPLE_TEAM_ID"; exit 1; }
+          test -n "$MATCH_GIT_TOKEN" || { echo "Falta MATCH_GIT_TOKEN"; exit 1; }
+          test -n "$MATCH_PASSWORD" || { echo "Falta MATCH_PASSWORD"; exit 1; }
+
+      - name: Preparar dependencias Flutter
+        run: flutter pub get
+
+      - name: Instalar dependencias Ruby
+        working-directory: ios
+        run: bundle install
+
+      - name: Instalar Pods
+        working-directory: ios
+        run: bundle exec pod install --repo-update || pod install --repo-update
+
+      - name: Preparar versión y número de build
+        shell: bash
+        run: |
+          VERSION="$(sed -nE 's/^version:[[:space:]]*([^+[:space:]]+).*/\1/p' pubspec.yaml | head -n1)"
+          BUILD_NUMBER="$(date -u +%Y%m%d%H%M)${GITHUB_RUN_ATTEMPT}"
+
+          test -n "$VERSION"
+          test -n "$BUILD_NUMBER"
+
+          echo "IOS_VERSION=$VERSION" >> "$GITHUB_ENV"
+          echo "IOS_BUILD_NUMBER=$BUILD_NUMBER" >> "$GITHUB_ENV"
+          echo "BarLytics iOS: version=$VERSION build=$BUILD_NUMBER"
+
+      - name: Compilar y publicar en TestFlight
+        working-directory: ios
+        env:
+          APP_STORE_CONNECT_KEY_ID: ${{ secrets.APP_STORE_CONNECT_KEY_ID }}
+          APP_STORE_CONNECT_ISSUER_ID: ${{ secrets.APP_STORE_CONNECT_ISSUER_ID }}
+          APP_STORE_CONNECT_KEY_BASE64: ${{ secrets.APP_STORE_CONNECT_KEY_BASE64 }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+          MATCH_GIT_URL: "https://github.com/mcodesas/barlytics-ios-certificates.git"
+          MATCH_GIT_TOKEN: ${{ secrets.MATCH_GIT_TOKEN }}
+          MATCH_PASSWORD: ${{ secrets.MATCH_PASSWORD }}
+          IOS_CHANGELOG: ${{ github.event.inputs.release_notes || 'Nueva versión de BarLytics con mejoras y correcciones.' }}
+        run: bundle exec fastlane ios testflight
+
+      - name: Subir IPA como artefacto
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: barlytics-ios-ipa
+          path: build/ios/ipa/BarLytics.ipa
+          if-no-files-found: ignore
+          retention-days: 1
