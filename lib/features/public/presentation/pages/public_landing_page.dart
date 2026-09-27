@@ -229,17 +229,18 @@ class _PublicLandingPageState extends ConsumerState<PublicLandingPage> {
   }
 
   Future<void> _download(String platform) async {
-    final url = _siteConfig.downloadUrlFor(platform).trim();
-    if (url.isEmpty) {
-      if (!mounted) return;
-      ScaffoldMessenger.of(context)
-        ..hideCurrentSnackBar()
-        ..showSnackBar(SnackBar(content: Text('La descarga para $platform estará disponible próximamente.')));
-      return;
-    }
-    final uri = Uri.tryParse(url);
-    if (uri == null) return;
-    await launchUrl(uri, mode: LaunchMode.externalApplication);
+    final slug = switch (platform.toLowerCase()) {
+      'windows' => 'windows',
+      'macos' => 'macos',
+      'ios' => 'ios',
+      'android' => 'android',
+      'linux' => 'linux',
+      _ => null,
+    };
+    if (slug == null) return;
+
+    final uri = Uri.base.resolve('/descargas/$slug/');
+    await launchUrl(uri, webOnlyWindowName: '_self');
   }
 
   @override
@@ -1863,7 +1864,7 @@ class _DownloadsSection extends StatelessWidget {
                   platform: item.$1,
                   icon: item.$2,
                   description: item.$3,
-                  available: !loading && config.downloadUrlFor(item.$1).trim().isNotEmpty,
+                  available: true,
                   onTap: () => onDownload(item.$1),
                 ),
               ),
