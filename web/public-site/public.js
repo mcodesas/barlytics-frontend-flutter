@@ -411,10 +411,35 @@
   const renderDownloads = async () => {
     const nodes = document.querySelectorAll('[data-download-platform]');
     if (!nodes.length) return;
+
+    const config = await siteConfig();
+    const storeUrls = {
+      android: String(config.androidDownloadUrl || '').trim(),
+      ios: String(config.iosDownloadUrl || '').trim(),
+    };
+
     nodes.forEach((node) => {
       const platform = String(node.dataset.downloadPlatform || '').toLowerCase();
       const button = node.querySelector('[data-download-button]');
       if (!button || !DOWNLOAD_PLATFORMS.has(platform)) return;
+
+      if (platform === 'android' || platform === 'ios') {
+        const url = storeUrls[platform];
+        if (!url) {
+          button.textContent = 'Próximamente';
+          button.setAttribute('aria-disabled', 'true');
+          button.removeAttribute('href');
+          return;
+        }
+        button.href = url;
+        button.textContent = platform === 'android' ? 'Abrir Play Store' : 'Abrir App Store';
+        button.removeAttribute('aria-disabled');
+        button.setAttribute('target', '_blank');
+        button.setAttribute('rel', 'noopener noreferrer');
+        button.removeAttribute('data-full-navigation');
+        return;
+      }
+
       button.href = `/descargas/${platform}/`;
       button.textContent = 'Continuar';
       button.removeAttribute('aria-disabled');
