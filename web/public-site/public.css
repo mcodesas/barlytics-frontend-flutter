@@ -266,11 +266,11 @@ h1 { max-width: 980px; margin-inline: auto; margin-bottom: 20px; font-size: clam
 .feature-rail-arrow:hover { border-color:rgba(56,189,248,.35); background:rgba(8,40,58,.96); }
 .feature-rail-arrow--prev { left:0; }
 .feature-rail-arrow--next { right:0; }
-.feature-stage { display:grid; grid-template-columns:minmax(0,2fr) minmax(260px,.62fr); gap:18px; align-items:stretch; margin-top:12px; }
+.feature-stage { display:grid; grid-template-columns:minmax(0,2.05fr) minmax(260px,.62fr); gap:16px; align-items:stretch; margin-top:12px; }
 .device-frame-wrap {
   display:grid;
   place-items:center;
-  min-height:640px;
+  min-height:650px;
   padding:18px;
   overflow:hidden;
   border:1px solid rgba(56,189,248,.10);
@@ -290,8 +290,8 @@ h1 { max-width: 980px; margin-inline: auto; margin-bottom: 20px; font-size: clam
   box-shadow:0 22px 46px rgba(0,0,0,.42),0 0 38px rgba(56,189,248,.08);
   transition:width .28s ease, aspect-ratio .28s ease, border-radius .28s ease;
 }
-.device-frame.tablet { width:min(100%,760px); aspect-ratio:736/512; border-radius:30px; border-width:6px; }
-.device-frame.phone { width:min(100%,330px); aspect-ratio:512/1108; border-radius:40px; border-width:7px; }
+.device-frame.tablet { width:min(96%,760px); aspect-ratio:1.4375/1; border-radius:32px; border-width:6px; }
+.device-frame.phone { width:min(100%,330px); aspect-ratio:512/1108; border-radius:42px; border-width:7px; }
 .desktop-status { height:42px; display:flex; align-items:center; gap:13px; padding:0 13px; background:#07131c; color:rgba(255,255,255,.72); }
 .window-dots { display:flex; gap:6px; }
 .window-dots i { width:9px; height:9px; border-radius:50%; background:rgba(255,255,255,.36); }
@@ -792,13 +792,11 @@ details p { padding: 0 20px 18px; margin: 0; color: var(--muted); line-height: 1
   .feature-tab-card { flex-basis:112px; }
   .device-frame-wrap { min-height:0; padding:18px 8px; }
   .device-frame.desktop { width:100%; }
-  .device-frame.tablet { width:min(100%,560px); }
-  .device-frame.phone { width:min(82%,310px); }
+  .device-frame.tablet { width:min(100%,620px); }
+  .device-frame.phone { width:min(82%,330px); }
   .feature-detail { padding:18px; }
-  .feature-detail > p { margin-top:13px; line-height:1.6; }
-  .feature-benefits { margin-top:13px; }
-  .feature-outcome { margin-top:13px; }
-  .replay-button { margin-top:18px; padding-top:0; }
+  .feature-detail > p { margin-top:14px; line-height:1.6; }
+  .feature-benefits,.feature-outcome { margin-top:14px; }
   .feature-detail { padding:20px; }
   .about-story__grid { grid-template-columns:1fr; }
   .about-value { min-height:0; }
