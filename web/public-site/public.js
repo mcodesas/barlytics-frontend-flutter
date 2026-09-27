@@ -22,12 +22,15 @@
     {slug:'roles', name:'Roles y permisos', icon:'◆', description:'Define qué puede ver y ejecutar cada perfil mediante roles, opciones de menú y permisos. El equipo accede solo a las herramientas necesarias para su responsabilidad.', benefits:['Permisos personalizados','Menús por rol','Separación de funciones'], outcome:'Dar autonomía al equipo sin perder control sobre el sistema.'}
   ];
 
-  const VIDEO_DEMO_SLUGS = new Set(['inicio','mesas','venta-rapida','cuenta','cobro','inventario','productos','reportes','roles']);
+  const VIDEO_DEMO_SLUGS = {
+    phone: new Set(['inicio','mesas','venta-rapida','cuenta','cobro','inventario','productos','reportes','roles','historial-ventas']),
+    tablet: new Set(['inicio','mesas','venta-rapida','cuenta','cobro','inventario','productos','reportes','roles','historial-ventas','precios','movimientos'])
+  };
   const demoMediaPath = (deviceKey, slug) => {
     const device = DEVICES[deviceKey];
     if (!device) return '';
     if (deviceKey === 'desktop') return `/demos/${device.dir}/${slug}.gif`;
-    return VIDEO_DEMO_SLUGS.has(slug) ? `/demos/${device.dir}/${slug}.mp4` : '';
+    return VIDEO_DEMO_SLUGS[deviceKey]?.has(slug) ? `/demos/${device.dir}/${slug}.mp4` : '';
   };
 
   let demoPreloadStarted = false;
@@ -35,7 +38,7 @@
     if (demoPreloadStarted) return;
     demoPreloadStarted = true;
     const queue = ['phone','tablet'].flatMap((deviceKey) =>
-      [...VIDEO_DEMO_SLUGS].map((slug) => demoMediaPath(deviceKey, slug))
+      [...VIDEO_DEMO_SLUGS[deviceKey]].map((slug) => demoMediaPath(deviceKey, slug))
     );
     let index = 0;
     const next = () => {
