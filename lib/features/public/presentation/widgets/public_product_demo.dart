@@ -1075,7 +1075,7 @@ class PublicHeroDemoPreview extends StatelessWidget {
     final phoneInfo = _infoFor(_DemoModule.ventaRapida);
 
     return AspectRatio(
-      aspectRatio: 1.16,
+      aspectRatio: 80 / 43,
       child: Stack(
         clipBehavior: Clip.none,
         children: [
