@@ -229,11 +229,28 @@ class _PublicLandingPageState extends ConsumerState<PublicLandingPage> {
   }
 
   Future<void> _download(String platform) async {
-    final slug = switch (platform.toLowerCase()) {
+    final normalized = platform.toLowerCase();
+
+    if (normalized == 'android' || normalized == 'ios') {
+      final url = _siteConfig.downloadUrlFor(platform).trim();
+      if (url.isEmpty) {
+        if (!mounted) return;
+        ScaffoldMessenger.of(context)
+          ..hideCurrentSnackBar()
+          ..showSnackBar(
+            SnackBar(content: Text('El enlace para $platform estará disponible próximamente.')),
+          );
+        return;
+      }
+      final uri = Uri.tryParse(url);
+      if (uri == null) return;
+      await launchUrl(uri, mode: LaunchMode.externalApplication);
+      return;
+    }
+
+    final slug = switch (normalized) {
       'windows' => 'windows',
       'macos' => 'macos',
-      'ios' => 'ios',
-      'android' => 'android',
       'linux' => 'linux',
       _ => null,
     };
@@ -1837,9 +1854,9 @@ class _DownloadsSection extends StatelessWidget {
     final items = <(String, IconData, String)>[
       ('Windows', Icons.window_rounded, 'Instalador .exe'),
       ('macOS', Icons.laptop_mac_rounded, 'Instalador .dmg para Mac'),
-      ('iOS', Icons.phone_iphone_rounded, 'iPhone y iPad'),
+      ('iOS', Icons.apple, 'iPhone y iPad'),
       ('Android', Icons.android_rounded, 'Celulares y tablets'),
-      ('Linux', Icons.computer_rounded, 'Paquete .deb para Linux'),
+      ('Linux', Icons.flutter_dash_rounded, 'Paquete .deb para Linux'),
     ];
     return LayoutBuilder(
       builder: (context, constraints) {
@@ -1864,7 +1881,10 @@ class _DownloadsSection extends StatelessWidget {
                   platform: item.$1,
                   icon: item.$2,
                   description: item.$3,
-                  available: true,
+                  available: switch (item.$1.toLowerCase()) {
+                    'android' || 'ios' => !loading && config.downloadUrlFor(item.$1).trim().isNotEmpty,
+                    _ => true,
+                  },
                   onTap: () => onDownload(item.$1),
                 ),
               ),
