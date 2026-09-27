@@ -23,7 +23,7 @@
   ];
 
   const VIDEO_DEMO_SLUGS = {
-    phone: new Set(['inicio','mesas','venta-rapida','cuenta','cobro','inventario','productos','reportes','roles','historial-ventas']),
+    phone: new Set(['inicio','mesas','venta-rapida','cuenta','cobro','inventario','productos','reportes','roles','historial-ventas','precios','movimientos']),
     tablet: new Set(['inicio','mesas','venta-rapida','cuenta','cobro','inventario','productos','reportes','roles','historial-ventas','precios','movimientos'])
   };
   const demoMediaPath = (deviceKey, slug) => {
