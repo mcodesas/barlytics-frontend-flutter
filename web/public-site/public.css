@@ -304,6 +304,9 @@ h1 { max-width: 980px; margin-inline: auto; margin-bottom: 20px; font-size: clam
 .dynamic-island { position:absolute; top:6px; left:50%; width:58px; height:17px; transform:translateX(-50%); border-radius:99px; background:#000; }
 .device-screen { position:relative; flex:1; display:grid; place-items:center; overflow:hidden; padding:24px; background:linear-gradient(145deg,#061723,#0b2c3c); color:var(--muted); text-align:center; }
 .device-screen img { position:absolute; inset:0; width:100%; height:100%; object-fit:cover; background:#061723; }
+.device-screen video { position:absolute; inset:0; width:100%; height:100%; object-fit:contain; background:#061723; }
+.device-frame.phone .device-screen { padding:0; }
+.device-frame.tablet .device-screen { padding:0; }
 .demo-placeholder { display:grid; place-items:center; gap:9px; max-width:420px; }
 .demo-placeholder__icon { display:grid; place-items:center; width:64px; height:64px; border:1px solid rgba(56,189,248,.22); border-radius:20px; color:var(--accent-2); background:rgba(56,189,248,.10); font-size:29px; }
 .demo-placeholder strong { color:var(--text); font-size:16px; }
