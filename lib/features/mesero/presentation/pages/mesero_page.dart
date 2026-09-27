@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 import 'dart:typed_data';
 import 'package:file_picker/file_picker.dart';
@@ -279,17 +280,41 @@ class _MeseroPageState extends ConsumerState<MeseroPage> {
   }
 
   Future<void> _load() async {
-    final results = await Future.wait([
-      _dataSource.listarMesas(),
-      _dataSource.listarProductos(),
-      _dataSource.listarMediosPago(),
-      _dataSource.listarVentasDirectasAbiertas(),
-    ]);
-    _mesas = results[0] as List<MeseroMesaResumenModel>;
-    _productos = results[1] as List<MeseroProductoModel>;
-    _mediosPago = results[2] as List<MeseroMedioPagoModel>;
-    _ventasDirectasAbiertas = results[3] as List<MeseroVentaModel>;
+    // Mesas es el dato crítico para pintar la operación. Catálogo, medios de
+    // pago y ventas directas se cargan después sin bloquear la primera vista.
+    _mesas = await _dataSource.listarMesas();
     _cargaInicialCompletada = true;
+    unawaited(_loadSecondaryOperationData());
+  }
+
+  Future<void> _loadSecondaryOperationData() async {
+    final productosFuture = _dataSource.listarProductos();
+    final mediosFuture = _dataSource.listarMediosPago();
+    final directasFuture = _dataSource.listarVentasDirectasAbiertas();
+
+    try {
+      final productos = await productosFuture;
+      if (!mounted) return;
+      setState(() => _productos = productos);
+    } catch (_) {
+      // La operación de mesas debe seguir disponible aunque falle el catálogo.
+    }
+
+    try {
+      final medios = await mediosFuture;
+      if (!mounted) return;
+      setState(() => _mediosPago = medios);
+    } catch (_) {
+      // Los medios se reintentarán cuando una acción los vuelva a solicitar.
+    }
+
+    try {
+      final directas = await directasFuture;
+      if (!mounted) return;
+      setState(() => _ventasDirectasAbiertas = directas);
+    } catch (_) {
+      // Una lista secundaria no debe bloquear la vista principal.
+    }
   }
 
   Future<void> _reload() async {
@@ -321,7 +346,14 @@ class _MeseroPageState extends ConsumerState<MeseroPage> {
   }
 
   Future<List<MeseroVentaModel>> _cargarHistorialVentas() async {
-    final ventas = await _dataSource.historialVentas();
+    final filtro = _historialDiaFiltro;
+    final fecha = filtro == null ? null : _fechaIso(filtro);
+    final ventas = await _dataSource.historialVentas(
+      desde: fecha,
+      hasta: fecha,
+      pagina: 0,
+      tamano: filtro == null ? 200 : 500,
+    );
     _historialVentas = ventas;
     return ventas;
   }
