@@ -315,7 +315,9 @@
   };
 
   let siteConfigPromise;
-  const siteConfig = () => siteConfigPromise ||= apiJson('/api/v1/parametros/public/site').catch(() => ({}));
+  const siteConfig = () => siteConfigPromise ||= apiJson('/api/v1/parametros/public/site')
+    .then((config) => ({ ...config, turnstileSiteKey: '0x4AAAAAAFFUhgh2d9bsD9xw' }))
+    .catch(() => ({ turnstileSiteKey: '0x4AAAAAAFFUhgh2d9bsD9xw' }));
 
   const formatMoney = (value, currency = 'COP') => {
     try { return new Intl.NumberFormat('es-CO', {style: 'currency', currency, maximumFractionDigits: 0}).format(Number(value || 0)); }
