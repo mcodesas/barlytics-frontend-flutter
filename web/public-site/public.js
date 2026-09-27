@@ -39,13 +39,13 @@
   ];
 
   const VIDEO_DEMO_SLUGS = {
+    desktop: new Set(['inicio','mesas','venta-rapida','cuenta','cobro','inventario','productos','reportes','roles','historial-ventas','precios','movimientos']),
     phone: new Set(['inicio','mesas','venta-rapida','cuenta','cobro','inventario','productos','reportes','roles','historial-ventas','precios','movimientos']),
     tablet: new Set(['inicio','mesas','venta-rapida','cuenta','cobro','inventario','productos','reportes','roles','historial-ventas','precios','movimientos'])
   };
   const demoMediaPath = (deviceKey, slug) => {
     const device = DEVICES[deviceKey];
     if (!device) return '';
-    if (deviceKey === 'desktop') return `/demos/${device.dir}/${slug}.gif`;
     return VIDEO_DEMO_SLUGS[deviceKey]?.has(slug) ? `/demos/${device.dir}/${slug}.mp4` : '';
   };
 
@@ -53,7 +53,7 @@
   const preloadDemoVideos = () => {
     if (demoPreloadStarted) return;
     demoPreloadStarted = true;
-    const queue = ['phone','tablet'].flatMap((deviceKey) =>
+    const queue = ['desktop','phone','tablet'].flatMap((deviceKey) =>
       [...VIDEO_DEMO_SLUGS[deviceKey]].map((slug) => demoMediaPath(deviceKey, slug))
     );
     let index = 0;
@@ -449,7 +449,7 @@
       const feature = FEATURES[featureIndex];
       const device = DEVICES[deviceKey];
       const path = demoMediaPath(deviceKey, feature.slug);
-      const isVideo = deviceKey !== 'desktop' && Boolean(path);
+      const isVideo = Boolean(path);
       host.innerHTML = `<div class="feature-explorer__header">
           <div class="explorer-intro"><span class="explorer-live"><i></i> DEMOSTRACIÓN REAL</span><strong>Mira BarLytics como lo usaría tu equipo</strong></div>
           <div class="device-selector" aria-label="Selecciona dispositivo">${Object.entries(DEVICES).map(([key,value]) => `<button class="device-option ${key === deviceKey ? 'is-active' : ''}" type="button" data-device="${key}"><span class="device-option__icon" aria-hidden="true">${value.icon}</span><span>${value.label}</span></button>`).join('')}</div>
