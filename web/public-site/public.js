@@ -2,24 +2,40 @@
   'use strict';
 
   const THEME = '#061723';
+  const ICONS = {
+    home: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 11.5 12 4l9 7.5"/><path d="M5.5 10.5V20h13v-9.5"/><path d="M9.5 20v-6h5v6"/></svg>',
+    tables: '<svg viewBox="0 0 24 24" aria-hidden="true"><rect x="4" y="6" width="16" height="9" rx="2"/><path d="M7 15v5M17 15v5M4 10h16"/></svg>',
+    bolt: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="m13 2-8 12h6l-1 8 9-13h-6z"/></svg>',
+    receipt: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 3h12v18l-3-2-3 2-3-2-3 2z"/><path d="M9 8h6M9 12h6M9 16h4"/></svg>',
+    card: '<svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="M3 10h18M7 15h4"/></svg>',
+    history: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 12a8 8 0 1 0 2.3-5.7L4 8.5"/><path d="M4 4v4.5h4.5M12 8v5l3 2"/></svg>',
+    box: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="m4 7 8-4 8 4-8 4z"/><path d="M4 7v10l8 4 8-4V7M12 11v10"/></svg>',
+    tag: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20 13 11 22l-9-9V4h9z"/><circle cx="7.5" cy="9.5" r="1.5"/></svg>',
+    inventory: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 5h16v15H4zM8 5V2h8v3M8 10h8M8 14h8"/></svg>',
+    swap: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h14M15 4l3 3-3 3M20 17H6M9 14l-3 3 3 3"/></svg>',
+    chart: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 20V10M10 20V4M16 20v-7M22 20H2"/></svg>',
+    users: '<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="9" cy="8" r="3"/><circle cx="17" cy="9" r="2.5"/><path d="M3 20c.4-4 2.4-6 6-6s5.6 2 6 6M15 14c3.3.1 5.2 2.1 5.5 5"/></svg>',
+    desktop: '<svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="4" width="18" height="13" rx="2"/><path d="M8 21h8M12 17v4"/></svg>',
+    tablet: '<svg viewBox="0 0 24 24" aria-hidden="true"><rect x="5" y="2" width="14" height="20" rx="2"/><path d="M11 18h2"/></svg>',
+    phone: '<svg viewBox="0 0 24 24" aria-hidden="true"><rect x="7" y="2" width="10" height="20" rx="2"/><path d="M11 18h2"/></svg>'
+  };
   const PUBLIC_ROUTES = new Set([
     '/software-para-bares/', '/funcionalidades/', '/nosotros/', '/planes/', '/descargas/', '/contacto/', '/preguntas-frecuentes/', '/documentacion/', '/privacidad/', '/terminos/'
   ]);
 
   const FEATURES = [
-    {slug:'inicio', name:'Inicio e indicadores', icon:'⌂', description:'Empieza la jornada con una vista rápida del estado del negocio. Reúne indicadores operativos y accesos directos para que puedas identificar qué necesita atención sin recorrer módulo por módulo.', benefits:['Resumen del día','Indicadores operativos','Accesos rápidos'], outcome:'Entender cómo va la operación desde el primer vistazo.'},
-    {slug:'mesas', name:'Mesas y zonas', icon:'▦', description:'Organiza la atención por mesas y zonas, identifica cuáles están libres u ocupadas y entra directamente a la venta activa. El equipo puede continuar el servicio sin perder el contexto de cada consumo.', benefits:['Estado de mesas','Atención por zona','Venta activa por mesa'], outcome:'Atender más rápido y reducir confusiones entre cuentas.'},
-    {slug:'venta-rapida', name:'Venta directa', icon:'⚡', description:'Registra ventas de mostrador o consumos que no necesitan una mesa. Usa el mismo catálogo, precios y flujo de cobro para mantener toda la operación consolidada.', benefits:['Venta sin mesa','Catálogo unificado','Cobro inmediato'], outcome:'Despachar operaciones rápidas sin crear pasos innecesarios.'},
-    {slug:'cuenta', name:'Cuentas', icon:'▤', description:'Consulta los productos consumidos, cantidades, subtotales, pagos y saldo pendiente de cada cuenta. Permite mantener claridad sobre lo que se ha servido y lo que todavía falta por cobrar.', benefits:['Detalle del consumo','Saldo pendiente','Propina y pagos'], outcome:'Tener una cuenta clara antes de cobrar al cliente.'},
-    {slug:'cobro', name:'Cobros', icon:'▣', description:'Cobra con los medios de pago configurados, registra efectivo recibido y calcula el cambio. El recaudo queda asociado a la cuenta para conservar trazabilidad de cómo se pagó cada venta.', benefits:['Múltiples medios','Efectivo y cambio','Trazabilidad del pago'], outcome:'Cobrar con agilidad y reducir errores al recibir dinero.'},
-    {slug:'cierre-caja', name:'Caja y cierre', icon:'▥', description:'Consolida los movimientos de la jornada para revisar la operación antes de cerrar. Ayuda a comparar lo vendido y cobrado y deja un resumen útil para el control diario.', benefits:['Totales de caja','Resumen de jornada','Control del cierre'], outcome:'Cerrar el día con una visión más ordenada de la caja.'},
-    {slug:'historial-ventas', name:'Historial de ventas', icon:'↺', description:'Consulta ventas anteriores y revisa la información asociada a cada operación. Sirve para seguimiento, aclaraciones, control interno y análisis de periodos anteriores.', benefits:['Consulta histórica','Filtros por fecha','Detalle de ventas'], outcome:'Encontrar rápidamente qué ocurrió en una venta anterior.'},
-    {slug:'productos', name:'Productos', icon:'◇', description:'Administra el catálogo que usa cada sucursal: productos, tipos, marcas y datos comerciales. Mantiene ordenada la oferta para que ventas, inventario y reportes trabajen sobre la misma información.', benefits:['Catálogo central','Tipos y marcas','Uso por sucursal'], outcome:'Mantener el catálogo organizado y listo para vender.'},
-    {slug:'precios', name:'Precios', icon:'$', description:'Gestiona precios de compra y venta por sucursal y conserva el historial de cambios. Esto permite trabajar con valores vigentes y revisar cómo han evolucionado los costos y precios comerciales.', benefits:['Compra y venta','Precio vigente','Historial de cambios'], outcome:'Controlar mejor márgenes y evitar precios desactualizados.'},
-    {slug:'inventario', name:'Inventario', icon:'▧', description:'Consulta existencias por producto y sucursal, realiza conteos y contrasta lo esperado con lo encontrado. El inventario se alimenta de los movimientos operativos para reflejar mejor la realidad del negocio.', benefits:['Stock por sucursal','Conteo físico','Control de existencias'], outcome:'Saber qué tienes disponible y detectar diferencias a tiempo.'},
-    {slug:'movimientos', name:'Movimientos', icon:'⇄', description:'Registra entradas, salidas, compras, ajustes, préstamos y devoluciones con motivo y referencia. Cada movimiento deja trazabilidad sobre por qué cambió la existencia de un producto.', benefits:['Entradas y salidas','Ajustes y préstamos','Devoluciones y compras'], outcome:'Entender por qué cambia el inventario, no solo cuánto queda.'},
-    {slug:'reportes', name:'Reportes', icon:'⌁', description:'Analiza ventas, productos, medios de pago, inventario y movimientos desde reportes operativos. Los filtros ayudan a convertir la actividad diaria en información útil para tomar decisiones.', benefits:['Ventas y ganancias','Inventario y rotación','Filtros por periodo'], outcome:'Tomar decisiones con datos del negocio y no solo con percepción.'},
-    {slug:'roles', name:'Roles y permisos', icon:'◆', description:'Define qué puede ver y ejecutar cada perfil mediante roles, opciones de menú y permisos. El equipo accede solo a las herramientas necesarias para su responsabilidad.', benefits:['Permisos personalizados','Menús por rol','Separación de funciones'], outcome:'Dar autonomía al equipo sin perder control sobre el sistema.'}
+    {slug:'inicio', name:'Inicio e indicadores', icon:ICONS.home, description:'Empieza la jornada con una vista rápida del estado del negocio. Reúne indicadores operativos y accesos directos para que puedas identificar qué necesita atención sin recorrer módulo por módulo.', benefits:['Resumen del día','Indicadores operativos','Accesos rápidos'], outcome:'Entender cómo va la operación desde el primer vistazo.'},
+    {slug:'mesas', name:'Mesas y zonas', icon:ICONS.tables, description:'Organiza la atención por mesas y zonas, identifica cuáles están libres u ocupadas y entra directamente a la venta activa. El equipo puede continuar el servicio sin perder el contexto de cada consumo.', benefits:['Estado de mesas','Atención por zona','Venta activa por mesa'], outcome:'Atender más rápido y reducir confusiones entre cuentas.'},
+    {slug:'venta-rapida', name:'Venta directa', icon:ICONS.bolt, description:'Registra ventas de mostrador o consumos que no necesitan una mesa. Usa el mismo catálogo, precios y flujo de cobro para mantener toda la operación consolidada.', benefits:['Venta sin mesa','Catálogo unificado','Cobro inmediato'], outcome:'Despachar operaciones rápidas sin crear pasos innecesarios.'},
+    {slug:'cuenta', name:'Cuentas', icon:ICONS.receipt, description:'Consulta los productos consumidos, cantidades, subtotales, pagos y saldo pendiente de cada cuenta. Permite mantener claridad sobre lo que se ha servido y lo que todavía falta por cobrar.', benefits:['Detalle del consumo','Saldo pendiente','Propina y pagos'], outcome:'Tener una cuenta clara antes de cobrar al cliente.'},
+    {slug:'cobro', name:'Cobros', icon:ICONS.card, description:'Cobra con los medios de pago configurados, registra efectivo recibido y calcula el cambio. El recaudo queda asociado a la cuenta para conservar trazabilidad de cómo se pagó cada venta.', benefits:['Múltiples medios','Efectivo y cambio','Trazabilidad del pago'], outcome:'Cobrar con agilidad y reducir errores al recibir dinero.'},
+    {slug:'historial-ventas', name:'Historial de ventas', icon:ICONS.history, description:'Consulta ventas anteriores y revisa la información asociada a cada operación. Sirve para seguimiento, aclaraciones, control interno y análisis de periodos anteriores.', benefits:['Consulta histórica','Filtros por fecha','Detalle de ventas'], outcome:'Encontrar rápidamente qué ocurrió en una venta anterior.'},
+    {slug:'productos', name:'Productos', icon:ICONS.box, description:'Administra el catálogo que usa cada sucursal: productos, tipos, marcas y datos comerciales. Mantiene ordenada la oferta para que ventas, inventario y reportes trabajen sobre la misma información.', benefits:['Catálogo central','Tipos y marcas','Uso por sucursal'], outcome:'Mantener el catálogo organizado y listo para vender.'},
+    {slug:'precios', name:'Precios', icon:ICONS.tag, description:'Gestiona precios de compra y venta por sucursal y conserva el historial de cambios. Esto permite trabajar con valores vigentes y revisar cómo han evolucionado los costos y precios comerciales.', benefits:['Compra y venta','Precio vigente','Historial de cambios'], outcome:'Controlar mejor márgenes y evitar precios desactualizados.'},
+    {slug:'inventario', name:'Inventario', icon:ICONS.inventory, description:'Consulta existencias por producto y sucursal, realiza conteos y contrasta lo esperado con lo encontrado. El inventario se alimenta de los movimientos operativos para reflejar mejor la realidad del negocio.', benefits:['Stock por sucursal','Conteo físico','Control de existencias'], outcome:'Saber qué tienes disponible y detectar diferencias a tiempo.'},
+    {slug:'movimientos', name:'Movimientos', icon:ICONS.swap, description:'Registra entradas, salidas, compras, ajustes, préstamos y devoluciones con motivo y referencia. Cada movimiento deja trazabilidad sobre por qué cambió la existencia de un producto.', benefits:['Entradas y salidas','Ajustes y préstamos','Devoluciones y compras'], outcome:'Entender por qué cambia el inventario, no solo cuánto queda.'},
+    {slug:'reportes', name:'Reportes', icon:ICONS.chart, description:'Analiza ventas, productos, medios de pago, inventario y movimientos desde reportes operativos. Los filtros ayudan a convertir la actividad diaria en información útil para tomar decisiones.', benefits:['Ventas y ganancias','Inventario y rotación','Filtros por periodo'], outcome:'Tomar decisiones con datos del negocio y no solo con percepción.'},
+    {slug:'roles', name:'Roles y permisos', icon:ICONS.users, description:'Define qué puede ver y ejecutar cada perfil mediante roles, opciones de menú y permisos. El equipo accede solo a las herramientas necesarias para su responsabilidad.', benefits:['Permisos personalizados','Menús por rol','Separación de funciones'], outcome:'Dar autonomía al equipo sin perder control sobre el sistema.'}
   ];
 
   const VIDEO_DEMO_SLUGS = {
@@ -67,9 +83,9 @@
   };
 
   const DEVICES = {
-    desktop: {label:'Escritorio', dir:'desktop', cls:'desktop', icon:'▱'},
-    tablet: {label:'Tablet', dir:'tablet', cls:'tablet', icon:'▯'},
-    phone: {label:'Celular', dir:'phone', cls:'phone', icon:'▯'}
+    desktop: {label:'Escritorio', dir:'desktop', cls:'desktop', icon:ICONS.desktop},
+    tablet: {label:'Tablet', dir:'tablet', cls:'tablet', icon:ICONS.tablet},
+    phone: {label:'Celular', dir:'phone', cls:'phone', icon:ICONS.phone}
   };
 
   const setTheme = () => {
