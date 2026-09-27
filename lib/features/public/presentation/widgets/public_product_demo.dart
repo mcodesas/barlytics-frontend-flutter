@@ -154,9 +154,50 @@ class PublicProductDemo extends StatefulWidget {
 }
 
 class _PublicProductDemoState extends State<PublicProductDemo> {
+  final List<VideoPlayerController> _preloadControllers = [];
+  bool _preloadStarted = false;
   PublicDemoDevice _device = PublicDemoDevice.desktop;
   _DemoModule _module = _DemoModule.mesas;
   int _replay = 0;
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    if (!_preloadStarted) {
+      _preloadStarted = true;
+      WidgetsBinding.instance.addPostFrameCallback((_) => _preloadDemoVideos());
+    }
+  }
+
+  Future<void> _preloadDemoVideos() async {
+    for (final device in const [PublicDemoDevice.phone, PublicDemoDevice.tablet]) {
+      for (final module in _DemoModule.values) {
+        if (!mounted) return;
+        final url = _demoMediaUrl(device, _infoFor(module).slug);
+        if (url.isEmpty) continue;
+        final controller = VideoPlayerController.networkUrl(
+          Uri.parse(url),
+          videoPlayerOptions: VideoPlayerOptions(mixWithOthers: true),
+        );
+        _preloadControllers.add(controller);
+        try {
+          await controller.initialize();
+          await controller.setVolume(0);
+        } catch (_) {
+          // El placeholder normal maneja medios no disponibles.
+        }
+        await Future<void>.delayed(const Duration(milliseconds: 120));
+      }
+    }
+  }
+
+  @override
+  void dispose() {
+    for (final controller in _preloadControllers) {
+      controller.dispose();
+    }
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
