@@ -904,3 +904,15 @@ details p { padding: 0 20px 18px; margin: 0; color: var(--muted); line-height: 1
 .device-option__icon svg { width: 18px; height: 18px; }
 .feature-tab-card__icon svg { width: 19px; height: 19px; }
 .demo-placeholder__icon svg { width: 28px; height: 28px; }
+
+/* Descargas protegidas */
+.protected-download{display:flex;justify-content:center;padding-top:42px;padding-bottom:72px}
+.protected-download__panel{width:min(100%,720px);padding:34px;border:1px solid rgba(56,214,221,.18);border-radius:26px;background:linear-gradient(145deg,rgba(9,45,60,.96),rgba(4,24,35,.98));box-shadow:0 28px 70px rgba(0,0,0,.28)}
+.protected-download__panel h1{margin:14px 0 12px}
+.protected-download__panel>p{color:var(--muted);line-height:1.7}
+.security-note{display:flex;flex-direction:column;gap:6px;margin:24px 0;padding:18px;border:1px solid rgba(36,215,202,.18);border-radius:16px;background:rgba(36,215,202,.055)}
+.security-note strong{color:#e9ffff}.security-note span,.download-security-status{color:var(--muted)}
+.turnstile-host{min-height:70px;margin:22px 0}
+.protected-download__button{margin-right:10px}
+.protected-download__button:disabled{opacity:.45;cursor:not-allowed}
+@media(max-width:680px){.protected-download__panel{padding:24px 18px}.protected-download__button{width:100%;margin:0 0 10px}.protected-download__panel>.button--ghost{width:100%}}
