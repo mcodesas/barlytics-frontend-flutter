@@ -600,23 +600,7 @@ class _DemoMedia extends StatelessWidget {
       return _MediaPlaceholder(palette: palette, device: device, info: info);
     }
 
-    final media = device != PublicDemoDevice.desktop
-        ? _DemoVideo(url: url, palette: palette, device: device, info: info)
-        : Image.network(
-            url,
-            fit: BoxFit.contain,
-            gaplessPlayback: false,
-            filterQuality: FilterQuality.high,
-            loadingBuilder: (context, child, progress) {
-              if (progress == null) return child;
-              return _MediaLoading(palette: palette, info: info);
-            },
-            errorBuilder: (context, error, stackTrace) => _MediaPlaceholder(
-              palette: palette,
-              device: device,
-              info: info,
-            ),
-          );
+    final media = _DemoVideo(url: url, palette: palette, device: device, info: info);
 
     return Stack(
       fit: StackFit.expand,
@@ -748,7 +732,7 @@ class _MediaPlaceholder extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final extension = device == PublicDemoDevice.desktop ? 'gif' : 'mp4';
+    const extension = 'mp4';
     final relativePath = 'web/demos/${device.folder}/${info.slug}.$extension';
     return DecoratedBox(
       decoration: BoxDecoration(
@@ -1139,7 +1123,7 @@ String _demoMediaUrl(PublicDemoDevice device, String slug) {
   final base = PublicSiteConfig.demoMediaBaseUrl.trim();
   if (base.isEmpty) return '';
   final normalized = base.endsWith('/') ? base.substring(0, base.length - 1) : base;
-  final extension = device == PublicDemoDevice.desktop ? 'gif' : 'mp4';
+  const extension = 'mp4';
   final relative = '$normalized/${device.folder}/$slug.$extension';
   if (normalized.startsWith('http://') || normalized.startsWith('https://')) return relative;
   if (!kIsWeb) return '';
