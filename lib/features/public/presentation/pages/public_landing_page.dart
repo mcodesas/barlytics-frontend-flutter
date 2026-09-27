@@ -910,7 +910,7 @@ class _HeroSection extends StatelessWidget {
       padding: const EdgeInsets.fromLTRB(20, 76, 20, 58),
       child: Center(
         child: ConstrainedBox(
-          constraints: const BoxConstraints(maxWidth: 1220),
+          constraints: const BoxConstraints(maxWidth: 1360),
           child: LayoutBuilder(
             builder: (context, constraints) {
               final compact = constraints.maxWidth < 900;
@@ -986,9 +986,9 @@ class _HeroSection extends StatelessWidget {
               return Row(
                 crossAxisAlignment: CrossAxisAlignment.center,
                 children: [
-                  Expanded(flex: 10, child: copy),
-                  const SizedBox(width: 42),
-                  Expanded(flex: 11, child: preview),
+                  Expanded(flex: 9, child: copy),
+                  const SizedBox(width: 26),
+                  Expanded(flex: 13, child: preview),
                 ],
               );
             },
