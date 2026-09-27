@@ -140,7 +140,7 @@ extension on PublicDemoDevice {
       };
 
   double get heightRatio => switch (this) {
-        PublicDemoDevice.desktop => 0.62,
+        PublicDemoDevice.desktop => 0.565,
         PublicDemoDevice.tablet => 0.74,
         PublicDemoDevice.phone => 1108 / 512,
       };
