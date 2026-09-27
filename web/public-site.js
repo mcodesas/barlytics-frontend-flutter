@@ -73,32 +73,46 @@
   };
 
   const applyDownloads = (root, config) => {
-    const keys = {
-      windows: 'windowsDownloadUrl',
-      macos: 'macDownloadUrl',
+    const storeKeys = {
       android: 'androidDownloadUrl',
       ios: 'iosDownloadUrl',
-      linux: 'linuxDownloadUrl',
     };
+
     root.querySelectorAll('[data-download-platform]').forEach((card) => {
-      const platform = card.getAttribute('data-download-platform');
-      const url = String(config[keys[platform]] || '').trim();
+      const platform = String(card.getAttribute('data-download-platform') || '').toLowerCase();
       const button = card.querySelector('[data-download-action]');
       const status = card.querySelector('[data-download-status]');
-      card.classList.toggle('available', Boolean(url));
-      if (status) status.textContent = url ? 'DISPONIBLE' : 'PRÓXIMAMENTE';
       if (!button) return;
-      button.textContent = url ? 'Descargar' : 'Próximamente';
-      button.classList.toggle('disabled', !url);
-      if (url) {
-        button.href = url;
-        button.target = '_blank';
-        button.rel = 'noopener';
-        button.removeAttribute('aria-disabled');
-      } else {
-        button.removeAttribute('href');
-        button.setAttribute('aria-disabled', 'true');
+
+      if (platform === 'android' || platform === 'ios') {
+        const url = String(config[storeKeys[platform]] || '').trim();
+        card.classList.toggle('available', Boolean(url));
+        if (status) status.textContent = url ? 'DISPONIBLE' : 'PRÓXIMAMENTE';
+        button.textContent = url
+          ? (platform === 'android' ? 'Abrir Play Store' : 'Abrir App Store')
+          : 'Próximamente';
+        button.classList.toggle('disabled', !url);
+        if (url) {
+          button.href = url;
+          button.target = '_blank';
+          button.rel = 'noopener noreferrer';
+          button.removeAttribute('aria-disabled');
+        } else {
+          button.removeAttribute('href');
+          button.setAttribute('aria-disabled', 'true');
+        }
+        return;
       }
+
+      if (!['windows', 'macos', 'linux'].includes(platform)) return;
+      card.classList.add('available');
+      if (status) status.textContent = 'DISPONIBLE';
+      button.textContent = 'Continuar';
+      button.classList.remove('disabled');
+      button.href = `/descargas/${platform}/`;
+      button.removeAttribute('target');
+      button.removeAttribute('rel');
+      button.removeAttribute('aria-disabled');
     });
   };
 
