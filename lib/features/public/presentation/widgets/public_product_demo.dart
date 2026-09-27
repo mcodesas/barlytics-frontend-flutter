@@ -136,13 +136,13 @@ extension on PublicDemoDevice {
   double get targetWidth => switch (this) {
         PublicDemoDevice.desktop => 1120,
         PublicDemoDevice.tablet => 736,
-        PublicDemoDevice.phone => 390,
+        PublicDemoDevice.phone => 512,
       };
 
   double get heightRatio => switch (this) {
         PublicDemoDevice.desktop => 0.62,
         PublicDemoDevice.tablet => 0.74,
-        PublicDemoDevice.phone => 1.95,
+        PublicDemoDevice.phone => 1108 / 512,
       };
 }
 
@@ -559,8 +559,8 @@ class _DemoMedia extends StatelessWidget {
       return _MediaPlaceholder(palette: palette, device: device, info: info);
     }
 
-    final media = device == PublicDemoDevice.tablet
-        ? _TabletDemoVideo(url: url, palette: palette, info: info)
+    final media = device != PublicDemoDevice.desktop
+        ? _DemoVideo(url: url, palette: palette, device: device, info: info)
         : Image.network(
             url,
             fit: BoxFit.contain,
@@ -606,18 +606,19 @@ class _DemoMedia extends StatelessWidget {
   }
 }
 
-class _TabletDemoVideo extends StatefulWidget {
-  const _TabletDemoVideo({required this.url, required this.palette, required this.info});
+class _DemoVideo extends StatefulWidget {
+  const _DemoVideo({required this.url, required this.palette, required this.device, required this.info});
 
   final String url;
   final AppPalette palette;
+  final PublicDemoDevice device;
   final _DemoModuleInfo info;
 
   @override
-  State<_TabletDemoVideo> createState() => _TabletDemoVideoState();
+  State<_DemoVideo> createState() => _DemoVideoState();
 }
 
-class _TabletDemoVideoState extends State<_TabletDemoVideo> {
+class _DemoVideoState extends State<_DemoVideo> {
   late final VideoPlayerController _controller;
   bool _failed = false;
 
@@ -654,7 +655,7 @@ class _TabletDemoVideoState extends State<_TabletDemoVideo> {
     if (_failed) {
       return _MediaPlaceholder(
         palette: widget.palette,
-        device: PublicDemoDevice.tablet,
+        device: widget.device,
         info: widget.info,
       );
     }
@@ -706,7 +707,7 @@ class _MediaPlaceholder extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final extension = device == PublicDemoDevice.tablet ? 'mp4' : 'gif';
+    final extension = device == PublicDemoDevice.desktop ? 'gif' : 'mp4';
     final relativePath = 'web/demos/${device.folder}/${info.slug}.$extension';
     return DecoratedBox(
       decoration: BoxDecoration(
@@ -1022,7 +1023,7 @@ class _MiniDeviceFrame extends StatelessWidget {
     final aspect = switch (device) {
       PublicDemoDevice.desktop => 16 / 10,
       PublicDemoDevice.tablet => 736 / 512,
-      PublicDemoDevice.phone => 9 / 19.5,
+      PublicDemoDevice.phone => 512 / 1108,
     };
     return AspectRatio(
       aspectRatio: aspect,
@@ -1097,7 +1098,7 @@ String _demoMediaUrl(PublicDemoDevice device, String slug) {
   final base = PublicSiteConfig.demoMediaBaseUrl.trim();
   if (base.isEmpty) return '';
   final normalized = base.endsWith('/') ? base.substring(0, base.length - 1) : base;
-  final extension = device == PublicDemoDevice.tablet ? 'mp4' : 'gif';
+  final extension = device == PublicDemoDevice.desktop ? 'gif' : 'mp4';
   final relative = '$normalized/${device.folder}/$slug.$extension';
   if (normalized.startsWith('http://') || normalized.startsWith('https://')) return relative;
   if (!kIsWeb) return '';
