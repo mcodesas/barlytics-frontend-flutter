@@ -1074,14 +1074,21 @@ class PublicHeroDemoPreview extends StatelessWidget {
     final desktopInfo = _infoFor(_DemoModule.mesas);
     final phoneInfo = _infoFor(_DemoModule.ventaRapida);
 
-    return AspectRatio(
-      aspectRatio: 80 / 43,
-      child: Stack(
-        clipBehavior: Clip.none,
-        children: [
-          Positioned.fill(
-            child: Container(
-              padding: const EdgeInsets.all(9),
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final compact = constraints.maxWidth < 560;
+        return AspectRatio(
+          aspectRatio: compact ? 1.48 : 1.72,
+          child: Stack(
+            clipBehavior: Clip.none,
+            children: [
+              Positioned(
+                left: 0,
+                top: 0,
+                right: compact ? 28 : 34,
+                bottom: compact ? 22 : 10,
+                child: Container(
+                  padding: const EdgeInsets.all(9),
               decoration: BoxDecoration(
                 gradient: palette.panelGradient(tint: palette.secondary),
                 borderRadius: BorderRadius.circular(30),
@@ -1094,12 +1101,12 @@ class PublicHeroDemoPreview extends StatelessWidget {
               ),
             ),
           ),
-          Positioned(
-            right: -14,
-            bottom: -20,
-            child: Container(
-              width: 142,
-              height: 262,
+              Positioned(
+                right: compact ? -2 : -10,
+                bottom: compact ? -12 : -24,
+                child: Container(
+                  width: compact ? 112 : 132,
+                  height: compact ? 226 : 258,
               padding: const EdgeInsets.all(6),
               decoration: BoxDecoration(
                 color: const Color(0xFF040B11),
@@ -1113,8 +1120,10 @@ class PublicHeroDemoPreview extends StatelessWidget {
               ),
             ),
           ),
-        ],
-      ),
+            ],
+          ),
+        );
+      },
     );
   }
 }

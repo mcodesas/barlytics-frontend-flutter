@@ -1,0 +1,33 @@
+<!DOCTYPE html>
+<html lang="es-CO">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+  <meta name="robots" content="noindex,follow">
+  <meta name="theme-color" content="#061723">
+  <title>Descargar BarLytics para macOS</title>
+  <link rel="icon" type="image/png" href="/favicon.png">
+  <link rel="stylesheet" href="/public-site/public.css">
+  <script src="https://challenges.cloudflare.com/turnstile/v0/api.js?render=explicit" async defer></script>
+  <script defer src="/public-site/public.js"></script>
+</head>
+<body data-route="descargas">
+  <!--# include virtual="/public-site/header.html" -->
+  <main>
+    <div class="container breadcrumb"><a href="/" data-full-navigation>Inicio</a> / <a href="/descargas/" data-full-navigation>Descargas</a> / macOS</div>
+    <section class="section container protected-download" data-protected-download="macos">
+      <div class="protected-download__panel">
+        <span class="eyebrow">Descarga protegida</span>
+        <h1>BarLytics para macOS</h1>
+        <p>Instalador .dmg. Para proteger la infraestructura de BarLytics, completa la verificación antes de generar tu enlace.</p>
+        <div class="security-note"><strong>Enlace seguro y temporal</strong><span>La autorización expira rápidamente y el enlace solo puede utilizarse una vez.</span></div>
+        <div class="turnstile-host" data-turnstile></div>
+        <p class="download-security-status" data-download-status>Completa la verificación para continuar.</p>
+        <button class="button button--primary protected-download__button" type="button" data-request-download disabled>Generar enlace de descarga</button>
+        <a class="button button--ghost" href="/descargas/" data-full-navigation>Volver a descargas</a>
+      </div>
+    </section>
+  </main>
+  <!--# include virtual="/public-site/footer.html" -->
+</body>
+</html>

@@ -315,7 +315,9 @@
   };
 
   let siteConfigPromise;
-  const siteConfig = () => siteConfigPromise ||= apiJson('/api/v1/parametros/public/site').catch(() => ({}));
+  const siteConfig = () => siteConfigPromise ||= apiJson('/api/v1/parametros/public/site')
+    .then((config) => ({ ...config, turnstileSiteKey: '0x4AAAAAAFFUhgh2d9bsD9xw' }))
+    .catch(() => ({ turnstileSiteKey: '0x4AAAAAAFFUhgh2d9bsD9xw' }));
 
   const formatMoney = (value, currency = 'COP') => {
     try { return new Intl.NumberFormat('es-CO', {style: 'currency', currency, maximumFractionDigits: 0}).format(Number(value || 0)); }
@@ -404,31 +406,91 @@
     node.href = hrefPrefix.startsWith('http') ? hrefPrefix : `${hrefPrefix}${digits(value)}`;
   };
 
+  const DOWNLOAD_PLATFORMS = new Set(['windows','macos','android','ios','linux']);
+
   const renderDownloads = async () => {
     const nodes = document.querySelectorAll('[data-download-platform]');
     if (!nodes.length) return;
-    const config = await siteConfig();
-    const map = {
-      windows: config.windowsDownloadUrl,
-      macos: config.macDownloadUrl,
-      android: config.androidDownloadUrl,
-      ios: config.iosDownloadUrl,
-      linux: config.linuxDownloadUrl
-    };
     nodes.forEach((node) => {
-      const url = String(map[node.dataset.downloadPlatform] || '').trim();
+      const platform = String(node.dataset.downloadPlatform || '').toLowerCase();
       const button = node.querySelector('[data-download-button]');
-      if (!button) return;
-      if (isHttpUrl(url)) {
-        button.href = url;
-        button.textContent = 'Descargar';
-        button.removeAttribute('aria-disabled');
-        button.target = '_blank';
-        button.rel = 'noopener noreferrer';
-      } else {
-        button.removeAttribute('href');
-        button.textContent = 'Próximamente';
-        button.setAttribute('aria-disabled', 'true');
+      if (!button || !DOWNLOAD_PLATFORMS.has(platform)) return;
+      button.href = `/descargas/${platform}/`;
+      button.textContent = 'Continuar';
+      button.removeAttribute('aria-disabled');
+      button.removeAttribute('target');
+      button.removeAttribute('rel');
+      button.setAttribute('data-full-navigation', '');
+    });
+  };
+
+  const renderProtectedDownload = async () => {
+    const host = document.querySelector('[data-protected-download]');
+    if (!host) return;
+    const platform = String(host.dataset.protectedDownload || '').toLowerCase();
+    if (!DOWNLOAD_PLATFORMS.has(platform)) return;
+
+    const button = host.querySelector('[data-request-download]');
+    const status = host.querySelector('[data-download-status]');
+    const captcha = host.querySelector('[data-turnstile]');
+    if (!button || !status || !captcha) return;
+
+    let challengeToken = '';
+    const config = await siteConfig();
+    const siteKey = String(config.turnstileSiteKey || '').trim();
+
+    if (!siteKey) {
+      status.textContent = 'La verificación de seguridad todavía no está configurada.';
+      button.disabled = true;
+      return;
+    }
+
+    const renderCaptcha = () => {
+      if (!window.turnstile) return setTimeout(renderCaptcha, 100);
+      window.turnstile.render(captcha, {
+        sitekey: siteKey,
+        theme: 'dark',
+        callback: (token) => {
+          challengeToken = token;
+          button.disabled = false;
+          status.textContent = 'Verificación completada. Ya puedes solicitar la descarga.';
+        },
+        'expired-callback': () => {
+          challengeToken = '';
+          button.disabled = true;
+          status.textContent = 'La verificación expiró. Complétala nuevamente.';
+        },
+        'error-callback': () => {
+          challengeToken = '';
+          button.disabled = true;
+          status.textContent = 'No fue posible completar la verificación.';
+        }
+      });
+    };
+    renderCaptcha();
+
+    button.addEventListener('click', async () => {
+      if (!challengeToken || button.disabled) return;
+      button.disabled = true;
+      status.textContent = 'Generando enlace seguro…';
+      try {
+        const response = await fetch('/api/v1/downloads/ticket', {
+          method: 'POST',
+          headers: {'Accept':'application/json','Content-Type':'application/json'},
+          body: JSON.stringify({platform, turnstileToken: challengeToken})
+        });
+        if (response.status === 429) throw new Error('Demasiadas solicitudes. Espera unos minutos e inténtalo nuevamente.');
+        if (!response.ok) throw new Error('No fue posible autorizar la descarga.');
+        const payload = await response.json();
+        const data = payload && Object.prototype.hasOwnProperty.call(payload, 'data') ? payload.data : payload;
+        const downloadUrl = String(data?.downloadUrl || '').trim();
+        if (!downloadUrl || !downloadUrl.startsWith('/api/v1/downloads/file/')) throw new Error('El servidor no devolvió un enlace de descarga válido.');
+        status.textContent = 'Descarga autorizada. El enlace es temporal y de un solo uso.';
+        location.assign(downloadUrl);
+      } catch (error) {
+        status.textContent = error?.message || 'No fue posible iniciar la descarga.';
+        challengeToken = '';
+        if (window.turnstile) window.turnstile.reset(captcha);
       }
     });
   };
@@ -567,6 +629,7 @@
     renderPlans();
     renderContact();
     renderDownloads();
+    renderProtectedDownload();
     renderFeatureExplorer();
     preloadDemoVideos();
     initFaq();
