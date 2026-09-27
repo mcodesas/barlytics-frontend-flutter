@@ -25,6 +25,47 @@
     {slug:'roles', name:'Roles y permisos', icon:'◆', description:'Define qué puede ver y ejecutar cada perfil mediante roles, opciones de menú y permisos. El equipo accede solo a las herramientas necesarias para su responsabilidad.', benefits:['Permisos personalizados','Menús por rol','Separación de funciones'], outcome:'Dar autonomía al equipo sin perder control sobre el sistema.'}
   ];
 
+  const VIDEO_DEMO_SLUGS = new Set(['inicio','mesas','venta-rapida','cuenta','cobro','inventario','productos','reportes','roles']);
+  const demoMediaPath = (deviceKey, slug) => {
+    const device = DEVICES[deviceKey];
+    if (!device) return '';
+    if (deviceKey === 'desktop') return `/demos/${device.dir}/${slug}.gif`;
+    return VIDEO_DEMO_SLUGS.has(slug) ? `/demos/${device.dir}/${slug}.mp4` : '';
+  };
+
+  let demoPreloadStarted = false;
+  const preloadDemoVideos = () => {
+    if (demoPreloadStarted) return;
+    demoPreloadStarted = true;
+    const queue = ['phone','tablet'].flatMap((deviceKey) =>
+      [...VIDEO_DEMO_SLUGS].map((slug) => demoMediaPath(deviceKey, slug))
+    );
+    let index = 0;
+    const next = () => {
+      if (index >= queue.length) return;
+      const video = document.createElement('video');
+      video.preload = 'auto';
+      video.muted = true;
+      video.playsInline = true;
+      video.src = queue[index++];
+      video.style.display = 'none';
+      video.setAttribute('aria-hidden', 'true');
+      document.body.appendChild(video);
+      video.load();
+      const advance = () => {
+        video.removeEventListener('canplaythrough', advance);
+        video.removeEventListener('error', advance);
+        setTimeout(next, 120);
+      };
+      video.addEventListener('canplaythrough', advance, {once:true});
+      video.addEventListener('error', advance, {once:true});
+      setTimeout(advance, 1800);
+    };
+    const start = () => next();
+    if ('requestIdleCallback' in window) window.requestIdleCallback(start, {timeout:1200});
+    else setTimeout(start, 400);
+  };
+
   const DEVICES = {
     desktop: {label:'Escritorio', dir:'desktop', cls:'desktop', icon:'▱'},
     tablet: {label:'Tablet', dir:'tablet', cls:'tablet', icon:'▯'},
@@ -391,7 +432,8 @@
     const draw = () => {
       const feature = FEATURES[featureIndex];
       const device = DEVICES[deviceKey];
-      const path = `/demos/${device.dir}/${feature.slug}.gif`;
+      const path = demoMediaPath(deviceKey, feature.slug);
+      const isVideo = deviceKey !== 'desktop' && Boolean(path);
       host.innerHTML = `<div class="feature-explorer__header">
           <div class="explorer-intro"><span class="explorer-live"><i></i> DEMOSTRACIÓN REAL</span><strong>Mira BarLytics como lo usaría tu equipo</strong></div>
           <div class="device-selector" aria-label="Selecciona dispositivo">${Object.entries(DEVICES).map(([key,value]) => `<button class="device-option ${key === deviceKey ? 'is-active' : ''}" type="button" data-device="${key}"><span class="device-option__icon" aria-hidden="true">${value.icon}</span><span>${value.label}</span></button>`).join('')}</div>
@@ -404,7 +446,7 @@
         <div class="feature-stage">
           <div class="device-frame-wrap"><div class="device-frame ${device.cls}" data-device-frame>
             ${deviceChrome(deviceKey)}
-            <div class="device-screen"><div class="demo-placeholder"><span class="demo-placeholder__icon" aria-hidden="true">${feature.icon}</span><strong>${escapeHtml(feature.name)}</strong><span>Demostración en ${escapeHtml(device.label)} en preparación.</span></div><img src="${path}" alt="Demo de ${escapeHtml(feature.name)} en ${escapeHtml(device.label)}" loading="lazy" data-demo-image hidden></div>
+            <div class="device-screen"><div class="demo-placeholder"><span class="demo-placeholder__icon" aria-hidden="true">${feature.icon}</span><strong>${escapeHtml(feature.name)}</strong><span>Demostración en ${escapeHtml(device.label)} en preparación.</span></div>${path ? (isVideo ? `<video src="${path}" muted autoplay loop playsinline preload="auto" aria-label="Demo de ${escapeHtml(feature.name)} en ${escapeHtml(device.label)}" data-demo-video hidden></video>` : `<img src="${path}" alt="Demo de ${escapeHtml(feature.name)} en ${escapeHtml(device.label)}" loading="eager" data-demo-image hidden>`) : ''}</div>
             ${deviceKey === 'phone' ? '<div class="phone-home" aria-hidden="true"><span></span></div>' : ''}
           </div></div>
           <section class="feature-detail">
@@ -429,8 +471,23 @@
       host.querySelector('[data-feature-next]')?.addEventListener('click', () => rail?.scrollBy({left:380, behavior:'smooth'}));
 
       const img = host.querySelector('[data-demo-image]');
+      const video = host.querySelector('[data-demo-video]');
+      const media = video || img;
       const placeholder = host.querySelector('.demo-placeholder');
       const replayButton = host.querySelector('[data-replay]');
+      if (video) {
+        video.addEventListener('canplay', () => {
+          video.hidden = false;
+          if (placeholder) placeholder.hidden = true;
+          if (replayButton) { replayButton.disabled = false; replayButton.textContent = '↻ Repetir demostración'; }
+          video.play().catch(() => {});
+        }, {once:true});
+        video.addEventListener('error', () => {
+          video.hidden = true;
+          if (placeholder) placeholder.hidden = false;
+          if (replayButton) { replayButton.disabled = true; replayButton.textContent = 'Demostración en preparación'; }
+        }, {once:true});
+      }
       if (img) {
         img.addEventListener('load', () => {
           img.hidden = false;
@@ -445,7 +502,12 @@
         }, {once:true});
       }
       replayButton?.addEventListener('click', () => {
-        if (!img || img.hidden) return;
+        if (!media || media.hidden) return;
+        if (video) {
+          video.currentTime = 0;
+          video.play().catch(() => {});
+          return;
+        }
         const clean = img.src.split('?')[0];
         img.src = `${clean}?replay=${Date.now()}`;
       });
@@ -490,6 +552,7 @@
     renderContact();
     renderDownloads();
     renderFeatureExplorer();
+    preloadDemoVideos();
     initFaq();
     initDocsSearch();
   };
