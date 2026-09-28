@@ -8,6 +8,7 @@ import 'package:url_launcher/url_launcher.dart';
 
 import '../../../../app/theme/app_palette.dart';
 import '../../../../core/auth/google_sign_in_button.dart';
+import '../../../../core/auth/apple_sign_in_button.dart';
 import '../../../../core/errors/failure.dart';
 import '../../../../core/utils/validators.dart';
 import '../../../../core/widgets/barlytics_brand.dart';
@@ -132,6 +133,24 @@ class _LoginPageState extends ConsumerState<LoginPage> {
             : (raw.isEmpty ? 'No fue posible iniciar sesión con Google.' : raw);
       });
     }
+  }
+
+  Future<void> _appleLogin(AppleSignInResult result) async {
+    setState(() => _loginErrorMessage = null);
+    final ok = await ref.read(authControllerProvider.notifier).appleLogin(result.idToken);
+    if (!mounted) return;
+    if (!ok) {
+      final failure = ref.read(authControllerProvider).failure;
+      final raw = failure?.message ?? '';
+      setState(() {
+        _loginErrorMessage = raw.toLowerCase().contains('no encontrado')
+            ? 'Esta cuenta de Apple aún no está registrada. Crea tu cuenta para continuar.'
+            : (raw.isEmpty ? 'No fue posible iniciar sesión con Apple.' : raw);
+      });
+      return;
+    }
+    final auth = ref.read(authControllerProvider);
+    context.go(auth.subscriptionActive ? '/home' : '/activar-suscripcion');
   }
 
   Future<void> _login() async {
@@ -274,6 +293,20 @@ class _GlassLoginCard extends ConsumerWidget {
                   _AccessModeStrip(dense: dense),
                   SizedBox(height: dense ? 10 : 18),
                   _GoogleLoginSection(state: state, loading: loading),
+                  if (BarLyticsAppleSignInButton.supported) ...[
+                    SizedBox(height: dense ? 8 : 10),
+                    BarLyticsAppleSignInButton(
+                      loading: loading,
+                      onCredential: state._appleLogin,
+                      onError: (error) {
+                        state.setState(() {
+                          state._loginErrorMessage = error.toString()
+                              .replaceFirst('Bad state: ', '')
+                              .replaceFirst('Exception: ', '');
+                        });
+                      },
+                    ),
+                  ],
                   SizedBox(height: dense ? 8 : 16),
                   Row(
                     children: [
