@@ -326,10 +326,10 @@ class _BarLyticsGoogleSignInButtonState extends State<BarLyticsGoogleSignInButto
         style: OutlinedButton.styleFrom(
           backgroundColor: Colors.white,
           foregroundColor: const Color(0xFF1F1F1F),
-          side: const BorderSide(color: Color(0xFFDADCE0), width: 1.1),
+          side: const BorderSide(color: Color(0xFFE4E7EB), width: 1),
           elevation: 0,
           padding: const EdgeInsets.symmetric(horizontal: 16),
-          shape: const StadiumBorder(),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(23)),
         ),
         child: Row(
           mainAxisAlignment: MainAxisAlignment.center,
