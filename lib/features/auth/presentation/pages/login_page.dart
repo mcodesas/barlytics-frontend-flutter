@@ -282,7 +282,8 @@ class _GlassLoginCard extends ConsumerWidget {
               color: palette.surface.withOpacity(0.86),
               border: Border.all(color: palette.textPrimary.withOpacity(0.16)),
             ),
-            child: Form(
+            child: AutofillGroup(
+              child: Form(
               key: state._formKey,
               child: Column(
                 mainAxisSize: MainAxisSize.min,
@@ -331,6 +332,8 @@ class _GlassLoginCard extends ConsumerWidget {
                     hint: 'correo@barlytics.com',
                     icon: Icons.alternate_email_rounded,
                     keyboardType: TextInputType.emailAddress,
+                    autofillHints: const [AutofillHints.username, AutofillHints.email],
+                    textInputAction: TextInputAction.next,
                     maxLength: 255,
                     validator: Validators.required,
                     dense: dense,
@@ -347,6 +350,9 @@ class _GlassLoginCard extends ConsumerWidget {
                     hint: 'Clave segura',
                     icon: Icons.lock_outline_rounded,
                     obscureText: state._hidePassword,
+                    autofillHints: const [AutofillHints.password],
+                    textInputAction: TextInputAction.done,
+                    onFieldSubmitted: (_) => loading ? null : state._login(),
                     maxLength: 72,
                     validator: Validators.required,
                     dense: dense,
@@ -510,6 +516,7 @@ class _GlassLoginCard extends ConsumerWidget {
                   SizedBox(height: dense ? 5 : 14),
                   _LoginLegalFooter(dense: dense),
                 ],
+              ),
               ),
             ),
           ),
@@ -691,6 +698,9 @@ class _GlassTextField extends ConsumerWidget {
     required this.icon,
     this.keyboardType,
     this.obscureText = false,
+    this.autofillHints,
+    this.textInputAction,
+    this.onFieldSubmitted,
     this.suffixIcon,
     this.validator,
     this.onChanged,
@@ -704,6 +714,9 @@ class _GlassTextField extends ConsumerWidget {
   final IconData icon;
   final TextInputType? keyboardType;
   final bool obscureText;
+  final Iterable<String>? autofillHints;
+  final TextInputAction? textInputAction;
+  final ValueChanged<String>? onFieldSubmitted;
   final Widget? suffixIcon;
   final String? Function(String?)? validator;
   final ValueChanged<String>? onChanged;
@@ -719,6 +732,11 @@ class _GlassTextField extends ConsumerWidget {
       controller: controller,
       keyboardType: keyboardType,
       obscureText: obscureText,
+      autofillHints: autofillHints,
+      textInputAction: textInputAction,
+      onFieldSubmitted: onFieldSubmitted,
+      enableSuggestions: !obscureText,
+      autocorrect: false,
       validator: validator,
       onChanged: onChanged,
       maxLength: maxLength,
