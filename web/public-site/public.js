@@ -406,6 +406,37 @@
     node.href = hrefPrefix.startsWith('http') ? hrefPrefix : `${hrefPrefix}${digits(value)}`;
   };
 
+  const initMobileAppPrompt = async () => {
+    if (document.querySelector('[data-mobile-app-prompt]')) return;
+    const ua = navigator.userAgent || '';
+    const isAndroid = /Android/i.test(ua);
+    const isIOS = /iPhone|iPad|iPod/i.test(ua) ||
+      (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+    if (!isAndroid && !isIOS) return;
+    if (window.matchMedia?.('(display-mode: standalone)').matches || navigator.standalone === true) return;
+    if (sessionStorage.getItem('barlytics-mobile-app-prompt-dismissed') === '1') return;
+
+    const config = await siteConfig();
+    const storeUrl = String(isIOS ? config.iosDownloadUrl : config.androidDownloadUrl).trim();
+    if (!isHttpUrl(storeUrl)) return;
+
+    const banner = document.createElement('aside');
+    banner.dataset.mobileAppPrompt = 'true';
+    banner.setAttribute('role', 'region');
+    banner.setAttribute('aria-label', 'Abrir BarLytics en la aplicación');
+    banner.style.cssText = 'position:fixed;left:12px;right:12px;bottom:calc(12px + env(safe-area-inset-bottom));z-index:100000;display:flex;align-items:center;gap:12px;padding:12px 14px;border:1px solid rgba(46,226,211,.32);border-radius:18px;background:rgba(6,23,35,.96);box-shadow:0 16px 44px rgba(0,0,0,.38);backdrop-filter:blur(18px);-webkit-backdrop-filter:blur(18px);color:#fff;font-family:Roboto,system-ui,sans-serif';
+    banner.innerHTML = `
+      <img src="/favicon.png" alt="" width="44" height="44" style="border-radius:11px;flex:0 0 auto">
+      <div style="min-width:0;flex:1"><strong style="display:block;font-size:14px">BarLytics funciona mejor en la app</strong><span style="display:block;margin-top:2px;color:#b9cbd3;font-size:12px">${isIOS ? 'iPhone / iPad' : 'Android'} · acceso directo y pantalla completa</span></div>
+      <a data-open-store href="${escapeHtml(storeUrl)}" style="flex:0 0 auto;padding:10px 13px;border-radius:999px;background:#22d9d7;color:#061723;text-decoration:none;font-weight:900;font-size:13px">Abrir app</a>
+      <button data-close-app-prompt type="button" aria-label="Cerrar" style="flex:0 0 auto;border:0;background:transparent;color:#b9cbd3;font-size:24px;line-height:1;cursor:pointer;padding:4px">×</button>`;
+    document.body.appendChild(banner);
+    banner.querySelector('[data-close-app-prompt]')?.addEventListener('click', () => {
+      sessionStorage.setItem('barlytics-mobile-app-prompt-dismissed', '1');
+      banner.remove();
+    });
+  };
+
   const DOWNLOAD_PLATFORMS = new Set(['windows','macos','android','ios','linux']);
 
   const renderDownloads = async () => {
@@ -654,6 +685,7 @@
     renderPlans();
     renderContact();
     renderDownloads();
+    initMobileAppPrompt();
     renderProtectedDownload();
     renderFeatureExplorer();
     preloadDemoVideos();
