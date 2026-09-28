@@ -246,6 +246,38 @@ class AuthController extends StateNotifier<AuthState> {
     }
   }
 
+  Future<bool> appleLogin(String idToken) async {
+    state = state.copyWith(loading: true, failure: null);
+    try {
+      final response = await _repository.appleLogin(idToken);
+      if (response.roles.isEmpty) {
+        await _repository.logout();
+        _ref.invalidate(branchScopeProvider);
+        state = const AuthState();
+        return false;
+      }
+      final setupComplete = response.subscriptionActive
+          ? await _refreshBusinessSetupValue()
+          : false;
+      state = AuthState(
+        authenticated: true,
+        roles: response.roles,
+        subscriptionStatus: response.subscriptionStatus,
+        subscriptionActive: response.subscriptionActive,
+        businessSetupComplete: setupComplete,
+      );
+      if (response.subscriptionActive && setupComplete) {
+        await _ref.read(branchScopeProvider.notifier).load();
+      } else {
+        _ref.invalidate(branchScopeProvider);
+      }
+      return true;
+    } catch (error) {
+      state = state.copyWith(loading: false, failure: ErrorMapper.map(error));
+      return false;
+    }
+  }
+
   Future<void> completeRegistration(LoginResponseModel response) async {
     await _repository.saveSession(response);
     if (response.roles.isEmpty) {
