@@ -8,6 +8,7 @@ import '../../../../app/theme/app_palette.dart';
 import '../../../../app/theme/app_theme.dart';
 import '../../../../core/widgets/barlytics_brand.dart';
 import '../../../../core/auth/google_sign_in_button.dart';
+import '../../../../core/auth/apple_sign_in_button.dart';
 import '../../../auth/data/models/google_auth_models.dart';
 import '../../../auth/presentation/providers/auth_provider.dart';
 import '../../../onboarding/data/models/onboarding_models.dart';
@@ -49,6 +50,9 @@ class _PublicRegistrationPageState extends ConsumerState<PublicRegistrationPage>
   bool _googleLoading = false;
   String? _googleIdToken;
   GoogleIdentityModel? _googleIdentity;
+  String? _appleIdToken;
+  String? _appleGivenName;
+  String? _appleFamilyName;
   int _currentStep = 0;
   String? _selectedPlanCode;
   String? _selectedPlanName;
@@ -198,6 +202,57 @@ class _PublicRegistrationPageState extends ConsumerState<PublicRegistrationPage>
     }
   }
 
+  Future<void> _handleAppleCredential(AppleSignInResult result) async {
+    if (_googleLoading) return;
+    setState(() => _googleLoading = true);
+    try {
+      final loggedIn = await ref.read(authControllerProvider.notifier).appleLogin(result.idToken);
+      if (!mounted) return;
+      if (loggedIn) {
+        final auth = ref.read(authControllerProvider);
+        context.go(auth.subscriptionActive ? '/home' : '/activar-suscripcion');
+        return;
+      }
+
+      final failure = ref.read(authControllerProvider).failure;
+      if (failure == null || !failure.message.toLowerCase().contains('no encontrado')) {
+        throw StateError(failure?.message ?? 'No fue posible validar la cuenta de Apple.');
+      }
+      final email = result.email?.trim();
+      if (email == null || email.isEmpty) {
+        throw StateError('Apple no devolvió el correo para crear la cuenta. Intenta nuevamente con tu Apple ID.');
+      }
+
+      _primerNombre.text = (result.givenName ?? 'Usuario').trim();
+      _primerApellido.text = (result.familyName ?? 'BarLytics').trim();
+      _segundoNombre.clear();
+      _segundoApellido.clear();
+      _email.text = email;
+      _password.clear();
+      _confirmPassword.clear();
+      setState(() {
+        _appleIdToken = result.idToken;
+        _appleGivenName = result.givenName;
+        _appleFamilyName = result.familyName;
+        _googleIdToken = null;
+        _googleIdentity = null;
+        _currentStep = 1;
+      });
+      _showMessage('Apple verificó tu identidad. Completa ahora los datos de tu negocio.');
+    } catch (error) {
+      if (mounted) {
+        setState(() {
+          _appleIdToken = null;
+          _appleGivenName = null;
+          _appleFamilyName = null;
+        });
+        _showMessage(error.toString().replaceFirst('Bad state: ', '').replaceFirst('Exception: ', ''));
+      }
+    } finally {
+      if (mounted) setState(() => _googleLoading = false);
+    }
+  }
+
   void _applyGoogleIdentity(GoogleIdentityModel identity) {
     final given = (identity.givenName ?? identity.displayName ?? '').trim().split(RegExp(r'\s+'));
     final family = (identity.familyName ?? '').trim().split(RegExp(r'\s+'));
@@ -225,7 +280,7 @@ class _PublicRegistrationPageState extends ConsumerState<PublicRegistrationPage>
 
   void _continueFromGerente() {
     FocusScope.of(context).unfocus();
-    if (_googleIdToken != null && _googleIdentity != null) {
+    if ((_googleIdToken != null && _googleIdentity != null) || _appleIdToken != null) {
       setState(() => _currentStep = 1);
       return;
     }
@@ -285,7 +340,14 @@ class _PublicRegistrationPageState extends ConsumerState<PublicRegistrationPage>
           'planCode': _selectedPlanCode!.trim(),
         'aceptaTerminos': true,
       };
-      final registration = _googleIdToken != null
+      final registration = _appleIdToken != null
+          ? await onboarding.registerApple(<String, dynamic>{
+              'idToken': _appleIdToken,
+              'givenName': _appleGivenName,
+              'familyName': _appleFamilyName,
+              ...businessPayload,
+            })
+          : _googleIdToken != null
           ? await onboarding.registerGoogle(<String, dynamic>{
               'idToken': _googleIdToken,
               ...businessPayload,
@@ -599,6 +661,16 @@ class _PublicRegistrationPageState extends ConsumerState<PublicRegistrationPage>
         return Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
+            if (BarLyticsAppleSignInButton.supported) ...[
+              BarLyticsAppleSignInButton(
+                loading: _googleLoading,
+                onCredential: _handleAppleCredential,
+                onError: (error) => _showMessage(
+                  error.toString().replaceFirst('Bad state: ', '').replaceFirst('Exception: ', ''),
+                ),
+              ),
+              const SizedBox(height: 8),
+            ],
             BarLyticsGoogleSignInButton(
               webClientId: google.webClientId,
               iosClientId: google.iosClientId,
@@ -612,7 +684,7 @@ class _PublicRegistrationPageState extends ConsumerState<PublicRegistrationPage>
             ),
             const SizedBox(height: 8),
             Text(
-              'Solo solicitamos tu identidad básica: nombre, correo y foto de perfil. No accedemos a Gmail, Drive ni contactos.',
+              'Con Google solicitamos nombre, correo y foto de perfil. Con Apple puedes ocultar tu correo usando el relay privado de Apple.',
               textAlign: TextAlign.center,
               style: TextStyle(color: palette.textSecondary, fontSize: 10.5, height: 1.4),
             ),
