@@ -37,6 +37,7 @@ platform :ios do
       team_id: ENV.fetch("APPLE_TEAM_ID"),
       git_url: match_git_url,
       readonly: false,
+      force: true,
       git_basic_authorization: match_basic_auth
     )
   end
@@ -56,6 +57,7 @@ platform :ios do
       team_id: ENV.fetch("APPLE_TEAM_ID"),
       git_url: match_git_url,
       readonly: false,
+      force: true,
       git_basic_authorization: match_basic_auth
     )
 
