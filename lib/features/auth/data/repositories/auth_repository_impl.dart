@@ -35,6 +35,13 @@ class AuthRepositoryImpl implements AuthRepository {
   }
 
   @override
+  Future<LoginResponseModel> appleLogin(String idToken) async {
+    final response = await _remote.appleLogin(idToken);
+    await saveSession(response);
+    return response;
+  }
+
+  @override
   Future<void> saveSession(LoginResponseModel response) async {
     await _storage.write(StorageKeys.authToken, response.token);
     if (response.userId != null) await _storage.write(StorageKeys.userId, response.userId.toString());
