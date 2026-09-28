@@ -294,7 +294,7 @@ class _GlassLoginCard extends ConsumerWidget {
                   SizedBox(height: dense ? 10 : 18),
                   _GoogleLoginSection(state: state, loading: loading),
                   if (BarLyticsAppleSignInButton.supported) ...[
-                    SizedBox(height: dense ? 8 : 10),
+                    SizedBox(height: dense ? 7 : 8),
                     BarLyticsAppleSignInButton(
                       loading: loading,
                       onCredential: state._appleLogin,
@@ -307,10 +307,10 @@ class _GlassLoginCard extends ConsumerWidget {
                       },
                     ),
                   ],
-                  SizedBox(height: dense ? 8 : 16),
+                  SizedBox(height: dense ? 10 : 14),
                   Row(
                     children: [
-                      Expanded(child: Divider(color: palette.translucentBorder)),
+                      Expanded(child: Divider(color: palette.translucentBorder.withOpacity(.75))),
                       Padding(
                         padding: EdgeInsets.symmetric(horizontal: dense ? 9 : 12),
                         child: Text(
@@ -321,7 +321,7 @@ class _GlassLoginCard extends ConsumerWidget {
                           ),
                         ),
                       ),
-                      Expanded(child: Divider(color: palette.translucentBorder)),
+                      Expanded(child: Divider(color: palette.translucentBorder.withOpacity(.75))),
                     ],
                   ),
                   SizedBox(height: dense ? 8 : 16),
