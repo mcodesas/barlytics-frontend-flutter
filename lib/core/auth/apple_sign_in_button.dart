@@ -40,9 +40,8 @@ class BarLyticsAppleSignInButton extends StatelessWidget {
       child: SignInWithAppleButton(
         text: 'Continuar con Apple',
         borderRadius: const BorderRadius.all(Radius.circular(14)),
-        onPressed: loading
-            ? null
-            : () async {
+        onPressed: () async {
+                if (loading) return;
                 try {
                   final credential = await SignInWithApple.getAppleIDCredential(
                     scopes: const [
