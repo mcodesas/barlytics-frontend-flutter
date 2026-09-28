@@ -45,6 +45,16 @@ class AuthRemoteDataSource {
     return response.data!;
   }
 
+  Future<LoginResponseModel> appleLogin(String idToken) async {
+    final response = await _apiClient.post<LoginResponseModel>(
+      ApiPaths.authAppleLogin,
+      <String, dynamic>{'idToken': idToken},
+      (json) => LoginResponseModel.fromJson(Map<String, dynamic>.from(json as Map)),
+    );
+    if (response.data == null) throw StateError('No fue posible iniciar sesión con Apple.');
+    return response.data!;
+  }
+
   Future<bool> businessSetupComplete() async {
     final response = await _apiClient.get<Map<String, dynamic>>(
       ApiPaths.businessSetupStatus,
