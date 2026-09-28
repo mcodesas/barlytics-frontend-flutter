@@ -36,10 +36,11 @@ class BarLyticsAppleSignInButton extends StatelessWidget {
     if (!supported) return const SizedBox.shrink();
 
     return SizedBox(
-      height: 48,
+      height: 46,
       child: SignInWithAppleButton(
-        text: 'Continuar con Apple',
-        borderRadius: const BorderRadius.all(Radius.circular(14)),
+        text: loading ? 'Conectando...' : 'Continuar con Apple',
+        borderRadius: const BorderRadius.all(Radius.circular(23)),
+        style: SignInWithAppleButtonStyle.black,
         onPressed: () async {
                 if (loading) return;
                 try {
