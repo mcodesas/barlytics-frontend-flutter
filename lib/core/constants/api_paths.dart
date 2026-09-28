@@ -4,6 +4,7 @@ class ApiPaths {
   static const authGoogleConfig = '/api/v1/auth/google/config';
   static const authGoogleIdentity = '/api/v1/auth/google/identity';
   static const authGoogleLogin = '/api/v1/auth/google';
+  static const authAppleLogin = '/api/v1/auth/apple';
   static const authLogout = '/api/v1/auth/logout';
   static const authForgotPassword = '/api/v1/auth/forgot-password';
   static const authPasswordRecoveryValidate = '/api/v1/auth/password-recovery/validate';
@@ -13,6 +14,7 @@ class ApiPaths {
   static const onboardingCatalogs = '/api/v1/onboarding/catalogs';
   static const onboardingRegister = '/api/v1/onboarding/register';
   static const onboardingRegisterGoogle = '/api/v1/onboarding/register/google';
+  static const onboardingRegisterApple = '/api/v1/onboarding/register/apple';
   static const subscriptionMe = '/api/v1/subscriptions/me';
   static const subscriptionCapabilities = '/api/v1/subscriptions/me/capabilities';
   static const subscriptionPlans = '/api/v1/subscriptions/plans';
