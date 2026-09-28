@@ -6,6 +6,7 @@
 	<true/>
 	<key>CFBundleDevelopmentRegion</key>
 	<string>$(DEVELOPMENT_LANGUAGE)</string>
+	<!-- TestFlight rebuild: auth UI + credential autofill -->
 	<key>CFBundleDisplayName</key>
 	<string>BarLytics</string>
 	<key>CFBundleExecutable</key>
