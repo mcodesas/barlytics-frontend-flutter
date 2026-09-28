@@ -33,4 +33,14 @@ class OnboardingRemoteDataSource {
     if (response.data == null) throw StateError('El backend no devolvió la sesión creada.');
     return response.data!;
   }
+  Future<PublicRegistrationModel> registerApple(Map<String, dynamic> payload) async {
+    final response = await _api.post<PublicRegistrationModel>(
+      ApiPaths.onboardingRegisterApple,
+      payload,
+      (json) => PublicRegistrationModel.fromJson(Map<String, dynamic>.from(json as Map)),
+    );
+    if (response.data == null) throw StateError('El backend no devolvió la sesión creada.');
+    return response.data!;
+  }
+
 }
