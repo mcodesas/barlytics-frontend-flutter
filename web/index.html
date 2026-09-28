@@ -7,12 +7,14 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
   <meta name="description" content="BarLytics Colombia es software para bares y gastrobares desarrollado por MCode SAS: ventas, mesas, cobros, inventario, caja, productos, reportes, usuarios y sucursales en una sola plataforma.">
   <meta name="robots" content="index,follow,max-image-preview:large">
-  <meta name="theme-color" content="#061723">
+  <meta name="theme-color" content="#061723" media="(prefers-color-scheme: dark)">
+  <meta name="theme-color" content="#061723" media="(prefers-color-scheme: light)">
+  <meta name="msapplication-navbutton-color" content="#061723">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <meta name="color-scheme" content="dark">
   <meta name="supported-color-schemes" content="dark">
   <meta name="mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-capable" content="yes">
-  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <meta name="apple-mobile-web-app-title" content="BarLytics">
 
   <title>BarLytics Colombia | Software para bares e inventario</title>
@@ -218,8 +220,8 @@
       const BARLYTICS_THEME = '#061723';
       document.documentElement.style.colorScheme = 'dark';
       document.body.style.backgroundColor = BARLYTICS_THEME;
-      const theme = document.querySelector('meta[name="theme-color"]');
-      if (theme) theme.setAttribute('content', BARLYTICS_THEME);
+      const themes = document.querySelectorAll('meta[name="theme-color"]');
+      themes.forEach((theme) => theme.setAttribute('content', BARLYTICS_THEME));
 
       const preventZoomKey = (event) => {
         if ((event.ctrlKey || event.metaKey) && ['+', '-', '=', '0'].includes(event.key)) {
