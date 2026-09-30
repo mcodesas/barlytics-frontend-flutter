@@ -4499,7 +4499,9 @@ class _MeseroPageState extends ConsumerState<MeseroPage> {
               const SizedBox(height: 10),
               TextField(
                 controller: controllers[medio.medioPagoId],
-                keyboardType: TextInputType.number,
+                keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                textInputAction: TextInputAction.done,
+                onSubmitted: (_) => FocusScope.of(context).unfocus(),
                 inputFormatters: _currencyInputFormatters,
                 onChanged: (_) => setDialogState(() {}),
                 decoration: InputDecoration(
@@ -4541,7 +4543,9 @@ class _MeseroPageState extends ConsumerState<MeseroPage> {
           children: [
             TextField(
               controller: baseController,
-              keyboardType: TextInputType.number,
+              keyboardType: const TextInputType.numberWithOptions(decimal: true),
+              textInputAction: TextInputAction.done,
+              onSubmitted: (_) => FocusScope.of(context).unfocus(),
               inputFormatters: _currencyInputFormatters,
               onChanged: (_) => setDialogState(() {}),
               decoration: InputDecoration(
@@ -4581,7 +4585,9 @@ class _MeseroPageState extends ConsumerState<MeseroPage> {
                         );
                         final value = TextField(
                           controller: gasto.valor,
-                          keyboardType: TextInputType.number,
+                          keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                          textInputAction: TextInputAction.done,
+                          onSubmitted: (_) => FocusScope.of(context).unfocus(),
                           inputFormatters: _currencyInputFormatters,
                           onChanged: (_) => setDialogState(() {}),
                           decoration: InputDecoration(
