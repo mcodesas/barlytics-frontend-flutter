@@ -2279,7 +2279,6 @@ class _SimpleProductoTile extends StatelessWidget {
                 Checkbox(
                   value: selected,
                   onChanged: (value) => onSelectionChanged(id, value ?? false),
-                  tooltip: 'Seleccionar producto',
                 ),
                 const SizedBox(width: 4),
               ],
