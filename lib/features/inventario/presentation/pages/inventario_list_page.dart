@@ -381,7 +381,6 @@ class _InventarioListPageState extends ConsumerState<InventarioListPage> {
       ),
     );
   }
-}
 
   Future<void> _openReconcileDialog(BuildContext context, List<InventarioResponseModel> differences, List<ProductosResponseModel> products) async {
     final observation = TextEditingController();
