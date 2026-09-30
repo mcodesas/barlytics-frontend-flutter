@@ -824,12 +824,22 @@ class _RoleScopeSelector extends ConsumerWidget {
       builder: (sheetContext) => StatefulBuilder(
         builder: (sheetContext, setSheetState) {
           final all = draft == null;
+          final media = MediaQuery.of(sheetContext);
+          final viewportHeight = media.size.height;
+          final compactHeight = viewportHeight < 620;
+          final outerMargin = compactHeight ? 4.0 : 12.0;
           return SafeArea(
-            child: Container(
-              margin: const EdgeInsets.all(12),
-              padding: const EdgeInsets.fromLTRB(14, 12, 14, 14),
+            minimum: EdgeInsets.all(compactHeight ? 2 : 0),
+            child: SizedBox(
+              height: (viewportHeight - media.padding.vertical - (outerMargin * 2)).clamp(220.0, viewportHeight),
+              child: Container(
+              margin: EdgeInsets.all(outerMargin),
               decoration: BoxDecoration(color: palette.surface, borderRadius: BorderRadius.circular(palette.radius(24)), border: Border.all(color: palette.cardBorder)),
               child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
+                Expanded(
+                  child: SingleChildScrollView(
+                    padding: EdgeInsets.fromLTRB(14, compactHeight ? 8 : 12, 14, 8),
+                    child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                 Text('Vista por roles', style: TextStyle(color: palette.textPrimary, fontSize: 18, fontWeight: FontWeight.w900)),
                 const SizedBox(height: 4),
                 Text('Elige cómo quieres ver BarLytics: un rol, varios roles o todos. La pantalla y los menús cambian según tu selección y nunca se repiten opciones.', style: TextStyle(color: palette.textSecondary, fontSize: 12, fontWeight: FontWeight.w600)),
@@ -858,12 +868,28 @@ class _RoleScopeSelector extends ConsumerWidget {
                       });
                     },
                   ),
-                const SizedBox(height: 8),
-                SizedBox(width: double.infinity, child: FilledButton.icon(
-                  onPressed: () => Navigator.of(sheetContext).pop(draft ?? <String>{}),
-                  icon: const Icon(Icons.check_rounded), label: const Text('Aplicar vista'),
-                )),
+                    ]),
+                  ),
+                ),
+                Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.fromLTRB(14, 10, 14, 14),
+                  decoration: BoxDecoration(
+                    color: palette.surface,
+                    border: Border(top: BorderSide(color: palette.cardBorder)),
+                    borderRadius: BorderRadius.vertical(bottom: Radius.circular(palette.radius(24))),
+                  ),
+                  child: SafeArea(
+                    top: false,
+                    child: FilledButton.icon(
+                      onPressed: () => Navigator.of(sheetContext).pop(draft ?? <String>{}),
+                      icon: const Icon(Icons.check_rounded),
+                      label: const Text('Aplicar vista'),
+                    ),
+                  ),
+                ),
               ]),
+            ),
             ),
           );
         },
