@@ -4573,6 +4573,8 @@ class _MeseroPageState extends ConsumerState<MeseroPage> {
                       builder: (context, constraints) {
                         final description = TextField(
                           controller: gasto.descripcion,
+                          textInputAction: TextInputAction.done,
+                          onSubmitted: (_) => FocusScope.of(context).unfocus(),
                           maxLength: 300,
                           inputFormatters: [LengthLimitingTextInputFormatter(300)],
                           decoration: InputDecoration(
@@ -4638,6 +4640,8 @@ class _MeseroPageState extends ConsumerState<MeseroPage> {
             const SizedBox(height: 4),
             TextField(
               controller: observacionController,
+              textInputAction: TextInputAction.done,
+              onSubmitted: (_) => FocusScope.of(context).unfocus(),
               minLines: 2,
               maxLines: 3,
               maxLength: 500,
