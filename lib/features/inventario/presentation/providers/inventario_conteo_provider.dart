@@ -193,6 +193,34 @@ class InventarioConteoNotifier extends StateNotifier<InventarioConteoState> {
     }
   }
 
+  Future<bool> sincronizarDiferencias({
+    required List<InventarioResponseModel> registros,
+    required String motivo,
+    required String observacion,
+  }) async {
+    if (registros.isEmpty) return true;
+    state = state.copyWith(loading: true, clearFailure: true);
+    try {
+      for (final registro in registros) {
+        if (registro.invtId == null) continue;
+        await _apiClient.post<Object?>(
+          '/api/v1/inventario/sincronizar-conteo',
+          <String, dynamic>{
+            'invtId': registro.invtId,
+            'motivo': motivo,
+            'observacion': observacion,
+          },
+          (json) => json,
+        );
+      }
+      await load(sucursalId: state.sucursalId);
+      return true;
+    } catch (error) {
+      state = state.copyWith(loading: false, failure: ErrorMapper.map(error));
+      return false;
+    }
+  }
+
   Future<List<ProductosResponseModel>> _loadAllProducts(int sucursalId) async {
     final items = <ProductosResponseModel>[];
     var page = 0;
@@ -256,7 +284,7 @@ class InventarioConteoNotifier extends StateNotifier<InventarioConteoState> {
     final result = <int, InventarioResponseModel>{};
 
     for (final record in records) {
-      if (record.invtOrigen != 'CONTEO_FISICO') continue;
+      if (!(record.invtOrigen ?? '').startsWith('CONTEO_FISICO')) continue;
       final productId = record.prodId;
       final date = DateTime.tryParse(record.invtFecha ?? '');
       if (productId == null || date == null || !_sameDay(today, date)) continue;
