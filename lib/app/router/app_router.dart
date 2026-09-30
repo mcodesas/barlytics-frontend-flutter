@@ -24,6 +24,7 @@ import '../../features/admin_support/presentation/pages/admin_support_workspace_
 import '../../features/admin_support/presentation/pages/product_catalog_sync_page.dart';
 import '../../features/profile/presentation/pages/profile_page.dart';
 import '../../features/reportes/presentation/pages/reportes_page.dart';
+import '../../features/gastos_fijos/presentation/pages/gastos_fijos_page.dart';
 import '../../features/tablas_parametricas/presentation/pages/tablas_parametricas_page.dart';
 import '../../features/mesero/presentation/pages/mesero_page.dart';
 import '../../features/mesero/presentation/providers/mesero_tab_provider.dart';
@@ -289,6 +290,7 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       GoRoute(path: '/profile', builder: (context, state) => _setupAwareScaffold(ref, state, const ProfilePage())),
       GoRoute(path: '/reportes', builder: (context, state) => AppScaffold(child: const ReportesPage())),
       GoRoute(path: '/ganancias', builder: (context, state) => AppScaffold(child: const ReportesPage.ganancias())),
+      GoRoute(path: '/gastos_fijos', builder: (context, state) => const AppScaffold(child: GastosFijosPage())),
       GoRoute(path: '/proximo_pedido', builder: (context, state) => AppScaffold(child: const ReportesPage.proximoPedido())),
       GoRoute(path: '/tablas_parametricas', builder: (context, state) => _setupAwareScaffold(ref, state, const TablasParametricasPage())),
       GoRoute(path: '/mesero', builder: (context, state) => AppScaffold(child: const MeseroPage())),
