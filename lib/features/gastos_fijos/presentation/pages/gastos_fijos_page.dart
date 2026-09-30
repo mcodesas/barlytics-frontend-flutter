@@ -55,7 +55,17 @@ class _GastosFijosPageState extends ConsumerState<GastosFijosPage> {
         const SizedBox(height:6),Text('Costos recurrentes usados para calcular la utilidad neta del negocio.',style:TextStyle(color:palette.textSecondary,fontWeight:FontWeight.w600)),
         const SizedBox(height:20),
         if(loading) const Center(child:CircularProgressIndicator()) else if(items.isEmpty) const Center(child:Padding(padding:EdgeInsets.all(40),child:Text('Aún no hay gastos fijos registrados.'))) else
-        ...items.map((x)=>Card(child:ListTile(leading:const Icon(Icons.receipt_long_rounded),title:Text(x['gafiNombre']?.toString()??'Gasto',style:const TextStyle(fontWeight:FontWeight.w800)),subtitle:Text('${x['gafiCategoria']} · ${x['gafiPeriodicidad']}'),trailing:Row(mainAxisSize:MainAxisSize.min,children:[Text(NumberFormat.currency(locale: 'es_CO', symbol: r',style:const TextStyle(fontWeight:FontWeight.w900)),IconButton(onPressed:()=>_edit(x),icon:const Icon(Icons.edit_outlined))])))),
+        ...items.map((x)=>Card(child:ListTile(leading:const Icon(Icons.receipt_long_rounded),title:Text(x['gafiNombre']?.toString()??'Gasto',style:const TextStyle(fontWeight:FontWeight.w800)),subtitle:Text('${x['gafiCategoria']} · ${x['gafiPeriodicidad']}'),trailing:Row(mainAxisSize:MainAxisSize.min,children:[Text(NumberFormat.currency(locale: 'es_CO', symbol: r'(fontWeight:FontWeight.w900)),IconButton(onPressed:()=>_edit(x),icon:const Icon(Icons.edit_outlined))])))),
+      ]))),
+    );
+  }
+}
+, decimalDigits: 0).format((x['gafiValor'] as num?)?.toDouble() ?? 0),style:const TextStyle(fontWeight:FontWeight.w900)),IconButton(onPressed:()=>_edit(x),icon:const Icon(Icons.edit_outlined))])))),
+      ]))),
+    );
+  }
+}
+, decimalDigits: 0),style:const TextStyle(fontWeight:FontWeight.w900)),IconButton(onPressed:()=>_edit(x),icon:const Icon(Icons.edit_outlined))])))),
       ]))),
     );
   }
