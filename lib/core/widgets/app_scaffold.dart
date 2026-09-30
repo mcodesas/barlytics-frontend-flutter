@@ -824,12 +824,17 @@ class _RoleScopeSelector extends ConsumerWidget {
       builder: (sheetContext) => StatefulBuilder(
         builder: (sheetContext, setSheetState) {
           final all = draft == null;
+          final viewportHeight = MediaQuery.sizeOf(sheetContext).height;
           return SafeArea(
             child: Container(
               margin: const EdgeInsets.all(12),
-              padding: const EdgeInsets.fromLTRB(14, 12, 14, 14),
+              constraints: BoxConstraints(maxHeight: viewportHeight * 0.86),
               decoration: BoxDecoration(color: palette.surface, borderRadius: BorderRadius.circular(palette.radius(24)), border: Border.all(color: palette.cardBorder)),
               child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
+                Expanded(
+                  child: SingleChildScrollView(
+                    padding: const EdgeInsets.fromLTRB(14, 12, 14, 8),
+                    child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                 Text('Vista por roles', style: TextStyle(color: palette.textPrimary, fontSize: 18, fontWeight: FontWeight.w900)),
                 const SizedBox(height: 4),
                 Text('Elige cómo quieres ver BarLytics: un rol, varios roles o todos. La pantalla y los menús cambian según tu selección y nunca se repiten opciones.', style: TextStyle(color: palette.textSecondary, fontSize: 12, fontWeight: FontWeight.w600)),
@@ -858,11 +863,26 @@ class _RoleScopeSelector extends ConsumerWidget {
                       });
                     },
                   ),
-                const SizedBox(height: 8),
-                SizedBox(width: double.infinity, child: FilledButton.icon(
-                  onPressed: () => Navigator.of(sheetContext).pop(draft ?? <String>{}),
-                  icon: const Icon(Icons.check_rounded), label: const Text('Aplicar vista'),
-                )),
+                    ]),
+                  ),
+                ),
+                Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.fromLTRB(14, 10, 14, 14),
+                  decoration: BoxDecoration(
+                    color: palette.surface,
+                    border: Border(top: BorderSide(color: palette.cardBorder)),
+                    borderRadius: BorderRadius.vertical(bottom: Radius.circular(palette.radius(24))),
+                  ),
+                  child: SafeArea(
+                    top: false,
+                    child: FilledButton.icon(
+                      onPressed: () => Navigator.of(sheetContext).pop(draft ?? <String>{}),
+                      icon: const Icon(Icons.check_rounded),
+                      label: const Text('Aplicar vista'),
+                    ),
+                  ),
+                ),
               ]),
             ),
           );
