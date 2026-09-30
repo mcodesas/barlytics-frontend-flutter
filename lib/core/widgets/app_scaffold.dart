@@ -824,16 +824,21 @@ class _RoleScopeSelector extends ConsumerWidget {
       builder: (sheetContext) => StatefulBuilder(
         builder: (sheetContext, setSheetState) {
           final all = draft == null;
-          final viewportHeight = MediaQuery.sizeOf(sheetContext).height;
+          final media = MediaQuery.of(sheetContext);
+          final viewportHeight = media.size.height;
+          final compactHeight = viewportHeight < 620;
+          final outerMargin = compactHeight ? 4.0 : 12.0;
           return SafeArea(
-            child: Container(
-              margin: const EdgeInsets.all(12),
-              constraints: BoxConstraints(maxHeight: viewportHeight * 0.86),
+            minimum: EdgeInsets.all(compactHeight ? 2 : 0),
+            child: SizedBox(
+              height: (viewportHeight - media.padding.vertical - (outerMargin * 2)).clamp(220.0, viewportHeight),
+              child: Container(
+              margin: EdgeInsets.all(outerMargin),
               decoration: BoxDecoration(color: palette.surface, borderRadius: BorderRadius.circular(palette.radius(24)), border: Border.all(color: palette.cardBorder)),
               child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
                 Expanded(
                   child: SingleChildScrollView(
-                    padding: const EdgeInsets.fromLTRB(14, 12, 14, 8),
+                    padding: EdgeInsets.fromLTRB(14, compactHeight ? 8 : 12, 14, 8),
                     child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                 Text('Vista por roles', style: TextStyle(color: palette.textPrimary, fontSize: 18, fontWeight: FontWeight.w900)),
                 const SizedBox(height: 4),
@@ -884,6 +889,7 @@ class _RoleScopeSelector extends ConsumerWidget {
                   ),
                 ),
               ]),
+            ),
             ),
           );
         },
