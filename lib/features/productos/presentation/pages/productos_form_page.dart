@@ -259,6 +259,8 @@ class _ProductosFormPageState extends ConsumerState<ProductosFormPage> {
                               branchName: sucursalNombre,
                               purchasePrice: _parseDouble(_valorCompraController.text),
                               salePrice: _parseDouble(_valorVentaController.text),
+                              purchaseByQuantity: _compraPorCantidad,
+                              purchaseQuantity: _parseDouble(_cantidadCompraController.text),
                               currentInventory: inventarioActual,
                               inventoryToAdd: _registrarInventario ? _parseDouble(_inventarioCantidadController.text) : null,
                               expirationDate: _fechaVencimiento,
@@ -1293,6 +1295,8 @@ class _ProductDraftOverview extends StatelessWidget {
     required this.branchName,
     required this.purchasePrice,
     required this.salePrice,
+    required this.purchaseByQuantity,
+    required this.purchaseQuantity,
     required this.currentInventory,
     required this.inventoryToAdd,
     required this.expirationDate,
@@ -1308,6 +1312,8 @@ class _ProductDraftOverview extends StatelessWidget {
   final String branchName;
   final double? purchasePrice;
   final double? salePrice;
+  final bool purchaseByQuantity;
+  final double? purchaseQuantity;
   final double currentInventory;
   final double? inventoryToAdd;
   final DateTime? expirationDate;
@@ -1321,7 +1327,9 @@ class _ProductDraftOverview extends StatelessWidget {
         : description.trim();
     final purchase = purchasePrice ?? 0;
     final sale = salePrice ?? 0;
-    final utility = sale - purchase;
+    final quantity = purchaseQuantity ?? 0;
+    final unitPurchaseCost = purchaseByQuantity && quantity > 0 ? purchase / quantity : purchase;
+    final utility = sale - unitPurchaseCost;
     final margin = sale > 0 ? (utility / sale) * 100 : 0.0;
     final finalInventory = currentInventory + (inventoryToAdd ?? 0);
 
@@ -1405,7 +1413,11 @@ class _ProductDraftOverview extends StatelessWidget {
           LayoutBuilder(
             builder: (context, constraints) {
               final metrics = [
-                _DraftMetric(label: 'Compra', value: _money(purchase), color: palette.textPrimary),
+                _DraftMetric(
+                  label: purchaseByQuantity && quantity > 0 ? 'Compra / unidad' : 'Compra',
+                  value: _money(unitPurchaseCost),
+                  color: palette.textPrimary,
+                ),
                 _DraftMetric(label: 'Venta', value: _money(sale), color: palette.secondary),
                 _DraftMetric(label: 'Margen', value: '${_formatNumber(margin)}%', color: utility >= 0 ? Colors.greenAccent.shade400 : Colors.redAccent),
                 _DraftMetric(label: 'Inventario', value: _formatNumber(finalInventory), color: palette.textPrimary),
