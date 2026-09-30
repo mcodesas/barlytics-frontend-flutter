@@ -504,8 +504,8 @@ class _ProductosListPageState extends ConsumerState<ProductosListPage> {
   Future<void> _deleteProduct(BuildContext context, Object id) async {
     final confirmed = await showConfirmationDialog(
       context,
-      title: 'Eliminar o inactivar producto',
-      message: '¿Deseas eliminar o inactivar este producto?',
+      title: 'Inactivar producto',
+      message: '¿Deseas inactivar este producto? Dejará de aparecer en la operación, pero se conservará su historial.',
     );
     if (!confirmed) return;
 
@@ -514,7 +514,7 @@ class _ProductosListPageState extends ConsumerState<ProductosListPage> {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: Text(
-          ok ? 'Producto procesado correctamente' : 'No fue posible procesar el producto',
+          ok ? 'Producto inactivado correctamente' : 'No fue posible inactivar el producto',
         ),
       ),
     );
