@@ -84,6 +84,11 @@ class _InventarioListPageState extends ConsumerState<InventarioListPage> {
     final pending = math.max(0, total - completed).toInt();
     final progress = total == 0 ? 0.0 : completed / total;
     final query = _searchController.text.trim().toLowerCase();
+    final diferenciasPendientes = state.registrosHoy.values
+        .where((record) =>
+            record.invtOrigen == 'CONTEO_FISICO' &&
+            (record.invtDiferencia ?? 0).abs() > 0.0001)
+        .toList(growable: false);
 
     final visible = state.productos.where((product) {
       final id = product.prodId;
@@ -184,6 +189,22 @@ class _InventarioListPageState extends ConsumerState<InventarioListPage> {
                   ),
                 ),
               ),
+              if (pending == 0 && diferenciasPendientes.isNotEmpty)
+                SliverToBoxAdapter(
+                  child: Center(
+                    child: ConstrainedBox(
+                      constraints: const BoxConstraints(maxWidth: 1120),
+                      child: Padding(
+                        padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
+                        child: _InventoryReconcileBanner(
+                          palette: palette,
+                          differences: diferenciasPendientes.length,
+                          onPressed: loading ? null : () => _openReconcileDialog(context, diferenciasPendientes, state.productos),
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
               if (failure != null)
                 SliverToBoxAdapter(
                   child: Center(
@@ -358,6 +379,112 @@ class _InventarioListPageState extends ConsumerState<InventarioListPage> {
           '${product.prodNombre ?? 'Producto'} registrado: ${_formatQuantity(quantity)} unidades.',
         ),
       ),
+    );
+  }
+
+  Future<void> _openReconcileDialog(BuildContext context, List<InventarioResponseModel> differences, List<ProductosResponseModel> products) async {
+    final observation = TextEditingController();
+    String reason = 'Diferencia de conteo';
+    final palette = ref.read(selectedAppPaletteProvider);
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => StatefulBuilder(
+        builder: (context, setDialogState) => AlertDialog(
+          title: const Text('Sincronizar diferencias'),
+          content: SizedBox(
+            width: 560,
+            child: SingleChildScrollView(
+              child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+                Text('Se ajustará el inventario del sistema al conteo físico y se registrará un movimiento de ajuste para conservar la trazabilidad.',
+                    style: TextStyle(color: palette.textSecondary, fontWeight: FontWeight.w600)),
+                const SizedBox(height: 14),
+                ...differences.map((record) {
+                  ProductosResponseModel? product;
+                  for (final item in products) {
+                    if (item.prodId == record.prodId) { product = item; break; }
+                  }
+                  final diff = record.invtDiferencia ?? 0;
+                  return ListTile(
+                    contentPadding: EdgeInsets.zero,
+                    leading: Icon(diff > 0 ? Icons.add_circle_outline : Icons.remove_circle_outline,
+                        color: diff > 0 ? palette.success : palette.warning),
+                    title: Text(product?.prodNombre ?? 'Producto ${record.prodId}', style: const TextStyle(fontWeight: FontWeight.w800)),
+                    subtitle: Text('Sistema ${_formatQuantity(record.invtCantidadEsperada ?? 0)} · Físico ${_formatQuantity(record.invtCantidad ?? 0)} · Diferencia ${diff > 0 ? '+' : ''}${_formatQuantity(diff)}'),
+                  );
+                }),
+                const SizedBox(height: 12),
+                DropdownButtonFormField<String>(
+                  value: reason,
+                  decoration: const InputDecoration(labelText: 'Motivo del ajuste'),
+                  items: const ['Diferencia de conteo','Merma','Rotura','Consumo interno','Pérdida','Sobrante','Error de registro','Otro']
+                      .map((value) => DropdownMenuItem(value: value, child: Text(value))).toList(),
+                  onChanged: (value) { if (value != null) setDialogState(() => reason = value); },
+                ),
+                const SizedBox(height: 12),
+                TextField(
+                  controller: observation,
+                  onChanged: (_) => setDialogState(() {}),
+                  maxLength: 300,
+                  minLines: 2,
+                  maxLines: 4,
+                  decoration: const InputDecoration(labelText: 'Sustentación obligatoria', hintText: 'Explica por qué se ajustará el inventario.'),
+                ),
+              ]),
+            ),
+          ),
+          actions: [
+            TextButton(onPressed: () => Navigator.pop(dialogContext, false), child: const Text('Cancelar')),
+            FilledButton.icon(
+              onPressed: observation.text.trim().isEmpty ? null : () => Navigator.pop(dialogContext, true),
+              icon: const Icon(Icons.sync_rounded),
+              label: const Text('Sincronizar inventario'),
+            ),
+          ],
+        ),
+      ),
+    );
+    final note = observation.text.trim();
+    observation.dispose();
+    if (confirmed != true || note.isEmpty || !mounted) return;
+    final ok = await ref.read(inventarioConteoProvider.notifier).sincronizarDiferencias(
+      registros: differences, motivo: reason, observacion: note,
+    );
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+      content: Text(ok ? 'Inventario sincronizado. Los ajustes quedaron registrados en movimientos.'
+          : (ref.read(inventarioConteoProvider).failure?.message ?? 'No fue posible sincronizar el inventario.')),
+    ));
+  }
+}
+
+class _InventoryReconcileBanner extends StatelessWidget {
+  const _InventoryReconcileBanner({required this.palette, required this.differences, required this.onPressed});
+  final AppPalette palette;
+  final int differences;
+  final VoidCallback? onPressed;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: palette.panelDecoration(baseRadius: 22, tint: palette.warning, elevated: false),
+      child: LayoutBuilder(builder: (context, constraints) {
+        final info = Row(children: [
+          Icon(Icons.sync_problem_rounded, color: palette.warning, size: 28),
+          const SizedBox(width: 12),
+          Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Text('$differences diferencia(s) por conciliar', style: TextStyle(color: palette.textPrimary, fontWeight: FontWeight.w900)),
+            const SizedBox(height: 3),
+            Text('Revisa y sustenta el ajuste antes de sincronizar el inventario con el conteo físico.',
+                style: TextStyle(color: palette.textSecondary, fontWeight: FontWeight.w600)),
+          ])),
+        ]);
+        final button = FilledButton.icon(onPressed: onPressed, icon: const Icon(Icons.sync_rounded), label: const Text('Ajustar inventario'));
+        if (constraints.maxWidth < 650) {
+          return Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [info, const SizedBox(height: 12), button]);
+        }
+        return Row(children: [Expanded(child: info), const SizedBox(width: 16), button]);
+      }),
     );
   }
 }

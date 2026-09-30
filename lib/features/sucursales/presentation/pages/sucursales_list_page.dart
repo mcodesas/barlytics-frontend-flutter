@@ -47,6 +47,58 @@ class _SucursalesListPageState extends ConsumerState<SucursalesListPage> {
     super.dispose();
   }
 
+  Future<void> _openEditSheet(SucursalesResponseModel item) async {
+    final id = item.sucuId;
+    if (id == null) return;
+    final palette = ref.read(selectedAppPaletteProvider);
+    final saved = await showModalBottomSheet<bool>(
+      context: context,
+      isScrollControlled: true,
+      useSafeArea: true,
+      backgroundColor: Colors.transparent,
+      barrierColor: Colors.black54,
+      builder: (sheetContext) {
+        final media = MediaQuery.of(sheetContext);
+        final height = math.max(420.0, media.size.height * 0.94 - media.viewInsets.bottom).toDouble();
+        return AnimatedPadding(
+          duration: const Duration(milliseconds: 180),
+          curve: Curves.easeOut,
+          padding: EdgeInsets.only(bottom: media.viewInsets.bottom),
+          child: Align(
+            alignment: Alignment.bottomCenter,
+            child: Container(
+              height: height,
+              constraints: const BoxConstraints(maxWidth: 1220),
+              decoration: BoxDecoration(
+                color: palette.background,
+                borderRadius: const BorderRadius.vertical(top: Radius.circular(30)),
+                boxShadow: const [
+                  BoxShadow(color: Colors.black26, blurRadius: 28, offset: Offset(0, -10)),
+                ],
+              ),
+              clipBehavior: Clip.antiAlias,
+              child: Column(
+                children: [
+                  const SizedBox(height: 9),
+                  Container(
+                    width: 48,
+                    height: 5,
+                    decoration: BoxDecoration(
+                      color: palette.textSecondary.withOpacity(0.32),
+                      borderRadius: BorderRadius.circular(999),
+                    ),
+                  ),
+                  Expanded(child: SucursalesFormPage(id: id.toString(), embedded: true)),
+                ],
+              ),
+            ),
+          ),
+        );
+      },
+    );
+    if (saved == true && mounted) await _load();
+  }
+
   Future<void> _openCreateSheet() async {
     final palette = ref.read(selectedAppPaletteProvider);
     final created = await showModalBottomSheet<bool>(
@@ -324,7 +376,7 @@ class _SucursalesListPageState extends ConsumerState<SucursalesListPage> {
                                             catalogs: _catalogs,
                                             palette: palette,
                                             onOpen: () => _showQuickDetail(item),
-                                            onEdit: () => context.go('/sucursales/${item.sucuId}/editar'),
+                                            onEdit: () => _openEditSheet(item),
                                             onDelete: () => _delete(item),
                                           ),
                                         ),
@@ -447,7 +499,7 @@ class _SucursalesListPageState extends ConsumerState<SucursalesListPage> {
                       final edit = FilledButton.icon(
                         onPressed: () {
                           Navigator.pop(sheetContext);
-                          context.go('/sucursales/${item.sucuId}/editar');
+                          _openEditSheet(item);
                         },
                         icon: const Icon(Icons.edit_rounded),
                         label: const Text('Modificar'),

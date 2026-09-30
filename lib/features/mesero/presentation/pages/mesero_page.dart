@@ -4828,7 +4828,13 @@ class _MeseroPageState extends ConsumerState<MeseroPage> {
         ),
       );
 
-      if (mobileSheet) return content;
+      if (mobileSheet) {
+        return GestureDetector(
+          behavior: HitTestBehavior.translucent,
+          onTap: () => FocusManager.instance.primaryFocus?.unfocus(),
+          child: content,
+        );
+      }
       return ConstrainedBox(
         constraints: BoxConstraints(maxWidth: 1080, maxHeight: size.height - 36),
         child: content,

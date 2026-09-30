@@ -47,6 +47,8 @@ class _ProductosListPageState extends ConsumerState<ProductosListPage> {
   bool _branchInitialized = false;
   final Set<int> _stockSavingIds = <int>{};
   final Set<int> _productSavingIds = <int>{};
+  final Set<int> _selectedProductIds = <int>{};
+  bool _bulkDeleting = false;
 
   @override
   void dispose() {
@@ -136,6 +138,8 @@ class _ProductosListPageState extends ConsumerState<ProductosListPage> {
         stockSavingIds: _stockSavingIds,
         productSavingIds: _productSavingIds,
         allowProductManagement: !movementOnly,
+        selectedProductIds: _selectedProductIds,
+        onSelectionChanged: _toggleProductSelection,
       );
     }
 
@@ -253,6 +257,8 @@ class _ProductosListPageState extends ConsumerState<ProductosListPage> {
                     onSizeChanged: notifier.changeSize,
                   ),
                 ),
+                if (!movementOnly && _selectedProductIds.isNotEmpty)
+                  SliverToBoxAdapter(child: _buildBulkActions(palette, items)),
                 SliverToBoxAdapter(child: content),
                 if (state.loading && items.isNotEmpty)
                   SliverToBoxAdapter(
@@ -272,6 +278,89 @@ class _ProductosListPageState extends ConsumerState<ProductosListPage> {
     );
   }
 
+  void _toggleProductSelection(int id, bool selected) {
+    setState(() {
+      if (selected) {
+        _selectedProductIds.add(id);
+      } else {
+        _selectedProductIds.remove(id);
+      }
+    });
+  }
+
+  Widget _buildBulkActions(AppPalette palette, List<ProductosResponseModel> items) {
+    final visibleIds = items.map((item) => item.prodId).whereType<int>().toSet();
+    final allVisibleSelected = visibleIds.isNotEmpty && visibleIds.every(_selectedProductIds.contains);
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+        decoration: palette.panelDecoration(baseRadius: 18, tint: palette.secondary, elevated: false),
+        child: Wrap(
+          spacing: 10,
+          runSpacing: 8,
+          crossAxisAlignment: WrapCrossAlignment.center,
+          children: [
+            Text('${_selectedProductIds.length} producto(s) seleccionado(s)',
+                style: TextStyle(color: palette.textPrimary, fontWeight: FontWeight.w900)),
+            TextButton.icon(
+              onPressed: _bulkDeleting ? null : () {
+                setState(() {
+                  if (allVisibleSelected) {
+                    _selectedProductIds.removeAll(visibleIds);
+                  } else {
+                    _selectedProductIds.addAll(visibleIds);
+                  }
+                });
+              },
+              icon: Icon(allVisibleSelected ? Icons.deselect_rounded : Icons.select_all_rounded),
+              label: Text(allVisibleSelected ? 'Quitar selección' : 'Seleccionar visibles'),
+            ),
+            FilledButton.icon(
+              onPressed: _bulkDeleting ? null : () => _deleteSelectedProducts(context),
+              style: FilledButton.styleFrom(backgroundColor: Colors.redAccent, foregroundColor: Colors.white),
+              icon: _bulkDeleting
+                  ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
+                  : const Icon(Icons.delete_outline_rounded),
+              label: Text(_bulkDeleting ? 'Inactivando...' : 'Inactivar seleccionados'),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Future<void> _deleteSelectedProducts(BuildContext context) async {
+    if (_selectedProductIds.isEmpty || _bulkDeleting) return;
+    final count = _selectedProductIds.length;
+    final confirmed = await showConfirmationDialog(
+      context,
+      title: 'Inactivar productos',
+      message: '¿Deseas inactivar los $count productos seleccionados? Dejarán de aparecer en la operación, pero conservarán su historial.',
+    );
+    if (!confirmed || !mounted) return;
+
+    final ids = _selectedProductIds.toList(growable: false);
+    setState(() => _bulkDeleting = true);
+    var success = 0;
+    try {
+      for (final id in ids) {
+        final ok = await ref.read(productosPagedProvider.notifier).remove(id);
+        if (ok) {
+          success++;
+          if (mounted) setState(() => _selectedProductIds.remove(id));
+        }
+      }
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(success == count
+            ? '$success productos inactivados.'
+            : '$success de $count productos fueron inactivados.')),
+      );
+    } finally {
+      if (mounted) setState(() => _bulkDeleting = false);
+    }
+  }
 
   Future<void> _changeActiveBranch(int? branchId) async {
     if (branchId == null || branchId == ref.read(branchScopeProvider).activeBranchId) return;
@@ -1994,6 +2083,8 @@ class _ProductosResults extends StatelessWidget {
     required this.stockSavingIds,
     required this.productSavingIds,
     required this.allowProductManagement,
+    required this.selectedProductIds,
+    required this.onSelectionChanged,
   });
 
   final List<ProductosResponseModel> items;
@@ -2008,6 +2099,8 @@ class _ProductosResults extends StatelessWidget {
   final Set<int> stockSavingIds;
   final Set<int> productSavingIds;
   final bool allowProductManagement;
+  final Set<int> selectedProductIds;
+  final void Function(int id, bool selected) onSelectionChanged;
 
   @override
   Widget build(BuildContext context) {
@@ -2042,6 +2135,8 @@ class _ProductosResults extends StatelessWidget {
                     onRegisterMovement: onRegisterMovement,
                     onUpdateProduct: onUpdateProduct,
                     allowProductManagement: allowProductManagement,
+                    selected: items[index].prodId != null && selectedProductIds.contains(items[index].prodId),
+                    onSelectionChanged: onSelectionChanged,
                   ),
               ],
             ),
@@ -2083,6 +2178,8 @@ class _ProductosResults extends StatelessWidget {
                     onRegisterMovement: onRegisterMovement,
                     onUpdateProduct: onUpdateProduct,
                     allowProductManagement: allowProductManagement,
+                    selected: item.prodId != null && selectedProductIds.contains(item.prodId),
+                    onSelectionChanged: onSelectionChanged,
                   ),
                 ),
             ],
@@ -2120,6 +2217,8 @@ class _SimpleProductoTile extends StatelessWidget {
     required this.onRegisterMovement,
     required this.onUpdateProduct,
     required this.allowProductManagement,
+    required this.selected,
+    required this.onSelectionChanged,
   });
 
   final ProductosResponseModel item;
@@ -2137,6 +2236,8 @@ class _SimpleProductoTile extends StatelessWidget {
   final Future<bool> Function(ProductosResponseModel item, _QuickMovementDraft draft) onRegisterMovement;
   final Future<bool> Function(ProductosResponseModel item, Map<String, dynamic> body) onUpdateProduct;
   final bool allowProductManagement;
+  final bool selected;
+  final void Function(int id, bool selected) onSelectionChanged;
 
   @override
   Widget build(BuildContext context) {
@@ -2174,6 +2275,14 @@ class _SimpleProductoTile extends StatelessWidget {
           Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
+              if (allowProductManagement && id != null) ...[
+                Checkbox(
+                  value: selected,
+                  onChanged: (value) => onSelectionChanged(id, value ?? false),
+                  tooltip: 'Seleccionar producto',
+                ),
+                const SizedBox(width: 4),
+              ],
               _ProductImage(
                 value: item.prodFoto,
                 width: listMode ? 80 : 72,
