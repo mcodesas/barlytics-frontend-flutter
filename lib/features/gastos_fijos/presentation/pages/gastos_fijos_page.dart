@@ -20,9 +20,9 @@ class _GastosFijosPageState extends ConsumerState<GastosFijosPage> {
   }
   Future<void> _edit([Map<String,dynamic>? current]) async {
     final id=ref.read(branchScopeProvider).activeBranchId;if(id==null)return;
-    final name=TextEditingController(text:current?['gafiNombre']?.toString() ?? ''');
-    final value=TextEditingController(text:current?['gafiValor']?.toString() ?? ''');
-    final note=TextEditingController(text:current?['gafiObservacion']?.toString() ?? ''');
+    final name=TextEditingController(text:current?['gafiNombre']?.toString() ?? '');
+    final value=TextEditingController(text:current?['gafiValor']?.toString() ?? '');
+    final note=TextEditingController(text:current?['gafiObservacion']?.toString() ?? '');
     String category=current?['gafiCategoria']?.toString() ?? 'Otros';
     String periodicity=current?['gafiPeriodicidad']?.toString() ?? 'MENSUAL';
     final ok=await showDialog<bool>(context:context,builder:(ctx)=>StatefulBuilder(builder:(ctx,setD)=>AlertDialog(
