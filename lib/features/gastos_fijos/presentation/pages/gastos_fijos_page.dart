@@ -163,11 +163,12 @@ class _GastosFijosPageState extends ConsumerState<GastosFijosPage> {
       ),
     );
 
-    name.dispose();
-    value.dispose();
-    note.dispose();
-
-    if (ok != true) return;
+    if (ok != true) {
+      name.dispose();
+      value.dispose();
+      note.dispose();
+      return;
+    }
 
     final raw = value.text.replaceAll('.', '').replaceAll(',', '.');
     final body = {
@@ -181,6 +182,10 @@ class _GastosFijosPageState extends ConsumerState<GastosFijosPage> {
       'gafiEstado': 1,
       'gafiObservacion': note.text.trim(),
     };
+
+    name.dispose();
+    value.dispose();
+    note.dispose();
 
     final api = ref.read(apiClientProvider);
     if (current == null) {
