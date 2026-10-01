@@ -738,7 +738,7 @@ class _ReporteDetailState extends ConsumerState<_ReporteDetail> {
   }) async {
     final now = DateUtils.dateOnly(DateTime.now());
     const firstYear = 2020;
-    var selectedYear = initialMonth.year.clamp(firstYear, now.year);
+    var selectedYear = initialMonth.year.clamp(firstYear, now.year).toInt();
     var selectedMonth = initialMonth.month;
 
     if (selectedYear == now.year && selectedMonth > now.month) {
