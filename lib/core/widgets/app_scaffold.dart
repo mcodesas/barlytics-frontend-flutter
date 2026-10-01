@@ -330,6 +330,7 @@ String _resolveCurrentPageTitle(
   const routeTitles = <String, String>{
     '/home': 'Inicio',
     '/profile': 'Mi perfil',
+    '/dashboard': 'Dashboard',
     '/reportes': 'Reportes',
     '/reporte_resumen_ejecutivo': 'Resumen ejecutivo',
     '/reporte_ventas_fecha': 'Ventas por fecha',
@@ -425,6 +426,9 @@ String? _resolveCurrentPageSubtitle(
   if (isManager && path == '/home') {
     return 'Supervisa ventas, inventario, rentabilidad y operación desde un panel rápido.';
   }
+  if (isManager && path.startsWith('/dashboard')) {
+    return 'Panorama completo del negocio con ventas, rentabilidad, gastos, inventario y operación.';
+  }
   if (isManager && path.startsWith('/reporte_')) {
     return 'Consulta este reporte operativo con filtros, gráficos, datos y exportación.';
   }
@@ -470,6 +474,7 @@ String? _resolveCurrentPageEyebrow(
     return 'Configuración operativa';
   }
   if (isManager && path == '/home') return 'Centro de control POS';
+  if (isManager && path.startsWith('/dashboard')) return 'Resumen ejecutivo';
   if (isManager && path.startsWith('/reporte_')) return 'Reporte operativo';
   if (isManager) return 'Gestión gerencial';
   if (isInventario) return 'Operación de inventario';
@@ -487,6 +492,7 @@ String? _resolveCurrentPageStatusText(
   if (isOperativo && path.startsWith('/mesero')) {
     return isInventario ? 'Stock activo' : 'Caja activa';
   }
+  if (isManager && path.startsWith('/dashboard')) return 'Panorama del periodo';
   if (isManager && path.startsWith('/reporte_')) return 'Datos actualizados';
   if (isInventario && path.startsWith('/ganancias')) return 'Periodo actual';
   if (isInventario && path.startsWith('/proximo_pedido')) return 'Stock actualizado';
@@ -522,6 +528,9 @@ IconData? _resolveCurrentPageIcon(
     return Icons.tune_rounded;
   }
   if (isManager && path == '/home') return Icons.space_dashboard_rounded;
+  if (isManager && path.startsWith('/dashboard')) {
+    return Icons.space_dashboard_rounded;
+  }
   if (isManager && path.startsWith('/reporte_')) {
     return ModuleVisuals.byKey(path.substring(1)).icon;
   }
