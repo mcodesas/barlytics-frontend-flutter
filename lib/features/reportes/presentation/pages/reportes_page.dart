@@ -716,25 +716,239 @@ class _ReporteDetailState extends ConsumerState<_ReporteDetail> {
   }
 
   Future<void> _selectProfitMonth() async {
-    final selected = await showDatePicker(
-      context: context,
-      firstDate: DateTime(2020),
-      lastDate: DateUtils.dateOnly(DateTime.now()),
-      initialDate: _range.end,
-      helpText: 'Selecciona cualquier día del mes',
-      cancelText: 'Cancelar',
-      confirmText: 'Aplicar mes',
+    final selected = await _showProfitMonthPicker(
+      initialMonth: _range.start,
     );
     if (selected == null || !mounted) return;
+
     final today = DateUtils.dateOnly(DateTime.now());
     final firstDay = DateTime(selected.year, selected.month);
     final naturalLastDay = DateTime(selected.year, selected.month + 1, 0);
     final lastDay = naturalLastDay.isAfter(today) ? today : naturalLastDay;
+
     setState(() {
       _lastPayload = null;
       _range = DateTimeRange(start: firstDay, end: lastDay);
       _future = _load();
     });
+  }
+
+  Future<DateTime?> _showProfitMonthPicker({
+    required DateTime initialMonth,
+  }) async {
+    final now = DateUtils.dateOnly(DateTime.now());
+    const firstYear = 2020;
+    var selectedYear = initialMonth.year.clamp(firstYear, now.year);
+    var selectedMonth = initialMonth.month;
+
+    if (selectedYear == now.year && selectedMonth > now.month) {
+      selectedMonth = now.month;
+    }
+
+    const monthNames = <String>[
+      'Enero',
+      'Febrero',
+      'Marzo',
+      'Abril',
+      'Mayo',
+      'Junio',
+      'Julio',
+      'Agosto',
+      'Septiembre',
+      'Octubre',
+      'Noviembre',
+      'Diciembre',
+    ];
+
+    return showDialog<DateTime>(
+      context: context,
+      builder: (dialogContext) {
+        return StatefulBuilder(
+          builder: (context, setDialogState) {
+            final theme = Theme.of(context);
+            final scheme = theme.colorScheme;
+
+            void changeYear(int year) {
+              setDialogState(() {
+                selectedYear = year;
+                if (selectedYear == now.year && selectedMonth > now.month) {
+                  selectedMonth = now.month;
+                }
+              });
+            }
+
+            return AlertDialog(
+              titlePadding: const EdgeInsets.fromLTRB(24, 20, 16, 8),
+              contentPadding: const EdgeInsets.fromLTRB(20, 8, 20, 8),
+              actionsPadding: const EdgeInsets.fromLTRB(16, 8, 16, 14),
+              title: Row(
+                children: [
+                  Icon(
+                    Icons.calendar_month_rounded,
+                    color: scheme.primary,
+                  ),
+                  const SizedBox(width: 10),
+                  const Expanded(
+                    child: Text('Selecciona el mes'),
+                  ),
+                ],
+              ),
+              content: SizedBox(
+                width: math.min(MediaQuery.sizeOf(context).width * .86, 430),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 12,
+                        vertical: 4,
+                      ),
+                      decoration: BoxDecoration(
+                        color: scheme.surfaceContainerHighest.withOpacity(.45),
+                        borderRadius: BorderRadius.circular(14),
+                        border: Border.all(
+                          color: scheme.outlineVariant.withOpacity(.65),
+                        ),
+                      ),
+                      child: Row(
+                        children: [
+                          IconButton(
+                            tooltip: 'Año anterior',
+                            onPressed: selectedYear > firstYear
+                                ? () => changeYear(selectedYear - 1)
+                                : null,
+                            icon: const Icon(Icons.chevron_left_rounded),
+                          ),
+                          Expanded(
+                            child: DropdownButtonHideUnderline(
+                              child: DropdownButton<int>(
+                                value: selectedYear,
+                                isExpanded: true,
+                                alignment: Alignment.center,
+                                items: [
+                                  for (var year = firstYear;
+                                      year <= now.year;
+                                      year++)
+                                    DropdownMenuItem<int>(
+                                      value: year,
+                                      alignment: Alignment.center,
+                                      child: Text(
+                                        '$year',
+                                        style: const TextStyle(
+                                          fontWeight: FontWeight.w900,
+                                        ),
+                                      ),
+                                    ),
+                                ],
+                                onChanged: (year) {
+                                  if (year != null) changeYear(year);
+                                },
+                              ),
+                            ),
+                          ),
+                          IconButton(
+                            tooltip: 'Año siguiente',
+                            onPressed: selectedYear < now.year
+                                ? () => changeYear(selectedYear + 1)
+                                : null,
+                            icon: const Icon(Icons.chevron_right_rounded),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+                    GridView.builder(
+                      shrinkWrap: true,
+                      physics: const NeverScrollableScrollPhysics(),
+                      itemCount: 12,
+                      gridDelegate:
+                          const SliverGridDelegateWithFixedCrossAxisCount(
+                        crossAxisCount: 3,
+                        mainAxisSpacing: 8,
+                        crossAxisSpacing: 8,
+                        childAspectRatio: 2.35,
+                      ),
+                      itemBuilder: (_, index) {
+                        final month = index + 1;
+                        final futureMonth =
+                            selectedYear == now.year && month > now.month;
+                        final selected = selectedMonth == month;
+
+                        return Material(
+                          color: selected
+                              ? scheme.primary
+                              : scheme.surfaceContainerHighest.withOpacity(.35),
+                          borderRadius: BorderRadius.circular(12),
+                          child: InkWell(
+                            borderRadius: BorderRadius.circular(12),
+                            onTap: futureMonth
+                                ? null
+                                : () => setDialogState(
+                                      () => selectedMonth = month,
+                                    ),
+                            child: Container(
+                              alignment: Alignment.center,
+                              decoration: BoxDecoration(
+                                borderRadius: BorderRadius.circular(12),
+                                border: Border.all(
+                                  color: selected
+                                      ? scheme.primary
+                                      : scheme.outlineVariant.withOpacity(.55),
+                                ),
+                              ),
+                              child: Text(
+                                monthNames[index],
+                                textAlign: TextAlign.center,
+                                style: TextStyle(
+                                  color: futureMonth
+                                      ? scheme.onSurface.withOpacity(.30)
+                                      : selected
+                                          ? scheme.onPrimary
+                                          : scheme.onSurface,
+                                  fontWeight: selected
+                                      ? FontWeight.w900
+                                      : FontWeight.w700,
+                                  fontSize: 12,
+                                ),
+                              ),
+                            ),
+                          ),
+                        );
+                      },
+                    ),
+                    const SizedBox(height: 12),
+                    Align(
+                      alignment: Alignment.centerLeft,
+                      child: Text(
+                        'Mes seleccionado: ${monthNames[selectedMonth - 1]} $selectedYear',
+                        style: TextStyle(
+                          color: scheme.onSurfaceVariant,
+                          fontWeight: FontWeight.w700,
+                          fontSize: 12,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.of(dialogContext).pop(),
+                  child: const Text('Cancelar'),
+                ),
+                FilledButton.icon(
+                  onPressed: () => Navigator.of(dialogContext).pop(
+                    DateTime(selectedYear, selectedMonth),
+                  ),
+                  icon: const Icon(Icons.check_rounded),
+                  label: const Text('Aplicar mes'),
+                ),
+              ],
+            );
+          },
+        );
+      },
+    );
   }
 
   void _changeProfitPeriodMode(_ProfitPeriodMode mode) {
