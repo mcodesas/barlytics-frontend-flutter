@@ -1865,10 +1865,17 @@ class _ReportContent extends StatelessWidget {
                   percentageKeys: definition.percentageKeys,
                 ),
                 const SizedBox(height: 14),
+                _ReportDecisionSection(
+                  definition: definition,
+                  rows: payload.rows,
+                  metrics: metrics,
+                  palette: palette,
+                ),
+                const SizedBox(height: 14),
                 _Panel(
-                  title: 'Lectura gráfica',
-                  subtitle: 'Los valores más relevantes del reporte para identificar tendencias rápidamente.',
-                  icon: Icons.insights_rounded,
+                  title: _reportChartTitle(definition),
+                  subtitle: _reportChartSubtitle(definition),
+                  icon: _reportChartIcon(definition),
                   palette: palette,
                   child: _HorizontalBarChart(
                     rows: payload.rows,
@@ -1882,8 +1889,9 @@ class _ReportContent extends StatelessWidget {
                 ),
                 const SizedBox(height: 14),
                 _Panel(
-                  title: 'Información detallada',
-                  subtitle: '${payload.rows.length} registros. Cambia entre tarjetas y tabla según el dispositivo.',
+                  title: 'Detalle para validar y actuar',
+                  subtitle:
+                      '${payload.rows.length} registros. Busca, compara y cambia entre tarjetas o tabla según el dispositivo.',
                   icon: Icons.table_rows_rounded,
                   palette: palette,
                   child: _ReportTable(
@@ -1902,6 +1910,538 @@ class _ReportContent extends StatelessWidget {
   }
 }
 
+
+class _ReportDecisionSection extends StatelessWidget {
+  const _ReportDecisionSection({
+    required this.definition,
+    required this.rows,
+    required this.metrics,
+    required this.palette,
+  });
+
+  final _ReportDefinition definition;
+  final List<Map<String, dynamic>> rows;
+  final Map<String, dynamic> metrics;
+  final AppPalette palette;
+
+  @override
+  Widget build(BuildContext context) {
+    final insights = _buildReportInsights(
+      definition,
+      rows,
+      metrics,
+      palette,
+    );
+
+    if (insights.isEmpty) return const SizedBox.shrink();
+
+    return _Panel(
+      title: 'Lectura para decidir',
+      subtitle:
+          'Lo más importante del reporte, convertido en señales que ayudan a tomar acción.',
+      icon: Icons.lightbulb_outline_rounded,
+      palette: palette,
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          final columns = constraints.maxWidth < 620
+              ? 1
+              : constraints.maxWidth < 980
+                  ? 2
+                  : math.min(3, insights.length);
+          const spacing = 9.0;
+          final width =
+              (constraints.maxWidth - (columns - 1) * spacing) / columns;
+          return Wrap(
+            spacing: spacing,
+            runSpacing: spacing,
+            children: [
+              for (final insight in insights)
+                SizedBox(
+                  width: width,
+                  child: _ReportInsightCard(
+                    insight: insight,
+                    palette: palette,
+                  ),
+                ),
+            ],
+          );
+        },
+      ),
+    );
+  }
+}
+
+class _ReportInsightData {
+  const _ReportInsightData({
+    required this.title,
+    required this.value,
+    required this.detail,
+    required this.icon,
+    required this.color,
+  });
+
+  final String title;
+  final String value;
+  final String detail;
+  final IconData icon;
+  final Color color;
+}
+
+class _ReportInsightCard extends StatelessWidget {
+  const _ReportInsightCard({
+    required this.insight,
+    required this.palette,
+  });
+
+  final _ReportInsightData insight;
+  final AppPalette palette;
+
+  @override
+  Widget build(BuildContext context) => Container(
+        constraints: const BoxConstraints(minHeight: 126),
+        padding: const EdgeInsets.all(13),
+        decoration: BoxDecoration(
+          color: insight.color.withOpacity(.06),
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: insight.color.withOpacity(.16)),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Container(
+                  width: 34,
+                  height: 34,
+                  decoration: BoxDecoration(
+                    color: insight.color.withOpacity(.12),
+                    borderRadius: BorderRadius.circular(11),
+                  ),
+                  child: Icon(
+                    insight.icon,
+                    color: insight.color,
+                    size: 18,
+                  ),
+                ),
+                const SizedBox(width: 9),
+                Expanded(
+                  child: Text(
+                    insight.title,
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      color: palette.textSecondary,
+                      fontWeight: FontWeight.w800,
+                      fontSize: 10.5,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 10),
+            Text(
+              insight.value,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(
+                color: palette.textPrimary,
+                fontWeight: FontWeight.w900,
+                fontSize: 17,
+              ),
+            ),
+            const SizedBox(height: 4),
+            Text(
+              insight.detail,
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(
+                color: palette.textSecondary,
+                fontWeight: FontWeight.w600,
+                fontSize: 10.5,
+                height: 1.25,
+              ),
+            ),
+          ],
+        ),
+      );
+}
+
+List<_ReportInsightData> _buildReportInsights(
+  _ReportDefinition definition,
+  List<Map<String, dynamic>> rows,
+  Map<String, dynamic> metrics,
+  AppPalette palette,
+) {
+  if (rows.isEmpty) return const <_ReportInsightData>[];
+
+  if (definition.path.endsWith('/ventas')) {
+    final ranked = [...rows]
+      ..sort((a, b) => _toDouble(b['total']).compareTo(_toDouble(a['total'])));
+    final best = ranked.first;
+    final total = _sum(rows, 'total');
+    final propinas = _sum(rows, 'propinas');
+    final average = rows.isEmpty ? 0 : total / rows.length;
+    return [
+      _ReportInsightData(
+        title: 'Día con mayor venta',
+        value: _displayValue(best['fecha']),
+        detail: CurrencyUtils.format(_toDouble(best['total'])),
+        icon: Icons.emoji_events_rounded,
+        color: palette.success,
+      ),
+      _ReportInsightData(
+        title: 'Venta promedio por día',
+        value: CurrencyUtils.format(average),
+        detail: 'Promedio sobre ${rows.length} días con movimiento.',
+        icon: Icons.query_stats_rounded,
+        color: palette.secondary,
+      ),
+      _ReportInsightData(
+        title: 'Propinas',
+        value: CurrencyUtils.format(propinas),
+        detail: total <= 0
+            ? 'Sin ventas para calcular participación.'
+            : '${(propinas * 100 / total).toStringAsFixed(1)} % del total vendido.',
+        icon: Icons.volunteer_activism_rounded,
+        color: palette.accent,
+      ),
+    ];
+  }
+
+  if (definition.path.contains('medio-pago')) {
+    final ranked = [...rows]
+      ..sort((a, b) => _toDouble(b['total']).compareTo(_toDouble(a['total'])));
+    final top = ranked.first;
+    final total = _sum(rows, 'total');
+    final share = total <= 0 ? 0 : _toDouble(top['total']) * 100 / total;
+    return [
+      _ReportInsightData(
+        title: 'Medio principal',
+        value: _displayValue(top['medio_pago']),
+        detail: CurrencyUtils.format(_toDouble(top['total'])),
+        icon: Icons.account_balance_wallet_rounded,
+        color: palette.secondary,
+      ),
+      _ReportInsightData(
+        title: 'Concentración del recaudo',
+        value: '${share.toStringAsFixed(1)} %',
+        detail: share >= 70
+            ? 'Alta dependencia de un solo medio de pago.'
+            : 'El recaudo está distribuido entre varios medios.',
+        icon: Icons.donut_large_rounded,
+        color: share >= 70 ? palette.warning : palette.success,
+      ),
+      _ReportInsightData(
+        title: 'Diversidad de pagos',
+        value: '${rows.length} medios',
+        detail: 'Útiles para conciliación y control de caja.',
+        icon: Icons.hub_rounded,
+        color: palette.accent,
+      ),
+    ];
+  }
+
+  if (definition.path.contains('stock-actual')) {
+    final critical = rows.where((row) {
+      final status = (row['estado'] ?? '').toString();
+      return status == 'STOCK_NEGATIVO' ||
+          status == 'AGOTADO' ||
+          status == 'STOCK_BAJO';
+    }).length;
+    final unconfigured =
+        rows.where((row) => row['estado'] == 'SIN_CONFIGURAR').length;
+    final overstock =
+        rows.where((row) => row['estado'] == 'SOBRESTOCK').length;
+    final riskShare = rows.isEmpty ? 0 : critical * 100 / rows.length;
+    return [
+      _ReportInsightData(
+        title: 'Productos en riesgo',
+        value: '$critical',
+        detail: '${riskShare.toStringAsFixed(1)} % del catálogo requiere atención.',
+        icon: Icons.warning_amber_rounded,
+        color: critical > 0 ? Colors.orangeAccent : palette.success,
+      ),
+      _ReportInsightData(
+        title: 'Sin mínimo configurado',
+        value: '$unconfigured',
+        detail: unconfigured == 0
+            ? 'Todos tienen referencia para reposición.'
+            : 'Configura mínimos para obtener alertas confiables.',
+        icon: Icons.tune_rounded,
+        color: unconfigured > 0 ? palette.warning : palette.success,
+      ),
+      _ReportInsightData(
+        title: 'Sobrestock',
+        value: '$overstock',
+        detail: overstock == 0
+            ? 'No se detectan excesos sobre el máximo.'
+            : 'Revisa capital inmovilizado y ritmo de rotación.',
+        icon: Icons.inventory_2_rounded,
+        color: overstock > 0 ? palette.accent : palette.success,
+      ),
+    ];
+  }
+
+  if (definition.path.contains('productos-mas-vendidos')) {
+    final ranked = [...rows]
+      ..sort((a, b) => _toDouble(b['cantidad']).compareTo(_toDouble(a['cantidad'])));
+    final top = ranked.first;
+    final totalUnits = _sum(rows, 'cantidad');
+    final top3Units = ranked
+        .take(3)
+        .fold<double>(0, (sum, row) => sum + _toDouble(row['cantidad']));
+    final concentration = totalUnits <= 0 ? 0 : top3Units * 100 / totalUnits;
+    return [
+      _ReportInsightData(
+        title: 'Producto líder',
+        value: _displayValue(top['producto']),
+        detail: '${_displayValue(top['cantidad'])} unidades · ${CurrencyUtils.format(_toDouble(top['total']))}',
+        icon: Icons.workspace_premium_rounded,
+        color: palette.success,
+      ),
+      _ReportInsightData(
+        title: 'Concentración Top 3',
+        value: '${concentration.toStringAsFixed(1)} %',
+        detail: 'Participación de los tres productos con más unidades.',
+        icon: Icons.leaderboard_rounded,
+        color: palette.secondary,
+      ),
+      _ReportInsightData(
+        title: 'Ingresos del ranking',
+        value: CurrencyUtils.format(_sum(rows, 'total')),
+        detail: '${_displayValue(totalUnits)} unidades vendidas.',
+        icon: Icons.payments_rounded,
+        color: palette.actionColor,
+      ),
+    ];
+  }
+
+  if (definition.path.contains('movimientos-inventario')) {
+    final entradas = rows
+        .where((row) => row['operacion'] == 'ENTRADA')
+        .fold<double>(0, (sum, row) => sum + _toDouble(row['cantidad_unidades']));
+    final salidas = rows
+        .where((row) => row['operacion'] == 'SALIDA')
+        .fold<double>(0, (sum, row) => sum + _toDouble(row['cantidad_unidades']));
+    final ajustes =
+        rows.where((row) => row['operacion'] == 'AJUSTE').length;
+    final balance = entradas - salidas;
+    return [
+      _ReportInsightData(
+        title: 'Entradas registradas',
+        value: _displayValue(entradas),
+        detail: 'Unidades incorporadas al inventario.',
+        icon: Icons.south_west_rounded,
+        color: palette.success,
+      ),
+      _ReportInsightData(
+        title: 'Salidas registradas',
+        value: _displayValue(salidas),
+        detail: 'Unidades descontadas en el periodo.',
+        icon: Icons.north_east_rounded,
+        color: Colors.orangeAccent,
+      ),
+      _ReportInsightData(
+        title: 'Balance de flujo',
+        value: _displayValue(balance),
+        detail: '$ajustes ajustes manuales registrados.',
+        icon: Icons.balance_rounded,
+        color: balance < 0 ? palette.warning : palette.secondary,
+      ),
+    ];
+  }
+
+  if (definition.path.contains('cruce-ventas')) {
+    final ranked = [...rows]
+      ..sort(
+        (a, b) => _toDouble(b['rotacion_porcentaje'])
+            .compareTo(_toDouble(a['rotacion_porcentaje'])),
+      );
+    final top = ranked.first;
+    final withoutRotation =
+        rows.where((row) => row['estado'] == 'SIN_ROTACION').length;
+    final risk = rows.where((row) {
+      final status = (row['estado'] ?? '').toString();
+      return status == 'STOCK_NEGATIVO' ||
+          status == 'AGOTADO_CON_ROTACION' ||
+          status == 'STOCK_BAJO';
+    }).length;
+    return [
+      _ReportInsightData(
+        title: 'Mayor rotación',
+        value: _displayValue(top['producto']),
+        detail:
+            '${_displayValue(top['rotacion_porcentaje'], percentage: true)} de rotación.',
+        icon: Icons.autorenew_rounded,
+        color: palette.success,
+      ),
+      _ReportInsightData(
+        title: 'Sin rotación',
+        value: '$withoutRotation',
+        detail: 'Productos sin ventas en el periodo seleccionado.',
+        icon: Icons.pause_circle_outline_rounded,
+        color: withoutRotation > 0 ? palette.warning : palette.success,
+      ),
+      _ReportInsightData(
+        title: 'Rotación con riesgo de stock',
+        value: '$risk',
+        detail: 'Productos que requieren reposición o validación.',
+        icon: Icons.crisis_alert_rounded,
+        color: risk > 0 ? Colors.orangeAccent : palette.success,
+      ),
+    ];
+  }
+
+  if (definition.path.contains('productos-desfalcados') &&
+      !definition.path.contains('/persona')) {
+    final negative =
+        rows.where((row) => _toDouble(row['stock_actual']) < 0).length;
+    final outWithDemand =
+        rows.where((row) => row['estado'] == 'AGOTADO_CON_ROTACION').length;
+    final associatedSales = _sum(rows, 'valor_vendido');
+    return [
+      _ReportInsightData(
+        title: 'Stock negativo',
+        value: '$negative',
+        detail: negative == 0
+            ? 'No hay productos con existencia negativa.'
+            : 'Requieren conteo y revisión de movimientos.',
+        icon: Icons.error_outline_rounded,
+        color: negative > 0 ? Colors.redAccent : palette.success,
+      ),
+      _ReportInsightData(
+        title: 'Agotados con demanda',
+        value: '$outWithDemand',
+        detail: 'Productos sin stock que tuvieron ventas en el periodo.',
+        icon: Icons.remove_shopping_cart_rounded,
+        color: outWithDemand > 0 ? Colors.orangeAccent : palette.success,
+      ),
+      _ReportInsightData(
+        title: 'Ventas asociadas al riesgo',
+        value: CurrencyUtils.format(associatedSales),
+        detail: 'Referencia del movimiento comercial de los productos alertados.',
+        icon: Icons.attach_money_rounded,
+        color: palette.warning,
+      ),
+    ];
+  }
+
+  if (definition.path.contains('/persona')) {
+    final ranked = [...rows]
+      ..sort(
+        (a, b) => _toDouble(b['unidades_salida'])
+            .compareTo(_toDouble(a['unidades_salida'])),
+      );
+    final top = ranked.first;
+    final total = _sum(rows, 'unidades_salida');
+    final topShare =
+        total <= 0 ? 0 : _toDouble(top['unidades_salida']) * 100 / total;
+    return [
+      _ReportInsightData(
+        title: 'Mayor volumen de salidas',
+        value: _displayValue(top['responsable']),
+        detail:
+            '${_displayValue(top['unidades_salida'])} unidades registradas.',
+        icon: Icons.person_search_rounded,
+        color: palette.secondary,
+      ),
+      _ReportInsightData(
+        title: 'Concentración principal',
+        value: '${topShare.toStringAsFixed(1)} %',
+        detail: topShare >= 60
+            ? 'Conviene revisar el contexto de esta concentración.'
+            : 'Las salidas están distribuidas entre responsables.',
+        icon: Icons.pie_chart_outline_rounded,
+        color: topShare >= 60 ? palette.warning : palette.success,
+      ),
+      _ReportInsightData(
+        title: 'Trazabilidad',
+        value: '${_displayValue(_sum(rows, 'movimientos'))} movimientos',
+        detail: '${rows.length} responsables con actividad.',
+        icon: Icons.manage_search_rounded,
+        color: palette.accent,
+      ),
+    ];
+  }
+
+  return [
+    _ReportInsightData(
+      title: 'Registros analizados',
+      value: '${rows.length}',
+      detail: 'Consulta el detalle para validar tendencias y excepciones.',
+      icon: Icons.analytics_rounded,
+      color: palette.secondary,
+    ),
+  ];
+}
+
+String _reportChartTitle(_ReportDefinition definition) {
+  if (definition.path.endsWith('/ventas')) return 'Evolución de ventas';
+  if (definition.path.contains('medio-pago')) return 'Participación del recaudo';
+  if (definition.path.contains('stock-actual')) return 'Existencias por producto';
+  if (definition.path.contains('productos-mas-vendidos')) {
+    return 'Ranking de demanda';
+  }
+  if (definition.path.contains('movimientos-inventario')) {
+    return 'Movimiento por tipo';
+  }
+  if (definition.path.contains('cruce-ventas')) return 'Rotación por producto';
+  if (definition.path.contains('productos-desfalcados') &&
+      !definition.path.contains('/persona')) {
+    return 'Productos con demanda en riesgo';
+  }
+  if (definition.path.contains('/persona')) return 'Salidas por responsable';
+  return 'Lectura gráfica';
+}
+
+String _reportChartSubtitle(_ReportDefinition definition) {
+  if (definition.path.endsWith('/ventas')) {
+    return 'Compara los días del periodo y detecta cuándo se concentra la facturación.';
+  }
+  if (definition.path.contains('medio-pago')) {
+    return 'Visualiza qué medios concentran el recaudo para facilitar conciliación y control.';
+  }
+  if (definition.path.contains('stock-actual')) {
+    return 'Compara existencias y detecta productos que merecen una revisión de mínimos o máximos.';
+  }
+  if (definition.path.contains('productos-mas-vendidos')) {
+    return 'Identifica los productos que más unidades aportan al movimiento comercial.';
+  }
+  if (definition.path.contains('movimientos-inventario')) {
+    return 'Observa qué tipos de movimiento explican la mayor parte del flujo de inventario.';
+  }
+  if (definition.path.contains('cruce-ventas')) {
+    return 'Prioriza productos con mayor movimiento y detecta referencias estancadas.';
+  }
+  if (definition.path.contains('productos-desfalcados') &&
+      !definition.path.contains('/persona')) {
+    return 'Dimensiona los productos con riesgo de disponibilidad frente a su movimiento comercial.';
+  }
+  if (definition.path.contains('/persona')) {
+    return 'Compara el volumen de salidas registrado por cada responsable.';
+  }
+  return 'Los valores más relevantes del reporte para identificar tendencias rápidamente.';
+}
+
+IconData _reportChartIcon(_ReportDefinition definition) {
+  if (definition.path.endsWith('/ventas')) return Icons.show_chart_rounded;
+  if (definition.path.contains('medio-pago')) {
+    return Icons.account_balance_wallet_rounded;
+  }
+  if (definition.path.contains('stock-actual')) return Icons.inventory_2_rounded;
+  if (definition.path.contains('productos-mas-vendidos')) {
+    return Icons.leaderboard_rounded;
+  }
+  if (definition.path.contains('movimientos-inventario')) {
+    return Icons.swap_vert_circle_rounded;
+  }
+  if (definition.path.contains('cruce-ventas')) return Icons.sync_alt_rounded;
+  if (definition.path.contains('productos-desfalcados')) {
+    return Icons.warning_amber_rounded;
+  }
+  if (definition.path.contains('/persona')) return Icons.manage_accounts_rounded;
+  return Icons.insights_rounded;
+}
 
 enum _ProfitProductFilter { todos, rentables, margenBajo, perdidas, sinCosto }
 
