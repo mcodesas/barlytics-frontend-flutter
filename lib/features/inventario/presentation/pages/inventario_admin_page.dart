@@ -629,10 +629,12 @@ class _ReconcileDialogState extends State<_ReconcileDialog> {
     final palette = widget.palette;
     final size = MediaQuery.sizeOf(context);
     final mobile = size.width < 700;
-    final dialogWidth = mobile ? size.width - 20 : math.min(size.width - 48, 780);
+    final dialogWidth = mobile
+        ? size.width - 20
+        : math.min(size.width - 48, 780).toDouble();
     final dialogHeight = mobile
         ? size.height - 20
-        : math.min(size.height - 48, 760);
+        : math.min(size.height - 48, 760).toDouble();
 
     return SizedBox(
       width: dialogWidth,
