@@ -1300,7 +1300,7 @@ class _InventoryProductRow extends StatelessWidget {
                     ),
                   ),
                   icon: const Icon(Icons.fact_check_rounded, size: 18),
-                  label: const Text(
+                  label: Text(
                     lastCount == null ? 'Registrar conteo' : 'Nuevo conteo',
                     style: const TextStyle(fontWeight: FontWeight.w900),
                   ),
@@ -1949,7 +1949,7 @@ class _InventoryEmptyState extends StatelessWidget {
               const SizedBox(height: 14),
               Text(
                 completed
-                    ? 'No quedan productos pendientes'
+                    ? 'Todos los productos fueron contados hoy'
                     : 'No encontramos productos',
                 textAlign: TextAlign.center,
                 style: TextStyle(
@@ -1961,7 +1961,7 @@ class _InventoryEmptyState extends StatelessWidget {
               const SizedBox(height: 6),
               Text(
                 completed
-                    ? 'El conteo del día está completo. Puedes revisar los productos ya registrados.'
+                    ? 'La jornada de conteo de hoy está completa. El próximo conteo puede hacerse cuando corresponda a tu operación.'
                     : 'Cambia el filtro o limpia la búsqueda para continuar.',
                 textAlign: TextAlign.center,
                 style: TextStyle(
@@ -1977,7 +1977,7 @@ class _InventoryEmptyState extends StatelessWidget {
                   completed ? Icons.checklist_rounded : Icons.close_rounded,
                 ),
                 label: Text(
-                  completed ? 'Ver productos contados' : 'Limpiar búsqueda',
+                  completed ? 'Ver contados hoy' : 'Limpiar búsqueda',
                 ),
               ),
             ],
