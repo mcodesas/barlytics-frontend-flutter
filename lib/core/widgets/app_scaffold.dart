@@ -346,7 +346,7 @@ String _resolveCurrentPageTitle(
     '/reporte_salidas_responsable': 'Salidas por responsable',
     '/productos': 'Productos',
     '/inventario': 'Inventario',
-    '/inventario_admin': 'Administración de inventario',
+    '/inventario_admin': 'Control administrativo de inventario',
     '/precios': 'Precios',
     '/tablas_parametricas': 'Tablas paramétricas',
     '/tipos_producto': 'Tipos de producto',
@@ -416,7 +416,7 @@ String? _resolveCurrentPageSubtitle(
     };
   }
   if (isInventario && path.startsWith('/inventario_admin')) {
-    return 'Consulta historial de conteos, diferencias, conciliaciones y ajustes por sucursal.';
+    return 'Audita conteos, faltantes y sobrantes valorizados, responsables, ventas del día y conciliaciones.';
   }
   if (isInventario && path.startsWith('/ganancias')) {
     return 'Consulta ingresos, costos, margen y rentabilidad real del periodo.';
