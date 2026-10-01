@@ -331,8 +331,18 @@ String _resolveCurrentPageTitle(
     '/home': 'Inicio',
     '/profile': 'Mi perfil',
     '/reportes': 'Reportes',
+    '/reporte_resumen_ejecutivo': 'Resumen ejecutivo',
+    '/reporte_ventas_fecha': 'Ventas por fecha',
+    '/reporte_ventas_medio_pago': 'Ventas por medio de pago',
+    '/reporte_stock_actual': 'Stock actual',
     '/ganancias': 'Ganancias',
     '/proximo_pedido': 'Próximo pedido',
+    '/reporte_cruce_conteo': 'Cruce de conteo físico',
+    '/reporte_productos_mas_vendidos': 'Productos más vendidos',
+    '/reporte_movimientos_inventario': 'Movimientos de inventario',
+    '/reporte_rotacion_inventario': 'Rotación de inventario',
+    '/reporte_alertas_inventario': 'Alertas de inventario',
+    '/reporte_salidas_responsable': 'Salidas por responsable',
     '/productos': 'Productos',
     '/inventario': 'Inventario',
     '/precios': 'Precios',
@@ -415,6 +425,9 @@ String? _resolveCurrentPageSubtitle(
   if (isManager && path == '/home') {
     return 'Supervisa ventas, inventario, rentabilidad y operación desde un panel rápido.';
   }
+  if (isManager && path.startsWith('/reporte_')) {
+    return 'Consulta este reporte operativo con filtros, gráficos, datos y exportación.';
+  }
   if (isManager && path.startsWith('/reportes')) {
     return 'Analiza la operación y toma decisiones con información consolidada.';
   }
@@ -457,6 +470,7 @@ String? _resolveCurrentPageEyebrow(
     return 'Configuración operativa';
   }
   if (isManager && path == '/home') return 'Centro de control POS';
+  if (isManager && path.startsWith('/reporte_')) return 'Reporte operativo';
   if (isManager) return 'Gestión gerencial';
   if (isInventario) return 'Operación de inventario';
   return null;
@@ -473,6 +487,7 @@ String? _resolveCurrentPageStatusText(
   if (isOperativo && path.startsWith('/mesero')) {
     return isInventario ? 'Stock activo' : 'Caja activa';
   }
+  if (isManager && path.startsWith('/reporte_')) return 'Datos actualizados';
   if (isInventario && path.startsWith('/ganancias')) return 'Periodo actual';
   if (isInventario && path.startsWith('/proximo_pedido')) return 'Stock actualizado';
   if (isManager) return 'Operación en línea';
@@ -507,6 +522,9 @@ IconData? _resolveCurrentPageIcon(
     return Icons.tune_rounded;
   }
   if (isManager && path == '/home') return Icons.space_dashboard_rounded;
+  if (isManager && path.startsWith('/reporte_')) {
+    return ModuleVisuals.byKey(path.substring(1)).icon;
+  }
   if (isManager && path.startsWith('/reportes')) return Icons.analytics_rounded;
   if (isManager && path.startsWith('/ganancias')) return Icons.trending_up_rounded;
   if (isManager && path.startsWith('/proximo_pedido')) return Icons.local_shipping_rounded;
