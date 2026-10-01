@@ -441,6 +441,9 @@ class _ReportCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final visual = ModuleVisuals.byKey(definition.keyName);
+    final accent = visual.color;
+    final area = _reportAreaLabel(definition);
     return Material(
       color: Colors.transparent,
       borderRadius: BorderRadius.circular(palette.radius(22)),
@@ -455,7 +458,7 @@ class _ReportCard extends StatelessWidget {
           padding: const EdgeInsets.all(15),
           decoration: palette.panelDecoration(
             baseRadius: 22,
-            tint: palette.secondary,
+            tint: accent,
             elevated: false,
           ),
           child: Column(
@@ -468,15 +471,15 @@ class _ReportCard extends StatelessWidget {
                     width: 46,
                     height: 46,
                     decoration: BoxDecoration(
-                      color: palette.secondary.withOpacity(0.13),
+                      color: accent.withOpacity(0.13),
                       borderRadius: BorderRadius.circular(15),
                       border: Border.all(
-                        color: palette.secondary.withOpacity(0.20),
+                        color: accent.withOpacity(0.20),
                       ),
                     ),
                     child: Icon(
                       definition.icon,
-                      color: palette.secondary,
+                      color: accent,
                       size: 24,
                     ),
                   ),
@@ -521,7 +524,28 @@ class _ReportCard extends StatelessWidget {
                   height: 1.35,
                 ),
               ),
-              const SizedBox(height: 13),
+              const SizedBox(height: 10),
+              Align(
+                alignment: Alignment.centerLeft,
+                child: Container(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 9, vertical: 5),
+                  decoration: BoxDecoration(
+                    color: accent.withOpacity(.09),
+                    borderRadius: BorderRadius.circular(999),
+                    border: Border.all(color: accent.withOpacity(.18)),
+                  ),
+                  child: Text(
+                    area,
+                    style: TextStyle(
+                      color: accent,
+                      fontWeight: FontWeight.w900,
+                      fontSize: 9.5,
+                    ),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 10),
               Wrap(
                 spacing: 7,
                 runSpacing: 7,
@@ -2387,6 +2411,26 @@ List<_ReportInsightData> _buildReportInsights(
   ];
 }
 
+String _reportAreaLabel(_ReportDefinition definition) {
+  if (definition.summary || definition.kind == _ReportKind.profit) {
+    return 'FINANZAS Y GESTIÓN';
+  }
+  if (definition.path.contains('/ventas') ||
+      definition.path.contains('productos-mas-vendidos')) {
+    return 'VENTAS Y RECAUDO';
+  }
+  if (definition.path.contains('/persona') ||
+      definition.path.contains('movimientos-inventario') ||
+      definition.path.contains('cruce-conteo')) {
+    return 'CONTROL Y TRAZABILIDAD';
+  }
+  if (definition.path.contains('inventario') ||
+      definition.path.contains('stock-actual')) {
+    return 'INVENTARIO';
+  }
+  return 'OPERACIÓN';
+}
+
 String _reportChartTitle(_ReportDefinition definition) {
   if (definition.path.endsWith('/ventas')) return 'Evolución de ventas';
   if (definition.path.contains('medio-pago')) return 'Participación del recaudo';
@@ -2448,10 +2492,12 @@ IconData _reportChartIcon(_ReportDefinition definition) {
     return Icons.swap_vert_circle_rounded;
   }
   if (definition.path.contains('cruce-ventas')) return Icons.sync_alt_rounded;
+  if (definition.path.contains('/persona')) {
+    return Icons.manage_accounts_rounded;
+  }
   if (definition.path.contains('productos-desfalcados')) {
     return Icons.warning_amber_rounded;
   }
-  if (definition.path.contains('/persona')) return Icons.manage_accounts_rounded;
   return Icons.insights_rounded;
 }
 
