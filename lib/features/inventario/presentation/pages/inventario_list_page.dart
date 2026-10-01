@@ -468,7 +468,6 @@ class _InventarioListPageState extends ConsumerState<InventarioListPage> {
       ),
     );
     final note = observation.text.trim();
-    observation.dispose();
     if (confirmed != true || note.isEmpty || !mounted) return;
     final ok = await ref.read(inventarioConteoProvider.notifier).sincronizarDiferencias(
       registros: differences, motivo: reason, observacion: note,
