@@ -1068,7 +1068,6 @@ class _LaborDialog extends StatefulWidget {
 }
 
 class _LaborDialogState extends State<_LaborDialog> {
-  final TextEditingController role = TextEditingController();
   final TextEditingController value = TextEditingController();
   final NumberFormat money = NumberFormat.currency(
     locale: 'es_CO',
@@ -1081,6 +1080,7 @@ class _LaborDialogState extends State<_LaborDialog> {
   Map<String, dynamic>? selected;
   bool loading = true;
   bool saving = false;
+  String? loadWarning;
   Set<int> days = {1, 2, 3, 4, 5};
   DateTime effective = DateTime.now();
 
@@ -1092,7 +1092,6 @@ class _LaborDialogState extends State<_LaborDialog> {
 
   @override
   void dispose() {
-    role.dispose();
     value.dispose();
     super.dispose();
   }
@@ -1111,7 +1110,13 @@ class _LaborDialogState extends State<_LaborDialog> {
   }
 
   Future<void> _load({dynamic keepSelectedId}) async {
-    if (mounted) setState(() => loading = true);
+    if (mounted) {
+      setState(() {
+        loading = true;
+        loadWarning = null;
+      });
+    }
+
     try {
       final gastoId = widget.gasto['gafiId'];
       final response = await widget.api.get<List<dynamic>>(
@@ -1123,57 +1128,189 @@ class _LaborDialogState extends State<_LaborDialog> {
           .map((e) => Map<String, dynamic>.from(e as Map))
           .toList();
 
-      final loadedRates = <String, List<Map<String, dynamic>>>{};
-      for (final cargo in loaded) {
-        final cargoId = cargo['gafcId'];
-        final rateResponse = await widget.api.get<List<dynamic>>(
-          '/api/v1/gastos-fijos/cargos/$cargoId/tarifas',
-          (json) => (json as List?) ?? const [],
-        );
-        loadedRates[cargoId.toString()] =
-            (rateResponse.data ?? const <dynamic>[])
-                .map((e) => Map<String, dynamic>.from(e as Map))
-                .toList();
-      }
-
       Map<String, dynamic>? nextSelected;
       if (loaded.isNotEmpty) {
         final targetId = keepSelectedId ?? selected?['gafcId'];
         nextSelected = loaded.firstWhere(
-          (c) => c['gafcId'] == targetId,
+          (cargo) => cargo['gafcId'].toString() == targetId?.toString(),
           orElse: () => loaded.first,
         );
       }
 
+      if (mounted) {
+        setState(() {
+          cargos = loaded;
+          selected = nextSelected;
+          rates = {
+            for (final cargo in loaded)
+              cargo['gafcId'].toString(): <Map<String, dynamic>>[],
+          };
+          loading = false;
+        });
+      }
+
+      final loadedRates = <String, List<Map<String, dynamic>>>{};
+      var failedRateLoads = 0;
+
+      for (final cargo in loaded) {
+        final cargoId = cargo['gafcId'];
+        try {
+          final rateResponse = await widget.api.get<List<dynamic>>(
+            '/api/v1/gastos-fijos/cargos/$cargoId/tarifas',
+            (json) => (json as List?) ?? const [],
+          );
+          loadedRates[cargoId.toString()] =
+              (rateResponse.data ?? const <dynamic>[])
+                  .map((e) => Map<String, dynamic>.from(e as Map))
+                  .toList();
+        } catch (_) {
+          failedRateLoads++;
+          loadedRates[cargoId.toString()] = <Map<String, dynamic>>[];
+        }
+      }
+
       if (!mounted) return;
       setState(() {
-        cargos = loaded;
         rates = loadedRates;
-        selected = nextSelected;
+        loadWarning = failedRateLoads == 0
+            ? null
+            : failedRateLoads == 1
+                ? 'Se cargaron los cargos, pero no fue posible consultar la tarifa de un cargo. Puedes seguir administrando los cargos y volver a intentar.'
+                : 'Se cargaron los cargos, pero no fue posible consultar algunas tarifas. Puedes seguir administrando los cargos y volver a intentar.';
       });
     } catch (_) {
-      _message('No fue posible cargar los cargos y tarifas.', error: true);
-    } finally {
-      if (mounted) setState(() => loading = false);
+      if (!mounted) return;
+      setState(() {
+        cargos = [];
+        rates = {};
+        selected = null;
+        loading = false;
+        loadWarning =
+            'No fue posible cargar los cargos. Verifica que el backend y la migración de mano de obra estén actualizados.';
+      });
+      _message('No fue posible cargar los cargos.', error: true);
     }
   }
 
   Future<void> _addRole() async {
-    final name = role.text.trim();
-    if (name.isEmpty || saving) return;
+    if (saving) return;
+
+    final controller = TextEditingController();
+    final formKey = GlobalKey<FormState>();
+
+    final name = await showDialog<String>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Row(
+          children: [
+            Icon(Icons.badge_outlined),
+            SizedBox(width: 10),
+            Expanded(child: Text('Crear cargo de trabajo')),
+          ],
+        ),
+        content: SizedBox(
+          width: math.min(MediaQuery.sizeOf(ctx).width * .86, 520),
+          child: Form(
+            key: formKey,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.all(14),
+                  decoration: BoxDecoration(
+                    color: widget.palette.secondary.withOpacity(.08),
+                    borderRadius: BorderRadius.circular(14),
+                    border: Border.all(color: widget.palette.cardBorder),
+                  ),
+                  child: Text(
+                    'Un cargo representa una función del personal que comparte una misma forma de pago. '
+                    'Por ejemplo: Mesero, Bartender, Cajero, Cocinero o Administrador. '
+                    'Después de crearlo podrás indicar cuánto pagas por día y qué días trabaja.',
+                    style: TextStyle(
+                      color: widget.palette.textSecondary,
+                      height: 1.35,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 16),
+                TextFormField(
+                  controller: controller,
+                  autofocus: true,
+                  textCapitalization: TextCapitalization.words,
+                  textInputAction: TextInputAction.done,
+                  decoration: const InputDecoration(
+                    labelText: 'Nombre del cargo',
+                    hintText: 'Ej. Mesero',
+                    helperText: 'Usa el nombre de la función, no el nombre de la persona.',
+                    prefixIcon: Icon(Icons.work_outline),
+                  ),
+                  validator: (v) {
+                    final text = v?.trim() ?? '';
+                    if (text.isEmpty) return 'Escribe el nombre del cargo.';
+                    if (text.length > 100) return 'Máximo 100 caracteres.';
+                    return null;
+                  },
+                  onFieldSubmitted: (_) {
+                    if (formKey.currentState?.validate() == true) {
+                      Navigator.pop(ctx, controller.text.trim());
+                    }
+                  },
+                ),
+                const SizedBox(height: 12),
+                Text(
+                  'Siguiente paso: configurar la tarifa y los días de trabajo.',
+                  style: TextStyle(
+                    color: widget.palette.textSecondary,
+                    fontSize: 12,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('Cancelar'),
+          ),
+          FilledButton.icon(
+            onPressed: () {
+              if (formKey.currentState?.validate() != true) return;
+              Navigator.pop(ctx, controller.text.trim());
+            },
+            icon: const Icon(Icons.arrow_forward),
+            label: const Text('Crear y configurar'),
+          ),
+        ],
+      ),
+    );
+
+    controller.dispose();
+    if (name == null || name.trim().isEmpty || !mounted) return;
 
     setState(() => saving = true);
     try {
-      await widget.api.post<Object?>(
+      final response = await widget.api.post<Map<String, dynamic>>(
         '/api/v1/gastos-fijos/${widget.gasto['gafiId']}/cargos',
-        {'gafcNombre': name, 'gafcEstado': 1},
-        (json) => json,
+        {'gafcNombre': name.trim(), 'gafcEstado': 1},
+        (json) => json is Map
+            ? Map<String, dynamic>.from(json)
+            : <String, dynamic>{},
       );
-      role.clear();
-      await _load();
-      _message('Cargo agregado.');
+
+      final createdId = response.data?['gafcId'];
+      await _load(keepSelectedId: createdId);
+
+      if (mounted) {
+        _message(
+          'Cargo "$name" creado. Configura ahora su tarifa y los días de trabajo.',
+        );
+      }
     } catch (_) {
-      _message('No fue posible agregar el cargo.', error: true);
+      _message('No fue posible crear el cargo.', error: true);
     } finally {
       if (mounted) setState(() => saving = false);
     }
@@ -1304,56 +1441,154 @@ class _LaborDialogState extends State<_LaborDialog> {
   }
 
   Widget _rolesPane() => Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          TextField(
-            controller: role,
-            enabled: !saving,
-            textInputAction: TextInputAction.done,
-            onSubmitted: (_) => _addRole(),
-            decoration: InputDecoration(
-              labelText: 'Nuevo cargo',
-              hintText: 'Ej. Mesero, bartender, cajero',
-              suffixIcon: IconButton(
-                tooltip: 'Agregar cargo',
-                onPressed: saving ? null : _addRole,
-                icon: const Icon(Icons.add_circle_outline),
-              ),
+          Text(
+            'Cargos de trabajo',
+            style: TextStyle(
+              color: widget.palette.textPrimary,
+              fontSize: 16,
+              fontWeight: FontWeight.w900,
             ),
           ),
-          const SizedBox(height: 10),
+          const SizedBox(height: 4),
+          Text(
+            'Cada cargo puede tener una tarifa diferente según los días de la semana.',
+            style: TextStyle(
+              color: widget.palette.textSecondary,
+              fontSize: 12,
+              height: 1.3,
+            ),
+          ),
+          const SizedBox(height: 12),
+          SizedBox(
+            width: double.infinity,
+            child: FilledButton.icon(
+              onPressed: saving ? null : _addRole,
+              icon: const Icon(Icons.add),
+              label: const Text('Crear cargo'),
+            ),
+          ),
+          const SizedBox(height: 12),
           Expanded(
             child: cargos.isEmpty
                 ? Center(
-                    child: Text(
-                      'Agrega el primer cargo.',
-                      style: TextStyle(color: widget.palette.textSecondary),
+                    child: Padding(
+                      padding: const EdgeInsets.all(12),
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(
+                            Icons.badge_outlined,
+                            size: 42,
+                            color: widget.palette.textSecondary,
+                          ),
+                          const SizedBox(height: 10),
+                          Text(
+                            'Aún no hay cargos',
+                            style: TextStyle(
+                              color: widget.palette.textPrimary,
+                              fontWeight: FontWeight.w900,
+                            ),
+                          ),
+                          const SizedBox(height: 4),
+                          Text(
+                            'Crea el primero para definir cuánto cuesta la mano de obra por día.',
+                            textAlign: TextAlign.center,
+                            style: TextStyle(
+                              color: widget.palette.textSecondary,
+                              fontSize: 12,
+                            ),
+                          ),
+                        ],
+                      ),
                     ),
                   )
                 : ListView.separated(
                     itemCount: cargos.length,
-                    separatorBuilder: (_, __) => const SizedBox(height: 6),
+                    separatorBuilder: (_, __) => const SizedBox(height: 7),
                     itemBuilder: (_, index) {
                       final cargo = cargos[index];
-                      final active =
-                          selected?['gafcId'] == cargo['gafcId'];
+                      final cargoId = cargo['gafcId'].toString();
+                      final active = selected?['gafcId'].toString() == cargoId;
+                      final configuredRates = rates[cargoId]?.length ?? 0;
+
                       return Material(
                         color: active
-                            ? widget.palette.secondary.withOpacity(.1)
-                            : Colors.transparent,
-                        borderRadius: BorderRadius.circular(12),
-                        child: ListTile(
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(12),
-                          ),
+                            ? widget.palette.secondary.withOpacity(.10)
+                            : widget.palette.surface.withOpacity(.40),
+                        borderRadius: BorderRadius.circular(14),
+                        child: InkWell(
+                          borderRadius: BorderRadius.circular(14),
                           onTap: () => setState(() => selected = cargo),
-                          leading: const Icon(Icons.person_outline),
-                          title: Text(cargo['gafcNombre']?.toString() ?? ''),
-                          trailing: active
-                              ? Icon(
-                                  Icons.check_circle,
-                                  color: widget.palette.secondary,
-                                )
-                              : const Icon(Icons.chevron_right),
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 12,
+                              vertical: 11,
+                            ),
+                            decoration: BoxDecoration(
+                              borderRadius: BorderRadius.circular(14),
+                              border: Border.all(
+                                color: active
+                                    ? widget.palette.secondary.withOpacity(.45)
+                                    : widget.palette.cardBorder,
+                              ),
+                            ),
+                            child: Row(
+                              children: [
+                                Container(
+                                  width: 38,
+                                  height: 38,
+                                  decoration: BoxDecoration(
+                                    color: widget.palette.secondary.withOpacity(.10),
+                                    borderRadius: BorderRadius.circular(11),
+                                  ),
+                                  child: Icon(
+                                    Icons.person_outline,
+                                    color: widget.palette.secondary,
+                                  ),
+                                ),
+                                const SizedBox(width: 10),
+                                Expanded(
+                                  child: Column(
+                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    children: [
+                                      Text(
+                                        cargo['gafcNombre']?.toString() ?? 'Cargo',
+                                        maxLines: 1,
+                                        overflow: TextOverflow.ellipsis,
+                                        style: TextStyle(
+                                          color: widget.palette.textPrimary,
+                                          fontWeight: FontWeight.w800,
+                                        ),
+                                      ),
+                                      const SizedBox(height: 2),
+                                      Text(
+                                        configuredRates == 0
+                                            ? 'Sin tarifas configuradas'
+                                            : '$configuredRates tarifa${configuredRates == 1 ? '' : 's'} registrada${configuredRates == 1 ? '' : 's'}',
+                                        style: TextStyle(
+                                          color: configuredRates == 0
+                                              ? widget.palette.warning
+                                              : widget.palette.textSecondary,
+                                          fontSize: 11,
+                                          fontWeight: FontWeight.w600,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                                Icon(
+                                  active
+                                      ? Icons.check_circle
+                                      : Icons.chevron_right,
+                                  color: active
+                                      ? widget.palette.secondary
+                                      : widget.palette.textSecondary,
+                                ),
+                              ],
+                            ),
+                          ),
                         ),
                       );
                     },
@@ -1403,8 +1638,11 @@ class _LaborDialogState extends State<_LaborDialog> {
           ],
         ),
         Text(
-          'Selecciona un grupo rápido o combina días individualmente.',
-          style: TextStyle(color: widget.palette.textSecondary),
+          'Define cuánto cuesta un día de trabajo para este cargo. Puedes usar una combinación rápida o seleccionar días individualmente.',
+          style: TextStyle(
+            color: widget.palette.textSecondary,
+            height: 1.3,
+          ),
         ),
         const SizedBox(height: 12),
         Wrap(
@@ -1578,26 +1816,71 @@ class _LaborDialogState extends State<_LaborDialog> {
         height: height,
         child: loading
             ? const Center(child: AppLoader())
-            : LayoutBuilder(
-                builder: (_, constraints) {
-                  if (constraints.maxWidth < 760) {
-                    return Column(
-                      children: [
-                        SizedBox(height: 220, child: _rolesPane()),
-                        const Divider(height: 24),
-                        Expanded(child: _configurationPane()),
-                      ],
-                    );
-                  }
+            : Column(
+                children: [
+                  if (loadWarning != null) ...[
+                    Container(
+                      width: double.infinity,
+                      padding: const EdgeInsets.all(12),
+                      decoration: BoxDecoration(
+                        color: widget.palette.warning.withOpacity(.10),
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(
+                          color: widget.palette.warning.withOpacity(.35),
+                        ),
+                      ),
+                      child: Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Icon(
+                            Icons.warning_amber_rounded,
+                            color: widget.palette.warning,
+                          ),
+                          const SizedBox(width: 10),
+                          Expanded(
+                            child: Text(
+                              loadWarning!,
+                              style: TextStyle(
+                                color: widget.palette.textPrimary,
+                                fontSize: 12,
+                                height: 1.3,
+                              ),
+                            ),
+                          ),
+                          IconButton(
+                            tooltip: 'Reintentar',
+                            onPressed: saving ? null : _load,
+                            icon: const Icon(Icons.refresh),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                  ],
+                  Expanded(
+                    child: LayoutBuilder(
+                      builder: (_, constraints) {
+                        if (constraints.maxWidth < 760) {
+                          return Column(
+                            children: [
+                              SizedBox(height: 260, child: _rolesPane()),
+                              const Divider(height: 24),
+                              Expanded(child: _configurationPane()),
+                            ],
+                          );
+                        }
 
-                  return Row(
-                    children: [
-                      SizedBox(width: 270, child: _rolesPane()),
-                      const VerticalDivider(width: 28),
-                      Expanded(child: _configurationPane()),
-                    ],
-                  );
-                },
+                        return Row(
+                          children: [
+                            SizedBox(width: 300, child: _rolesPane()),
+                            const VerticalDivider(width: 28),
+                            Expanded(child: _configurationPane()),
+                          ],
+                        );
+                      },
+                    ),
+                  ),
+                ],
               ),
       ),
     );
