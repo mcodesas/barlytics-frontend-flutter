@@ -374,7 +374,7 @@ class _ReportsToolbar extends StatelessWidget {
                           ),
                           const SizedBox(height: 4),
                           Text(
-                            'Indicadores, gráficos y datos operativos para tomar decisiones de inventario y ventas.',
+                            'Ventas, rentabilidad, gastos, inventario, recaudo y trazabilidad convertidos en información para decidir.',
                             style: TextStyle(
                               color: palette.textSecondary,
                               fontWeight: FontWeight.w600,
@@ -9304,6 +9304,42 @@ class _MetricAppearance {
 
 _MetricAppearance _metricAppearance(String key, AppPalette palette) {
   final normalized = key.toLowerCase();
+  if (normalized.contains('mano_obra')) {
+    return const _MetricAppearance(
+      Icons.groups_2_rounded,
+      Colors.deepPurpleAccent,
+    );
+  }
+  if (normalized.contains('gasto')) {
+    return _MetricAppearance(
+      Icons.receipt_long_rounded,
+      palette.warning,
+    );
+  }
+  if (normalized.contains('ingreso')) {
+    return _MetricAppearance(
+      Icons.point_of_sale_rounded,
+      palette.secondary,
+    );
+  }
+  if (normalized.contains('balance')) {
+    return _MetricAppearance(
+      Icons.balance_rounded,
+      palette.accent,
+    );
+  }
+  if (normalized.contains('concentracion')) {
+    return _MetricAppearance(
+      Icons.pie_chart_outline_rounded,
+      palette.secondary,
+    );
+  }
+  if (normalized.contains('rotacion')) {
+    return _MetricAppearance(
+      Icons.sync_alt_rounded,
+      palette.accent,
+    );
+  }
   if (normalized.contains('falt') ||
       normalized.contains('negativ') ||
       normalized.contains('agotad') ||
