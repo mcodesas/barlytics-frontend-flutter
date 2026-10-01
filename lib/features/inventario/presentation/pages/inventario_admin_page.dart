@@ -11,6 +11,7 @@ import '../../../../core/widgets/app_loader.dart';
 import '../../../../core/widgets/tech_background.dart';
 import '../../../movimientos/data/models/movimientos_response_model.dart';
 import '../../../productos/data/models/productos_response_model.dart';
+import '../../../sucursales/data/models/sucursales_response_model.dart';
 import '../../data/models/inventario_response_model.dart';
 
 enum _InventoryAdminFilter { todos, pendientes, diferencias, sincronizados }
@@ -354,7 +355,6 @@ class _InventarioAdminPageState extends ConsumerState<InventarioAdminPage> {
     );
 
     final note = observation.text.trim();
-    observation.dispose();
     if (confirmed != true || note.isEmpty || !mounted) return;
 
     setState(() => _loading = true);
@@ -635,7 +635,7 @@ class _AdminHeader extends StatelessWidget {
   });
 
   final AppPalette palette;
-  final List<dynamic> branches;
+  final List<SucursalesResponseModel> branches;
   final int? branchId;
   final DateTimeRange? range;
   final ValueChanged<int?> onBranchChanged;
@@ -1107,6 +1107,7 @@ class _CountItemRow extends StatelessWidget {
                   'Ajuste: ${item.adjustment!.moviOperacion ?? '-'} '
                   '${_qty(item.adjustment!.moviCantidad)} · '
                   '${item.adjustment!.moviMotivo ?? 'Sin motivo'}'
+                  '${(item.adjustment!.moviRegistradoPor ?? '').trim().isEmpty ? '' : ' · Por ${item.adjustment!.moviRegistradoPor}'}'
                   '${item.adjustment!.moviFechaCambio == null ? '' : ' · ${_dateTime(item.adjustment!.moviFechaCambio)}'}',
                   style: TextStyle(
                     color: palette.textSecondary,
