@@ -6943,6 +6943,36 @@ class _SummaryContent extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final operationMetrics = <String, dynamic>{
+      for (final key in const [
+        'numero_ventas',
+        'total_vendido',
+        'ticket_promedio',
+        'unidades_vendidas',
+        'unidades_en_stock',
+        'productos_agotados',
+        'productos_stock_negativo',
+        'productos_stock_bajo',
+      ])
+        if (metrics.containsKey(key)) key: metrics[key],
+    };
+
+    final financialMetrics = <String, dynamic>{
+      for (final key in const [
+        'ingresos_periodo',
+        'costo_ventas_periodo',
+        'ganancia_bruta_periodo',
+        'gastos_fijos_periodo',
+        'gastos_variables_periodo',
+        'mano_obra_periodo',
+        'gastos_operativos_periodo',
+        'ganancia_neta_estimada_periodo',
+        'margen_bruto_porcentaje',
+        'margen_neto_porcentaje',
+      ])
+        if (metrics.containsKey(key)) key: metrics[key],
+    };
+
     return ListView(
       padding: const EdgeInsets.fromLTRB(14, 8, 14, 28),
       children: [
@@ -6952,19 +6982,46 @@ class _SummaryContent extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                _MetricsGrid(
-                  metrics: metrics,
+                _ReportSectionTitle(
+                  title: 'Pulso del negocio',
+                  subtitle:
+                      'Indicadores principales para saber cuánto se vendió, cuánto se movió y cómo está el inventario.',
+                  icon: Icons.monitor_heart_rounded,
                   palette: palette,
-                  currencyKeys: const ['total_vendido', 'total_propinas', 'ticket_promedio'],
+                ),
+                const SizedBox(height: 10),
+                _MetricsGrid(
+                  metrics: operationMetrics,
+                  palette: palette,
+                  currencyKeys: const [
+                    'total_vendido',
+                    'ticket_promedio',
+                  ],
                   percentageKeys: const [],
                 ),
-                const SizedBox(height: 14),
+                if (financialMetrics.isNotEmpty) ...[
+                  const SizedBox(height: 16),
+                  _ReportSectionTitle(
+                    title: 'Resultado financiero',
+                    subtitle:
+                        'Rentabilidad después de costo de venta, gastos fijos, variables y mano de obra.',
+                    icon: Icons.account_balance_rounded,
+                    palette: palette,
+                  ),
+                  const SizedBox(height: 10),
+                  _ExecutiveFinanceOverview(
+                    metrics: financialMetrics,
+                    palette: palette,
+                  ),
+                ],
+                const SizedBox(height: 16),
                 LayoutBuilder(
                   builder: (context, constraints) {
                     final compact = constraints.maxWidth < 900;
                     final sales = _Panel(
                       title: 'Ventas por día',
-                      subtitle: 'Total vendido por cada fecha del periodo.',
+                      subtitle:
+                          'Detecta picos y días débiles para ajustar personal, inventario y promociones.',
                       icon: Icons.show_chart_rounded,
                       palette: palette,
                       child: _HorizontalBarChart(
@@ -6976,8 +7033,9 @@ class _SummaryContent extends StatelessWidget {
                       ),
                     );
                     final payments = _Panel(
-                      title: 'Medios de pago',
-                      subtitle: 'Participación del recaudo por medio.',
+                      title: 'Cómo entra el dinero',
+                      subtitle:
+                          'Participación del recaudo por medio de pago para controlar concentración y conciliación.',
                       icon: Icons.account_balance_wallet_rounded,
                       palette: palette,
                       child: _HorizontalBarChart(
@@ -6989,7 +7047,13 @@ class _SummaryContent extends StatelessWidget {
                       ),
                     );
                     if (compact) {
-                      return Column(children: [sales, const SizedBox(height: 14), payments]);
+                      return Column(
+                        children: [
+                          sales,
+                          const SizedBox(height: 14),
+                          payments,
+                        ],
+                      );
                     }
                     return Row(
                       crossAxisAlignment: CrossAxisAlignment.start,
@@ -7002,35 +7066,92 @@ class _SummaryContent extends StatelessWidget {
                   },
                 ),
                 const SizedBox(height: 14),
-                _Panel(
-                  title: 'Productos más vendidos',
-                  subtitle: 'Ranking de productos por unidades vendidas.',
-                  icon: Icons.emoji_events_rounded,
-                  palette: palette,
-                  child: _ReportTable(
-                    rows: payload.rows,
-                    palette: palette,
-                    currencyKeys: const ['total', 'precio_promedio'],
-                    percentageKeys: const [],
-                  ),
-                ),
-                const SizedBox(height: 14),
-                _Panel(
-                  title: 'Alertas de inventario',
-                  subtitle: 'Señales que deben validarse mediante conteo físico.',
-                  icon: Icons.warning_amber_rounded,
-                  palette: palette,
-                  child: payload.alertRows.isEmpty
-                      ? _PositiveEmptyState(
-                          palette: palette,
-                          message: 'No se encontraron alertas de inventario en el periodo.',
-                        )
-                      : _ReportTable(
-                          rows: payload.alertRows,
-                          palette: palette,
-                          currencyKeys: const ['valor_vendido'],
-                          percentageKeys: const ['rotacion_porcentaje'],
-                        ),
+                LayoutBuilder(
+                  builder: (context, constraints) {
+                    final compact = constraints.maxWidth < 900;
+                    final products = _Panel(
+                      title: 'Productos que mueven la caja',
+                      subtitle:
+                          'Ranking de los productos que más unidades e ingresos aportaron.',
+                      icon: Icons.emoji_events_rounded,
+                      palette: palette,
+                      child: payload.rows.isEmpty
+                          ? _PositiveEmptyState(
+                              palette: palette,
+                              message:
+                                  'No hay productos vendidos en el periodo seleccionado.',
+                            )
+                          : Column(
+                              children: [
+                                _HorizontalBarChart(
+                                  rows: payload.rows,
+                                  labelKey: 'producto',
+                                  valueKey: 'cantidad',
+                                  palette: palette,
+                                ),
+                                const SizedBox(height: 12),
+                                _ReportTable(
+                                  rows: payload.rows,
+                                  palette: palette,
+                                  currencyKeys: const [
+                                    'total',
+                                    'precio_promedio',
+                                  ],
+                                  percentageKeys: const [],
+                                ),
+                              ],
+                            ),
+                    );
+
+                    final alerts = _Panel(
+                      title: 'Alertas que requieren acción',
+                      subtitle:
+                          'Productos que conviene revisar físicamente o reponer antes de afectar ventas.',
+                      icon: Icons.warning_amber_rounded,
+                      palette: palette,
+                      child: payload.alertRows.isEmpty
+                          ? _PositiveEmptyState(
+                              palette: palette,
+                              message:
+                                  'No se encontraron alertas críticas de inventario en el periodo.',
+                            )
+                          : Column(
+                              children: [
+                                _ExecutiveAlertSummary(
+                                  rows: payload.alertRows,
+                                  palette: palette,
+                                ),
+                                const SizedBox(height: 12),
+                                _ReportTable(
+                                  rows: payload.alertRows,
+                                  palette: palette,
+                                  currencyKeys: const ['valor_vendido'],
+                                  percentageKeys: const [
+                                    'rotacion_porcentaje',
+                                  ],
+                                ),
+                              ],
+                            ),
+                    );
+
+                    if (compact) {
+                      return Column(
+                        children: [
+                          products,
+                          const SizedBox(height: 14),
+                          alerts,
+                        ],
+                      );
+                    }
+                    return Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Expanded(flex: 6, child: products),
+                        const SizedBox(width: 14),
+                        Expanded(flex: 4, child: alerts),
+                      ],
+                    );
+                  },
                 ),
               ],
             ),
@@ -7039,6 +7160,323 @@ class _SummaryContent extends StatelessWidget {
       ],
     );
   }
+}
+
+class _ReportSectionTitle extends StatelessWidget {
+  const _ReportSectionTitle({
+    required this.title,
+    required this.subtitle,
+    required this.icon,
+    required this.palette,
+  });
+
+  final String title;
+  final String subtitle;
+  final IconData icon;
+  final AppPalette palette;
+
+  @override
+  Widget build(BuildContext context) => Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Container(
+            width: 40,
+            height: 40,
+            decoration: BoxDecoration(
+              color: palette.secondary.withOpacity(.11),
+              borderRadius: BorderRadius.circular(13),
+            ),
+            child: Icon(icon, color: palette.secondary, size: 20),
+          ),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  title,
+                  style: TextStyle(
+                    color: palette.textPrimary,
+                    fontWeight: FontWeight.w900,
+                    fontSize: 16,
+                  ),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  subtitle,
+                  style: TextStyle(
+                    color: palette.textSecondary,
+                    fontWeight: FontWeight.w600,
+                    fontSize: 11.5,
+                    height: 1.35,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      );
+}
+
+class _ExecutiveFinanceOverview extends StatelessWidget {
+  const _ExecutiveFinanceOverview({
+    required this.metrics,
+    required this.palette,
+  });
+
+  final Map<String, dynamic> metrics;
+  final AppPalette palette;
+
+  @override
+  Widget build(BuildContext context) {
+    final ingresos = _toDouble(metrics['ingresos_periodo']);
+    final costo = _toDouble(metrics['costo_ventas_periodo']);
+    final bruta = _toDouble(metrics['ganancia_bruta_periodo']);
+    final fijos = _toDouble(metrics['gastos_fijos_periodo']);
+    final variables = _toDouble(metrics['gastos_variables_periodo']);
+    final manoObra = _toDouble(metrics['mano_obra_periodo']);
+    final operativos = _toDouble(metrics['gastos_operativos_periodo']);
+    final neta = _toDouble(metrics['ganancia_neta_estimada_periodo']);
+    final margenNeto = _toDouble(metrics['margen_neto_porcentaje']);
+
+    final cards = <String, dynamic>{
+      'ingresos_periodo': ingresos,
+      'costo_ventas_periodo': costo,
+      'ganancia_bruta_periodo': bruta,
+      'gastos_operativos_periodo': operativos,
+      'ganancia_neta_estimada_periodo': neta,
+      'margen_neto_porcentaje': margenNeto,
+    };
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        _MetricsGrid(
+          metrics: cards,
+          palette: palette,
+          currencyKeys: const [
+            'ingresos_periodo',
+            'costo_ventas_periodo',
+            'ganancia_bruta_periodo',
+            'gastos_operativos_periodo',
+            'ganancia_neta_estimada_periodo',
+          ],
+          percentageKeys: const ['margen_neto_porcentaje'],
+        ),
+        const SizedBox(height: 12),
+        _Panel(
+          title: 'De la venta a la utilidad',
+          subtitle:
+              'Descomposición de lo vendido para entender qué está consumiendo el margen.',
+          icon: Icons.stacked_bar_chart_rounded,
+          palette: palette,
+          child: Column(
+            children: [
+              _FinanceFlowRow(
+                label: 'Ingresos por ventas',
+                value: ingresos,
+                reference: ingresos,
+                color: palette.secondary,
+                palette: palette,
+              ),
+              const SizedBox(height: 9),
+              _FinanceFlowRow(
+                label: 'Costo de productos vendidos',
+                value: costo,
+                reference: ingresos,
+                color: Colors.orange,
+                palette: palette,
+              ),
+              const SizedBox(height: 9),
+              _FinanceFlowRow(
+                label: 'Gastos fijos',
+                value: fijos,
+                reference: ingresos,
+                color: Colors.blueAccent,
+                palette: palette,
+              ),
+              const SizedBox(height: 9),
+              _FinanceFlowRow(
+                label: 'Gastos variables',
+                value: variables,
+                reference: ingresos,
+                color: Colors.amber,
+                palette: palette,
+              ),
+              const SizedBox(height: 9),
+              _FinanceFlowRow(
+                label: 'Mano de obra',
+                value: manoObra,
+                reference: ingresos,
+                color: Colors.deepPurpleAccent,
+                palette: palette,
+              ),
+              const Divider(height: 24),
+              _FinanceFlowRow(
+                label: 'Ganancia neta estimada',
+                value: neta,
+                reference: ingresos,
+                color: neta >= 0 ? palette.success : Colors.redAccent,
+                palette: palette,
+                emphasized: true,
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _FinanceFlowRow extends StatelessWidget {
+  const _FinanceFlowRow({
+    required this.label,
+    required this.value,
+    required this.reference,
+    required this.color,
+    required this.palette,
+    this.emphasized = false,
+  });
+
+  final String label;
+  final double value;
+  final double reference;
+  final Color color;
+  final AppPalette palette;
+  final bool emphasized;
+
+  @override
+  Widget build(BuildContext context) {
+    final ratio = reference <= 0
+        ? 0.0
+        : (value.abs() / reference.abs()).clamp(0.0, 1.0).toDouble();
+    return Column(
+      children: [
+        Row(
+          children: [
+            Expanded(
+              child: Text(
+                label,
+                style: TextStyle(
+                  color: palette.textPrimary,
+                  fontWeight: emphasized ? FontWeight.w900 : FontWeight.w700,
+                  fontSize: emphasized ? 12.5 : 11.5,
+                ),
+              ),
+            ),
+            const SizedBox(width: 8),
+            Text(
+              CurrencyUtils.format(value),
+              style: TextStyle(
+                color: emphasized ? color : palette.textPrimary,
+                fontWeight: FontWeight.w900,
+                fontSize: emphasized ? 13.5 : 11.5,
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 5),
+        ClipRRect(
+          borderRadius: BorderRadius.circular(999),
+          child: LinearProgressIndicator(
+            value: ratio,
+            minHeight: emphasized ? 10 : 7,
+            backgroundColor: palette.cardBorder.withOpacity(.35),
+            valueColor: AlwaysStoppedAnimation<Color>(color),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _ExecutiveAlertSummary extends StatelessWidget {
+  const _ExecutiveAlertSummary({
+    required this.rows,
+    required this.palette,
+  });
+
+  final List<Map<String, dynamic>> rows;
+  final AppPalette palette;
+
+  @override
+  Widget build(BuildContext context) {
+    final negativos =
+        rows.where((row) => _toDouble(row['stock_actual']) < 0).length;
+    final agotados =
+        rows.where((row) => row['estado'] == 'AGOTADO_CON_ROTACION').length;
+    final ventasRiesgo = _sum(rows, 'valor_vendido');
+
+    return Wrap(
+      spacing: 8,
+      runSpacing: 8,
+      children: [
+        _ExecutiveAlertChip(
+          label: 'Stock negativo',
+          value: '$negativos',
+          color: Colors.redAccent,
+          palette: palette,
+        ),
+        _ExecutiveAlertChip(
+          label: 'Agotados con demanda',
+          value: '$agotados',
+          color: Colors.orangeAccent,
+          palette: palette,
+        ),
+        _ExecutiveAlertChip(
+          label: 'Ventas asociadas',
+          value: CurrencyUtils.format(ventasRiesgo),
+          color: palette.warning,
+          palette: palette,
+        ),
+      ],
+    );
+  }
+}
+
+class _ExecutiveAlertChip extends StatelessWidget {
+  const _ExecutiveAlertChip({
+    required this.label,
+    required this.value,
+    required this.color,
+    required this.palette,
+  });
+
+  final String label;
+  final String value;
+  final Color color;
+  final AppPalette palette;
+
+  @override
+  Widget build(BuildContext context) => Container(
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 9),
+        decoration: BoxDecoration(
+          color: color.withOpacity(.08),
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: color.withOpacity(.18)),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              value,
+              style: TextStyle(
+                color: color,
+                fontWeight: FontWeight.w900,
+                fontSize: 13,
+              ),
+            ),
+            Text(
+              label,
+              style: TextStyle(
+                color: palette.textSecondary,
+                fontWeight: FontWeight.w600,
+                fontSize: 9.5,
+              ),
+            ),
+          ],
+        ),
+      );
 }
 
 class _MetricsGrid extends StatelessWidget {
