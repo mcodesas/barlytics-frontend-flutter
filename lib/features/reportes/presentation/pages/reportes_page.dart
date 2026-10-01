@@ -1635,11 +1635,29 @@ class _ProfitHero extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final ingresos = _sum(rows, 'ingresos_periodo');
-    final costos = _sum(rows, 'costo_ventas_periodo');
-    final ganancia = _sum(rows, 'ganancia_bruta_periodo');
-    final margen = ingresos == 0 ? 0.0 : ganancia * 100 / ingresos;
+    final costoProductos = _sum(rows, 'costo_ventas_periodo');
+    final gananciaBruta = _sum(rows, 'ganancia_bruta_periodo');
     final unidades = _sum(rows, 'unidades_vendidas_periodo');
-    final positive = ganancia >= 0;
+
+    final metadata = rows.isEmpty ? const <String, dynamic>{} : rows.first;
+    final gastosFijos = _toDouble(metadata['gastos_fijos_periodo']);
+    final gastosVariables = _toDouble(metadata['gastos_variables_periodo']);
+    final manoObra = _toDouble(metadata['mano_obra_periodo']);
+    final gastosOperativosRaw =
+        _toDouble(metadata['gastos_operativos_periodo']);
+    final gastosOperativos = gastosOperativosRaw != 0
+        ? gastosOperativosRaw
+        : gastosFijos + gastosVariables + manoObra;
+    final netaBackend =
+        _toDouble(metadata['ganancia_neta_estimada_periodo']);
+    final gananciaNeta = metadata.containsKey('ganancia_neta_estimada_periodo')
+        ? netaBackend
+        : gananciaBruta - gastosOperativos;
+
+    final margenNeto =
+        ingresos == 0 ? 0.0 : gananciaNeta * 100 / ingresos;
+    final costosTotales = costoProductos + gastosOperativos;
+    final positive = gananciaNeta >= 0;
     final resultColor = positive ? palette.success : Colors.redAccent;
 
     return Container(
@@ -1677,7 +1695,7 @@ class _ProfitHero extends StatelessWidget {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text(
-                          'Ganancia bruta del periodo',
+                          'Ganancia neta estimada del periodo',
                           style: TextStyle(
                             color: palette.textSecondary,
                             fontWeight: FontWeight.w800,
@@ -1687,8 +1705,8 @@ class _ProfitHero extends StatelessWidget {
                         const SizedBox(height: 2),
                         Text(
                           positive
-                              ? 'Lo que queda después del costo de los productos vendidos. No incluye propinas ni gastos administrativos.'
-                              : 'Los costos de producto superan los ingresos registrados',
+                              ? 'Resultado después del costo de los productos, gastos fijos, variables y mano de obra configurada.'
+                              : 'Los costos y gastos configurados superan la ganancia bruta del periodo.',
                           style: TextStyle(
                             color: palette.textSecondary,
                             fontWeight: FontWeight.w600,
@@ -1706,7 +1724,7 @@ class _ProfitHero extends StatelessWidget {
                 fit: BoxFit.scaleDown,
                 alignment: Alignment.centerLeft,
                 child: Text(
-                  _displayValue(ganancia, currency: true),
+                  _displayValue(gananciaNeta, currency: true),
                   style: TextStyle(
                     color: resultColor,
                     fontWeight: FontWeight.w900,
@@ -1722,7 +1740,8 @@ class _ProfitHero extends StatelessWidget {
                 children: [
                   _ProfitPill(
                     icon: Icons.percent_rounded,
-                    label: 'Margen ${_displayValue(margen, percentage: true)}',
+                    label:
+                        'Margen neto ${_displayValue(margenNeto, percentage: true)}',
                     color: resultColor,
                     palette: palette,
                   ),
@@ -1752,12 +1771,44 @@ class _ProfitHero extends StatelessWidget {
                 color: palette.secondary,
                 palette: palette,
               ),
-              const SizedBox(height: 12),
+              const SizedBox(height: 10),
               _ProfitBreakdownRow(
                 icon: Icons.shopping_cart_checkout_rounded,
                 label: 'Costo de lo vendido',
-                value: costos,
+                value: costoProductos,
                 color: Colors.orange.shade700,
+                palette: palette,
+              ),
+              const SizedBox(height: 10),
+              _ProfitBreakdownRow(
+                icon: Icons.account_balance_wallet_outlined,
+                label: 'Ganancia bruta',
+                value: gananciaBruta,
+                color: palette.actionColor,
+                palette: palette,
+              ),
+              const SizedBox(height: 10),
+              _ProfitBreakdownRow(
+                icon: Icons.lock_outline,
+                label: 'Gastos fijos',
+                value: gastosFijos,
+                color: palette.secondary,
+                palette: palette,
+              ),
+              const SizedBox(height: 10),
+              _ProfitBreakdownRow(
+                icon: Icons.tune_rounded,
+                label: 'Gastos variables',
+                value: gastosVariables,
+                color: palette.warning,
+                palette: palette,
+              ),
+              const SizedBox(height: 10),
+              _ProfitBreakdownRow(
+                icon: Icons.groups_2_outlined,
+                label: 'Mano de obra',
+                value: manoObra,
+                color: Colors.deepPurpleAccent,
                 palette: palette,
               ),
               const SizedBox(height: 14),
@@ -1766,10 +1817,14 @@ class _ProfitHero extends StatelessWidget {
                 child: LinearProgressIndicator(
                   value: ingresos <= 0
                       ? 0.0
-                      : (costos / ingresos).clamp(0.0, 1.0).toDouble(),
+                      : (costosTotales / ingresos)
+                          .clamp(0.0, 1.0)
+                          .toDouble(),
                   minHeight: 9,
                   backgroundColor: palette.background.withOpacity(0.7),
-                  color: costos > ingresos ? Colors.redAccent : Colors.orange.shade600,
+                  color: costosTotales > ingresos
+                      ? Colors.redAccent
+                      : Colors.orange.shade600,
                 ),
               ),
               const SizedBox(height: 7),
@@ -1779,7 +1834,7 @@ class _ProfitHero extends StatelessWidget {
                     child: Text(
                       ingresos <= 0
                           ? 'Sin ingresos en el periodo'
-                          : 'El costo representa ${_displayValue(costos * 100 / ingresos, percentage: true)} de los ingresos',
+                          : 'Costos y gastos representan ${_displayValue(costosTotales * 100 / ingresos, percentage: true)} de los ingresos',
                       style: TextStyle(
                         color: palette.textSecondary,
                         fontWeight: FontWeight.w700,
@@ -1810,7 +1865,7 @@ class _ProfitHero extends StatelessWidget {
               Expanded(flex: 3, child: mainResult),
               Container(
                 width: 1,
-                height: 150,
+                height: 270,
                 margin: const EdgeInsets.symmetric(horizontal: 24),
                 color: palette.cardBorder,
               ),
