@@ -21,18 +21,24 @@ import '../../services/reporte_pdf_service.dart';
 import '../../../subscription/presentation/providers/subscription_provider.dart';
 
 class ReportesPage extends ConsumerWidget {
-  const ReportesPage({super.key}) : _initialKind = null;
+  const ReportesPage({super.key}) : _initialKey = null;
 
   const ReportesPage.ganancias({super.key})
-      : _initialKind = _ReportKind.profit;
+      : _initialKey = 'ganancias';
 
   const ReportesPage.proximoPedido({super.key})
-      : _initialKind = _ReportKind.nextOrder;
+      : _initialKey = 'proximo_pedido';
 
-  final _ReportKind? _initialKind;
+  const ReportesPage.reporte({
+    super.key,
+    required String keyName,
+  }) : _initialKey = keyName;
+
+  final String? _initialKey;
 
   static const reports = <_ReportDefinition>[
     _ReportDefinition(
+      keyName: 'reporte_resumen_ejecutivo',
       title: 'Resumen ejecutivo',
       description: 'Ventas, ticket promedio, productos, recaudo y alertas de inventario.',
       path: '/api/v1/reportes/resumen',
@@ -44,6 +50,7 @@ class ReportesPage extends ConsumerWidget {
       currencyKeys: ['total_vendido', 'total_propinas', 'ticket_promedio', 'total'],
     ),
     _ReportDefinition(
+      keyName: 'reporte_ventas_fecha',
       title: 'Ventas por fecha',
       description: 'Evolución diaria de ventas finalizadas, propinas y ticket promedio.',
       path: '/api/v1/reportes/ventas',
@@ -54,6 +61,7 @@ class ReportesPage extends ConsumerWidget {
       currencyKeys: ['subtotal_productos', 'propinas', 'total', 'ticket_promedio'],
     ),
     _ReportDefinition(
+      keyName: 'reporte_ventas_medio_pago',
       title: 'Ventas por medio de pago',
       description: 'Distribución del recaudo real entre efectivo, transferencia y otros medios.',
       path: '/api/v1/reportes/ventas/medio-pago',
@@ -65,6 +73,7 @@ class ReportesPage extends ConsumerWidget {
       percentageKeys: ['porcentaje'],
     ),
     _ReportDefinition(
+      keyName: 'reporte_stock_actual',
       title: 'Stock actual',
       description: 'Existencias en unidades, paquetes completos, unidades sueltas y estado.',
       path: '/api/v1/reportes/stock-actual',
@@ -73,6 +82,7 @@ class ReportesPage extends ConsumerWidget {
       chartValueKey: 'unidades',
     ),
     _ReportDefinition(
+      keyName: 'ganancias',
       title: 'Ganancias',
       description: 'Conoce cuánto vendiste, cuánto costó y qué productos dejan mejor margen.',
       path: '/api/v1/reportes/inventario/ganancias-pedido',
@@ -97,6 +107,7 @@ class ReportesPage extends ConsumerWidget {
       percentageKeys: ['margen_bruto_porcentaje'],
     ),
     _ReportDefinition(
+      keyName: 'proximo_pedido',
       title: 'Próximo pedido',
       description: 'Productos por pedir según stock actual, mínimo, máximo y presentación de compra.',
       path: '/api/v1/reportes/inventario/ganancias-pedido',
@@ -112,6 +123,7 @@ class ReportesPage extends ConsumerWidget {
       ],
     ),
     _ReportDefinition(
+      keyName: 'reporte_cruce_conteo',
       title: 'Cruce de conteo físico',
       description: 'Compara lo contado contra el stock esperado y separa faltantes, sobrantes y productos que cuadran.',
       path: '/api/v1/reportes/inventario/cruce-conteo',
@@ -124,6 +136,7 @@ class ReportesPage extends ConsumerWidget {
       signedChart: true,
     ),
     _ReportDefinition(
+      keyName: 'reporte_productos_mas_vendidos',
       title: 'Productos más vendidos',
       description: 'Ranking por unidades e ingresos de ventas finalizadas.',
       path: '/api/v1/reportes/productos-mas-vendidos',
@@ -134,6 +147,7 @@ class ReportesPage extends ConsumerWidget {
       currencyKeys: ['total', 'precio_promedio'],
     ),
     _ReportDefinition(
+      keyName: 'reporte_movimientos_inventario',
       title: 'Movimientos de inventario',
       description: 'Entradas, salidas y ajustes con producto, motivo y responsable.',
       path: '/api/v1/reportes/movimientos-inventario',
@@ -143,6 +157,7 @@ class ReportesPage extends ConsumerWidget {
       chartValueKey: 'cantidad_unidades',
     ),
     _ReportDefinition(
+      keyName: 'reporte_rotacion_inventario',
       title: 'Rotación de inventario',
       description: 'Compara stock actual, unidades vendidas, entradas y salidas del periodo.',
       path: '/api/v1/reportes/inventario/cruce-ventas',
@@ -154,6 +169,7 @@ class ReportesPage extends ConsumerWidget {
       percentageKeys: ['rotacion_porcentaje'],
     ),
     _ReportDefinition(
+      keyName: 'reporte_alertas_inventario',
       title: 'Alertas de inventario',
       description: 'Productos con stock negativo o agotados mientras mantienen rotación.',
       path: '/api/v1/reportes/inventario/productos-desfalcados',
@@ -165,6 +181,7 @@ class ReportesPage extends ConsumerWidget {
       percentageKeys: ['rotacion_porcentaje'],
     ),
     _ReportDefinition(
+      keyName: 'reporte_salidas_responsable',
       title: 'Salidas por responsable',
       description: 'Salidas y ajustes negativos agrupados por el usuario que los registró.',
       path: '/api/v1/reportes/inventario/productos-desfalcados/persona',
@@ -181,9 +198,9 @@ class ReportesPage extends ConsumerWidget {
     if (entitlement != null && !entitlement.includes('REPORTES_OPERATIVOS')) {
       return const _PlanFeatureBlocked();
     }
-    if (_initialKind != null) {
+    if (_initialKey != null) {
       final definition = reports.firstWhere(
-        (item) => item.kind == _initialKind,
+        (item) => item.keyName == _initialKey,
       );
       return _ReporteDetail(
         definition: definition,
@@ -8004,6 +8021,7 @@ enum _ReportKind { standard, profit, nextOrder }
 
 class _ReportDefinition {
   const _ReportDefinition({
+    required this.keyName,
     required this.title,
     required this.description,
     required this.path,
@@ -8019,6 +8037,7 @@ class _ReportDefinition {
     this.signedChart = false,
   });
 
+  final String keyName;
   final String title;
   final String description;
   final String path;
