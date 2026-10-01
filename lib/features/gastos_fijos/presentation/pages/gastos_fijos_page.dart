@@ -779,7 +779,7 @@ class _SummaryCard extends StatelessWidget {
         decoration: BoxDecoration(
           color: palette.surface,
           borderRadius: BorderRadius.circular(18),
-          border: Border.all(color: palette.border.withOpacity(.7)),
+          border: Border.all(color: palette.cardBorder),
         ),
         child: Row(
           children: [
@@ -866,7 +866,7 @@ class _Toolbar extends StatelessWidget {
             decoration: BoxDecoration(
               color: palette.surface,
               borderRadius: BorderRadius.circular(16),
-              border: Border.all(color: palette.border.withOpacity(.7)),
+              border: Border.all(color: palette.cardBorder),
             ),
             child: constraints.maxWidth < 620
                 ? Column(
@@ -996,7 +996,7 @@ class _Expense extends StatelessWidget {
       decoration: BoxDecoration(
         color: palette.surface,
         borderRadius: BorderRadius.circular(18),
-        border: Border.all(color: palette.border.withOpacity(.7)),
+        border: Border.all(color: palette.cardBorder),
       ),
       child: LayoutBuilder(
         builder: (_, constraints) {
