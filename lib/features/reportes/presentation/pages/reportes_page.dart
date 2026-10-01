@@ -8548,6 +8548,16 @@ Map<String, dynamic> _buildMetrics(
       'productos_agotados',
       'productos_stock_negativo',
       'productos_stock_bajo',
+      'ingresos_periodo',
+      'costo_ventas_periodo',
+      'ganancia_bruta_periodo',
+      'gastos_fijos_periodo',
+      'gastos_variables_periodo',
+      'mano_obra_periodo',
+      'gastos_operativos_periodo',
+      'ganancia_neta_estimada_periodo',
+      'margen_bruto_porcentaje',
+      'margen_neto_porcentaje',
     ];
     return {
       for (final key in keys)
