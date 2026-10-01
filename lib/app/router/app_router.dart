@@ -48,6 +48,7 @@ import '../../features/empresas/presentation/pages/empresas_form_page.dart';
 import '../../features/empresas/presentation/pages/empresas_detail_page.dart';
 import '../../features/empresas/presentation/pages/empresa_sucursales_wizard_page.dart';
 import '../../features/inventario/presentation/pages/inventario_list_page.dart';
+import '../../features/inventario/presentation/pages/inventario_admin_page.dart';
 import '../../features/inventario/presentation/pages/inventario_form_page.dart';
 import '../../features/inventario/presentation/pages/inventario_detail_page.dart';
 import '../../features/marcas/presentation/pages/marcas_list_page.dart';
@@ -410,6 +411,12 @@ final appRouterProvider = Provider<GoRouter>((ref) {
           GoRoute(path: ':id', builder: (context, state) => _setupAwareScaffold(ref, state, InventarioDetailPage(id: state.pathParameters['id']!))),
           GoRoute(path: ':id/editar', builder: (context, state) => _setupAwareScaffold(ref, state, InventarioFormPage(id: state.pathParameters['id']))),
         ],
+      ),
+
+      GoRoute(
+        path: '/inventario_admin',
+        builder: (context, state) =>
+            _setupAwareScaffold(ref, state, const InventarioAdminPage()),
       ),
 
       GoRoute(
