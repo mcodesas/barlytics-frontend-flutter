@@ -346,6 +346,7 @@ String _resolveCurrentPageTitle(
     '/reporte_salidas_responsable': 'Salidas por responsable',
     '/productos': 'Productos',
     '/inventario': 'Inventario',
+    '/inventario_admin': 'Administración de inventario',
     '/precios': 'Precios',
     '/tablas_parametricas': 'Tablas paramétricas',
     '/tipos_producto': 'Tipos de producto',
@@ -414,6 +415,9 @@ String? _resolveCurrentPageSubtitle(
       MeseroPageMode.cierreCaja => 'Cuadra las ventas y medios de pago del turno actual.',
     };
   }
+  if (isInventario && path.startsWith('/inventario_admin')) {
+    return 'Consulta historial de conteos, diferencias, conciliaciones y ajustes por sucursal.';
+  }
   if (isInventario && path.startsWith('/ganancias')) {
     return 'Consulta ingresos, costos, margen y rentabilidad real del periodo.';
   }
@@ -464,6 +468,9 @@ String? _resolveCurrentPageEyebrow(
       MeseroPageMode.cierreCaja => 'Control del turno',
     };
   }
+  if (isInventario && path.startsWith('/inventario_admin')) {
+    return 'Control y trazabilidad';
+  }
   if (isInventario && path.startsWith('/ganancias')) {
     return 'Analítica de rentabilidad';
   }
@@ -494,6 +501,9 @@ String? _resolveCurrentPageStatusText(
   }
   if (isManager && path.startsWith('/dashboard')) return 'Panorama del periodo';
   if (isManager && path.startsWith('/reporte_')) return 'Datos actualizados';
+  if (isInventario && path.startsWith('/inventario_admin')) {
+    return 'Historial de conteos';
+  }
   if (isInventario && path.startsWith('/ganancias')) return 'Periodo actual';
   if (isInventario && path.startsWith('/proximo_pedido')) return 'Stock actualizado';
   if (isManager) return 'Operación en línea';
@@ -517,6 +527,9 @@ IconData? _resolveCurrentPageIcon(
       MeseroPageMode.historial => Icons.receipt_long_rounded,
       MeseroPageMode.cierreCaja => Icons.point_of_sale_rounded,
     };
+  }
+  if (isInventario && path.startsWith('/inventario_admin')) {
+    return Icons.inventory_rounded;
   }
   if (isInventario && path.startsWith('/ganancias')) {
     return Icons.trending_up;
