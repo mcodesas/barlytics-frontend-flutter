@@ -174,146 +174,20 @@ class _InventarioAdminPageState extends ConsumerState<InventarioAdminPage> {
         day.rows.where((row) => row.reconciliable).toList(growable: false);
     if (candidates.isEmpty) return;
 
-    final selected = <int>{
-      for (final row in candidates) row.countId,
-    };
-    final observation = TextEditingController();
-    var reason = 'Diferencia de conteo';
-
     final result = await showDialog<_ReconcileDecision>(
       context: context,
-      builder: (dialogContext) => StatefulBuilder(
-        builder: (context, setDialogState) {
-          final selectedRows = candidates
-              .where((row) => selected.contains(row.countId))
-              .toList(growable: false);
-          final missing = selectedRows.fold<double>(
-            0,
-            (sum, row) => sum + row.missingValue,
-          );
-          final surplus = selectedRows.fold<double>(
-            0,
-            (sum, row) => sum + row.surplusValue,
-          );
-
-          return AlertDialog(
-            title: const Text('Revisar diferencias antes de conciliar'),
-            content: SizedBox(
-              width: math.min(MediaQuery.sizeOf(context).width * .92, 900),
-              child: SingleChildScrollView(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    _ReconcileSummary(
-                      count: selectedRows.length,
-                      missing: missing,
-                      surplus: surplus,
-                    ),
-                    const SizedBox(height: 12),
-                    const Text(
-                      'Selecciona exactamente los productos que deseas conciliar. '
-                      'La conciliación registra un movimiento de ajuste y conserva '
-                      'las ventas, compras y demás movimientos posteriores al conteo.',
-                    ),
-                    const SizedBox(height: 14),
-                    for (final row in candidates)
-                      CheckboxListTile(
-                        value: selected.contains(row.countId),
-                        onChanged: (checked) {
-                          setDialogState(() {
-                            if (checked == true) {
-                              selected.add(row.countId);
-                            } else {
-                              selected.remove(row.countId);
-                            }
-                          });
-                        },
-                        contentPadding: EdgeInsets.zero,
-                        controlAffinity: ListTileControlAffinity.leading,
-                        title: Text(
-                          row.product,
-                          style: const TextStyle(fontWeight: FontWeight.w800),
-                        ),
-                        subtitle: Text(
-                          'Esperado ${_qty(row.expected)} · '
-                          'Contado ${_qty(row.counted)} · '
-                          'Diferencia ${_signedQty(row.difference)} · '
-                          'Costo unit. ${CurrencyUtils.format(row.unitPurchaseCost)} · '
-                          'Impacto ${CurrencyUtils.format(row.netImpact)}',
-                        ),
-                      ),
-                    const Divider(height: 24),
-                    DropdownButtonFormField<String>(
-                      value: reason,
-                      decoration:
-                          const InputDecoration(labelText: 'Motivo del ajuste'),
-                      items: const [
-                        'Diferencia de conteo',
-                        'Merma',
-                        'Rotura',
-                        'Consumo interno',
-                        'Pérdida',
-                        'Sobrante',
-                        'Error de registro',
-                        'Otro',
-                      ]
-                          .map(
-                            (value) => DropdownMenuItem(
-                              value: value,
-                              child: Text(value),
-                            ),
-                          )
-                          .toList(),
-                      onChanged: (value) {
-                        if (value != null) {
-                          setDialogState(() => reason = value);
-                        }
-                      },
-                    ),
-                    const SizedBox(height: 10),
-                    TextField(
-                      controller: observation,
-                      minLines: 2,
-                      maxLines: 4,
-                      maxLength: 300,
-                      onChanged: (_) => setDialogState(() {}),
-                      decoration: const InputDecoration(
-                        labelText: 'Sustentación',
-                        hintText:
-                            'Ej. Se verificó físicamente bodega y barra antes de ajustar.',
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-            actions: [
-              TextButton(
-                onPressed: () => Navigator.pop(dialogContext),
-                child: const Text('Cancelar'),
-              ),
-              FilledButton.icon(
-                onPressed: selected.isEmpty || observation.text.trim().isEmpty
-                    ? null
-                    : () => Navigator.pop(
-                          dialogContext,
-                          _ReconcileDecision(
-                            ids: selected.toList(growable: false),
-                            reason: reason,
-                            observation: observation.text.trim(),
-                          ),
-                        ),
-                icon: const Icon(Icons.rule_rounded),
-                label: Text(
-                  selected.isEmpty
-                      ? 'Selecciona productos'
-                      : 'Confirmar ${selected.length} ajuste(s)',
-                ),
-              ),
-            ],
-          );
-        },
+      barrierDismissible: false,
+      builder: (dialogContext) => Dialog(
+        insetPadding: EdgeInsets.symmetric(
+          horizontal: MediaQuery.sizeOf(dialogContext).width < 700 ? 10 : 24,
+          vertical: MediaQuery.sizeOf(dialogContext).height < 760 ? 10 : 24,
+        ),
+        clipBehavior: Clip.antiAlias,
+        child: _ReconcileDialog(
+          candidates: candidates,
+          date: day.date,
+          palette: ref.read(selectedAppPaletteProvider),
+        ),
       ),
     );
 
@@ -698,6 +572,788 @@ class _InventoryCountDay {
   double get countedValue =>
       rows.fold(0, (sum, row) => sum + row.countedValue);
   double get accuracy => rows.isEmpty ? 0 : exactCount * 100 / rows.length;
+}
+
+class _ReconcileDialog extends StatefulWidget {
+  const _ReconcileDialog({
+    required this.candidates,
+    required this.date,
+    required this.palette,
+  });
+
+  final List<_InventoryAuditRow> candidates;
+  final DateTime date;
+  final AppPalette palette;
+
+  @override
+  State<_ReconcileDialog> createState() => _ReconcileDialogState();
+}
+
+class _ReconcileDialogState extends State<_ReconcileDialog> {
+  late final TextEditingController _observation;
+  late final Set<int> _selected;
+  int _step = 0;
+  String _reason = 'Diferencia de conteo';
+
+  @override
+  void initState() {
+    super.initState();
+    _observation = TextEditingController();
+    _selected = widget.candidates.map((row) => row.countId).toSet();
+  }
+
+  @override
+  void dispose() {
+    _observation.dispose();
+    super.dispose();
+  }
+
+  List<_InventoryAuditRow> get _selectedRows => widget.candidates
+      .where((row) => _selected.contains(row.countId))
+      .toList(growable: false);
+
+  double get _missing => _selectedRows.fold<double>(
+        0,
+        (sum, row) => sum + row.missingValue,
+      );
+
+  double get _surplus => _selectedRows.fold<double>(
+        0,
+        (sum, row) => sum + row.surplusValue,
+      );
+
+  double get _net => _surplus - _missing;
+
+  @override
+  Widget build(BuildContext context) {
+    final palette = widget.palette;
+    final size = MediaQuery.sizeOf(context);
+    final mobile = size.width < 700;
+    final dialogWidth = mobile ? size.width - 20 : math.min(size.width - 48, 780);
+    final dialogHeight = mobile
+        ? size.height - 20
+        : math.min(size.height - 48, 760);
+
+    return SizedBox(
+      width: dialogWidth,
+      height: dialogHeight,
+      child: Material(
+        color: palette.surface,
+        child: Column(
+          children: [
+            _ReconcileDialogHeader(
+              palette: palette,
+              step: _step,
+              date: widget.date,
+              selected: _selected.length,
+              total: widget.candidates.length,
+              onClose: () => Navigator.of(context).pop(),
+            ),
+            Expanded(
+              child: AnimatedSwitcher(
+                duration: const Duration(milliseconds: 180),
+                child: _step == 0
+                    ? _buildReviewStep(context, palette, mobile)
+                    : _buildReasonStep(context, palette, mobile),
+              ),
+            ),
+            _buildFooter(context, palette, mobile),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildReviewStep(
+    BuildContext context,
+    AppPalette palette,
+    bool mobile,
+  ) {
+    return Column(
+      key: const ValueKey('review'),
+      children: [
+        Padding(
+          padding: EdgeInsets.fromLTRB(
+            mobile ? 12 : 18,
+            12,
+            mobile ? 12 : 18,
+            10,
+          ),
+          child: Column(
+            children: [
+              _ReconcileMoneySummary(
+                count: _selected.length,
+                missing: _missing,
+                surplus: _surplus,
+                net: _net,
+                palette: palette,
+              ),
+              const SizedBox(height: 10),
+              Row(
+                children: [
+                  Expanded(
+                    child: Text(
+                      'Selecciona únicamente lo que realmente quieres ajustar.',
+                      style: TextStyle(
+                        color: palette.textSecondary,
+                        fontWeight: FontWeight.w600,
+                        fontSize: 11,
+                      ),
+                    ),
+                  ),
+                  TextButton(
+                    onPressed: () {
+                      setState(() {
+                        if (_selected.length == widget.candidates.length) {
+                          _selected.clear();
+                        } else {
+                          _selected
+                            ..clear()
+                            ..addAll(
+                              widget.candidates.map((row) => row.countId),
+                            );
+                        }
+                      });
+                    },
+                    child: Text(
+                      _selected.length == widget.candidates.length
+                          ? 'Quitar todos'
+                          : 'Seleccionar todos',
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
+        Divider(height: 1, color: palette.cardBorder.withOpacity(.65)),
+        Expanded(
+          child: ListView.separated(
+            padding: EdgeInsets.fromLTRB(
+              mobile ? 10 : 16,
+              12,
+              mobile ? 10 : 16,
+              18,
+            ),
+            itemCount: widget.candidates.length,
+            separatorBuilder: (_, __) => const SizedBox(height: 8),
+            itemBuilder: (context, index) {
+              final row = widget.candidates[index];
+              final checked = _selected.contains(row.countId);
+              return _ReconcileProductCard(
+                row: row,
+                selected: checked,
+                palette: palette,
+                onChanged: (value) {
+                  setState(() {
+                    if (value) {
+                      _selected.add(row.countId);
+                    } else {
+                      _selected.remove(row.countId);
+                    }
+                  });
+                },
+              );
+            },
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildReasonStep(
+    BuildContext context,
+    AppPalette palette,
+    bool mobile,
+  ) {
+    return SingleChildScrollView(
+      key: const ValueKey('reason'),
+      padding: EdgeInsets.fromLTRB(
+        mobile ? 12 : 20,
+        16,
+        mobile ? 12 : 20,
+        24,
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          _ReconcileMoneySummary(
+            count: _selected.length,
+            missing: _missing,
+            surplus: _surplus,
+            net: _net,
+            palette: palette,
+          ),
+          const SizedBox(height: 16),
+          Container(
+            padding: const EdgeInsets.all(13),
+            decoration: BoxDecoration(
+              color: palette.secondary.withOpacity(.07),
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(
+                color: palette.secondary.withOpacity(.16),
+              ),
+            ),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Icon(
+                  Icons.info_outline_rounded,
+                  color: palette.secondary,
+                  size: 19,
+                ),
+                const SizedBox(width: 9),
+                Expanded(
+                  child: Text(
+                    'Se crearán ${_selected.length} movimiento(s) de ajuste. '
+                    'Las ventas, compras y movimientos posteriores al conteo '
+                    'se conservan.',
+                    style: TextStyle(
+                      color: palette.textPrimary,
+                      fontWeight: FontWeight.w600,
+                      fontSize: 11,
+                      height: 1.35,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 16),
+          DropdownButtonFormField<String>(
+            value: _reason,
+            decoration: const InputDecoration(
+              labelText: 'Motivo del ajuste',
+              prefixIcon: Icon(Icons.rule_folder_outlined),
+            ),
+            items: const [
+              'Diferencia de conteo',
+              'Merma',
+              'Rotura',
+              'Consumo interno',
+              'Pérdida',
+              'Sobrante',
+              'Error de registro',
+              'Otro',
+            ]
+                .map(
+                  (value) => DropdownMenuItem(
+                    value: value,
+                    child: Text(value),
+                  ),
+                )
+                .toList(),
+            onChanged: (value) {
+              if (value != null) {
+                setState(() => _reason = value);
+              }
+            },
+          ),
+          const SizedBox(height: 12),
+          TextField(
+            controller: _observation,
+            minLines: mobile ? 3 : 4,
+            maxLines: 5,
+            maxLength: 300,
+            onChanged: (_) => setState(() {}),
+            decoration: const InputDecoration(
+              labelText: 'Sustentación',
+              hintText:
+                  'Ej. Se verificó físicamente bodega y barra antes de ajustar.',
+              alignLabelWithHint: true,
+              prefixIcon: Icon(Icons.notes_rounded),
+            ),
+          ),
+          const SizedBox(height: 12),
+          Text(
+            'Productos incluidos',
+            style: TextStyle(
+              color: palette.textPrimary,
+              fontWeight: FontWeight.w900,
+              fontSize: 12,
+            ),
+          ),
+          const SizedBox(height: 8),
+          for (final row in _selectedRows) ...[
+            _ReconcileFinalRow(row: row, palette: palette),
+            const SizedBox(height: 6),
+          ],
+        ],
+      ),
+    );
+  }
+
+  Widget _buildFooter(
+    BuildContext context,
+    AppPalette palette,
+    bool mobile,
+  ) {
+    final canContinue = _selected.isNotEmpty;
+    final canConfirm =
+        canContinue && _observation.text.trim().isNotEmpty;
+
+    return Container(
+      padding: EdgeInsets.fromLTRB(
+        mobile ? 12 : 18,
+        10,
+        mobile ? 12 : 18,
+        mobile ? 12 : 14,
+      ),
+      decoration: BoxDecoration(
+        color: palette.surface,
+        border: Border(
+          top: BorderSide(color: palette.cardBorder.withOpacity(.65)),
+        ),
+      ),
+      child: Row(
+        children: [
+          if (_step == 1)
+            TextButton.icon(
+              onPressed: () => setState(() => _step = 0),
+              icon: const Icon(Icons.arrow_back_rounded),
+              label: const Text('Volver'),
+            )
+          else
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(),
+              child: const Text('Cancelar'),
+            ),
+          const Spacer(),
+          if (_step == 0)
+            FilledButton.icon(
+              onPressed: canContinue
+                  ? () => setState(() => _step = 1)
+                  : null,
+              icon: const Icon(Icons.arrow_forward_rounded),
+              label: Text(
+                mobile
+                    ? 'Continuar (${_selected.length})'
+                    : 'Continuar con ${_selected.length}',
+              ),
+            )
+          else
+            FilledButton.icon(
+              onPressed: canConfirm
+                  ? () => Navigator.of(context).pop(
+                        _ReconcileDecision(
+                          ids: _selected.toList(growable: false),
+                          reason: _reason,
+                          observation: _observation.text.trim(),
+                        ),
+                      )
+                  : null,
+              icon: const Icon(Icons.check_rounded),
+              label: Text(
+                mobile
+                    ? 'Confirmar ${_selected.length}'
+                    : 'Confirmar ${_selected.length} ajuste(s)',
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+}
+
+class _ReconcileDialogHeader extends StatelessWidget {
+  const _ReconcileDialogHeader({
+    required this.palette,
+    required this.step,
+    required this.date,
+    required this.selected,
+    required this.total,
+    required this.onClose,
+  });
+
+  final AppPalette palette;
+  final int step;
+  final DateTime date;
+  final int selected;
+  final int total;
+  final VoidCallback onClose;
+
+  @override
+  Widget build(BuildContext context) {
+    final mobile = MediaQuery.sizeOf(context).width < 700;
+    return Container(
+      padding: EdgeInsets.fromLTRB(
+        mobile ? 14 : 18,
+        14,
+        mobile ? 8 : 12,
+        12,
+      ),
+      decoration: BoxDecoration(
+        color: palette.secondary.withOpacity(.055),
+        border: Border(
+          bottom: BorderSide(color: palette.cardBorder.withOpacity(.55)),
+        ),
+      ),
+      child: Row(
+        children: [
+          Container(
+            width: 40,
+            height: 40,
+            decoration: BoxDecoration(
+              color: palette.secondary.withOpacity(.12),
+              borderRadius: BorderRadius.circular(13),
+            ),
+            child: Icon(
+              step == 0
+                  ? Icons.fact_check_outlined
+                  : Icons.assignment_turned_in_outlined,
+              color: palette.secondary,
+              size: 21,
+            ),
+          ),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  step == 0
+                      ? 'Revisar diferencias'
+                      : 'Sustentar conciliación',
+                  style: TextStyle(
+                    color: palette.textPrimary,
+                    fontWeight: FontWeight.w900,
+                    fontSize: mobile ? 15 : 17,
+                  ),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  'Conteo ${DateFormat('dd/MM/yyyy').format(date)} · '
+                  '$selected de $total seleccionados · Paso ${step + 1} de 2',
+                  style: TextStyle(
+                    color: palette.textSecondary,
+                    fontWeight: FontWeight.w600,
+                    fontSize: 10.5,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          IconButton(
+            tooltip: 'Cerrar',
+            onPressed: onClose,
+            icon: const Icon(Icons.close_rounded),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _ReconcileMoneySummary extends StatelessWidget {
+  const _ReconcileMoneySummary({
+    required this.count,
+    required this.missing,
+    required this.surplus,
+    required this.net,
+    required this.palette,
+  });
+
+  final int count;
+  final double missing;
+  final double surplus;
+  final double net;
+  final AppPalette palette;
+
+  @override
+  Widget build(BuildContext context) {
+    final values = [
+      (
+        'Seleccionados',
+        '$count',
+        Icons.checklist_rounded,
+        palette.secondary,
+      ),
+      (
+        'Faltante',
+        CurrencyUtils.format(missing),
+        Icons.trending_down_rounded,
+        Colors.redAccent,
+      ),
+      (
+        'Sobrante',
+        CurrencyUtils.format(surplus),
+        Icons.trending_up_rounded,
+        palette.success,
+      ),
+      (
+        'Impacto neto',
+        CurrencyUtils.format(net),
+        Icons.account_balance_wallet_outlined,
+        net < 0 ? Colors.orangeAccent : palette.success,
+      ),
+    ];
+
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final columns = constraints.maxWidth < 500 ? 2 : 4;
+        const gap = 7.0;
+        final width =
+            (constraints.maxWidth - gap * (columns - 1)) / columns;
+
+        return Wrap(
+          spacing: gap,
+          runSpacing: gap,
+          children: [
+            for (final item in values)
+              SizedBox(
+                width: width,
+                child: Container(
+                  padding: const EdgeInsets.all(9),
+                  decoration: BoxDecoration(
+                    color: item.$4.withOpacity(.07),
+                    borderRadius: BorderRadius.circular(13),
+                    border: Border.all(
+                      color: item.$4.withOpacity(.16),
+                    ),
+                  ),
+                  child: Row(
+                    children: [
+                      Icon(item.$3, color: item.$4, size: 16),
+                      const SizedBox(width: 7),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              item.$2,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: TextStyle(
+                                color: item.$4,
+                                fontWeight: FontWeight.w900,
+                                fontSize: 11.5,
+                              ),
+                            ),
+                            Text(
+                              item.$1,
+                              style: TextStyle(
+                                color: palette.textSecondary,
+                                fontWeight: FontWeight.w600,
+                                fontSize: 8.5,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+          ],
+        );
+      },
+    );
+  }
+}
+
+class _ReconcileProductCard extends StatelessWidget {
+  const _ReconcileProductCard({
+    required this.row,
+    required this.selected,
+    required this.palette,
+    required this.onChanged,
+  });
+
+  final _InventoryAuditRow row;
+  final bool selected;
+  final AppPalette palette;
+  final ValueChanged<bool> onChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    final missing = row.difference < 0;
+    final tone = missing ? Colors.redAccent : palette.success;
+
+    return Material(
+      color: selected
+          ? palette.secondary.withOpacity(.055)
+          : palette.background.withOpacity(.22),
+      borderRadius: BorderRadius.circular(16),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(16),
+        onTap: () => onChanged(!selected),
+        child: Container(
+          padding: const EdgeInsets.all(11),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(
+              color: selected
+                  ? palette.secondary.withOpacity(.30)
+                  : palette.cardBorder.withOpacity(.62),
+            ),
+          ),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Checkbox(
+                value: selected,
+                onChanged: (value) => onChanged(value == true),
+                visualDensity: VisualDensity.compact,
+              ),
+              const SizedBox(width: 4),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      row.product,
+                      style: TextStyle(
+                        color: palette.textPrimary,
+                        fontWeight: FontWeight.w900,
+                        fontSize: 12,
+                      ),
+                    ),
+                    const SizedBox(height: 7),
+                    Wrap(
+                      spacing: 6,
+                      runSpacing: 6,
+                      children: [
+                        _MiniAuditChip(
+                          label: 'Esperado',
+                          value: _qty(row.expected),
+                          color: palette.secondary,
+                          palette: palette,
+                        ),
+                        _MiniAuditChip(
+                          label: 'Contado',
+                          value: _qty(row.counted),
+                          color: palette.accent,
+                          palette: palette,
+                        ),
+                        _MiniAuditChip(
+                          label: missing ? 'Faltan' : 'Sobran',
+                          value: _qty(row.difference.abs()),
+                          color: tone,
+                          palette: palette,
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 8),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: Text(
+                            'Costo unit. ${CurrencyUtils.format(row.unitPurchaseCost)}',
+                            style: TextStyle(
+                              color: palette.textSecondary,
+                              fontWeight: FontWeight.w600,
+                              fontSize: 9.5,
+                            ),
+                          ),
+                        ),
+                        Text(
+                          CurrencyUtils.format(row.netImpact),
+                          style: TextStyle(
+                            color: tone,
+                            fontWeight: FontWeight.w900,
+                            fontSize: 11,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _MiniAuditChip extends StatelessWidget {
+  const _MiniAuditChip({
+    required this.label,
+    required this.value,
+    required this.color,
+    required this.palette,
+  });
+
+  final String label;
+  final String value;
+  final Color color;
+  final AppPalette palette;
+
+  @override
+  Widget build(BuildContext context) => Container(
+        padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 5),
+        decoration: BoxDecoration(
+          color: color.withOpacity(.07),
+          borderRadius: BorderRadius.circular(9),
+          border: Border.all(color: color.withOpacity(.13)),
+        ),
+        child: Text(
+          '$label $value',
+          style: TextStyle(
+            color: palette.textPrimary,
+            fontWeight: FontWeight.w700,
+            fontSize: 9,
+          ),
+        ),
+      );
+}
+
+class _ReconcileFinalRow extends StatelessWidget {
+  const _ReconcileFinalRow({
+    required this.row,
+    required this.palette,
+  });
+
+  final _InventoryAuditRow row;
+  final AppPalette palette;
+
+  @override
+  Widget build(BuildContext context) {
+    final tone =
+        row.difference < 0 ? Colors.redAccent : palette.success;
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 9),
+      decoration: BoxDecoration(
+        color: palette.background.withOpacity(.24),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: palette.cardBorder.withOpacity(.55)),
+      ),
+      child: Row(
+        children: [
+          Icon(
+            row.difference < 0
+                ? Icons.remove_circle_outline_rounded
+                : Icons.add_circle_outline_rounded,
+            color: tone,
+            size: 17,
+          ),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Text(
+              row.product,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(
+                color: palette.textPrimary,
+                fontWeight: FontWeight.w800,
+                fontSize: 10.5,
+              ),
+            ),
+          ),
+          Text(
+            '${_signedQty(row.difference)} · '
+            '${CurrencyUtils.format(row.netImpact)}',
+            style: TextStyle(
+              color: tone,
+              fontWeight: FontWeight.w900,
+              fontSize: 10,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
 }
 
 class _ReconcileDecision {
