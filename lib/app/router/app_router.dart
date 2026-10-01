@@ -16,6 +16,7 @@ import '../../features/business_setup/presentation/providers/business_setup_prov
 import '../../features/auth/presentation/providers/auth_provider.dart';
 import '../../features/navigation/presentation/providers/active_role_provider.dart';
 import '../../features/home/presentation/pages/home_page.dart';
+import '../../features/dashboard/presentation/pages/dashboard_page.dart';
 import '../../features/admin_support/presentation/pages/admin_support_page.dart';
 import '../../features/admin_support/presentation/pages/admin_data_explorer_page.dart';
 import '../../features/admin_support/presentation/pages/admin_audit_page.dart';
@@ -288,6 +289,7 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       GoRoute(path: '/soporte_mantenimiento', builder: (context, state) => AppScaffold(child: const AdminSupportWorkspacePage(type: AdminSupportWorkspaceType.maintenance))),
       GoRoute(path: '/sincronizar_catalogo', builder: (context, state) => AppScaffold(child: const ProductCatalogSyncPage())),
       GoRoute(path: '/profile', builder: (context, state) => _setupAwareScaffold(ref, state, const ProfilePage())),
+      GoRoute(path: '/dashboard', builder: (context, state) => const AppScaffold(child: DashboardPage())),
       GoRoute(path: '/reportes', builder: (context, state) => AppScaffold(child: const ReportesPage())),
       GoRoute(
         path: '/reporte_resumen_ejecutivo',
