@@ -1913,15 +1913,25 @@ class _ReportContent extends StatelessWidget {
                   subtitle: _reportChartSubtitle(definition),
                   icon: _reportChartIcon(definition),
                   palette: palette,
-                  child: _HorizontalBarChart(
-                    rows: payload.rows,
-                    labelKey: definition.chartLabelKey,
-                    valueKey: definition.chartValueKey,
-                    palette: palette,
-                    currency: definition.currencyKeys.contains(definition.chartValueKey),
-                    percentage: definition.percentageKeys.contains(definition.chartValueKey),
-                    signed: definition.signedChart,
-                  ),
+                  child: definition.path.endsWith('/ventas')
+                      ? _ReportTimeSeriesChart(
+                          rows: payload.rows,
+                          dateKey: 'fecha',
+                          valueKey: 'total',
+                          palette: palette,
+                          currency: true,
+                        )
+                      : _HorizontalBarChart(
+                          rows: payload.rows,
+                          labelKey: definition.chartLabelKey,
+                          valueKey: definition.chartValueKey,
+                          palette: palette,
+                          currency: definition.currencyKeys
+                              .contains(definition.chartValueKey),
+                          percentage: definition.percentageKeys
+                              .contains(definition.chartValueKey),
+                          signed: definition.signedChart,
+                        ),
                 ),
                 const SizedBox(height: 14),
                 _Panel(
@@ -7622,9 +7632,9 @@ class _SummaryContent extends StatelessWidget {
                           'Detecta picos y días débiles para ajustar personal, inventario y promociones.',
                       icon: Icons.show_chart_rounded,
                       palette: palette,
-                      child: _HorizontalBarChart(
+                      child: _ReportTimeSeriesChart(
                         rows: payload.chartRows,
-                        labelKey: 'fecha',
+                        dateKey: 'fecha',
                         valueKey: 'total',
                         palette: palette,
                         currency: true,
@@ -8267,6 +8277,241 @@ class _Panel extends StatelessWidget {
       },
     );
   }
+}
+
+class _ReportTimeSeriesChart extends StatelessWidget {
+  const _ReportTimeSeriesChart({
+    required this.rows,
+    required this.dateKey,
+    required this.valueKey,
+    required this.palette,
+    this.currency = false,
+  });
+
+  final List<Map<String, dynamic>> rows;
+  final String dateKey;
+  final String valueKey;
+  final AppPalette palette;
+  final bool currency;
+
+  @override
+  Widget build(BuildContext context) {
+    if (rows.isEmpty) {
+      return Text(
+        'No hay datos suficientes para construir la tendencia.',
+        style: TextStyle(
+          color: palette.textSecondary,
+          fontWeight: FontWeight.w600,
+        ),
+      );
+    }
+
+    final ordered = [...rows]
+      ..sort((a, b) {
+        final ad = DateTime.tryParse(a[dateKey]?.toString() ?? '');
+        final bd = DateTime.tryParse(b[dateKey]?.toString() ?? '');
+        if (ad == null && bd == null) return 0;
+        if (ad == null) return 1;
+        if (bd == null) return -1;
+        return ad.compareTo(bd);
+      });
+
+    final values =
+        ordered.map((row) => _toDouble(row[valueKey])).toList(growable: false);
+    final maxValue = values.fold<double>(
+      0,
+      (current, value) => math.max(current, value).toDouble(),
+    );
+    final average =
+        values.isEmpty ? 0.0 : values.reduce((a, b) => a + b) / values.length;
+
+    return SizedBox(
+      height: 250,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Wrap(
+            spacing: 8,
+            runSpacing: 6,
+            children: [
+              _TrendBadge(
+                label: 'Pico',
+                value: _displayValue(maxValue, currency: currency),
+                color: palette.secondary,
+                palette: palette,
+              ),
+              _TrendBadge(
+                label: 'Promedio',
+                value: _displayValue(average, currency: currency),
+                color: palette.accent,
+                palette: palette,
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          Expanded(
+            child: CustomPaint(
+              painter: _ReportLinePainter(
+                values: values,
+                lineColor: palette.secondary,
+                gridColor: palette.cardBorder.withOpacity(.55),
+              ),
+              child: const SizedBox.expand(),
+            ),
+          ),
+          const SizedBox(height: 8),
+          Row(
+            children: [
+              for (var i = 0; i < ordered.length; i++)
+                if (i == 0 ||
+                    i == ordered.length - 1 ||
+                    i % math.max(1, ordered.length ~/ 5) == 0)
+                  Expanded(
+                    child: Text(
+                      _compactDateLabel(ordered[i][dateKey]),
+                      textAlign: i == 0
+                          ? TextAlign.left
+                          : i == ordered.length - 1
+                              ? TextAlign.right
+                              : TextAlign.center,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        color: palette.textSecondary,
+                        fontSize: 9,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  )
+                else
+                  const Expanded(child: SizedBox()),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _TrendBadge extends StatelessWidget {
+  const _TrendBadge({
+    required this.label,
+    required this.value,
+    required this.color,
+    required this.palette,
+  });
+
+  final String label;
+  final String value;
+  final Color color;
+  final AppPalette palette;
+
+  @override
+  Widget build(BuildContext context) => Container(
+        padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 6),
+        decoration: BoxDecoration(
+          color: color.withOpacity(.08),
+          borderRadius: BorderRadius.circular(999),
+          border: Border.all(color: color.withOpacity(.16)),
+        ),
+        child: Text(
+          '$label: $value',
+          style: TextStyle(
+            color: palette.textPrimary,
+            fontWeight: FontWeight.w800,
+            fontSize: 10,
+          ),
+        ),
+      );
+}
+
+class _ReportLinePainter extends CustomPainter {
+  const _ReportLinePainter({
+    required this.values,
+    required this.lineColor,
+    required this.gridColor,
+  });
+
+  final List<double> values;
+  final Color lineColor;
+  final Color gridColor;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    if (values.isEmpty) return;
+
+    final grid = Paint()
+      ..color = gridColor
+      ..strokeWidth = 1;
+    for (var i = 1; i <= 4; i++) {
+      final y = size.height * i / 5;
+      canvas.drawLine(Offset(0, y), Offset(size.width, y), grid);
+    }
+
+    final maxValue = math.max(
+      1.0,
+      values.fold<double>(
+        0,
+        (current, value) => math.max(current, value).toDouble(),
+      ),
+    ).toDouble();
+
+    final path = Path();
+    final points = <Offset>[];
+    for (var i = 0; i < values.length; i++) {
+      final x = values.length == 1
+          ? size.width / 2
+          : size.width * i / (values.length - 1);
+      final y =
+          size.height - (values[i] / maxValue) * (size.height - 14) - 7;
+      final point = Offset(x, y);
+      points.add(point);
+      if (i == 0) {
+        path.moveTo(point.dx, point.dy);
+      } else {
+        path.lineTo(point.dx, point.dy);
+      }
+    }
+
+    final fill = Path.from(path);
+    if (points.isNotEmpty) {
+      fill
+        ..lineTo(points.last.dx, size.height)
+        ..lineTo(points.first.dx, size.height)
+        ..close();
+      canvas.drawPath(
+        fill,
+        Paint()..color = lineColor.withOpacity(.09),
+      );
+    }
+
+    canvas.drawPath(
+      path,
+      Paint()
+        ..color = lineColor
+        ..strokeWidth = 3
+        ..style = PaintingStyle.stroke
+        ..strokeCap = StrokeCap.round
+        ..strokeJoin = StrokeJoin.round,
+    );
+
+    final dot = Paint()..color = lineColor;
+    for (final point in points) {
+      canvas.drawCircle(point, 3.1, dot);
+    }
+  }
+
+  @override
+  bool shouldRepaint(covariant _ReportLinePainter oldDelegate) =>
+      oldDelegate.values != values ||
+      oldDelegate.lineColor != lineColor ||
+      oldDelegate.gridColor != gridColor;
+}
+
+String _compactDateLabel(Object? value) {
+  final date = DateTime.tryParse(value?.toString() ?? '');
+  if (date == null) return _displayValue(value);
+  return DateFormat('d MMM', 'es_CO').format(date);
 }
 
 class _HorizontalBarChart extends StatelessWidget {
