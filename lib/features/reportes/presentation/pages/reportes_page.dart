@@ -7553,8 +7553,10 @@ class _SummaryContent extends StatelessWidget {
       for (final key in const [
         'numero_ventas',
         'total_vendido',
+        'total_propinas',
         'ticket_promedio',
         'unidades_vendidas',
+        'productos_con_stock',
         'unidades_en_stock',
         'productos_agotados',
         'productos_stock_negativo',
@@ -7601,6 +7603,7 @@ class _SummaryContent extends StatelessWidget {
                   palette: palette,
                   currencyKeys: const [
                     'total_vendido',
+                    'total_propinas',
                     'ticket_promedio',
                   ],
                   percentageKeys: const [],
@@ -9857,8 +9860,10 @@ Map<String, dynamic> _buildMetrics(
     const keys = [
       'numero_ventas',
       'total_vendido',
+      'total_propinas',
       'ticket_promedio',
       'unidades_vendidas',
+      'productos_con_stock',
       'unidades_en_stock',
       'productos_agotados',
       'productos_stock_negativo',
