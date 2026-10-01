@@ -110,11 +110,14 @@ class _DashboardPageState extends ConsumerState<DashboardPage> {
 
       if (!mounted) return;
       setState(() {
-        _summary = responses[0].data as Map<String, dynamic>? ?? const {};
+        _summary = responses[0].data as Map<String, dynamic>? ??
+            const <String, dynamic>{};
         _profitRows =
-            responses[1].data as List<Map<String, dynamic>>? ?? const [];
+            responses[1].data as List<Map<String, dynamic>>? ??
+            const <Map<String, dynamic>>[];
         _liveSales =
-            responses[2].data as List<Map<String, dynamic>>? ?? const [];
+            responses[2].data as List<Map<String, dynamic>>? ??
+            const <Map<String, dynamic>>[];
         _branchId = branchId;
         _updatedAt = DateTime.now();
         _loading = false;
@@ -190,7 +193,7 @@ class _DashboardPageState extends ConsumerState<DashboardPage> {
     final labor = _num(financialRow['mano_obra_periodo']);
     final operating = _num(financialRow['gastos_operativos_periodo']);
     final net = _num(financialRow['ganancia_neta_estimada_periodo']);
-    final costOfSales = math.max(0, sales - gross);
+    final costOfSales = math.max(0.0, sales - gross).toDouble();
     final netMargin = sales == 0 ? 0.0 : (net / sales) * 100;
 
     final productsToOrder = _profitRows
@@ -880,7 +883,10 @@ class _SalesTrendChart extends StatelessWidget {
     }
 
     final values = rows.map((row) => _num(row['total'])).toList(growable: false);
-    final maxValue = values.fold<double>(0, math.max);
+    final maxValue = values.fold<double>(
+      0,
+      (current, value) => math.max(current, value).toDouble(),
+    );
     return SizedBox(
       height: 245,
       child: Column(
@@ -964,8 +970,11 @@ class _LineChartPainter extends CustomPainter {
 
     final maxValue = math.max(
       1.0,
-      values.fold<double>(0, math.max),
-    );
+      values.fold<double>(
+        0,
+        (current, value) => math.max(current, value).toDouble(),
+      ),
+    ).toDouble();
     final path = Path();
     for (var i = 0; i < values.length; i++) {
       final x = values.length == 1
@@ -1046,8 +1055,11 @@ class _ProfitabilityChart extends StatelessWidget {
     ];
     final maxValue = math.max(
       1.0,
-      rows.fold<double>(0, (max, row) => math.max(max, row.$2.abs())),
-    );
+      rows.fold<double>(
+        0,
+        (current, row) => math.max(current, row.$2.abs()).toDouble(),
+      ),
+    ).toDouble();
 
     return Column(
       children: [
@@ -1093,9 +1105,10 @@ class _HorizontalBars extends StatelessWidget {
       1.0,
       rows.fold<double>(
         0,
-        (max, row) => math.max(max, _num(row[valueKey]).abs()),
+        (current, row) =>
+            math.max(current, _num(row[valueKey]).abs()).toDouble(),
       ),
-    );
+    ).toDouble();
     return Column(
       children: [
         for (final row in rows) ...[
@@ -1133,7 +1146,8 @@ class _MetricBar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final ratio = (value.abs() / maxValue).clamp(0.0, 1.0);
+    final ratio =
+        (value.abs() / maxValue).clamp(0.0, 1.0).toDouble();
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
