@@ -6,6 +6,7 @@ import 'package:intl/intl.dart';
 
 import '../../../../app/theme/app_palette.dart';
 import '../../../../core/branch/branch_scope_provider.dart';
+import '../../../../core/network/api_client.dart';
 import '../../../../core/providers/core_providers.dart';
 import '../../../../core/widgets/app_loader.dart';
 import '../../../../core/widgets/tech_background.dart';
@@ -1048,7 +1049,7 @@ class _Expense extends StatelessWidget {
 class _LaborDialog extends StatefulWidget {
   final Map<String, dynamic> gasto;
   final AppPalette palette;
-  final dynamic api;
+  final ApiClient api;
 
   const _LaborDialog({
     required this.gasto,
@@ -1102,87 +1103,106 @@ class _LaborDialogState extends State<_LaborDialog> {
       );
   }
 
+  List<Map<String, dynamic>> _parseMapList(Object? json) {
+    if (json is! List) return <Map<String, dynamic>>[];
+    return json
+        .whereType<Map>()
+        .map((item) => Map<String, dynamic>.from(item))
+        .toList();
+  }
+
   Future<void> _load({dynamic keepSelectedId}) async {
-    if (mounted) {
-      setState(() {
-        loading = true;
-        loadWarning = null;
-      });
-    }
+    if (!mounted) return;
+
+    setState(() {
+      loading = true;
+      loadWarning = null;
+    });
+
+    final gastoId = widget.gasto['gafiId'];
+    List<Map<String, dynamic>> loaded;
 
     try {
-      final gastoId = widget.gasto['gafiId'];
-      final response = await widget.api.get<List<dynamic>>(
+      final response = await widget.api.get<List<Map<String, dynamic>>>(
         '/api/v1/gastos-fijos/$gastoId/cargos',
-        (json) => (json as List?) ?? const [],
+        _parseMapList,
       );
-
-      final loaded = (response.data ?? const <dynamic>[])
-          .map((e) => Map<String, dynamic>.from(e as Map))
-          .toList();
-
-      Map<String, dynamic>? nextSelected;
-      if (loaded.isNotEmpty) {
-        final targetId = keepSelectedId ?? selected?['gafcId'];
-        nextSelected = loaded.firstWhere(
-          (cargo) => cargo['gafcId'].toString() == targetId?.toString(),
-          orElse: () => loaded.first,
-        );
-      }
-
-      if (mounted) {
-        setState(() {
-          cargos = loaded;
-          selected = nextSelected;
-          rates = {
-            for (final cargo in loaded)
-              cargo['gafcId'].toString(): <Map<String, dynamic>>[],
-          };
-          loading = false;
-        });
-      }
-
-      final loadedRates = <String, List<Map<String, dynamic>>>{};
-      var failedRateLoads = 0;
-
-      for (final cargo in loaded) {
-        final cargoId = cargo['gafcId'];
-        try {
-          final rateResponse = await widget.api.get<List<dynamic>>(
-            '/api/v1/gastos-fijos/cargos/$cargoId/tarifas',
-            (json) => (json as List?) ?? const [],
-          );
-          loadedRates[cargoId.toString()] =
-              (rateResponse.data ?? const <dynamic>[])
-                  .map((e) => Map<String, dynamic>.from(e as Map))
-                  .toList();
-        } catch (_) {
-          failedRateLoads++;
-          loadedRates[cargoId.toString()] = <Map<String, dynamic>>[];
-        }
-      }
-
+      loaded = response.data ?? <Map<String, dynamic>>[];
+    } catch (error) {
+      debugPrint('Error cargando cargos de mano de obra: $error');
       if (!mounted) return;
       setState(() {
-        rates = loadedRates;
-        loadWarning = failedRateLoads == 0
-            ? null
-            : failedRateLoads == 1
-                ? 'Se cargaron los cargos, pero no fue posible consultar la tarifa de un cargo. Puedes seguir administrando los cargos y volver a intentar.'
-                : 'Se cargaron los cargos, pero no fue posible consultar algunas tarifas. Puedes seguir administrando los cargos y volver a intentar.';
-      });
-    } catch (_) {
-      if (!mounted) return;
-      setState(() {
-        cargos = [];
-        rates = {};
-        selected = null;
         loading = false;
         loadWarning =
-            'No fue posible cargar los cargos. Verifica que el backend y la migración de mano de obra estén actualizados.';
+            'No fue posible cargar los cargos. Pulsa reintentar. Si el problema continúa, revisa la consola para ver el detalle técnico.';
       });
-      _message('No fue posible cargar los cargos.', error: true);
+      return;
     }
+
+    if (!mounted) return;
+
+    Map<String, dynamic>? nextSelected;
+    if (loaded.isNotEmpty) {
+      final targetId = keepSelectedId ?? selected?['gafcId'];
+      nextSelected = loaded.firstWhere(
+        (cargo) => cargo['gafcId'].toString() == targetId?.toString(),
+        orElse: () => loaded.first,
+      );
+    }
+
+    // Pintamos los cargos inmediatamente. La carga de tarifas es secundaria y
+    // nunca debe ocultar una lista que el backend ya devolvió correctamente.
+    setState(() {
+      cargos = loaded;
+      selected = nextSelected;
+      rates = {
+        for (final cargo in loaded)
+          cargo['gafcId'].toString(): <Map<String, dynamic>>[],
+      };
+      loading = false;
+      loadWarning = null;
+    });
+
+    await _loadRates(loaded);
+  }
+
+  Future<void> _loadRates(List<Map<String, dynamic>> loaded) async {
+    if (loaded.isEmpty || !mounted) return;
+
+    final loadedRates = <String, List<Map<String, dynamic>>>{};
+    var failedRateLoads = 0;
+
+    for (final cargo in loaded) {
+      if (!mounted) return;
+      final cargoId = cargo['gafcId'];
+      try {
+        final response = await widget.api.get<List<Map<String, dynamic>>>(
+          '/api/v1/gastos-fijos/cargos/$cargoId/tarifas',
+          _parseMapList,
+        );
+        loadedRates[cargoId.toString()] =
+            response.data ?? <Map<String, dynamic>>[];
+      } catch (error) {
+        debugPrint('Error cargando tarifas del cargo $cargoId: $error');
+        failedRateLoads++;
+        loadedRates[cargoId.toString()] = <Map<String, dynamic>>[];
+      }
+    }
+
+    if (!mounted) return;
+    setState(() {
+      rates = {
+        for (final cargo in cargos)
+          cargo['gafcId'].toString():
+              loadedRates[cargo['gafcId'].toString()] ??
+                  <Map<String, dynamic>>[],
+      };
+      loadWarning = failedRateLoads == 0
+          ? null
+          : failedRateLoads == 1
+              ? 'Los cargos se cargaron correctamente, pero una tarifa no pudo consultarse. Puedes seguir trabajando y reintentar.'
+              : 'Los cargos se cargaron correctamente, pero algunas tarifas no pudieron consultarse. Puedes seguir trabajando y reintentar.';
+    });
   }
 
   Future<void> _addRole() async {
