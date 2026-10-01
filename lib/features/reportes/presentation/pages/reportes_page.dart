@@ -1145,7 +1145,11 @@ class _ReporteDetailState extends ConsumerState<_ReporteDetail> {
             anchor.day <= 15 ? 1 : 16,
           ),
           end: anchor.day <= 15
-              ? DateTime(anchor.year, anchor.month, 15)
+              ? (anchor.year == today.year &&
+                      anchor.month == today.month &&
+                      DateTime(anchor.year, anchor.month, 15).isAfter(today)
+                  ? today
+                  : DateTime(anchor.year, anchor.month, 15))
               : (anchor.year == today.year && anchor.month == today.month
                   ? today
                   : DateTime(anchor.year, anchor.month + 1, 0)),
@@ -1733,46 +1737,55 @@ class _ProfitPeriodButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Material(
-      color: Colors.transparent,
-      child: InkWell(
-        onTap: onTap,
-        borderRadius: BorderRadius.circular(9),
-        child: AnimatedContainer(
-          duration: const Duration(milliseconds: 160),
-          padding: const EdgeInsets.symmetric(horizontal: 6),
-          decoration: BoxDecoration(
-            color: selected
-                ? palette.secondary.withOpacity(0.15)
-                : Colors.transparent,
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final compact = constraints.maxWidth < 74;
+        return Material(
+          color: Colors.transparent,
+          child: InkWell(
+            onTap: onTap,
             borderRadius: BorderRadius.circular(9),
-          ),
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Icon(
-                icon,
-                size: 15,
-                color: selected ? palette.secondary : palette.textSecondary,
+            child: AnimatedContainer(
+              duration: const Duration(milliseconds: 160),
+              padding: EdgeInsets.symmetric(horizontal: compact ? 3 : 6),
+              decoration: BoxDecoration(
+                color: selected
+                    ? palette.secondary.withOpacity(0.15)
+                    : Colors.transparent,
+                borderRadius: BorderRadius.circular(9),
               ),
-              const SizedBox(width: 4),
-              Flexible(
-                child: Text(
-                  label,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: TextStyle(
-                    color:
-                        selected ? palette.secondary : palette.textSecondary,
-                    fontSize: 10.5,
-                    fontWeight: FontWeight.w900,
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  if (!compact) ...[
+                    Icon(
+                      icon,
+                      size: 15,
+                      color:
+                          selected ? palette.secondary : palette.textSecondary,
+                    ),
+                    const SizedBox(width: 4),
+                  ],
+                  Flexible(
+                    child: Text(
+                      label,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        color: selected
+                            ? palette.secondary
+                            : palette.textSecondary,
+                        fontSize: compact ? 9.5 : 10.5,
+                        fontWeight: FontWeight.w900,
+                      ),
+                    ),
                   ),
-                ),
+                ],
               ),
-            ],
+            ),
           ),
-        ),
-      ),
+        );
+      },
     );
   }
 }
