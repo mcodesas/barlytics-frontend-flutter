@@ -237,9 +237,7 @@ class ReportesPage extends ConsumerWidget {
       );
     }
 
-    final catalogReports = reports
-        .where((item) => item.kind == _ReportKind.standard)
-        .toList(growable: false);
+    final catalogReports = reports.toList(growable: false);
     final palette = ref.watch(selectedAppPaletteProvider);
     final visual = ModuleVisuals.byKey('reportes');
 
@@ -7881,7 +7879,7 @@ class _ExecutiveFinanceOverview extends StatelessWidget {
           child: Column(
             children: [
               _FinanceFlowRow(
-                label: 'Ingresos por ventas',
+                label: 'Ingresos por productos',
                 value: ingresos,
                 reference: ingresos,
                 color: palette.secondary,
