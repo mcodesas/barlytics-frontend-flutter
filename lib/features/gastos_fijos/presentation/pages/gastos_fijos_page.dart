@@ -761,9 +761,6 @@ class _Header extends StatelessWidget {
     required this.palette,
     required this.onAdd,
     required this.onLabor,
-    this.laborToday,
-    this.laborMonthly,
-    this.laborCargoCount,
   });
 
   @override
@@ -1066,6 +1063,9 @@ class _Expense extends StatelessWidget {
     required this.onEdit,
     required this.onDelete,
     required this.onLabor,
+    this.laborToday,
+    this.laborMonthly,
+    this.laborCargoCount,
   });
 
   @override
