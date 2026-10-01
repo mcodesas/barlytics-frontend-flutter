@@ -1,20 +1,27 @@
+import 'dart:math' as math;
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 
 import '../../../../app/theme/app_palette.dart';
 import '../../../../core/branch/branch_scope_provider.dart';
+import '../../../../core/constants/api_paths.dart';
 import '../../../../core/errors/error_mapper.dart';
 import '../../../../core/providers/core_providers.dart';
+import '../../../../core/utils/currency_utils.dart';
 import '../../../../core/widgets/app_error_view.dart';
 import '../../../../core/widgets/app_loader.dart';
 import '../../../../core/widgets/tech_background.dart';
-import '../../../movimientos/data/models/movimientos_response_model.dart';
-import '../../../productos/data/models/productos_response_model.dart';
 import '../../../sucursales/data/models/sucursales_response_model.dart';
-import '../../data/models/inventario_response_model.dart';
 
-enum _InventoryAdminFilter { todos, pendientes, diferencias, sincronizados }
+enum _InventoryAdminFilter {
+  todos,
+  pendientes,
+  conDiferencias,
+  sincronizados,
+  cuadrados,
+}
 
 class InventarioAdminPage extends ConsumerStatefulWidget {
   const InventarioAdminPage({super.key});
@@ -27,16 +34,22 @@ class InventarioAdminPage extends ConsumerStatefulWidget {
 class _InventarioAdminPageState extends ConsumerState<InventarioAdminPage> {
   final _searchController = TextEditingController();
 
+  late DateTimeRange _range;
+  int? _branchId;
   bool _loading = true;
   String? _error;
-  int? _branchId;
-  DateTimeRange? _range;
   _InventoryAdminFilter _filter = _InventoryAdminFilter.todos;
-  List<_CountSession> _sessions = const [];
+  List<_InventoryAuditRow> _rows = const [];
 
   @override
   void initState() {
     super.initState();
+    final now = DateTime.now();
+    final today = DateTime(now.year, now.month, now.day);
+    _range = DateTimeRange(
+      start: today.subtract(const Duration(days: 30)),
+      end: today,
+    );
     _branchId = ref.read(branchScopeProvider).activeBranchId;
     WidgetsBinding.instance.addPostFrameCallback((_) => _load());
   }
@@ -53,126 +66,40 @@ class _InventarioAdminPageState extends ConsumerState<InventarioAdminPage> {
       if (!mounted) return;
       setState(() {
         _loading = false;
-        _error = 'Selecciona una sucursal para administrar sus conteos.';
+        _error = 'Selecciona una sucursal para consultar el control de inventario.';
       });
       return;
     }
 
-    setState(() {
-      _loading = true;
-      _error = null;
-    });
+    if (mounted) {
+      setState(() {
+        _loading = true;
+        _error = null;
+      });
+    }
 
     try {
-      final api = ref.read(apiClientProvider);
-
-      final inventoryResponse =
-          await api.get<List<InventarioResponseModel>>(
-        '/api/v1/inventario/sucursal/$branchId',
+      final response = await ref.read(apiClientProvider).get<
+          List<Map<String, dynamic>>>(
+        '${ApiPaths.inventario}/administracion',
         (json) => (json as List? ?? const <Object>[])
             .whereType<Map>()
-            .map(
-              (item) => InventarioResponseModel.fromJson(
-                Map<String, dynamic>.from(item),
-              ),
-            )
+            .map((item) => Map<String, dynamic>.from(item))
             .toList(growable: false),
+        queryParameters: {
+          'sucursalId': branchId,
+          'desde': DateFormat('yyyy-MM-dd').format(_range.start),
+          'hasta': DateFormat('yyyy-MM-dd').format(_range.end),
+        },
       );
 
-      final movementResponse =
-          await api.get<List<MovimientosResponseModel>>(
-        '/api/v1/movimientos/sucursal/$branchId',
-        (json) => (json as List? ?? const <Object>[])
-            .whereType<Map>()
-            .map(
-              (item) => MovimientosResponseModel.fromJson(
-                Map<String, dynamic>.from(item),
-              ),
-            )
-            .toList(growable: false),
-      );
-
-      final products = await _loadProducts(branchId);
-
-      final inventory = inventoryResponse.data ?? const <InventarioResponseModel>[];
-      final movements = movementResponse.data ?? const <MovimientosResponseModel>[];
-
-      final productNames = <int, String>{
-        for (final product in products)
-          if (product.prodId != null)
-            product.prodId!:
-                (product.prodNombre?.trim().isNotEmpty == true
-                    ? product.prodNombre!.trim()
-                    : 'Producto ${product.prodId}'),
-      };
-
-      final adjustments = <int, MovimientosResponseModel>{};
-      final countPattern = RegExp(r'Conteo #(\d+)');
-      for (final movement in movements) {
-        final match = countPattern.firstMatch(movement.moviReferencia ?? '');
-        if (match == null) continue;
-        final countId = int.tryParse(match.group(1) ?? '');
-        if (countId != null) adjustments[countId] = movement;
-      }
-
-      final countRecords = inventory
-          .where((item) => (item.invtOrigen ?? '').startsWith('CONTEO_FISICO'))
-          .toList(growable: false)
-        ..sort((a, b) {
-          final ad = DateTime.tryParse(a.invtFecha ?? '');
-          final bd = DateTime.tryParse(b.invtFecha ?? '');
-          if (ad == null && bd == null) {
-            return (b.invtId ?? 0).compareTo(a.invtId ?? 0);
-          }
-          if (ad == null) return 1;
-          if (bd == null) return -1;
-          final cmp = bd.compareTo(ad);
-          return cmp != 0 ? cmp : (b.invtId ?? 0).compareTo(a.invtId ?? 0);
-        });
-
-      final grouped = <String, List<_CountItem>>{};
-      for (final record in countRecords) {
-        final date = DateTime.tryParse(record.invtFecha ?? '');
-        if (date == null) continue;
-
-        final responsible =
-            (record.invtRegistradoPor ?? '').trim().isEmpty
-                ? 'Sin responsable'
-                : record.invtRegistradoPor!.trim();
-        final key =
-            '${DateFormat('yyyy-MM-dd').format(date)}|${responsible.toLowerCase()}';
-
-        grouped.putIfAbsent(key, () => <_CountItem>[]).add(
-              _CountItem(
-                record: record,
-                productName:
-                    productNames[record.prodId] ?? 'Producto ${record.prodId}',
-                adjustment: adjustments[record.invtId],
-              ),
-            );
-      }
-
-      final sessions = grouped.entries.map((entry) {
-        final items = entry.value;
-        items.sort((a, b) => a.productName.compareTo(b.productName));
-        final date =
-            DateTime.tryParse(items.first.record.invtFecha ?? '') ?? DateTime.now();
-        final responsible =
-            (items.first.record.invtRegistradoPor ?? '').trim().isEmpty
-                ? 'Sin responsable'
-                : items.first.record.invtRegistradoPor!.trim();
-        return _CountSession(
-          key: entry.key,
-          date: date,
-          responsible: responsible,
-          items: items,
-        );
-      }).toList(growable: false)
-        ..sort((a, b) => b.date.compareTo(a.date));
+      final rows = (response.data ?? const <Map<String, dynamic>>[])
+          .map(_InventoryAuditRow.fromJson)
+          .toList(growable: false);
 
       if (!mounted) return;
       setState(() {
-        _sessions = sessions;
+        _rows = rows;
         _branchId = branchId;
         _loading = false;
       });
@@ -185,70 +112,45 @@ class _InventarioAdminPageState extends ConsumerState<InventarioAdminPage> {
     }
   }
 
-  Future<List<ProductosResponseModel>> _loadProducts(int branchId) async {
-    final api = ref.read(apiClientProvider);
-    final result = <ProductosResponseModel>[];
-    var page = 0;
-
-    while (page < 100) {
-      final response = await api.get<ProductosPageResponseModel>(
-        '/api/v1/productos/page',
-        (json) => ProductosPageResponseModel.fromJson(
-          Map<String, dynamic>.from(json as Map),
-        ),
-        queryParameters: {
-          'page': page,
-          'size': 100,
-          'sucursalId': branchId,
-          'sortBy': 'nombre',
-          'direction': 'ASC',
-        },
-      );
-      final data = response.data ?? const ProductosPageResponseModel();
-      result.addAll(data.content);
-      if (data.last || data.content.isEmpty) break;
-      page++;
+  List<_InventoryCountDay> get _days {
+    final grouped = <String, List<_InventoryAuditRow>>{};
+    for (final row in _rows) {
+      final key = DateFormat('yyyy-MM-dd').format(row.countDate);
+      grouped.putIfAbsent(key, () => <_InventoryAuditRow>[]).add(row);
     }
+
+    final result = grouped.entries
+        .map(
+          (entry) => _InventoryCountDay(
+            date: DateTime.parse(entry.key),
+            rows: entry.value
+              ..sort((a, b) => a.product.compareTo(b.product)),
+          ),
+        )
+        .toList(growable: false)
+      ..sort((a, b) => b.date.compareTo(a.date));
     return result;
   }
 
-  List<_CountSession> get _visibleSessions {
+  List<_InventoryCountDay> get _visibleDays {
     final query = _searchController.text.trim().toLowerCase();
-
-    return _sessions.where((session) {
-      if (_range != null) {
-        final day = DateTime(
-          session.date.year,
-          session.date.month,
-          session.date.day,
-        );
-        final start = DateTime(
-          _range!.start.year,
-          _range!.start.month,
-          _range!.start.day,
-        );
-        final end = DateTime(
-          _range!.end.year,
-          _range!.end.month,
-          _range!.end.day,
-        );
-        if (day.isBefore(start) || day.isAfter(end)) return false;
-      }
-
-      final matchesFilter = switch (_filter) {
+    return _days.where((day) {
+      final filterMatches = switch (_filter) {
         _InventoryAdminFilter.todos => true,
-        _InventoryAdminFilter.pendientes => session.pendingCount > 0,
-        _InventoryAdminFilter.diferencias => session.differenceCount > 0,
-        _InventoryAdminFilter.sincronizados => session.syncedCount > 0,
+        _InventoryAdminFilter.pendientes => day.pendingCount > 0,
+        _InventoryAdminFilter.conDiferencias => day.differenceCount > 0,
+        _InventoryAdminFilter.sincronizados => day.syncedCount > 0,
+        _InventoryAdminFilter.cuadrados => day.differenceCount == 0,
       };
-      if (!matchesFilter) return false;
-
+      if (!filterMatches) return false;
       if (query.isEmpty) return true;
-      return session.responsible.toLowerCase().contains(query) ||
-          session.items.any(
-            (item) =>
-                item.productName.toLowerCase().contains(query) ||
-                '${item.record.invtId ?? ''}'.contains(query),
+
+      return day.counters.join(' ').toLowerCase().contains(query) ||
+          day.attendants.join(' ').toLowerCase().contains(query) ||
+          day.rows.any(
+            (row) =>
+                row.product.toLowerCase().contains(query) ||
+                '${row.countId}'.contains(query),
           );
     }).toList(growable: false);
   }
@@ -259,126 +161,186 @@ class _InventarioAdminPageState extends ConsumerState<InventarioAdminPage> {
       firstDate: DateTime(2020),
       lastDate: DateTime.now(),
       initialDateRange: _range,
-      helpText: 'Filtrar historial de conteos',
+      helpText: 'Periodo del reporte de inventario',
       saveText: 'Aplicar',
     );
-    if (selected != null && mounted) {
-      setState(() => _range = selected);
-    }
+    if (selected == null || !mounted) return;
+    setState(() => _range = selected);
+    await _load();
   }
 
-  Future<void> _reconcileSession(_CountSession session) async {
-    final pending = session.items.where((item) => item.pending).toList();
-    if (pending.isEmpty) return;
+  Future<void> _reviewReconciliation(_InventoryCountDay day) async {
+    final candidates =
+        day.rows.where((row) => row.reconciliable).toList(growable: false);
+    if (candidates.isEmpty) return;
 
+    final selected = <int>{
+      for (final row in candidates) row.countId,
+    };
     final observation = TextEditingController();
     var reason = 'Diferencia de conteo';
 
-    final confirmed = await showDialog<bool>(
+    final result = await showDialog<_ReconcileDecision>(
       context: context,
       builder: (dialogContext) => StatefulBuilder(
-        builder: (context, setDialogState) => AlertDialog(
-          title: const Text('Conciliar conteos pendientes'),
-          content: SizedBox(
-            width: 580,
-            child: SingleChildScrollView(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Text(
-                    '${pending.length} producto(s) del ${DateFormat('dd/MM/yyyy').format(session.date)} tienen diferencias pendientes.',
-                  ),
-                  const SizedBox(height: 8),
-                  const Text(
-                    'Se conservarán los movimientos posteriores al conteo. El ajuste quedará auditado con la referencia del conteo físico.',
-                  ),
-                  const SizedBox(height: 14),
-                  DropdownButtonFormField<String>(
-                    value: reason,
-                    decoration:
-                        const InputDecoration(labelText: 'Motivo del ajuste'),
-                    items: const [
-                      'Diferencia de conteo',
-                      'Merma',
-                      'Rotura',
-                      'Consumo interno',
-                      'Pérdida',
-                      'Sobrante',
-                      'Error de registro',
-                      'Otro',
-                    ]
-                        .map(
-                          (value) => DropdownMenuItem(
-                            value: value,
-                            child: Text(value),
-                          ),
-                        )
-                        .toList(),
-                    onChanged: (value) {
-                      if (value != null) {
-                        setDialogState(() => reason = value);
-                      }
-                    },
-                  ),
-                  const SizedBox(height: 12),
-                  TextField(
-                    controller: observation,
-                    minLines: 2,
-                    maxLines: 4,
-                    maxLength: 300,
-                    onChanged: (_) => setDialogState(() {}),
-                    decoration: const InputDecoration(
-                      labelText: 'Sustentación obligatoria',
-                      hintText: 'Explica por qué se concilia este conteo.',
+        builder: (context, setDialogState) {
+          final selectedRows = candidates
+              .where((row) => selected.contains(row.countId))
+              .toList(growable: false);
+          final missing = selectedRows.fold<double>(
+            0,
+            (sum, row) => sum + row.missingValue,
+          );
+          final surplus = selectedRows.fold<double>(
+            0,
+            (sum, row) => sum + row.surplusValue,
+          );
+
+          return AlertDialog(
+            title: const Text('Revisar diferencias antes de conciliar'),
+            content: SizedBox(
+              width: math.min(MediaQuery.sizeOf(context).width * .92, 900),
+              child: SingleChildScrollView(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    _ReconcileSummary(
+                      count: selectedRows.length,
+                      missing: missing,
+                      surplus: surplus,
                     ),
-                  ),
-                ],
+                    const SizedBox(height: 12),
+                    const Text(
+                      'Selecciona exactamente los productos que deseas conciliar. '
+                      'La conciliación registra un movimiento de ajuste y conserva '
+                      'las ventas, compras y demás movimientos posteriores al conteo.',
+                    ),
+                    const SizedBox(height: 14),
+                    for (final row in candidates)
+                      CheckboxListTile(
+                        value: selected.contains(row.countId),
+                        onChanged: (checked) {
+                          setDialogState(() {
+                            if (checked == true) {
+                              selected.add(row.countId);
+                            } else {
+                              selected.remove(row.countId);
+                            }
+                          });
+                        },
+                        contentPadding: EdgeInsets.zero,
+                        controlAffinity: ListTileControlAffinity.leading,
+                        title: Text(
+                          row.product,
+                          style: const TextStyle(fontWeight: FontWeight.w800),
+                        ),
+                        subtitle: Text(
+                          'Esperado ${_qty(row.expected)} · '
+                          'Contado ${_qty(row.counted)} · '
+                          'Diferencia ${_signedQty(row.difference)} · '
+                          'Costo unit. ${CurrencyUtils.format(row.unitPurchaseCost)} · '
+                          'Impacto ${CurrencyUtils.format(row.netImpact)}',
+                        ),
+                      ),
+                    const Divider(height: 24),
+                    DropdownButtonFormField<String>(
+                      value: reason,
+                      decoration:
+                          const InputDecoration(labelText: 'Motivo del ajuste'),
+                      items: const [
+                        'Diferencia de conteo',
+                        'Merma',
+                        'Rotura',
+                        'Consumo interno',
+                        'Pérdida',
+                        'Sobrante',
+                        'Error de registro',
+                        'Otro',
+                      ]
+                          .map(
+                            (value) => DropdownMenuItem(
+                              value: value,
+                              child: Text(value),
+                            ),
+                          )
+                          .toList(),
+                      onChanged: (value) {
+                        if (value != null) {
+                          setDialogState(() => reason = value);
+                        }
+                      },
+                    ),
+                    const SizedBox(height: 10),
+                    TextField(
+                      controller: observation,
+                      minLines: 2,
+                      maxLines: 4,
+                      maxLength: 300,
+                      onChanged: (_) => setDialogState(() {}),
+                      decoration: const InputDecoration(
+                        labelText: 'Sustentación',
+                        hintText:
+                            'Ej. Se verificó físicamente bodega y barra antes de ajustar.',
+                      ),
+                    ),
+                  ],
+                ),
               ),
             ),
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(dialogContext, false),
-              child: const Text('Cancelar'),
-            ),
-            FilledButton.icon(
-              onPressed: observation.text.trim().isEmpty
-                  ? null
-                  : () => Navigator.pop(dialogContext, true),
-              icon: const Icon(Icons.sync_rounded),
-              label: const Text('Conciliar'),
-            ),
-          ],
-        ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(dialogContext),
+                child: const Text('Cancelar'),
+              ),
+              FilledButton.icon(
+                onPressed: selected.isEmpty || observation.text.trim().isEmpty
+                    ? null
+                    : () => Navigator.pop(
+                          dialogContext,
+                          _ReconcileDecision(
+                            ids: selected.toList(growable: false),
+                            reason: reason,
+                            observation: observation.text.trim(),
+                          ),
+                        ),
+                icon: const Icon(Icons.rule_rounded),
+                label: Text(
+                  selected.isEmpty
+                      ? 'Selecciona productos'
+                      : 'Confirmar ${selected.length} ajuste(s)',
+                ),
+              ),
+            ],
+          );
+        },
       ),
     );
 
-    final note = observation.text.trim();
-    if (confirmed != true || note.isEmpty || !mounted) return;
+    if (result == null || !mounted) return;
 
     setState(() => _loading = true);
     try {
       final api = ref.read(apiClientProvider);
-      for (final item in pending) {
-        final id = item.record.invtId;
-        if (id == null) continue;
+      for (final id in result.ids) {
         await api.post<Object?>(
-          '/api/v1/inventario/sincronizar-conteo',
+          '${ApiPaths.inventario}/sincronizar-conteo',
           {
             'invtId': id,
-            'motivo': reason,
-            'observacion': note,
+            'motivo': result.reason,
+            'observacion': result.observation,
           },
           (json) => json,
         );
       }
+
       await _load();
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
+        SnackBar(
           content: Text(
-            'Conteos conciliados. Los ajustes quedaron registrados en movimientos.',
+            '${result.ids.length} diferencia(s) conciliada(s). '
+            'Los movimientos quedaron auditados.',
           ),
         ),
       );
@@ -399,25 +361,25 @@ class _InventarioAdminPageState extends ConsumerState<InventarioAdminPage> {
     ref.listen<BranchScopeState>(branchScopeProvider, (previous, next) {
       final nextId = next.activeBranchId;
       if (nextId != null && nextId != _branchId && mounted) {
-        _branchId = nextId;
+        setState(() => _branchId = nextId);
         _load();
       }
     });
 
-    if (_loading && _sessions.isEmpty) {
+    if (_loading && _rows.isEmpty) {
       return const Scaffold(
         backgroundColor: Colors.transparent,
         body: TechBackground(
           child: Center(
             child: AppLoader(
-              message: 'Cargando historial de conteos...',
+              message: 'Construyendo control administrativo de inventario...',
             ),
           ),
         ),
       );
     }
 
-    if (_error != null && _sessions.isEmpty) {
+    if (_error != null && _rows.isEmpty) {
       return Scaffold(
         backgroundColor: Colors.transparent,
         body: TechBackground(
@@ -426,11 +388,24 @@ class _InventarioAdminPageState extends ConsumerState<InventarioAdminPage> {
       );
     }
 
-    final sessions = _visibleSessions;
-    final allItems = _sessions.expand((item) => item.items).toList();
-    final pending = allItems.where((item) => item.pending).length;
-    final synced = allItems.where((item) => item.synced).length;
-    final differences = allItems.where((item) => item.hasDifference).length;
+    final days = _visibleDays;
+    final allDays = _days;
+    final missing = allDays.fold<double>(
+      0,
+      (sum, day) => sum + day.missingValue,
+    );
+    final surplus = allDays.fold<double>(
+      0,
+      (sum, day) => sum + day.surplusValue,
+    );
+    final pending = allDays.fold<int>(
+      0,
+      (sum, day) => sum + day.pendingCount,
+    );
+    final exact = _rows.where((row) => !row.hasDifference).length;
+    final accuracy = _rows.isEmpty ? 0.0 : exact * 100 / _rows.length;
+    final withoutCost =
+        _rows.where((row) => row.hasDifference && row.unitPurchaseCost <= 0).length;
 
     return Scaffold(
       backgroundColor: Colors.transparent,
@@ -444,9 +419,9 @@ class _InventarioAdminPageState extends ConsumerState<InventarioAdminPage> {
               physics: const AlwaysScrollableScrollPhysics(),
               slivers: [
                 SliverToBoxAdapter(
-                  child: _AdminWidth(
+                  child: _PageWidth(
                     top: 16,
-                    child: _AdminHeader(
+                    child: _InventoryAdminHeader(
                       palette: palette,
                       branches: branchState.branches,
                       branchId: _branchId,
@@ -457,31 +432,47 @@ class _InventarioAdminPageState extends ConsumerState<InventarioAdminPage> {
                         _load();
                       },
                       onRange: _pickRange,
-                      onClearRange: _range == null
-                          ? null
-                          : () => setState(() => _range = null),
                       onRefresh: _load,
                     ),
                   ),
                 ),
                 SliverToBoxAdapter(
-                  child: _AdminWidth(
-                    child: _AdminKpis(
+                  child: _PageWidth(
+                    child: _ExecutiveKpis(
                       palette: palette,
-                      sessions: _sessions.length,
-                      counts: allItems.length,
-                      differences: differences,
+                      days: allDays.length,
+                      products: _rows.length,
+                      missing: missing,
+                      surplus: surplus,
+                      accuracy: accuracy,
                       pending: pending,
-                      synced: synced,
+                    ),
+                  ),
+                ),
+                if (withoutCost > 0)
+                  SliverToBoxAdapter(
+                    child: _PageWidth(
+                      child: _CostWarning(
+                        palette: palette,
+                        count: withoutCost,
+                      ),
+                    ),
+                  ),
+                SliverToBoxAdapter(
+                  child: _PageWidth(
+                    child: _AdminInsights(
+                      days: allDays,
+                      rows: _rows,
+                      palette: palette,
                     ),
                   ),
                 ),
                 SliverToBoxAdapter(
-                  child: _AdminWidth(
+                  child: _PageWidth(
                     child: _AdminToolbar(
                       palette: palette,
                       controller: _searchController,
-                      selected: _filter,
+                      filter: _filter,
                       onSearch: (_) => setState(() {}),
                       onFilter: (value) => setState(() => _filter = value),
                     ),
@@ -489,19 +480,19 @@ class _InventarioAdminPageState extends ConsumerState<InventarioAdminPage> {
                 ),
                 if (_error != null)
                   SliverToBoxAdapter(
-                    child: _AdminWidth(
-                      child: _InlineAdminError(
+                    child: _PageWidth(
+                      child: _InlineError(
                         palette: palette,
                         message: _error!,
                       ),
                     ),
                   ),
-                if (sessions.isEmpty)
+                if (days.isEmpty)
                   SliverFillRemaining(
                     hasScrollBody: false,
                     child: Center(
                       child: Text(
-                        'No hay conteos que coincidan con los filtros.',
+                        'No hay jornadas de conteo para los filtros seleccionados.',
                         style: TextStyle(
                           color: palette.textSecondary,
                           fontWeight: FontWeight.w700,
@@ -513,22 +504,21 @@ class _InventarioAdminPageState extends ConsumerState<InventarioAdminPage> {
                   SliverPadding(
                     padding: const EdgeInsets.fromLTRB(16, 12, 16, 34),
                     sliver: SliverList.builder(
-                      itemCount: sessions.length,
+                      itemCount: days.length,
                       itemBuilder: (context, index) => Center(
                         child: ConstrainedBox(
-                          constraints: const BoxConstraints(maxWidth: 1280),
+                          constraints: const BoxConstraints(maxWidth: 1360),
                           child: Padding(
                             padding: EdgeInsets.only(
-                              bottom: index == sessions.length - 1 ? 0 : 10,
+                              bottom: index == days.length - 1 ? 0 : 12,
                             ),
-                            child: _CountSessionCard(
-                              session: sessions[index],
+                            child: _CountDayCard(
+                              day: days[index],
                               palette: palette,
-                              onReconcile:
-                                  sessions[index].pendingCount == 0 || _loading
-                                      ? null
-                                      : () =>
-                                          _reconcileSession(sessions[index]),
+                              onReview: days[index].reconciliableCount == 0 ||
+                                      _loading
+                                  ? null
+                                  : () => _reviewReconciliation(days[index]),
                             ),
                           ),
                         ),
@@ -538,7 +528,7 @@ class _InventarioAdminPageState extends ConsumerState<InventarioAdminPage> {
               ],
             ),
           ),
-          if (_loading && _sessions.isNotEmpty)
+          if (_loading && _rows.isNotEmpty)
             Positioned(
               left: 0,
               right: 0,
@@ -555,54 +545,175 @@ class _InventarioAdminPageState extends ConsumerState<InventarioAdminPage> {
   }
 }
 
-class _CountItem {
-  const _CountItem({
-    required this.record,
-    required this.productName,
-    required this.adjustment,
+class _InventoryAuditRow {
+  const _InventoryAuditRow({
+    required this.countId,
+    required this.productId,
+    required this.product,
+    required this.countDate,
+    required this.countedBy,
+    required this.expected,
+    required this.counted,
+    required this.difference,
+    required this.unitPurchaseCost,
+    required this.purchasePresentationCost,
+    required this.unitsPerPresentation,
+    required this.purchasePresentation,
+    required this.expectedValue,
+    required this.countedValue,
+    required this.missingValue,
+    required this.surplusValue,
+    required this.netImpact,
+    required this.status,
+    required this.latestCount,
+    required this.adjustmentId,
+    required this.adjustmentOperation,
+    required this.adjustmentQuantity,
+    required this.adjustmentReason,
+    required this.synchronizedBy,
+    required this.synchronizedAt,
+    required this.salesDay,
+    required this.totalSoldDay,
+    required this.attendedBy,
   });
 
-  final InventarioResponseModel record;
-  final String productName;
-  final MovimientosResponseModel? adjustment;
+  final int countId;
+  final int productId;
+  final String product;
+  final DateTime countDate;
+  final String countedBy;
+  final double expected;
+  final double counted;
+  final double difference;
+  final double unitPurchaseCost;
+  final double purchasePresentationCost;
+  final double unitsPerPresentation;
+  final String purchasePresentation;
+  final double expectedValue;
+  final double countedValue;
+  final double missingValue;
+  final double surplusValue;
+  final double netImpact;
+  final String status;
+  final bool latestCount;
+  final int? adjustmentId;
+  final String? adjustmentOperation;
+  final double adjustmentQuantity;
+  final String? adjustmentReason;
+  final String? synchronizedBy;
+  final DateTime? synchronizedAt;
+  final int salesDay;
+  final double totalSoldDay;
+  final String attendedBy;
 
-  double get difference => record.invtDiferencia ?? 0;
-  bool get hasDifference => difference.abs() > 0.0001;
+  bool get hasDifference => difference.abs() > .0001;
+  bool get reconciliable => status == 'PENDIENTE' && latestCount;
 
-  bool get synced =>
-      record.invtOrigen == 'CONTEO_FISICO_SINCRONIZADO' ||
-      adjustment != null;
-
-  bool get pending =>
-      record.invtOrigen == 'CONTEO_FISICO' && hasDifference && !synced;
-
-  String get status {
-    if (synced) return 'SINCRONIZADO';
-    if (pending) return 'PENDIENTE';
-    return 'CUADRA';
+  factory _InventoryAuditRow.fromJson(Map<String, dynamic> json) {
+    return _InventoryAuditRow(
+      countId: _int(json['conteo_id']),
+      productId: _int(json['producto_id']),
+      product: json['producto']?.toString() ?? 'Producto',
+      countDate:
+          DateTime.tryParse(json['fecha_conteo']?.toString() ?? '') ??
+              DateTime.now(),
+      countedBy: _actor(json['contado_por']),
+      expected: _num(json['esperado']),
+      counted: _num(json['contado']),
+      difference: _num(json['diferencia_unidades']),
+      unitPurchaseCost: _num(json['costo_unitario_compra']),
+      purchasePresentationCost:
+          _num(json['costo_presentacion_compra']),
+      unitsPerPresentation: _num(json['unidades_por_presentacion']),
+      purchasePresentation:
+          json['presentacion_compra']?.toString() ?? 'Unidad',
+      expectedValue: _num(json['valor_esperado_compra']),
+      countedValue: _num(json['valor_contado_compra']),
+      missingValue: _num(json['valor_faltante_compra']),
+      surplusValue: _num(json['valor_sobrante_compra']),
+      netImpact: _num(json['impacto_neto_compra']),
+      status: json['estado']?.toString() ?? 'CUADRA',
+      latestCount: json['es_ultimo_conteo'] == true ||
+          json['es_ultimo_conteo']?.toString() == 'true',
+      adjustmentId: _nullableInt(json['movimiento_ajuste_id']),
+      adjustmentOperation: json['ajuste_operacion']?.toString(),
+      adjustmentQuantity: _num(json['ajuste_cantidad']),
+      adjustmentReason: json['ajuste_motivo']?.toString(),
+      synchronizedBy: json['sincronizado_por']?.toString(),
+      synchronizedAt:
+          DateTime.tryParse(json['sincronizado_en']?.toString() ?? ''),
+      salesDay: _int(json['ventas_dia']),
+      totalSoldDay: _num(json['total_vendido_dia']),
+      attendedBy:
+          json['atendieron']?.toString() ?? 'SIN_VENTAS_REGISTRADAS',
+    );
   }
 }
 
-class _CountSession {
-  const _CountSession({
-    required this.key,
+class _InventoryCountDay {
+  const _InventoryCountDay({
     required this.date,
-    required this.responsible,
-    required this.items,
+    required this.rows,
   });
 
-  final String key;
   final DateTime date;
-  final String responsible;
-  final List<_CountItem> items;
+  final List<_InventoryAuditRow> rows;
 
-  int get pendingCount => items.where((item) => item.pending).length;
-  int get syncedCount => items.where((item) => item.synced).length;
-  int get differenceCount => items.where((item) => item.hasDifference).length;
+  Set<String> get counters => rows
+      .map((row) => row.countedBy)
+      .where((value) => value.trim().isNotEmpty)
+      .toSet();
+
+  Set<String> get attendants {
+    final result = <String>{};
+    for (final row in rows) {
+      for (final actor in row.attendedBy.split(',')) {
+        final value = actor.trim();
+        if (value.isNotEmpty && value != 'SIN_VENTAS_REGISTRADAS') {
+          result.add(value);
+        }
+      }
+    }
+    return result;
+  }
+
+  int get salesDay => rows.isEmpty ? 0 : rows.first.salesDay;
+  double get totalSoldDay => rows.isEmpty ? 0 : rows.first.totalSoldDay;
+  int get differenceCount => rows.where((row) => row.hasDifference).length;
+  int get pendingCount => rows.where((row) => row.status == 'PENDIENTE').length;
+  int get reconciliableCount => rows.where((row) => row.reconciliable).length;
+  int get syncedCount =>
+      rows.where((row) => row.status == 'SINCRONIZADO').length;
+  int get exactCount => rows.where((row) => !row.hasDifference).length;
+  int get withoutCost =>
+      rows.where((row) => row.hasDifference && row.unitPurchaseCost <= 0).length;
+
+  double get missingValue =>
+      rows.fold(0, (sum, row) => sum + row.missingValue);
+  double get surplusValue =>
+      rows.fold(0, (sum, row) => sum + row.surplusValue);
+  double get netImpact => rows.fold(0, (sum, row) => sum + row.netImpact);
+  double get expectedValue =>
+      rows.fold(0, (sum, row) => sum + row.expectedValue);
+  double get countedValue =>
+      rows.fold(0, (sum, row) => sum + row.countedValue);
+  double get accuracy => rows.isEmpty ? 0 : exactCount * 100 / rows.length;
 }
 
-class _AdminWidth extends StatelessWidget {
-  const _AdminWidth({
+class _ReconcileDecision {
+  const _ReconcileDecision({
+    required this.ids,
+    required this.reason,
+    required this.observation,
+  });
+
+  final List<int> ids;
+  final String reason;
+  final String observation;
+}
+
+class _PageWidth extends StatelessWidget {
+  const _PageWidth({
     required this.child,
     this.top = 12,
   });
@@ -613,7 +724,7 @@ class _AdminWidth extends StatelessWidget {
   @override
   Widget build(BuildContext context) => Center(
         child: ConstrainedBox(
-          constraints: const BoxConstraints(maxWidth: 1280),
+          constraints: const BoxConstraints(maxWidth: 1360),
           child: Padding(
             padding: EdgeInsets.fromLTRB(16, top, 16, 0),
             child: child,
@@ -622,36 +733,33 @@ class _AdminWidth extends StatelessWidget {
       );
 }
 
-class _AdminHeader extends StatelessWidget {
-  const _AdminHeader({
+class _InventoryAdminHeader extends StatelessWidget {
+  const _InventoryAdminHeader({
     required this.palette,
     required this.branches,
     required this.branchId,
     required this.range,
     required this.onBranchChanged,
     required this.onRange,
-    required this.onClearRange,
     required this.onRefresh,
   });
 
   final AppPalette palette;
   final List<SucursalesResponseModel> branches;
   final int? branchId;
-  final DateTimeRange? range;
+  final DateTimeRange range;
   final ValueChanged<int?> onBranchChanged;
   final VoidCallback onRange;
-  final VoidCallback? onClearRange;
   final VoidCallback onRefresh;
 
   @override
   Widget build(BuildContext context) {
-    final compact = MediaQuery.sizeOf(context).width < 760;
-
+    final compact = MediaQuery.sizeOf(context).width < 820;
     final title = Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text(
-          'Administración de inventario',
+          'Control administrativo de inventario',
           style: Theme.of(context).textTheme.headlineSmall?.copyWith(
                 color: palette.textPrimary,
                 fontWeight: FontWeight.w900,
@@ -659,23 +767,25 @@ class _AdminHeader extends StatelessWidget {
         ),
         const SizedBox(height: 4),
         Text(
-          'Historial de conteos físicos, diferencias, conciliaciones y ajustes de inventario.',
+          'Audita qué se contó, cuánto dinero falta o sobra, quién atendió '
+          'ese día y qué diferencias ya fueron conciliadas.',
           style: TextStyle(
             color: palette.textSecondary,
             fontWeight: FontWeight.w600,
+            height: 1.35,
           ),
         ),
       ],
     );
 
-    final controls = Wrap(
+    final actions = Wrap(
       spacing: 8,
       runSpacing: 8,
       crossAxisAlignment: WrapCrossAlignment.center,
       children: [
         if (branches.length > 1)
           SizedBox(
-            width: 220,
+            width: 210,
             child: DropdownButtonFormField<int?>(
               value: branches.any((item) => item.sucuId == branchId)
                   ? branchId
@@ -685,17 +795,18 @@ class _AdminHeader extends StatelessWidget {
                 labelText: 'Sucursal',
                 prefixIcon: Icon(Icons.storefront_rounded),
               ),
-              items: [
-                ...branches.where((item) => item.sucuId != null).map(
-                      (item) => DropdownMenuItem<int?>(
-                        value: item.sucuId,
-                        child: Text(
-                          item.sucuNombre ?? 'Sucursal ${item.sucuId}',
-                          overflow: TextOverflow.ellipsis,
-                        ),
+              items: branches
+                  .where((item) => item.sucuId != null)
+                  .map(
+                    (item) => DropdownMenuItem<int?>(
+                      value: item.sucuId,
+                      child: Text(
+                        item.sucuNombre ?? 'Sucursal ${item.sucuId}',
+                        overflow: TextOverflow.ellipsis,
                       ),
                     ),
-              ],
+                  )
+                  .toList(),
               onChanged: onBranchChanged,
             ),
           ),
@@ -703,19 +814,12 @@ class _AdminHeader extends StatelessWidget {
           onPressed: onRange,
           icon: const Icon(Icons.date_range_rounded),
           label: Text(
-            range == null
-                ? 'Filtrar fechas'
-                : '${DateFormat('dd/MM/yy').format(range!.start)} - ${DateFormat('dd/MM/yy').format(range!.end)}',
+            '${DateFormat('dd/MM/yy').format(range.start)} - '
+            '${DateFormat('dd/MM/yy').format(range.end)}',
           ),
         ),
-        if (range != null)
-          IconButton(
-            tooltip: 'Quitar filtro de fechas',
-            onPressed: onClearRange,
-            icon: const Icon(Icons.close_rounded),
-          ),
         IconButton.filledTonal(
-          tooltip: 'Actualizar',
+          tooltip: 'Actualizar reporte',
           onPressed: onRefresh,
           icon: const Icon(Icons.refresh_rounded),
         ),
@@ -734,57 +838,95 @@ class _AdminHeader extends StatelessWidget {
               children: [
                 title,
                 const SizedBox(height: 14),
-                controls,
+                actions,
               ],
             )
           : Row(
               children: [
                 Expanded(child: title),
-                const SizedBox(width: 16),
-                controls,
+                const SizedBox(width: 18),
+                actions,
               ],
             ),
     );
   }
 }
 
-class _AdminKpis extends StatelessWidget {
-  const _AdminKpis({
+class _ExecutiveKpis extends StatelessWidget {
+  const _ExecutiveKpis({
     required this.palette,
-    required this.sessions,
-    required this.counts,
-    required this.differences,
+    required this.days,
+    required this.products,
+    required this.missing,
+    required this.surplus,
+    required this.accuracy,
     required this.pending,
-    required this.synced,
   });
 
   final AppPalette palette;
-  final int sessions;
-  final int counts;
-  final int differences;
+  final int days;
+  final int products;
+  final double missing;
+  final double surplus;
+  final double accuracy;
   final int pending;
-  final int synced;
 
   @override
   Widget build(BuildContext context) {
+    final net = surplus - missing;
     final items = [
-      ('Jornadas', '$sessions', Icons.event_note_rounded, palette.secondary),
-      ('Productos contados', '$counts', Icons.fact_check_rounded, palette.success),
-      ('Con diferencia', '$differences', Icons.compare_arrows_rounded, palette.warning),
-      ('Pendientes', '$pending', Icons.sync_problem_rounded, Colors.orangeAccent),
-      ('Sincronizados', '$synced', Icons.task_alt_rounded, Colors.teal),
+      (
+        'Faltante a costo',
+        CurrencyUtils.format(missing),
+        'Valor de compra de unidades que debían estar y no se encontraron.',
+        Icons.trending_down_rounded,
+        Colors.redAccent,
+      ),
+      (
+        'Sobrante a costo',
+        CurrencyUtils.format(surplus),
+        'Valor de compra de unidades encontradas por encima del sistema.',
+        Icons.trending_up_rounded,
+        palette.success,
+      ),
+      (
+        'Impacto neto',
+        CurrencyUtils.format(net),
+        net < 0
+            ? 'El faltante supera económicamente al sobrante.'
+            : 'El sobrante compensa o supera el faltante.',
+        Icons.account_balance_wallet_rounded,
+        net < 0 ? Colors.orangeAccent : palette.success,
+      ),
+      (
+        'Exactitud',
+        '${accuracy.toStringAsFixed(1)} %',
+        '$products productos auditados en $days jornada(s).',
+        Icons.verified_rounded,
+        accuracy >= 95 ? palette.success : palette.warning,
+      ),
+      (
+        'Por administrar',
+        '$pending',
+        pending == 0
+            ? 'No hay diferencias vigentes pendientes.'
+            : 'Diferencias del último conteo que pueden revisarse.',
+        Icons.pending_actions_rounded,
+        pending == 0 ? palette.success : palette.warning,
+      ),
     ];
 
     return LayoutBuilder(
       builder: (context, constraints) {
-        final columns = constraints.maxWidth < 600
-            ? 2
-            : constraints.maxWidth < 1000
-                ? 3
+        final columns = constraints.maxWidth < 620
+            ? 1
+            : constraints.maxWidth < 1050
+                ? 2
                 : 5;
-        const gap = 8.0;
+        const gap = 9.0;
         final width =
             (constraints.maxWidth - gap * (columns - 1)) / columns;
+
         return Wrap(
           spacing: gap,
           runSpacing: gap,
@@ -793,37 +935,46 @@ class _AdminKpis extends StatelessWidget {
               SizedBox(
                 width: width,
                 child: Container(
-                  padding: const EdgeInsets.all(12),
+                  constraints: const BoxConstraints(minHeight: 128),
+                  padding: const EdgeInsets.all(13),
                   decoration: palette.panelDecoration(
-                    baseRadius: 17,
-                    tint: item.$4,
+                    baseRadius: 18,
+                    tint: item.$5,
                     elevated: false,
                   ),
-                  child: Row(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Icon(item.$3, color: item.$4, size: 21),
-                      const SizedBox(width: 9),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              item.$2,
-                              style: TextStyle(
-                                color: palette.textPrimary,
-                                fontWeight: FontWeight.w900,
-                                fontSize: 17,
-                              ),
-                            ),
-                            Text(
-                              item.$1,
-                              style: TextStyle(
-                                color: palette.textSecondary,
-                                fontWeight: FontWeight.w700,
-                                fontSize: 10.5,
-                              ),
-                            ),
-                          ],
+                      Icon(item.$4, color: item.$5, size: 21),
+                      const SizedBox(height: 9),
+                      Text(
+                        item.$2,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                          color: palette.textPrimary,
+                          fontWeight: FontWeight.w900,
+                          fontSize: 17,
+                        ),
+                      ),
+                      const SizedBox(height: 3),
+                      Text(
+                        item.$1,
+                        style: TextStyle(
+                          color: palette.textPrimary,
+                          fontWeight: FontWeight.w800,
+                          fontSize: 11,
+                        ),
+                      ),
+                      const SizedBox(height: 3),
+                      Text(
+                        item.$3,
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                          color: palette.textSecondary,
+                          fontWeight: FontWeight.w600,
+                          fontSize: 9.5,
                         ),
                       ),
                     ],
@@ -837,28 +988,358 @@ class _AdminKpis extends StatelessWidget {
   }
 }
 
+class _CostWarning extends StatelessWidget {
+  const _CostWarning({
+    required this.palette,
+    required this.count,
+  });
+
+  final AppPalette palette;
+  final int count;
+
+  @override
+  Widget build(BuildContext context) => Container(
+        padding: const EdgeInsets.all(13),
+        decoration: BoxDecoration(
+          color: palette.warning.withOpacity(.08),
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: palette.warning.withOpacity(.22)),
+        ),
+        child: Row(
+          children: [
+            Icon(Icons.price_change_outlined, color: palette.warning),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Text(
+                '$count producto(s) con diferencia no tienen costo de compra '
+                'histórico disponible. El valor económico del faltante/sobrante '
+                'de esos productos no puede calcularse hasta configurar el precio.',
+                style: TextStyle(
+                  color: palette.textPrimary,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+            ),
+          ],
+        ),
+      );
+}
+
+class _AdminInsights extends StatelessWidget {
+  const _AdminInsights({
+    required this.days,
+    required this.rows,
+    required this.palette,
+  });
+
+  final List<_InventoryCountDay> days;
+  final List<_InventoryAuditRow> rows;
+  final AppPalette palette;
+
+  @override
+  Widget build(BuildContext context) {
+    final missingProducts = [...rows]
+      ..sort((a, b) => b.missingValue.compareTo(a.missingValue));
+    final top = missingProducts
+        .where((row) => row.missingValue > 0)
+        .take(6)
+        .toList(growable: false);
+
+    final dayCards = days.take(8).toList(growable: false);
+
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final compact = constraints.maxWidth < 900;
+
+        final trend = _AdminPanel(
+          title: 'Diferencias por jornada',
+          subtitle:
+              'Compara en dinero cuánto faltó y cuánto sobró en cada conteo.',
+          icon: Icons.bar_chart_rounded,
+          palette: palette,
+          child: dayCards.isEmpty
+              ? _EmptyAdminState(
+                  palette: palette,
+                  text: 'Aún no hay jornadas en el periodo.',
+                )
+              : Column(
+                  children: [
+                    for (final day in dayCards) ...[
+                      _DayValueBar(day: day, palette: palette),
+                      if (day != dayCards.last) const SizedBox(height: 10),
+                    ],
+                  ],
+                ),
+        );
+
+        final products = _AdminPanel(
+          title: 'Productos con mayor faltante',
+          subtitle:
+              'Prioriza dónde investigar primero según impacto a costo de compra.',
+          icon: Icons.crisis_alert_rounded,
+          palette: palette,
+          child: top.isEmpty
+              ? _EmptyAdminState(
+                  palette: palette,
+                  text: 'No hay faltantes valorizados en el periodo.',
+                )
+              : Column(
+                  children: [
+                    for (final row in top) ...[
+                      _TopMissingProduct(row: row, palette: palette),
+                      if (row != top.last) const SizedBox(height: 8),
+                    ],
+                  ],
+                ),
+        );
+
+        if (compact) {
+          return Column(
+            children: [
+              trend,
+              const SizedBox(height: 12),
+              products,
+            ],
+          );
+        }
+
+        return Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Expanded(child: trend),
+            const SizedBox(width: 12),
+            Expanded(child: products),
+          ],
+        );
+      },
+    );
+  }
+}
+
+class _AdminPanel extends StatelessWidget {
+  const _AdminPanel({
+    required this.title,
+    required this.subtitle,
+    required this.icon,
+    required this.palette,
+    required this.child,
+  });
+
+  final String title;
+  final String subtitle;
+  final IconData icon;
+  final AppPalette palette;
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) => Container(
+        padding: const EdgeInsets.all(15),
+        decoration:
+            palette.panelDecoration(baseRadius: 20, elevated: false),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Row(
+              children: [
+                Icon(icon, color: palette.secondary),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        title,
+                        style: TextStyle(
+                          color: palette.textPrimary,
+                          fontWeight: FontWeight.w900,
+                          fontSize: 14,
+                        ),
+                      ),
+                      Text(
+                        subtitle,
+                        style: TextStyle(
+                          color: palette.textSecondary,
+                          fontSize: 10.5,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 14),
+            child,
+          ],
+        ),
+      );
+}
+
+class _DayValueBar extends StatelessWidget {
+  const _DayValueBar({
+    required this.day,
+    required this.palette,
+  });
+
+  final _InventoryCountDay day;
+  final AppPalette palette;
+
+  @override
+  Widget build(BuildContext context) {
+    final maxValue = math.max(day.missingValue, day.surplusValue);
+    final missingRatio =
+        maxValue <= 0 ? 0.0 : day.missingValue / maxValue;
+    final surplusRatio =
+        maxValue <= 0 ? 0.0 : day.surplusValue / maxValue;
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Row(
+          children: [
+            Expanded(
+              child: Text(
+                DateFormat('dd/MM/yyyy').format(day.date),
+                style: TextStyle(
+                  color: palette.textPrimary,
+                  fontWeight: FontWeight.w800,
+                  fontSize: 11,
+                ),
+              ),
+            ),
+            Text(
+              'Falta ${CurrencyUtils.format(day.missingValue)} · '
+              'Sobra ${CurrencyUtils.format(day.surplusValue)}',
+              style: TextStyle(
+                color: palette.textSecondary,
+                fontWeight: FontWeight.w700,
+                fontSize: 9.5,
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 5),
+        Row(
+          children: [
+            Expanded(
+              child: ClipRRect(
+                borderRadius: BorderRadius.circular(999),
+                child: LinearProgressIndicator(
+                  value: missingRatio,
+                  minHeight: 7,
+                  backgroundColor: palette.cardBorder.withOpacity(.35),
+                  valueColor:
+                      const AlwaysStoppedAnimation<Color>(Colors.redAccent),
+                ),
+              ),
+            ),
+            const SizedBox(width: 7),
+            Expanded(
+              child: ClipRRect(
+                borderRadius: BorderRadius.circular(999),
+                child: LinearProgressIndicator(
+                  value: surplusRatio,
+                  minHeight: 7,
+                  backgroundColor: palette.cardBorder.withOpacity(.35),
+                  valueColor:
+                      AlwaysStoppedAnimation<Color>(palette.success),
+                ),
+              ),
+            ),
+          ],
+        ),
+      ],
+    );
+  }
+}
+
+class _TopMissingProduct extends StatelessWidget {
+  const _TopMissingProduct({
+    required this.row,
+    required this.palette,
+  });
+
+  final _InventoryAuditRow row;
+  final AppPalette palette;
+
+  @override
+  Widget build(BuildContext context) => Container(
+        padding: const EdgeInsets.all(10),
+        decoration: BoxDecoration(
+          color: Colors.redAccent.withOpacity(.05),
+          borderRadius: BorderRadius.circular(13),
+          border: Border.all(color: Colors.redAccent.withOpacity(.14)),
+        ),
+        child: Row(
+          children: [
+            const Icon(
+              Icons.remove_circle_outline_rounded,
+              color: Colors.redAccent,
+              size: 18,
+            ),
+            const SizedBox(width: 8),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    row.product,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      color: palette.textPrimary,
+                      fontWeight: FontWeight.w800,
+                      fontSize: 11,
+                    ),
+                  ),
+                  Text(
+                    'Faltan ${_qty(math.max(0, -row.difference))} unid. · '
+                    'Costo unit. ${CurrencyUtils.format(row.unitPurchaseCost)}',
+                    style: TextStyle(
+                      color: palette.textSecondary,
+                      fontWeight: FontWeight.w600,
+                      fontSize: 9.5,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            Text(
+              CurrencyUtils.format(row.missingValue),
+              style: const TextStyle(
+                color: Colors.redAccent,
+                fontWeight: FontWeight.w900,
+                fontSize: 11,
+              ),
+            ),
+          ],
+        ),
+      );
+}
+
 class _AdminToolbar extends StatelessWidget {
   const _AdminToolbar({
     required this.palette,
     required this.controller,
-    required this.selected,
+    required this.filter,
     required this.onSearch,
     required this.onFilter,
   });
 
   final AppPalette palette;
   final TextEditingController controller;
-  final _InventoryAdminFilter selected;
+  final _InventoryAdminFilter filter;
   final ValueChanged<String> onSearch;
   final ValueChanged<_InventoryAdminFilter> onFilter;
 
   @override
   Widget build(BuildContext context) {
     const labels = {
-      _InventoryAdminFilter.todos: 'Todos',
-      _InventoryAdminFilter.pendientes: 'Pendientes',
-      _InventoryAdminFilter.diferencias: 'Con diferencias',
-      _InventoryAdminFilter.sincronizados: 'Sincronizados',
+      _InventoryAdminFilter.todos: 'Todas las jornadas',
+      _InventoryAdminFilter.pendientes: 'Por administrar',
+      _InventoryAdminFilter.conDiferencias: 'Con diferencias',
+      _InventoryAdminFilter.sincronizados: 'Sincronizadas',
+      _InventoryAdminFilter.cuadrados: 'Sin diferencias',
     };
 
     return Container(
@@ -871,27 +1352,22 @@ class _AdminToolbar extends StatelessWidget {
         crossAxisAlignment: WrapCrossAlignment.center,
         children: [
           SizedBox(
-            width: 300,
+            width: 320,
             child: TextField(
               controller: controller,
               onChanged: onSearch,
               decoration: const InputDecoration(
-                hintText: 'Buscar producto, responsable o conteo',
+                hintText: 'Buscar producto, quien contó o quien atendió',
                 prefixIcon: Icon(Icons.search_rounded),
               ),
             ),
           ),
-          for (final filter in _InventoryAdminFilter.values)
+          for (final value in _InventoryAdminFilter.values)
             ChoiceChip(
-              selected: filter == selected,
-              label: Text(labels[filter]!),
-              onSelected: (_) => onFilter(filter),
-              selectedColor: palette.secondary.withOpacity(.14),
-              side: BorderSide(
-                color: filter == selected
-                    ? palette.secondary.withOpacity(.38)
-                    : palette.cardBorder,
-              ),
+              selected: value == filter,
+              label: Text(labels[value]!),
+              onSelected: (_) => onFilter(value),
+              selectedColor: palette.secondary.withOpacity(.13),
             ),
         ],
       ),
@@ -899,101 +1375,119 @@ class _AdminToolbar extends StatelessWidget {
   }
 }
 
-class _CountSessionCard extends StatelessWidget {
-  const _CountSessionCard({
-    required this.session,
+class _CountDayCard extends StatelessWidget {
+  const _CountDayCard({
+    required this.day,
     required this.palette,
-    required this.onReconcile,
+    required this.onReview,
   });
 
-  final _CountSession session;
+  final _InventoryCountDay day;
   final AppPalette palette;
-  final VoidCallback? onReconcile;
+  final VoidCallback? onReview;
 
   @override
   Widget build(BuildContext context) {
-    final date = DateFormat('dd/MM/yyyy').format(session.date);
+    final risky = day.missingValue > 0 || day.pendingCount > 0;
+    final tone = risky ? palette.warning : palette.success;
 
     return Container(
       decoration: palette.panelDecoration(
-        baseRadius: 20,
-        tint: session.pendingCount > 0 ? palette.warning : palette.success,
+        baseRadius: 22,
+        tint: tone,
         elevated: false,
       ),
       clipBehavior: Clip.antiAlias,
       child: ExpansionTile(
-        tilePadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-        childrenPadding: const EdgeInsets.fromLTRB(14, 0, 14, 14),
+        tilePadding: const EdgeInsets.fromLTRB(16, 9, 16, 9),
+        childrenPadding: const EdgeInsets.fromLTRB(14, 0, 14, 16),
         leading: Container(
-          width: 44,
-          height: 44,
+          width: 46,
+          height: 46,
           decoration: BoxDecoration(
-            color: (session.pendingCount > 0
-                    ? palette.warning
-                    : palette.success)
-                .withOpacity(.11),
+            color: tone.withOpacity(.11),
             borderRadius: BorderRadius.circular(14),
           ),
           child: Icon(
-            session.pendingCount > 0
-                ? Icons.pending_actions_rounded
-                : Icons.fact_check_rounded,
-            color: session.pendingCount > 0
-                ? palette.warning
-                : palette.success,
+            risky ? Icons.inventory_2_outlined : Icons.verified_rounded,
+            color: tone,
           ),
         ),
-        title: Text(
-          'Conteo $date',
-          style: TextStyle(
-            color: palette.textPrimary,
-            fontWeight: FontWeight.w900,
-          ),
+        title: Row(
+          children: [
+            Expanded(
+              child: Text(
+                'Inventario · ${DateFormat('dd/MM/yyyy').format(day.date)}',
+                style: TextStyle(
+                  color: palette.textPrimary,
+                  fontWeight: FontWeight.w900,
+                ),
+              ),
+            ),
+            _AccuracyBadge(
+              value: day.accuracy,
+              palette: palette,
+            ),
+          ],
         ),
         subtitle: Padding(
-          padding: const EdgeInsets.only(top: 4),
+          padding: const EdgeInsets.only(top: 7),
           child: Wrap(
-            spacing: 8,
-            runSpacing: 5,
+            spacing: 12,
+            runSpacing: 6,
             children: [
-              _StatusText(
-                icon: Icons.person_outline_rounded,
-                text: session.responsible,
+              _Meta(
+                icon: Icons.person_search_rounded,
+                text: 'Contó: ${day.counters.join(', ')}',
                 palette: palette,
               ),
-              _StatusText(
-                icon: Icons.inventory_2_outlined,
-                text: '${session.items.length} productos',
+              _Meta(
+                icon: Icons.groups_2_outlined,
+                text: day.attendants.isEmpty
+                    ? 'Sin ventas registradas ese día'
+                    : 'Atendieron: ${day.attendants.join(', ')}',
                 palette: palette,
               ),
-              _StatusText(
-                icon: Icons.compare_arrows_rounded,
-                text: '${session.differenceCount} diferencias',
+              _Meta(
+                icon: Icons.point_of_sale_rounded,
+                text:
+                    '${day.salesDay} ventas · ${CurrencyUtils.format(day.totalSoldDay)}',
                 palette: palette,
               ),
-              if (session.pendingCount > 0)
-                _StatusText(
-                  icon: Icons.sync_problem_rounded,
-                  text: '${session.pendingCount} pendientes',
-                  palette: palette,
-                  color: palette.warning,
-                ),
+              _Meta(
+                icon: Icons.inventory_outlined,
+                text: '${day.rows.length} productos contados',
+                palette: palette,
+              ),
             ],
           ),
         ),
-        trailing: onReconcile == null
+        trailing: onReview == null
             ? null
             : FilledButton.icon(
-                onPressed: onReconcile,
-                icon: const Icon(Icons.sync_rounded, size: 17),
-                label: const Text('Conciliar'),
+                onPressed: onReview,
+                icon: const Icon(Icons.rule_rounded, size: 17),
+                label: Text(
+                  'Revisar ${day.reconciliableCount} diferencia(s)',
+                ),
               ),
         children: [
           const Divider(height: 1),
-          const SizedBox(height: 10),
-          for (var i = 0; i < session.items.length; i++) ...[
-            _CountItemRow(item: session.items[i], palette: palette),
-            if (i != session.items.length - 1) const SizedBox(height: 7),
+          const SizedBox(height: 12),
+          _DayFinancialSummary(day: day, palette: palette),
+          if (day.withoutCost > 0) ...[
+            const SizedBox(height: 10),
+            _CostWarning(palette: palette, count: day.withoutCost),
+          ],
+          const SizedBox(height: 12),
+          _ProductAuditHeader(palette: palette),
+          const SizedBox(height: 6),
+          for (var index = 0; index < day.rows.length; index++) ...[
+            _ProductAuditRow(
+              row: day.rows[index],
+              palette: palette,
+            ),
+            if (index != day.rows.length - 1) const SizedBox(height: 6),
           ],
         ],
       ),
@@ -1001,54 +1495,136 @@ class _CountSessionCard extends StatelessWidget {
   }
 }
 
-class _StatusText extends StatelessWidget {
-  const _StatusText({
-    required this.icon,
-    required this.text,
-    required this.palette,
-    this.color,
-  });
-
-  final IconData icon;
-  final String text;
-  final AppPalette palette;
-  final Color? color;
-
-  @override
-  Widget build(BuildContext context) => Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(icon, size: 14, color: color ?? palette.textSecondary),
-          const SizedBox(width: 4),
-          Text(
-            text,
-            style: TextStyle(
-              color: color ?? palette.textSecondary,
-              fontSize: 10.5,
-              fontWeight: FontWeight.w700,
-            ),
-          ),
-        ],
-      );
-}
-
-class _CountItemRow extends StatelessWidget {
-  const _CountItemRow({
-    required this.item,
+class _DayFinancialSummary extends StatelessWidget {
+  const _DayFinancialSummary({
+    required this.day,
     required this.palette,
   });
 
-  final _CountItem item;
+  final _InventoryCountDay day;
   final AppPalette palette;
 
   @override
   Widget build(BuildContext context) {
-    final diff = item.difference;
-    final tone = item.pending
-        ? palette.warning
-        : item.synced
-            ? palette.success
-            : palette.secondary;
+    final values = [
+      (
+        'Valor esperado',
+        CurrencyUtils.format(day.expectedValue),
+        palette.secondary,
+      ),
+      (
+        'Valor contado',
+        CurrencyUtils.format(day.countedValue),
+        palette.accent,
+      ),
+      (
+        'Faltante',
+        CurrencyUtils.format(day.missingValue),
+        Colors.redAccent,
+      ),
+      (
+        'Sobrante',
+        CurrencyUtils.format(day.surplusValue),
+        palette.success,
+      ),
+      (
+        'Impacto neto',
+        CurrencyUtils.format(day.netImpact),
+        day.netImpact < 0 ? Colors.orangeAccent : palette.success,
+      ),
+      (
+        'Pendientes',
+        '${day.pendingCount}',
+        day.pendingCount > 0 ? palette.warning : palette.success,
+      ),
+    ];
+
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final columns = constraints.maxWidth < 650 ? 2 : 6;
+        const gap = 7.0;
+        final width =
+            (constraints.maxWidth - gap * (columns - 1)) / columns;
+
+        return Wrap(
+          spacing: gap,
+          runSpacing: gap,
+          children: [
+            for (final item in values)
+              SizedBox(
+                width: width,
+                child: Container(
+                  padding: const EdgeInsets.all(10),
+                  decoration: BoxDecoration(
+                    color: item.$3.withOpacity(.06),
+                    borderRadius: BorderRadius.circular(13),
+                    border: Border.all(color: item.$3.withOpacity(.15)),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        item.$2,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                          color: item.$3,
+                          fontWeight: FontWeight.w900,
+                          fontSize: 12,
+                        ),
+                      ),
+                      Text(
+                        item.$1,
+                        style: TextStyle(
+                          color: palette.textSecondary,
+                          fontWeight: FontWeight.w600,
+                          fontSize: 9,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+          ],
+        );
+      },
+    );
+  }
+}
+
+class _ProductAuditHeader extends StatelessWidget {
+  const _ProductAuditHeader({required this.palette});
+
+  final AppPalette palette;
+
+  @override
+  Widget build(BuildContext context) => Text(
+        'Detalle producto por producto',
+        style: TextStyle(
+          color: palette.textPrimary,
+          fontWeight: FontWeight.w900,
+          fontSize: 13,
+        ),
+      );
+}
+
+class _ProductAuditRow extends StatelessWidget {
+  const _ProductAuditRow({
+    required this.row,
+    required this.palette,
+  });
+
+  final _InventoryAuditRow row;
+  final AppPalette palette;
+
+  @override
+  Widget build(BuildContext context) {
+    final statusColor = switch (row.status) {
+      'PENDIENTE' => palette.warning,
+      'SINCRONIZADO' => palette.success,
+      'SUPERADO' => palette.textSecondary,
+      _ => palette.secondary,
+    };
 
     return Container(
       padding: const EdgeInsets.all(11),
@@ -1057,110 +1633,284 @@ class _CountItemRow extends StatelessWidget {
         borderRadius: BorderRadius.circular(14),
         border: Border.all(color: palette.cardBorder.withOpacity(.65)),
       ),
-      child: LayoutBuilder(
-        builder: (context, constraints) {
-          final compact = constraints.maxWidth < 760;
-
-          final info = Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Row(
             children: [
-              Text(
-                item.productName,
-                style: TextStyle(
-                  color: palette.textPrimary,
-                  fontWeight: FontWeight.w900,
-                  fontSize: 12.5,
-                ),
-              ),
-              const SizedBox(height: 5),
-              Wrap(
-                spacing: 10,
-                runSpacing: 5,
-                children: [
-                  Text(
-                    'Esperado ${_qty(item.record.invtCantidadEsperada)}',
-                    style: _smallStyle(palette),
-                  ),
-                  Text(
-                    'Contado ${_qty(item.record.invtCantidad)}',
-                    style: _smallStyle(palette),
-                  ),
-                  Text(
-                    'Diferencia ${diff > 0 ? '+' : ''}${_qty(diff)}',
-                    style: TextStyle(
-                      color: diff.abs() < .0001
-                          ? palette.success
-                          : palette.warning,
-                      fontSize: 10.5,
-                      fontWeight: FontWeight.w800,
-                    ),
-                  ),
-                  Text(
-                    'ID #${item.record.invtId ?? '-'}',
-                    style: _smallStyle(palette),
-                  ),
-                ],
-              ),
-              if (item.adjustment != null) ...[
-                const SizedBox(height: 6),
-                Text(
-                  'Ajuste: ${item.adjustment!.moviOperacion ?? '-'} '
-                  '${_qty(item.adjustment!.moviCantidad)} · '
-                  '${item.adjustment!.moviMotivo ?? 'Sin motivo'}'
-                  '${(item.adjustment!.moviRegistradoPor ?? '').trim().isEmpty ? '' : ' · Por ${item.adjustment!.moviRegistradoPor}'}'
-                  '${item.adjustment!.moviFechaCambio == null ? '' : ' · ${_dateTime(item.adjustment!.moviFechaCambio)}'}',
+              Expanded(
+                child: Text(
+                  row.product,
                   style: TextStyle(
-                    color: palette.textSecondary,
-                    fontSize: 10.5,
-                    fontWeight: FontWeight.w600,
+                    color: palette.textPrimary,
+                    fontWeight: FontWeight.w900,
+                    fontSize: 12,
                   ),
                 ),
-              ],
+              ),
+              Container(
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
+                decoration: BoxDecoration(
+                  color: statusColor.withOpacity(.09),
+                  borderRadius: BorderRadius.circular(999),
+                ),
+                child: Text(
+                  _statusLabel(row.status),
+                  style: TextStyle(
+                    color: statusColor,
+                    fontWeight: FontWeight.w900,
+                    fontSize: 9,
+                  ),
+                ),
+              ),
             ],
-          );
-
-          final badge = Container(
-            padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 6),
-            decoration: BoxDecoration(
-              color: tone.withOpacity(.09),
-              borderRadius: BorderRadius.circular(999),
-              border: Border.all(color: tone.withOpacity(.20)),
-            ),
-            child: Text(
-              item.status,
+          ),
+          const SizedBox(height: 8),
+          Wrap(
+            spacing: 14,
+            runSpacing: 7,
+            children: [
+              _AuditValue(
+                label: 'Esperado',
+                value: _qty(row.expected),
+                palette: palette,
+              ),
+              _AuditValue(
+                label: 'Contado',
+                value: _qty(row.counted),
+                palette: palette,
+              ),
+              _AuditValue(
+                label: 'Diferencia',
+                value: _signedQty(row.difference),
+                palette: palette,
+                color: row.hasDifference
+                    ? (row.difference < 0
+                        ? Colors.redAccent
+                        : palette.success)
+                    : palette.secondary,
+              ),
+              _AuditValue(
+                label: 'Costo unitario',
+                value: CurrencyUtils.format(row.unitPurchaseCost),
+                palette: palette,
+              ),
+              _AuditValue(
+                label: 'Valor faltante',
+                value: CurrencyUtils.format(row.missingValue),
+                palette: palette,
+                color:
+                    row.missingValue > 0 ? Colors.redAccent : null,
+              ),
+              _AuditValue(
+                label: 'Valor sobrante',
+                value: CurrencyUtils.format(row.surplusValue),
+                palette: palette,
+                color: row.surplusValue > 0 ? palette.success : null,
+              ),
+            ],
+          ),
+          if (row.unitsPerPresentation > 1) ...[
+            const SizedBox(height: 7),
+            Text(
+              'Compra: ${row.purchasePresentation} de '
+              '${_qty(row.unitsPerPresentation)} unidades · '
+              'Costo presentación ${CurrencyUtils.format(row.purchasePresentationCost)}',
               style: TextStyle(
-                color: tone,
+                color: palette.textSecondary,
+                fontWeight: FontWeight.w600,
                 fontSize: 9.5,
-                fontWeight: FontWeight.w900,
               ),
             ),
-          );
-
-          if (compact) {
-            return Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                info,
-                const SizedBox(height: 8),
-                badge,
-              ],
-            );
-          }
-          return Row(
-            children: [
-              Expanded(child: info),
-              const SizedBox(width: 12),
-              badge,
-            ],
-          );
-        },
+          ],
+          if (row.status == 'SINCRONIZADO') ...[
+            const SizedBox(height: 7),
+            Text(
+              'Conciliado'
+              '${row.synchronizedBy == null ? '' : ' por ${row.synchronizedBy}'}'
+              '${row.synchronizedAt == null ? '' : ' · ${DateFormat('dd/MM/yyyy HH:mm').format(row.synchronizedAt!)}'}'
+              '${row.adjustmentReason == null ? '' : ' · ${row.adjustmentReason}'}',
+              style: TextStyle(
+                color: palette.textSecondary,
+                fontWeight: FontWeight.w600,
+                fontSize: 9.5,
+              ),
+            ),
+          ] else if (row.status == 'SUPERADO') ...[
+            const SizedBox(height: 7),
+            Text(
+              'Existe un conteo físico posterior de este producto. '
+              'Este registro queda como evidencia histórica y ya no se concilia.',
+              style: TextStyle(
+                color: palette.textSecondary,
+                fontWeight: FontWeight.w600,
+                fontSize: 9.5,
+              ),
+            ),
+          ],
+        ],
       ),
     );
   }
 }
 
-class _InlineAdminError extends StatelessWidget {
-  const _InlineAdminError({
+class _AuditValue extends StatelessWidget {
+  const _AuditValue({
+    required this.label,
+    required this.value,
+    required this.palette,
+    this.color,
+  });
+
+  final String label;
+  final String value;
+  final AppPalette palette;
+  final Color? color;
+
+  @override
+  Widget build(BuildContext context) => SizedBox(
+        width: 118,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              value,
+              style: TextStyle(
+                color: color ?? palette.textPrimary,
+                fontWeight: FontWeight.w900,
+                fontSize: 11,
+              ),
+            ),
+            Text(
+              label,
+              style: TextStyle(
+                color: palette.textSecondary,
+                fontWeight: FontWeight.w600,
+                fontSize: 8.8,
+              ),
+            ),
+          ],
+        ),
+      );
+}
+
+class _AccuracyBadge extends StatelessWidget {
+  const _AccuracyBadge({
+    required this.value,
+    required this.palette,
+  });
+
+  final double value;
+  final AppPalette palette;
+
+  @override
+  Widget build(BuildContext context) {
+    final color = value >= 95
+        ? palette.success
+        : value >= 80
+            ? palette.warning
+            : Colors.redAccent;
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
+      decoration: BoxDecoration(
+        color: color.withOpacity(.08),
+        borderRadius: BorderRadius.circular(999),
+      ),
+      child: Text(
+        'Exactitud ${value.toStringAsFixed(1)} %',
+        style: TextStyle(
+          color: color,
+          fontWeight: FontWeight.w900,
+          fontSize: 9,
+        ),
+      ),
+    );
+  }
+}
+
+class _Meta extends StatelessWidget {
+  const _Meta({
+    required this.icon,
+    required this.text,
+    required this.palette,
+  });
+
+  final IconData icon;
+  final String text;
+  final AppPalette palette;
+
+  @override
+  Widget build(BuildContext context) => Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 14, color: palette.textSecondary),
+          const SizedBox(width: 4),
+          ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 330),
+            child: Text(
+              text,
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(
+                color: palette.textSecondary,
+                fontWeight: FontWeight.w700,
+                fontSize: 10,
+              ),
+            ),
+          ),
+        ],
+      );
+}
+
+class _ReconcileSummary extends StatelessWidget {
+  const _ReconcileSummary({
+    required this.count,
+    required this.missing,
+    required this.surplus,
+  });
+
+  final int count;
+  final double missing;
+  final double surplus;
+
+  @override
+  Widget build(BuildContext context) => Wrap(
+        spacing: 8,
+        runSpacing: 8,
+        children: [
+          Chip(label: Text('$count producto(s) seleccionado(s)')),
+          Chip(label: Text('Faltante ${CurrencyUtils.format(missing)}')),
+          Chip(label: Text('Sobrante ${CurrencyUtils.format(surplus)}')),
+        ],
+      );
+}
+
+class _EmptyAdminState extends StatelessWidget {
+  const _EmptyAdminState({
+    required this.palette,
+    required this.text,
+  });
+
+  final AppPalette palette;
+  final String text;
+
+  @override
+  Widget build(BuildContext context) => Padding(
+        padding: const EdgeInsets.symmetric(vertical: 18),
+        child: Text(
+          text,
+          textAlign: TextAlign.center,
+          style: TextStyle(
+            color: palette.textSecondary,
+            fontWeight: FontWeight.w600,
+          ),
+        ),
+      );
+}
+
+class _InlineError extends StatelessWidget {
+  const _InlineError({
     required this.palette,
     required this.message,
   });
@@ -1194,23 +1944,44 @@ class _InlineAdminError extends StatelessWidget {
       );
 }
 
-TextStyle _smallStyle(AppPalette palette) => TextStyle(
-      color: palette.textSecondary,
-      fontSize: 10.5,
-      fontWeight: FontWeight.w700,
-    );
-
-String _qty(num? value) {
-  final v = value?.toDouble() ?? 0;
-  if (v == v.roundToDouble()) return v.toInt().toString();
-  return v
-      .toStringAsFixed(2)
-      .replaceAll(RegExp(r'0+$'), '')
-      .replaceAll(RegExp(r'\.$'), '');
+double _num(Object? value) {
+  if (value is num) return value.toDouble();
+  return double.tryParse(value?.toString() ?? '') ?? 0;
 }
 
-String _dateTime(String? raw) {
-  final date = DateTime.tryParse(raw ?? '');
-  if (date == null) return raw ?? '';
-  return DateFormat('dd/MM/yyyy HH:mm').format(date);
+int _int(Object? value) {
+  if (value is int) return value;
+  if (value is num) return value.toInt();
+  return int.tryParse(value?.toString() ?? '') ?? 0;
 }
+
+int? _nullableInt(Object? value) {
+  if (value == null) return null;
+  return _int(value);
+}
+
+String _actor(Object? value) {
+  final text = value?.toString().trim() ?? '';
+  return text.isEmpty ? 'SIN_USUARIO' : text;
+}
+
+String _qty(num value) {
+  final number = value.toDouble();
+  if (number == number.roundToDouble()) {
+    return NumberFormat.decimalPattern('es_CO').format(number.toInt());
+  }
+  return NumberFormat.decimalPattern('es_CO').format(number);
+}
+
+String _signedQty(num value) {
+  final number = value.toDouble();
+  if (number > 0) return '+${_qty(number)}';
+  return _qty(number);
+}
+
+String _statusLabel(String value) => switch (value) {
+      'PENDIENTE' => 'POR ADMINISTRAR',
+      'SINCRONIZADO' => 'CONCILIADO',
+      'SUPERADO' => 'HISTÓRICO',
+      _ => 'CUADRA',
+    };
