@@ -67,6 +67,7 @@ class _GastosFijosPageState extends ConsumerState<GastosFijosPage> {
   }
 
   Future<void> _load() async {
+    if (!mounted) return;
     final branchId = ref.read(branchScopeProvider).activeBranchId;
     if (branchId == null) {
       if (mounted) {
@@ -359,22 +360,13 @@ class _GastosFijosPageState extends ConsumerState<GastosFijosPage> {
       ),
     );
 
-    if (ok != true) {
-      name.dispose();
-      value.dispose();
-      note.dispose();
-      return;
-    }
+    if (ok != true || !mounted) return;
 
     final savedName = name.text.trim();
     final savedNote = note.text.trim();
     final rawValue = value.text.replaceAll('.', '').replaceAll(',', '.');
     final savedValue =
         category == 'Mano de obra' ? 0.0 : (double.tryParse(rawValue) ?? 0.0);
-
-    name.dispose();
-    value.dispose();
-    note.dispose();
 
     final body = <String, dynamic>{
       'sucuId': branchId,
@@ -426,7 +418,7 @@ class _GastosFijosPageState extends ConsumerState<GastosFijosPage> {
         ],
       ),
     );
-    if (confirmed != true) return;
+    if (confirmed != true || !mounted) return;
 
     try {
       await ref
@@ -489,6 +481,7 @@ class _GastosFijosPageState extends ConsumerState<GastosFijosPage> {
         api: ref.read(apiClientProvider),
       ),
     );
+    if (!mounted) return;
     await _load();
   }
 
@@ -1210,64 +1203,71 @@ class _LaborDialogState extends State<_LaborDialog> {
         ),
         content: SizedBox(
           width: math.min(MediaQuery.sizeOf(ctx).width * .86, 520),
-          child: Form(
-            key: formKey,
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Container(
-                  width: double.infinity,
-                  padding: const EdgeInsets.all(14),
-                  decoration: BoxDecoration(
-                    color: widget.palette.secondary.withOpacity(.08),
-                    borderRadius: BorderRadius.circular(14),
-                    border: Border.all(color: widget.palette.cardBorder),
-                  ),
-                  child: Text(
-                    'Un cargo representa una función del personal que comparte una misma forma de pago. '
-                    'Por ejemplo: Mesero, Bartender, Cajero, Cocinero o Administrador. '
-                    'Después de crearlo podrás indicar cuánto pagas por día y qué días trabaja.',
-                    style: TextStyle(
-                      color: widget.palette.textSecondary,
-                      height: 1.35,
-                      fontWeight: FontWeight.w600,
+          child: ConstrainedBox(
+            constraints: BoxConstraints(
+              maxHeight: MediaQuery.sizeOf(ctx).height * .68,
+            ),
+            child: SingleChildScrollView(
+              child: Form(
+                key: formKey,
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Container(
+                      width: double.infinity,
+                      padding: const EdgeInsets.all(14),
+                      decoration: BoxDecoration(
+                        color: widget.palette.secondary.withOpacity(.08),
+                        borderRadius: BorderRadius.circular(14),
+                        border: Border.all(color: widget.palette.cardBorder),
+                      ),
+                      child: Text(
+                        'Un cargo representa una función del personal que comparte una misma forma de pago. '
+                        'Por ejemplo: Mesero, Bartender, Cajero, Cocinero o Administrador. '
+                        'Después de crearlo podrás indicar cuánto pagas por día y qué días trabaja.',
+                        style: TextStyle(
+                          color: widget.palette.textSecondary,
+                          height: 1.35,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
                     ),
-                  ),
+                    const SizedBox(height: 16),
+                    TextFormField(
+                      controller: controller,
+                      autofocus: true,
+                      textCapitalization: TextCapitalization.words,
+                      textInputAction: TextInputAction.done,
+                      decoration: const InputDecoration(
+                        labelText: 'Nombre del cargo',
+                        hintText: 'Ej. Mesero',
+                        helperText: 'Usa el nombre de la función, no el nombre de la persona.',
+                        prefixIcon: Icon(Icons.work_outline),
+                      ),
+                      validator: (v) {
+                        final text = v?.trim() ?? '';
+                        if (text.isEmpty) return 'Escribe el nombre del cargo.';
+                        if (text.length > 100) return 'Máximo 100 caracteres.';
+                        return null;
+                      },
+                      onFieldSubmitted: (_) {
+                        if (formKey.currentState?.validate() == true) {
+                          Navigator.pop(ctx, controller.text.trim());
+                        }
+                      },
+                    ),
+                    const SizedBox(height: 12),
+                    Text(
+                      'Siguiente paso: configurar la tarifa y los días de trabajo.',
+                      style: TextStyle(
+                        color: widget.palette.textSecondary,
+                        fontSize: 12,
+                      ),
+                    ),
+                  ],
                 ),
-                const SizedBox(height: 16),
-                TextFormField(
-                  controller: controller,
-                  autofocus: true,
-                  textCapitalization: TextCapitalization.words,
-                  textInputAction: TextInputAction.done,
-                  decoration: const InputDecoration(
-                    labelText: 'Nombre del cargo',
-                    hintText: 'Ej. Mesero',
-                    helperText: 'Usa el nombre de la función, no el nombre de la persona.',
-                    prefixIcon: Icon(Icons.work_outline),
-                  ),
-                  validator: (v) {
-                    final text = v?.trim() ?? '';
-                    if (text.isEmpty) return 'Escribe el nombre del cargo.';
-                    if (text.length > 100) return 'Máximo 100 caracteres.';
-                    return null;
-                  },
-                  onFieldSubmitted: (_) {
-                    if (formKey.currentState?.validate() == true) {
-                      Navigator.pop(ctx, controller.text.trim());
-                    }
-                  },
-                ),
-                const SizedBox(height: 12),
-                Text(
-                  'Siguiente paso: configurar la tarifa y los días de trabajo.',
-                  style: TextStyle(
-                    color: widget.palette.textSecondary,
-                    fontSize: 12,
-                  ),
-                ),
-              ],
+              ),
             ),
           ),
         ),
@@ -1288,8 +1288,22 @@ class _LaborDialogState extends State<_LaborDialog> {
       ),
     );
 
-    controller.dispose();
     if (name == null || name.trim().isEmpty || !mounted) return;
+
+    final normalizedName = name.trim().toLowerCase();
+    final existing = cargos.cast<Map<String, dynamic>?>().firstWhere(
+          (cargo) =>
+              cargo?['gafcNombre']?.toString().trim().toLowerCase() ==
+              normalizedName,
+          orElse: () => null,
+        );
+    if (existing != null) {
+      setState(() => selected = existing);
+      _message(
+        'El cargo "${existing['gafcNombre']}" ya existe. Puedes configurar su tarifa.',
+      );
+      return;
+    }
 
     setState(() => saving = true);
     try {
@@ -1343,8 +1357,7 @@ class _LaborDialogState extends State<_LaborDialog> {
       ),
     );
     final name = controller.text.trim();
-    controller.dispose();
-    if (ok != true || name.isEmpty) return;
+    if (ok != true || name.isEmpty || !mounted) return;
 
     final id = selected!['gafcId'];
     setState(() => saving = true);
@@ -1386,7 +1399,7 @@ class _LaborDialogState extends State<_LaborDialog> {
         ],
       ),
     );
-    if (ok != true) return;
+    if (ok != true || !mounted) return;
 
     setState(() => saving = true);
     try {
