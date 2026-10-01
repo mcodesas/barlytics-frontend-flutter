@@ -53,6 +53,8 @@ class ModuleVisuals {
         return const ModuleVisual(icon: Icons.local_bar_rounded, color: Color(0xFF38BDF8), description: 'Productos disponibles para venta');
       case 'inventario':
         return const ModuleVisual(icon: Icons.inventory_2_rounded, color: AppColors.success, description: 'Stock y existencias por sucursal');
+      case 'inventario_admin':
+        return const ModuleVisual(icon: Icons.inventory_rounded, color: Color(0xFF0F766E), description: 'Historial de conteos, diferencias y conciliaciones');
       case 'movimientos':
         return const ModuleVisual(icon: Icons.swap_horiz_rounded, color: Color(0xFF0D9488), description: 'Entradas, salidas y ajustes');
       case 'mesas':
