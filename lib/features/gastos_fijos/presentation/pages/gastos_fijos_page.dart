@@ -1,6 +1,9 @@
+import 'dart:math' as math;
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
+
 import '../../../../app/theme/app_palette.dart';
 import '../../../../core/branch/branch_scope_provider.dart';
 import '../../../../core/providers/core_providers.dart';
@@ -9,109 +12,1686 @@ import '../../../../core/widgets/tech_background.dart';
 
 class GastosFijosPage extends ConsumerStatefulWidget {
   const GastosFijosPage({super.key});
-  @override ConsumerState<GastosFijosPage> createState()=>_GastosFijosPageState();
+
+  @override
+  ConsumerState<GastosFijosPage> createState() => _GastosFijosPageState();
 }
 
-class _GastosFijosPageState extends ConsumerState<GastosFijosPage>{
-  List<Map<String,dynamic>> items=[]; bool loading=true; String filter='TODOS';
-  final search=TextEditingController();
-  final money=NumberFormat.currency(locale:'es_CO',symbol:r'$',decimalDigits:0);
-  @override void initState(){super.initState();WidgetsBinding.instance.addPostFrameCallback((_)=>_load());}
-  @override void dispose(){search.dispose();super.dispose();}
-  Future<void> _load()async{
-    final id=ref.read(branchScopeProvider).activeBranchId;
-    if(id==null){if(mounted)setState(()=>loading=false);return;}
-    setState(()=>loading=true);
-    final r=await ref.read(apiClientProvider).get<List<dynamic>>('/api/v1/gastos-fijos/sucursal/$id',(j)=>(j as List?)??const[]);
-    if(!mounted)return;
-    setState(()=>items=(r.data??const[]).map((e)=>Map<String,dynamic>.from(e as Map)).toList());
-    setState(()=>loading=false);
+class _GastosFijosPageState extends ConsumerState<GastosFijosPage> {
+  final TextEditingController search = TextEditingController();
+  final NumberFormat money = NumberFormat.currency(
+    locale: 'es_CO',
+    symbol: r'$',
+    decimalDigits: 0,
+  );
+
+  List<Map<String, dynamic>> items = [];
+  bool loading = true;
+  String filter = 'TODOS';
+
+  static const _categories = <String>[
+    'Arriendo',
+    'Servicios',
+    'Mano de obra',
+    'Internet',
+    'Seguridad',
+    'Contabilidad',
+    'Mantenimiento',
+    'Licencias',
+    'Otros',
+  ];
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) => _load());
   }
-  Future<void> _edit([Map<String,dynamic>? current])async{
-    final branch=ref.read(branchScopeProvider).activeBranchId;if(branch==null)return;
-    final name=TextEditingController(text:current?['gafiNombre']?.toString()??'');
-    final value=TextEditingController(text:current?['gafiValor']?.toString()??'');
-    final note=TextEditingController(text:current?['gafiObservacion']?.toString()??'');
-    String category=current?['gafiCategoria']?.toString()??'Otros',type=current?['gafiTipo']?.toString()??'FIJO',period=current?['gafiPeriodicidad']?.toString()??'MENSUAL';
-    final ok=await showDialog<bool>(context:context,builder:(ctx)=>StatefulBuilder(builder:(ctx,setD)=>AlertDialog(
-      title:Text(current==null?'Nuevo gasto':'Editar gasto'),
-      content:SizedBox(width:560,child:SingleChildScrollView(child:Column(children:[
-        TextField(controller:name,decoration:const InputDecoration(labelText:'Nombre del gasto',prefixIcon:Icon(Icons.edit_note_outlined))),
-        const SizedBox(height:12),
-        DropdownButtonFormField<String>(value:category,decoration:const InputDecoration(labelText:'Categoría'),items:const['Arriendo','Servicios','Mano de obra','Internet','Seguridad','Contabilidad','Mantenimiento','Licencias','Otros'].map((x)=>DropdownMenuItem(value:x,child:Text(x))).toList(),onChanged:(v){if(v!=null)setD(()=>category=v);}),
-        const SizedBox(height:12),
-        DropdownButtonFormField<String>(value:type,decoration:const InputDecoration(labelText:'Tipo'),items:const[DropdownMenuItem(value:'FIJO',child:Text('Fijo · mismo valor')),DropdownMenuItem(value:'VARIABLE',child:Text('Variable · según configuración'))],onChanged:(v){if(v!=null)setD(()=>type=v);}),
-        const SizedBox(height:12),
-        TextField(controller:value,enabled:type=='FIJO',keyboardType:const TextInputType.numberWithOptions(decimal:true),decoration:InputDecoration(labelText:type=='FIJO'?'Valor':'Valor base',prefixIcon:const Icon(Icons.payments_outlined))),
-        const SizedBox(height:12),
-        DropdownButtonFormField<String>(value:period,decoration:const InputDecoration(labelText:'Periodicidad'),items:const{'DIARIO':'Diario','SEMANAL':'Semanal','QUINCENAL':'Quincenal','MENSUAL':'Mensual','ANUAL':'Anual'}.entries.map((e)=>DropdownMenuItem(value:e.key,child:Text(e.value))).toList(),onChanged:(v){if(v!=null)setD(()=>period=v);}),
-        const SizedBox(height:12),TextField(controller:note,maxLines:3,decoration:const InputDecoration(labelText:'Observación')),
-      ]))),
-      actions:[TextButton(onPressed:()=>Navigator.pop(ctx,false),child:const Text('Cancelar')),FilledButton(onPressed:()=>Navigator.pop(ctx,true),child:const Text('Guardar'))],
-    )));
-    name.dispose();value.dispose();note.dispose();if(ok!=true)return;
-    final raw=value.text.replaceAll('.','').replaceAll(',','.');
-    final body={'sucuId':branch,'gafiNombre':name.text.trim(),'gafiCategoria':category,'gafiValor':double.tryParse(raw)??0,'gafiPeriodicidad':period,'gafiFechaInicio':DateTime.now().toIso8601String().substring(0,10),'gafiEstado':1,'gafiTipo':type,'gafiObservacion':note.text.trim()};
-    final api=ref.read(apiClientProvider);
-    if(current==null){await api.post<Object?>('/api/v1/gastos-fijos',body,(j)=>j);}else{await api.put<Object?>('/api/v1/gastos-fijos/'+current['gafiId'].toString(),body,(j)=>j);}
+
+  @override
+  void dispose() {
+    search.dispose();
+    super.dispose();
+  }
+
+  void _message(String message, {bool error = false}) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context)
+      ..hideCurrentSnackBar()
+      ..showSnackBar(
+        SnackBar(
+          content: Text(message),
+          behavior: SnackBarBehavior.floating,
+          backgroundColor: error ? Theme.of(context).colorScheme.error : null,
+        ),
+      );
+  }
+
+  Future<void> _load() async {
+    final branchId = ref.read(branchScopeProvider).activeBranchId;
+    if (branchId == null) {
+      if (mounted) {
+        setState(() {
+          items = [];
+          loading = false;
+        });
+      }
+      return;
+    }
+
+    if (mounted) setState(() => loading = true);
+    try {
+      final response = await ref.read(apiClientProvider).get<List<dynamic>>(
+            '/api/v1/gastos-fijos/sucursal/$branchId',
+            (json) => (json as List?) ?? const [],
+          );
+
+      if (!mounted) return;
+      setState(() {
+        items = (response.data ?? const <dynamic>[])
+            .map((e) => Map<String, dynamic>.from(e as Map))
+            .toList();
+      });
+    } catch (_) {
+      _message('No fue posible cargar los gastos de la sucursal.', error: true);
+    } finally {
+      if (mounted) setState(() => loading = false);
+    }
+  }
+
+  double _number(dynamic value) {
+    if (value is num) return value.toDouble();
+    return double.tryParse(value?.toString() ?? '') ?? 0;
+  }
+
+  double _monthlyEquivalent(Map<String, dynamic> item) {
+    if (_isLabor(item)) return 0;
+    final value = _number(item['gafiValor']);
+    switch (item['gafiPeriodicidad']?.toString().toUpperCase()) {
+      case 'DIARIO':
+        return value * 30.4375;
+      case 'SEMANAL':
+        return value * (30.4375 / 7);
+      case 'QUINCENAL':
+        return value * (30.4375 / 15);
+      case 'ANUAL':
+        return value / 12;
+      case 'MENSUAL':
+      default:
+        return value;
+    }
+  }
+
+  bool _isLabor(Map<String, dynamic> item) =>
+      item['gafiCategoria']?.toString().trim().toLowerCase() == 'mano de obra';
+
+  Future<void> _edit([Map<String, dynamic>? current]) async {
+    final branchId = ref.read(branchScopeProvider).activeBranchId;
+    if (branchId == null) {
+      _message('Selecciona una sucursal antes de registrar gastos.', error: true);
+      return;
+    }
+
+    final name = TextEditingController(
+      text: current?['gafiNombre']?.toString() ?? '',
+    );
+    final value = TextEditingController(
+      text: current?['gafiValor']?.toString() ?? '',
+    );
+    final note = TextEditingController(
+      text: current?['gafiObservacion']?.toString() ?? '',
+    );
+    final formKey = GlobalKey<FormState>();
+
+    final categories = [..._categories];
+    String category = current?['gafiCategoria']?.toString() ?? 'Otros';
+    if (!categories.contains(category)) categories.add(category);
+
+    String type = current?['gafiTipo']?.toString() ?? 'FIJO';
+    String period = current?['gafiPeriodicidad']?.toString() ?? 'MENSUAL';
+    DateTime startDate = DateTime.tryParse(
+          current?['gafiFechaInicio']?.toString() ?? '',
+        ) ??
+        DateTime.now();
+
+    final ok = await showDialog<bool>(
+      context: context,
+      barrierDismissible: false,
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setDialogState) {
+          final labor = category == 'Mano de obra';
+          if (labor) type = 'VARIABLE';
+
+          return AlertDialog(
+            title: Text(current == null ? 'Nuevo gasto' : 'Editar gasto'),
+            content: SizedBox(
+              width: math.min(MediaQuery.sizeOf(ctx).width * .86, 600),
+              child: Form(
+                key: formKey,
+                child: SingleChildScrollView(
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      TextFormField(
+                        controller: name,
+                        decoration: const InputDecoration(
+                          labelText: 'Nombre del gasto',
+                          prefixIcon: Icon(Icons.edit_note_outlined),
+                        ),
+                        textInputAction: TextInputAction.next,
+                        validator: (v) => (v == null || v.trim().isEmpty)
+                            ? 'Ingresa un nombre.'
+                            : null,
+                      ),
+                      const SizedBox(height: 12),
+                      DropdownButtonFormField<String>(
+                        value: category,
+                        decoration: const InputDecoration(
+                          labelText: 'Categoría',
+                          prefixIcon: Icon(Icons.category_outlined),
+                        ),
+                        items: categories
+                            .map(
+                              (x) => DropdownMenuItem(
+                                value: x,
+                                child: Text(x),
+                              ),
+                            )
+                            .toList(),
+                        onChanged: (v) {
+                          if (v == null) return;
+                          setDialogState(() {
+                            category = v;
+                            if (category == 'Mano de obra') {
+                              type = 'VARIABLE';
+                            }
+                          });
+                        },
+                      ),
+                      const SizedBox(height: 12),
+                      DropdownButtonFormField<String>(
+                        value: type,
+                        decoration: const InputDecoration(
+                          labelText: 'Tipo',
+                          prefixIcon: Icon(Icons.tune_outlined),
+                        ),
+                        items: const [
+                          DropdownMenuItem(
+                            value: 'FIJO',
+                            child: Text('Fijo · valor recurrente'),
+                          ),
+                          DropdownMenuItem(
+                            value: 'VARIABLE',
+                            child: Text('Variable · valor estimado'),
+                          ),
+                        ],
+                        onChanged: labor
+                            ? null
+                            : (v) {
+                                if (v != null) {
+                                  setDialogState(() => type = v);
+                                }
+                              },
+                      ),
+                      const SizedBox(height: 12),
+                      if (labor)
+                        Container(
+                          width: double.infinity,
+                          padding: const EdgeInsets.all(12),
+                          decoration: BoxDecoration(
+                            color: Theme.of(ctx)
+                                .colorScheme
+                                .primaryContainer
+                                .withOpacity(.35),
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          child: const Text(
+                            'La mano de obra no usa un valor fijo aquí. '
+                            'Después podrás definir cargos y tarifas por día de la semana.',
+                          ),
+                        )
+                      else
+                        TextFormField(
+                          controller: value,
+                          keyboardType: const TextInputType.numberWithOptions(
+                            decimal: true,
+                          ),
+                          decoration: InputDecoration(
+                            labelText: type == 'FIJO'
+                                ? 'Valor recurrente'
+                                : 'Valor estimado',
+                            prefixIcon:
+                                const Icon(Icons.payments_outlined),
+                          ),
+                          validator: (v) {
+                            final raw = (v ?? '')
+                                .replaceAll('.', '')
+                                .replaceAll(',', '.');
+                            final amount = double.tryParse(raw);
+                            if (amount == null || amount < 0) {
+                              return 'Ingresa un valor válido.';
+                            }
+                            return null;
+                          },
+                        ),
+                      const SizedBox(height: 12),
+                      DropdownButtonFormField<String>(
+                        value: period,
+                        decoration: const InputDecoration(
+                          labelText: 'Periodicidad',
+                          prefixIcon: Icon(Icons.event_repeat_outlined),
+                        ),
+                        items: const {
+                          'DIARIO': 'Diario',
+                          'SEMANAL': 'Semanal',
+                          'QUINCENAL': 'Quincenal',
+                          'MENSUAL': 'Mensual',
+                          'ANUAL': 'Anual',
+                        }
+                            .entries
+                            .map(
+                              (e) => DropdownMenuItem(
+                                value: e.key,
+                                child: Text(e.value),
+                              ),
+                            )
+                            .toList(),
+                        onChanged: (v) {
+                          if (v != null) {
+                            setDialogState(() => period = v);
+                          }
+                        },
+                      ),
+                      const SizedBox(height: 12),
+                      InkWell(
+                        borderRadius: BorderRadius.circular(12),
+                        onTap: () async {
+                          final selected = await showDatePicker(
+                            context: ctx,
+                            initialDate: startDate,
+                            firstDate: DateTime(2020),
+                            lastDate: DateTime(2100),
+                          );
+                          if (selected != null) {
+                            setDialogState(() => startDate = selected);
+                          }
+                        },
+                        child: InputDecorator(
+                          decoration: const InputDecoration(
+                            labelText: 'Vigente desde',
+                            prefixIcon: Icon(Icons.calendar_today_outlined),
+                          ),
+                          child: Text(
+                            DateFormat('dd/MM/yyyy').format(startDate),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 12),
+                      TextFormField(
+                        controller: note,
+                        maxLines: 3,
+                        maxLength: 300,
+                        decoration: const InputDecoration(
+                          labelText: 'Observación',
+                          prefixIcon: Icon(Icons.notes_outlined),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(ctx, false),
+                child: const Text('Cancelar'),
+              ),
+              FilledButton.icon(
+                onPressed: () {
+                  if (formKey.currentState?.validate() != true) return;
+                  Navigator.pop(ctx, true);
+                },
+                icon: const Icon(Icons.save_outlined),
+                label: const Text('Guardar'),
+              ),
+            ],
+          );
+        },
+      ),
+    );
+
+    if (ok != true) {
+      name.dispose();
+      value.dispose();
+      note.dispose();
+      return;
+    }
+
+    final savedName = name.text.trim();
+    final savedNote = note.text.trim();
+    final rawValue = value.text.replaceAll('.', '').replaceAll(',', '.');
+    final savedValue =
+        category == 'Mano de obra' ? 0.0 : (double.tryParse(rawValue) ?? 0.0);
+
+    name.dispose();
+    value.dispose();
+    note.dispose();
+
+    final body = <String, dynamic>{
+      'sucuId': branchId,
+      'gafiNombre': savedName,
+      'gafiCategoria': category,
+      'gafiValor': savedValue,
+      'gafiPeriodicidad': period,
+      'gafiFechaInicio': DateFormat('yyyy-MM-dd').format(startDate),
+      'gafiEstado': 1,
+      'gafiTipo': category == 'Mano de obra' ? 'VARIABLE' : type,
+      'gafiObservacion': savedNote,
+    };
+
+    try {
+      final api = ref.read(apiClientProvider);
+      if (current == null) {
+        await api.post<Object?>('/api/v1/gastos-fijos', body, (json) => json);
+      } else {
+        await api.put<Object?>(
+          '/api/v1/gastos-fijos/${current['gafiId']}',
+          body,
+          (json) => json,
+        );
+      }
+      await _load();
+      _message(current == null ? 'Gasto creado.' : 'Gasto actualizado.');
+    } catch (_) {
+      _message('No fue posible guardar el gasto.', error: true);
+    }
+  }
+
+  Future<void> _delete(Map<String, dynamic> item) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Desactivar gasto'),
+        content: Text(
+          '¿Deseas desactivar "${item['gafiNombre'] ?? 'este gasto'}"?',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Cancelar'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Desactivar'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true) return;
+
+    try {
+      await ref
+          .read(apiClientProvider)
+          .delete<Object?>('/api/v1/gastos-fijos/${item['gafiId']}', (json) => json);
+      await _load();
+      _message('Gasto desactivado.');
+    } catch (_) {
+      _message('No fue posible desactivar el gasto.', error: true);
+    }
+  }
+
+  Future<Map<String, dynamic>?> _ensureLaborExpense() async {
+    for (final item in items) {
+      if (_isLabor(item)) return item;
+    }
+
+    final branchId = ref.read(branchScopeProvider).activeBranchId;
+    if (branchId == null) return null;
+
+    try {
+      await ref.read(apiClientProvider).post<Object?>(
+        '/api/v1/gastos-fijos',
+        {
+          'sucuId': branchId,
+          'gafiNombre': 'Mano de obra',
+          'gafiCategoria': 'Mano de obra',
+          'gafiValor': 0,
+          'gafiPeriodicidad': 'MENSUAL',
+          'gafiFechaInicio': DateFormat('yyyy-MM-dd').format(DateTime.now()),
+          'gafiEstado': 1,
+          'gafiTipo': 'VARIABLE',
+          'gafiObservacion': 'Costo calculado por cargo y día trabajado.',
+        },
+        (json) => json,
+      );
+      await _load();
+      for (final item in items) {
+        if (_isLabor(item)) return item;
+      }
+    } catch (_) {
+      _message(
+        'No fue posible preparar la configuración de mano de obra.',
+        error: true,
+      );
+    }
+    return null;
+  }
+
+  Future<void> _labor() async {
+    final expense = await _ensureLaborExpense();
+    if (expense == null || !mounted) return;
+
+    await showDialog<void>(
+      context: context,
+      barrierDismissible: false,
+      builder: (_) => _LaborDialog(
+        gasto: expense,
+        palette: ref.read(selectedAppPaletteProvider),
+        api: ref.read(apiClientProvider),
+      ),
+    );
     await _load();
   }
-  Future<void> _labor()async{
-    Map<String,dynamic>? expense;
-    for(final e in items){if(e['gafiCategoria']=='Mano de obra'){expense=e;break;}}
-    if(expense==null){await _edit();await _load();for(final e in items){if(e['gafiCategoria']=='Mano de obra'){expense=e;break;}}}
-    if(expense==null||!mounted)return;
-    await showDialog(context:context,builder:(_)=>_LaborDialog(gasto:expense!,palette:ref.read(selectedAppPaletteProvider),api:ref.read(apiClientProvider)));
-    await _load();
+
+  @override
+  Widget build(BuildContext context) {
+    final palette = ref.watch(selectedAppPaletteProvider);
+    final q = search.text.trim().toLowerCase();
+
+    final visible = items.where((item) {
+      final type = item['gafiTipo']?.toString() ?? 'FIJO';
+      if (filter == 'FIJOS' && type != 'FIJO') return false;
+      if (filter == 'VARIABLES' && type != 'VARIABLE') return false;
+      if (filter == 'MANO_OBRA' && !_isLabor(item)) return false;
+
+      final haystack =
+          '${item['gafiNombre'] ?? ''} ${item['gafiCategoria'] ?? ''}'
+              .toLowerCase();
+      return q.isEmpty || haystack.contains(q);
+    }).toList();
+
+    final fixedMonthly = items
+        .where((e) => (e['gafiTipo'] ?? 'FIJO') == 'FIJO')
+        .fold<double>(0, (sum, e) => sum + _monthlyEquivalent(e));
+
+    final variableMonthly = items
+        .where((e) => (e['gafiTipo'] ?? 'FIJO') == 'VARIABLE' && !_isLabor(e))
+        .fold<double>(0, (sum, e) => sum + _monthlyEquivalent(e));
+
+    final hasLabor = items.any(_isLabor);
+
+    return Scaffold(
+      backgroundColor: Colors.transparent,
+      body: TechBackground(
+        padding: EdgeInsets.zero,
+        child: RefreshIndicator(
+          onRefresh: _load,
+          color: palette.secondary,
+          child: CustomScrollView(
+            slivers: [
+              SliverToBoxAdapter(
+                child: _wrap(
+                  _Header(
+                    palette: palette,
+                    onAdd: () => _edit(),
+                    onLabor: _labor,
+                  ),
+                ),
+              ),
+              SliverToBoxAdapter(
+                child: _wrap(
+                  _Summary(
+                    palette: palette,
+                    fixed: fixedMonthly,
+                    variable: variableMonthly,
+                    hasLabor: hasLabor,
+                    money: money,
+                  ),
+                ),
+              ),
+              SliverToBoxAdapter(
+                child: _wrap(
+                  _Toolbar(
+                    palette: palette,
+                    search: search,
+                    filter: filter,
+                    onSearch: (_) => setState(() {}),
+                    onFilter: (v) => setState(() => filter = v),
+                  ),
+                ),
+              ),
+              if (loading)
+                const SliverFillRemaining(
+                  hasScrollBody: false,
+                  child: Center(child: AppLoader()),
+                )
+              else if (visible.isEmpty)
+                SliverFillRemaining(
+                  hasScrollBody: false,
+                  child: Center(
+                    child: Padding(
+                      padding: const EdgeInsets.all(32),
+                      child: Text(
+                        items.isEmpty
+                            ? 'Aún no hay gastos registrados.'
+                            : 'No hay gastos para este filtro.',
+                        textAlign: TextAlign.center,
+                        style: TextStyle(color: palette.textSecondary),
+                      ),
+                    ),
+                  ),
+                )
+              else
+                SliverPadding(
+                  padding: const EdgeInsets.fromLTRB(16, 12, 16, 100),
+                  sliver: SliverList.builder(
+                    itemCount: visible.length,
+                    itemBuilder: (_, i) {
+                      final item = visible[i];
+                      return Padding(
+                        padding: const EdgeInsets.only(bottom: 10),
+                        child: _wrap(
+                          _Expense(
+                            item: item,
+                            palette: palette,
+                            money: money,
+                            onEdit: () => _edit(item),
+                            onDelete: () => _delete(item),
+                            onLabor: _isLabor(item) ? _labor : null,
+                          ),
+                        ),
+                      );
+                    },
+                  ),
+                ),
+            ],
+          ),
+        ),
+      ),
+    );
   }
-  @override Widget build(BuildContext context){
-    final palette=ref.watch(selectedAppPaletteProvider),q=search.text.trim().toLowerCase();
-    final visible=items.where((e){final t=e['gafiTipo']?.toString()??'FIJO';if(filter=='FIJOS'&&t!='FIJO')return false;if(filter=='VARIABLES'&&t!='VARIABLE')return false;if(filter=='MANO_OBRA'&&e['gafiCategoria']!='Mano de obra')return false;return q.isEmpty||((e['gafiNombre']??'').toString()+' '+(e['gafiCategoria']??'').toString()).toLowerCase().contains(q);}).toList();
-    double total(String t)=>items.where((e)=>(e['gafiTipo']??'FIJO')==t).fold(0.0,(s,e)=>s+((e['gafiValor']as num?)?.toDouble()??0));
-    final fixed=total('FIJO'),variable=total('VARIABLE'),labor=items.where((e)=>e['gafiCategoria']=='Mano de obra').length;
-    return Scaffold(backgroundColor:Colors.transparent,body:TechBackground(padding:EdgeInsets.zero,child:RefreshIndicator(onRefresh:_load,color:palette.secondary,child:CustomScrollView(slivers:[
-      SliverToBoxAdapter(child:_wrap(_Header(palette:palette,onAdd:()=>_edit(),onLabor:_labor))),
-      SliverToBoxAdapter(child:_wrap(_Summary(palette:palette,fixed:fixed,variable:variable,labor:labor,money:money))),
-      SliverToBoxAdapter(child:_wrap(_Toolbar(palette:palette,search:search,filter:filter,onSearch:(_)=>setState((){}),onFilter:(v)=>setState(()=>filter=v)))),
-      if(loading)const SliverFillRemaining(hasScrollBody:false,child:Center(child:AppLoader()))
-      else if(visible.isEmpty)SliverFillRemaining(hasScrollBody:false,child:Center(child:Text('No hay gastos para este filtro.')))
-      else SliverPadding(padding:const EdgeInsets.fromLTRB(16,12,16,100),sliver:SliverList.builder(itemCount:visible.length,itemBuilder:(_,i){final e=visible[i],laborRow=e['gafiCategoria']=='Mano de obra';return Padding(padding:const EdgeInsets.only(bottom:10),child:_wrap(_Expense(e,palette,money,()=>_edit(e),laborRow?_labor:null)));}))
-    ]))));
+
+  Widget _wrap(Widget child) => Center(
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 1120),
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(16, 16, 16, 0),
+            child: child,
+          ),
+        ),
+      );
+}
+
+class _Header extends StatelessWidget {
+  final AppPalette palette;
+  final VoidCallback onAdd;
+  final VoidCallback onLabor;
+
+  const _Header({
+    required this.palette,
+    required this.onAdd,
+    required this.onLabor,
+  });
+
+  @override
+  Widget build(BuildContext context) => LayoutBuilder(
+        builder: (_, constraints) {
+          final narrow = constraints.maxWidth < 720;
+          final title = Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'Gastos del negocio',
+                style: TextStyle(
+                  color: palette.textPrimary,
+                  fontSize: 28,
+                  fontWeight: FontWeight.w900,
+                ),
+              ),
+              const SizedBox(height: 4),
+              Text(
+                'Controla costos fijos, variables y mano de obra para calcular mejor la utilidad.',
+                style: TextStyle(
+                  color: palette.textSecondary,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ],
+          );
+
+          final actions = Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: [
+              OutlinedButton.icon(
+                onPressed: onLabor,
+                icon: const Icon(Icons.groups_2_outlined),
+                label: const Text('Mano de obra'),
+              ),
+              FilledButton.icon(
+                onPressed: onAdd,
+                icon: const Icon(Icons.add),
+                label: const Text('Nuevo gasto'),
+              ),
+            ],
+          );
+
+          if (narrow) {
+            return Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                title,
+                const SizedBox(height: 16),
+                actions,
+              ],
+            );
+          }
+
+          return Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Expanded(child: title),
+              const SizedBox(width: 16),
+              actions,
+            ],
+          );
+        },
+      );
+}
+
+class _Summary extends StatelessWidget {
+  final AppPalette palette;
+  final double fixed;
+  final double variable;
+  final bool hasLabor;
+  final NumberFormat money;
+
+  const _Summary({
+    required this.palette,
+    required this.fixed,
+    required this.variable,
+    required this.hasLabor,
+    required this.money,
+  });
+
+  @override
+  Widget build(BuildContext context) => LayoutBuilder(
+        builder: (_, constraints) {
+          final cards = [
+            _SummaryCard(
+              palette: palette,
+              icon: Icons.lock_outline,
+              label: 'Fijos · mensual aprox.',
+              value: money.format(fixed),
+            ),
+            _SummaryCard(
+              palette: palette,
+              icon: Icons.tune,
+              label: 'Variables · mensual aprox.',
+              value: money.format(variable),
+            ),
+            _SummaryCard(
+              palette: palette,
+              icon: Icons.groups_2_outlined,
+              label: 'Mano de obra',
+              value: hasLabor ? 'Por cargo y día' : 'Sin configurar',
+            ),
+          ];
+
+          if (constraints.maxWidth < 720) {
+            return Column(
+              children: [
+                for (var i = 0; i < cards.length; i++) ...[
+                  cards[i],
+                  if (i < cards.length - 1) const SizedBox(height: 10),
+                ],
+              ],
+            );
+          }
+
+          return Row(
+            children: [
+              for (var i = 0; i < cards.length; i++) ...[
+                Expanded(child: cards[i]),
+                if (i < cards.length - 1) const SizedBox(width: 10),
+              ],
+            ],
+          );
+        },
+      );
+}
+
+class _SummaryCard extends StatelessWidget {
+  final AppPalette palette;
+  final IconData icon;
+  final String label;
+  final String value;
+
+  const _SummaryCard({
+    required this.palette,
+    required this.icon,
+    required this.label,
+    required this.value,
+  });
+
+  @override
+  Widget build(BuildContext context) => Container(
+        padding: const EdgeInsets.all(15),
+        decoration: BoxDecoration(
+          color: palette.surface,
+          borderRadius: BorderRadius.circular(18),
+          border: Border.all(color: palette.border.withOpacity(.7)),
+        ),
+        child: Row(
+          children: [
+            Icon(icon, color: palette.secondary),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    label,
+                    style: TextStyle(
+                      color: palette.textSecondary,
+                      fontSize: 12,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    value,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      color: palette.textPrimary,
+                      fontSize: 17,
+                      fontWeight: FontWeight.w900,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      );
+}
+
+class _Toolbar extends StatelessWidget {
+  final AppPalette palette;
+  final TextEditingController search;
+  final String filter;
+  final ValueChanged<String> onSearch;
+  final ValueChanged<String> onFilter;
+
+  const _Toolbar({
+    required this.palette,
+    required this.search,
+    required this.filter,
+    required this.onSearch,
+    required this.onFilter,
+  });
+
+  @override
+  Widget build(BuildContext context) => LayoutBuilder(
+        builder: (_, constraints) {
+          final searchField = TextField(
+            controller: search,
+            onChanged: onSearch,
+            decoration: const InputDecoration(
+              prefixIcon: Icon(Icons.search),
+              hintText: 'Buscar gasto o categoría',
+              border: InputBorder.none,
+            ),
+          );
+
+          final selector = DropdownButtonHideUnderline(
+            child: DropdownButton<String>(
+              value: filter,
+              onChanged: (v) {
+                if (v != null) onFilter(v);
+              },
+              items: const [
+                DropdownMenuItem(value: 'TODOS', child: Text('Todos')),
+                DropdownMenuItem(value: 'FIJOS', child: Text('Fijos')),
+                DropdownMenuItem(value: 'VARIABLES', child: Text('Variables')),
+                DropdownMenuItem(
+                  value: 'MANO_OBRA',
+                  child: Text('Mano de obra'),
+                ),
+              ],
+            ),
+          );
+
+          return Container(
+            padding: const EdgeInsets.symmetric(horizontal: 10),
+            decoration: BoxDecoration(
+              color: palette.surface,
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(color: palette.border.withOpacity(.7)),
+            ),
+            child: constraints.maxWidth < 620
+                ? Column(
+                    children: [
+                      searchField,
+                      const Divider(height: 1),
+                      Align(alignment: Alignment.centerRight, child: selector),
+                    ],
+                  )
+                : Row(
+                    children: [
+                      Expanded(child: searchField),
+                      selector,
+                    ],
+                  ),
+          );
+        },
+      );
+}
+
+class _Expense extends StatelessWidget {
+  final Map<String, dynamic> item;
+  final AppPalette palette;
+  final NumberFormat money;
+  final VoidCallback onEdit;
+  final VoidCallback onDelete;
+  final VoidCallback? onLabor;
+
+  const _Expense({
+    required this.item,
+    required this.palette,
+    required this.money,
+    required this.onEdit,
+    required this.onDelete,
+    required this.onLabor,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final variable = item['gafiTipo'] == 'VARIABLE';
+    final value = (item['gafiValor'] as num?)?.toDouble() ??
+        double.tryParse(item['gafiValor']?.toString() ?? '') ??
+        0;
+    final labor = onLabor != null;
+
+    final info = Row(
+      children: [
+        Container(
+          width: 46,
+          height: 46,
+          decoration: BoxDecoration(
+            color: palette.secondary.withOpacity(.1),
+            borderRadius: BorderRadius.circular(14),
+          ),
+          child: Icon(
+            labor ? Icons.groups_2_outlined : Icons.receipt_long_outlined,
+            color: palette.secondary,
+          ),
+        ),
+        const SizedBox(width: 14),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                item['gafiNombre']?.toString() ?? 'Gasto',
+                style: TextStyle(
+                  color: palette.textPrimary,
+                  fontSize: 16,
+                  fontWeight: FontWeight.w900,
+                ),
+              ),
+              const SizedBox(height: 4),
+              Text(
+                '${item['gafiCategoria'] ?? 'Otros'} · '
+                '${item['gafiPeriodicidad'] ?? 'MENSUAL'}',
+                style: TextStyle(
+                  color: palette.textSecondary,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+
+    final badge = Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+      decoration: BoxDecoration(
+        color: palette.secondary.withOpacity(.1),
+        borderRadius: BorderRadius.circular(20),
+      ),
+      child: Text(
+        variable ? 'Variable' : 'Fijo',
+        style: TextStyle(
+          color: palette.secondary,
+          fontWeight: FontWeight.w800,
+        ),
+      ),
+    );
+
+    final actions = Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        IconButton(
+          tooltip: 'Editar',
+          onPressed: onEdit,
+          icon: const Icon(Icons.edit_outlined),
+        ),
+        if (labor)
+          IconButton(
+            tooltip: 'Configurar cargos',
+            onPressed: onLabor,
+            icon: const Icon(Icons.tune_outlined),
+          ),
+        IconButton(
+          tooltip: 'Desactivar',
+          onPressed: onDelete,
+          icon: const Icon(Icons.delete_outline),
+        ),
+      ],
+    );
+
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: palette.surface,
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: palette.border.withOpacity(.7)),
+      ),
+      child: LayoutBuilder(
+        builder: (_, constraints) {
+          if (constraints.maxWidth < 680) {
+            return Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                info,
+                const SizedBox(height: 12),
+                Wrap(
+                  spacing: 10,
+                  runSpacing: 8,
+                  crossAxisAlignment: WrapCrossAlignment.center,
+                  children: [
+                    badge,
+                    Text(
+                      labor ? 'Calculado por cargo' : money.format(value),
+                      style: TextStyle(
+                        color: palette.textPrimary,
+                        fontWeight: FontWeight.w900,
+                      ),
+                    ),
+                    actions,
+                  ],
+                ),
+              ],
+            );
+          }
+
+          return Row(
+            children: [
+              Expanded(child: info),
+              badge,
+              const SizedBox(width: 12),
+              SizedBox(
+                width: 150,
+                child: Text(
+                  labor ? 'Por cargo' : money.format(value),
+                  textAlign: TextAlign.right,
+                  style: TextStyle(
+                    color: palette.textPrimary,
+                    fontWeight: FontWeight.w900,
+                  ),
+                ),
+              ),
+              const SizedBox(width: 6),
+              actions,
+            ],
+          );
+        },
+      ),
+    );
   }
-  Widget _wrap(Widget w)=>Center(child:ConstrainedBox(constraints:const BoxConstraints(maxWidth:1120),child:Padding(padding:const EdgeInsets.fromLTRB(16,16,16,0),child:w)));
 }
 
-class _Header extends StatelessWidget{final AppPalette palette;final VoidCallback onAdd,onLabor;const _Header({required this.palette,required this.onAdd,required this.onLabor});
-@override Widget build(BuildContext c)=>Row(children:[Expanded(child:Column(crossAxisAlignment:CrossAxisAlignment.start,children:[Text('Gastos fijos',style:TextStyle(color:palette.textPrimary,fontSize:28,fontWeight:FontWeight.w900)),const SizedBox(height:4),Text('Administra gastos fijos, variables y mano de obra.',style:TextStyle(color:palette.textSecondary,fontWeight:FontWeight.w600))])),OutlinedButton.icon(onPressed:onLabor,icon:const Icon(Icons.groups_2_outlined),label:const Text('Mano de obra')),const SizedBox(width:8),FilledButton.icon(onPressed:onAdd,icon:const Icon(Icons.add),label:const Text('Nuevo gasto'))]);}
+class _LaborDialog extends StatefulWidget {
+  final Map<String, dynamic> gasto;
+  final AppPalette palette;
+  final dynamic api;
 
-class _Summary extends StatelessWidget{final AppPalette palette;final double fixed,variable;final int labor;final NumberFormat money;const _Summary({required this.palette,required this.fixed,required this.variable,required this.labor,required this.money});
-@override Widget build(BuildContext c)=>LayoutBuilder(builder:(_,b){final data=[['Fijos',money.format(fixed),Icons.lock_outline],['Variables',money.format(variable),Icons.tune],['Mano de obra','$labor cargos',Icons.groups_2_outlined]];return Row(children:data.map((x)=>Expanded(child:Padding(padding:const EdgeInsets.only(right:10),child:Container(padding:const EdgeInsets.all(15),decoration:BoxDecoration(color:palette.surface,borderRadius:BorderRadius.circular(18),border:Border.all(color:palette.border.withOpacity(.7))),child:Row(children:[Icon(x[2]as IconData,color:palette.secondary),const SizedBox(width:10),Column(crossAxisAlignment:CrossAxisAlignment.start,children:[Text(x[0]as String,style:TextStyle(color:palette.textSecondary,fontSize:12,fontWeight:FontWeight.w700)),Text(x[1]as String,style:TextStyle(color:palette.textPrimary,fontSize:17,fontWeight:FontWeight.w900))])])))).toList());});}
+  const _LaborDialog({
+    required this.gasto,
+    required this.palette,
+    required this.api,
+  });
 
-class _Toolbar extends StatelessWidget{final AppPalette palette;final TextEditingController search;final String filter;final ValueChanged<String> onSearch,onFilter;const _Toolbar({required this.palette,required this.search,required this.filter,required this.onSearch,required this.onFilter});
-@override Widget build(BuildContext c)=>Container(padding:const EdgeInsets.symmetric(horizontal:10),decoration:BoxDecoration(color:palette.surface,borderRadius:BorderRadius.circular(16),border:Border.all(color:palette.border.withOpacity(.7))),child:Row(children:[Expanded(child:TextField(controller:search,onChanged:onSearch,decoration:const InputDecoration(prefixIcon:Icon(Icons.search),hintText:'Buscar gasto o categoría',border:InputBorder.none))),DropdownButtonHideUnderline(child:DropdownButton<String>(value:filter,onChanged:(v){if(v!=null)onFilter(v);},items:const[DropdownMenuItem(value:'TODOS',child:Text('Todos')),DropdownMenuItem(value:'FIJOS',child:Text('Fijos')),DropdownMenuItem(value:'VARIABLES',child:Text('Variables')),DropdownMenuItem(value:'MANO_OBRA',child:Text('Mano de obra'))]))]));}
-
-class _Expense extends StatelessWidget{final Map<String,dynamic> e;final AppPalette p;final NumberFormat money;final VoidCallback edit;final VoidCallback? labor;const _Expense(this.e,this.p,this.money,this.edit,this.labor);
-@override Widget build(BuildContext c){final variable=e['gafiTipo']=='VARIABLE',value=(e['gafiValor']as num?)?.toDouble()??0;return Container(padding:const EdgeInsets.all(16),decoration:BoxDecoration(color:p.surface,borderRadius:BorderRadius.circular(18),border:Border.all(color:p.border.withOpacity(.7))),child:Row(children:[Container(width:46,height:46,decoration:BoxDecoration(color:p.secondary.withOpacity(.1),borderRadius:BorderRadius.circular(14)),child:Icon(labor!=null?Icons.groups_2_outlined:Icons.receipt_long_outlined,color:p.secondary)),const SizedBox(width:14),Expanded(child:Column(crossAxisAlignment:CrossAxisAlignment.start,children:[Text(e['gafiNombre']?.toString()??'Gasto',style:TextStyle(color:p.textPrimary,fontSize:16,fontWeight:FontWeight.w900)),const SizedBox(height:4),Text((e['gafiCategoria']??'Otros').toString()+' · '+(e['gafiPeriodicidad']??'MENSUAL').toString(),style:TextStyle(color:p.textSecondary,fontWeight:FontWeight.w600))])),Container(padding:const EdgeInsets.symmetric(horizontal:10,vertical:6),decoration:BoxDecoration(color:p.secondary.withOpacity(.1),borderRadius:BorderRadius.circular(20)),child:Text(variable?'Variable':'Fijo',style:TextStyle(color:p.secondary,fontWeight:FontWeight.w800))),const SizedBox(width:12),Text(labor!=null?'Por cargo':money.format(value),style:TextStyle(color:p.textPrimary,fontWeight:FontWeight.w900)),IconButton(onPressed:edit,icon:const Icon(Icons.edit_outlined)),if(labor!=null)IconButton(onPressed:labor,icon:const Icon(Icons.tune_outlined))]));}}
-
-class _LaborDialog extends StatefulWidget{final Map<String,dynamic> gasto;final AppPalette palette;final dynamic api;const _LaborDialog({required this.gasto,required this.palette,required this.api});@override State<_LaborDialog> createState()=>_LaborDialogState();}
-class _LaborDialogState extends State<_LaborDialog>{
- List<Map<String,dynamic>> cargos=[];Map<String,List<Map<String,dynamic>>> rates={};Map<String,dynamic>? selected;bool loading=true;final role=TextEditingController();final value=TextEditingController();Set<int> days={1,2,3,4,5};DateTime effective=DateTime.now();
- @override void initState(){super.initState();_load();}@override void dispose(){role.dispose();value.dispose();super.dispose();}
- Future<void> _load()async{final id=widget.gasto['gafiId'];final r=await widget.api.get<List<dynamic>>('/api/v1/gastos-fijos/'+id.toString()+'/cargos',(j)=>(j as List?)??const[]);cargos=(r.data??const[]).map((e)=>Map<String,dynamic>.from(e as Map)).toList();rates={};for(final c in cargos){final rid=c['gafcId'];final rr=await widget.api.get<List<dynamic>>('/api/v1/gastos-fijos/cargos/'+rid.toString()+'/tarifas',(j)=>(j as List?)??const[]);rates[rid.toString()]=(rr.data??const[]).map((e)=>Map<String,dynamic>.from(e as Map)).toList();}selected=cargos.isNotEmpty?cargos.first:null;if(mounted)setState(()=>loading=false);}
- Future<void> _addRole()async{final n=role.text.trim();if(n.isEmpty)return;await widget.api.post<Object?>('/api/v1/gastos-fijos/'+widget.gasto['gafiId'].toString()+'/cargos',{'gafcNombre':n,'gafcEstado':1},(j)=>j);role.clear();setState(()=>loading=true);await _load();}
- Future<void> _saveRate()async{if(selected==null||days.isEmpty)return;final amount=double.tryParse(value.text.replaceAll('.','').replaceAll(',','.'));if(amount==null||amount<0)return;final rid=selected!['gafcId'];await widget.api.post<Object?>('/api/v1/gastos-fijos/cargos/'+rid.toString()+'/tarifas',{'diasSemana':days.toList()..sort(),'valor':amount,'vigenciaDesde':DateFormat('yyyy-MM-dd').format(effective)},(j)=>j);value.clear();setState(()=>loading=true);await _load();}
- void preset(List<int> d)=>setState(()=>days={...d});
- @override Widget build(BuildContext c)=>AlertDialog(title:Row(children:[Expanded(child:Text('Mano de obra · '+(widget.gasto['gafiNombre']??'').toString())),IconButton(onPressed:()=>Navigator.pop(c),icon:const Icon(Icons.close))]),content:SizedBox(width:900,height:610,child:loading?const Center(child:AppLoader()):Column(children:[
- Row(children:[Expanded(child:Text('Configura cada cargo y sus valores por día.',style:TextStyle(color:widget.palette.textSecondary,fontWeight:FontWeight.w600))),const SizedBox(width:12),SizedBox(width:260,child:TextField(controller:role,decoration:InputDecoration(labelText:'Nuevo cargo',suffixIcon:IconButton(onPressed:_addRole,icon:const Icon(Icons.add_circle_outline)))))]),const SizedBox(height:14),
- Expanded(child:Row(children:[SizedBox(width:250,child:ListView(children:cargos.map((c){final active=selected?['gafcId']==c['gafcId'];return Card(color:active?widget.palette.secondary.withOpacity(.1):null,child:ListTile(onTap:()=>setState(()=>selected=c),leading:const Icon(Icons.person_outline),title:Text(c['gafcNombre']??''),trailing:const Icon(Icons.chevron_right)));}).toList())),const VerticalDivider(width:24),
- Expanded(child:selected==null?const Center(child:Text('Agrega el primer cargo.')):Column(crossAxisAlignment:CrossAxisAlignment.start,children:[
- Text('Configuración semanal · '+(selected!['gafcNombre']??'').toString(),style:TextStyle(color:widget.palette.textPrimary,fontSize:18,fontWeight:FontWeight.w900)),const SizedBox(height:8),Text('Usa grupos rápidos o selecciona días individuales.',style:TextStyle(color:widget.palette.textSecondary)),const SizedBox(height:12),
- Wrap(spacing:8,children:[ChoiceChip(label:const Text('Lunes - Viernes'),selected:days.length==5&&days.every((x)=>x<=5),onSelected:(_)=>preset([1,2,3,4,5])),ChoiceChip(label:const Text('Sábado - Domingo'),selected:days.length==2&&days.contains(6)&&days.contains(7),onSelected:(_)=>preset([6,7])),ChoiceChip(label:const Text('Todos'),selected:days.length==7,onSelected:(_)=>preset([1,2,3,4,5,6,7]))]),const SizedBox(height:10),
- Wrap(spacing:6,children:List.generate(7,(i){final d=i+1;return FilterChip(label:Text(['Lun','Mar','Mié','Jue','Vie','Sáb','Dom'][i]),selected:days.contains(d),onSelected:(v)=>setState(()=>v?days.add(d):days.remove(d)));})),const SizedBox(height:12),
- Row(children:[Expanded(child:TextField(controller:value,keyboardType:const TextInputType.numberWithOptions(decimal:true),decoration:const InputDecoration(labelText:'Valor para los días seleccionados',prefixIcon:Icon(Icons.payments_outlined)))),const SizedBox(width:10),FilledButton.icon(onPressed:_saveRate,icon:const Icon(Icons.save_outlined),label:const Text('Aplicar'))]),const SizedBox(height:16),
- Expanded(child:_RatesList(rates:rates[selected!['gafcId'].toString()]??const[],palette:widget.palette,money:NumberFormat.currency(locale:'es_CO',symbol:r'$',decimalDigits:0)))
- ]))]))])),actions:[TextButton(onPressed:()=>Navigator.pop(c),child:const Text('Cerrar'))]);
+  @override
+  State<_LaborDialog> createState() => _LaborDialogState();
 }
+
+class _LaborDialogState extends State<_LaborDialog> {
+  final TextEditingController role = TextEditingController();
+  final TextEditingController value = TextEditingController();
+  final NumberFormat money = NumberFormat.currency(
+    locale: 'es_CO',
+    symbol: r'$',
+    decimalDigits: 0,
+  );
+
+  List<Map<String, dynamic>> cargos = [];
+  Map<String, List<Map<String, dynamic>>> rates = {};
+  Map<String, dynamic>? selected;
+  bool loading = true;
+  bool saving = false;
+  Set<int> days = {1, 2, 3, 4, 5};
+  DateTime effective = DateTime.now();
+
+  @override
+  void initState() {
+    super.initState();
+    _load();
+  }
+
+  @override
+  void dispose() {
+    role.dispose();
+    value.dispose();
+    super.dispose();
+  }
+
+  void _message(String message, {bool error = false}) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context)
+      ..hideCurrentSnackBar()
+      ..showSnackBar(
+        SnackBar(
+          content: Text(message),
+          behavior: SnackBarBehavior.floating,
+          backgroundColor: error ? Theme.of(context).colorScheme.error : null,
+        ),
+      );
+  }
+
+  Future<void> _load({dynamic keepSelectedId}) async {
+    if (mounted) setState(() => loading = true);
+    try {
+      final gastoId = widget.gasto['gafiId'];
+      final response = await widget.api.get<List<dynamic>>(
+        '/api/v1/gastos-fijos/$gastoId/cargos',
+        (json) => (json as List?) ?? const [],
+      );
+
+      final loaded = (response.data ?? const <dynamic>[])
+          .map((e) => Map<String, dynamic>.from(e as Map))
+          .toList();
+
+      final loadedRates = <String, List<Map<String, dynamic>>>{};
+      for (final cargo in loaded) {
+        final cargoId = cargo['gafcId'];
+        final rateResponse = await widget.api.get<List<dynamic>>(
+          '/api/v1/gastos-fijos/cargos/$cargoId/tarifas',
+          (json) => (json as List?) ?? const [],
+        );
+        loadedRates[cargoId.toString()] =
+            (rateResponse.data ?? const <dynamic>[])
+                .map((e) => Map<String, dynamic>.from(e as Map))
+                .toList();
+      }
+
+      Map<String, dynamic>? nextSelected;
+      if (loaded.isNotEmpty) {
+        final targetId = keepSelectedId ?? selected?['gafcId'];
+        nextSelected = loaded.firstWhere(
+          (c) => c['gafcId'] == targetId,
+          orElse: () => loaded.first,
+        );
+      }
+
+      if (!mounted) return;
+      setState(() {
+        cargos = loaded;
+        rates = loadedRates;
+        selected = nextSelected;
+      });
+    } catch (_) {
+      _message('No fue posible cargar los cargos y tarifas.', error: true);
+    } finally {
+      if (mounted) setState(() => loading = false);
+    }
+  }
+
+  Future<void> _addRole() async {
+    final name = role.text.trim();
+    if (name.isEmpty || saving) return;
+
+    setState(() => saving = true);
+    try {
+      await widget.api.post<Object?>(
+        '/api/v1/gastos-fijos/${widget.gasto['gafiId']}/cargos',
+        {'gafcNombre': name, 'gafcEstado': 1},
+        (json) => json,
+      );
+      role.clear();
+      await _load();
+      _message('Cargo agregado.');
+    } catch (_) {
+      _message('No fue posible agregar el cargo.', error: true);
+    } finally {
+      if (mounted) setState(() => saving = false);
+    }
+  }
+
+  Future<void> _renameRole() async {
+    if (selected == null || saving) return;
+    final controller = TextEditingController(
+      text: selected!['gafcNombre']?.toString() ?? '',
+    );
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Renombrar cargo'),
+        content: TextField(
+          controller: controller,
+          autofocus: true,
+          decoration: const InputDecoration(labelText: 'Nombre del cargo'),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Cancelar'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Guardar'),
+          ),
+        ],
+      ),
+    );
+    final name = controller.text.trim();
+    controller.dispose();
+    if (ok != true || name.isEmpty) return;
+
+    final id = selected!['gafcId'];
+    setState(() => saving = true);
+    try {
+      await widget.api.put<Object?>(
+        '/api/v1/gastos-fijos/cargos/$id',
+        {'gafcNombre': name, 'gafcEstado': 1},
+        (json) => json,
+      );
+      await _load(keepSelectedId: id);
+      _message('Cargo actualizado.');
+    } catch (_) {
+      _message('No fue posible actualizar el cargo.', error: true);
+    } finally {
+      if (mounted) setState(() => saving = false);
+    }
+  }
+
+  Future<void> _deleteRole() async {
+    if (selected == null || saving) return;
+    final id = selected!['gafcId'];
+    final name = selected!['gafcNombre']?.toString() ?? 'este cargo';
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Desactivar cargo'),
+        content: Text(
+          '¿Deseas desactivar "$name"? El histórico de tarifas se conserva.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Cancelar'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Desactivar'),
+          ),
+        ],
+      ),
+    );
+    if (ok != true) return;
+
+    setState(() => saving = true);
+    try {
+      await widget.api.delete<Object?>(
+        '/api/v1/gastos-fijos/cargos/$id',
+        (json) => json,
+      );
+      selected = null;
+      await _load();
+      _message('Cargo desactivado.');
+    } catch (_) {
+      _message('No fue posible desactivar el cargo.', error: true);
+    } finally {
+      if (mounted) setState(() => saving = false);
+    }
+  }
+
+  Future<void> _saveRate() async {
+    if (selected == null || days.isEmpty || saving) return;
+
+    final raw = value.text.replaceAll('.', '').replaceAll(',', '.');
+    final amount = double.tryParse(raw);
+    if (amount == null || amount < 0) {
+      _message('Ingresa un valor válido para la tarifa.', error: true);
+      return;
+    }
+
+    final cargoId = selected!['gafcId'];
+    setState(() => saving = true);
+    try {
+      await widget.api.post<Object?>(
+        '/api/v1/gastos-fijos/cargos/$cargoId/tarifas',
+        {
+          'diasSemana': days.toList()..sort(),
+          'valor': amount,
+          'vigenciaDesde': DateFormat('yyyy-MM-dd').format(effective),
+        },
+        (json) => json,
+      );
+      value.clear();
+      await _load(keepSelectedId: cargoId);
+      _message('Tarifa aplicada.');
+    } catch (_) {
+      _message('No fue posible guardar la tarifa.', error: true);
+    } finally {
+      if (mounted) setState(() => saving = false);
+    }
+  }
+
+  void _preset(List<int> presetDays) {
+    setState(() => days = {...presetDays});
+  }
+
+  Widget _rolesPane() => Column(
+        children: [
+          TextField(
+            controller: role,
+            enabled: !saving,
+            textInputAction: TextInputAction.done,
+            onSubmitted: (_) => _addRole(),
+            decoration: InputDecoration(
+              labelText: 'Nuevo cargo',
+              hintText: 'Ej. Mesero, bartender, cajero',
+              suffixIcon: IconButton(
+                tooltip: 'Agregar cargo',
+                onPressed: saving ? null : _addRole,
+                icon: const Icon(Icons.add_circle_outline),
+              ),
+            ),
+          ),
+          const SizedBox(height: 10),
+          Expanded(
+            child: cargos.isEmpty
+                ? Center(
+                    child: Text(
+                      'Agrega el primer cargo.',
+                      style: TextStyle(color: widget.palette.textSecondary),
+                    ),
+                  )
+                : ListView.separated(
+                    itemCount: cargos.length,
+                    separatorBuilder: (_, __) => const SizedBox(height: 6),
+                    itemBuilder: (_, index) {
+                      final cargo = cargos[index];
+                      final active =
+                          selected?['gafcId'] == cargo['gafcId'];
+                      return Material(
+                        color: active
+                            ? widget.palette.secondary.withOpacity(.1)
+                            : Colors.transparent,
+                        borderRadius: BorderRadius.circular(12),
+                        child: ListTile(
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          onTap: () => setState(() => selected = cargo),
+                          leading: const Icon(Icons.person_outline),
+                          title: Text(cargo['gafcNombre']?.toString() ?? ''),
+                          trailing: active
+                              ? Icon(
+                                  Icons.check_circle,
+                                  color: widget.palette.secondary,
+                                )
+                              : const Icon(Icons.chevron_right),
+                        ),
+                      );
+                    },
+                  ),
+          ),
+        ],
+      );
+
+  Widget _configurationPane() {
+    if (selected == null) {
+      return Center(
+        child: Text(
+          'Selecciona o agrega un cargo para configurar sus tarifas.',
+          textAlign: TextAlign.center,
+          style: TextStyle(color: widget.palette.textSecondary),
+        ),
+      );
+    }
+
+    final selectedRates = rates[selected!['gafcId'].toString()] ?? const [];
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            Expanded(
+              child: Text(
+                selected!['gafcNombre']?.toString() ?? 'Cargo',
+                style: TextStyle(
+                  color: widget.palette.textPrimary,
+                  fontSize: 18,
+                  fontWeight: FontWeight.w900,
+                ),
+              ),
+            ),
+            IconButton(
+              tooltip: 'Renombrar cargo',
+              onPressed: saving ? null : _renameRole,
+              icon: const Icon(Icons.edit_outlined),
+            ),
+            IconButton(
+              tooltip: 'Desactivar cargo',
+              onPressed: saving ? null : _deleteRole,
+              icon: const Icon(Icons.delete_outline),
+            ),
+          ],
+        ),
+        Text(
+          'Selecciona un grupo rápido o combina días individualmente.',
+          style: TextStyle(color: widget.palette.textSecondary),
+        ),
+        const SizedBox(height: 12),
+        Wrap(
+          spacing: 8,
+          runSpacing: 8,
+          children: [
+            ChoiceChip(
+              label: const Text('Lunes - Viernes'),
+              selected: days.length == 5 && days.every((x) => x <= 5),
+              onSelected: (_) => _preset([1, 2, 3, 4, 5]),
+            ),
+            ChoiceChip(
+              label: const Text('Sábado - Domingo'),
+              selected:
+                  days.length == 2 && days.contains(6) && days.contains(7),
+              onSelected: (_) => _preset([6, 7]),
+            ),
+            ChoiceChip(
+              label: const Text('Todos'),
+              selected: days.length == 7,
+              onSelected: (_) => _preset([1, 2, 3, 4, 5, 6, 7]),
+            ),
+          ],
+        ),
+        const SizedBox(height: 10),
+        Wrap(
+          spacing: 6,
+          runSpacing: 6,
+          children: List.generate(7, (index) {
+            final day = index + 1;
+            return FilterChip(
+              label: Text(
+                const ['Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb', 'Dom']
+                    [index],
+              ),
+              selected: days.contains(day),
+              onSelected: (selectedValue) {
+                setState(() {
+                  if (selectedValue) {
+                    days.add(day);
+                  } else {
+                    days.remove(day);
+                  }
+                });
+              },
+            );
+          }),
+        ),
+        const SizedBox(height: 12),
+        LayoutBuilder(
+          builder: (_, constraints) {
+            final amount = TextField(
+              controller: value,
+              enabled: !saving,
+              keyboardType:
+                  const TextInputType.numberWithOptions(decimal: true),
+              decoration: const InputDecoration(
+                labelText: 'Valor por día seleccionado',
+                prefixIcon: Icon(Icons.payments_outlined),
+              ),
+            );
+
+            final date = InkWell(
+              borderRadius: BorderRadius.circular(12),
+              onTap: saving
+                  ? null
+                  : () async {
+                      final picked = await showDatePicker(
+                        context: context,
+                        initialDate: effective,
+                        firstDate: DateTime(2020),
+                        lastDate: DateTime(2100),
+                      );
+                      if (picked != null) {
+                        setState(() => effective = picked);
+                      }
+                    },
+              child: InputDecorator(
+                decoration: const InputDecoration(
+                  labelText: 'Vigente desde',
+                  prefixIcon: Icon(Icons.calendar_today_outlined),
+                ),
+                child: Text(DateFormat('dd/MM/yyyy').format(effective)),
+              ),
+            );
+
+            if (constraints.maxWidth < 570) {
+              return Column(
+                children: [
+                  amount,
+                  const SizedBox(height: 10),
+                  date,
+                  const SizedBox(height: 10),
+                  SizedBox(
+                    width: double.infinity,
+                    child: FilledButton.icon(
+                      onPressed: saving ? null : _saveRate,
+                      icon: const Icon(Icons.save_outlined),
+                      label: const Text('Aplicar tarifa'),
+                    ),
+                  ),
+                ],
+              );
+            }
+
+            return Row(
+              children: [
+                Expanded(child: amount),
+                const SizedBox(width: 10),
+                SizedBox(width: 190, child: date),
+                const SizedBox(width: 10),
+                FilledButton.icon(
+                  onPressed: saving ? null : _saveRate,
+                  icon: const Icon(Icons.save_outlined),
+                  label: const Text('Aplicar'),
+                ),
+              ],
+            );
+          },
+        ),
+        const SizedBox(height: 16),
+        Text(
+          'Tarifas e histórico',
+          style: TextStyle(
+            color: widget.palette.textPrimary,
+            fontWeight: FontWeight.w900,
+          ),
+        ),
+        const SizedBox(height: 8),
+        Expanded(
+          child: _RatesList(
+            rates: selectedRates,
+            palette: widget.palette,
+            money: money,
+          ),
+        ),
+      ],
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final size = MediaQuery.sizeOf(context);
+    final width = math.min(size.width * .94, 980.0);
+    final height = math.min(size.height * .82, 680.0);
+
+    return AlertDialog(
+      titlePadding: const EdgeInsets.fromLTRB(24, 18, 12, 0),
+      title: Row(
+        children: [
+          const Icon(Icons.groups_2_outlined),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Text(
+              'Mano de obra',
+              style: TextStyle(
+                color: widget.palette.textPrimary,
+                fontWeight: FontWeight.w900,
+              ),
+            ),
+          ),
+          IconButton(
+            tooltip: 'Cerrar',
+            onPressed: saving ? null : () => Navigator.pop(context),
+            icon: const Icon(Icons.close),
+          ),
+        ],
+      ),
+      content: SizedBox(
+        width: width,
+        height: height,
+        child: loading
+            ? const Center(child: AppLoader())
+            : LayoutBuilder(
+                builder: (_, constraints) {
+                  if (constraints.maxWidth < 760) {
+                    return Column(
+                      children: [
+                        SizedBox(height: 220, child: _rolesPane()),
+                        const Divider(height: 24),
+                        Expanded(child: _configurationPane()),
+                      ],
+                    );
+                  }
+
+                  return Row(
+                    children: [
+                      SizedBox(width: 270, child: _rolesPane()),
+                      const VerticalDivider(width: 28),
+                      Expanded(child: _configurationPane()),
+                    ],
+                  );
+                },
+              ),
+      ),
+    );
+  }
 }
-class _RatesList extends StatelessWidget{final List<Map<String,dynamic>> rates;final AppPalette palette;final NumberFormat money;const _RatesList({required this.rates,required this.palette,required this.money});
-@override Widget build(BuildContext c){const names=['','Lunes','Martes','Miércoles','Jueves','Viernes','Sábado','Domingo'];return ListView.separated(itemCount:rates.length,separatorBuilder:(_,__)=>const SizedBox(height:7),itemBuilder:(_,i){final r=rates[i],d=(r['gafdDiaSemana']as num?)?.toInt()??0,v=(r['gafdValor']as num?)?.toDouble()??0;return Container(padding:const EdgeInsets.symmetric(horizontal:12,vertical:10),decoration:BoxDecoration(color:palette.background.withOpacity(.35),borderRadius:BorderRadius.circular(12)),child:Row(children:[Expanded(child:Text(names[d],style:TextStyle(color:palette.textPrimary,fontWeight:FontWeight.w700))),Text(money.format(v),style:TextStyle(color:palette.textPrimary,fontWeight:FontWeight.w900)),const SizedBox(width:12),Text(r['gafdVigenciaDesde']?.toString()??'',style:TextStyle(color:palette.textSecondary,fontSize:11))]));});}}
+
+class _RatesList extends StatelessWidget {
+  final List<Map<String, dynamic>> rates;
+  final AppPalette palette;
+  final NumberFormat money;
+
+  const _RatesList({
+    required this.rates,
+    required this.palette,
+    required this.money,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    const names = [
+      '',
+      'Lunes',
+      'Martes',
+      'Miércoles',
+      'Jueves',
+      'Viernes',
+      'Sábado',
+      'Domingo',
+    ];
+
+    if (rates.isEmpty) {
+      return Center(
+        child: Text(
+          'Aún no hay tarifas para este cargo.',
+          style: TextStyle(color: palette.textSecondary),
+        ),
+      );
+    }
+
+    return ListView.separated(
+      itemCount: rates.length,
+      separatorBuilder: (_, __) => const SizedBox(height: 7),
+      itemBuilder: (_, index) {
+        final rate = rates[index];
+        final day = (rate['gafdDiaSemana'] as num?)?.toInt() ??
+            int.tryParse(rate['gafdDiaSemana']?.toString() ?? '') ??
+            0;
+        final amount = (rate['gafdValor'] as num?)?.toDouble() ??
+            double.tryParse(rate['gafdValor']?.toString() ?? '') ??
+            0;
+        final from = rate['gafdVigenciaDesde']?.toString() ?? '';
+        final until = rate['gafdVigenciaHasta']?.toString();
+
+        return Container(
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+          decoration: BoxDecoration(
+            color: palette.background.withOpacity(.35),
+            borderRadius: BorderRadius.circular(12),
+          ),
+          child: Row(
+            children: [
+              Expanded(
+                child: Text(
+                  day >= 1 && day <= 7 ? names[day] : 'Día $day',
+                  style: TextStyle(
+                    color: palette.textPrimary,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+              ),
+              Text(
+                money.format(amount),
+                style: TextStyle(
+                  color: palette.textPrimary,
+                  fontWeight: FontWeight.w900,
+                ),
+              ),
+              const SizedBox(width: 12),
+              Flexible(
+                child: Text(
+                  until == null || until.isEmpty
+                      ? 'Desde $from'
+                      : '$from → $until',
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    color: palette.textSecondary,
+                    fontSize: 11,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+}
