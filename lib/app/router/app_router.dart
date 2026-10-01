@@ -289,9 +289,69 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       GoRoute(path: '/sincronizar_catalogo', builder: (context, state) => AppScaffold(child: const ProductCatalogSyncPage())),
       GoRoute(path: '/profile', builder: (context, state) => _setupAwareScaffold(ref, state, const ProfilePage())),
       GoRoute(path: '/reportes', builder: (context, state) => AppScaffold(child: const ReportesPage())),
+      GoRoute(
+        path: '/reporte_resumen_ejecutivo',
+        builder: (context, state) => AppScaffold(
+          child: const ReportesPage.reporte(keyName: 'reporte_resumen_ejecutivo'),
+        ),
+      ),
+      GoRoute(
+        path: '/reporte_ventas_fecha',
+        builder: (context, state) => AppScaffold(
+          child: const ReportesPage.reporte(keyName: 'reporte_ventas_fecha'),
+        ),
+      ),
+      GoRoute(
+        path: '/reporte_ventas_medio_pago',
+        builder: (context, state) => AppScaffold(
+          child: const ReportesPage.reporte(keyName: 'reporte_ventas_medio_pago'),
+        ),
+      ),
+      GoRoute(
+        path: '/reporte_stock_actual',
+        builder: (context, state) => AppScaffold(
+          child: const ReportesPage.reporte(keyName: 'reporte_stock_actual'),
+        ),
+      ),
       GoRoute(path: '/ganancias', builder: (context, state) => AppScaffold(child: const ReportesPage.ganancias())),
       GoRoute(path: '/gastos_fijos', builder: (context, state) => const AppScaffold(child: GastosFijosPage())),
       GoRoute(path: '/proximo_pedido', builder: (context, state) => AppScaffold(child: const ReportesPage.proximoPedido())),
+      GoRoute(
+        path: '/reporte_cruce_conteo',
+        builder: (context, state) => AppScaffold(
+          child: const ReportesPage.reporte(keyName: 'reporte_cruce_conteo'),
+        ),
+      ),
+      GoRoute(
+        path: '/reporte_productos_mas_vendidos',
+        builder: (context, state) => AppScaffold(
+          child: const ReportesPage.reporte(keyName: 'reporte_productos_mas_vendidos'),
+        ),
+      ),
+      GoRoute(
+        path: '/reporte_movimientos_inventario',
+        builder: (context, state) => AppScaffold(
+          child: const ReportesPage.reporte(keyName: 'reporte_movimientos_inventario'),
+        ),
+      ),
+      GoRoute(
+        path: '/reporte_rotacion_inventario',
+        builder: (context, state) => AppScaffold(
+          child: const ReportesPage.reporte(keyName: 'reporte_rotacion_inventario'),
+        ),
+      ),
+      GoRoute(
+        path: '/reporte_alertas_inventario',
+        builder: (context, state) => AppScaffold(
+          child: const ReportesPage.reporte(keyName: 'reporte_alertas_inventario'),
+        ),
+      ),
+      GoRoute(
+        path: '/reporte_salidas_responsable',
+        builder: (context, state) => AppScaffold(
+          child: const ReportesPage.reporte(keyName: 'reporte_salidas_responsable'),
+        ),
+      ),
       GoRoute(path: '/tablas_parametricas', builder: (context, state) => _setupAwareScaffold(ref, state, const TablasParametricasPage())),
       GoRoute(path: '/mesero', builder: (context, state) => AppScaffold(child: const MeseroPage())),
       GoRoute(path: '/mesero/productos', builder: (context, state) => AppScaffold(child: const MeseroPage(initialMode: MeseroPageMode.productos))),
