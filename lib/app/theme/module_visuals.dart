@@ -115,6 +115,8 @@ class ModuleVisuals {
         return const ModuleVisual(icon: Icons.warning_amber_rounded, color: Color(0xFFDC2626), description: 'Alertas de stock y productos desfalcados');
       case 'reporte_salidas_responsable':
         return const ModuleVisual(icon: Icons.manage_accounts_rounded, color: Color(0xFF6366F1), description: 'Salidas agrupadas por responsable');
+      case 'dashboard':
+        return const ModuleVisual(icon: Icons.space_dashboard_rounded, color: Color(0xFF06B6D4), description: 'Panorama ejecutivo con ventas, rentabilidad, inventario y operación');
       case 'reportes':
         return const ModuleVisual(icon: Icons.query_stats_rounded, color: Color(0xFF8B5CF6), description: 'Indicadores y reportes operativos');
       case 'ganancias':
