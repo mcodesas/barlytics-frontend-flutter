@@ -2049,106 +2049,193 @@ class _CountDayCard extends StatelessWidget {
     final risky = day.missingValue > 0 || day.pendingCount > 0;
     final tone = risky ? palette.warning : palette.success;
 
-    return Container(
-      decoration: palette.panelDecoration(
-        baseRadius: 22,
-        tint: tone,
-        elevated: false,
-      ),
-      clipBehavior: Clip.antiAlias,
-      child: ExpansionTile(
-        tilePadding: const EdgeInsets.fromLTRB(16, 9, 16, 9),
-        childrenPadding: const EdgeInsets.fromLTRB(14, 0, 14, 16),
-        leading: Container(
-          width: 46,
-          height: 46,
-          decoration: BoxDecoration(
-            color: tone.withOpacity(.11),
-            borderRadius: BorderRadius.circular(14),
-          ),
-          child: Icon(
-            risky ? Icons.inventory_2_outlined : Icons.verified_rounded,
-            color: tone,
-          ),
-        ),
-        title: Row(
-          children: [
-            Expanded(
-              child: Text(
-                'Inventario · ${DateFormat('dd/MM/yyyy').format(day.date)}',
-                style: TextStyle(
-                  color: palette.textPrimary,
-                  fontWeight: FontWeight.w900,
-                ),
-              ),
-            ),
-            _AccuracyBadge(
-              value: day.accuracy,
-              palette: palette,
-            ),
-          ],
-        ),
-        subtitle: Padding(
-          padding: const EdgeInsets.only(top: 7),
-          child: Wrap(
-            spacing: 12,
-            runSpacing: 6,
-            children: [
-              _Meta(
-                icon: Icons.person_search_rounded,
-                text: 'Contó: ${day.counters.join(', ')}',
-                palette: palette,
-              ),
-              _Meta(
-                icon: Icons.groups_2_outlined,
-                text: day.attendants.isEmpty
-                    ? 'Sin ventas registradas ese día'
-                    : 'Atendieron: ${day.attendants.join(', ')}',
-                palette: palette,
-              ),
-              _Meta(
-                icon: Icons.point_of_sale_rounded,
-                text:
-                    '${day.salesDay} ventas · ${CurrencyUtils.format(day.totalSoldDay)}',
-                palette: palette,
-              ),
-              _Meta(
-                icon: Icons.inventory_outlined,
-                text: '${day.rows.length} productos contados',
-                palette: palette,
-              ),
-            ],
-          ),
-        ),
-        trailing: onReview == null
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final compact = constraints.maxWidth < 760;
+
+        final reviewButton = onReview == null
             ? null
             : FilledButton.icon(
                 onPressed: onReview,
                 icon: const Icon(Icons.rule_rounded, size: 17),
                 label: Text(
-                  'Revisar ${day.reconciliableCount} diferencia(s)',
+                  compact
+                      ? 'Revisar diferencias (${day.reconciliableCount})'
+                      : 'Revisar ${day.reconciliableCount} diferencia(s)',
                 ),
-              ),
-        children: [
-          const Divider(height: 1),
-          const SizedBox(height: 12),
-          _DayFinancialSummary(day: day, palette: palette),
-          if (day.withoutCost > 0) ...[
-            const SizedBox(height: 10),
-            _CostWarning(palette: palette, count: day.withoutCost),
-          ],
-          const SizedBox(height: 12),
-          _ProductAuditHeader(palette: palette),
-          const SizedBox(height: 6),
-          for (var index = 0; index < day.rows.length; index++) ...[
-            _ProductAuditRow(
-              row: day.rows[index],
-              palette: palette,
+              );
+
+        return Container(
+          decoration: palette.panelDecoration(
+            baseRadius: 22,
+            tint: tone,
+            elevated: false,
+          ),
+          clipBehavior: Clip.antiAlias,
+          child: ExpansionTile(
+            tilePadding: EdgeInsets.fromLTRB(
+              compact ? 12 : 16,
+              9,
+              compact ? 8 : 16,
+              9,
             ),
-            if (index != day.rows.length - 1) const SizedBox(height: 6),
-          ],
-        ],
-      ),
+            childrenPadding: EdgeInsets.fromLTRB(
+              compact ? 10 : 14,
+              0,
+              compact ? 10 : 14,
+              16,
+            ),
+            leading: compact
+                ? null
+                : Container(
+                    width: 46,
+                    height: 46,
+                    decoration: BoxDecoration(
+                      color: tone.withOpacity(.11),
+                      borderRadius: BorderRadius.circular(14),
+                    ),
+                    child: Icon(
+                      risky
+                          ? Icons.inventory_2_outlined
+                          : Icons.verified_rounded,
+                      color: tone,
+                    ),
+                  ),
+            title: compact
+                ? Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'Inventario · ${DateFormat('dd/MM/yyyy').format(day.date)}',
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                          color: palette.textPrimary,
+                          fontWeight: FontWeight.w900,
+                        ),
+                      ),
+                      const SizedBox(height: 5),
+                      _AccuracyBadge(
+                        value: day.accuracy,
+                        palette: palette,
+                      ),
+                    ],
+                  )
+                : Row(
+                    children: [
+                      Expanded(
+                        child: Text(
+                          'Inventario · ${DateFormat('dd/MM/yyyy').format(day.date)}',
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: TextStyle(
+                            color: palette.textPrimary,
+                            fontWeight: FontWeight.w900,
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      _AccuracyBadge(
+                        value: day.accuracy,
+                        palette: palette,
+                      ),
+                    ],
+                  ),
+            subtitle: Padding(
+              padding: const EdgeInsets.only(top: 7),
+              child: compact
+                  ? Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        _Meta(
+                          icon: Icons.person_search_rounded,
+                          text: 'Contó: ${day.counters.join(', ')}',
+                          palette: palette,
+                        ),
+                        const SizedBox(height: 4),
+                        _Meta(
+                          icon: Icons.groups_2_outlined,
+                          text: day.attendants.isEmpty
+                              ? 'Sin ventas registradas ese día'
+                              : 'Atendieron: ${day.attendants.join(', ')}',
+                          palette: palette,
+                        ),
+                        const SizedBox(height: 4),
+                        _Meta(
+                          icon: Icons.point_of_sale_rounded,
+                          text:
+                              '${day.salesDay} ventas · ${CurrencyUtils.format(day.totalSoldDay)}',
+                          palette: palette,
+                        ),
+                        const SizedBox(height: 4),
+                        _Meta(
+                          icon: Icons.inventory_outlined,
+                          text: '${day.rows.length} productos contados',
+                          palette: palette,
+                        ),
+                      ],
+                    )
+                  : Wrap(
+                      spacing: 12,
+                      runSpacing: 6,
+                      children: [
+                        _Meta(
+                          icon: Icons.person_search_rounded,
+                          text: 'Contó: ${day.counters.join(', ')}',
+                          palette: palette,
+                        ),
+                        _Meta(
+                          icon: Icons.groups_2_outlined,
+                          text: day.attendants.isEmpty
+                              ? 'Sin ventas registradas ese día'
+                              : 'Atendieron: ${day.attendants.join(', ')}',
+                          palette: palette,
+                        ),
+                        _Meta(
+                          icon: Icons.point_of_sale_rounded,
+                          text:
+                              '${day.salesDay} ventas · ${CurrencyUtils.format(day.totalSoldDay)}',
+                          palette: palette,
+                        ),
+                        _Meta(
+                          icon: Icons.inventory_outlined,
+                          text: '${day.rows.length} productos contados',
+                          palette: palette,
+                        ),
+                      ],
+                    ),
+            ),
+            trailing: compact ? null : reviewButton,
+            children: [
+              const Divider(height: 1),
+              if (compact && reviewButton != null) ...[
+                const SizedBox(height: 10),
+                Align(
+                  alignment: Alignment.centerLeft,
+                  child: reviewButton,
+                ),
+              ],
+              const SizedBox(height: 12),
+              _DayFinancialSummary(day: day, palette: palette),
+              if (day.withoutCost > 0) ...[
+                const SizedBox(height: 10),
+                _CostWarning(palette: palette, count: day.withoutCost),
+              ],
+              const SizedBox(height: 12),
+              _ProductAuditHeader(palette: palette),
+              const SizedBox(height: 6),
+              for (var index = 0; index < day.rows.length; index++) ...[
+                _ProductAuditRow(
+                  row: day.rows[index],
+                  palette: palette,
+                ),
+                if (index != day.rows.length - 1)
+                  const SizedBox(height: 6),
+              ],
+            ],
+          ),
+        );
+      },
     );
   }
 }
@@ -2499,25 +2586,34 @@ class _Meta extends StatelessWidget {
   final AppPalette palette;
 
   @override
-  Widget build(BuildContext context) => Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(icon, size: 14, color: palette.textSecondary),
-          const SizedBox(width: 4),
-          ConstrainedBox(
-            constraints: const BoxConstraints(maxWidth: 330),
-            child: Text(
-              text,
-              maxLines: 2,
-              overflow: TextOverflow.ellipsis,
-              style: TextStyle(
-                color: palette.textSecondary,
-                fontWeight: FontWeight.w700,
-                fontSize: 10,
+  Widget build(BuildContext context) => ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: 330),
+        child: Text.rich(
+          TextSpan(
+            children: [
+              WidgetSpan(
+                alignment: PlaceholderAlignment.middle,
+                child: Padding(
+                  padding: const EdgeInsets.only(right: 4),
+                  child: Icon(
+                    icon,
+                    size: 14,
+                    color: palette.textSecondary,
+                  ),
+                ),
               ),
+              TextSpan(text: text),
+            ],
+            style: TextStyle(
+              color: palette.textSecondary,
+              fontWeight: FontWeight.w700,
+              fontSize: 10,
+              height: 1.3,
             ),
           ),
-        ],
+          maxLines: 3,
+          overflow: TextOverflow.ellipsis,
+        ),
       );
 }
 
