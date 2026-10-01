@@ -561,7 +561,7 @@ class _ReportCapabilityChip extends StatelessWidget {
   }
 }
 
-enum _ProfitPeriodMode { day, month, inventoryCross }
+enum _ProfitPeriodMode { day, week, fortnight, month, inventoryCross }
 
 class _ReporteDetail extends ConsumerStatefulWidget {
   const _ReporteDetail({
@@ -687,6 +687,12 @@ class _ReporteDetailState extends ConsumerState<_ReporteDetail> {
       case _ProfitPeriodMode.day:
         await _selectProfitDay();
         return;
+      case _ProfitPeriodMode.week:
+        await _selectProfitWeek();
+        return;
+      case _ProfitPeriodMode.fortnight:
+        await _selectProfitFortnight();
+        return;
       case _ProfitPeriodMode.month:
         await _selectProfitMonth();
         return;
@@ -711,6 +717,171 @@ class _ReporteDetailState extends ConsumerState<_ReporteDetail> {
     setState(() {
       _lastPayload = null;
       _range = DateTimeRange(start: day, end: day);
+      _future = _load();
+    });
+  }
+
+  Future<void> _selectProfitWeek() async {
+    final selected = await showDatePicker(
+      context: context,
+      firstDate: DateTime(2020),
+      lastDate: DateUtils.dateOnly(DateTime.now()),
+      initialDate: _range.end,
+      helpText: 'Selecciona una fecha de la semana',
+      cancelText: 'Cancelar',
+      confirmText: 'Aplicar semana',
+    );
+    if (selected == null || !mounted) return;
+
+    final today = DateUtils.dateOnly(DateTime.now());
+    final day = DateUtils.dateOnly(selected);
+    final monday = day.subtract(Duration(days: day.weekday - DateTime.monday));
+    final naturalSunday = monday.add(const Duration(days: 6));
+    final sunday = naturalSunday.isAfter(today) ? today : naturalSunday;
+
+    setState(() {
+      _lastPayload = null;
+      _range = DateTimeRange(start: monday, end: sunday);
+      _future = _load();
+    });
+  }
+
+  Future<void> _selectProfitFortnight() async {
+    final selectedMonth = await _showProfitMonthPicker(
+      initialMonth: _range.start,
+    );
+    if (selectedMonth == null || !mounted) return;
+
+    final today = DateUtils.dateOnly(DateTime.now());
+    final lastDayOfMonth =
+        DateTime(selectedMonth.year, selectedMonth.month + 1, 0);
+    final currentMonth = selectedMonth.year == today.year &&
+        selectedMonth.month == today.month;
+
+    final initialFortnight = _range.start.day >= 16 ? 2 : 1;
+    final selectedFortnight = await showDialog<int>(
+      context: context,
+      builder: (dialogContext) {
+        final scheme = Theme.of(dialogContext).colorScheme;
+        final secondAvailable = !currentMonth || today.day >= 16;
+
+        Widget option({
+          required int value,
+          required String title,
+          required String subtitle,
+          required bool enabled,
+        }) {
+          final selected = initialFortnight == value;
+          return Padding(
+            padding: const EdgeInsets.only(bottom: 8),
+            child: Material(
+              color: selected
+                  ? scheme.primaryContainer.withOpacity(.55)
+                  : scheme.surfaceContainerHighest.withOpacity(.35),
+              borderRadius: BorderRadius.circular(14),
+              child: InkWell(
+                onTap: enabled
+                    ? () => Navigator.of(dialogContext).pop(value)
+                    : null,
+                borderRadius: BorderRadius.circular(14),
+                child: Padding(
+                  padding: const EdgeInsets.all(14),
+                  child: Row(
+                    children: [
+                      Icon(
+                        value == 1
+                            ? Icons.looks_one_rounded
+                            : Icons.looks_two_rounded,
+                        color: enabled
+                            ? scheme.primary
+                            : scheme.onSurface.withOpacity(.30),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              title,
+                              style: TextStyle(
+                                color: enabled
+                                    ? scheme.onSurface
+                                    : scheme.onSurface.withOpacity(.35),
+                                fontWeight: FontWeight.w900,
+                              ),
+                            ),
+                            const SizedBox(height: 2),
+                            Text(
+                              subtitle,
+                              style: TextStyle(
+                                color: enabled
+                                    ? scheme.onSurfaceVariant
+                                    : scheme.onSurface.withOpacity(.28),
+                                fontSize: 12,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      if (selected && enabled)
+                        Icon(Icons.check_circle_rounded, color: scheme.primary),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+          );
+        }
+
+        return AlertDialog(
+          title: Text(
+            'Quincena · ${_monthYearLabel(selectedMonth)}',
+          ),
+          content: SizedBox(
+            width: math.min(MediaQuery.sizeOf(dialogContext).width * .86, 420),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                option(
+                  value: 1,
+                  title: 'Primera quincena',
+                  subtitle: 'Del 1 al 15',
+                  enabled: true,
+                ),
+                option(
+                  value: 2,
+                  title: 'Segunda quincena',
+                  subtitle:
+                      'Del 16 al ${lastDayOfMonth.day}${currentMonth && !secondAvailable ? ' · aún no disponible' : ''}',
+                  enabled: secondAvailable,
+                ),
+              ],
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(dialogContext).pop(),
+              child: const Text('Cancelar'),
+            ),
+          ],
+        );
+      },
+    );
+
+    if (selectedFortnight == null || !mounted) return;
+
+    final firstDay = selectedFortnight == 1
+        ? DateTime(selectedMonth.year, selectedMonth.month, 1)
+        : DateTime(selectedMonth.year, selectedMonth.month, 16);
+    final naturalLastDay = selectedFortnight == 1
+        ? DateTime(selectedMonth.year, selectedMonth.month, 15)
+        : lastDayOfMonth;
+    final lastDay = naturalLastDay.isAfter(today) ? today : naturalLastDay;
+
+    setState(() {
+      _lastPayload = null;
+      _range = DateTimeRange(start: firstDay, end: lastDay);
       _future = _load();
     });
   }
@@ -957,6 +1128,28 @@ class _ReporteDetailState extends ConsumerState<_ReporteDetail> {
     final anchor = _range.end.isAfter(today) ? today : _range.end;
     final nextRange = switch (mode) {
       _ProfitPeriodMode.day => DateTimeRange(start: anchor, end: anchor),
+      _ProfitPeriodMode.week => () {
+          final monday = anchor.subtract(
+            Duration(days: anchor.weekday - DateTime.monday),
+          );
+          final naturalSunday = monday.add(const Duration(days: 6));
+          return DateTimeRange(
+            start: monday,
+            end: naturalSunday.isAfter(today) ? today : naturalSunday,
+          );
+        }(),
+      _ProfitPeriodMode.fortnight => DateTimeRange(
+          start: DateTime(
+            anchor.year,
+            anchor.month,
+            anchor.day <= 15 ? 1 : 16,
+          ),
+          end: anchor.day <= 15
+              ? DateTime(anchor.year, anchor.month, 15)
+              : (anchor.year == today.year && anchor.month == today.month
+                  ? today
+                  : DateTime(anchor.year, anchor.month + 1, 0)),
+        ),
       _ProfitPeriodMode.month => DateTimeRange(
           start: DateTime(anchor.year, anchor.month),
           end: anchor.year == today.year && anchor.month == today.month
@@ -1164,6 +1357,10 @@ class _DetailHeader extends StatelessWidget {
   ) {
     return switch (mode) {
       _ProfitPeriodMode.day => DateFormat('dd/MM/yyyy').format(value.start),
+      _ProfitPeriodMode.week =>
+        'Semana ${DateFormat('dd/MM').format(value.start)} - ${DateFormat('dd/MM/yyyy').format(value.end)}',
+      _ProfitPeriodMode.fortnight =>
+        '${value.start.day >= 16 ? '2.ª' : '1.ª'} quincena · ${_monthYearLabel(value.start)}',
       _ProfitPeriodMode.month => _monthYearLabel(value.start),
       _ProfitPeriodMode.inventoryCross =>
         '${DateFormat('dd/MM').format(value.start)} - ${DateFormat('dd/MM/yyyy').format(value.end)}',
@@ -1433,7 +1630,7 @@ class _DetailHeader extends StatelessWidget {
                       children: [
                         if (periodModeFilter != null)
                           SizedBox(
-                            width: tablet ? 330 : 350,
+                            width: tablet ? 520 : 570,
                             child: periodModeFilter,
                           ),
                         if (dateFilter != null)
@@ -1478,6 +1675,12 @@ class _ProfitPeriodSelector extends StatelessWidget {
       IconData icon,
     })>[
       (value: _ProfitPeriodMode.day, label: 'Día', icon: Icons.today_rounded),
+      (value: _ProfitPeriodMode.week, label: 'Semana', icon: Icons.view_week_rounded),
+      (
+        value: _ProfitPeriodMode.fortnight,
+        label: 'Quincena',
+        icon: Icons.date_range_rounded,
+      ),
       (value: _ProfitPeriodMode.month, label: 'Mes', icon: Icons.calendar_month_rounded),
       (
         value: _ProfitPeriodMode.inventoryCross,
