@@ -1849,7 +1849,7 @@ class _LaborDialogState extends State<_LaborDialog> {
                           ),
                           IconButton(
                             tooltip: 'Reintentar',
-                            onPressed: saving ? null : _load,
+                            onPressed: saving ? null : () => _load(),
                             icon: const Icon(Icons.refresh),
                           ),
                         ],
