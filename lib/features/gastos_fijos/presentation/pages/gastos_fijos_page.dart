@@ -29,6 +29,9 @@ class _GastosFijosPageState extends ConsumerState<GastosFijosPage> {
   List<Map<String, dynamic>> items = [];
   bool loading = true;
   String filter = 'TODOS';
+  double laborToday = 0;
+  double laborMonthly = 0;
+  int laborCargoCount = 0;
 
   static const _categories = <String>[
     'Arriendo',
@@ -67,6 +70,116 @@ class _GastosFijosPageState extends ConsumerState<GastosFijosPage> {
       );
   }
 
+  List<Map<String, dynamic>> _parseMapList(Object? json) {
+    if (json is! List) return <Map<String, dynamic>>[];
+    return json
+        .whereType<Map>()
+        .map((item) => Map<String, dynamic>.from(item))
+        .toList();
+  }
+
+  bool _rateIsActiveOn(Map<String, dynamic> rate, DateTime date) {
+    final from = DateTime.tryParse(
+      rate['gafdVigenciaDesde']?.toString() ?? '',
+    );
+    final until = DateTime.tryParse(
+      rate['gafdVigenciaHasta']?.toString() ?? '',
+    );
+    if (from == null) return false;
+
+    final day = DateTime(date.year, date.month, date.day);
+    final fromDay = DateTime(from.year, from.month, from.day);
+    if (fromDay.isAfter(day)) return false;
+
+    if (until != null) {
+      final untilDay = DateTime(until.year, until.month, until.day);
+      if (untilDay.isBefore(day)) return false;
+    }
+    return true;
+  }
+
+  Future<void> _loadLaborSummary(Map<String, dynamic>? laborExpense) async {
+    if (laborExpense == null || !mounted) {
+      if (mounted) {
+        setState(() {
+          laborToday = 0;
+          laborMonthly = 0;
+          laborCargoCount = 0;
+        });
+      }
+      return;
+    }
+
+    final api = ref.read(apiClientProvider);
+    try {
+      final cargoResponse = await api.get<List<Map<String, dynamic>>>(
+        '/api/v1/gastos-fijos/${laborExpense['gafiId']}/cargos',
+        _parseMapList,
+      );
+      final cargos = cargoResponse.data ?? <Map<String, dynamic>>[];
+
+      final today = DateTime.now();
+      final todayWeekday = today.weekday;
+      var todayTotal = 0.0;
+      var weeklyTotal = 0.0;
+
+      for (final cargo in cargos) {
+        final cargoId = cargo['gafcId'];
+        final rateResponse = await api.get<List<Map<String, dynamic>>>(
+          '/api/v1/gastos-fijos/cargos/$cargoId/tarifas',
+          _parseMapList,
+        );
+        final allRates = rateResponse.data ?? <Map<String, dynamic>>[];
+
+        for (var weekday = 1; weekday <= 7; weekday++) {
+          final candidates = allRates
+              .where((rate) {
+                final rateDay = (rate['gafdDiaSemana'] as num?)?.toInt() ??
+                    int.tryParse(
+                          rate['gafdDiaSemana']?.toString() ?? '',
+                        ) ??
+                    0;
+                return rateDay == weekday && _rateIsActiveOn(rate, today);
+              })
+              .toList()
+            ..sort((a, b) {
+              final ad = DateTime.tryParse(
+                    a['gafdVigenciaDesde']?.toString() ?? '',
+                  ) ??
+                  DateTime(1900);
+              final bd = DateTime.tryParse(
+                    b['gafdVigenciaDesde']?.toString() ?? '',
+                  ) ??
+                  DateTime(1900);
+              return bd.compareTo(ad);
+            });
+
+          if (candidates.isEmpty) continue;
+          final amount = _number(candidates.first['gafdValor']);
+          weeklyTotal += amount;
+          if (weekday == todayWeekday) {
+            todayTotal += amount;
+          }
+        }
+      }
+
+      if (!mounted) return;
+      setState(() {
+        laborToday = todayTotal;
+        laborMonthly = weeklyTotal * (30.4375 / 7);
+        laborCargoCount = cargos.length;
+      });
+    } catch (error) {
+      debugPrint('Error calculando resumen de mano de obra: $error');
+      if (!mounted) return;
+      setState(() {
+        laborToday = 0;
+        laborMonthly = 0;
+        laborCargoCount = 0;
+      });
+    }
+  }
+
   Future<void> _load() async {
     if (!mounted) return;
     final branchId = ref.read(branchScopeProvider).activeBranchId;
@@ -74,6 +187,9 @@ class _GastosFijosPageState extends ConsumerState<GastosFijosPage> {
       if (mounted) {
         setState(() {
           items = [];
+          laborToday = 0;
+          laborMonthly = 0;
+          laborCargoCount = 0;
           loading = false;
         });
       }
@@ -82,17 +198,26 @@ class _GastosFijosPageState extends ConsumerState<GastosFijosPage> {
 
     if (mounted) setState(() => loading = true);
     try {
-      final response = await ref.read(apiClientProvider).get<List<dynamic>>(
-            '/api/v1/gastos-fijos/sucursal/$branchId',
-            (json) => (json as List?) ?? const [],
-          );
+      final response =
+          await ref.read(apiClientProvider).get<List<Map<String, dynamic>>>(
+                '/api/v1/gastos-fijos/sucursal/$branchId',
+                _parseMapList,
+              );
 
       if (!mounted) return;
+      final loadedItems = response.data ?? <Map<String, dynamic>>[];
       setState(() {
-        items = (response.data ?? const <dynamic>[])
-            .map((e) => Map<String, dynamic>.from(e as Map))
-            .toList();
+        items = loadedItems;
       });
+
+      Map<String, dynamic>? laborExpense;
+      for (final item in loadedItems) {
+        if (_isLabor(item)) {
+          laborExpense = item;
+          break;
+        }
+      }
+      await _loadLaborSummary(laborExpense);
     } catch (_) {
       _message('No fue posible cargar los gastos de la sucursal.', error: true);
     } finally {
@@ -494,7 +619,10 @@ class _GastosFijosPageState extends ConsumerState<GastosFijosPage> {
     final visible = items.where((item) {
       final type = item['gafiTipo']?.toString() ?? 'FIJO';
       if (filter == 'FIJOS' && type != 'FIJO') return false;
-      if (filter == 'VARIABLES' && type != 'VARIABLE') return false;
+      if (filter == 'VARIABLES' &&
+          (type != 'VARIABLE' || _isLabor(item))) {
+        return false;
+      }
       if (filter == 'MANO_OBRA' && !_isLabor(item)) return false;
 
       final haystack =
@@ -538,6 +666,9 @@ class _GastosFijosPageState extends ConsumerState<GastosFijosPage> {
                     fixed: fixedMonthly,
                     variable: variableMonthly,
                     hasLabor: hasLabor,
+                    laborToday: laborToday,
+                    laborMonthly: laborMonthly,
+                    laborCargoCount: laborCargoCount,
                     money: money,
                   ),
                 ),
@@ -591,6 +722,12 @@ class _GastosFijosPageState extends ConsumerState<GastosFijosPage> {
                             onEdit: () => _edit(item),
                             onDelete: () => _delete(item),
                             onLabor: _isLabor(item) ? _labor : null,
+                            laborToday:
+                                _isLabor(item) ? laborToday : null,
+                            laborMonthly:
+                                _isLabor(item) ? laborMonthly : null,
+                            laborCargoCount:
+                                _isLabor(item) ? laborCargoCount : null,
                           ),
                         ),
                       );
@@ -624,6 +761,9 @@ class _Header extends StatelessWidget {
     required this.palette,
     required this.onAdd,
     required this.onLabor,
+    this.laborToday,
+    this.laborMonthly,
+    this.laborCargoCount,
   });
 
   @override
@@ -697,6 +837,9 @@ class _Summary extends StatelessWidget {
   final double fixed;
   final double variable;
   final bool hasLabor;
+  final double laborToday;
+  final double laborMonthly;
+  final int laborCargoCount;
   final NumberFormat money;
 
   const _Summary({
@@ -704,6 +847,9 @@ class _Summary extends StatelessWidget {
     required this.fixed,
     required this.variable,
     required this.hasLabor,
+    required this.laborToday,
+    required this.laborMonthly,
+    required this.laborCargoCount,
     required this.money,
   });
 
@@ -726,8 +872,14 @@ class _Summary extends StatelessWidget {
             _SummaryCard(
               palette: palette,
               icon: Icons.groups_2_outlined,
-              label: 'Mano de obra',
-              value: hasLabor ? 'Por cargo y día' : 'Sin configurar',
+              label: 'Mano de obra · hoy',
+              value: hasLabor
+                  ? money.format(laborToday)
+                  : 'Sin configurar',
+              subtitle: hasLabor
+                  ? '${money.format(laborMonthly)} / mes aprox. · '
+                      '$laborCargoCount cargo${laborCargoCount == 1 ? '' : 's'}'
+                  : null,
             ),
           ];
 
@@ -759,12 +911,14 @@ class _SummaryCard extends StatelessWidget {
   final IconData icon;
   final String label;
   final String value;
+  final String? subtitle;
 
   const _SummaryCard({
     required this.palette,
     required this.icon,
     required this.label,
     required this.value,
+    this.subtitle,
   });
 
   @override
@@ -801,6 +955,19 @@ class _SummaryCard extends StatelessWidget {
                       fontWeight: FontWeight.w900,
                     ),
                   ),
+                  if (subtitle != null) ...[
+                    const SizedBox(height: 2),
+                    Text(
+                      subtitle!,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        color: palette.textSecondary,
+                        fontSize: 11,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ],
                 ],
               ),
             ),
@@ -888,6 +1055,9 @@ class _Expense extends StatelessWidget {
   final VoidCallback onEdit;
   final VoidCallback onDelete;
   final VoidCallback? onLabor;
+  final double? laborToday;
+  final double? laborMonthly;
+  final int? laborCargoCount;
 
   const _Expense({
     required this.item,
@@ -935,8 +1105,10 @@ class _Expense extends StatelessWidget {
               ),
               const SizedBox(height: 4),
               Text(
-                '${item['gafiCategoria'] ?? 'Otros'} · '
-                '${item['gafiPeriodicidad'] ?? 'MENSUAL'}',
+                labor
+                    ? '${laborCargoCount ?? 0} cargo${(laborCargoCount ?? 0) == 1 ? '' : 's'} configurado${(laborCargoCount ?? 0) == 1 ? '' : 's'} · tarifas por día'
+                    : '${item['gafiCategoria'] ?? 'Otros'} · '
+                        '${item['gafiPeriodicidad'] ?? 'MENSUAL'}',
                 style: TextStyle(
                   color: palette.textSecondary,
                   fontWeight: FontWeight.w600,
@@ -955,7 +1127,7 @@ class _Expense extends StatelessWidget {
         borderRadius: BorderRadius.circular(20),
       ),
       child: Text(
-        variable ? 'Variable' : 'Fijo',
+        labor ? 'Mano de obra' : (variable ? 'Variable' : 'Fijo'),
         style: TextStyle(
           color: palette.secondary,
           fontWeight: FontWeight.w800,
@@ -966,11 +1138,12 @@ class _Expense extends StatelessWidget {
     final actions = Row(
       mainAxisSize: MainAxisSize.min,
       children: [
-        IconButton(
-          tooltip: 'Editar',
-          onPressed: onEdit,
-          icon: const Icon(Icons.edit_outlined),
-        ),
+        if (!labor)
+          IconButton(
+            tooltip: 'Editar',
+            onPressed: onEdit,
+            icon: const Icon(Icons.edit_outlined),
+          ),
         if (labor)
           IconButton(
             tooltip: 'Configurar cargos',
@@ -1007,7 +1180,9 @@ class _Expense extends StatelessWidget {
                   children: [
                     badge,
                     Text(
-                      labor ? 'Calculado por cargo' : money.format(value),
+                      labor
+                          ? 'Hoy ${money.format(laborToday ?? 0)} · Mes aprox. ${money.format(laborMonthly ?? 0)}'
+                          : money.format(value),
                       style: TextStyle(
                         color: palette.textPrimary,
                         fontWeight: FontWeight.w900,
@@ -1026,9 +1201,11 @@ class _Expense extends StatelessWidget {
               badge,
               const SizedBox(width: 12),
               SizedBox(
-                width: 150,
+                width: labor ? 210 : 150,
                 child: Text(
-                  labor ? 'Por cargo' : money.format(value),
+                  labor
+                      ? 'Hoy ${money.format(laborToday ?? 0)}\nMes ${money.format(laborMonthly ?? 0)}'
+                      : money.format(value),
                   textAlign: TextAlign.right,
                   style: TextStyle(
                     color: palette.textPrimary,
