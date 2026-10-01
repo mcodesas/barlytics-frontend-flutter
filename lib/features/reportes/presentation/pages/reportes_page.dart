@@ -88,6 +88,11 @@ class ReportesPage extends ConsumerWidget {
         'ingresos_periodo',
         'costo_ventas_periodo',
         'ganancia_bruta_periodo',
+        'gastos_fijos_periodo',
+        'gastos_variables_periodo',
+        'mano_obra_periodo',
+        'gastos_operativos_periodo',
+        'ganancia_neta_estimada_periodo',
       ],
       percentageKeys: ['margen_bruto_porcentaje'],
     ),
@@ -1487,7 +1492,13 @@ class _ProfitContentState extends State<_ProfitContent> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                _ProfitHero(rows: rows, palette: widget.palette),
+                _ProfitHero(
+                  rows: rows,
+                  metadata: widget.payload.rows.isEmpty
+                      ? const <String, dynamic>{}
+                      : widget.payload.rows.first,
+                  palette: widget.palette,
+                ),
                 const SizedBox(height: 14),
                 LayoutBuilder(
                   builder: (context, constraints) {
@@ -1627,9 +1638,14 @@ class _ProfitContentState extends State<_ProfitContent> {
 }
 
 class _ProfitHero extends StatelessWidget {
-  const _ProfitHero({required this.rows, required this.palette});
+  const _ProfitHero({
+    required this.rows,
+    required this.metadata,
+    required this.palette,
+  });
 
   final List<Map<String, dynamic>> rows;
+  final Map<String, dynamic> metadata;
   final AppPalette palette;
 
   @override
@@ -1639,7 +1655,6 @@ class _ProfitHero extends StatelessWidget {
     final gananciaBruta = _sum(rows, 'ganancia_bruta_periodo');
     final unidades = _sum(rows, 'unidades_vendidas_periodo');
 
-    final metadata = rows.isEmpty ? const <String, dynamic>{} : rows.first;
     final gastosFijos = _toDouble(metadata['gastos_fijos_periodo']);
     final gastosVariables = _toDouble(metadata['gastos_variables_periodo']);
     final manoObra = _toDouble(metadata['mano_obra_periodo']);
@@ -8111,10 +8126,24 @@ Map<String, dynamic> _buildMetrics(
   if (definition.kind == _ReportKind.profit) {
     final ingresos = _sum(rows, 'ingresos_periodo');
     final ganancia = _sum(rows, 'ganancia_bruta_periodo');
+    final metadata =
+        rows.isEmpty ? const <String, dynamic>{} : rows.first;
+    final gastosFijos = _toDouble(metadata['gastos_fijos_periodo']);
+    final gastosVariables = _toDouble(metadata['gastos_variables_periodo']);
+    final manoObra = _toDouble(metadata['mano_obra_periodo']);
+    final gastosOperativos = _toDouble(metadata['gastos_operativos_periodo']);
+    final gananciaNeta = metadata.containsKey('ganancia_neta_estimada_periodo')
+        ? _toDouble(metadata['ganancia_neta_estimada_periodo'])
+        : ganancia - gastosOperativos;
     return {
       'ingresos_periodo': ingresos,
       'costo_ventas_periodo': _sum(rows, 'costo_ventas_periodo'),
       'ganancia_bruta_periodo': ganancia,
+      'gastos_fijos_periodo': gastosFijos,
+      'gastos_variables_periodo': gastosVariables,
+      'mano_obra_periodo': manoObra,
+      'gastos_operativos_periodo': gastosOperativos,
+      'ganancia_neta_estimada_periodo': gananciaNeta,
       'margen_bruto_porcentaje':
           ingresos == 0 ? 0 : (ganancia * 100 / ingresos),
       'productos_con_ventas': rows
