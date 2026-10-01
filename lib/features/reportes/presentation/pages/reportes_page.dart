@@ -121,7 +121,10 @@ class ReportesPage extends ConsumerWidget {
         'gastos_operativos_periodo',
         'ganancia_neta_estimada_periodo',
       ],
-      percentageKeys: ['margen_bruto_porcentaje'],
+      percentageKeys: [
+        'margen_bruto_porcentaje',
+        'margen_neto_porcentaje',
+      ],
     ),
     _ReportDefinition(
       keyName: 'proximo_pedido',
@@ -181,7 +184,7 @@ class ReportesPage extends ConsumerWidget {
       icon: Icons.sync_alt_rounded,
       requiresDates: true,
       chartLabelKey: 'producto',
-      chartValueKey: 'ventas_periodo',
+      chartValueKey: 'rotacion_porcentaje',
       currencyKeys: ['valor_vendido'],
       percentageKeys: ['rotacion_porcentaje'],
     ),
@@ -9623,53 +9626,107 @@ Map<String, dynamic> _buildMetrics(
     };
   }
   if (definition.path.contains('stock-actual')) {
+    final disponibles =
+        rows.where((row) => row['estado'] == 'DISPONIBLE').length;
+    final sinConfigurar =
+        rows.where((row) => row['estado'] == 'SIN_CONFIGURAR').length;
+    final sobrestock =
+        rows.where((row) => row['estado'] == 'SOBRESTOCK').length;
     return {
       'productos': rows.length,
       'unidades': _sum(rows, 'unidades'),
+      'disponibles': disponibles,
       'agotados': rows.where((row) => row['estado'] == 'AGOTADO').length,
       'stock_bajo': rows.where((row) => row['estado'] == 'STOCK_BAJO').length,
-      'stock_negativo': rows.where((row) => row['estado'] == 'STOCK_NEGATIVO').length,
+      'stock_negativo':
+          rows.where((row) => row['estado'] == 'STOCK_NEGATIVO').length,
+      'sin_configurar': sinConfigurar,
+      'sobrestock': sobrestock,
+      'salud_inventario_porcentaje':
+          rows.isEmpty ? 0 : disponibles * 100 / rows.length,
     };
   }
   if (definition.path.contains('productos-mas-vendidos')) {
+    final totalUnits = _sum(rows, 'cantidad');
+    final ranked = [...rows]
+      ..sort((a, b) =>
+          _toDouble(b['cantidad']).compareTo(_toDouble(a['cantidad'])));
+    final top3Units = ranked
+        .take(3)
+        .fold<double>(0, (sum, row) => sum + _toDouble(row['cantidad']));
     return {
       'productos': rows.length,
-      'unidades_vendidas': _sum(rows, 'cantidad'),
+      'unidades_vendidas': totalUnits,
       'total': _sum(rows, 'total'),
+      'concentracion_top_3_porcentaje':
+          totalUnits == 0 ? 0 : top3Units * 100 / totalUnits,
     };
   }
   if (definition.path.contains('movimientos-inventario')) {
+    final entradaRows =
+        rows.where((row) => row['operacion'] == 'ENTRADA').toList();
+    final salidaRows =
+        rows.where((row) => row['operacion'] == 'SALIDA').toList();
+    final ajusteRows =
+        rows.where((row) => row['operacion'] == 'AJUSTE').toList();
+    final unidadesEntrada = _sum(entradaRows, 'cantidad_unidades');
+    final unidadesSalida = _sum(salidaRows, 'cantidad_unidades');
     return {
       'movimientos': rows.length,
       'unidades_movidas': _sum(rows, 'cantidad_unidades'),
-      'entradas': rows.where((row) => row['operacion'] == 'ENTRADA').length,
-      'salidas': rows.where((row) => row['operacion'] == 'SALIDA').length,
-      'ajustes': rows.where((row) => row['operacion'] == 'AJUSTE').length,
+      'entradas': entradaRows.length,
+      'salidas': salidaRows.length,
+      'ajustes': ajusteRows.length,
+      'unidades_entrada': unidadesEntrada,
+      'unidades_salida': unidadesSalida,
+      'balance_unidades': unidadesEntrada - unidadesSalida,
     };
   }
   if (definition.path.contains('/persona')) {
+    final totalSalidas = _sum(rows, 'unidades_salida');
+    final top = rows.isEmpty
+        ? const <String, dynamic>{}
+        : ([...rows]
+              ..sort((a, b) => _toDouble(b['unidades_salida'])
+                  .compareTo(_toDouble(a['unidades_salida']))))
+            .first;
     return {
       'responsables': rows.length,
       'movimientos': _sum(rows, 'movimientos'),
-      'unidades_salida': _sum(rows, 'unidades_salida'),
+      'unidades_salida': totalSalidas,
       'productos': _sum(rows, 'productos'),
+      'concentracion_principal_porcentaje': totalSalidas == 0
+          ? 0
+          : _toDouble(top['unidades_salida']) * 100 / totalSalidas,
     };
   }
   if (definition.path.contains('productos-desfalcados')) {
     return {
       'alertas': rows.length,
-      'stock_negativo': rows.where((row) => _toDouble(row['stock_actual']) < 0).length,
-      'agotados_con_rotación': rows.where((row) => row['estado'] == 'AGOTADO_CON_ROTACION').length,
+      'stock_negativo':
+          rows.where((row) => _toDouble(row['stock_actual']) < 0).length,
+      'agotados_con_rotación':
+          rows.where((row) => row['estado'] == 'AGOTADO_CON_ROTACION').length,
       'ventas_periodo': _sum(rows, 'ventas_periodo'),
+      'valor_vendido_en_riesgo': _sum(rows, 'valor_vendido'),
     };
   }
   if (definition.path.contains('cruce-ventas')) {
+    final withRotation = rows
+        .where((row) => _toDouble(row['rotacion_porcentaje']) > 0)
+        .toList();
+    final rotationAverage = withRotation.isEmpty
+        ? 0
+        : _sum(withRotation, 'rotacion_porcentaje') / withRotation.length;
     return {
       'productos': rows.length,
       'stock_actual': _sum(rows, 'stock_actual'),
       'ventas_periodo': _sum(rows, 'ventas_periodo'),
       'entradas_periodo': _sum(rows, 'entradas_periodo'),
       'salidas_periodo': _sum(rows, 'salidas_periodo'),
+      'sin_rotacion':
+          rows.where((row) => row['estado'] == 'SIN_ROTACION').length,
+      'rotacion_promedio_porcentaje': rotationAverage,
     };
   }
   return {'registros': rows.length};
