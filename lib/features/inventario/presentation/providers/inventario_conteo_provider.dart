@@ -12,6 +12,9 @@ class InventarioConteoState {
   const InventarioConteoState({
     this.productos = const <ProductosResponseModel>[],
     this.registrosHoy = const <int, InventarioResponseModel>{},
+    this.ultimosConteos = const <int, InventarioResponseModel>{},
+    this.conteosPendientes = const <int, InventarioResponseModel>{},
+    this.ultimoConteoEn,
     this.guardandoProductos = const <int>{},
     this.loading = false,
     this.failure,
@@ -21,6 +24,9 @@ class InventarioConteoState {
 
   final List<ProductosResponseModel> productos;
   final Map<int, InventarioResponseModel> registrosHoy;
+  final Map<int, InventarioResponseModel> ultimosConteos;
+  final Map<int, InventarioResponseModel> conteosPendientes;
+  final DateTime? ultimoConteoEn;
   final Set<int> guardandoProductos;
   final bool loading;
   final Failure? failure;
@@ -30,6 +36,9 @@ class InventarioConteoState {
   InventarioConteoState copyWith({
     List<ProductosResponseModel>? productos,
     Map<int, InventarioResponseModel>? registrosHoy,
+    Map<int, InventarioResponseModel>? ultimosConteos,
+    Map<int, InventarioResponseModel>? conteosPendientes,
+    DateTime? ultimoConteoEn,
     Set<int>? guardandoProductos,
     bool? loading,
     Failure? failure,
@@ -40,6 +49,9 @@ class InventarioConteoState {
     return InventarioConteoState(
       productos: productos ?? this.productos,
       registrosHoy: registrosHoy ?? this.registrosHoy,
+      ultimosConteos: ultimosConteos ?? this.ultimosConteos,
+      conteosPendientes: conteosPendientes ?? this.conteosPendientes,
+      ultimoConteoEn: ultimoConteoEn ?? this.ultimoConteoEn,
       guardandoProductos: guardandoProductos ?? this.guardandoProductos,
       loading: loading ?? this.loading,
       failure: clearFailure ? null : (failure ?? this.failure),
@@ -87,10 +99,21 @@ class InventarioConteoNotifier extends StateNotifier<InventarioConteoState> {
       final productos = await _loadAllProducts(selectedSucursalId);
       final registros = await _loadInventoryRecords(selectedSucursalId);
       final registrosHoy = _latestRecordsToday(registros);
+      final ultimosConteos = _latestPhysicalCounts(registros);
+      final conteosPendientes = <int, InventarioResponseModel>{
+        for (final entry in ultimosConteos.entries)
+          if (entry.value.invtOrigen == 'CONTEO_FISICO' &&
+              (entry.value.invtDiferencia ?? 0).abs() > 0.0001)
+            entry.key: entry.value,
+      };
+      final ultimoConteoEn = _latestCountDate(ultimosConteos.values);
 
       state = InventarioConteoState(
         productos: productos,
         registrosHoy: registrosHoy,
+        ultimosConteos: ultimosConteos,
+        conteosPendientes: conteosPendientes,
+        ultimoConteoEn: ultimoConteoEn,
         sucursalId: selectedSucursalId,
         actualizadoEn: DateTime.now(),
       );
@@ -166,6 +189,20 @@ class InventarioConteoNotifier extends StateNotifier<InventarioConteoState> {
         ...state.registrosHoy,
         productId: saved,
       };
+      final updatedLastCounts = <int, InventarioResponseModel>{
+        ...state.ultimosConteos,
+        productId: saved,
+      };
+      final updatedPending = <int, InventarioResponseModel>{
+        ...state.conteosPendientes,
+      };
+      if (saved.invtOrigen == 'CONTEO_FISICO' &&
+          (saved.invtDiferencia ?? 0).abs() > 0.0001) {
+        updatedPending[productId] = saved;
+      } else {
+        updatedPending.remove(productId);
+      }
+
       final updatedProducts = state.productos
           .map(
             (item) => item.prodId == productId
@@ -174,10 +211,14 @@ class InventarioConteoNotifier extends StateNotifier<InventarioConteoState> {
           )
           .toList(growable: false);
       final saving = {...state.guardandoProductos}..remove(productId);
+      final savedDate = DateTime.tryParse(saved.invtFecha ?? '');
 
       state = state.copyWith(
         productos: updatedProducts,
         registrosHoy: updatedRecords,
+        ultimosConteos: updatedLastCounts,
+        conteosPendientes: updatedPending,
+        ultimoConteoEn: savedDate ?? state.ultimoConteoEn,
         guardandoProductos: saving,
         actualizadoEn: DateTime.now(),
         clearFailure: true,
@@ -275,6 +316,42 @@ class InventarioConteoNotifier extends StateNotifier<InventarioConteoState> {
           .toList(growable: false),
     );
     return response.data ?? const <InventarioResponseModel>[];
+  }
+
+  Map<int, InventarioResponseModel> _latestPhysicalCounts(
+    List<InventarioResponseModel> records,
+  ) {
+    final result = <int, InventarioResponseModel>{};
+
+    for (final record in records) {
+      if (!(record.invtOrigen ?? '').startsWith('CONTEO_FISICO')) continue;
+      final productId = record.prodId;
+      final date = DateTime.tryParse(record.invtFecha ?? '');
+      if (productId == null || date == null) continue;
+
+      final current = result[productId];
+      final currentDate = DateTime.tryParse(current?.invtFecha ?? '');
+      if (current == null ||
+          currentDate == null ||
+          date.isAfter(currentDate) ||
+          (date.isAtSameMomentAs(currentDate) &&
+              (record.invtId ?? 0) > (current.invtId ?? 0))) {
+        result[productId] = record;
+      }
+    }
+    return result;
+  }
+
+  DateTime? _latestCountDate(
+    Iterable<InventarioResponseModel> records,
+  ) {
+    DateTime? latest;
+    for (final record in records) {
+      final date = DateTime.tryParse(record.invtFecha ?? '');
+      if (date == null) continue;
+      if (latest == null || date.isAfter(latest)) latest = date;
+    }
+    return latest;
   }
 
   Map<int, InventarioResponseModel> _latestRecordsToday(
