@@ -97,6 +97,7 @@ class ReportesPage extends ConsumerWidget {
       icon: Icons.inventory_2_rounded,
       chartLabelKey: 'producto',
       chartValueKey: 'unidades',
+      percentageKeys: ['salud_inventario_porcentaje'],
     ),
     _ReportDefinition(
       keyName: 'ganancias',
@@ -165,6 +166,7 @@ class ReportesPage extends ConsumerWidget {
       chartLabelKey: 'producto',
       chartValueKey: 'cantidad',
       currencyKeys: ['total', 'precio_promedio'],
+      percentageKeys: ['concentracion_top_3_porcentaje'],
     ),
     _ReportDefinition(
       keyName: 'reporte_movimientos_inventario',
@@ -186,7 +188,10 @@ class ReportesPage extends ConsumerWidget {
       chartLabelKey: 'producto',
       chartValueKey: 'rotacion_porcentaje',
       currencyKeys: ['valor_vendido'],
-      percentageKeys: ['rotacion_porcentaje'],
+      percentageKeys: [
+        'rotacion_porcentaje',
+        'rotacion_promedio_porcentaje',
+      ],
     ),
     _ReportDefinition(
       keyName: 'reporte_alertas_inventario',
@@ -197,7 +202,10 @@ class ReportesPage extends ConsumerWidget {
       requiresDates: true,
       chartLabelKey: 'producto',
       chartValueKey: 'ventas_periodo',
-      currencyKeys: ['valor_vendido'],
+      currencyKeys: [
+        'valor_vendido',
+        'valor_vendido_en_riesgo',
+      ],
       percentageKeys: ['rotacion_porcentaje'],
     ),
     _ReportDefinition(
@@ -209,6 +217,7 @@ class ReportesPage extends ConsumerWidget {
       requiresDates: true,
       chartLabelKey: 'responsable',
       chartValueKey: 'unidades_salida',
+      percentageKeys: ['concentracion_principal_porcentaje'],
     ),
   ];
 
