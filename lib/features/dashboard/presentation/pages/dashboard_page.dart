@@ -1051,6 +1051,7 @@ class _ProfitabilityChart extends StatelessWidget {
     required this.costOfSales,
     required this.fixed,
     required this.variable,
+    required this.turnExpenses,
     required this.labor,
     required this.net,
     required this.palette,
@@ -1060,6 +1061,7 @@ class _ProfitabilityChart extends StatelessWidget {
   final double costOfSales;
   final double fixed;
   final double variable;
+  final double turnExpenses;
   final double labor;
   final double net;
   final AppPalette palette;
@@ -1070,7 +1072,8 @@ class _ProfitabilityChart extends StatelessWidget {
       ('Ingresos', sales, palette.secondary),
       ('Costo vendido', costOfSales, Colors.orange),
       ('Gastos fijos', fixed, Colors.blueAccent),
-      ('Variables', variable, Colors.amber),
+      ('Variables configurados', variable, Colors.amber),
+      ('Gastos del turno', turnExpenses, Colors.orangeAccent),
       ('Mano de obra', labor, Colors.deepPurpleAccent),
       ('Ganancia neta', net, net >= 0 ? Colors.greenAccent : Colors.redAccent),
     ];
@@ -1463,6 +1466,7 @@ class _FinancialBreakdown extends StatelessWidget {
     required this.gross,
     required this.fixed,
     required this.variable,
+    required this.turnExpenses,
     required this.labor,
     required this.net,
     required this.palette,
@@ -1473,6 +1477,7 @@ class _FinancialBreakdown extends StatelessWidget {
   final double gross;
   final double fixed;
   final double variable;
+  final double turnExpenses;
   final double labor;
   final double net;
   final AppPalette palette;
@@ -1484,7 +1489,8 @@ class _FinancialBreakdown extends StatelessWidget {
       ('Costo vendido', costOfSales, Icons.shopping_cart_checkout_rounded),
       ('Ganancia bruta', gross, Icons.account_balance_wallet_rounded),
       ('Gastos fijos', fixed, Icons.lock_outline_rounded),
-      ('Gastos variables', variable, Icons.tune_rounded),
+      ('Variables configurados', variable, Icons.tune_rounded),
+      ('Gastos del turno', turnExpenses, Icons.outbox_rounded),
       ('Mano de obra', labor, Icons.groups_rounded),
       ('Ganancia neta', net, Icons.trending_up_rounded),
     ];
@@ -1495,7 +1501,7 @@ class _FinancialBreakdown extends StatelessWidget {
             ? 2
             : constraints.maxWidth < 1100
                 ? 4
-                : 7;
+                : 8;
         const spacing = 8.0;
         final width =
             (constraints.maxWidth - spacing * (columns - 1)) / columns;
