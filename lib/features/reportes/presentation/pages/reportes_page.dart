@@ -3997,6 +3997,9 @@ class _NextOrderContentState extends ConsumerState<_NextOrderContent> {
   bool _sendingWhatsapp = false;
   int? _confirmedOrderId;
   String? _confirmedWhatsapp;
+  double _confirmedPaid = 0;
+  double _confirmedBalance = 0;
+  String? _confirmedPaymentStatus;
   List<Map<String, dynamic>> _confirmedRows = const <Map<String, dynamic>>[];
 
   @override
@@ -4033,6 +4036,9 @@ class _NextOrderContentState extends ConsumerState<_NextOrderContent> {
     }
     _confirmedOrderId = null;
     _confirmedWhatsapp = null;
+    _confirmedPaid = 0;
+    _confirmedBalance = 0;
+    _confirmedPaymentStatus = null;
     _confirmedRows = const <Map<String, dynamic>>[];
   }
 
@@ -4391,13 +4397,17 @@ class _NextOrderContentState extends ConsumerState<_NextOrderContent> {
         setState(() {
           _confirmedOrderId = (data['pediId'] as num?)?.toInt();
           _confirmedWhatsapp = data['whatsappDestino']?.toString();
+          _confirmedPaid = _toDouble(data['totalPagado']);
+          _confirmedBalance = _toDouble(data['saldoPendiente']);
+          _confirmedPaymentStatus = data['estadoPago']?.toString();
           _confirmedRows = _confirmedDetailsToRows(data['detalles']);
         });
         if (showSuccess) {
           _showMessage(
             _confirmedOrderId == null
                 ? 'Pedido confirmado correctamente.'
-                : 'Pedido #$_confirmedOrderId confirmado correctamente.',
+                : 'Pedido #$_confirmedOrderId confirmado · saldo pendiente '
+                    '${_displayValue(_confirmedBalance, currency: true)}.',
           );
         }
       }
@@ -4657,6 +4667,10 @@ class _NextOrderContentState extends ConsumerState<_NextOrderContent> {
                                     observationController:
                                         _observationController,
                                     confirmedOrderId: _confirmedOrderId,
+                                    confirmedPaid: _confirmedPaid,
+                                    confirmedBalance: _confirmedBalance,
+                                    confirmedPaymentStatus:
+                                        _confirmedPaymentStatus,
                                     busy: _confirming ||
                                         _exportingSelection ||
                                         _sendingWhatsapp,
@@ -5342,6 +5356,9 @@ class _OrderCartSummary extends StatelessWidget {
     required this.palette,
     required this.observationController,
     required this.confirmedOrderId,
+    required this.confirmedPaid,
+    required this.confirmedBalance,
+    required this.confirmedPaymentStatus,
     required this.busy,
     required this.confirming,
     required this.exporting,
@@ -5355,6 +5372,9 @@ class _OrderCartSummary extends StatelessWidget {
   final AppPalette palette;
   final TextEditingController observationController;
   final int? confirmedOrderId;
+  final double confirmedPaid;
+  final double confirmedBalance;
+  final String? confirmedPaymentStatus;
   final bool busy;
   final bool confirming;
   final bool exporting;
@@ -5517,13 +5537,43 @@ class _OrderCartSummary extends StatelessWidget {
                       color: Colors.green, size: 18),
                   const SizedBox(width: 7),
                   Expanded(
-                    child: Text(
-                      'Pedido #$confirmedOrderId confirmado',
-                      style: TextStyle(
-                        color: palette.textPrimary,
-                        fontWeight: FontWeight.w900,
-                        fontSize: 10.5,
-                      ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'Pedido #$confirmedOrderId confirmado',
+                          style: TextStyle(
+                            color: palette.textPrimary,
+                            fontWeight: FontWeight.w900,
+                            fontSize: 10.5,
+                          ),
+                        ),
+                        const SizedBox(height: 2),
+                        Text(
+                          '${confirmedPaymentStatus ?? 'PENDIENTE'} · '
+                          'Pagado ${_displayValue(confirmedPaid, currency: true)} · '
+                          'Saldo ${_displayValue(confirmedBalance, currency: true)}',
+                          style: TextStyle(
+                            color: palette.textSecondary,
+                            fontWeight: FontWeight.w700,
+                            fontSize: 9.5,
+                          ),
+                        ),
+                        const SizedBox(height: 2),
+                        Text(
+                          confirmedBalance > 0
+                              ? 'Puedes registrar el pago desde Cierre de caja → Registrar salida → Pago de pedido.'
+                              : 'Este pedido no tiene saldo pendiente.',
+                          style: TextStyle(
+                            color: confirmedBalance > 0
+                                ? palette.secondary
+                                : palette.success,
+                            fontWeight: FontWeight.w700,
+                            fontSize: 9.5,
+                            height: 1.25,
+                          ),
+                        ),
+                      ],
                     ),
                   ),
                 ],
