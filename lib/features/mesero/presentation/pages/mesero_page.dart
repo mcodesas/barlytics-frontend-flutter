@@ -4324,6 +4324,103 @@ class _MeseroPageState extends ConsumerState<MeseroPage> {
     }
   }
 
+  Future<void> _registrarSalidaCaja(CierreCajaResumenModel cierre) async {
+    try {
+      final opciones = await _dataSource.opcionesSalidaCaja();
+      if (!mounted) return;
+
+      final decision = await showDialog<_SalidaCajaDecision>(
+        context: context,
+        barrierDismissible: false,
+        builder: (dialogContext) => Dialog(
+          insetPadding: EdgeInsets.symmetric(
+            horizontal: MediaQuery.sizeOf(dialogContext).width < 700 ? 10 : 24,
+            vertical: 18,
+          ),
+          clipBehavior: Clip.antiAlias,
+          child: _SalidaCajaDialog(
+            opciones: opciones,
+            palette: ref.read(selectedAppPaletteProvider),
+          ),
+        ),
+      );
+
+      if (decision == null || !mounted) return;
+
+      setState(() => _processing = true);
+      await _dataSource.registrarSalidaCaja(
+        fecha: cierre.fecha ?? _fechaIso(_fechaCierreActual),
+        tipo: decision.tipo,
+        valor: decision.valor,
+        categoria: decision.categoria,
+        descripcion: decision.descripcion,
+        gastoId: decision.gastoId,
+        pedidoId: decision.pedidoId,
+      );
+      await _reloadCierreCaja();
+      if (!mounted) return;
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            'Salida registrada: ${CurrencyUtils.format(decision.valor)}',
+          ),
+        ),
+      );
+    } catch (error) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('No fue posible registrar la salida: $error')),
+      );
+    } finally {
+      if (mounted) setState(() => _processing = false);
+    }
+  }
+
+  Future<void> _anularSalidaCaja(
+    CierreCajaResumenModel cierre,
+    SalidaCajaModel salida,
+  ) async {
+    final id = salida.salidaId;
+    if (id == null) return;
+
+    final confirmado = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Anular salida de caja'),
+        content: Text(
+          'Se anulará ${salida.descripcion ?? 'esta salida'} por '
+          '${CurrencyUtils.format(salida.valor)}. '
+          'Si corresponde a un pedido, el saldo pendiente se restaurará.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext, false),
+            child: const Text('Cancelar'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(dialogContext, true),
+            child: const Text('Anular salida'),
+          ),
+        ],
+      ),
+    );
+    if (confirmado != true) return;
+
+    try {
+      setState(() => _processing = true);
+      await _dataSource.anularSalidaCaja(id);
+      await _reloadCierreCaja();
+    } catch (error) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('No fue posible anular la salida: $error')),
+      );
+    } finally {
+      if (mounted) setState(() => _processing = false);
+    }
+  }
+
   Future<void> _registrarCierreCaja(CierreCajaResumenModel cierre) async {
     final esModificacion = cierre.cerrado == true && cierre.cierreCajaId != null;
     final controllers = <int, TextEditingController>{};
