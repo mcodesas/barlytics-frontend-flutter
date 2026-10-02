@@ -5097,7 +5097,7 @@ class _MeseroPageState extends ConsumerState<MeseroPage> {
           valorBase: valorBase,
           totalGastos: totalGastos,
           propinas: cierre.totalPropinas ?? 0,
-          gastosRegistrados: cierre.gastos.length,
+          gastosRegistrados: cierre.gastos.length + cierre.salidasCaja.length,
           onEditarBase: cerrado ? null : () => _registrarBaseInicialCierreCaja(cierre),
           onCerrar: puedeCerrar ? () => _registrarCierreCaja(cierre) : null,
         );
@@ -5131,10 +5131,22 @@ class _MeseroPageState extends ConsumerState<MeseroPage> {
             const SizedBox(height: 16),
             _CierrePosMovimientosPanel(
               valorBase: valorBase,
-              totalGastos: totalGastos,
-              gastos: cierre.gastos,
+              totalSalidas: totalGastos,
+              totalGastosTurno: cierre.totalGastosTurno ?? 0,
+              totalPagosPedidos: cierre.totalPagosPedidos ?? 0,
+              totalPagosGastos: cierre.totalPagosGastosConfigurados ?? 0,
+              salidas: cierre.salidasCaja,
+              gastosLegacy: cierre.gastos,
               cerrado: cerrado,
-              onEditarBase: cerrado ? null : () => _registrarBaseInicialCierreCaja(cierre),
+              onEditarBase: cerrado
+                  ? null
+                  : () => _registrarBaseInicialCierreCaja(cierre),
+              onRegistrarSalida: cerrado || _processing
+                  ? null
+                  : () => _registrarSalidaCaja(cierre),
+              onAnularSalida: cerrado || _processing
+                  ? null
+                  : (salida) => _anularSalidaCaja(cierre, salida),
             ),
             const SizedBox(height: 14),
             _CierreCollapsibleSection(
@@ -6214,67 +6226,366 @@ class _CierrePosSummaryRow extends ConsumerWidget {
 class _CierrePosMovimientosPanel extends ConsumerWidget {
   const _CierrePosMovimientosPanel({
     required this.valorBase,
-    required this.totalGastos,
-    required this.gastos,
+    required this.totalSalidas,
+    required this.totalGastosTurno,
+    required this.totalPagosPedidos,
+    required this.totalPagosGastos,
+    required this.salidas,
+    required this.gastosLegacy,
     required this.cerrado,
     this.onEditarBase,
+    this.onRegistrarSalida,
+    this.onAnularSalida,
   });
 
   final double valorBase;
-  final double totalGastos;
-  final List<CierreCajaGastoModel> gastos;
+  final double totalSalidas;
+  final double totalGastosTurno;
+  final double totalPagosPedidos;
+  final double totalPagosGastos;
+  final List<SalidaCajaModel> salidas;
+  final List<CierreCajaGastoModel> gastosLegacy;
   final bool cerrado;
   final VoidCallback? onEditarBase;
+  final VoidCallback? onRegistrarSalida;
+  final ValueChanged<SalidaCajaModel>? onAnularSalida;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final palette = ref.watch(selectedAppPaletteProvider);
+
+    final header = LayoutBuilder(
+      builder: (context, constraints) {
+        final compact = constraints.maxWidth < 720;
+        final title = Row(
+          children: [
+            Icon(Icons.swap_vert_circle_rounded, color: palette.secondary),
+            const SizedBox(width: 9),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Movimientos de efectivo',
+                    style: TextStyle(
+                      color: palette.textPrimary,
+                      fontWeight: FontWeight.w900,
+                      fontSize: 16,
+                    ),
+                  ),
+                  Text(
+                    'Todo lo que salió de caja durante el turno, clasificado sin duplicar costos.',
+                    style: TextStyle(
+                      color: palette.textSecondary,
+                      fontWeight: FontWeight.w600,
+                      fontSize: 11,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        );
+
+        final actions = Wrap(
+          spacing: 8,
+          runSpacing: 8,
+          children: [
+            if (onEditarBase != null)
+              OutlinedButton.icon(
+                onPressed: onEditarBase,
+                icon: const Icon(Icons.savings_rounded, size: 18),
+                label: const Text('Base inicial'),
+              ),
+            if (onRegistrarSalida != null)
+              FilledButton.icon(
+                onPressed: onRegistrarSalida,
+                icon: const Icon(Icons.outbox_rounded, size: 18),
+                label: const Text('Registrar salida'),
+              ),
+          ],
+        );
+
+        if (compact) {
+          return Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              title,
+              const SizedBox(height: 12),
+              actions,
+            ],
+          );
+        }
+        return Row(
+          children: [
+            Expanded(child: title),
+            const SizedBox(width: 12),
+            actions,
+          ],
+        );
+      },
+    );
+
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: palette.surface.withOpacity(palette.darkBackground ? 0.86 : 0.98),
+        color: palette.surface.withOpacity(
+          palette.darkBackground ? 0.86 : 0.98,
+        ),
         borderRadius: BorderRadius.circular(22),
         border: Border.all(color: palette.cardBorder),
       ),
-      child: LayoutBuilder(
-        builder: (context, constraints) {
-          final compact = constraints.maxWidth < 680;
-          final metrics = Wrap(
-            spacing: 10,
-            runSpacing: 10,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          header,
+          const SizedBox(height: 14),
+          Wrap(
+            spacing: 9,
+            runSpacing: 9,
             children: [
-              _CierrePosMovementChip(icon: Icons.savings_rounded, label: 'Base inicial', value: CurrencyUtils.format(valorBase)),
-              _CierrePosMovementChip(icon: Icons.shopping_bag_rounded, label: 'Gastos', value: CurrencyUtils.format(totalGastos)),
-              _CierrePosMovementChip(icon: Icons.receipt_long_rounded, label: 'Movimientos', value: '${gastos.length}'),
-            ],
-          );
-          final title = Row(
-            children: [
-              Icon(Icons.swap_vert_circle_rounded, color: palette.secondary),
-              const SizedBox(width: 9),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text('Movimientos de efectivo', style: TextStyle(color: palette.textPrimary, fontWeight: FontWeight.w900, fontSize: 16)),
-                    Text('Base y gastos que afectan el cuadre.', style: TextStyle(color: palette.textSecondary, fontWeight: FontWeight.w600, fontSize: 12)),
-                  ],
-                ),
+              _CierrePosMovementChip(
+                icon: Icons.savings_rounded,
+                label: 'Base',
+                value: CurrencyUtils.format(valorBase),
+              ),
+              _CierrePosMovementChip(
+                icon: Icons.outbox_rounded,
+                label: 'Salidas',
+                value: CurrencyUtils.format(totalSalidas),
+              ),
+              _CierrePosMovementChip(
+                icon: Icons.shopping_bag_outlined,
+                label: 'Gasto turno',
+                value: CurrencyUtils.format(totalGastosTurno),
+              ),
+              _CierrePosMovementChip(
+                icon: Icons.local_shipping_outlined,
+                label: 'Pedidos',
+                value: CurrencyUtils.format(totalPagosPedidos),
+              ),
+              _CierrePosMovementChip(
+                icon: Icons.receipt_long_outlined,
+                label: 'Facturas',
+                value: CurrencyUtils.format(totalPagosGastos),
               ),
             ],
-          );
-          final edit = onEditarBase == null
-              ? null
-              : OutlinedButton.icon(onPressed: onEditarBase, icon: const Icon(Icons.edit_rounded, size: 18), label: const Text('Editar'));
-          if (compact) {
-            return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [title, const SizedBox(height: 12), metrics, if (edit != null) ...[const SizedBox(height: 12), edit]]);
-          }
-          return Row(children: [Expanded(flex: 3, child: title), const SizedBox(width: 16), Expanded(flex: 4, child: metrics), if (edit != null) ...[const SizedBox(width: 12), edit]]);
-        },
+          ),
+          if (salidas.isNotEmpty || gastosLegacy.isNotEmpty) ...[
+            const SizedBox(height: 14),
+            Divider(height: 1, color: palette.cardBorder),
+            const SizedBox(height: 10),
+            for (final salida in salidas) ...[
+              _SalidaCajaRow(
+                salida: salida,
+                palette: palette,
+                onAnular: onAnularSalida == null
+                    ? null
+                    : () => onAnularSalida!(salida),
+              ),
+              const SizedBox(height: 7),
+            ],
+            for (final gasto in gastosLegacy) ...[
+              _SalidaCajaLegacyRow(gasto: gasto, palette: palette),
+              const SizedBox(height: 7),
+            ],
+          ] else ...[
+            const SizedBox(height: 12),
+            Text(
+              cerrado
+                  ? 'No se registraron salidas de efectivo en este turno.'
+                  : 'Aún no hay salidas. Registra aquí cualquier dinero que salga de caja durante el turno.',
+              style: TextStyle(
+                color: palette.textSecondary,
+                fontWeight: FontWeight.w600,
+                fontSize: 11,
+              ),
+            ),
+          ],
+        ],
       ),
     );
   }
+}
+
+class _SalidaCajaRow extends StatelessWidget {
+  const _SalidaCajaRow({
+    required this.salida,
+    required this.palette,
+    this.onAnular,
+  });
+
+  final SalidaCajaModel salida;
+  final AppPalette palette;
+  final VoidCallback? onAnular;
+
+  @override
+  Widget build(BuildContext context) {
+    final type = salida.tipo ?? 'GASTO_TURNO';
+    final icon = switch (type) {
+      'PAGO_PEDIDO' => Icons.local_shipping_outlined,
+      'PAGO_GASTO' => Icons.receipt_long_outlined,
+      _ => Icons.shopping_bag_outlined,
+    };
+    final label = switch (type) {
+      'PAGO_PEDIDO' => 'Pago pedido #' + (salida.pedidoId?.toString() ?? '-'),
+      'PAGO_GASTO' => 'Pago de factura/gasto',
+      _ => 'Gasto del turno',
+    };
+    final affects = salida.afectaResultado == true;
+
+    return Container(
+      padding: const EdgeInsets.all(11),
+      decoration: BoxDecoration(
+        color: palette.background.withOpacity(.30),
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: palette.cardBorder.withOpacity(.65)),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Container(
+            width: 36,
+            height: 36,
+            decoration: BoxDecoration(
+              color: palette.secondary.withOpacity(.09),
+              borderRadius: BorderRadius.circular(11),
+            ),
+            child: Icon(icon, color: palette.secondary, size: 18),
+          ),
+          const SizedBox(width: 9),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  label,
+                  style: TextStyle(
+                    color: palette.textPrimary,
+                    fontWeight: FontWeight.w900,
+                    fontSize: 11.5,
+                  ),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  salida.descripcion ?? '-',
+                  style: TextStyle(
+                    color: palette.textSecondary,
+                    fontWeight: FontWeight.w600,
+                    fontSize: 10,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Wrap(
+                  spacing: 8,
+                  runSpacing: 4,
+                  children: [
+                    if ((salida.categoria ?? '').trim().isNotEmpty)
+                      Text(
+                        salida.categoria!,
+                        style: TextStyle(
+                          color: palette.textSecondary,
+                          fontSize: 9,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                    Text(
+                      affects
+                          ? 'Afecta rentabilidad'
+                          : 'Solo flujo de caja',
+                      style: TextStyle(
+                        color: affects
+                            ? palette.warning
+                            : palette.success,
+                        fontSize: 9,
+                        fontWeight: FontWeight.w800,
+                      ),
+                    ),
+                    if ((salida.registradoPor ?? '').trim().isNotEmpty)
+                      Text(
+                        'Por ' + salida.registradoPor!,
+                        style: TextStyle(
+                          color: palette.textSecondary,
+                          fontSize: 9,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(width: 8),
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.end,
+            children: [
+              Text(
+                CurrencyUtils.format(salida.valor),
+                style: TextStyle(
+                  color: palette.textPrimary,
+                  fontWeight: FontWeight.w900,
+                  fontSize: 12,
+                ),
+              ),
+              if (onAnular != null)
+                IconButton(
+                  tooltip: 'Anular salida',
+                  visualDensity: VisualDensity.compact,
+                  onPressed: onAnular,
+                  icon: const Icon(Icons.delete_outline_rounded, size: 18),
+                ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _SalidaCajaLegacyRow extends StatelessWidget {
+  const _SalidaCajaLegacyRow({
+    required this.gasto,
+    required this.palette,
+  });
+
+  final CierreCajaGastoModel gasto;
+  final AppPalette palette;
+
+  @override
+  Widget build(BuildContext context) => Container(
+        padding: const EdgeInsets.all(10),
+        decoration: BoxDecoration(
+          color: palette.background.withOpacity(.22),
+          borderRadius: BorderRadius.circular(13),
+          border: Border.all(color: palette.cardBorder.withOpacity(.55)),
+        ),
+        child: Row(
+          children: [
+            Icon(Icons.history_rounded, color: palette.textSecondary, size: 17),
+            const SizedBox(width: 8),
+            Expanded(
+              child: Text(
+                'Gasto histórico · ' + (gasto.descripcion ?? '-'),
+                style: TextStyle(
+                  color: palette.textSecondary,
+                  fontWeight: FontWeight.w700,
+                  fontSize: 10,
+                ),
+              ),
+            ),
+            Text(
+              CurrencyUtils.format(gasto.valor),
+              style: TextStyle(
+                color: palette.textPrimary,
+                fontWeight: FontWeight.w900,
+                fontSize: 10.5,
+              ),
+            ),
+          ],
+        ),
+      );
+
 }
 
 class _CierrePosMovementChip extends ConsumerWidget {
