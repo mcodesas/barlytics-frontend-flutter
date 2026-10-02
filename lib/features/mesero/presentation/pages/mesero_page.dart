@@ -6155,7 +6155,7 @@ class _CierrePosResumenPanel extends ConsumerWidget {
           _CierrePosSummaryRow(label: 'Ventas del sistema', value: CurrencyUtils.format(totalVendido)),
           _CierrePosSummaryRow(label: 'Propinas', value: CurrencyUtils.format(propinas)),
           _CierrePosSummaryRow(label: 'Base inicial', value: CurrencyUtils.format(valorBase)),
-          _CierrePosSummaryRow(label: 'Gastos ($gastosRegistrados)', value: CurrencyUtils.format(totalGastos)),
+          _CierrePosSummaryRow(label: 'Salidas de caja ($gastosRegistrados)', value: CurrencyUtils.format(totalGastos)),
           _CierrePosSummaryRow(label: 'Total contado', value: CurrencyUtils.format(totalEntregado)),
           const SizedBox(height: 8),
           Divider(height: 1, color: palette.cardBorder),
@@ -6621,6 +6621,13 @@ class _CierrePosMovementChip extends ConsumerWidget {
 
 
 
+String _tipoSalidaCajaLabel(String? tipo) => switch (tipo) {
+      'PAGO_PEDIDO' => 'Pago de pedido',
+      'PAGO_GASTO' => 'Pago de factura/gasto',
+      'GASTO_TURNO' => 'Gasto del turno',
+      _ => tipo ?? 'Salida',
+    };
+
 bool _esMedioEfectivoCierre(String? nombre) {
   final value = (nombre ?? '').toLowerCase().trim();
   return value.contains('efectivo') || value.contains('cash');
@@ -6730,7 +6737,7 @@ Future<Uint8List> _crearPdfCierreCaja(CierreCajaResumenModel cierre) async {
             pw.TableRow(children: [
               summaryBox('Entregado medios', CurrencyUtils.format(cierre.totalEntregado)),
               summaryBox('Base inicial', CurrencyUtils.format(cierre.valorBase)),
-              summaryBox('Gastos', CurrencyUtils.format(cierre.totalGastos)),
+              summaryBox('Salidas de caja', CurrencyUtils.format(cierre.totalGastos)),
             ]),
             pw.TableRow(children: [
               summaryBox('Total cruce', CurrencyUtils.format(cierre.totalCruce ?? ((cierre.totalEntregado ?? 0) + (cierre.totalGastos ?? 0) - (cierre.valorBase ?? 0)))),
@@ -6740,7 +6747,7 @@ Future<Uint8List> _crearPdfCierreCaja(CierreCajaResumenModel cierre) async {
           ],
         ),
         pw.SizedBox(height: 8),
-        pw.Text('Formula de cruce: total contado por medios + gastos - base inicial = dinero real de ventas. Diferencia = cruce - total vendido.', style: const pw.TextStyle(fontSize: 8)),
+        pw.Text('Formula de cruce: total contado por medios + salidas de caja - base inicial = dinero real de ventas. Diferencia = cruce - total vendido.', style: const pw.TextStyle(fontSize: 8)),
         sectionTitle('1. Medios de pago - recibido, contado y diferencia ajustada'),
         pw.Table.fromTextArray(
           headerDecoration: pw.BoxDecoration(color: PdfColor.fromHex('#E2E8F0')),
@@ -6756,16 +6763,56 @@ Future<Uint8List> _crearPdfCierreCaja(CierreCajaResumenModel cierre) async {
             m.medioPagoNombre ?? '-',
           ]).toList(),
         ),
-        sectionTitle('2. Base inicial y gastos del turno'),
+        sectionTitle('2. Base inicial y salidas del turno'),
         pw.Table.fromTextArray(
           headerDecoration: pw.BoxDecoration(color: PdfColor.fromHex('#E2E8F0')),
           headerStyle: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 8),
           cellStyle: const pw.TextStyle(fontSize: 8),
           cellAlignment: pw.Alignment.centerLeft,
-          headers: const ['Valor', 'Concepto', 'Descripción'],
+          headers: const ['Valor', 'Tipo', 'Descripción', 'Responsable'],
           data: [
-            [CurrencyUtils.format(cierre.valorBase), 'Base inicial recibida', 'Dinero recibido al iniciar el turno; se resta porque está incluido en el efectivo contado'],
-            ...cierre.gastos.map((g) => [CurrencyUtils.format(g.valor), 'Gasto', g.descripcion ?? '-']),
+            [
+              CurrencyUtils.format(cierre.valorBase),
+              'Base inicial',
+              'Dinero recibido al iniciar el turno',
+              '-',
+            ],
+            ...cierre.salidasCaja.map((s) => [
+                  CurrencyUtils.format(s.valor),
+                  _tipoSalidaCajaLabel(s.tipo),
+                  s.descripcion ?? '-',
+                  s.registradoPor ?? '-',
+                ]),
+            ...cierre.gastos.map((g) => [
+                  CurrencyUtils.format(g.valor),
+                  'Gasto histórico',
+                  g.descripcion ?? '-',
+                  '-',
+                ]),
+          ],
+        ),
+        pw.SizedBox(height: 8),
+        pw.Table(
+          columnWidths: {
+            0: pw.FlexColumnWidth(),
+            1: pw.FlexColumnWidth(),
+            2: pw.FlexColumnWidth(),
+          },
+          children: [
+            pw.TableRow(children: [
+              summaryBox(
+                'Gastos del turno',
+                CurrencyUtils.format(cierre.totalGastosTurno),
+              ),
+              summaryBox(
+                'Pagos de pedidos',
+                CurrencyUtils.format(cierre.totalPagosPedidos),
+              ),
+              summaryBox(
+                'Pagos de facturas',
+                CurrencyUtils.format(cierre.totalPagosGastosConfigurados),
+              ),
+            ]),
           ],
         ),
         sectionTitle('3. Productos vendidos'),
