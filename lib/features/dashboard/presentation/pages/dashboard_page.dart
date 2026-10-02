@@ -194,6 +194,10 @@ class _DashboardPageState extends ConsumerState<DashboardPage> {
     final gross = financeValue('ganancia_bruta_periodo');
     final fixed = financeValue('gastos_fijos_periodo');
     final turnExpenses = financeValue('gastos_turno_periodo');
+    final cashOut = financeValue('salidas_caja_periodo');
+    final orderPayments = financeValue('pagos_pedidos_periodo');
+    final configuredExpensePayments =
+        financeValue('pagos_gastos_configurados_periodo');
     final variable = financeValue('gastos_variables_periodo');
     final configuredVariable =
         math.max(0.0, variable - turnExpenses).toDouble();
@@ -363,6 +367,14 @@ class _DashboardPageState extends ConsumerState<DashboardPage> {
                           'Compras menores y salidas que sí afectan utilidad',
                           Icons.outbox_rounded,
                           Colors.orangeAccent,
+                        ),
+                        _Kpi(
+                          'Salidas de caja',
+                          CurrencyUtils.format(cashOut),
+                          '${CurrencyUtils.format(orderPayments)} pedidos · '
+                          '${CurrencyUtils.format(configuredExpensePayments)} facturas',
+                          Icons.account_balance_wallet_outlined,
+                          Colors.cyanAccent,
                         ),
                         _Kpi(
                           'Próximo pedido',
