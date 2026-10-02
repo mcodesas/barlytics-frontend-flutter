@@ -4001,11 +4001,16 @@ class _NextOrderContentState extends ConsumerState<_NextOrderContent> {
   double _confirmedBalance = 0;
   String? _confirmedPaymentStatus;
   List<Map<String, dynamic>> _confirmedRows = const <Map<String, dynamic>>[];
+  Future<List<Map<String, dynamic>>>? _orderHistoryFuture;
+  int? _orderHistoryBranchId;
 
   @override
   void initState() {
     super.initState();
     _initializeSelection();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) _refreshOrderHistory();
+    });
   }
 
   @override
@@ -4013,6 +4018,9 @@ class _NextOrderContentState extends ConsumerState<_NextOrderContent> {
     super.didUpdateWidget(oldWidget);
     if (!identical(oldWidget.payload.rows, widget.payload.rows)) {
       _initializeSelection();
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) _refreshOrderHistory();
+      });
     }
   }
 
@@ -4258,6 +4266,38 @@ class _NextOrderContentState extends ConsumerState<_NextOrderContent> {
         'total_estimado': _sum(rows, 'costo_pedido_estimado'),
       };
 
+  Future<List<Map<String, dynamic>>> _loadOrderHistory(
+    int branchId,
+  ) async {
+    final response = await ref.read(apiClientProvider).get<Object?>(
+          '/api/v1/pedidos-compra/sucursal/$branchId',
+          (json) => json,
+          queryParameters: const <String, dynamic>{'conSaldo': false},
+        );
+    final raw = response.data;
+    if (raw is! List) return const <Map<String, dynamic>>[];
+    return raw
+        .whereType<Map>()
+        .map((item) => Map<String, dynamic>.from(item))
+        .toList(growable: false);
+  }
+
+  void _refreshOrderHistory() {
+    final branchId = ref.read(branchScopeProvider).activeBranchId;
+    if (branchId == null) {
+      setState(() {
+        _orderHistoryBranchId = null;
+        _orderHistoryFuture =
+            Future.value(const <Map<String, dynamic>>[]);
+      });
+      return;
+    }
+    setState(() {
+      _orderHistoryBranchId = branchId;
+      _orderHistoryFuture = _loadOrderHistory(branchId);
+    });
+  }
+
   Future<void> _exportSelectedPdf() async {
     final rows = _effectiveOrderRows;
     if (rows.isEmpty || _exportingSelection) return;
@@ -4402,6 +4442,7 @@ class _NextOrderContentState extends ConsumerState<_NextOrderContent> {
           _confirmedPaymentStatus = data['estadoPago']?.toString();
           _confirmedRows = _confirmedDetailsToRows(data['detalles']);
         });
+        _refreshOrderHistory();
         if (showSuccess) {
           _showMessage(
             _confirmedOrderId == null
@@ -4708,6 +4749,13 @@ class _NextOrderContentState extends ConsumerState<_NextOrderContent> {
                       ),
                     ],
                   ),
+                ),
+                const SizedBox(height: 12),
+                _OrderHistoryPanel(
+                  future: _orderHistoryFuture,
+                  branchId: _orderHistoryBranchId,
+                  palette: widget.palette,
+                  onRefresh: _refreshOrderHistory,
                 ),
                 const SizedBox(height: 12),
                 _OrderInventoryDiagnostics(
