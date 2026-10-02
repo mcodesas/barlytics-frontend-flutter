@@ -57,6 +57,9 @@ class ReportesPage extends ConsumerWidget {
         'ganancia_bruta_periodo',
         'gastos_fijos_periodo',
         'gastos_turno_periodo',
+        'salidas_caja_periodo',
+        'pagos_pedidos_periodo',
+        'pagos_gastos_configurados_periodo',
         'gastos_variables_periodo',
         'mano_obra_periodo',
         'gastos_operativos_periodo',
@@ -8344,6 +8347,16 @@ class _SummaryContent extends StatelessWidget {
         if (metrics.containsKey(key)) key: metrics[key],
     };
 
+    final cashMetrics = <String, dynamic>{
+      for (final key in const [
+        'salidas_caja_periodo',
+        'gastos_turno_periodo',
+        'pagos_pedidos_periodo',
+        'pagos_gastos_configurados_periodo',
+      ])
+        if (metrics.containsKey(key)) key: metrics[key],
+    };
+
     return ListView(
       padding: const EdgeInsets.fromLTRB(14, 8, 14, 28),
       children: [
@@ -8384,6 +8397,28 @@ class _SummaryContent extends StatelessWidget {
                   _ExecutiveFinanceOverview(
                     metrics: financialMetrics,
                     palette: palette,
+                  ),
+                ],
+                if (cashMetrics.isNotEmpty) ...[
+                  const SizedBox(height: 16),
+                  _ReportSectionTitle(
+                    title: 'Flujo de caja',
+                    subtitle:
+                        'Dinero que salió físicamente de caja, separado de los valores que realmente afectan la utilidad.',
+                    icon: Icons.swap_vert_circle_rounded,
+                    palette: palette,
+                  ),
+                  const SizedBox(height: 10),
+                  _MetricsGrid(
+                    metrics: cashMetrics,
+                    palette: palette,
+                    currencyKeys: const [
+                      'salidas_caja_periodo',
+                      'gastos_turno_periodo',
+                      'pagos_pedidos_periodo',
+                      'pagos_gastos_configurados_periodo',
+                    ],
+                    percentageKeys: const [],
                   ),
                 ],
                 const SizedBox(height: 16),
@@ -10646,6 +10681,10 @@ Map<String, dynamic> _buildMetrics(
       'costo_ventas_periodo',
       'ganancia_bruta_periodo',
       'gastos_fijos_periodo',
+      'gastos_turno_periodo',
+      'salidas_caja_periodo',
+      'pagos_pedidos_periodo',
+      'pagos_gastos_configurados_periodo',
       'gastos_variables_periodo',
       'mano_obra_periodo',
       'gastos_operativos_periodo',
@@ -11084,6 +11123,21 @@ double _toDouble(dynamic value) {
 }
 
 String _humanize(String value) {
+  const labels = <String, String>{
+    'gastos_turno_periodo': 'Gastos del turno',
+    'salidas_caja_periodo': 'Salidas de caja',
+    'pagos_pedidos_periodo': 'Pagos de pedidos',
+    'pagos_gastos_configurados_periodo': 'Pagos de facturas/gastos',
+    'gastos_variables_periodo': 'Gastos variables',
+    'gastos_fijos_periodo': 'Gastos fijos',
+    'mano_obra_periodo': 'Mano de obra',
+    'gastos_operativos_periodo': 'Gastos operativos',
+    'ganancia_neta_estimada_periodo': 'Ganancia neta estimada',
+    'ganancia_bruta_periodo': 'Ganancia bruta',
+    'costo_ventas_periodo': 'Costo de ventas',
+    'ingresos_periodo': 'Ingresos por productos',
+  };
+  if (labels.containsKey(value)) return labels[value]!;
   final spaced = value
       .replaceAllMapped(
         RegExp(r'([a-z0-9])([A-Z])'),
