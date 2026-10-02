@@ -6502,6 +6502,15 @@ class _SalidaCajaRow extends StatelessWidget {
                         fontWeight: FontWeight.w800,
                       ),
                     ),
+                    if ((salida.fechaHora ?? '').trim().isNotEmpty)
+                      Text(
+                        _formatHoraSalidaCaja(salida.fechaHora),
+                        style: TextStyle(
+                          color: palette.textSecondary,
+                          fontSize: 9,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
                     if ((salida.registradoPor ?? '').trim().isNotEmpty)
                       Text(
                         'Por ' + salida.registradoPor!,
@@ -6620,6 +6629,14 @@ class _CierrePosMovementChip extends ConsumerWidget {
 
 
 
+
+String _formatHoraSalidaCaja(String? value) {
+  final raw = value?.trim();
+  if (raw == null || raw.isEmpty) return '';
+  final parsed = DateTime.tryParse(raw);
+  if (parsed == null) return raw;
+  return DateFormat('hh:mm a', 'es_CO').format(parsed);
+}
 
 String _tipoSalidaCajaLabel(String? tipo) => switch (tipo) {
       'PAGO_PEDIDO' => 'Pago de pedido',
