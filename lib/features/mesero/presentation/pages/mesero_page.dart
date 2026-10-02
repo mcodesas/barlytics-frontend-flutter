@@ -5168,6 +5168,588 @@ class _MeseroPageState extends ConsumerState<MeseroPage> {
   }
 }
 
+class _SalidaCajaDecision {
+  const _SalidaCajaDecision({
+    required this.tipo,
+    required this.valor,
+    this.categoria,
+    this.descripcion,
+    this.gastoId,
+    this.pedidoId,
+  });
+
+  final String tipo;
+  final double valor;
+  final String? categoria;
+  final String? descripcion;
+  final int? gastoId;
+  final int? pedidoId;
+}
+
+class _SalidaCajaDialog extends StatefulWidget {
+  const _SalidaCajaDialog({
+    required this.opciones,
+    required this.palette,
+  });
+
+  final SalidaCajaOpcionesModel opciones;
+  final AppPalette palette;
+
+  @override
+  State<_SalidaCajaDialog> createState() => _SalidaCajaDialogState();
+}
+
+class _SalidaCajaDialogState extends State<_SalidaCajaDialog> {
+  final TextEditingController _valorController = TextEditingController();
+  final TextEditingController _descripcionController = TextEditingController();
+
+  String _tipo = 'GASTO_TURNO';
+  String _categoria = 'ASEO';
+  int? _gastoId;
+  int? _pedidoId;
+
+  static const List<String> _categorias = <String>[
+    'ASEO',
+    'INSUMOS',
+    'TRANSPORTE',
+    'MANTENIMIENTO',
+    'EMERGENCIA',
+    'OTROS',
+  ];
+
+  @override
+  void dispose() {
+    _valorController.dispose();
+    _descripcionController.dispose();
+    super.dispose();
+  }
+
+  double get _valor => _parseCurrencyInput(_valorController.text);
+
+  SalidaCajaPedidoOpcionModel? get _pedido {
+    for (final item in widget.opciones.pedidosPendientes) {
+      if (item.id == _pedidoId) return item;
+    }
+    return null;
+  }
+
+  SalidaCajaGastoOpcionModel? get _gasto {
+    for (final item in widget.opciones.gastosConfigurados) {
+      if (item.id == _gastoId) return item;
+    }
+    return null;
+  }
+
+  bool get _canSubmit {
+    if (_valor <= 0) return false;
+    if (_tipo == 'PAGO_GASTO') return _gastoId != null;
+    if (_tipo == 'PAGO_PEDIDO') {
+      final pedido = _pedido;
+      return pedido != null && _valor <= pedido.saldoPendiente + .01;
+    }
+    return _descripcionController.text.trim().isNotEmpty;
+  }
+
+  void _changeType(String tipo) {
+    setState(() {
+      _tipo = tipo;
+      _gastoId = null;
+      _pedidoId = null;
+      _valorController.clear();
+      _descripcionController.clear();
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final palette = widget.palette;
+    final size = MediaQuery.sizeOf(context);
+    final mobile = size.width < 700;
+    final dialogWidth = mobile ? size.width - 20 : 680.0;
+    final dialogHeight = mobile
+        ? size.height - 20
+        : (size.height - 48 < 720 ? size.height - 48 : 720.0);
+
+    return SizedBox(
+      width: dialogWidth,
+      height: dialogHeight,
+      child: Material(
+        color: palette.surface,
+        child: Column(
+          children: [
+            Container(
+              padding: EdgeInsets.fromLTRB(mobile ? 14 : 18, 14, 8, 12),
+              decoration: BoxDecoration(
+                color: palette.secondary.withOpacity(.055),
+                border: Border(
+                  bottom: BorderSide(color: palette.cardBorder.withOpacity(.55)),
+                ),
+              ),
+              child: Row(
+                children: [
+                  Container(
+                    width: 42,
+                    height: 42,
+                    decoration: BoxDecoration(
+                      color: palette.secondary.withOpacity(.12),
+                      borderRadius: BorderRadius.circular(14),
+                    ),
+                    child: Icon(Icons.outbox_rounded, color: palette.secondary),
+                  ),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'Registrar salida de caja',
+                          style: TextStyle(
+                            color: palette.textPrimary,
+                            fontWeight: FontWeight.w900,
+                            fontSize: mobile ? 16 : 18,
+                          ),
+                        ),
+                        Text(
+                          'Clasifica la salida para evitar duplicar gastos.',
+                          style: TextStyle(
+                            color: palette.textSecondary,
+                            fontWeight: FontWeight.w600,
+                            fontSize: 10.5,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  IconButton(
+                    onPressed: () => Navigator.pop(context),
+                    icon: const Icon(Icons.close_rounded),
+                  ),
+                ],
+              ),
+            ),
+            Expanded(
+              child: SingleChildScrollView(
+                padding: EdgeInsets.all(mobile ? 12 : 18),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    _SalidaTipoOption(
+                      selected: _tipo == 'GASTO_TURNO',
+                      icon: Icons.shopping_bag_outlined,
+                      title: 'Gasto del turno',
+                      subtitle: 'Aseo, bolsas, transporte o compras menores.',
+                      palette: palette,
+                      onTap: () => _changeType('GASTO_TURNO'),
+                    ),
+                    const SizedBox(height: 8),
+                    _SalidaTipoOption(
+                      selected: _tipo == 'PAGO_GASTO',
+                      icon: Icons.receipt_long_outlined,
+                      title: 'Pago de factura o gasto',
+                      subtitle: 'Ya existe en Costos fijos/variables.',
+                      palette: palette,
+                      onTap: () => _changeType('PAGO_GASTO'),
+                    ),
+                    const SizedBox(height: 8),
+                    _SalidaTipoOption(
+                      selected: _tipo == 'PAGO_PEDIDO',
+                      icon: Icons.local_shipping_outlined,
+                      title: 'Pago de pedido',
+                      subtitle: 'Abono o pago de un pedido de compra.',
+                      palette: palette,
+                      onTap: () => _changeType('PAGO_PEDIDO'),
+                    ),
+                    const SizedBox(height: 16),
+                    _buildFields(palette),
+                    const SizedBox(height: 14),
+                    _buildImpact(palette),
+                  ],
+                ),
+              ),
+            ),
+            Container(
+              padding: EdgeInsets.fromLTRB(
+                mobile ? 12 : 18,
+                10,
+                mobile ? 12 : 18,
+                mobile ? 12 : 14,
+              ),
+              decoration: BoxDecoration(
+                border: Border(
+                  top: BorderSide(color: palette.cardBorder.withOpacity(.55)),
+                ),
+              ),
+              child: Row(
+                children: [
+                  TextButton(
+                    onPressed: () => Navigator.pop(context),
+                    child: const Text('Cancelar'),
+                  ),
+                  const Spacer(),
+                  FilledButton.icon(
+                    onPressed: _canSubmit ? _submit : null,
+                    icon: const Icon(Icons.outbox_rounded),
+                    label: Text(
+                      _valor > 0
+                          ? 'Registrar ' + CurrencyUtils.format(_valor)
+                          : 'Registrar salida',
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildFields(AppPalette palette) {
+    Widget amountField() => TextField(
+          controller: _valorController,
+          keyboardType: const TextInputType.numberWithOptions(decimal: true),
+          inputFormatters: _currencyInputFormatters,
+          onChanged: (_) => setState(() {}),
+          decoration: InputDecoration(
+            labelText: 'Valor que salió de caja',
+            prefixIcon: const Icon(Icons.payments_outlined),
+            suffixText: 'COP',
+            helperText: _tipo == 'PAGO_PEDIDO' && _pedido != null
+                ? 'Máximo: ' + CurrencyUtils.format(_pedido!.saldoPendiente)
+                : null,
+          ),
+        );
+
+    if (_tipo == 'PAGO_PEDIDO') {
+      return Column(
+        children: [
+          DropdownButtonFormField<int>(
+            value: _pedidoId,
+            isExpanded: true,
+            decoration: const InputDecoration(
+              labelText: 'Pedido a pagar',
+              prefixIcon: Icon(Icons.inventory_2_outlined),
+            ),
+            items: widget.opciones.pedidosPendientes
+                .map(
+                  (item) => DropdownMenuItem<int>(
+                    value: item.id,
+                    child: Text(
+                      'Pedido #' +
+                          item.id.toString() +
+                          ' · saldo ' +
+                          CurrencyUtils.format(item.saldoPendiente),
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+                )
+                .toList(),
+            onChanged: (value) {
+              setState(() {
+                _pedidoId = value;
+                final pedido = _pedido;
+                if (pedido != null) {
+                  _valorController.text =
+                      _formatCurrencyInputAmount(pedido.saldoPendiente);
+                }
+              });
+            },
+          ),
+          if (_pedido != null) ...[
+            const SizedBox(height: 10),
+            _SalidaPedidoResumen(pedido: _pedido!, palette: palette),
+          ],
+          const SizedBox(height: 12),
+          amountField(),
+          const SizedBox(height: 12),
+          TextField(
+            controller: _descripcionController,
+            maxLength: 300,
+            decoration: const InputDecoration(
+              labelText: 'Nota opcional',
+              hintText: 'Ej. Abono factura proveedor',
+              counterText: '',
+              prefixIcon: Icon(Icons.notes_rounded),
+            ),
+          ),
+        ],
+      );
+    }
+
+    if (_tipo == 'PAGO_GASTO') {
+      return Column(
+        children: [
+          DropdownButtonFormField<int>(
+            value: _gastoId,
+            isExpanded: true,
+            decoration: const InputDecoration(
+              labelText: 'Factura o gasto configurado',
+              prefixIcon: Icon(Icons.receipt_long_outlined),
+            ),
+            items: widget.opciones.gastosConfigurados
+                .map(
+                  (item) => DropdownMenuItem<int>(
+                    value: item.id,
+                    child: Text(
+                      item.nombre + ' · ' + (item.tipo ?? 'Gasto'),
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+                )
+                .toList(),
+            onChanged: (value) {
+              setState(() {
+                _gastoId = value;
+                final gasto = _gasto;
+                if (gasto?.valorConfigurado != null) {
+                  _valorController.text =
+                      _formatCurrencyInputAmount(gasto!.valorConfigurado!);
+                }
+              });
+            },
+          ),
+          const SizedBox(height: 12),
+          amountField(),
+          const SizedBox(height: 12),
+          TextField(
+            controller: _descripcionController,
+            maxLength: 300,
+            decoration: const InputDecoration(
+              labelText: 'Referencia opcional',
+              hintText: 'Ej. Factura energía septiembre',
+              counterText: '',
+              prefixIcon: Icon(Icons.tag_rounded),
+            ),
+          ),
+        ],
+      );
+    }
+
+    return Column(
+      children: [
+        DropdownButtonFormField<String>(
+          value: _categoria,
+          decoration: const InputDecoration(
+            labelText: 'Categoría',
+            prefixIcon: Icon(Icons.category_outlined),
+          ),
+          items: _categorias
+              .map(
+                (value) => DropdownMenuItem<String>(
+                  value: value,
+                  child: Text(_labelCategoriaSalida(value)),
+                ),
+              )
+              .toList(),
+          onChanged: (value) {
+            if (value != null) setState(() => _categoria = value);
+          },
+        ),
+        const SizedBox(height: 12),
+        TextField(
+          controller: _descripcionController,
+          maxLength: 300,
+          onChanged: (_) => setState(() {}),
+          decoration: const InputDecoration(
+            labelText: '¿Qué se compró o pagó?',
+            hintText: 'Ej. Papel higiénico para baños',
+            counterText: '',
+            prefixIcon: Icon(Icons.edit_note_rounded),
+          ),
+        ),
+        const SizedBox(height: 12),
+        amountField(),
+      ],
+    );
+  }
+
+  Widget _buildImpact(AppPalette palette) {
+    final affects = _tipo == 'GASTO_TURNO';
+    final text = _tipo == 'PAGO_PEDIDO'
+        ? 'Descuenta caja y reduce el saldo pendiente del pedido.'
+        : _tipo == 'PAGO_GASTO'
+            ? 'Descuenta caja. No duplica el gasto que ya está configurado.'
+            : 'Descuenta caja y se suma a gastos variables del periodo.';
+    return Container(
+      padding: const EdgeInsets.all(13),
+      decoration: BoxDecoration(
+        color: (affects ? palette.warning : palette.secondary).withOpacity(.07),
+        borderRadius: BorderRadius.circular(15),
+        border: Border.all(
+          color: (affects ? palette.warning : palette.secondary).withOpacity(.18),
+        ),
+      ),
+      child: Row(
+        children: [
+          Icon(
+            affects ? Icons.trending_down_rounded : Icons.link_rounded,
+            color: affects ? palette.warning : palette.secondary,
+          ),
+          const SizedBox(width: 9),
+          Expanded(
+            child: Text(
+              text,
+              style: TextStyle(
+                color: palette.textPrimary,
+                fontWeight: FontWeight.w700,
+                fontSize: 10.5,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _submit() {
+    Navigator.pop(
+      context,
+      _SalidaCajaDecision(
+        tipo: _tipo,
+        valor: _valor,
+        categoria: _tipo == 'GASTO_TURNO' ? _categoria : null,
+        descripcion: _descripcionController.text.trim().isEmpty
+            ? null
+            : _descripcionController.text.trim(),
+        gastoId: _tipo == 'PAGO_GASTO' ? _gastoId : null,
+        pedidoId: _tipo == 'PAGO_PEDIDO' ? _pedidoId : null,
+      ),
+    );
+  }
+}
+
+class _SalidaTipoOption extends StatelessWidget {
+  const _SalidaTipoOption({
+    required this.selected,
+    required this.icon,
+    required this.title,
+    required this.subtitle,
+    required this.palette,
+    required this.onTap,
+  });
+
+  final bool selected;
+  final IconData icon;
+  final String title;
+  final String subtitle;
+  final AppPalette palette;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) => Material(
+        color: selected
+            ? palette.secondary.withOpacity(.10)
+            : palette.background.withOpacity(.28),
+        borderRadius: BorderRadius.circular(15),
+        child: InkWell(
+          onTap: onTap,
+          borderRadius: BorderRadius.circular(15),
+          child: Container(
+            padding: const EdgeInsets.all(11),
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(15),
+              border: Border.all(
+                color: selected
+                    ? palette.secondary.withOpacity(.35)
+                    : palette.cardBorder,
+              ),
+            ),
+            child: Row(
+              children: [
+                Icon(
+                  icon,
+                  color: selected ? palette.secondary : palette.textSecondary,
+                ),
+                const SizedBox(width: 9),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        title,
+                        style: TextStyle(
+                          color: palette.textPrimary,
+                          fontWeight: FontWeight.w900,
+                          fontSize: 11,
+                        ),
+                      ),
+                      Text(
+                        subtitle,
+                        style: TextStyle(
+                          color: palette.textSecondary,
+                          fontWeight: FontWeight.w600,
+                          fontSize: 9,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      );
+}
+
+class _SalidaPedidoResumen extends StatelessWidget {
+  const _SalidaPedidoResumen({
+    required this.pedido,
+    required this.palette,
+  });
+
+  final SalidaCajaPedidoOpcionModel pedido;
+  final AppPalette palette;
+
+  @override
+  Widget build(BuildContext context) => Container(
+        padding: const EdgeInsets.all(11),
+        decoration: BoxDecoration(
+          color: palette.secondary.withOpacity(.06),
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(color: palette.secondary.withOpacity(.16)),
+        ),
+        child: Wrap(
+          spacing: 18,
+          runSpacing: 7,
+          children: [
+            Text(
+              'Total ' + CurrencyUtils.format(pedido.total),
+              style: TextStyle(
+                color: palette.textPrimary,
+                fontWeight: FontWeight.w800,
+                fontSize: 10,
+              ),
+            ),
+            Text(
+              'Pagado ' + CurrencyUtils.format(pedido.pagado),
+              style: TextStyle(
+                color: palette.textSecondary,
+                fontWeight: FontWeight.w700,
+                fontSize: 10,
+              ),
+            ),
+            Text(
+              'Pendiente ' + CurrencyUtils.format(pedido.saldoPendiente),
+              style: TextStyle(
+                color: palette.secondary,
+                fontWeight: FontWeight.w900,
+                fontSize: 10,
+              ),
+            ),
+          ],
+        ),
+      );
+}
+
+String _labelCategoriaSalida(String value) => switch (value) {
+      'ASEO' => 'Aseo',
+      'INSUMOS' => 'Insumos',
+      'TRANSPORTE' => 'Transporte',
+      'MANTENIMIENTO' => 'Mantenimiento',
+      'EMERGENCIA' => 'Emergencia',
+      _ => 'Otros',
+    };
+
 class _CierrePosHeader extends ConsumerWidget {
   const _CierrePosHeader({
     required this.fecha,
