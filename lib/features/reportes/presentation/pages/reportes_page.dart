@@ -4781,6 +4781,657 @@ class _NextOrderContentState extends ConsumerState<_NextOrderContent> {
 }
 
 
+class _OrderHistoryPanel extends StatelessWidget {
+  const _OrderHistoryPanel({
+    required this.future,
+    required this.branchId,
+    required this.palette,
+    required this.onRefresh,
+  });
+
+  final Future<List<Map<String, dynamic>>>? future;
+  final int? branchId;
+  final AppPalette palette;
+  final VoidCallback onRefresh;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      decoration: BoxDecoration(
+        color: palette.surface.withOpacity(
+          palette.darkBackground ? 0.92 : 0.98,
+        ),
+        borderRadius: BorderRadius.circular(22),
+        border: Border.all(color: palette.cardBorder),
+      ),
+      clipBehavior: Clip.antiAlias,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Padding(
+            padding: const EdgeInsets.fromLTRB(14, 12, 10, 12),
+            child: Row(
+              children: [
+                Container(
+                  width: 38,
+                  height: 38,
+                  decoration: BoxDecoration(
+                    color: palette.secondary.withOpacity(.10),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Icon(
+                    Icons.history_rounded,
+                    color: palette.secondary,
+                    size: 20,
+                  ),
+                ),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'Historial de pedidos y pagos',
+                        style: TextStyle(
+                          color: palette.textPrimary,
+                          fontWeight: FontWeight.w900,
+                          fontSize: 15.5,
+                        ),
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        'Total, abonos, saldo pendiente y trazabilidad de cada pedido confirmado.',
+                        style: TextStyle(
+                          color: palette.textSecondary,
+                          fontWeight: FontWeight.w600,
+                          fontSize: 10.5,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                IconButton(
+                  tooltip: 'Actualizar pedidos',
+                  onPressed: onRefresh,
+                  icon: const Icon(Icons.refresh_rounded),
+                ),
+              ],
+            ),
+          ),
+          Divider(height: 1, color: palette.cardBorder),
+          if (branchId == null)
+            Padding(
+              padding: const EdgeInsets.all(16),
+              child: _PositiveEmptyState(
+                palette: palette,
+                message: 'Selecciona una sucursal para consultar sus pedidos.',
+              ),
+            )
+          else
+            FutureBuilder<List<Map<String, dynamic>>>(
+              future: future,
+              builder: (context, snapshot) {
+                if (snapshot.connectionState == ConnectionState.waiting) {
+                  return const Padding(
+                    padding: EdgeInsets.all(22),
+                    child: Center(child: CircularProgressIndicator()),
+                  );
+                }
+                if (snapshot.hasError) {
+                  return Padding(
+                    padding: const EdgeInsets.all(16),
+                    child: Column(
+                      children: [
+                        Text(
+                          'No fue posible cargar el historial de pedidos.',
+                          style: TextStyle(
+                            color: palette.textPrimary,
+                            fontWeight: FontWeight.w800,
+                          ),
+                        ),
+                        const SizedBox(height: 8),
+                        OutlinedButton.icon(
+                          onPressed: onRefresh,
+                          icon: const Icon(Icons.refresh_rounded),
+                          label: const Text('Reintentar'),
+                        ),
+                      ],
+                    ),
+                  );
+                }
+
+                final rows = snapshot.data ?? const <Map<String, dynamic>>[];
+                if (rows.isEmpty) {
+                  return Padding(
+                    padding: const EdgeInsets.all(16),
+                    child: _PositiveEmptyState(
+                      palette: palette,
+                      message:
+                          'Todavía no hay pedidos confirmados para esta sucursal.',
+                    ),
+                  );
+                }
+
+                final total = _sum(rows, 'totalEstimado');
+                final paid = _sum(rows, 'totalPagado');
+                final balance = _sum(rows, 'saldoPendiente');
+                final pending = rows
+                    .where(
+                      (row) => _toDouble(row['saldoPendiente']) > 0.009,
+                    )
+                    .length;
+
+                return Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    Padding(
+                      padding: const EdgeInsets.all(12),
+                      child: LayoutBuilder(
+                        builder: (context, constraints) {
+                          final columns =
+                              constraints.maxWidth < 620 ? 2 : 4;
+                          const gap = 8.0;
+                          final width =
+                              (constraints.maxWidth -
+                                      gap * (columns - 1)) /
+                                  columns;
+                          final items = [
+                            (
+                              'Pedidos',
+                              '${rows.length}',
+                              Icons.inventory_2_outlined,
+                            ),
+                            (
+                              'Comprado',
+                              _displayValue(total, currency: true),
+                              Icons.shopping_cart_checkout_rounded,
+                            ),
+                            (
+                              'Pagado',
+                              _displayValue(paid, currency: true),
+                              Icons.payments_outlined,
+                            ),
+                            (
+                              'Pendiente',
+                              _displayValue(balance, currency: true),
+                              pending > 0
+                                  ? Icons.schedule_rounded
+                                  : Icons.check_circle_outline_rounded,
+                            ),
+                          ];
+                          return Wrap(
+                            spacing: gap,
+                            runSpacing: gap,
+                            children: [
+                              for (final item in items)
+                                SizedBox(
+                                  width: width,
+                                  child: Container(
+                                    padding: const EdgeInsets.all(10),
+                                    decoration: BoxDecoration(
+                                      color: palette.background.withOpacity(.28),
+                                      borderRadius: BorderRadius.circular(13),
+                                      border: Border.all(
+                                        color: palette.cardBorder.withOpacity(.65),
+                                      ),
+                                    ),
+                                    child: Row(
+                                      children: [
+                                        Icon(
+                                          item.$3,
+                                          color: palette.secondary,
+                                          size: 17,
+                                        ),
+                                        const SizedBox(width: 7),
+                                        Expanded(
+                                          child: Column(
+                                            crossAxisAlignment: CrossAxisAlignment.start,
+                                            children: [
+                                              Text(
+                                                item.$2,
+                                                maxLines: 1,
+                                                overflow: TextOverflow.ellipsis,
+                                                style: TextStyle(
+                                                  color: palette.textPrimary,
+                                                  fontWeight: FontWeight.w900,
+                                                  fontSize: 11.5,
+                                                ),
+                                              ),
+                                              Text(
+                                                item.$1,
+                                                style: TextStyle(
+                                                  color: palette.textSecondary,
+                                                  fontWeight: FontWeight.w600,
+                                                  fontSize: 9,
+                                                ),
+                                              ),
+                                            ],
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                ),
+                            ],
+                          );
+                        },
+                      ),
+                    ),
+                    Divider(height: 1, color: palette.cardBorder),
+                    for (var i = 0; i < rows.length; i++) ...[
+                      _OrderHistoryRow(
+                        row: rows[i],
+                        palette: palette,
+                      ),
+                      if (i != rows.length - 1)
+                        Divider(
+                          height: 1,
+                          color: palette.cardBorder.withOpacity(.60),
+                        ),
+                    ],
+                  ],
+                );
+              },
+            ),
+        ],
+      ),
+    );
+  }
+}
+
+class _OrderHistoryRow extends StatelessWidget {
+  const _OrderHistoryRow({
+    required this.row,
+    required this.palette,
+  });
+
+  final Map<String, dynamic> row;
+  final AppPalette palette;
+
+  @override
+  Widget build(BuildContext context) {
+    final id = (row['pediId'] as num?)?.toInt();
+    final total = _toDouble(row['totalEstimado']);
+    final paid = _toDouble(row['totalPagado']);
+    final balance = _toDouble(row['saldoPendiente']);
+    final status = (row['estadoPago'] ?? 'PENDIENTE')
+        .toString()
+        .toUpperCase();
+    final payments = row['pagos'] is List
+        ? (row['pagos'] as List)
+            .whereType<Map>()
+            .map((item) => Map<String, dynamic>.from(item))
+            .toList(growable: false)
+        : const <Map<String, dynamic>>[];
+    final details = row['detalles'] is List
+        ? (row['detalles'] as List)
+            .whereType<Map>()
+            .map((item) => Map<String, dynamic>.from(item))
+            .toList(growable: false)
+        : const <Map<String, dynamic>>[];
+
+    final tone = status == 'PAGADO'
+        ? palette.success
+        : status == 'PAGO_PARCIAL'
+            ? palette.warning
+            : Colors.orangeAccent;
+
+    return ExpansionTile(
+      tilePadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 5),
+      childrenPadding: const EdgeInsets.fromLTRB(14, 0, 14, 14),
+      leading: Container(
+        width: 38,
+        height: 38,
+        decoration: BoxDecoration(
+          color: tone.withOpacity(.10),
+          borderRadius: BorderRadius.circular(12),
+        ),
+        child: Icon(
+          status == 'PAGADO'
+              ? Icons.check_circle_outline_rounded
+              : Icons.receipt_long_outlined,
+          color: tone,
+          size: 19,
+        ),
+      ),
+      title: Row(
+        children: [
+          Expanded(
+            child: Text(
+              id == null ? 'Pedido confirmado' : 'Pedido #$id',
+              style: TextStyle(
+                color: palette.textPrimary,
+                fontWeight: FontWeight.w900,
+                fontSize: 12.5,
+              ),
+            ),
+          ),
+          _OrderPaymentStatusBadge(
+            status: status,
+            color: tone,
+          ),
+        ],
+      ),
+      subtitle: Padding(
+        padding: const EdgeInsets.only(top: 5),
+        child: Wrap(
+          spacing: 10,
+          runSpacing: 4,
+          children: [
+            Text(
+              'Total ${_displayValue(total, currency: true)}',
+              style: TextStyle(
+                color: palette.textSecondary,
+                fontWeight: FontWeight.w700,
+                fontSize: 9.8,
+              ),
+            ),
+            Text(
+              'Pagado ${_displayValue(paid, currency: true)}',
+              style: TextStyle(
+                color: palette.textSecondary,
+                fontWeight: FontWeight.w700,
+                fontSize: 9.8,
+              ),
+            ),
+            Text(
+              'Saldo ${_displayValue(balance, currency: true)}',
+              style: TextStyle(
+                color: balance > 0 ? tone : palette.success,
+                fontWeight: FontWeight.w900,
+                fontSize: 9.8,
+              ),
+            ),
+            if (row['fecha'] != null)
+              Text(
+                _orderHistoryDate(row['fecha']),
+                style: TextStyle(
+                  color: palette.textSecondary,
+                  fontWeight: FontWeight.w600,
+                  fontSize: 9.8,
+                ),
+              ),
+          ],
+        ),
+      ),
+      children: [
+        LayoutBuilder(
+          builder: (context, constraints) {
+            final compact = constraints.maxWidth < 720;
+            final paymentPanel = _OrderHistorySubPanel(
+              title: 'Pagos',
+              icon: Icons.payments_outlined,
+              palette: palette,
+              child: payments.isEmpty
+                  ? Text(
+                      balance > 0
+                          ? 'Sin abonos registrados. Puedes pagarlo desde Cierre de caja → Registrar salida → Pago de pedido.'
+                          : 'No hay pagos registrados.',
+                      style: TextStyle(
+                        color: palette.textSecondary,
+                        fontWeight: FontWeight.w600,
+                        fontSize: 10,
+                      ),
+                    )
+                  : Column(
+                      children: [
+                        for (var i = 0; i < payments.length; i++) ...[
+                          _OrderPaymentRow(
+                            payment: payments[i],
+                            palette: palette,
+                          ),
+                          if (i != payments.length - 1)
+                            const SizedBox(height: 6),
+                        ],
+                      ],
+                    ),
+            );
+
+            final detailPanel = _OrderHistorySubPanel(
+              title: 'Productos',
+              icon: Icons.inventory_2_outlined,
+              palette: palette,
+              child: details.isEmpty
+                  ? Text(
+                      'Sin detalle disponible.',
+                      style: TextStyle(
+                        color: palette.textSecondary,
+                        fontWeight: FontWeight.w600,
+                        fontSize: 10,
+                      ),
+                    )
+                  : Column(
+                      children: [
+                        for (var i = 0; i < details.length; i++) ...[
+                          _OrderHistoryProductRow(
+                            detail: details[i],
+                            palette: palette,
+                          ),
+                          if (i != details.length - 1)
+                            const SizedBox(height: 6),
+                        ],
+                      ],
+                    ),
+            );
+
+            if (compact) {
+              return Column(
+                children: [
+                  paymentPanel,
+                  const SizedBox(height: 10),
+                  detailPanel,
+                ],
+              );
+            }
+            return Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Expanded(child: paymentPanel),
+                const SizedBox(width: 10),
+                Expanded(child: detailPanel),
+              ],
+            );
+          },
+        ),
+      ],
+    );
+  }
+}
+
+class _OrderPaymentStatusBadge extends StatelessWidget {
+  const _OrderPaymentStatusBadge({
+    required this.status,
+    required this.color,
+  });
+
+  final String status;
+  final Color color;
+
+  @override
+  Widget build(BuildContext context) => Container(
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+        decoration: BoxDecoration(
+          color: color.withOpacity(.10),
+          borderRadius: BorderRadius.circular(999),
+          border: Border.all(color: color.withOpacity(.20)),
+        ),
+        child: Text(
+          switch (status) {
+            'PAGADO' => 'Pagado',
+            'PAGO_PARCIAL' => 'Pago parcial',
+            _ => 'Pendiente',
+          },
+          style: TextStyle(
+            color: color,
+            fontWeight: FontWeight.w900,
+            fontSize: 9,
+          ),
+        ),
+      );
+}
+
+class _OrderHistorySubPanel extends StatelessWidget {
+  const _OrderHistorySubPanel({
+    required this.title,
+    required this.icon,
+    required this.palette,
+    required this.child,
+  });
+
+  final String title;
+  final IconData icon;
+  final AppPalette palette;
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) => Container(
+        padding: const EdgeInsets.all(10),
+        decoration: BoxDecoration(
+          color: palette.background.withOpacity(.26),
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(color: palette.cardBorder.withOpacity(.60)),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Row(
+              children: [
+                Icon(icon, color: palette.secondary, size: 16),
+                const SizedBox(width: 6),
+                Text(
+                  title,
+                  style: TextStyle(
+                    color: palette.textPrimary,
+                    fontWeight: FontWeight.w900,
+                    fontSize: 10.5,
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 8),
+            child,
+          ],
+        ),
+      );
+}
+
+class _OrderPaymentRow extends StatelessWidget {
+  const _OrderPaymentRow({
+    required this.payment,
+    required this.palette,
+  });
+
+  final Map<String, dynamic> payment;
+  final AppPalette palette;
+
+  @override
+  Widget build(BuildContext context) => Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(
+            Icons.check_circle_outline_rounded,
+            color: palette.success,
+            size: 16,
+          ),
+          const SizedBox(width: 7),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  _displayValue(
+                    _toDouble(payment['valor']),
+                    currency: true,
+                  ),
+                  style: TextStyle(
+                    color: palette.textPrimary,
+                    fontWeight: FontWeight.w900,
+                    fontSize: 10.5,
+                  ),
+                ),
+                Text(
+                  '${payment['medio'] ?? 'CAJA'} · ${_orderHistoryDate(payment['fecha'])}',
+                  style: TextStyle(
+                    color: palette.textSecondary,
+                    fontWeight: FontWeight.w600,
+                    fontSize: 9,
+                  ),
+                ),
+                if ((payment['observacion'] ?? '')
+                    .toString()
+                    .trim()
+                    .isNotEmpty)
+                  Text(
+                    payment['observacion'].toString(),
+                    style: TextStyle(
+                      color: palette.textSecondary,
+                      fontWeight: FontWeight.w600,
+                      fontSize: 9,
+                    ),
+                  ),
+              ],
+            ),
+          ),
+        ],
+      );
+}
+
+class _OrderHistoryProductRow extends StatelessWidget {
+  const _OrderHistoryProductRow({
+    required this.detail,
+    required this.palette,
+  });
+
+  final Map<String, dynamic> detail;
+  final AppPalette palette;
+
+  @override
+  Widget build(BuildContext context) {
+    final name = (detail['producto'] ?? 'Producto').toString();
+    final presentations = _toDouble(detail['presentaciones']);
+    final units = _toDouble(detail['unidades']);
+    final subtotal = _toDouble(detail['subtotal']);
+    return Row(
+      children: [
+        Expanded(
+          child: Text(
+            name,
+            maxLines: 2,
+            overflow: TextOverflow.ellipsis,
+            style: TextStyle(
+              color: palette.textPrimary,
+              fontWeight: FontWeight.w700,
+              fontSize: 9.5,
+            ),
+          ),
+        ),
+        const SizedBox(width: 8),
+        Flexible(
+          child: Text(
+            '${_displayValue(presentations)} pres. · '
+            '${_displayValue(units)} und. · '
+            '${_displayValue(subtotal, currency: true)}',
+            textAlign: TextAlign.right,
+            style: TextStyle(
+              color: palette.textSecondary,
+              fontWeight: FontWeight.w700,
+              fontSize: 9,
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+String _orderHistoryDate(Object? value) {
+  final raw = value?.toString();
+  if (raw == null || raw.trim().isEmpty) return 'Sin fecha';
+  final parsed = DateTime.tryParse(raw);
+  if (parsed == null) return raw;
+  return DateFormat('dd/MM/yyyy HH:mm').format(parsed);
+}
+
 class _OrderHealthStrip extends StatelessWidget {
   const _OrderHealthStrip({
     required this.allRows,
