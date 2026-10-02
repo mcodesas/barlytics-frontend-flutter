@@ -362,6 +362,132 @@ class CierreCajaGastoModel {
       };
 }
 
+class SalidaCajaModel {
+  const SalidaCajaModel({
+    this.salidaId,
+    this.sucursalId,
+    this.cierreCajaId,
+    this.fecha,
+    this.fechaHora,
+    this.tipo,
+    this.categoria,
+    this.descripcion,
+    this.valor,
+    this.gastoId,
+    this.pedidoId,
+    this.afectaResultado,
+    this.estado,
+    this.registradoPor,
+  });
+
+  final int? salidaId;
+  final int? sucursalId;
+  final int? cierreCajaId;
+  final String? fecha;
+  final String? fechaHora;
+  final String? tipo;
+  final String? categoria;
+  final String? descripcion;
+  final double? valor;
+  final int? gastoId;
+  final int? pedidoId;
+  final bool? afectaResultado;
+  final String? estado;
+  final String? registradoPor;
+
+  factory SalidaCajaModel.fromJson(Map<String, dynamic> json) => SalidaCajaModel(
+        salidaId: (json['salidaId'] as num?)?.toInt(),
+        sucursalId: (json['sucursalId'] as num?)?.toInt(),
+        cierreCajaId: (json['cierreCajaId'] as num?)?.toInt(),
+        fecha: json['fecha']?.toString(),
+        fechaHora: json['fechaHora']?.toString(),
+        tipo: json['tipo']?.toString(),
+        categoria: json['categoria']?.toString(),
+        descripcion: json['descripcion']?.toString(),
+        valor: (json['valor'] as num?)?.toDouble(),
+        gastoId: (json['gastoId'] as num?)?.toInt(),
+        pedidoId: (json['pedidoId'] as num?)?.toInt(),
+        afectaResultado: json['afectaResultado'] as bool?,
+        estado: json['estado']?.toString(),
+        registradoPor: json['registradoPor']?.toString(),
+      );
+}
+
+class SalidaCajaGastoOpcionModel {
+  const SalidaCajaGastoOpcionModel({
+    required this.id,
+    required this.nombre,
+    this.categoria,
+    this.tipo,
+    this.valorConfigurado,
+  });
+
+  final int id;
+  final String nombre;
+  final String? categoria;
+  final String? tipo;
+  final double? valorConfigurado;
+
+  factory SalidaCajaGastoOpcionModel.fromJson(Map<String, dynamic> json) =>
+      SalidaCajaGastoOpcionModel(
+        id: (json['id'] as num).toInt(),
+        nombre: json['nombre']?.toString() ?? 'Gasto',
+        categoria: json['categoria']?.toString(),
+        tipo: json['tipo']?.toString(),
+        valorConfigurado: (json['valorConfigurado'] as num?)?.toDouble(),
+      );
+}
+
+class SalidaCajaPedidoOpcionModel {
+  const SalidaCajaPedidoOpcionModel({
+    required this.id,
+    this.fecha,
+    this.total = 0,
+    this.pagado = 0,
+    this.saldoPendiente = 0,
+    this.estadoPago,
+  });
+
+  final int id;
+  final String? fecha;
+  final double total;
+  final double pagado;
+  final double saldoPendiente;
+  final String? estadoPago;
+
+  factory SalidaCajaPedidoOpcionModel.fromJson(Map<String, dynamic> json) =>
+      SalidaCajaPedidoOpcionModel(
+        id: (json['id'] as num).toInt(),
+        fecha: json['fecha']?.toString(),
+        total: (json['total'] as num?)?.toDouble() ?? 0,
+        pagado: (json['pagado'] as num?)?.toDouble() ?? 0,
+        saldoPendiente: (json['saldoPendiente'] as num?)?.toDouble() ?? 0,
+        estadoPago: json['estadoPago']?.toString(),
+      );
+}
+
+class SalidaCajaOpcionesModel {
+  const SalidaCajaOpcionesModel({
+    this.gastosConfigurados = const [],
+    this.pedidosPendientes = const [],
+  });
+
+  final List<SalidaCajaGastoOpcionModel> gastosConfigurados;
+  final List<SalidaCajaPedidoOpcionModel> pedidosPendientes;
+
+  factory SalidaCajaOpcionesModel.fromJson(Map<String, dynamic> json) =>
+      SalidaCajaOpcionesModel(
+        gastosConfigurados: (json['gastosConfigurados'] as List? ?? const [])
+            .whereType<Map>()
+            .map((e) => SalidaCajaGastoOpcionModel.fromJson(Map<String, dynamic>.from(e)))
+            .toList(growable: false),
+        pedidosPendientes: (json['pedidosPendientes'] as List? ?? const [])
+            .whereType<Map>()
+            .map((e) => SalidaCajaPedidoOpcionModel.fromJson(Map<String, dynamic>.from(e)))
+            .toList(growable: false),
+      );
+}
+
 class CierreCajaResumenModel {
   const CierreCajaResumenModel({
     this.cierreCajaId,
@@ -376,11 +502,16 @@ class CierreCajaResumenModel {
     this.totalEntregado,
     this.valorBase,
     this.totalGastos,
+    this.totalSalidasCaja,
+    this.totalGastosTurno,
+    this.totalPagosPedidos,
+    this.totalPagosGastosConfigurados,
     this.totalCruce,
     this.diferencia,
     this.observacion,
     this.mediosPago = const <CierreCajaMedioPagoModel>[],
     this.gastos = const <CierreCajaGastoModel>[],
+    this.salidasCaja = const <SalidaCajaModel>[],
     this.productos = const <CierreCajaProductoModel>[],
     this.ventas = const <CierreCajaVentaIncluidaModel>[],
   });
@@ -396,11 +527,16 @@ class CierreCajaResumenModel {
   final double? totalEntregado;
   final double? valorBase;
   final double? totalGastos;
+  final double? totalSalidasCaja;
+  final double? totalGastosTurno;
+  final double? totalPagosPedidos;
+  final double? totalPagosGastosConfigurados;
   final double? totalCruce;
   final double? diferencia;
   final String? observacion;
   final List<CierreCajaMedioPagoModel> mediosPago;
   final List<CierreCajaGastoModel> gastos;
+  final List<SalidaCajaModel> salidasCaja;
   final List<CierreCajaProductoModel> productos;
   final List<CierreCajaVentaIncluidaModel> ventas;
   factory CierreCajaResumenModel.fromJson(Map<String, dynamic> json) => CierreCajaResumenModel(
@@ -416,6 +552,11 @@ class CierreCajaResumenModel {
         totalEntregado: (json['totalEntregado'] as num?)?.toDouble(),
         valorBase: (json['valorBase'] as num?)?.toDouble(),
         totalGastos: (json['totalGastos'] as num?)?.toDouble(),
+        totalSalidasCaja: (json['totalSalidasCaja'] as num?)?.toDouble(),
+        totalGastosTurno: (json['totalGastosTurno'] as num?)?.toDouble(),
+        totalPagosPedidos: (json['totalPagosPedidos'] as num?)?.toDouble(),
+        totalPagosGastosConfigurados:
+            (json['totalPagosGastosConfigurados'] as num?)?.toDouble(),
         totalCruce: (json['totalCruce'] as num?)?.toDouble(),
         diferencia: (json['diferencia'] as num?)?.toDouble(),
         observacion: json['observacion']?.toString(),
@@ -424,6 +565,9 @@ class CierreCajaResumenModel {
             .toList(growable: false),
         gastos: (json['gastos'] as List? ?? const [])
             .map((e) => CierreCajaGastoModel.fromJson(Map<String, dynamic>.from(e as Map)))
+            .toList(growable: false),
+        salidasCaja: (json['salidasCaja'] as List? ?? const [])
+            .map((e) => SalidaCajaModel.fromJson(Map<String, dynamic>.from(e as Map)))
             .toList(growable: false),
         productos: (json['productos'] as List? ?? const [])
             .map((e) => CierreCajaProductoModel.fromJson(Map<String, dynamic>.from(e as Map)))
