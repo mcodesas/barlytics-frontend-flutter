@@ -181,20 +181,32 @@ class _DashboardPageState extends ConsumerState<DashboardPage> {
     final topRows = _rows(_summary['productos_mas_vendidos']);
     final alertRows = _rows(_summary['alertas_inventario']);
 
-    final gross = _profitRows.fold<double>(
-      0,
-      (sum, row) => sum + _num(row['ganancia_bruta_periodo']),
-    );
-
     final financialRow =
         _profitRows.isNotEmpty ? _profitRows.first : const <String, dynamic>{};
-    final fixed = _num(financialRow['gastos_fijos_periodo']);
-    final variable = _num(financialRow['gastos_variables_periodo']);
-    final labor = _num(financialRow['mano_obra_periodo']);
-    final operating = _num(financialRow['gastos_operativos_periodo']);
-    final net = _num(financialRow['ganancia_neta_estimada_periodo']);
-    final costOfSales = math.max(0.0, sales - gross).toDouble();
-    final netMargin = sales == 0 ? 0.0 : (net / sales) * 100;
+
+    double financeValue(String key) {
+      if (_summary.containsKey(key)) return _num(_summary[key]);
+      return _num(financialRow[key]);
+    }
+
+    final financialIncome = financeValue('ingresos_periodo');
+    final costOfSales = financeValue('costo_ventas_periodo');
+    final gross = financeValue('ganancia_bruta_periodo');
+    final fixed = financeValue('gastos_fijos_periodo');
+    final turnExpenses = financeValue('gastos_turno_periodo');
+    final variable = financeValue('gastos_variables_periodo');
+    final configuredVariable =
+        math.max(0.0, variable - turnExpenses).toDouble();
+    final labor = financeValue('mano_obra_periodo');
+    final operating = financeValue('gastos_operativos_periodo');
+    final net = financeValue('ganancia_neta_estimada_periodo');
+    final backendMargin = financeValue('margen_neto_porcentaje');
+    final netMargin = _summary.containsKey('margen_neto_porcentaje') ||
+            financialRow.containsKey('margen_neto_porcentaje')
+        ? backendMargin
+        : financialIncome == 0
+            ? 0.0
+            : (net / financialIncome) * 100;
 
     final productsToOrder = _profitRows
         .where((row) => _num(row['unidades_pedir']) > 0)
@@ -306,10 +318,11 @@ class _DashboardPageState extends ConsumerState<DashboardPage> {
                             'De cada peso vendido, cuánto termina como utilidad.',
                         icon: Icons.account_balance_rounded,
                         child: _ProfitabilityChart(
-                          sales: sales,
+                          sales: financialIncome,
                           costOfSales: costOfSales,
                           fixed: fixed,
-                          variable: variable,
+                          variable: configuredVariable,
+                          turnExpenses: turnExpenses,
                           labor: labor,
                           net: net,
                           palette: palette,
@@ -343,6 +356,13 @@ class _DashboardPageState extends ConsumerState<DashboardPage> {
                           'Según cargos, días y vigencias',
                           Icons.groups_rounded,
                           Colors.deepPurpleAccent,
+                        ),
+                        _Kpi(
+                          'Gastos del turno',
+                          CurrencyUtils.format(turnExpenses),
+                          'Compras menores y salidas que sí afectan utilidad',
+                          Icons.outbox_rounded,
+                          Colors.orangeAccent,
                         ),
                         _Kpi(
                           'Próximo pedido',
@@ -430,11 +450,12 @@ class _DashboardPageState extends ConsumerState<DashboardPage> {
                           'Detalle consolidado de ingresos, costos y gastos.',
                       icon: Icons.analytics_rounded,
                       child: _FinancialBreakdown(
-                        sales: sales,
+                        sales: financialIncome,
                         costOfSales: costOfSales,
                         gross: gross,
                         fixed: fixed,
-                        variable: variable,
+                        variable: configuredVariable,
+                        turnExpenses: turnExpenses,
                         labor: labor,
                         net: net,
                         palette: palette,
