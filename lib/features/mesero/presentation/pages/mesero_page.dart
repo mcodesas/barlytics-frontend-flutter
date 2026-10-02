@@ -4345,16 +4345,15 @@ class _MeseroPageState extends ConsumerState<MeseroPage> {
           valor: TextEditingController(text: _formatCurrencyInputAmount(gasto.valor ?? 0)),
         ),
     ];
-    if (gastos.isEmpty) {
-      gastos.add((descripcion: TextEditingController(), valor: TextEditingController(text: '0')));
-    }
     final observacionController = TextEditingController(text: cierre.observacion ?? '');
 
     double totalEntregadoActual() => cierre.mediosPago.fold<double>(
           0,
           (sum, medio) => sum + _parseCurrencyInput(controllers[medio.medioPagoId]?.text ?? '0'),
         );
-    double totalGastosActual() => gastos.fold<double>(
+    double totalGastosActual() =>
+        (cierre.totalSalidasCaja ?? 0) +
+        gastos.fold<double>(
           0,
           (sum, gasto) => sum + _parseCurrencyInput(gasto.valor.text),
         );
@@ -4529,15 +4528,10 @@ class _MeseroPageState extends ConsumerState<MeseroPage> {
 
       final ajustesSection = sectionCard(
         icon: Icons.tune_rounded,
-        title: 'Ajustes del turno',
-        subtitle: 'Base inicial, gastos y una nota opcional.',
-        trailing: TextButton.icon(
-          onPressed: () => setDialogState(
-            () => gastos.add((descripcion: TextEditingController(), valor: TextEditingController(text: '0'))),
-          ),
-          icon: const Icon(Icons.add_rounded),
-          label: Text(compact ? 'Agregar' : 'Agregar gasto'),
-        ),
+        title: 'Base y observación',
+        subtitle: cierre.salidasCaja.isEmpty
+            ? 'Las salidas de efectivo se registran desde el panel del turno.'
+            : '${cierre.salidasCaja.length} salida(s) de caja ya incluidas automáticamente.',
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -4602,9 +4596,6 @@ class _MeseroPageState extends ConsumerState<MeseroPage> {
                           onPressed: () {
                             setDialogState(() {
                               gastos.remove(gasto);
-                              if (gastos.isEmpty) {
-                                gastos.add((descripcion: TextEditingController(), valor: TextEditingController(text: '0')));
-                              }
                             });
                             WidgetsBinding.instance.addPostFrameCallback((_) {
                               gasto.descripcion.dispose();
@@ -5665,7 +5656,7 @@ double _baseAplicadaMedioCierre(CierreCajaResumenModel cierre, CierreCajaMedioPa
 
 String _notaDiferenciaMedioCierre(CierreCajaResumenModel cierre, CierreCajaMedioPagoModel medio) {
   if (_esMedioEfectivoCierre(medio.medioPagoNombre)) {
-    return 'Efectivo ajustado: contado + gastos - base inicial - recibido sistema';
+    return 'Efectivo ajustado: contado + salidas de caja - base inicial - recibido sistema';
   }
   return 'Entregado - recibido sistema';
 }
@@ -5945,7 +5936,7 @@ class _CierreTurnSummary extends ConsumerWidget {
       (label: 'Propinas', value: totalPropinas, strong: false),
       (label: 'Total vendido', value: totalVendido, strong: true),
       (label: 'Entregado por medios', value: totalEntregado, strong: false),
-      (label: 'Más gastos', value: totalGastos, strong: false),
+      (label: 'Más salidas de caja', value: totalGastos, strong: false),
       (label: 'Menos base inicial', value: -valorBase, strong: false),
       (label: 'Total del cruce', value: totalCruce, strong: true),
     ];
