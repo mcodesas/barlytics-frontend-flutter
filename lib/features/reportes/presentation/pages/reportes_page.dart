@@ -56,6 +56,7 @@ class ReportesPage extends ConsumerWidget {
         'costo_ventas_periodo',
         'ganancia_bruta_periodo',
         'gastos_fijos_periodo',
+        'gastos_turno_periodo',
         'gastos_variables_periodo',
         'mano_obra_periodo',
         'gastos_operativos_periodo',
@@ -117,6 +118,7 @@ class ReportesPage extends ConsumerWidget {
         'costo_ventas_periodo',
         'ganancia_bruta_periodo',
         'gastos_fijos_periodo',
+        'gastos_turno_periodo',
         'gastos_variables_periodo',
         'mano_obra_periodo',
         'gastos_operativos_periodo',
@@ -2726,7 +2728,10 @@ class _ProfitHero extends StatelessWidget {
     final unidades = _sum(rows, 'unidades_vendidas_periodo');
 
     final gastosFijos = _toDouble(metadata['gastos_fijos_periodo']);
+    final gastosTurno = _toDouble(metadata['gastos_turno_periodo']);
     final gastosVariables = _toDouble(metadata['gastos_variables_periodo']);
+    final gastosVariablesConfigurados =
+        (gastosVariables - gastosTurno).clamp(0.0, double.infinity).toDouble();
     final manoObra = _toDouble(metadata['mano_obra_periodo']);
     final gastosOperativosRaw =
         _toDouble(metadata['gastos_operativos_periodo']);
@@ -2883,9 +2888,17 @@ class _ProfitHero extends StatelessWidget {
               const SizedBox(height: 10),
               _ProfitBreakdownRow(
                 icon: Icons.tune_rounded,
-                label: 'Gastos variables',
-                value: gastosVariables,
+                label: 'Variables configurados',
+                value: gastosVariablesConfigurados,
                 color: palette.warning,
+                palette: palette,
+              ),
+              const SizedBox(height: 10),
+              _ProfitBreakdownRow(
+                icon: Icons.shopping_bag_outlined,
+                label: 'Gastos del turno',
+                value: gastosTurno,
+                color: Colors.orangeAccent,
                 palette: palette,
               ),
               const SizedBox(height: 10),
@@ -7571,6 +7584,7 @@ class _SummaryContent extends StatelessWidget {
         'costo_ventas_periodo',
         'ganancia_bruta_periodo',
         'gastos_fijos_periodo',
+        'gastos_turno_periodo',
         'gastos_variables_periodo',
         'mano_obra_periodo',
         'gastos_operativos_periodo',
@@ -7842,7 +7856,10 @@ class _ExecutiveFinanceOverview extends StatelessWidget {
     final costo = _toDouble(metrics['costo_ventas_periodo']);
     final bruta = _toDouble(metrics['ganancia_bruta_periodo']);
     final fijos = _toDouble(metrics['gastos_fijos_periodo']);
+    final gastosTurno = _toDouble(metrics['gastos_turno_periodo']);
     final variables = _toDouble(metrics['gastos_variables_periodo']);
+    final variablesConfiguradas =
+        (variables - gastosTurno).clamp(0.0, double.infinity).toDouble();
     final manoObra = _toDouble(metrics['mano_obra_periodo']);
     final operativos = _toDouble(metrics['gastos_operativos_periodo']);
     final neta = _toDouble(metrics['ganancia_neta_estimada_periodo']);
@@ -7906,10 +7923,18 @@ class _ExecutiveFinanceOverview extends StatelessWidget {
               ),
               const SizedBox(height: 9),
               _FinanceFlowRow(
-                label: 'Gastos variables',
-                value: variables,
+                label: 'Variables configurados',
+                value: variablesConfiguradas,
                 reference: ingresos,
                 color: Colors.amber,
+                palette: palette,
+              ),
+              const SizedBox(height: 9),
+              _FinanceFlowRow(
+                label: 'Gastos del turno',
+                value: gastosTurno,
+                reference: ingresos,
+                color: Colors.orangeAccent,
                 palette: palette,
               ),
               const SizedBox(height: 9),
