@@ -243,3 +243,4 @@ jobs:
           docker compose -f "$COMPOSE_FILE" logs --tail=200 frontend || true
           exit 1
           REMOTE
+# Trigger manual de despliegue 2026-10-07
