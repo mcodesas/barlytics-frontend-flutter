@@ -138,6 +138,7 @@ jobs:
           retention-days: 1
 
   image:
+    needs: [windows, linux]
     runs-on: ubuntu-latest
     outputs:
       tag: sha-${{ github.sha }}
@@ -145,16 +146,77 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Conservar instaladores publicados
+      - name: Descargar instalador Windows generado en este workflow
+        uses: actions/download-artifact@v4
+        with:
+          name: barlytics-windows-installer
+          path: web/downloads
+
+      - name: Descargar instalador Linux generado en este workflow
+        uses: actions/download-artifact@v4
+        with:
+          name: barlytics-linux-installer
+          path: web/downloads
+
+      - name: Conservar instalador macOS si sigue publicado
         run: |
           mkdir -p web/downloads
-          curl --fail --location --retry 3 -o web/downloads/BarLytics-Windows-Setup.exe https://www.barlytics.com.co/downloads/BarLytics-Windows-Setup.exe
-          curl --fail --location --retry 3 -o web/downloads/BarLytics-macOS.dmg https://www.barlytics.com.co/downloads/BarLytics-macOS.dmg
-          curl --fail --location --retry 3 -o web/downloads/barlytics-linux-amd64.deb https://www.barlytics.com.co/downloads/barlytics-linux-amd64.deb
-          curl --fail --location --retry 3 -o web/downloads/latest.json https://www.barlytics.com.co/downloads/latest.json
+          if curl --fail --location --retry 2 -o web/downloads/BarLytics-macOS.dmg https://www.barlytics.com.co/downloads/BarLytics-macOS.dmg; then
+            echo "Instalador macOS conservado."
+          else
+            rm -f web/downloads/BarLytics-macOS.dmg
+            echo "Aviso: no hay instalador macOS publicado; no se bloqueará el despliegue web."
+          fi
+
+      - name: Generar manifiesto de actualizaciones
+        run: |
+          set -euo pipefail
+          VERSION="$(sed -nE 's/^version:[[:space:]]*([^+[:space:]]+).*/\1/p' pubspec.yaml | head -n1)"
+          BUILD="$(sed -nE 's/^version:[[:space:]]*[^+[:space:]]+\+([0-9]+).*/\1/p' pubspec.yaml | head -n1)"
+          test -n "$VERSION"
+          test -n "$BUILD"
           test -s web/downloads/BarLytics-Windows-Setup.exe
-          test -s web/downloads/BarLytics-macOS.dmg
           test -s web/downloads/barlytics-linux-amd64.deb
+
+          WINDOWS_SHA="$(sha256sum web/downloads/BarLytics-Windows-Setup.exe | awk '{print $1}')"
+          LINUX_SHA="$(sha256sum web/downloads/barlytics-linux-amd64.deb | awk '{print $1}')"
+          PUBLISHED_AT="$(date -u +'%Y-%m-%dT%H:%M:%SZ')"
+
+          cat > web/downloads/latest.json <<EOF
+          {
+            "version": "$VERSION",
+            "build": $BUILD,
+            "mandatory": false,
+            "releaseNotes": "Actualización de BarLytics",
+            "publishedAt": "$PUBLISHED_AT",
+            "platforms": {
+              "windows": {
+                "version": "$VERSION",
+                "build": $BUILD,
+                "url": "https://www.barlytics.com.co/downloads/BarLytics-Windows-Setup.exe",
+                "sha256": "$WINDOWS_SHA",
+                "enabled": true
+              },
+              "linux": {
+                "version": "$VERSION",
+                "build": $BUILD,
+                "url": "https://www.barlytics.com.co/downloads/barlytics-linux-amd64.deb",
+                "sha256": "$LINUX_SHA",
+                "enabled": true
+              },
+              "macos": {
+                "enabled": false
+              },
+              "android": {
+                "enabled": false
+              },
+              "ios": {
+                "enabled": false
+              }
+            }
+          }
+          EOF
+
           test -s web/downloads/latest.json
 
       - name: Docker Buildx
@@ -226,7 +288,6 @@ jobs:
             if [ "$status" = "healthy" ]; then
               docker exec "$container_id" wget -q -O /dev/null http://127.0.0.1/healthz
               docker exec "$container_id" test -s /usr/share/nginx/html/downloads/BarLytics-Windows-Setup.exe
-              docker exec "$container_id" test -s /usr/share/nginx/html/downloads/BarLytics-macOS.dmg
               docker exec "$container_id" test -s /usr/share/nginx/html/downloads/barlytics-linux-amd64.deb
               docker exec "$container_id" test -s /usr/share/nginx/html/downloads/latest.json
               echo "Frontend web desplegado correctamente."
@@ -243,4 +304,3 @@ jobs:
           docker compose -f "$COMPOSE_FILE" logs --tail=200 frontend || true
           exit 1
           REMOTE
-# Trigger manual de despliegue 2026-10-07
