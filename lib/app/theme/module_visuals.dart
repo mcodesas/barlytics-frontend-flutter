@@ -53,6 +53,8 @@ class ModuleVisuals {
         return const ModuleVisual(icon: Icons.local_bar_rounded, color: Color(0xFF38BDF8), description: 'Productos disponibles para venta');
       case 'inventario':
         return const ModuleVisual(icon: Icons.inventory_2_rounded, color: AppColors.success, description: 'Stock y existencias por sucursal');
+      case 'inventario_admin':
+        return const ModuleVisual(icon: Icons.inventory_rounded, color: Color(0xFF0F766E), description: 'Control económico, conteos, diferencias, responsables y conciliaciones');
       case 'movimientos':
         return const ModuleVisual(icon: Icons.swap_horiz_rounded, color: Color(0xFF0D9488), description: 'Entradas, salidas y ajustes');
       case 'mesas':
@@ -95,6 +97,28 @@ class ModuleVisuals {
         return const ModuleVisual(icon: Icons.fact_check_rounded, color: Color(0xFF6D28D9), description: 'Opciones y permisos por rol');
       case 'zonas_horarias':
         return const ModuleVisual(icon: Icons.schedule_rounded, color: Color(0xFF0891B2), description: 'Zonas horarias del sistema');
+      case 'reporte_resumen_ejecutivo':
+        return const ModuleVisual(icon: Icons.dashboard_customize_rounded, color: Color(0xFF8B5CF6), description: 'Ventas, ticket, recaudo y alertas principales');
+      case 'reporte_ventas_fecha':
+        return const ModuleVisual(icon: Icons.show_chart_rounded, color: Color(0xFF0EA5E9), description: 'Evolución de ventas por fecha');
+      case 'reporte_ventas_medio_pago':
+        return const ModuleVisual(icon: Icons.account_balance_wallet_rounded, color: Color(0xFF14B8A6), description: 'Ventas agrupadas por medio de pago');
+      case 'reporte_stock_actual':
+        return const ModuleVisual(icon: Icons.inventory_2_rounded, color: AppColors.success, description: 'Existencias y estado actual del inventario');
+      case 'reporte_cruce_conteo':
+        return const ModuleVisual(icon: Icons.fact_check_rounded, color: Color(0xFFF59E0B), description: 'Cruce entre conteo físico y stock esperado');
+      case 'reporte_productos_mas_vendidos':
+        return const ModuleVisual(icon: Icons.emoji_events_rounded, color: Color(0xFFF59E0B), description: 'Productos con mayor rotación e ingresos');
+      case 'reporte_movimientos_inventario':
+        return const ModuleVisual(icon: Icons.swap_vert_circle_rounded, color: Color(0xFF0D9488), description: 'Entradas, salidas y ajustes de inventario');
+      case 'reporte_rotacion_inventario':
+        return const ModuleVisual(icon: Icons.sync_alt_rounded, color: Color(0xFF7C3AED), description: 'Rotación y comportamiento del inventario');
+      case 'reporte_alertas_inventario':
+        return const ModuleVisual(icon: Icons.warning_amber_rounded, color: Color(0xFFDC2626), description: 'Alertas de stock y productos desfalcados');
+      case 'reporte_salidas_responsable':
+        return const ModuleVisual(icon: Icons.manage_accounts_rounded, color: Color(0xFF6366F1), description: 'Salidas agrupadas por responsable');
+      case 'dashboard':
+        return const ModuleVisual(icon: Icons.space_dashboard_rounded, color: Color(0xFF06B6D4), description: 'Panorama ejecutivo con ventas, rentabilidad, inventario y operación');
       case 'reportes':
         return const ModuleVisual(icon: Icons.query_stats_rounded, color: Color(0xFF8B5CF6), description: 'Indicadores y reportes operativos');
       case 'ganancias':

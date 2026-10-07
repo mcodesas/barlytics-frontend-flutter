@@ -21,31 +21,59 @@ import '../../services/reporte_pdf_service.dart';
 import '../../../subscription/presentation/providers/subscription_provider.dart';
 
 class ReportesPage extends ConsumerWidget {
-  const ReportesPage({super.key}) : _initialKind = null;
+  const ReportesPage({super.key}) : _initialKey = null;
 
   const ReportesPage.ganancias({super.key})
-      : _initialKind = _ReportKind.profit;
+      : _initialKey = 'ganancias';
 
   const ReportesPage.proximoPedido({super.key})
-      : _initialKind = _ReportKind.nextOrder;
+      : _initialKey = 'proximo_pedido';
 
-  final _ReportKind? _initialKind;
+  const ReportesPage.reporte({
+    super.key,
+    required String keyName,
+  }) : _initialKey = keyName;
+
+  final String? _initialKey;
 
   static const reports = <_ReportDefinition>[
     _ReportDefinition(
+      keyName: 'reporte_resumen_ejecutivo',
       title: 'Resumen ejecutivo',
-      description: 'Ventas, ticket promedio, productos, recaudo y alertas de inventario.',
+      description: 'Panorama integral del negocio: ventas, rentabilidad neta, gastos, recaudo, productos e inventario.',
       path: '/api/v1/reportes/resumen',
       icon: Icons.dashboard_customize_rounded,
       requiresDates: true,
       summary: true,
       chartLabelKey: 'fecha',
       chartValueKey: 'total',
-      currencyKeys: ['total_vendido', 'total_propinas', 'ticket_promedio', 'total'],
+      currencyKeys: [
+        'total_vendido',
+        'total_propinas',
+        'ticket_promedio',
+        'total',
+        'ingresos_periodo',
+        'costo_ventas_periodo',
+        'ganancia_bruta_periodo',
+        'gastos_fijos_periodo',
+        'gastos_turno_periodo',
+        'salidas_caja_periodo',
+        'pagos_pedidos_periodo',
+        'pagos_gastos_configurados_periodo',
+        'gastos_variables_periodo',
+        'mano_obra_periodo',
+        'gastos_operativos_periodo',
+        'ganancia_neta_estimada_periodo',
+      ],
+      percentageKeys: [
+        'margen_bruto_porcentaje',
+        'margen_neto_porcentaje',
+      ],
     ),
     _ReportDefinition(
+      keyName: 'reporte_ventas_fecha',
       title: 'Ventas por fecha',
-      description: 'Evolución diaria de ventas finalizadas, propinas y ticket promedio.',
+      description: 'Identifica los días fuertes y débiles, el ticket promedio y cómo evoluciona la venta en el periodo.',
       path: '/api/v1/reportes/ventas',
       icon: Icons.show_chart_rounded,
       requiresDates: true,
@@ -54,8 +82,9 @@ class ReportesPage extends ConsumerWidget {
       currencyKeys: ['subtotal_productos', 'propinas', 'total', 'ticket_promedio'],
     ),
     _ReportDefinition(
+      keyName: 'reporte_ventas_medio_pago',
       title: 'Ventas por medio de pago',
-      description: 'Distribución del recaudo real entre efectivo, transferencia y otros medios.',
+      description: 'Entiende por dónde entra el dinero y detecta concentración o dependencia de un medio de pago.',
       path: '/api/v1/reportes/ventas/medio-pago',
       icon: Icons.account_balance_wallet_rounded,
       requiresDates: true,
@@ -65,16 +94,19 @@ class ReportesPage extends ConsumerWidget {
       percentageKeys: ['porcentaje'],
     ),
     _ReportDefinition(
+      keyName: 'reporte_stock_actual',
       title: 'Stock actual',
-      description: 'Existencias en unidades, paquetes completos, unidades sueltas y estado.',
+      description: 'Controla disponibilidad, mínimos, agotados, sobrestock y productos sin parámetros de inventario.',
       path: '/api/v1/reportes/stock-actual',
       icon: Icons.inventory_2_rounded,
       chartLabelKey: 'producto',
       chartValueKey: 'unidades',
+      percentageKeys: ['salud_inventario_porcentaje'],
     ),
     _ReportDefinition(
+      keyName: 'ganancias',
       title: 'Ganancias',
-      description: 'Conoce cuánto vendiste, cuánto costó y qué productos dejan mejor margen.',
+      description: 'Mide utilidad real después de costo de venta, gastos fijos, variables y mano de obra.',
       path: '/api/v1/reportes/inventario/ganancias-pedido',
       icon: Icons.trending_up,
       requiresDates: true,
@@ -88,12 +120,22 @@ class ReportesPage extends ConsumerWidget {
         'ingresos_periodo',
         'costo_ventas_periodo',
         'ganancia_bruta_periodo',
+        'gastos_fijos_periodo',
+        'gastos_turno_periodo',
+        'gastos_variables_periodo',
+        'mano_obra_periodo',
+        'gastos_operativos_periodo',
+        'ganancia_neta_estimada_periodo',
       ],
-      percentageKeys: ['margen_bruto_porcentaje'],
+      percentageKeys: [
+        'margen_bruto_porcentaje',
+        'margen_neto_porcentaje',
+      ],
     ),
     _ReportDefinition(
+      keyName: 'proximo_pedido',
       title: 'Próximo pedido',
-      description: 'Productos por pedir según stock actual, mínimo, máximo y presentación de compra.',
+      description: 'Convierte el estado del inventario en una propuesta de compra con cantidades y costo estimado.',
       path: '/api/v1/reportes/inventario/ganancias-pedido',
       icon: Icons.local_shipping_rounded,
       requiresDates: true,
@@ -107,8 +149,9 @@ class ReportesPage extends ConsumerWidget {
       ],
     ),
     _ReportDefinition(
+      keyName: 'reporte_cruce_conteo',
       title: 'Cruce de conteo físico',
-      description: 'Compara lo contado contra el stock esperado y separa faltantes, sobrantes y productos que cuadran.',
+      description: 'Detecta diferencias físicas, cuantifica su impacto económico y prioriza investigaciones de inventario.',
       path: '/api/v1/reportes/inventario/cruce-conteo',
       icon: Icons.fact_check_rounded,
       requiresDates: true,
@@ -119,18 +162,21 @@ class ReportesPage extends ConsumerWidget {
       signedChart: true,
     ),
     _ReportDefinition(
+      keyName: 'reporte_productos_mas_vendidos',
       title: 'Productos más vendidos',
-      description: 'Ranking por unidades e ingresos de ventas finalizadas.',
+      description: 'Descubre qué productos impulsan volumen e ingresos y cuánto concentran las ventas del periodo.',
       path: '/api/v1/reportes/productos-mas-vendidos',
       icon: Icons.emoji_events_rounded,
       requiresDates: true,
       chartLabelKey: 'producto',
       chartValueKey: 'cantidad',
       currencyKeys: ['total', 'precio_promedio'],
+      percentageKeys: ['concentracion_top_3_porcentaje'],
     ),
     _ReportDefinition(
+      keyName: 'reporte_movimientos_inventario',
       title: 'Movimientos de inventario',
-      description: 'Entradas, salidas y ajustes con producto, motivo y responsable.',
+      description: 'Audita el flujo de inventario, identifica ajustes y rastrea quién registró cada movimiento.',
       path: '/api/v1/reportes/movimientos-inventario',
       icon: Icons.swap_vert_circle_rounded,
       requiresDates: true,
@@ -138,35 +184,45 @@ class ReportesPage extends ConsumerWidget {
       chartValueKey: 'cantidad_unidades',
     ),
     _ReportDefinition(
+      keyName: 'reporte_rotacion_inventario',
       title: 'Rotación de inventario',
-      description: 'Compara stock actual, unidades vendidas, entradas y salidas del periodo.',
+      description: 'Detecta productos que rotan, los que se estancan y los que requieren reposición o revisión.',
       path: '/api/v1/reportes/inventario/cruce-ventas',
       icon: Icons.sync_alt_rounded,
       requiresDates: true,
       chartLabelKey: 'producto',
-      chartValueKey: 'ventas_periodo',
+      chartValueKey: 'rotacion_porcentaje',
       currencyKeys: ['valor_vendido'],
-      percentageKeys: ['rotacion_porcentaje'],
+      percentageKeys: [
+        'rotacion_porcentaje',
+        'rotacion_promedio_porcentaje',
+      ],
     ),
     _ReportDefinition(
+      keyName: 'reporte_alertas_inventario',
       title: 'Alertas de inventario',
-      description: 'Productos con stock negativo o agotados mientras mantienen rotación.',
+      description: 'Prioriza productos con riesgo operativo: stock negativo, agotados con demanda y ventas comprometidas.',
       path: '/api/v1/reportes/inventario/productos-desfalcados',
       icon: Icons.warning_amber_rounded,
       requiresDates: true,
       chartLabelKey: 'producto',
       chartValueKey: 'ventas_periodo',
-      currencyKeys: ['valor_vendido'],
+      currencyKeys: [
+        'valor_vendido',
+        'valor_vendido_en_riesgo',
+      ],
       percentageKeys: ['rotacion_porcentaje'],
     ),
     _ReportDefinition(
+      keyName: 'reporte_salidas_responsable',
       title: 'Salidas por responsable',
-      description: 'Salidas y ajustes negativos agrupados por el usuario que los registró.',
+      description: 'Facilita control y trazabilidad de salidas para detectar concentraciones o comportamientos atípicos.',
       path: '/api/v1/reportes/inventario/productos-desfalcados/persona',
       icon: Icons.manage_accounts_rounded,
       requiresDates: true,
       chartLabelKey: 'responsable',
       chartValueKey: 'unidades_salida',
+      percentageKeys: ['concentracion_principal_porcentaje'],
     ),
   ];
 
@@ -176,9 +232,9 @@ class ReportesPage extends ConsumerWidget {
     if (entitlement != null && !entitlement.includes('REPORTES_OPERATIVOS')) {
       return const _PlanFeatureBlocked();
     }
-    if (_initialKind != null) {
+    if (_initialKey != null) {
       final definition = reports.firstWhere(
-        (item) => item.kind == _initialKind,
+        (item) => item.keyName == _initialKey,
       );
       return _ReporteDetail(
         definition: definition,
@@ -186,9 +242,7 @@ class ReportesPage extends ConsumerWidget {
       );
     }
 
-    final catalogReports = reports
-        .where((item) => item.kind == _ReportKind.standard)
-        .toList(growable: false);
+    final catalogReports = reports.toList(growable: false);
     final palette = ref.watch(selectedAppPaletteProvider);
     final visual = ModuleVisuals.byKey('reportes');
 
@@ -323,7 +377,7 @@ class _ReportsToolbar extends StatelessWidget {
                           ),
                           const SizedBox(height: 4),
                           Text(
-                            'Indicadores, gráficos y datos operativos para tomar decisiones de inventario y ventas.',
+                            'Ventas, rentabilidad, gastos, inventario, recaudo y trazabilidad convertidos en información para decidir.',
                             style: TextStyle(
                               color: palette.textSecondary,
                               fontWeight: FontWeight.w600,
@@ -390,6 +444,9 @@ class _ReportCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final visual = ModuleVisuals.byKey(definition.keyName);
+    final accent = visual.color;
+    final area = _reportAreaLabel(definition);
     return Material(
       color: Colors.transparent,
       borderRadius: BorderRadius.circular(palette.radius(22)),
@@ -404,7 +461,7 @@ class _ReportCard extends StatelessWidget {
           padding: const EdgeInsets.all(15),
           decoration: palette.panelDecoration(
             baseRadius: 22,
-            tint: palette.secondary,
+            tint: accent,
             elevated: false,
           ),
           child: Column(
@@ -417,15 +474,15 @@ class _ReportCard extends StatelessWidget {
                     width: 46,
                     height: 46,
                     decoration: BoxDecoration(
-                      color: palette.secondary.withOpacity(0.13),
+                      color: accent.withOpacity(0.13),
                       borderRadius: BorderRadius.circular(15),
                       border: Border.all(
-                        color: palette.secondary.withOpacity(0.20),
+                        color: accent.withOpacity(0.20),
                       ),
                     ),
                     child: Icon(
                       definition.icon,
-                      color: palette.secondary,
+                      color: accent,
                       size: 24,
                     ),
                   ),
@@ -470,7 +527,28 @@ class _ReportCard extends StatelessWidget {
                   height: 1.35,
                 ),
               ),
-              const SizedBox(height: 13),
+              const SizedBox(height: 10),
+              Align(
+                alignment: Alignment.centerLeft,
+                child: Container(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 9, vertical: 5),
+                  decoration: BoxDecoration(
+                    color: accent.withOpacity(.09),
+                    borderRadius: BorderRadius.circular(999),
+                    border: Border.all(color: accent.withOpacity(.18)),
+                  ),
+                  child: Text(
+                    area,
+                    style: TextStyle(
+                      color: accent,
+                      fontWeight: FontWeight.w900,
+                      fontSize: 9.5,
+                    ),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 10),
               Wrap(
                 spacing: 7,
                 runSpacing: 7,
@@ -539,7 +617,7 @@ class _ReportCapabilityChip extends StatelessWidget {
   }
 }
 
-enum _ProfitPeriodMode { day, month, inventoryCross }
+enum _ProfitPeriodMode { day, week, fortnight, month, inventoryCross }
 
 class _ReporteDetail extends ConsumerStatefulWidget {
   const _ReporteDetail({
@@ -665,6 +743,12 @@ class _ReporteDetailState extends ConsumerState<_ReporteDetail> {
       case _ProfitPeriodMode.day:
         await _selectProfitDay();
         return;
+      case _ProfitPeriodMode.week:
+        await _selectProfitWeek();
+        return;
+      case _ProfitPeriodMode.fortnight:
+        await _selectProfitFortnight();
+        return;
       case _ProfitPeriodMode.month:
         await _selectProfitMonth();
         return;
@@ -693,26 +777,405 @@ class _ReporteDetailState extends ConsumerState<_ReporteDetail> {
     });
   }
 
-  Future<void> _selectProfitMonth() async {
+  Future<void> _selectProfitWeek() async {
     final selected = await showDatePicker(
       context: context,
       firstDate: DateTime(2020),
       lastDate: DateUtils.dateOnly(DateTime.now()),
       initialDate: _range.end,
-      helpText: 'Selecciona cualquier día del mes',
+      helpText: 'Selecciona una fecha de la semana',
       cancelText: 'Cancelar',
-      confirmText: 'Aplicar mes',
+      confirmText: 'Aplicar semana',
     );
     if (selected == null || !mounted) return;
+
     final today = DateUtils.dateOnly(DateTime.now());
-    final firstDay = DateTime(selected.year, selected.month);
-    final naturalLastDay = DateTime(selected.year, selected.month + 1, 0);
+    final day = DateUtils.dateOnly(selected);
+    final monday = day.subtract(Duration(days: day.weekday - DateTime.monday));
+    final naturalSunday = monday.add(const Duration(days: 6));
+    final sunday = naturalSunday.isAfter(today) ? today : naturalSunday;
+
+    setState(() {
+      _lastPayload = null;
+      _range = DateTimeRange(start: monday, end: sunday);
+      _future = _load();
+    });
+  }
+
+  Future<void> _selectProfitFortnight() async {
+    final selectedMonth = await _showProfitMonthPicker(
+      initialMonth: _range.start,
+    );
+    if (selectedMonth == null || !mounted) return;
+
+    final today = DateUtils.dateOnly(DateTime.now());
+    final lastDayOfMonth =
+        DateTime(selectedMonth.year, selectedMonth.month + 1, 0);
+    final currentMonth = selectedMonth.year == today.year &&
+        selectedMonth.month == today.month;
+
+    final initialFortnight = _range.start.day >= 16 ? 2 : 1;
+    final selectedFortnight = await showDialog<int>(
+      context: context,
+      builder: (dialogContext) {
+        final scheme = Theme.of(dialogContext).colorScheme;
+        final secondAvailable = !currentMonth || today.day >= 16;
+
+        Widget option({
+          required int value,
+          required String title,
+          required String subtitle,
+          required bool enabled,
+        }) {
+          final selected = initialFortnight == value;
+          return Padding(
+            padding: const EdgeInsets.only(bottom: 8),
+            child: Material(
+              color: selected
+                  ? scheme.primaryContainer.withOpacity(.55)
+                  : scheme.surfaceContainerHighest.withOpacity(.35),
+              borderRadius: BorderRadius.circular(14),
+              child: InkWell(
+                onTap: enabled
+                    ? () => Navigator.of(dialogContext).pop(value)
+                    : null,
+                borderRadius: BorderRadius.circular(14),
+                child: Padding(
+                  padding: const EdgeInsets.all(14),
+                  child: Row(
+                    children: [
+                      Icon(
+                        value == 1
+                            ? Icons.looks_one_rounded
+                            : Icons.looks_two_rounded,
+                        color: enabled
+                            ? scheme.primary
+                            : scheme.onSurface.withOpacity(.30),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              title,
+                              style: TextStyle(
+                                color: enabled
+                                    ? scheme.onSurface
+                                    : scheme.onSurface.withOpacity(.35),
+                                fontWeight: FontWeight.w900,
+                              ),
+                            ),
+                            const SizedBox(height: 2),
+                            Text(
+                              subtitle,
+                              style: TextStyle(
+                                color: enabled
+                                    ? scheme.onSurfaceVariant
+                                    : scheme.onSurface.withOpacity(.28),
+                                fontSize: 12,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      if (selected && enabled)
+                        Icon(Icons.check_circle_rounded, color: scheme.primary),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+          );
+        }
+
+        return AlertDialog(
+          title: Text(
+            'Quincena · ${_monthYearLabel(selectedMonth)}',
+          ),
+          content: SizedBox(
+            width: math.min(MediaQuery.sizeOf(dialogContext).width * .86, 420),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                option(
+                  value: 1,
+                  title: 'Primera quincena',
+                  subtitle: 'Del 1 al 15',
+                  enabled: true,
+                ),
+                option(
+                  value: 2,
+                  title: 'Segunda quincena',
+                  subtitle:
+                      'Del 16 al ${lastDayOfMonth.day}${currentMonth && !secondAvailable ? ' · aún no disponible' : ''}',
+                  enabled: secondAvailable,
+                ),
+              ],
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(dialogContext).pop(),
+              child: const Text('Cancelar'),
+            ),
+          ],
+        );
+      },
+    );
+
+    if (selectedFortnight == null || !mounted) return;
+
+    final firstDay = selectedFortnight == 1
+        ? DateTime(selectedMonth.year, selectedMonth.month, 1)
+        : DateTime(selectedMonth.year, selectedMonth.month, 16);
+    final naturalLastDay = selectedFortnight == 1
+        ? DateTime(selectedMonth.year, selectedMonth.month, 15)
+        : lastDayOfMonth;
     final lastDay = naturalLastDay.isAfter(today) ? today : naturalLastDay;
+
     setState(() {
       _lastPayload = null;
       _range = DateTimeRange(start: firstDay, end: lastDay);
       _future = _load();
     });
+  }
+
+  Future<void> _selectProfitMonth() async {
+    final selected = await _showProfitMonthPicker(
+      initialMonth: _range.start,
+    );
+    if (selected == null || !mounted) return;
+
+    final today = DateUtils.dateOnly(DateTime.now());
+    final firstDay = DateTime(selected.year, selected.month);
+    final naturalLastDay = DateTime(selected.year, selected.month + 1, 0);
+    final lastDay = naturalLastDay.isAfter(today) ? today : naturalLastDay;
+
+    setState(() {
+      _lastPayload = null;
+      _range = DateTimeRange(start: firstDay, end: lastDay);
+      _future = _load();
+    });
+  }
+
+  Future<DateTime?> _showProfitMonthPicker({
+    required DateTime initialMonth,
+  }) async {
+    final now = DateUtils.dateOnly(DateTime.now());
+    const firstYear = 2020;
+    var selectedYear = initialMonth.year.clamp(firstYear, now.year).toInt();
+    var selectedMonth = initialMonth.month;
+
+    if (selectedYear == now.year && selectedMonth > now.month) {
+      selectedMonth = now.month;
+    }
+
+    const monthNames = <String>[
+      'Enero',
+      'Febrero',
+      'Marzo',
+      'Abril',
+      'Mayo',
+      'Junio',
+      'Julio',
+      'Agosto',
+      'Septiembre',
+      'Octubre',
+      'Noviembre',
+      'Diciembre',
+    ];
+
+    return showDialog<DateTime>(
+      context: context,
+      builder: (dialogContext) {
+        return StatefulBuilder(
+          builder: (context, setDialogState) {
+            final theme = Theme.of(context);
+            final scheme = theme.colorScheme;
+
+            void changeYear(int year) {
+              setDialogState(() {
+                selectedYear = year;
+                if (selectedYear == now.year && selectedMonth > now.month) {
+                  selectedMonth = now.month;
+                }
+              });
+            }
+
+            return AlertDialog(
+              titlePadding: const EdgeInsets.fromLTRB(24, 20, 16, 8),
+              contentPadding: const EdgeInsets.fromLTRB(20, 8, 20, 8),
+              actionsPadding: const EdgeInsets.fromLTRB(16, 8, 16, 14),
+              title: Row(
+                children: [
+                  Icon(
+                    Icons.calendar_month_rounded,
+                    color: scheme.primary,
+                  ),
+                  const SizedBox(width: 10),
+                  const Expanded(
+                    child: Text('Selecciona el mes'),
+                  ),
+                ],
+              ),
+              content: SizedBox(
+                width: math.min(MediaQuery.sizeOf(context).width * .86, 430),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 12,
+                        vertical: 4,
+                      ),
+                      decoration: BoxDecoration(
+                        color: scheme.surfaceContainerHighest.withOpacity(.45),
+                        borderRadius: BorderRadius.circular(14),
+                        border: Border.all(
+                          color: scheme.outlineVariant.withOpacity(.65),
+                        ),
+                      ),
+                      child: Row(
+                        children: [
+                          IconButton(
+                            tooltip: 'Año anterior',
+                            onPressed: selectedYear > firstYear
+                                ? () => changeYear(selectedYear - 1)
+                                : null,
+                            icon: const Icon(Icons.chevron_left_rounded),
+                          ),
+                          Expanded(
+                            child: DropdownButtonHideUnderline(
+                              child: DropdownButton<int>(
+                                value: selectedYear,
+                                isExpanded: true,
+                                alignment: Alignment.center,
+                                items: [
+                                  for (var year = firstYear;
+                                      year <= now.year;
+                                      year++)
+                                    DropdownMenuItem<int>(
+                                      value: year,
+                                      alignment: Alignment.center,
+                                      child: Text(
+                                        '$year',
+                                        style: const TextStyle(
+                                          fontWeight: FontWeight.w900,
+                                        ),
+                                      ),
+                                    ),
+                                ],
+                                onChanged: (year) {
+                                  if (year != null) changeYear(year);
+                                },
+                              ),
+                            ),
+                          ),
+                          IconButton(
+                            tooltip: 'Año siguiente',
+                            onPressed: selectedYear < now.year
+                                ? () => changeYear(selectedYear + 1)
+                                : null,
+                            icon: const Icon(Icons.chevron_right_rounded),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+                    GridView.builder(
+                      shrinkWrap: true,
+                      physics: const NeverScrollableScrollPhysics(),
+                      itemCount: 12,
+                      gridDelegate:
+                          const SliverGridDelegateWithFixedCrossAxisCount(
+                        crossAxisCount: 3,
+                        mainAxisSpacing: 8,
+                        crossAxisSpacing: 8,
+                        childAspectRatio: 2.35,
+                      ),
+                      itemBuilder: (_, index) {
+                        final month = index + 1;
+                        final futureMonth =
+                            selectedYear == now.year && month > now.month;
+                        final selected = selectedMonth == month;
+
+                        return Material(
+                          color: selected
+                              ? scheme.primary
+                              : scheme.surfaceContainerHighest.withOpacity(.35),
+                          borderRadius: BorderRadius.circular(12),
+                          child: InkWell(
+                            borderRadius: BorderRadius.circular(12),
+                            onTap: futureMonth
+                                ? null
+                                : () => setDialogState(
+                                      () => selectedMonth = month,
+                                    ),
+                            child: Container(
+                              alignment: Alignment.center,
+                              decoration: BoxDecoration(
+                                borderRadius: BorderRadius.circular(12),
+                                border: Border.all(
+                                  color: selected
+                                      ? scheme.primary
+                                      : scheme.outlineVariant.withOpacity(.55),
+                                ),
+                              ),
+                              child: Text(
+                                monthNames[index],
+                                textAlign: TextAlign.center,
+                                style: TextStyle(
+                                  color: futureMonth
+                                      ? scheme.onSurface.withOpacity(.30)
+                                      : selected
+                                          ? scheme.onPrimary
+                                          : scheme.onSurface,
+                                  fontWeight: selected
+                                      ? FontWeight.w900
+                                      : FontWeight.w700,
+                                  fontSize: 12,
+                                ),
+                              ),
+                            ),
+                          ),
+                        );
+                      },
+                    ),
+                    const SizedBox(height: 12),
+                    Align(
+                      alignment: Alignment.centerLeft,
+                      child: Text(
+                        'Mes seleccionado: ${monthNames[selectedMonth - 1]} $selectedYear',
+                        style: TextStyle(
+                          color: scheme.onSurfaceVariant,
+                          fontWeight: FontWeight.w700,
+                          fontSize: 12,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.of(dialogContext).pop(),
+                  child: const Text('Cancelar'),
+                ),
+                FilledButton.icon(
+                  onPressed: () => Navigator.of(dialogContext).pop(
+                    DateTime(selectedYear, selectedMonth),
+                  ),
+                  icon: const Icon(Icons.check_rounded),
+                  label: const Text('Aplicar mes'),
+                ),
+              ],
+            );
+          },
+        );
+      },
+    );
   }
 
   void _changeProfitPeriodMode(_ProfitPeriodMode mode) {
@@ -721,6 +1184,32 @@ class _ReporteDetailState extends ConsumerState<_ReporteDetail> {
     final anchor = _range.end.isAfter(today) ? today : _range.end;
     final nextRange = switch (mode) {
       _ProfitPeriodMode.day => DateTimeRange(start: anchor, end: anchor),
+      _ProfitPeriodMode.week => () {
+          final monday = anchor.subtract(
+            Duration(days: anchor.weekday - DateTime.monday),
+          );
+          final naturalSunday = monday.add(const Duration(days: 6));
+          return DateTimeRange(
+            start: monday,
+            end: naturalSunday.isAfter(today) ? today : naturalSunday,
+          );
+        }(),
+      _ProfitPeriodMode.fortnight => DateTimeRange(
+          start: DateTime(
+            anchor.year,
+            anchor.month,
+            anchor.day <= 15 ? 1 : 16,
+          ),
+          end: anchor.day <= 15
+              ? (anchor.year == today.year &&
+                      anchor.month == today.month &&
+                      DateTime(anchor.year, anchor.month, 15).isAfter(today)
+                  ? today
+                  : DateTime(anchor.year, anchor.month, 15))
+              : (anchor.year == today.year && anchor.month == today.month
+                  ? today
+                  : DateTime(anchor.year, anchor.month + 1, 0)),
+        ),
       _ProfitPeriodMode.month => DateTimeRange(
           start: DateTime(anchor.year, anchor.month),
           end: anchor.year == today.year && anchor.month == today.month
@@ -928,6 +1417,10 @@ class _DetailHeader extends StatelessWidget {
   ) {
     return switch (mode) {
       _ProfitPeriodMode.day => DateFormat('dd/MM/yyyy').format(value.start),
+      _ProfitPeriodMode.week =>
+        'Semana ${DateFormat('dd/MM').format(value.start)} - ${DateFormat('dd/MM/yyyy').format(value.end)}',
+      _ProfitPeriodMode.fortnight =>
+        '${value.start.day >= 16 ? '2.ª' : '1.ª'} quincena · ${_monthYearLabel(value.start)}',
       _ProfitPeriodMode.month => _monthYearLabel(value.start),
       _ProfitPeriodMode.inventoryCross =>
         '${DateFormat('dd/MM').format(value.start)} - ${DateFormat('dd/MM/yyyy').format(value.end)}',
@@ -1197,7 +1690,7 @@ class _DetailHeader extends StatelessWidget {
                       children: [
                         if (periodModeFilter != null)
                           SizedBox(
-                            width: tablet ? 330 : 350,
+                            width: tablet ? 520 : 570,
                             child: periodModeFilter,
                           ),
                         if (dateFilter != null)
@@ -1242,6 +1735,12 @@ class _ProfitPeriodSelector extends StatelessWidget {
       IconData icon,
     })>[
       (value: _ProfitPeriodMode.day, label: 'Día', icon: Icons.today_rounded),
+      (value: _ProfitPeriodMode.week, label: 'Semana', icon: Icons.view_week_rounded),
+      (
+        value: _ProfitPeriodMode.fortnight,
+        label: 'Quincena',
+        icon: Icons.date_range_rounded,
+      ),
       (value: _ProfitPeriodMode.month, label: 'Mes', icon: Icons.calendar_month_rounded),
       (
         value: _ProfitPeriodMode.inventoryCross,
@@ -1294,46 +1793,55 @@ class _ProfitPeriodButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Material(
-      color: Colors.transparent,
-      child: InkWell(
-        onTap: onTap,
-        borderRadius: BorderRadius.circular(9),
-        child: AnimatedContainer(
-          duration: const Duration(milliseconds: 160),
-          padding: const EdgeInsets.symmetric(horizontal: 6),
-          decoration: BoxDecoration(
-            color: selected
-                ? palette.secondary.withOpacity(0.15)
-                : Colors.transparent,
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final compact = constraints.maxWidth < 74;
+        return Material(
+          color: Colors.transparent,
+          child: InkWell(
+            onTap: onTap,
             borderRadius: BorderRadius.circular(9),
-          ),
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Icon(
-                icon,
-                size: 15,
-                color: selected ? palette.secondary : palette.textSecondary,
+            child: AnimatedContainer(
+              duration: const Duration(milliseconds: 160),
+              padding: EdgeInsets.symmetric(horizontal: compact ? 3 : 6),
+              decoration: BoxDecoration(
+                color: selected
+                    ? palette.secondary.withOpacity(0.15)
+                    : Colors.transparent,
+                borderRadius: BorderRadius.circular(9),
               ),
-              const SizedBox(width: 4),
-              Flexible(
-                child: Text(
-                  label,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: TextStyle(
-                    color:
-                        selected ? palette.secondary : palette.textSecondary,
-                    fontSize: 10.5,
-                    fontWeight: FontWeight.w900,
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  if (!compact) ...[
+                    Icon(
+                      icon,
+                      size: 15,
+                      color:
+                          selected ? palette.secondary : palette.textSecondary,
+                    ),
+                    const SizedBox(width: 4),
+                  ],
+                  Flexible(
+                    child: Text(
+                      label,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        color: selected
+                            ? palette.secondary
+                            : palette.textSecondary,
+                        fontSize: compact ? 9.5 : 10.5,
+                        fontWeight: FontWeight.w900,
+                      ),
+                    ),
                   ),
-                ),
+                ],
               ),
-            ],
+            ),
           ),
-        ),
-      ),
+        );
+      },
     );
   }
 }
@@ -1396,25 +1904,43 @@ class _ReportContent extends StatelessWidget {
                   percentageKeys: definition.percentageKeys,
                 ),
                 const SizedBox(height: 14),
-                _Panel(
-                  title: 'Lectura gráfica',
-                  subtitle: 'Los valores más relevantes del reporte para identificar tendencias rápidamente.',
-                  icon: Icons.insights_rounded,
+                _ReportDecisionSection(
+                  definition: definition,
+                  rows: payload.rows,
+                  metrics: metrics,
                   palette: palette,
-                  child: _HorizontalBarChart(
-                    rows: payload.rows,
-                    labelKey: definition.chartLabelKey,
-                    valueKey: definition.chartValueKey,
-                    palette: palette,
-                    currency: definition.currencyKeys.contains(definition.chartValueKey),
-                    percentage: definition.percentageKeys.contains(definition.chartValueKey),
-                    signed: definition.signedChart,
-                  ),
                 ),
                 const SizedBox(height: 14),
                 _Panel(
-                  title: 'Información detallada',
-                  subtitle: '${payload.rows.length} registros. Cambia entre tarjetas y tabla según el dispositivo.',
+                  title: _reportChartTitle(definition),
+                  subtitle: _reportChartSubtitle(definition),
+                  icon: _reportChartIcon(definition),
+                  palette: palette,
+                  child: definition.path.endsWith('/ventas')
+                      ? _ReportTimeSeriesChart(
+                          rows: payload.rows,
+                          dateKey: 'fecha',
+                          valueKey: 'total',
+                          palette: palette,
+                          currency: true,
+                        )
+                      : _HorizontalBarChart(
+                          rows: payload.rows,
+                          labelKey: definition.chartLabelKey,
+                          valueKey: definition.chartValueKey,
+                          palette: palette,
+                          currency: definition.currencyKeys
+                              .contains(definition.chartValueKey),
+                          percentage: definition.percentageKeys
+                              .contains(definition.chartValueKey),
+                          signed: definition.signedChart,
+                        ),
+                ),
+                const SizedBox(height: 14),
+                _Panel(
+                  title: 'Detalle para validar y actuar',
+                  subtitle:
+                      '${payload.rows.length} registros. Busca, compara y cambia entre tarjetas o tabla según el dispositivo.',
                   icon: Icons.table_rows_rounded,
                   palette: palette,
                   child: _ReportTable(
@@ -1433,6 +1959,560 @@ class _ReportContent extends StatelessWidget {
   }
 }
 
+
+class _ReportDecisionSection extends StatelessWidget {
+  const _ReportDecisionSection({
+    required this.definition,
+    required this.rows,
+    required this.metrics,
+    required this.palette,
+  });
+
+  final _ReportDefinition definition;
+  final List<Map<String, dynamic>> rows;
+  final Map<String, dynamic> metrics;
+  final AppPalette palette;
+
+  @override
+  Widget build(BuildContext context) {
+    final insights = _buildReportInsights(
+      definition,
+      rows,
+      metrics,
+      palette,
+    );
+
+    if (insights.isEmpty) return const SizedBox.shrink();
+
+    return _Panel(
+      title: 'Lectura para decidir',
+      subtitle:
+          'Lo más importante del reporte, convertido en señales que ayudan a tomar acción.',
+      icon: Icons.lightbulb_outline_rounded,
+      palette: palette,
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          final columns = constraints.maxWidth < 620
+              ? 1
+              : constraints.maxWidth < 980
+                  ? 2
+                  : math.min(3, insights.length);
+          const spacing = 9.0;
+          final width =
+              (constraints.maxWidth - (columns - 1) * spacing) / columns;
+          return Wrap(
+            spacing: spacing,
+            runSpacing: spacing,
+            children: [
+              for (final insight in insights)
+                SizedBox(
+                  width: width,
+                  child: _ReportInsightCard(
+                    insight: insight,
+                    palette: palette,
+                  ),
+                ),
+            ],
+          );
+        },
+      ),
+    );
+  }
+}
+
+class _ReportInsightData {
+  const _ReportInsightData({
+    required this.title,
+    required this.value,
+    required this.detail,
+    required this.icon,
+    required this.color,
+  });
+
+  final String title;
+  final String value;
+  final String detail;
+  final IconData icon;
+  final Color color;
+}
+
+class _ReportInsightCard extends StatelessWidget {
+  const _ReportInsightCard({
+    required this.insight,
+    required this.palette,
+  });
+
+  final _ReportInsightData insight;
+  final AppPalette palette;
+
+  @override
+  Widget build(BuildContext context) => Container(
+        constraints: const BoxConstraints(minHeight: 126),
+        padding: const EdgeInsets.all(13),
+        decoration: BoxDecoration(
+          color: insight.color.withOpacity(.06),
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: insight.color.withOpacity(.16)),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Container(
+                  width: 34,
+                  height: 34,
+                  decoration: BoxDecoration(
+                    color: insight.color.withOpacity(.12),
+                    borderRadius: BorderRadius.circular(11),
+                  ),
+                  child: Icon(
+                    insight.icon,
+                    color: insight.color,
+                    size: 18,
+                  ),
+                ),
+                const SizedBox(width: 9),
+                Expanded(
+                  child: Text(
+                    insight.title,
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      color: palette.textSecondary,
+                      fontWeight: FontWeight.w800,
+                      fontSize: 10.5,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 10),
+            Text(
+              insight.value,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(
+                color: palette.textPrimary,
+                fontWeight: FontWeight.w900,
+                fontSize: 17,
+              ),
+            ),
+            const SizedBox(height: 4),
+            Text(
+              insight.detail,
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(
+                color: palette.textSecondary,
+                fontWeight: FontWeight.w600,
+                fontSize: 10.5,
+                height: 1.25,
+              ),
+            ),
+          ],
+        ),
+      );
+}
+
+List<_ReportInsightData> _buildReportInsights(
+  _ReportDefinition definition,
+  List<Map<String, dynamic>> rows,
+  Map<String, dynamic> metrics,
+  AppPalette palette,
+) {
+  if (rows.isEmpty) return const <_ReportInsightData>[];
+
+  if (definition.path.endsWith('/ventas')) {
+    final ranked = [...rows]
+      ..sort((a, b) => _toDouble(b['total']).compareTo(_toDouble(a['total'])));
+    final best = ranked.first;
+    final total = _sum(rows, 'total');
+    final propinas = _sum(rows, 'propinas');
+    final average = rows.isEmpty ? 0 : total / rows.length;
+    return [
+      _ReportInsightData(
+        title: 'Día con mayor venta',
+        value: _displayValue(best['fecha']),
+        detail: CurrencyUtils.format(_toDouble(best['total'])),
+        icon: Icons.emoji_events_rounded,
+        color: palette.success,
+      ),
+      _ReportInsightData(
+        title: 'Venta promedio por día',
+        value: CurrencyUtils.format(average),
+        detail: 'Promedio sobre ${rows.length} días con movimiento.',
+        icon: Icons.query_stats_rounded,
+        color: palette.secondary,
+      ),
+      _ReportInsightData(
+        title: 'Propinas',
+        value: CurrencyUtils.format(propinas),
+        detail: total <= 0
+            ? 'Sin ventas para calcular participación.'
+            : '${(propinas * 100 / total).toStringAsFixed(1)} % del total vendido.',
+        icon: Icons.volunteer_activism_rounded,
+        color: palette.accent,
+      ),
+    ];
+  }
+
+  if (definition.path.contains('medio-pago')) {
+    final ranked = [...rows]
+      ..sort((a, b) => _toDouble(b['total']).compareTo(_toDouble(a['total'])));
+    final top = ranked.first;
+    final total = _sum(rows, 'total');
+    final share = total <= 0 ? 0 : _toDouble(top['total']) * 100 / total;
+    return [
+      _ReportInsightData(
+        title: 'Medio principal',
+        value: _displayValue(top['medio_pago']),
+        detail: CurrencyUtils.format(_toDouble(top['total'])),
+        icon: Icons.account_balance_wallet_rounded,
+        color: palette.secondary,
+      ),
+      _ReportInsightData(
+        title: 'Concentración del recaudo',
+        value: '${share.toStringAsFixed(1)} %',
+        detail: share >= 70
+            ? 'Alta dependencia de un solo medio de pago.'
+            : 'El recaudo está distribuido entre varios medios.',
+        icon: Icons.donut_large_rounded,
+        color: share >= 70 ? palette.warning : palette.success,
+      ),
+      _ReportInsightData(
+        title: 'Diversidad de pagos',
+        value: '${rows.length} medios',
+        detail: 'Útiles para conciliación y control de caja.',
+        icon: Icons.hub_rounded,
+        color: palette.accent,
+      ),
+    ];
+  }
+
+  if (definition.path.contains('stock-actual')) {
+    final critical = rows.where((row) {
+      final status = (row['estado'] ?? '').toString();
+      return status == 'STOCK_NEGATIVO' ||
+          status == 'AGOTADO' ||
+          status == 'STOCK_BAJO';
+    }).length;
+    final unconfigured =
+        rows.where((row) => row['estado'] == 'SIN_CONFIGURAR').length;
+    final overstock =
+        rows.where((row) => row['estado'] == 'SOBRESTOCK').length;
+    final riskShare = rows.isEmpty ? 0 : critical * 100 / rows.length;
+    return [
+      _ReportInsightData(
+        title: 'Productos en riesgo',
+        value: '$critical',
+        detail: '${riskShare.toStringAsFixed(1)} % del catálogo requiere atención.',
+        icon: Icons.warning_amber_rounded,
+        color: critical > 0 ? Colors.orangeAccent : palette.success,
+      ),
+      _ReportInsightData(
+        title: 'Sin mínimo configurado',
+        value: '$unconfigured',
+        detail: unconfigured == 0
+            ? 'Todos tienen referencia para reposición.'
+            : 'Configura mínimos para obtener alertas confiables.',
+        icon: Icons.tune_rounded,
+        color: unconfigured > 0 ? palette.warning : palette.success,
+      ),
+      _ReportInsightData(
+        title: 'Sobrestock',
+        value: '$overstock',
+        detail: overstock == 0
+            ? 'No se detectan excesos sobre el máximo.'
+            : 'Revisa capital inmovilizado y ritmo de rotación.',
+        icon: Icons.inventory_2_rounded,
+        color: overstock > 0 ? palette.accent : palette.success,
+      ),
+    ];
+  }
+
+  if (definition.path.contains('productos-mas-vendidos')) {
+    final ranked = [...rows]
+      ..sort((a, b) => _toDouble(b['cantidad']).compareTo(_toDouble(a['cantidad'])));
+    final top = ranked.first;
+    final totalUnits = _sum(rows, 'cantidad');
+    final top3Units = ranked
+        .take(3)
+        .fold<double>(0, (sum, row) => sum + _toDouble(row['cantidad']));
+    final concentration = totalUnits <= 0 ? 0 : top3Units * 100 / totalUnits;
+    return [
+      _ReportInsightData(
+        title: 'Producto líder',
+        value: _displayValue(top['producto']),
+        detail: '${_displayValue(top['cantidad'])} unidades · ${CurrencyUtils.format(_toDouble(top['total']))}',
+        icon: Icons.workspace_premium_rounded,
+        color: palette.success,
+      ),
+      _ReportInsightData(
+        title: 'Concentración Top 3',
+        value: '${concentration.toStringAsFixed(1)} %',
+        detail: 'Participación de los tres productos con más unidades.',
+        icon: Icons.leaderboard_rounded,
+        color: palette.secondary,
+      ),
+      _ReportInsightData(
+        title: 'Ingresos del ranking',
+        value: CurrencyUtils.format(_sum(rows, 'total')),
+        detail: '${_displayValue(totalUnits)} unidades vendidas.',
+        icon: Icons.payments_rounded,
+        color: palette.actionColor,
+      ),
+    ];
+  }
+
+  if (definition.path.contains('movimientos-inventario')) {
+    final entradas = rows
+        .where((row) => row['operacion'] == 'ENTRADA')
+        .fold<double>(0, (sum, row) => sum + _toDouble(row['cantidad_unidades']));
+    final salidas = rows
+        .where((row) => row['operacion'] == 'SALIDA')
+        .fold<double>(0, (sum, row) => sum + _toDouble(row['cantidad_unidades']));
+    final ajustes =
+        rows.where((row) => row['operacion'] == 'AJUSTE').length;
+    final balance = entradas - salidas;
+    return [
+      _ReportInsightData(
+        title: 'Entradas registradas',
+        value: _displayValue(entradas),
+        detail: 'Unidades incorporadas al inventario.',
+        icon: Icons.south_west_rounded,
+        color: palette.success,
+      ),
+      _ReportInsightData(
+        title: 'Salidas registradas',
+        value: _displayValue(salidas),
+        detail: 'Unidades descontadas en el periodo.',
+        icon: Icons.north_east_rounded,
+        color: Colors.orangeAccent,
+      ),
+      _ReportInsightData(
+        title: 'Balance de flujo',
+        value: _displayValue(balance),
+        detail: '$ajustes ajustes manuales registrados.',
+        icon: Icons.balance_rounded,
+        color: balance < 0 ? palette.warning : palette.secondary,
+      ),
+    ];
+  }
+
+  if (definition.path.contains('cruce-ventas')) {
+    final ranked = [...rows]
+      ..sort(
+        (a, b) => _toDouble(b['rotacion_porcentaje'])
+            .compareTo(_toDouble(a['rotacion_porcentaje'])),
+      );
+    final top = ranked.first;
+    final withoutRotation =
+        rows.where((row) => row['estado'] == 'SIN_ROTACION').length;
+    final risk = rows.where((row) {
+      final status = (row['estado'] ?? '').toString();
+      return status == 'STOCK_NEGATIVO' ||
+          status == 'AGOTADO_CON_ROTACION' ||
+          status == 'STOCK_BAJO';
+    }).length;
+    return [
+      _ReportInsightData(
+        title: 'Mayor rotación',
+        value: _displayValue(top['producto']),
+        detail:
+            '${_displayValue(top['rotacion_porcentaje'], percentage: true)} de rotación.',
+        icon: Icons.autorenew_rounded,
+        color: palette.success,
+      ),
+      _ReportInsightData(
+        title: 'Sin rotación',
+        value: '$withoutRotation',
+        detail: 'Productos sin ventas en el periodo seleccionado.',
+        icon: Icons.pause_circle_outline_rounded,
+        color: withoutRotation > 0 ? palette.warning : palette.success,
+      ),
+      _ReportInsightData(
+        title: 'Rotación con riesgo de stock',
+        value: '$risk',
+        detail: 'Productos que requieren reposición o validación.',
+        icon: Icons.crisis_alert_rounded,
+        color: risk > 0 ? Colors.orangeAccent : palette.success,
+      ),
+    ];
+  }
+
+  if (definition.path.contains('productos-desfalcados') &&
+      !definition.path.contains('/persona')) {
+    final negative =
+        rows.where((row) => _toDouble(row['stock_actual']) < 0).length;
+    final outWithDemand =
+        rows.where((row) => row['estado'] == 'AGOTADO_CON_ROTACION').length;
+    final associatedSales = _sum(rows, 'valor_vendido');
+    return [
+      _ReportInsightData(
+        title: 'Stock negativo',
+        value: '$negative',
+        detail: negative == 0
+            ? 'No hay productos con existencia negativa.'
+            : 'Requieren conteo y revisión de movimientos.',
+        icon: Icons.error_outline_rounded,
+        color: negative > 0 ? Colors.redAccent : palette.success,
+      ),
+      _ReportInsightData(
+        title: 'Agotados con demanda',
+        value: '$outWithDemand',
+        detail: 'Productos sin stock que tuvieron ventas en el periodo.',
+        icon: Icons.remove_shopping_cart_rounded,
+        color: outWithDemand > 0 ? Colors.orangeAccent : palette.success,
+      ),
+      _ReportInsightData(
+        title: 'Ventas asociadas al riesgo',
+        value: CurrencyUtils.format(associatedSales),
+        detail: 'Referencia del movimiento comercial de los productos alertados.',
+        icon: Icons.attach_money_rounded,
+        color: palette.warning,
+      ),
+    ];
+  }
+
+  if (definition.path.contains('/persona')) {
+    final ranked = [...rows]
+      ..sort(
+        (a, b) => _toDouble(b['unidades_salida'])
+            .compareTo(_toDouble(a['unidades_salida'])),
+      );
+    final top = ranked.first;
+    final total = _sum(rows, 'unidades_salida');
+    final topShare =
+        total <= 0 ? 0 : _toDouble(top['unidades_salida']) * 100 / total;
+    return [
+      _ReportInsightData(
+        title: 'Mayor volumen de salidas',
+        value: _displayValue(top['responsable']),
+        detail:
+            '${_displayValue(top['unidades_salida'])} unidades registradas.',
+        icon: Icons.person_search_rounded,
+        color: palette.secondary,
+      ),
+      _ReportInsightData(
+        title: 'Concentración principal',
+        value: '${topShare.toStringAsFixed(1)} %',
+        detail: topShare >= 60
+            ? 'Conviene revisar el contexto de esta concentración.'
+            : 'Las salidas están distribuidas entre responsables.',
+        icon: Icons.pie_chart_outline_rounded,
+        color: topShare >= 60 ? palette.warning : palette.success,
+      ),
+      _ReportInsightData(
+        title: 'Trazabilidad',
+        value: '${_displayValue(_sum(rows, 'movimientos'))} movimientos',
+        detail: '${rows.length} responsables con actividad.',
+        icon: Icons.manage_search_rounded,
+        color: palette.accent,
+      ),
+    ];
+  }
+
+  return [
+    _ReportInsightData(
+      title: 'Registros analizados',
+      value: '${rows.length}',
+      detail: 'Consulta el detalle para validar tendencias y excepciones.',
+      icon: Icons.analytics_rounded,
+      color: palette.secondary,
+    ),
+  ];
+}
+
+String _reportAreaLabel(_ReportDefinition definition) {
+  if (definition.summary || definition.kind == _ReportKind.profit) {
+    return 'FINANZAS Y GESTIÓN';
+  }
+  if (definition.path.contains('/ventas') ||
+      definition.path.contains('productos-mas-vendidos')) {
+    return 'VENTAS Y RECAUDO';
+  }
+  if (definition.path.contains('/persona') ||
+      definition.path.contains('movimientos-inventario') ||
+      definition.path.contains('cruce-conteo')) {
+    return 'CONTROL Y TRAZABILIDAD';
+  }
+  if (definition.path.contains('inventario') ||
+      definition.path.contains('stock-actual')) {
+    return 'INVENTARIO';
+  }
+  return 'OPERACIÓN';
+}
+
+String _reportChartTitle(_ReportDefinition definition) {
+  if (definition.path.endsWith('/ventas')) return 'Evolución de ventas';
+  if (definition.path.contains('medio-pago')) return 'Participación del recaudo';
+  if (definition.path.contains('stock-actual')) return 'Existencias por producto';
+  if (definition.path.contains('productos-mas-vendidos')) {
+    return 'Ranking de demanda';
+  }
+  if (definition.path.contains('movimientos-inventario')) {
+    return 'Movimiento por tipo';
+  }
+  if (definition.path.contains('cruce-ventas')) return 'Rotación por producto';
+  if (definition.path.contains('productos-desfalcados') &&
+      !definition.path.contains('/persona')) {
+    return 'Productos con demanda en riesgo';
+  }
+  if (definition.path.contains('/persona')) return 'Salidas por responsable';
+  return 'Lectura gráfica';
+}
+
+String _reportChartSubtitle(_ReportDefinition definition) {
+  if (definition.path.endsWith('/ventas')) {
+    return 'Compara los días del periodo y detecta cuándo se concentra la facturación.';
+  }
+  if (definition.path.contains('medio-pago')) {
+    return 'Visualiza qué medios concentran el recaudo para facilitar conciliación y control.';
+  }
+  if (definition.path.contains('stock-actual')) {
+    return 'Compara existencias y detecta productos que merecen una revisión de mínimos o máximos.';
+  }
+  if (definition.path.contains('productos-mas-vendidos')) {
+    return 'Identifica los productos que más unidades aportan al movimiento comercial.';
+  }
+  if (definition.path.contains('movimientos-inventario')) {
+    return 'Observa qué tipos de movimiento explican la mayor parte del flujo de inventario.';
+  }
+  if (definition.path.contains('cruce-ventas')) {
+    return 'Prioriza productos con mayor movimiento y detecta referencias estancadas.';
+  }
+  if (definition.path.contains('productos-desfalcados') &&
+      !definition.path.contains('/persona')) {
+    return 'Dimensiona los productos con riesgo de disponibilidad frente a su movimiento comercial.';
+  }
+  if (definition.path.contains('/persona')) {
+    return 'Compara el volumen de salidas registrado por cada responsable.';
+  }
+  return 'Los valores más relevantes del reporte para identificar tendencias rápidamente.';
+}
+
+IconData _reportChartIcon(_ReportDefinition definition) {
+  if (definition.path.endsWith('/ventas')) return Icons.show_chart_rounded;
+  if (definition.path.contains('medio-pago')) {
+    return Icons.account_balance_wallet_rounded;
+  }
+  if (definition.path.contains('stock-actual')) return Icons.inventory_2_rounded;
+  if (definition.path.contains('productos-mas-vendidos')) {
+    return Icons.leaderboard_rounded;
+  }
+  if (definition.path.contains('movimientos-inventario')) {
+    return Icons.swap_vert_circle_rounded;
+  }
+  if (definition.path.contains('cruce-ventas')) return Icons.sync_alt_rounded;
+  if (definition.path.contains('/persona')) {
+    return Icons.manage_accounts_rounded;
+  }
+  if (definition.path.contains('productos-desfalcados')) {
+    return Icons.warning_amber_rounded;
+  }
+  return Icons.insights_rounded;
+}
 
 enum _ProfitProductFilter { todos, rentables, margenBajo, perdidas, sinCosto }
 
@@ -1487,7 +2567,13 @@ class _ProfitContentState extends State<_ProfitContent> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                _ProfitHero(rows: rows, palette: widget.palette),
+                _ProfitHero(
+                  rows: rows,
+                  metadata: widget.payload.rows.isEmpty
+                      ? const <String, dynamic>{}
+                      : widget.payload.rows.first,
+                  palette: widget.palette,
+                ),
                 const SizedBox(height: 14),
                 LayoutBuilder(
                   builder: (context, constraints) {
@@ -1627,19 +2713,44 @@ class _ProfitContentState extends State<_ProfitContent> {
 }
 
 class _ProfitHero extends StatelessWidget {
-  const _ProfitHero({required this.rows, required this.palette});
+  const _ProfitHero({
+    required this.rows,
+    required this.metadata,
+    required this.palette,
+  });
 
   final List<Map<String, dynamic>> rows;
+  final Map<String, dynamic> metadata;
   final AppPalette palette;
 
   @override
   Widget build(BuildContext context) {
     final ingresos = _sum(rows, 'ingresos_periodo');
-    final costos = _sum(rows, 'costo_ventas_periodo');
-    final ganancia = _sum(rows, 'ganancia_bruta_periodo');
-    final margen = ingresos == 0 ? 0.0 : ganancia * 100 / ingresos;
+    final costoProductos = _sum(rows, 'costo_ventas_periodo');
+    final gananciaBruta = _sum(rows, 'ganancia_bruta_periodo');
     final unidades = _sum(rows, 'unidades_vendidas_periodo');
-    final positive = ganancia >= 0;
+
+    final gastosFijos = _toDouble(metadata['gastos_fijos_periodo']);
+    final gastosTurno = _toDouble(metadata['gastos_turno_periodo']);
+    final gastosVariables = _toDouble(metadata['gastos_variables_periodo']);
+    final gastosVariablesConfigurados =
+        (gastosVariables - gastosTurno).clamp(0.0, double.infinity).toDouble();
+    final manoObra = _toDouble(metadata['mano_obra_periodo']);
+    final gastosOperativosRaw =
+        _toDouble(metadata['gastos_operativos_periodo']);
+    final gastosOperativos = gastosOperativosRaw != 0
+        ? gastosOperativosRaw
+        : gastosFijos + gastosVariables + manoObra;
+    final netaBackend =
+        _toDouble(metadata['ganancia_neta_estimada_periodo']);
+    final gananciaNeta = metadata.containsKey('ganancia_neta_estimada_periodo')
+        ? netaBackend
+        : gananciaBruta - gastosOperativos;
+
+    final margenNeto =
+        ingresos == 0 ? 0.0 : gananciaNeta * 100 / ingresos;
+    final costosTotales = costoProductos + gastosOperativos;
+    final positive = gananciaNeta >= 0;
     final resultColor = positive ? palette.success : Colors.redAccent;
 
     return Container(
@@ -1677,7 +2788,7 @@ class _ProfitHero extends StatelessWidget {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text(
-                          'Ganancia bruta del periodo',
+                          'Ganancia neta estimada del periodo',
                           style: TextStyle(
                             color: palette.textSecondary,
                             fontWeight: FontWeight.w800,
@@ -1687,8 +2798,8 @@ class _ProfitHero extends StatelessWidget {
                         const SizedBox(height: 2),
                         Text(
                           positive
-                              ? 'Lo que queda después del costo de los productos vendidos. No incluye propinas ni gastos administrativos.'
-                              : 'Los costos de producto superan los ingresos registrados',
+                              ? 'Resultado después del costo de los productos, gastos fijos, variables y mano de obra configurada.'
+                              : 'Los costos y gastos configurados superan la ganancia bruta del periodo.',
                           style: TextStyle(
                             color: palette.textSecondary,
                             fontWeight: FontWeight.w600,
@@ -1706,7 +2817,7 @@ class _ProfitHero extends StatelessWidget {
                 fit: BoxFit.scaleDown,
                 alignment: Alignment.centerLeft,
                 child: Text(
-                  _displayValue(ganancia, currency: true),
+                  _displayValue(gananciaNeta, currency: true),
                   style: TextStyle(
                     color: resultColor,
                     fontWeight: FontWeight.w900,
@@ -1722,7 +2833,8 @@ class _ProfitHero extends StatelessWidget {
                 children: [
                   _ProfitPill(
                     icon: Icons.percent_rounded,
-                    label: 'Margen ${_displayValue(margen, percentage: true)}',
+                    label:
+                        'Margen neto ${_displayValue(margenNeto, percentage: true)}',
                     color: resultColor,
                     palette: palette,
                   ),
@@ -1752,12 +2864,52 @@ class _ProfitHero extends StatelessWidget {
                 color: palette.secondary,
                 palette: palette,
               ),
-              const SizedBox(height: 12),
+              const SizedBox(height: 10),
               _ProfitBreakdownRow(
                 icon: Icons.shopping_cart_checkout_rounded,
                 label: 'Costo de lo vendido',
-                value: costos,
+                value: costoProductos,
                 color: Colors.orange.shade700,
+                palette: palette,
+              ),
+              const SizedBox(height: 10),
+              _ProfitBreakdownRow(
+                icon: Icons.account_balance_wallet_outlined,
+                label: 'Ganancia bruta',
+                value: gananciaBruta,
+                color: palette.actionColor,
+                palette: palette,
+              ),
+              const SizedBox(height: 10),
+              _ProfitBreakdownRow(
+                icon: Icons.lock_outline,
+                label: 'Gastos fijos',
+                value: gastosFijos,
+                color: palette.secondary,
+                palette: palette,
+              ),
+              const SizedBox(height: 10),
+              _ProfitBreakdownRow(
+                icon: Icons.tune_rounded,
+                label: 'Variables configurados',
+                value: gastosVariablesConfigurados,
+                color: palette.warning,
+                palette: palette,
+              ),
+              const SizedBox(height: 10),
+              _ProfitBreakdownRow(
+                icon: Icons.shopping_bag_outlined,
+                label: 'Gastos del turno',
+                value: gastosTurno,
+                color: Colors.orangeAccent,
+                palette: palette,
+              ),
+              const SizedBox(height: 10),
+              _ProfitBreakdownRow(
+                icon: Icons.groups_2_outlined,
+                label: 'Mano de obra',
+                value: manoObra,
+                color: Colors.deepPurpleAccent,
                 palette: palette,
               ),
               const SizedBox(height: 14),
@@ -1766,10 +2918,14 @@ class _ProfitHero extends StatelessWidget {
                 child: LinearProgressIndicator(
                   value: ingresos <= 0
                       ? 0.0
-                      : (costos / ingresos).clamp(0.0, 1.0).toDouble(),
+                      : (costosTotales / ingresos)
+                          .clamp(0.0, 1.0)
+                          .toDouble(),
                   minHeight: 9,
                   backgroundColor: palette.background.withOpacity(0.7),
-                  color: costos > ingresos ? Colors.redAccent : Colors.orange.shade600,
+                  color: costosTotales > ingresos
+                      ? Colors.redAccent
+                      : Colors.orange.shade600,
                 ),
               ),
               const SizedBox(height: 7),
@@ -1779,7 +2935,7 @@ class _ProfitHero extends StatelessWidget {
                     child: Text(
                       ingresos <= 0
                           ? 'Sin ingresos en el periodo'
-                          : 'El costo representa ${_displayValue(costos * 100 / ingresos, percentage: true)} de los ingresos',
+                          : 'Costos y gastos representan ${_displayValue(costosTotales * 100 / ingresos, percentage: true)} de los ingresos',
                       style: TextStyle(
                         color: palette.textSecondary,
                         fontWeight: FontWeight.w700,
@@ -1810,7 +2966,7 @@ class _ProfitHero extends StatelessWidget {
               Expanded(flex: 3, child: mainResult),
               Container(
                 width: 1,
-                height: 150,
+                height: 270,
                 margin: const EdgeInsets.symmetric(horizontal: 24),
                 color: palette.cardBorder,
               ),
@@ -2844,12 +4000,20 @@ class _NextOrderContentState extends ConsumerState<_NextOrderContent> {
   bool _sendingWhatsapp = false;
   int? _confirmedOrderId;
   String? _confirmedWhatsapp;
+  double _confirmedPaid = 0;
+  double _confirmedBalance = 0;
+  String? _confirmedPaymentStatus;
   List<Map<String, dynamic>> _confirmedRows = const <Map<String, dynamic>>[];
+  Future<List<Map<String, dynamic>>>? _orderHistoryFuture;
+  int? _orderHistoryBranchId;
 
   @override
   void initState() {
     super.initState();
     _initializeSelection();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) _refreshOrderHistory();
+    });
   }
 
   @override
@@ -2857,6 +4021,9 @@ class _NextOrderContentState extends ConsumerState<_NextOrderContent> {
     super.didUpdateWidget(oldWidget);
     if (!identical(oldWidget.payload.rows, widget.payload.rows)) {
       _initializeSelection();
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) _refreshOrderHistory();
+      });
     }
   }
 
@@ -2880,6 +4047,9 @@ class _NextOrderContentState extends ConsumerState<_NextOrderContent> {
     }
     _confirmedOrderId = null;
     _confirmedWhatsapp = null;
+    _confirmedPaid = 0;
+    _confirmedBalance = 0;
+    _confirmedPaymentStatus = null;
     _confirmedRows = const <Map<String, dynamic>>[];
   }
 
@@ -3099,6 +4269,38 @@ class _NextOrderContentState extends ConsumerState<_NextOrderContent> {
         'total_estimado': _sum(rows, 'costo_pedido_estimado'),
       };
 
+  Future<List<Map<String, dynamic>>> _loadOrderHistory(
+    int branchId,
+  ) async {
+    final response = await ref.read(apiClientProvider).get<Object?>(
+          '/api/v1/pedidos-compra/sucursal/$branchId',
+          (json) => json,
+          queryParameters: const <String, dynamic>{'conSaldo': false},
+        );
+    final raw = response.data;
+    if (raw is! List) return const <Map<String, dynamic>>[];
+    return raw
+        .whereType<Map>()
+        .map((item) => Map<String, dynamic>.from(item))
+        .toList(growable: false);
+  }
+
+  void _refreshOrderHistory() {
+    final branchId = ref.read(branchScopeProvider).activeBranchId;
+    if (branchId == null) {
+      setState(() {
+        _orderHistoryBranchId = null;
+        _orderHistoryFuture =
+            Future.value(const <Map<String, dynamic>>[]);
+      });
+      return;
+    }
+    setState(() {
+      _orderHistoryBranchId = branchId;
+      _orderHistoryFuture = _loadOrderHistory(branchId);
+    });
+  }
+
   Future<void> _exportSelectedPdf() async {
     final rows = _effectiveOrderRows;
     if (rows.isEmpty || _exportingSelection) return;
@@ -3238,13 +4440,18 @@ class _NextOrderContentState extends ConsumerState<_NextOrderContent> {
         setState(() {
           _confirmedOrderId = (data['pediId'] as num?)?.toInt();
           _confirmedWhatsapp = data['whatsappDestino']?.toString();
+          _confirmedPaid = _toDouble(data['totalPagado']);
+          _confirmedBalance = _toDouble(data['saldoPendiente']);
+          _confirmedPaymentStatus = data['estadoPago']?.toString();
           _confirmedRows = _confirmedDetailsToRows(data['detalles']);
         });
+        _refreshOrderHistory();
         if (showSuccess) {
           _showMessage(
             _confirmedOrderId == null
                 ? 'Pedido confirmado correctamente.'
-                : 'Pedido #$_confirmedOrderId confirmado correctamente.',
+                : 'Pedido #$_confirmedOrderId confirmado · saldo pendiente '
+                    '${_displayValue(_confirmedBalance, currency: true)}.',
           );
         }
       }
@@ -3504,6 +4711,10 @@ class _NextOrderContentState extends ConsumerState<_NextOrderContent> {
                                     observationController:
                                         _observationController,
                                     confirmedOrderId: _confirmedOrderId,
+                                    confirmedPaid: _confirmedPaid,
+                                    confirmedBalance: _confirmedBalance,
+                                    confirmedPaymentStatus:
+                                        _confirmedPaymentStatus,
                                     busy: _confirming ||
                                         _exportingSelection ||
                                         _sendingWhatsapp,
@@ -3543,6 +4754,13 @@ class _NextOrderContentState extends ConsumerState<_NextOrderContent> {
                   ),
                 ),
                 const SizedBox(height: 12),
+                _OrderHistoryPanel(
+                  future: _orderHistoryFuture,
+                  branchId: _orderHistoryBranchId,
+                  palette: widget.palette,
+                  onRefresh: _refreshOrderHistory,
+                ),
+                const SizedBox(height: 12),
                 _OrderInventoryDiagnostics(
                   expanded: _showInventoryDetail,
                   allRows: allRows,
@@ -3565,6 +4783,657 @@ class _NextOrderContentState extends ConsumerState<_NextOrderContent> {
 
 }
 
+
+class _OrderHistoryPanel extends StatelessWidget {
+  const _OrderHistoryPanel({
+    required this.future,
+    required this.branchId,
+    required this.palette,
+    required this.onRefresh,
+  });
+
+  final Future<List<Map<String, dynamic>>>? future;
+  final int? branchId;
+  final AppPalette palette;
+  final VoidCallback onRefresh;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      decoration: BoxDecoration(
+        color: palette.surface.withOpacity(
+          palette.darkBackground ? 0.92 : 0.98,
+        ),
+        borderRadius: BorderRadius.circular(22),
+        border: Border.all(color: palette.cardBorder),
+      ),
+      clipBehavior: Clip.antiAlias,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Padding(
+            padding: const EdgeInsets.fromLTRB(14, 12, 10, 12),
+            child: Row(
+              children: [
+                Container(
+                  width: 38,
+                  height: 38,
+                  decoration: BoxDecoration(
+                    color: palette.secondary.withOpacity(.10),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Icon(
+                    Icons.history_rounded,
+                    color: palette.secondary,
+                    size: 20,
+                  ),
+                ),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'Historial de pedidos y pagos',
+                        style: TextStyle(
+                          color: palette.textPrimary,
+                          fontWeight: FontWeight.w900,
+                          fontSize: 15.5,
+                        ),
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        'Total, abonos, saldo pendiente y trazabilidad de cada pedido confirmado.',
+                        style: TextStyle(
+                          color: palette.textSecondary,
+                          fontWeight: FontWeight.w600,
+                          fontSize: 10.5,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                IconButton(
+                  tooltip: 'Actualizar pedidos',
+                  onPressed: onRefresh,
+                  icon: const Icon(Icons.refresh_rounded),
+                ),
+              ],
+            ),
+          ),
+          Divider(height: 1, color: palette.cardBorder),
+          if (branchId == null)
+            Padding(
+              padding: const EdgeInsets.all(16),
+              child: _PositiveEmptyState(
+                palette: palette,
+                message: 'Selecciona una sucursal para consultar sus pedidos.',
+              ),
+            )
+          else
+            FutureBuilder<List<Map<String, dynamic>>>(
+              future: future,
+              builder: (context, snapshot) {
+                if (snapshot.connectionState == ConnectionState.waiting) {
+                  return const Padding(
+                    padding: EdgeInsets.all(22),
+                    child: Center(child: CircularProgressIndicator()),
+                  );
+                }
+                if (snapshot.hasError) {
+                  return Padding(
+                    padding: const EdgeInsets.all(16),
+                    child: Column(
+                      children: [
+                        Text(
+                          'No fue posible cargar el historial de pedidos.',
+                          style: TextStyle(
+                            color: palette.textPrimary,
+                            fontWeight: FontWeight.w800,
+                          ),
+                        ),
+                        const SizedBox(height: 8),
+                        OutlinedButton.icon(
+                          onPressed: onRefresh,
+                          icon: const Icon(Icons.refresh_rounded),
+                          label: const Text('Reintentar'),
+                        ),
+                      ],
+                    ),
+                  );
+                }
+
+                final rows = snapshot.data ?? const <Map<String, dynamic>>[];
+                if (rows.isEmpty) {
+                  return Padding(
+                    padding: const EdgeInsets.all(16),
+                    child: _PositiveEmptyState(
+                      palette: palette,
+                      message:
+                          'Todavía no hay pedidos confirmados para esta sucursal.',
+                    ),
+                  );
+                }
+
+                final total = _sum(rows, 'totalEstimado');
+                final paid = _sum(rows, 'totalPagado');
+                final balance = _sum(rows, 'saldoPendiente');
+                final pending = rows
+                    .where(
+                      (row) => _toDouble(row['saldoPendiente']) > 0.009,
+                    )
+                    .length;
+
+                return Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    Padding(
+                      padding: const EdgeInsets.all(12),
+                      child: LayoutBuilder(
+                        builder: (context, constraints) {
+                          final columns =
+                              constraints.maxWidth < 620 ? 2 : 4;
+                          const gap = 8.0;
+                          final width =
+                              (constraints.maxWidth -
+                                      gap * (columns - 1)) /
+                                  columns;
+                          final items = [
+                            (
+                              'Pedidos',
+                              '${rows.length}',
+                              Icons.inventory_2_outlined,
+                            ),
+                            (
+                              'Comprado',
+                              _displayValue(total, currency: true),
+                              Icons.shopping_cart_checkout_rounded,
+                            ),
+                            (
+                              'Pagado',
+                              _displayValue(paid, currency: true),
+                              Icons.payments_outlined,
+                            ),
+                            (
+                              'Pendiente',
+                              _displayValue(balance, currency: true),
+                              pending > 0
+                                  ? Icons.schedule_rounded
+                                  : Icons.check_circle_outline_rounded,
+                            ),
+                          ];
+                          return Wrap(
+                            spacing: gap,
+                            runSpacing: gap,
+                            children: [
+                              for (final item in items)
+                                SizedBox(
+                                  width: width,
+                                  child: Container(
+                                    padding: const EdgeInsets.all(10),
+                                    decoration: BoxDecoration(
+                                      color: palette.background.withOpacity(.28),
+                                      borderRadius: BorderRadius.circular(13),
+                                      border: Border.all(
+                                        color: palette.cardBorder.withOpacity(.65),
+                                      ),
+                                    ),
+                                    child: Row(
+                                      children: [
+                                        Icon(
+                                          item.$3,
+                                          color: palette.secondary,
+                                          size: 17,
+                                        ),
+                                        const SizedBox(width: 7),
+                                        Expanded(
+                                          child: Column(
+                                            crossAxisAlignment: CrossAxisAlignment.start,
+                                            children: [
+                                              Text(
+                                                item.$2,
+                                                maxLines: 1,
+                                                overflow: TextOverflow.ellipsis,
+                                                style: TextStyle(
+                                                  color: palette.textPrimary,
+                                                  fontWeight: FontWeight.w900,
+                                                  fontSize: 11.5,
+                                                ),
+                                              ),
+                                              Text(
+                                                item.$1,
+                                                style: TextStyle(
+                                                  color: palette.textSecondary,
+                                                  fontWeight: FontWeight.w600,
+                                                  fontSize: 9,
+                                                ),
+                                              ),
+                                            ],
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                ),
+                            ],
+                          );
+                        },
+                      ),
+                    ),
+                    Divider(height: 1, color: palette.cardBorder),
+                    for (var i = 0; i < rows.length; i++) ...[
+                      _OrderHistoryRow(
+                        row: rows[i],
+                        palette: palette,
+                      ),
+                      if (i != rows.length - 1)
+                        Divider(
+                          height: 1,
+                          color: palette.cardBorder.withOpacity(.60),
+                        ),
+                    ],
+                  ],
+                );
+              },
+            ),
+        ],
+      ),
+    );
+  }
+}
+
+class _OrderHistoryRow extends StatelessWidget {
+  const _OrderHistoryRow({
+    required this.row,
+    required this.palette,
+  });
+
+  final Map<String, dynamic> row;
+  final AppPalette palette;
+
+  @override
+  Widget build(BuildContext context) {
+    final id = (row['pediId'] as num?)?.toInt();
+    final total = _toDouble(row['totalEstimado']);
+    final paid = _toDouble(row['totalPagado']);
+    final balance = _toDouble(row['saldoPendiente']);
+    final status = (row['estadoPago'] ?? 'PENDIENTE')
+        .toString()
+        .toUpperCase();
+    final payments = row['pagos'] is List
+        ? (row['pagos'] as List)
+            .whereType<Map>()
+            .map((item) => Map<String, dynamic>.from(item))
+            .toList(growable: false)
+        : const <Map<String, dynamic>>[];
+    final details = row['detalles'] is List
+        ? (row['detalles'] as List)
+            .whereType<Map>()
+            .map((item) => Map<String, dynamic>.from(item))
+            .toList(growable: false)
+        : const <Map<String, dynamic>>[];
+
+    final tone = status == 'PAGADO'
+        ? palette.success
+        : status == 'PAGO_PARCIAL'
+            ? palette.warning
+            : Colors.orangeAccent;
+
+    return ExpansionTile(
+      tilePadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 5),
+      childrenPadding: const EdgeInsets.fromLTRB(14, 0, 14, 14),
+      leading: Container(
+        width: 38,
+        height: 38,
+        decoration: BoxDecoration(
+          color: tone.withOpacity(.10),
+          borderRadius: BorderRadius.circular(12),
+        ),
+        child: Icon(
+          status == 'PAGADO'
+              ? Icons.check_circle_outline_rounded
+              : Icons.receipt_long_outlined,
+          color: tone,
+          size: 19,
+        ),
+      ),
+      title: Row(
+        children: [
+          Expanded(
+            child: Text(
+              id == null ? 'Pedido confirmado' : 'Pedido #$id',
+              style: TextStyle(
+                color: palette.textPrimary,
+                fontWeight: FontWeight.w900,
+                fontSize: 12.5,
+              ),
+            ),
+          ),
+          _OrderPaymentStatusBadge(
+            status: status,
+            color: tone,
+          ),
+        ],
+      ),
+      subtitle: Padding(
+        padding: const EdgeInsets.only(top: 5),
+        child: Wrap(
+          spacing: 10,
+          runSpacing: 4,
+          children: [
+            Text(
+              'Total ${_displayValue(total, currency: true)}',
+              style: TextStyle(
+                color: palette.textSecondary,
+                fontWeight: FontWeight.w700,
+                fontSize: 9.8,
+              ),
+            ),
+            Text(
+              'Pagado ${_displayValue(paid, currency: true)}',
+              style: TextStyle(
+                color: palette.textSecondary,
+                fontWeight: FontWeight.w700,
+                fontSize: 9.8,
+              ),
+            ),
+            Text(
+              'Saldo ${_displayValue(balance, currency: true)}',
+              style: TextStyle(
+                color: balance > 0 ? tone : palette.success,
+                fontWeight: FontWeight.w900,
+                fontSize: 9.8,
+              ),
+            ),
+            if (row['fecha'] != null)
+              Text(
+                _orderHistoryDate(row['fecha']),
+                style: TextStyle(
+                  color: palette.textSecondary,
+                  fontWeight: FontWeight.w600,
+                  fontSize: 9.8,
+                ),
+              ),
+          ],
+        ),
+      ),
+      children: [
+        LayoutBuilder(
+          builder: (context, constraints) {
+            final compact = constraints.maxWidth < 720;
+            final paymentPanel = _OrderHistorySubPanel(
+              title: 'Pagos',
+              icon: Icons.payments_outlined,
+              palette: palette,
+              child: payments.isEmpty
+                  ? Text(
+                      balance > 0
+                          ? 'Sin abonos registrados. Puedes pagarlo desde Cierre de caja → Registrar salida → Pago de pedido.'
+                          : 'No hay pagos registrados.',
+                      style: TextStyle(
+                        color: palette.textSecondary,
+                        fontWeight: FontWeight.w600,
+                        fontSize: 10,
+                      ),
+                    )
+                  : Column(
+                      children: [
+                        for (var i = 0; i < payments.length; i++) ...[
+                          _OrderPaymentRow(
+                            payment: payments[i],
+                            palette: palette,
+                          ),
+                          if (i != payments.length - 1)
+                            const SizedBox(height: 6),
+                        ],
+                      ],
+                    ),
+            );
+
+            final detailPanel = _OrderHistorySubPanel(
+              title: 'Productos',
+              icon: Icons.inventory_2_outlined,
+              palette: palette,
+              child: details.isEmpty
+                  ? Text(
+                      'Sin detalle disponible.',
+                      style: TextStyle(
+                        color: palette.textSecondary,
+                        fontWeight: FontWeight.w600,
+                        fontSize: 10,
+                      ),
+                    )
+                  : Column(
+                      children: [
+                        for (var i = 0; i < details.length; i++) ...[
+                          _OrderHistoryProductRow(
+                            detail: details[i],
+                            palette: palette,
+                          ),
+                          if (i != details.length - 1)
+                            const SizedBox(height: 6),
+                        ],
+                      ],
+                    ),
+            );
+
+            if (compact) {
+              return Column(
+                children: [
+                  paymentPanel,
+                  const SizedBox(height: 10),
+                  detailPanel,
+                ],
+              );
+            }
+            return Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Expanded(child: paymentPanel),
+                const SizedBox(width: 10),
+                Expanded(child: detailPanel),
+              ],
+            );
+          },
+        ),
+      ],
+    );
+  }
+}
+
+class _OrderPaymentStatusBadge extends StatelessWidget {
+  const _OrderPaymentStatusBadge({
+    required this.status,
+    required this.color,
+  });
+
+  final String status;
+  final Color color;
+
+  @override
+  Widget build(BuildContext context) => Container(
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+        decoration: BoxDecoration(
+          color: color.withOpacity(.10),
+          borderRadius: BorderRadius.circular(999),
+          border: Border.all(color: color.withOpacity(.20)),
+        ),
+        child: Text(
+          switch (status) {
+            'PAGADO' => 'Pagado',
+            'PAGO_PARCIAL' => 'Pago parcial',
+            _ => 'Pendiente',
+          },
+          style: TextStyle(
+            color: color,
+            fontWeight: FontWeight.w900,
+            fontSize: 9,
+          ),
+        ),
+      );
+}
+
+class _OrderHistorySubPanel extends StatelessWidget {
+  const _OrderHistorySubPanel({
+    required this.title,
+    required this.icon,
+    required this.palette,
+    required this.child,
+  });
+
+  final String title;
+  final IconData icon;
+  final AppPalette palette;
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) => Container(
+        padding: const EdgeInsets.all(10),
+        decoration: BoxDecoration(
+          color: palette.background.withOpacity(.26),
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(color: palette.cardBorder.withOpacity(.60)),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Row(
+              children: [
+                Icon(icon, color: palette.secondary, size: 16),
+                const SizedBox(width: 6),
+                Text(
+                  title,
+                  style: TextStyle(
+                    color: palette.textPrimary,
+                    fontWeight: FontWeight.w900,
+                    fontSize: 10.5,
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 8),
+            child,
+          ],
+        ),
+      );
+}
+
+class _OrderPaymentRow extends StatelessWidget {
+  const _OrderPaymentRow({
+    required this.payment,
+    required this.palette,
+  });
+
+  final Map<String, dynamic> payment;
+  final AppPalette palette;
+
+  @override
+  Widget build(BuildContext context) => Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(
+            Icons.check_circle_outline_rounded,
+            color: palette.success,
+            size: 16,
+          ),
+          const SizedBox(width: 7),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  _displayValue(
+                    _toDouble(payment['valor']),
+                    currency: true,
+                  ),
+                  style: TextStyle(
+                    color: palette.textPrimary,
+                    fontWeight: FontWeight.w900,
+                    fontSize: 10.5,
+                  ),
+                ),
+                Text(
+                  '${payment['medio'] ?? 'CAJA'} · ${_orderHistoryDate(payment['fecha'])}',
+                  style: TextStyle(
+                    color: palette.textSecondary,
+                    fontWeight: FontWeight.w600,
+                    fontSize: 9,
+                  ),
+                ),
+                if ((payment['observacion'] ?? '')
+                    .toString()
+                    .trim()
+                    .isNotEmpty)
+                  Text(
+                    payment['observacion'].toString(),
+                    style: TextStyle(
+                      color: palette.textSecondary,
+                      fontWeight: FontWeight.w600,
+                      fontSize: 9,
+                    ),
+                  ),
+              ],
+            ),
+          ),
+        ],
+      );
+}
+
+class _OrderHistoryProductRow extends StatelessWidget {
+  const _OrderHistoryProductRow({
+    required this.detail,
+    required this.palette,
+  });
+
+  final Map<String, dynamic> detail;
+  final AppPalette palette;
+
+  @override
+  Widget build(BuildContext context) {
+    final name = (detail['producto'] ?? 'Producto').toString();
+    final presentations = _toDouble(detail['presentaciones']);
+    final units = _toDouble(detail['unidades']);
+    final subtotal = _toDouble(detail['subtotal']);
+    return Row(
+      children: [
+        Expanded(
+          child: Text(
+            name,
+            maxLines: 2,
+            overflow: TextOverflow.ellipsis,
+            style: TextStyle(
+              color: palette.textPrimary,
+              fontWeight: FontWeight.w700,
+              fontSize: 9.5,
+            ),
+          ),
+        ),
+        const SizedBox(width: 8),
+        Flexible(
+          child: Text(
+            '${_displayValue(presentations)} pres. · '
+            '${_displayValue(units)} und. · '
+            '${_displayValue(subtotal, currency: true)}',
+            textAlign: TextAlign.right,
+            style: TextStyle(
+              color: palette.textSecondary,
+              fontWeight: FontWeight.w700,
+              fontSize: 9,
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+String _orderHistoryDate(Object? value) {
+  final raw = value?.toString();
+  if (raw == null || raw.trim().isEmpty) return 'Sin fecha';
+  final parsed = DateTime.tryParse(raw);
+  if (parsed == null) return raw;
+  return DateFormat('dd/MM/yyyy HH:mm').format(parsed);
+}
 
 class _OrderHealthStrip extends StatelessWidget {
   const _OrderHealthStrip({
@@ -4189,6 +6058,9 @@ class _OrderCartSummary extends StatelessWidget {
     required this.palette,
     required this.observationController,
     required this.confirmedOrderId,
+    required this.confirmedPaid,
+    required this.confirmedBalance,
+    required this.confirmedPaymentStatus,
     required this.busy,
     required this.confirming,
     required this.exporting,
@@ -4202,6 +6074,9 @@ class _OrderCartSummary extends StatelessWidget {
   final AppPalette palette;
   final TextEditingController observationController;
   final int? confirmedOrderId;
+  final double confirmedPaid;
+  final double confirmedBalance;
+  final String? confirmedPaymentStatus;
   final bool busy;
   final bool confirming;
   final bool exporting;
@@ -4364,13 +6239,43 @@ class _OrderCartSummary extends StatelessWidget {
                       color: Colors.green, size: 18),
                   const SizedBox(width: 7),
                   Expanded(
-                    child: Text(
-                      'Pedido #$confirmedOrderId confirmado',
-                      style: TextStyle(
-                        color: palette.textPrimary,
-                        fontWeight: FontWeight.w900,
-                        fontSize: 10.5,
-                      ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'Pedido #$confirmedOrderId confirmado',
+                          style: TextStyle(
+                            color: palette.textPrimary,
+                            fontWeight: FontWeight.w900,
+                            fontSize: 10.5,
+                          ),
+                        ),
+                        const SizedBox(height: 2),
+                        Text(
+                          '${confirmedPaymentStatus ?? 'PENDIENTE'} · '
+                          'Pagado ${_displayValue(confirmedPaid, currency: true)} · '
+                          'Saldo ${_displayValue(confirmedBalance, currency: true)}',
+                          style: TextStyle(
+                            color: palette.textSecondary,
+                            fontWeight: FontWeight.w700,
+                            fontSize: 9.5,
+                          ),
+                        ),
+                        const SizedBox(height: 2),
+                        Text(
+                          confirmedBalance > 0
+                              ? 'Puedes registrar el pago desde Cierre de caja → Registrar salida → Pago de pedido.'
+                              : 'Este pedido no tiene saldo pendiente.',
+                          style: TextStyle(
+                            color: confirmedBalance > 0
+                                ? palette.secondary
+                                : palette.success,
+                            fontWeight: FontWeight.w700,
+                            fontSize: 9.5,
+                            height: 1.25,
+                          ),
+                        ),
+                      ],
                     ),
                   ),
                 ],
@@ -6409,6 +8314,49 @@ class _SummaryContent extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final operationMetrics = <String, dynamic>{
+      for (final key in const [
+        'numero_ventas',
+        'total_vendido',
+        'total_propinas',
+        'ticket_promedio',
+        'unidades_vendidas',
+        'productos_con_stock',
+        'unidades_en_stock',
+        'productos_agotados',
+        'productos_stock_negativo',
+        'productos_stock_bajo',
+      ])
+        if (metrics.containsKey(key)) key: metrics[key],
+    };
+
+    final financialMetrics = <String, dynamic>{
+      for (final key in const [
+        'ingresos_periodo',
+        'costo_ventas_periodo',
+        'ganancia_bruta_periodo',
+        'gastos_fijos_periodo',
+        'gastos_turno_periodo',
+        'gastos_variables_periodo',
+        'mano_obra_periodo',
+        'gastos_operativos_periodo',
+        'ganancia_neta_estimada_periodo',
+        'margen_bruto_porcentaje',
+        'margen_neto_porcentaje',
+      ])
+        if (metrics.containsKey(key)) key: metrics[key],
+    };
+
+    final cashMetrics = <String, dynamic>{
+      for (final key in const [
+        'salidas_caja_periodo',
+        'gastos_turno_periodo',
+        'pagos_pedidos_periodo',
+        'pagos_gastos_configurados_periodo',
+      ])
+        if (metrics.containsKey(key)) key: metrics[key],
+    };
+
     return ListView(
       padding: const EdgeInsets.fromLTRB(14, 8, 14, 28),
       children: [
@@ -6418,32 +8366,83 @@ class _SummaryContent extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                _MetricsGrid(
-                  metrics: metrics,
+                _ReportSectionTitle(
+                  title: 'Pulso del negocio',
+                  subtitle:
+                      'Indicadores principales para saber cuánto se vendió, cuánto se movió y cómo está el inventario.',
+                  icon: Icons.monitor_heart_rounded,
                   palette: palette,
-                  currencyKeys: const ['total_vendido', 'total_propinas', 'ticket_promedio'],
+                ),
+                const SizedBox(height: 10),
+                _MetricsGrid(
+                  metrics: operationMetrics,
+                  palette: palette,
+                  currencyKeys: const [
+                    'total_vendido',
+                    'total_propinas',
+                    'ticket_promedio',
+                  ],
                   percentageKeys: const [],
                 ),
-                const SizedBox(height: 14),
+                if (financialMetrics.isNotEmpty) ...[
+                  const SizedBox(height: 16),
+                  _ReportSectionTitle(
+                    title: 'Resultado financiero',
+                    subtitle:
+                        'Rentabilidad después de costo de venta, gastos fijos, variables y mano de obra.',
+                    icon: Icons.account_balance_rounded,
+                    palette: palette,
+                  ),
+                  const SizedBox(height: 10),
+                  _ExecutiveFinanceOverview(
+                    metrics: financialMetrics,
+                    palette: palette,
+                  ),
+                ],
+                if (cashMetrics.isNotEmpty) ...[
+                  const SizedBox(height: 16),
+                  _ReportSectionTitle(
+                    title: 'Flujo de caja',
+                    subtitle:
+                        'Dinero que salió físicamente de caja, separado de los valores que realmente afectan la utilidad.',
+                    icon: Icons.swap_vert_circle_rounded,
+                    palette: palette,
+                  ),
+                  const SizedBox(height: 10),
+                  _MetricsGrid(
+                    metrics: cashMetrics,
+                    palette: palette,
+                    currencyKeys: const [
+                      'salidas_caja_periodo',
+                      'gastos_turno_periodo',
+                      'pagos_pedidos_periodo',
+                      'pagos_gastos_configurados_periodo',
+                    ],
+                    percentageKeys: const [],
+                  ),
+                ],
+                const SizedBox(height: 16),
                 LayoutBuilder(
                   builder: (context, constraints) {
                     final compact = constraints.maxWidth < 900;
                     final sales = _Panel(
                       title: 'Ventas por día',
-                      subtitle: 'Total vendido por cada fecha del periodo.',
+                      subtitle:
+                          'Detecta picos y días débiles para ajustar personal, inventario y promociones.',
                       icon: Icons.show_chart_rounded,
                       palette: palette,
-                      child: _HorizontalBarChart(
+                      child: _ReportTimeSeriesChart(
                         rows: payload.chartRows,
-                        labelKey: 'fecha',
+                        dateKey: 'fecha',
                         valueKey: 'total',
                         palette: palette,
                         currency: true,
                       ),
                     );
                     final payments = _Panel(
-                      title: 'Medios de pago',
-                      subtitle: 'Participación del recaudo por medio.',
+                      title: 'Cómo entra el dinero',
+                      subtitle:
+                          'Participación del recaudo por medio de pago para controlar concentración y conciliación.',
                       icon: Icons.account_balance_wallet_rounded,
                       palette: palette,
                       child: _HorizontalBarChart(
@@ -6455,7 +8454,13 @@ class _SummaryContent extends StatelessWidget {
                       ),
                     );
                     if (compact) {
-                      return Column(children: [sales, const SizedBox(height: 14), payments]);
+                      return Column(
+                        children: [
+                          sales,
+                          const SizedBox(height: 14),
+                          payments,
+                        ],
+                      );
                     }
                     return Row(
                       crossAxisAlignment: CrossAxisAlignment.start,
@@ -6468,35 +8473,92 @@ class _SummaryContent extends StatelessWidget {
                   },
                 ),
                 const SizedBox(height: 14),
-                _Panel(
-                  title: 'Productos más vendidos',
-                  subtitle: 'Ranking de productos por unidades vendidas.',
-                  icon: Icons.emoji_events_rounded,
-                  palette: palette,
-                  child: _ReportTable(
-                    rows: payload.rows,
-                    palette: palette,
-                    currencyKeys: const ['total', 'precio_promedio'],
-                    percentageKeys: const [],
-                  ),
-                ),
-                const SizedBox(height: 14),
-                _Panel(
-                  title: 'Alertas de inventario',
-                  subtitle: 'Señales que deben validarse mediante conteo físico.',
-                  icon: Icons.warning_amber_rounded,
-                  palette: palette,
-                  child: payload.alertRows.isEmpty
-                      ? _PositiveEmptyState(
-                          palette: palette,
-                          message: 'No se encontraron alertas de inventario en el periodo.',
-                        )
-                      : _ReportTable(
-                          rows: payload.alertRows,
-                          palette: palette,
-                          currencyKeys: const ['valor_vendido'],
-                          percentageKeys: const ['rotacion_porcentaje'],
-                        ),
+                LayoutBuilder(
+                  builder: (context, constraints) {
+                    final compact = constraints.maxWidth < 900;
+                    final products = _Panel(
+                      title: 'Productos que mueven la caja',
+                      subtitle:
+                          'Ranking de los productos que más unidades e ingresos aportaron.',
+                      icon: Icons.emoji_events_rounded,
+                      palette: palette,
+                      child: payload.rows.isEmpty
+                          ? _PositiveEmptyState(
+                              palette: palette,
+                              message:
+                                  'No hay productos vendidos en el periodo seleccionado.',
+                            )
+                          : Column(
+                              children: [
+                                _HorizontalBarChart(
+                                  rows: payload.rows,
+                                  labelKey: 'producto',
+                                  valueKey: 'cantidad',
+                                  palette: palette,
+                                ),
+                                const SizedBox(height: 12),
+                                _ReportTable(
+                                  rows: payload.rows,
+                                  palette: palette,
+                                  currencyKeys: const [
+                                    'total',
+                                    'precio_promedio',
+                                  ],
+                                  percentageKeys: const [],
+                                ),
+                              ],
+                            ),
+                    );
+
+                    final alerts = _Panel(
+                      title: 'Alertas que requieren acción',
+                      subtitle:
+                          'Productos que conviene revisar físicamente o reponer antes de afectar ventas.',
+                      icon: Icons.warning_amber_rounded,
+                      palette: palette,
+                      child: payload.alertRows.isEmpty
+                          ? _PositiveEmptyState(
+                              palette: palette,
+                              message:
+                                  'No se encontraron alertas críticas de inventario en el periodo.',
+                            )
+                          : Column(
+                              children: [
+                                _ExecutiveAlertSummary(
+                                  rows: payload.alertRows,
+                                  palette: palette,
+                                ),
+                                const SizedBox(height: 12),
+                                _ReportTable(
+                                  rows: payload.alertRows,
+                                  palette: palette,
+                                  currencyKeys: const ['valor_vendido'],
+                                  percentageKeys: const [
+                                    'rotacion_porcentaje',
+                                  ],
+                                ),
+                              ],
+                            ),
+                    );
+
+                    if (compact) {
+                      return Column(
+                        children: [
+                          products,
+                          const SizedBox(height: 14),
+                          alerts,
+                        ],
+                      );
+                    }
+                    return Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Expanded(flex: 6, child: products),
+                        const SizedBox(width: 14),
+                        Expanded(flex: 4, child: alerts),
+                      ],
+                    );
+                  },
                 ),
               ],
             ),
@@ -6505,6 +8567,334 @@ class _SummaryContent extends StatelessWidget {
       ],
     );
   }
+}
+
+class _ReportSectionTitle extends StatelessWidget {
+  const _ReportSectionTitle({
+    required this.title,
+    required this.subtitle,
+    required this.icon,
+    required this.palette,
+  });
+
+  final String title;
+  final String subtitle;
+  final IconData icon;
+  final AppPalette palette;
+
+  @override
+  Widget build(BuildContext context) => Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Container(
+            width: 40,
+            height: 40,
+            decoration: BoxDecoration(
+              color: palette.secondary.withOpacity(.11),
+              borderRadius: BorderRadius.circular(13),
+            ),
+            child: Icon(icon, color: palette.secondary, size: 20),
+          ),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  title,
+                  style: TextStyle(
+                    color: palette.textPrimary,
+                    fontWeight: FontWeight.w900,
+                    fontSize: 16,
+                  ),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  subtitle,
+                  style: TextStyle(
+                    color: palette.textSecondary,
+                    fontWeight: FontWeight.w600,
+                    fontSize: 11.5,
+                    height: 1.35,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      );
+}
+
+class _ExecutiveFinanceOverview extends StatelessWidget {
+  const _ExecutiveFinanceOverview({
+    required this.metrics,
+    required this.palette,
+  });
+
+  final Map<String, dynamic> metrics;
+  final AppPalette palette;
+
+  @override
+  Widget build(BuildContext context) {
+    final ingresos = _toDouble(metrics['ingresos_periodo']);
+    final costo = _toDouble(metrics['costo_ventas_periodo']);
+    final bruta = _toDouble(metrics['ganancia_bruta_periodo']);
+    final fijos = _toDouble(metrics['gastos_fijos_periodo']);
+    final gastosTurno = _toDouble(metrics['gastos_turno_periodo']);
+    final variables = _toDouble(metrics['gastos_variables_periodo']);
+    final variablesConfiguradas =
+        (variables - gastosTurno).clamp(0.0, double.infinity).toDouble();
+    final manoObra = _toDouble(metrics['mano_obra_periodo']);
+    final operativos = _toDouble(metrics['gastos_operativos_periodo']);
+    final neta = _toDouble(metrics['ganancia_neta_estimada_periodo']);
+    final margenNeto = _toDouble(metrics['margen_neto_porcentaje']);
+
+    final cards = <String, dynamic>{
+      'ingresos_periodo': ingresos,
+      'costo_ventas_periodo': costo,
+      'ganancia_bruta_periodo': bruta,
+      'gastos_operativos_periodo': operativos,
+      'ganancia_neta_estimada_periodo': neta,
+      'margen_neto_porcentaje': margenNeto,
+    };
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        _MetricsGrid(
+          metrics: cards,
+          palette: palette,
+          currencyKeys: const [
+            'ingresos_periodo',
+            'costo_ventas_periodo',
+            'ganancia_bruta_periodo',
+            'gastos_operativos_periodo',
+            'ganancia_neta_estimada_periodo',
+          ],
+          percentageKeys: const ['margen_neto_porcentaje'],
+        ),
+        const SizedBox(height: 12),
+        _Panel(
+          title: 'De la venta a la utilidad',
+          subtitle:
+              'Descomposición de lo vendido para entender qué está consumiendo el margen.',
+          icon: Icons.stacked_bar_chart_rounded,
+          palette: palette,
+          child: Column(
+            children: [
+              _FinanceFlowRow(
+                label: 'Ingresos por productos',
+                value: ingresos,
+                reference: ingresos,
+                color: palette.secondary,
+                palette: palette,
+              ),
+              const SizedBox(height: 9),
+              _FinanceFlowRow(
+                label: 'Costo de productos vendidos',
+                value: costo,
+                reference: ingresos,
+                color: Colors.orange,
+                palette: palette,
+              ),
+              const SizedBox(height: 9),
+              _FinanceFlowRow(
+                label: 'Gastos fijos',
+                value: fijos,
+                reference: ingresos,
+                color: Colors.blueAccent,
+                palette: palette,
+              ),
+              const SizedBox(height: 9),
+              _FinanceFlowRow(
+                label: 'Variables configurados',
+                value: variablesConfiguradas,
+                reference: ingresos,
+                color: Colors.amber,
+                palette: palette,
+              ),
+              const SizedBox(height: 9),
+              _FinanceFlowRow(
+                label: 'Gastos del turno',
+                value: gastosTurno,
+                reference: ingresos,
+                color: Colors.orangeAccent,
+                palette: palette,
+              ),
+              const SizedBox(height: 9),
+              _FinanceFlowRow(
+                label: 'Mano de obra',
+                value: manoObra,
+                reference: ingresos,
+                color: Colors.deepPurpleAccent,
+                palette: palette,
+              ),
+              const Divider(height: 24),
+              _FinanceFlowRow(
+                label: 'Ganancia neta estimada',
+                value: neta,
+                reference: ingresos,
+                color: neta >= 0 ? palette.success : Colors.redAccent,
+                palette: palette,
+                emphasized: true,
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _FinanceFlowRow extends StatelessWidget {
+  const _FinanceFlowRow({
+    required this.label,
+    required this.value,
+    required this.reference,
+    required this.color,
+    required this.palette,
+    this.emphasized = false,
+  });
+
+  final String label;
+  final double value;
+  final double reference;
+  final Color color;
+  final AppPalette palette;
+  final bool emphasized;
+
+  @override
+  Widget build(BuildContext context) {
+    final ratio = reference <= 0
+        ? 0.0
+        : (value.abs() / reference.abs()).clamp(0.0, 1.0).toDouble();
+    return Column(
+      children: [
+        Row(
+          children: [
+            Expanded(
+              child: Text(
+                label,
+                style: TextStyle(
+                  color: palette.textPrimary,
+                  fontWeight: emphasized ? FontWeight.w900 : FontWeight.w700,
+                  fontSize: emphasized ? 12.5 : 11.5,
+                ),
+              ),
+            ),
+            const SizedBox(width: 8),
+            Text(
+              CurrencyUtils.format(value),
+              style: TextStyle(
+                color: emphasized ? color : palette.textPrimary,
+                fontWeight: FontWeight.w900,
+                fontSize: emphasized ? 13.5 : 11.5,
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 5),
+        ClipRRect(
+          borderRadius: BorderRadius.circular(999),
+          child: LinearProgressIndicator(
+            value: ratio,
+            minHeight: emphasized ? 10 : 7,
+            backgroundColor: palette.cardBorder.withOpacity(.35),
+            valueColor: AlwaysStoppedAnimation<Color>(color),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _ExecutiveAlertSummary extends StatelessWidget {
+  const _ExecutiveAlertSummary({
+    required this.rows,
+    required this.palette,
+  });
+
+  final List<Map<String, dynamic>> rows;
+  final AppPalette palette;
+
+  @override
+  Widget build(BuildContext context) {
+    final negativos =
+        rows.where((row) => _toDouble(row['stock_actual']) < 0).length;
+    final agotados =
+        rows.where((row) => row['estado'] == 'AGOTADO_CON_ROTACION').length;
+    final ventasRiesgo = _sum(rows, 'valor_vendido');
+
+    return Wrap(
+      spacing: 8,
+      runSpacing: 8,
+      children: [
+        _ExecutiveAlertChip(
+          label: 'Stock negativo',
+          value: '$negativos',
+          color: Colors.redAccent,
+          palette: palette,
+        ),
+        _ExecutiveAlertChip(
+          label: 'Agotados con demanda',
+          value: '$agotados',
+          color: Colors.orangeAccent,
+          palette: palette,
+        ),
+        _ExecutiveAlertChip(
+          label: 'Ventas asociadas',
+          value: CurrencyUtils.format(ventasRiesgo),
+          color: palette.warning,
+          palette: palette,
+        ),
+      ],
+    );
+  }
+}
+
+class _ExecutiveAlertChip extends StatelessWidget {
+  const _ExecutiveAlertChip({
+    required this.label,
+    required this.value,
+    required this.color,
+    required this.palette,
+  });
+
+  final String label;
+  final String value;
+  final Color color;
+  final AppPalette palette;
+
+  @override
+  Widget build(BuildContext context) => Container(
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 9),
+        decoration: BoxDecoration(
+          color: color.withOpacity(.08),
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: color.withOpacity(.18)),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              value,
+              style: TextStyle(
+                color: color,
+                fontWeight: FontWeight.w900,
+                fontSize: 13,
+              ),
+            ),
+            Text(
+              label,
+              style: TextStyle(
+                color: palette.textSecondary,
+                fontWeight: FontWeight.w600,
+                fontSize: 9.5,
+              ),
+            ),
+          ],
+        ),
+      );
 }
 
 class _MetricsGrid extends StatelessWidget {
@@ -6697,6 +9087,241 @@ class _Panel extends StatelessWidget {
       },
     );
   }
+}
+
+class _ReportTimeSeriesChart extends StatelessWidget {
+  const _ReportTimeSeriesChart({
+    required this.rows,
+    required this.dateKey,
+    required this.valueKey,
+    required this.palette,
+    this.currency = false,
+  });
+
+  final List<Map<String, dynamic>> rows;
+  final String dateKey;
+  final String valueKey;
+  final AppPalette palette;
+  final bool currency;
+
+  @override
+  Widget build(BuildContext context) {
+    if (rows.isEmpty) {
+      return Text(
+        'No hay datos suficientes para construir la tendencia.',
+        style: TextStyle(
+          color: palette.textSecondary,
+          fontWeight: FontWeight.w600,
+        ),
+      );
+    }
+
+    final ordered = [...rows]
+      ..sort((a, b) {
+        final ad = DateTime.tryParse(a[dateKey]?.toString() ?? '');
+        final bd = DateTime.tryParse(b[dateKey]?.toString() ?? '');
+        if (ad == null && bd == null) return 0;
+        if (ad == null) return 1;
+        if (bd == null) return -1;
+        return ad.compareTo(bd);
+      });
+
+    final values =
+        ordered.map((row) => _toDouble(row[valueKey])).toList(growable: false);
+    final maxValue = values.fold<double>(
+      0,
+      (current, value) => math.max(current, value).toDouble(),
+    );
+    final average =
+        values.isEmpty ? 0.0 : values.reduce((a, b) => a + b) / values.length;
+
+    return SizedBox(
+      height: 250,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Wrap(
+            spacing: 8,
+            runSpacing: 6,
+            children: [
+              _TrendBadge(
+                label: 'Pico',
+                value: _displayValue(maxValue, currency: currency),
+                color: palette.secondary,
+                palette: palette,
+              ),
+              _TrendBadge(
+                label: 'Promedio',
+                value: _displayValue(average, currency: currency),
+                color: palette.accent,
+                palette: palette,
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          Expanded(
+            child: CustomPaint(
+              painter: _ReportLinePainter(
+                values: values,
+                lineColor: palette.secondary,
+                gridColor: palette.cardBorder.withOpacity(.55),
+              ),
+              child: const SizedBox.expand(),
+            ),
+          ),
+          const SizedBox(height: 8),
+          Row(
+            children: [
+              for (var i = 0; i < ordered.length; i++)
+                if (i == 0 ||
+                    i == ordered.length - 1 ||
+                    i % math.max(1, ordered.length ~/ 5) == 0)
+                  Expanded(
+                    child: Text(
+                      _compactDateLabel(ordered[i][dateKey]),
+                      textAlign: i == 0
+                          ? TextAlign.left
+                          : i == ordered.length - 1
+                              ? TextAlign.right
+                              : TextAlign.center,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        color: palette.textSecondary,
+                        fontSize: 9,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  )
+                else
+                  const Expanded(child: SizedBox()),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _TrendBadge extends StatelessWidget {
+  const _TrendBadge({
+    required this.label,
+    required this.value,
+    required this.color,
+    required this.palette,
+  });
+
+  final String label;
+  final String value;
+  final Color color;
+  final AppPalette palette;
+
+  @override
+  Widget build(BuildContext context) => Container(
+        padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 6),
+        decoration: BoxDecoration(
+          color: color.withOpacity(.08),
+          borderRadius: BorderRadius.circular(999),
+          border: Border.all(color: color.withOpacity(.16)),
+        ),
+        child: Text(
+          '$label: $value',
+          style: TextStyle(
+            color: palette.textPrimary,
+            fontWeight: FontWeight.w800,
+            fontSize: 10,
+          ),
+        ),
+      );
+}
+
+class _ReportLinePainter extends CustomPainter {
+  const _ReportLinePainter({
+    required this.values,
+    required this.lineColor,
+    required this.gridColor,
+  });
+
+  final List<double> values;
+  final Color lineColor;
+  final Color gridColor;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    if (values.isEmpty) return;
+
+    final grid = Paint()
+      ..color = gridColor
+      ..strokeWidth = 1;
+    for (var i = 1; i <= 4; i++) {
+      final y = size.height * i / 5;
+      canvas.drawLine(Offset(0, y), Offset(size.width, y), grid);
+    }
+
+    final maxValue = math.max(
+      1.0,
+      values.fold<double>(
+        0,
+        (current, value) => math.max(current, value).toDouble(),
+      ),
+    ).toDouble();
+
+    final path = Path();
+    final points = <Offset>[];
+    for (var i = 0; i < values.length; i++) {
+      final x = values.length == 1
+          ? size.width / 2
+          : size.width * i / (values.length - 1);
+      final y =
+          size.height - (values[i] / maxValue) * (size.height - 14) - 7;
+      final point = Offset(x, y);
+      points.add(point);
+      if (i == 0) {
+        path.moveTo(point.dx, point.dy);
+      } else {
+        path.lineTo(point.dx, point.dy);
+      }
+    }
+
+    final fill = Path.from(path);
+    if (points.isNotEmpty) {
+      fill
+        ..lineTo(points.last.dx, size.height)
+        ..lineTo(points.first.dx, size.height)
+        ..close();
+      canvas.drawPath(
+        fill,
+        Paint()..color = lineColor.withOpacity(.09),
+      );
+    }
+
+    canvas.drawPath(
+      path,
+      Paint()
+        ..color = lineColor
+        ..strokeWidth = 3
+        ..style = PaintingStyle.stroke
+        ..strokeCap = StrokeCap.round
+        ..strokeJoin = StrokeJoin.round,
+    );
+
+    final dot = Paint()..color = lineColor;
+    for (final point in points) {
+      canvas.drawCircle(point, 3.1, dot);
+    }
+  }
+
+  @override
+  bool shouldRepaint(covariant _ReportLinePainter oldDelegate) =>
+      oldDelegate.values != values ||
+      oldDelegate.lineColor != lineColor ||
+      oldDelegate.gridColor != gridColor;
+}
+
+String _compactDateLabel(Object? value) {
+  final date = DateTime.tryParse(value?.toString() ?? '');
+  if (date == null) return _displayValue(value);
+  return DateFormat('d MMM', 'es_CO').format(date);
 }
 
 class _HorizontalBarChart extends StatelessWidget {
@@ -7780,6 +10405,42 @@ class _MetricAppearance {
 
 _MetricAppearance _metricAppearance(String key, AppPalette palette) {
   final normalized = key.toLowerCase();
+  if (normalized.contains('mano_obra')) {
+    return const _MetricAppearance(
+      Icons.groups_2_rounded,
+      Colors.deepPurpleAccent,
+    );
+  }
+  if (normalized.contains('gasto')) {
+    return _MetricAppearance(
+      Icons.receipt_long_rounded,
+      palette.warning,
+    );
+  }
+  if (normalized.contains('ingreso')) {
+    return _MetricAppearance(
+      Icons.point_of_sale_rounded,
+      palette.secondary,
+    );
+  }
+  if (normalized.contains('balance')) {
+    return _MetricAppearance(
+      Icons.balance_rounded,
+      palette.accent,
+    );
+  }
+  if (normalized.contains('concentracion')) {
+    return _MetricAppearance(
+      Icons.pie_chart_outline_rounded,
+      palette.secondary,
+    );
+  }
+  if (normalized.contains('rotacion')) {
+    return _MetricAppearance(
+      Icons.sync_alt_rounded,
+      palette.accent,
+    );
+  }
   if (normalized.contains('falt') ||
       normalized.contains('negativ') ||
       normalized.contains('agotad') ||
@@ -7934,6 +10595,7 @@ enum _ReportKind { standard, profit, nextOrder }
 
 class _ReportDefinition {
   const _ReportDefinition({
+    required this.keyName,
     required this.title,
     required this.description,
     required this.path,
@@ -7949,6 +10611,7 @@ class _ReportDefinition {
     this.signedChart = false,
   });
 
+  final String keyName;
   final String title;
   final String description;
   final String path;
@@ -8006,12 +10669,28 @@ Map<String, dynamic> _buildMetrics(
     const keys = [
       'numero_ventas',
       'total_vendido',
+      'total_propinas',
       'ticket_promedio',
       'unidades_vendidas',
+      'productos_con_stock',
       'unidades_en_stock',
       'productos_agotados',
       'productos_stock_negativo',
       'productos_stock_bajo',
+      'ingresos_periodo',
+      'costo_ventas_periodo',
+      'ganancia_bruta_periodo',
+      'gastos_fijos_periodo',
+      'gastos_turno_periodo',
+      'salidas_caja_periodo',
+      'pagos_pedidos_periodo',
+      'pagos_gastos_configurados_periodo',
+      'gastos_variables_periodo',
+      'mano_obra_periodo',
+      'gastos_operativos_periodo',
+      'ganancia_neta_estimada_periodo',
+      'margen_bruto_porcentaje',
+      'margen_neto_porcentaje',
     ];
     return {
       for (final key in keys)
@@ -8056,10 +10735,24 @@ Map<String, dynamic> _buildMetrics(
   if (definition.kind == _ReportKind.profit) {
     final ingresos = _sum(rows, 'ingresos_periodo');
     final ganancia = _sum(rows, 'ganancia_bruta_periodo');
+    final metadata =
+        rows.isEmpty ? const <String, dynamic>{} : rows.first;
+    final gastosFijos = _toDouble(metadata['gastos_fijos_periodo']);
+    final gastosVariables = _toDouble(metadata['gastos_variables_periodo']);
+    final manoObra = _toDouble(metadata['mano_obra_periodo']);
+    final gastosOperativos = _toDouble(metadata['gastos_operativos_periodo']);
+    final gananciaNeta = metadata.containsKey('ganancia_neta_estimada_periodo')
+        ? _toDouble(metadata['ganancia_neta_estimada_periodo'])
+        : ganancia - gastosOperativos;
     return {
       'ingresos_periodo': ingresos,
       'costo_ventas_periodo': _sum(rows, 'costo_ventas_periodo'),
       'ganancia_bruta_periodo': ganancia,
+      'gastos_fijos_periodo': gastosFijos,
+      'gastos_variables_periodo': gastosVariables,
+      'mano_obra_periodo': manoObra,
+      'gastos_operativos_periodo': gastosOperativos,
+      'ganancia_neta_estimada_periodo': gananciaNeta,
       'margen_bruto_porcentaje':
           ingresos == 0 ? 0 : (ganancia * 100 / ingresos),
       'productos_con_ventas': rows
@@ -8085,53 +10778,107 @@ Map<String, dynamic> _buildMetrics(
     };
   }
   if (definition.path.contains('stock-actual')) {
+    final disponibles =
+        rows.where((row) => row['estado'] == 'DISPONIBLE').length;
+    final sinConfigurar =
+        rows.where((row) => row['estado'] == 'SIN_CONFIGURAR').length;
+    final sobrestock =
+        rows.where((row) => row['estado'] == 'SOBRESTOCK').length;
     return {
       'productos': rows.length,
       'unidades': _sum(rows, 'unidades'),
+      'disponibles': disponibles,
       'agotados': rows.where((row) => row['estado'] == 'AGOTADO').length,
       'stock_bajo': rows.where((row) => row['estado'] == 'STOCK_BAJO').length,
-      'stock_negativo': rows.where((row) => row['estado'] == 'STOCK_NEGATIVO').length,
+      'stock_negativo':
+          rows.where((row) => row['estado'] == 'STOCK_NEGATIVO').length,
+      'sin_configurar': sinConfigurar,
+      'sobrestock': sobrestock,
+      'salud_inventario_porcentaje':
+          rows.isEmpty ? 0 : disponibles * 100 / rows.length,
     };
   }
   if (definition.path.contains('productos-mas-vendidos')) {
+    final totalUnits = _sum(rows, 'cantidad');
+    final ranked = [...rows]
+      ..sort((a, b) =>
+          _toDouble(b['cantidad']).compareTo(_toDouble(a['cantidad'])));
+    final top3Units = ranked
+        .take(3)
+        .fold<double>(0, (sum, row) => sum + _toDouble(row['cantidad']));
     return {
       'productos': rows.length,
-      'unidades_vendidas': _sum(rows, 'cantidad'),
+      'unidades_vendidas': totalUnits,
       'total': _sum(rows, 'total'),
+      'concentracion_top_3_porcentaje':
+          totalUnits == 0 ? 0 : top3Units * 100 / totalUnits,
     };
   }
   if (definition.path.contains('movimientos-inventario')) {
+    final entradaRows =
+        rows.where((row) => row['operacion'] == 'ENTRADA').toList();
+    final salidaRows =
+        rows.where((row) => row['operacion'] == 'SALIDA').toList();
+    final ajusteRows =
+        rows.where((row) => row['operacion'] == 'AJUSTE').toList();
+    final unidadesEntrada = _sum(entradaRows, 'cantidad_unidades');
+    final unidadesSalida = _sum(salidaRows, 'cantidad_unidades');
     return {
       'movimientos': rows.length,
       'unidades_movidas': _sum(rows, 'cantidad_unidades'),
-      'entradas': rows.where((row) => row['operacion'] == 'ENTRADA').length,
-      'salidas': rows.where((row) => row['operacion'] == 'SALIDA').length,
-      'ajustes': rows.where((row) => row['operacion'] == 'AJUSTE').length,
+      'entradas': entradaRows.length,
+      'salidas': salidaRows.length,
+      'ajustes': ajusteRows.length,
+      'unidades_entrada': unidadesEntrada,
+      'unidades_salida': unidadesSalida,
+      'balance_unidades': unidadesEntrada - unidadesSalida,
     };
   }
   if (definition.path.contains('/persona')) {
+    final totalSalidas = _sum(rows, 'unidades_salida');
+    final top = rows.isEmpty
+        ? const <String, dynamic>{}
+        : ([...rows]
+              ..sort((a, b) => _toDouble(b['unidades_salida'])
+                  .compareTo(_toDouble(a['unidades_salida']))))
+            .first;
     return {
       'responsables': rows.length,
       'movimientos': _sum(rows, 'movimientos'),
-      'unidades_salida': _sum(rows, 'unidades_salida'),
+      'unidades_salida': totalSalidas,
       'productos': _sum(rows, 'productos'),
+      'concentracion_principal_porcentaje': totalSalidas == 0
+          ? 0
+          : _toDouble(top['unidades_salida']) * 100 / totalSalidas,
     };
   }
   if (definition.path.contains('productos-desfalcados')) {
     return {
       'alertas': rows.length,
-      'stock_negativo': rows.where((row) => _toDouble(row['stock_actual']) < 0).length,
-      'agotados_con_rotación': rows.where((row) => row['estado'] == 'AGOTADO_CON_ROTACION').length,
+      'stock_negativo':
+          rows.where((row) => _toDouble(row['stock_actual']) < 0).length,
+      'agotados_con_rotación':
+          rows.where((row) => row['estado'] == 'AGOTADO_CON_ROTACION').length,
       'ventas_periodo': _sum(rows, 'ventas_periodo'),
+      'valor_vendido_en_riesgo': _sum(rows, 'valor_vendido'),
     };
   }
   if (definition.path.contains('cruce-ventas')) {
+    final withRotation = rows
+        .where((row) => _toDouble(row['rotacion_porcentaje']) > 0)
+        .toList();
+    final rotationAverage = withRotation.isEmpty
+        ? 0
+        : _sum(withRotation, 'rotacion_porcentaje') / withRotation.length;
     return {
       'productos': rows.length,
       'stock_actual': _sum(rows, 'stock_actual'),
       'ventas_periodo': _sum(rows, 'ventas_periodo'),
       'entradas_periodo': _sum(rows, 'entradas_periodo'),
       'salidas_periodo': _sum(rows, 'salidas_periodo'),
+      'sin_rotacion':
+          rows.where((row) => row['estado'] == 'SIN_ROTACION').length,
+      'rotacion_promedio_porcentaje': rotationAverage,
     };
   }
   return {'registros': rows.length};
@@ -8376,6 +11123,21 @@ double _toDouble(dynamic value) {
 }
 
 String _humanize(String value) {
+  const labels = <String, String>{
+    'gastos_turno_periodo': 'Gastos del turno',
+    'salidas_caja_periodo': 'Salidas de caja',
+    'pagos_pedidos_periodo': 'Pagos de pedidos',
+    'pagos_gastos_configurados_periodo': 'Pagos de facturas/gastos',
+    'gastos_variables_periodo': 'Gastos variables',
+    'gastos_fijos_periodo': 'Gastos fijos',
+    'mano_obra_periodo': 'Mano de obra',
+    'gastos_operativos_periodo': 'Gastos operativos',
+    'ganancia_neta_estimada_periodo': 'Ganancia neta estimada',
+    'ganancia_bruta_periodo': 'Ganancia bruta',
+    'costo_ventas_periodo': 'Costo de ventas',
+    'ingresos_periodo': 'Ingresos por productos',
+  };
+  if (labels.containsKey(value)) return labels[value]!;
   final spaced = value
       .replaceAllMapped(
         RegExp(r'([a-z0-9])([A-Z])'),

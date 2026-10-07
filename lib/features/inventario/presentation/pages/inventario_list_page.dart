@@ -84,11 +84,16 @@ class _InventarioListPageState extends ConsumerState<InventarioListPage> {
     final pending = math.max(0, total - completed).toInt();
     final progress = total == 0 ? 0.0 : completed / total;
     final query = _searchController.text.trim().toLowerCase();
-    final diferenciasPendientes = state.registrosHoy.values
-        .where((record) =>
-            record.invtOrigen == 'CONTEO_FISICO' &&
-            (record.invtDiferencia ?? 0).abs() > 0.0001)
-        .toList(growable: false);
+    final diferenciasPendientes =
+        state.conteosPendientes.values.toList(growable: false)
+          ..sort((a, b) {
+            final ad = DateTime.tryParse(a.invtFecha ?? '');
+            final bd = DateTime.tryParse(b.invtFecha ?? '');
+            if (ad == null && bd == null) return 0;
+            if (ad == null) return 1;
+            if (bd == null) return -1;
+            return ad.compareTo(bd);
+          });
 
     final visible = state.productos.where((product) {
       final id = product.prodId;
@@ -161,6 +166,9 @@ class _InventarioListPageState extends ConsumerState<InventarioListPage> {
                         progress: progress,
                         branchName: branchState.activeBranch?.sucuNombre,
                         lastUpdated: state.actualizadoEn,
+                        lastCountAt: state.ultimoConteoEn,
+                        pendingReconciliations:
+                            state.conteosPendientes.length,
                         refreshing: loading,
                         onRefresh: _refreshInventory,
                       ),
@@ -189,7 +197,7 @@ class _InventarioListPageState extends ConsumerState<InventarioListPage> {
                   ),
                 ),
               ),
-              if (pending == 0 && diferenciasPendientes.isNotEmpty)
+              if (diferenciasPendientes.isNotEmpty)
                 SliverToBoxAdapter(
                   child: Center(
                     child: ConstrainedBox(
@@ -249,6 +257,9 @@ class _InventarioListPageState extends ConsumerState<InventarioListPage> {
                       final record = productId == null
                           ? null
                           : state.registrosHoy[productId];
+                      final lastCount = productId == null
+                          ? null
+                          : state.ultimosConteos[productId];
                       final justCompleted = productId != null &&
                           _justCompleted.contains(productId);
                       final saving = productId != null &&
@@ -269,6 +280,7 @@ class _InventarioListPageState extends ConsumerState<InventarioListPage> {
                                 ),
                                 product: product,
                                 record: record,
+                                lastCount: lastCount,
                                 palette: palette,
                                 saving: saving,
                                 justCompleted: justCompleted,
@@ -395,8 +407,15 @@ class _InventarioListPageState extends ConsumerState<InventarioListPage> {
             width: 560,
             child: SingleChildScrollView(
               child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-                Text('Se ajustará el inventario del sistema al conteo físico y se registrará un movimiento de ajuste para conservar la trazabilidad.',
-                    style: TextStyle(color: palette.textSecondary, fontWeight: FontWeight.w600)),
+                Text(
+                  'Se conciliará cada diferencia contra su último conteo físico. '
+                  'Si el conteo fue hace varios días, las ventas, compras y demás movimientos posteriores se conservan; '
+                  'solo se registra la diferencia detectada en ese conteo.',
+                  style: TextStyle(
+                    color: palette.textSecondary,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
                 const SizedBox(height: 14),
                 ...differences.map((record) {
                   ProductosResponseModel? product;
@@ -409,7 +428,12 @@ class _InventarioListPageState extends ConsumerState<InventarioListPage> {
                     leading: Icon(diff > 0 ? Icons.add_circle_outline : Icons.remove_circle_outline,
                         color: diff > 0 ? palette.success : palette.warning),
                     title: Text(product?.prodNombre ?? 'Producto ${record.prodId}', style: const TextStyle(fontWeight: FontWeight.w800)),
-                    subtitle: Text('Sistema ${_formatQuantity(record.invtCantidadEsperada ?? 0)} · Físico ${_formatQuantity(record.invtCantidad ?? 0)} · Diferencia ${diff > 0 ? '+' : ''}${_formatQuantity(diff)}'),
+                    subtitle: Text(
+                      'Conteo ${_shortDate(record.invtFecha)} · '
+                      'Sistema ${_formatQuantity(record.invtCantidadEsperada ?? 0)} · '
+                      'Físico ${_formatQuantity(record.invtCantidad ?? 0)} · '
+                      'Diferencia ${diff > 0 ? '+' : ''}${_formatQuantity(diff)}',
+                    ),
                   );
                 }),
                 const SizedBox(height: 12),
@@ -444,7 +468,6 @@ class _InventarioListPageState extends ConsumerState<InventarioListPage> {
       ),
     );
     final note = observation.text.trim();
-    observation.dispose();
     if (confirmed != true || note.isEmpty || !mounted) return;
     final ok = await ref.read(inventarioConteoProvider.notifier).sincronizarDiferencias(
       registros: differences, motivo: reason, observacion: note,
@@ -475,11 +498,16 @@ class _InventoryReconcileBanner extends StatelessWidget {
           Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
             Text('$differences diferencia(s) por conciliar', style: TextStyle(color: palette.textPrimary, fontWeight: FontWeight.w900)),
             const SizedBox(height: 3),
-            Text('Revisa y sustenta el ajuste antes de sincronizar el inventario con el conteo físico.',
-                style: TextStyle(color: palette.textSecondary, fontWeight: FontWeight.w600)),
+            Text(
+              'Puede incluir conteos de días anteriores. Al conciliar se conservan todos los movimientos posteriores al conteo.',
+              style: TextStyle(
+                color: palette.textSecondary,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
           ])),
         ]);
-        final button = FilledButton.icon(onPressed: onPressed, icon: const Icon(Icons.sync_rounded), label: const Text('Ajustar inventario'));
+        final button = FilledButton.icon(onPressed: onPressed, icon: const Icon(Icons.sync_rounded), label: const Text('Conciliar conteos'));
         if (constraints.maxWidth < 650) {
           return Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [info, const SizedBox(height: 12), button]);
         }
@@ -629,6 +657,8 @@ class _InventoryProgressHeader extends StatelessWidget {
     required this.progress,
     required this.branchName,
     required this.lastUpdated,
+    required this.lastCountAt,
+    required this.pendingReconciliations,
     required this.refreshing,
     required this.onRefresh,
   });
@@ -640,6 +670,8 @@ class _InventoryProgressHeader extends StatelessWidget {
   final double progress;
   final String? branchName;
   final DateTime? lastUpdated;
+  final DateTime? lastCountAt;
+  final int pendingReconciliations;
   final bool refreshing;
   final VoidCallback onRefresh;
 
@@ -680,9 +712,11 @@ class _InventoryProgressHeader extends StatelessWidget {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text(
-                          pending == 0
-                              ? 'Conteo del día completado'
-                              : 'Conteo de inventario del día',
+                          pending == 0 && completed > 0
+                              ? 'Conteo físico completado hoy'
+                              : completed > 0
+                                  ? 'Conteo físico en curso'
+                                  : 'Conteo físico de inventario',
                           style: TextStyle(
                             color: palette.textPrimary,
                             fontSize: 19,
@@ -691,9 +725,11 @@ class _InventoryProgressHeader extends StatelessWidget {
                         ),
                         const SizedBox(height: 3),
                         Text(
-                          pending == 0
-                              ? 'Todos los productos de ${_branchLabel(branchName)} quedaron registrados.'
-                              : 'Conteo de ${_branchLabel(branchName)}. Cada producto registrado se retira de la lista pendiente.',
+                          completed == 0
+                              ? 'Realízalo cuando corresponda a tu operación: diario, semanal, quincenal o mensual. ${_lastCountText(lastCountAt)}'
+                              : pending == 0
+                                  ? 'Todos los productos de ${_branchLabel(branchName)} quedaron registrados hoy. ${_lastCountText(lastCountAt)}'
+                                  : 'Jornada de conteo en curso en ${_branchLabel(branchName)}. Puedes continuar después sin perder el último conteo registrado.',
                           style: TextStyle(
                             color: palette.textSecondary,
                             fontWeight: FontWeight.w600,
@@ -732,7 +768,7 @@ class _InventoryProgressHeader extends StatelessWidget {
               ),
               const SizedBox(height: 8),
               Text(
-                '$completed de $total productos contados${lastUpdated == null ? '' : ' · Actualizado ${_formatTime(lastUpdated!)}'}',
+                '$completed de $total productos contados hoy${lastUpdated == null ? '' : ' · Actualizado ${_formatTime(lastUpdated!)}'}',
                 style: TextStyle(
                   color: palette.textSecondary,
                   fontWeight: FontWeight.w700,
@@ -749,17 +785,25 @@ class _InventoryProgressHeader extends StatelessWidget {
               _MiniCounter(
                 palette: palette,
                 icon: Icons.pending_actions_rounded,
-                label: 'Pendientes',
+                label: 'Sin contar hoy',
                 value: '$pending',
                 color: palette.warning,
               ),
               _MiniCounter(
                 palette: palette,
                 icon: Icons.check_circle_rounded,
-                label: 'Contados',
+                label: 'Contados hoy',
                 value: '$completed',
                 color: palette.success,
               ),
+              if (pendingReconciliations > 0)
+                _MiniCounter(
+                  palette: palette,
+                  icon: Icons.sync_problem_rounded,
+                  label: 'Por conciliar',
+                  value: '$pendingReconciliations',
+                  color: palette.warning,
+                ),
               IconButton.filledTonal(
                 tooltip: 'Actualizar inventario',
                 onPressed: refreshing ? null : onRefresh,
@@ -1050,6 +1094,7 @@ class _InventoryProductRow extends StatelessWidget {
     super.key,
     required this.product,
     required this.record,
+    required this.lastCount,
     required this.palette,
     required this.saving,
     required this.justCompleted,
@@ -1058,6 +1103,7 @@ class _InventoryProductRow extends StatelessWidget {
 
   final ProductosResponseModel product;
   final InventarioResponseModel? record;
+  final InventarioResponseModel? lastCount;
   final AppPalette palette;
   final bool saving;
   final bool justCompleted;
@@ -1178,6 +1224,14 @@ class _InventoryProductRow extends StatelessWidget {
                             icon: Icons.fact_check_rounded,
                             label: 'Contado ${_formatQuantity(counted ?? 0)}',
                             color: palette.success,
+                          )
+                        else if (lastCount != null)
+                          _InventoryInfoChip(
+                            palette: palette,
+                            icon: Icons.history_rounded,
+                            label:
+                                'Último conteo ${_formatQuantity(lastCount!.invtCantidad ?? 0)} · ${_shortDate(lastCount!.invtFecha)}',
+                            color: palette.secondary,
                           ),
                       ],
                     ),
@@ -1245,9 +1299,9 @@ class _InventoryProductRow extends StatelessWidget {
                     ),
                   ),
                   icon: const Icon(Icons.fact_check_rounded, size: 18),
-                  label: const Text(
-                    'Registrar conteo',
-                    style: TextStyle(fontWeight: FontWeight.w900),
+                  label: Text(
+                    lastCount == null ? 'Registrar conteo' : 'Nuevo conteo',
+                    style: const TextStyle(fontWeight: FontWeight.w900),
                   ),
                 );
 
@@ -1894,7 +1948,7 @@ class _InventoryEmptyState extends StatelessWidget {
               const SizedBox(height: 14),
               Text(
                 completed
-                    ? 'No quedan productos pendientes'
+                    ? 'Todos los productos fueron contados hoy'
                     : 'No encontramos productos',
                 textAlign: TextAlign.center,
                 style: TextStyle(
@@ -1906,7 +1960,7 @@ class _InventoryEmptyState extends StatelessWidget {
               const SizedBox(height: 6),
               Text(
                 completed
-                    ? 'El conteo del día está completo. Puedes revisar los productos ya registrados.'
+                    ? 'La jornada de conteo de hoy está completa. El próximo conteo puede hacerse cuando corresponda a tu operación.'
                     : 'Cambia el filtro o limpia la búsqueda para continuar.',
                 textAlign: TextAlign.center,
                 style: TextStyle(
@@ -1922,7 +1976,7 @@ class _InventoryEmptyState extends StatelessWidget {
                   completed ? Icons.checklist_rounded : Icons.close_rounded,
                 ),
                 label: Text(
-                  completed ? 'Ver productos contados' : 'Limpiar búsqueda',
+                  completed ? 'Ver contados hoy' : 'Limpiar búsqueda',
                 ),
               ),
             ],
@@ -1970,6 +2024,25 @@ class _InlineError extends StatelessWidget {
 String _formatQuantity(num value) {
   if (value % 1 == 0) return value.toInt().toString();
   return value.toStringAsFixed(2).replaceAll(RegExp(r'0+$'), '').replaceAll(RegExp(r'\.$'), '');
+}
+
+String _lastCountText(DateTime? value) {
+  if (value == null) return 'Aún no hay un conteo físico anterior.';
+  final now = DateTime.now();
+  final today = DateTime(now.year, now.month, now.day);
+  final day = DateTime(value.year, value.month, value.day);
+  final days = today.difference(day).inDays;
+  if (days <= 0) return 'Último conteo: hoy.';
+  if (days == 1) return 'Último conteo: ayer.';
+  return 'Último conteo: hace $days días (${_shortDate(value.toIso8601String())}).';
+}
+
+String _shortDate(String? raw) {
+  final date = DateTime.tryParse(raw ?? '');
+  if (date == null) return 'sin fecha';
+  return '${date.day.toString().padLeft(2, '0')}/'
+      '${date.month.toString().padLeft(2, '0')}/'
+      '${date.year}';
 }
 
 String _formatRecordTime(InventarioResponseModel? record) {

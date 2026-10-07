@@ -16,6 +16,7 @@ import '../../features/business_setup/presentation/providers/business_setup_prov
 import '../../features/auth/presentation/providers/auth_provider.dart';
 import '../../features/navigation/presentation/providers/active_role_provider.dart';
 import '../../features/home/presentation/pages/home_page.dart';
+import '../../features/dashboard/presentation/pages/dashboard_page.dart';
 import '../../features/admin_support/presentation/pages/admin_support_page.dart';
 import '../../features/admin_support/presentation/pages/admin_data_explorer_page.dart';
 import '../../features/admin_support/presentation/pages/admin_audit_page.dart';
@@ -47,6 +48,7 @@ import '../../features/empresas/presentation/pages/empresas_form_page.dart';
 import '../../features/empresas/presentation/pages/empresas_detail_page.dart';
 import '../../features/empresas/presentation/pages/empresa_sucursales_wizard_page.dart';
 import '../../features/inventario/presentation/pages/inventario_list_page.dart';
+import '../../features/inventario/presentation/pages/inventario_admin_page.dart';
 import '../../features/inventario/presentation/pages/inventario_form_page.dart';
 import '../../features/inventario/presentation/pages/inventario_detail_page.dart';
 import '../../features/marcas/presentation/pages/marcas_list_page.dart';
@@ -288,10 +290,71 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       GoRoute(path: '/soporte_mantenimiento', builder: (context, state) => AppScaffold(child: const AdminSupportWorkspacePage(type: AdminSupportWorkspaceType.maintenance))),
       GoRoute(path: '/sincronizar_catalogo', builder: (context, state) => AppScaffold(child: const ProductCatalogSyncPage())),
       GoRoute(path: '/profile', builder: (context, state) => _setupAwareScaffold(ref, state, const ProfilePage())),
+      GoRoute(path: '/dashboard', builder: (context, state) => const AppScaffold(child: DashboardPage())),
       GoRoute(path: '/reportes', builder: (context, state) => AppScaffold(child: const ReportesPage())),
+      GoRoute(
+        path: '/reporte_resumen_ejecutivo',
+        builder: (context, state) => AppScaffold(
+          child: const ReportesPage.reporte(keyName: 'reporte_resumen_ejecutivo'),
+        ),
+      ),
+      GoRoute(
+        path: '/reporte_ventas_fecha',
+        builder: (context, state) => AppScaffold(
+          child: const ReportesPage.reporte(keyName: 'reporte_ventas_fecha'),
+        ),
+      ),
+      GoRoute(
+        path: '/reporte_ventas_medio_pago',
+        builder: (context, state) => AppScaffold(
+          child: const ReportesPage.reporte(keyName: 'reporte_ventas_medio_pago'),
+        ),
+      ),
+      GoRoute(
+        path: '/reporte_stock_actual',
+        builder: (context, state) => AppScaffold(
+          child: const ReportesPage.reporte(keyName: 'reporte_stock_actual'),
+        ),
+      ),
       GoRoute(path: '/ganancias', builder: (context, state) => AppScaffold(child: const ReportesPage.ganancias())),
       GoRoute(path: '/gastos_fijos', builder: (context, state) => const AppScaffold(child: GastosFijosPage())),
       GoRoute(path: '/proximo_pedido', builder: (context, state) => AppScaffold(child: const ReportesPage.proximoPedido())),
+      GoRoute(
+        path: '/reporte_cruce_conteo',
+        builder: (context, state) => AppScaffold(
+          child: const ReportesPage.reporte(keyName: 'reporte_cruce_conteo'),
+        ),
+      ),
+      GoRoute(
+        path: '/reporte_productos_mas_vendidos',
+        builder: (context, state) => AppScaffold(
+          child: const ReportesPage.reporte(keyName: 'reporte_productos_mas_vendidos'),
+        ),
+      ),
+      GoRoute(
+        path: '/reporte_movimientos_inventario',
+        builder: (context, state) => AppScaffold(
+          child: const ReportesPage.reporte(keyName: 'reporte_movimientos_inventario'),
+        ),
+      ),
+      GoRoute(
+        path: '/reporte_rotacion_inventario',
+        builder: (context, state) => AppScaffold(
+          child: const ReportesPage.reporte(keyName: 'reporte_rotacion_inventario'),
+        ),
+      ),
+      GoRoute(
+        path: '/reporte_alertas_inventario',
+        builder: (context, state) => AppScaffold(
+          child: const ReportesPage.reporte(keyName: 'reporte_alertas_inventario'),
+        ),
+      ),
+      GoRoute(
+        path: '/reporte_salidas_responsable',
+        builder: (context, state) => AppScaffold(
+          child: const ReportesPage.reporte(keyName: 'reporte_salidas_responsable'),
+        ),
+      ),
       GoRoute(path: '/tablas_parametricas', builder: (context, state) => _setupAwareScaffold(ref, state, const TablasParametricasPage())),
       GoRoute(path: '/mesero', builder: (context, state) => AppScaffold(child: const MeseroPage())),
       GoRoute(path: '/mesero/productos', builder: (context, state) => AppScaffold(child: const MeseroPage(initialMode: MeseroPageMode.productos))),
@@ -348,6 +411,12 @@ final appRouterProvider = Provider<GoRouter>((ref) {
           GoRoute(path: ':id', builder: (context, state) => _setupAwareScaffold(ref, state, InventarioDetailPage(id: state.pathParameters['id']!))),
           GoRoute(path: ':id/editar', builder: (context, state) => _setupAwareScaffold(ref, state, InventarioFormPage(id: state.pathParameters['id']))),
         ],
+      ),
+
+      GoRoute(
+        path: '/inventario_admin',
+        builder: (context, state) =>
+            _setupAwareScaffold(ref, state, const InventarioAdminPage()),
       ),
 
       GoRoute(

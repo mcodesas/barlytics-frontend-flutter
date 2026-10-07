@@ -330,11 +330,23 @@ String _resolveCurrentPageTitle(
   const routeTitles = <String, String>{
     '/home': 'Inicio',
     '/profile': 'Mi perfil',
+    '/dashboard': 'Dashboard',
     '/reportes': 'Reportes',
+    '/reporte_resumen_ejecutivo': 'Resumen ejecutivo',
+    '/reporte_ventas_fecha': 'Ventas por fecha',
+    '/reporte_ventas_medio_pago': 'Ventas por medio de pago',
+    '/reporte_stock_actual': 'Stock actual',
     '/ganancias': 'Ganancias',
     '/proximo_pedido': 'Próximo pedido',
+    '/reporte_cruce_conteo': 'Cruce de conteo físico',
+    '/reporte_productos_mas_vendidos': 'Productos más vendidos',
+    '/reporte_movimientos_inventario': 'Movimientos de inventario',
+    '/reporte_rotacion_inventario': 'Rotación de inventario',
+    '/reporte_alertas_inventario': 'Alertas de inventario',
+    '/reporte_salidas_responsable': 'Salidas por responsable',
     '/productos': 'Productos',
     '/inventario': 'Inventario',
+    '/inventario_admin': 'Control administrativo de inventario',
     '/precios': 'Precios',
     '/tablas_parametricas': 'Tablas paramétricas',
     '/tipos_producto': 'Tipos de producto',
@@ -403,6 +415,9 @@ String? _resolveCurrentPageSubtitle(
       MeseroPageMode.cierreCaja => 'Cuadra las ventas y medios de pago del turno actual.',
     };
   }
+  if (isInventario && path.startsWith('/inventario_admin')) {
+    return 'Audita conteos, faltantes y sobrantes valorizados, responsables, ventas del día y conciliaciones.';
+  }
   if (isInventario && path.startsWith('/ganancias')) {
     return 'Consulta ingresos, costos, margen y rentabilidad real del periodo.';
   }
@@ -414,6 +429,12 @@ String? _resolveCurrentPageSubtitle(
   }
   if (isManager && path == '/home') {
     return 'Supervisa ventas, inventario, rentabilidad y operación desde un panel rápido.';
+  }
+  if (isManager && path.startsWith('/dashboard')) {
+    return 'Panorama completo del negocio con ventas, rentabilidad, gastos, inventario y operación.';
+  }
+  if (isManager && path.startsWith('/reporte_')) {
+    return 'Consulta este reporte operativo con filtros, gráficos, datos y exportación.';
   }
   if (isManager && path.startsWith('/reportes')) {
     return 'Analiza la operación y toma decisiones con información consolidada.';
@@ -447,6 +468,9 @@ String? _resolveCurrentPageEyebrow(
       MeseroPageMode.cierreCaja => 'Control del turno',
     };
   }
+  if (isInventario && path.startsWith('/inventario_admin')) {
+    return 'Control y trazabilidad';
+  }
   if (isInventario && path.startsWith('/ganancias')) {
     return 'Analítica de rentabilidad';
   }
@@ -457,6 +481,8 @@ String? _resolveCurrentPageEyebrow(
     return 'Configuración operativa';
   }
   if (isManager && path == '/home') return 'Centro de control POS';
+  if (isManager && path.startsWith('/dashboard')) return 'Resumen ejecutivo';
+  if (isManager && path.startsWith('/reporte_')) return 'Reporte operativo';
   if (isManager) return 'Gestión gerencial';
   if (isInventario) return 'Operación de inventario';
   return null;
@@ -472,6 +498,11 @@ String? _resolveCurrentPageStatusText(
   final path = GoRouterState.of(context).uri.path;
   if (isOperativo && path.startsWith('/mesero')) {
     return isInventario ? 'Stock activo' : 'Caja activa';
+  }
+  if (isManager && path.startsWith('/dashboard')) return 'Panorama del periodo';
+  if (isManager && path.startsWith('/reporte_')) return 'Datos actualizados';
+  if (isInventario && path.startsWith('/inventario_admin')) {
+    return 'Historial de conteos';
   }
   if (isInventario && path.startsWith('/ganancias')) return 'Periodo actual';
   if (isInventario && path.startsWith('/proximo_pedido')) return 'Stock actualizado';
@@ -497,6 +528,9 @@ IconData? _resolveCurrentPageIcon(
       MeseroPageMode.cierreCaja => Icons.point_of_sale_rounded,
     };
   }
+  if (isInventario && path.startsWith('/inventario_admin')) {
+    return Icons.inventory_rounded;
+  }
   if (isInventario && path.startsWith('/ganancias')) {
     return Icons.trending_up;
   }
@@ -507,6 +541,12 @@ IconData? _resolveCurrentPageIcon(
     return Icons.tune_rounded;
   }
   if (isManager && path == '/home') return Icons.space_dashboard_rounded;
+  if (isManager && path.startsWith('/dashboard')) {
+    return Icons.space_dashboard_rounded;
+  }
+  if (isManager && path.startsWith('/reporte_')) {
+    return ModuleVisuals.byKey(path.substring(1)).icon;
+  }
   if (isManager && path.startsWith('/reportes')) return Icons.analytics_rounded;
   if (isManager && path.startsWith('/ganancias')) return Icons.trending_up_rounded;
   if (isManager && path.startsWith('/proximo_pedido')) return Icons.local_shipping_rounded;

@@ -430,6 +430,50 @@ class MeseroRemoteDataSource {
     return response.data!;
   }
 
+  Future<SalidaCajaOpcionesModel> opcionesSalidaCaja() async {
+    final response = await _apiClient.get<SalidaCajaOpcionesModel>(
+      ApiPaths.meseroCierreCajaSalidaOpciones,
+      (json) => SalidaCajaOpcionesModel.fromJson(
+        Map<String, dynamic>.from(json as Map),
+      ),
+    );
+    return response.data ?? const SalidaCajaOpcionesModel();
+  }
+
+  Future<SalidaCajaModel> registrarSalidaCaja({
+    required String fecha,
+    required String tipo,
+    required double valor,
+    String? categoria,
+    String? descripcion,
+    int? gastoId,
+    int? pedidoId,
+  }) async {
+    final response = await _apiClient.post<SalidaCajaModel>(
+      ApiPaths.meseroCierreCajaSalidas,
+      {
+        'fecha': fecha,
+        'tipo': tipo,
+        'valor': valor,
+        if ((categoria ?? '').trim().isNotEmpty) 'categoria': categoria!.trim(),
+        if ((descripcion ?? '').trim().isNotEmpty) 'descripcion': descripcion!.trim(),
+        if (gastoId != null) 'gastoId': gastoId,
+        if (pedidoId != null) 'pedidoId': pedidoId,
+      },
+      (json) => SalidaCajaModel.fromJson(
+        Map<String, dynamic>.from(json as Map),
+      ),
+    );
+    return response.data!;
+  }
+
+  Future<void> anularSalidaCaja(int salidaId) async {
+    await _apiClient.delete<void>(
+      ApiPaths.meseroCierreCajaSalidaById(salidaId),
+      (_) {},
+    );
+  }
+
   Future<String> descargarReporteCierreCaja({String? fecha}) async {
     final response = await _apiClient.get<String>(
       ApiPaths.meseroCierreCajaReporte,

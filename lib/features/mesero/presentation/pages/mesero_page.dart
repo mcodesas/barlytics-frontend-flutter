@@ -5,6 +5,7 @@ import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter/services.dart';
+import 'package:intl/intl.dart';
 import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
 
@@ -4324,6 +4325,103 @@ class _MeseroPageState extends ConsumerState<MeseroPage> {
     }
   }
 
+  Future<void> _registrarSalidaCaja(CierreCajaResumenModel cierre) async {
+    try {
+      final opciones = await _dataSource.opcionesSalidaCaja();
+      if (!mounted) return;
+
+      final decision = await showDialog<_SalidaCajaDecision>(
+        context: context,
+        barrierDismissible: false,
+        builder: (dialogContext) => Dialog(
+          insetPadding: EdgeInsets.symmetric(
+            horizontal: MediaQuery.sizeOf(dialogContext).width < 700 ? 10 : 24,
+            vertical: 18,
+          ),
+          clipBehavior: Clip.antiAlias,
+          child: _SalidaCajaDialog(
+            opciones: opciones,
+            palette: ref.read(selectedAppPaletteProvider),
+          ),
+        ),
+      );
+
+      if (decision == null || !mounted) return;
+
+      setState(() => _processing = true);
+      await _dataSource.registrarSalidaCaja(
+        fecha: cierre.fecha ?? _fechaIso(_fechaCierreActual),
+        tipo: decision.tipo,
+        valor: decision.valor,
+        categoria: decision.categoria,
+        descripcion: decision.descripcion,
+        gastoId: decision.gastoId,
+        pedidoId: decision.pedidoId,
+      );
+      await _reloadCierreCaja();
+      if (!mounted) return;
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            'Salida registrada: ${CurrencyUtils.format(decision.valor)}',
+          ),
+        ),
+      );
+    } catch (error) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('No fue posible registrar la salida: $error')),
+      );
+    } finally {
+      if (mounted) setState(() => _processing = false);
+    }
+  }
+
+  Future<void> _anularSalidaCaja(
+    CierreCajaResumenModel cierre,
+    SalidaCajaModel salida,
+  ) async {
+    final id = salida.salidaId;
+    if (id == null) return;
+
+    final confirmado = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Anular salida de caja'),
+        content: Text(
+          'Se anulará ${salida.descripcion ?? 'esta salida'} por '
+          '${CurrencyUtils.format(salida.valor)}. '
+          'Si corresponde a un pedido, el saldo pendiente se restaurará.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext, false),
+            child: const Text('Cancelar'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(dialogContext, true),
+            child: const Text('Anular salida'),
+          ),
+        ],
+      ),
+    );
+    if (confirmado != true) return;
+
+    try {
+      setState(() => _processing = true);
+      await _dataSource.anularSalidaCaja(id);
+      await _reloadCierreCaja();
+    } catch (error) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('No fue posible anular la salida: $error')),
+      );
+    } finally {
+      if (mounted) setState(() => _processing = false);
+    }
+  }
+
   Future<void> _registrarCierreCaja(CierreCajaResumenModel cierre) async {
     final esModificacion = cierre.cerrado == true && cierre.cierreCajaId != null;
     final controllers = <int, TextEditingController>{};
@@ -4345,16 +4443,15 @@ class _MeseroPageState extends ConsumerState<MeseroPage> {
           valor: TextEditingController(text: _formatCurrencyInputAmount(gasto.valor ?? 0)),
         ),
     ];
-    if (gastos.isEmpty) {
-      gastos.add((descripcion: TextEditingController(), valor: TextEditingController(text: '0')));
-    }
     final observacionController = TextEditingController(text: cierre.observacion ?? '');
 
     double totalEntregadoActual() => cierre.mediosPago.fold<double>(
           0,
           (sum, medio) => sum + _parseCurrencyInput(controllers[medio.medioPagoId]?.text ?? '0'),
         );
-    double totalGastosActual() => gastos.fold<double>(
+    double totalGastosActual() =>
+        (cierre.totalSalidasCaja ?? 0) +
+        gastos.fold<double>(
           0,
           (sum, gasto) => sum + _parseCurrencyInput(gasto.valor.text),
         );
@@ -4529,15 +4626,10 @@ class _MeseroPageState extends ConsumerState<MeseroPage> {
 
       final ajustesSection = sectionCard(
         icon: Icons.tune_rounded,
-        title: 'Ajustes del turno',
-        subtitle: 'Base inicial, gastos y una nota opcional.',
-        trailing: TextButton.icon(
-          onPressed: () => setDialogState(
-            () => gastos.add((descripcion: TextEditingController(), valor: TextEditingController(text: '0'))),
-          ),
-          icon: const Icon(Icons.add_rounded),
-          label: Text(compact ? 'Agregar' : 'Agregar gasto'),
-        ),
+        title: 'Base y observación',
+        subtitle: cierre.salidasCaja.isEmpty
+            ? 'Las salidas de efectivo se registran desde el panel del turno.'
+            : '${cierre.salidasCaja.length} salida(s) de caja ya incluidas automáticamente.',
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -4602,9 +4694,6 @@ class _MeseroPageState extends ConsumerState<MeseroPage> {
                           onPressed: () {
                             setDialogState(() {
                               gastos.remove(gasto);
-                              if (gastos.isEmpty) {
-                                gastos.add((descripcion: TextEditingController(), valor: TextEditingController(text: '0')));
-                              }
                             });
                             WidgetsBinding.instance.addPostFrameCallback((_) {
                               gasto.descripcion.dispose();
@@ -5009,7 +5098,7 @@ class _MeseroPageState extends ConsumerState<MeseroPage> {
           valorBase: valorBase,
           totalGastos: totalGastos,
           propinas: cierre.totalPropinas ?? 0,
-          gastosRegistrados: cierre.gastos.length,
+          gastosRegistrados: cierre.gastos.length + cierre.salidasCaja.length,
           onEditarBase: cerrado ? null : () => _registrarBaseInicialCierreCaja(cierre),
           onCerrar: puedeCerrar ? () => _registrarCierreCaja(cierre) : null,
         );
@@ -5043,10 +5132,22 @@ class _MeseroPageState extends ConsumerState<MeseroPage> {
             const SizedBox(height: 16),
             _CierrePosMovimientosPanel(
               valorBase: valorBase,
-              totalGastos: totalGastos,
-              gastos: cierre.gastos,
+              totalSalidas: totalGastos,
+              totalGastosTurno: cierre.totalGastosTurno ?? 0,
+              totalPagosPedidos: cierre.totalPagosPedidos ?? 0,
+              totalPagosGastos: cierre.totalPagosGastosConfigurados ?? 0,
+              salidas: cierre.salidasCaja,
+              gastosLegacy: cierre.gastos,
               cerrado: cerrado,
-              onEditarBase: cerrado ? null : () => _registrarBaseInicialCierreCaja(cierre),
+              onEditarBase: cerrado
+                  ? null
+                  : () => _registrarBaseInicialCierreCaja(cierre),
+              onRegistrarSalida: cerrado || _processing
+                  ? null
+                  : () => _registrarSalidaCaja(cierre),
+              onAnularSalida: cerrado || _processing
+                  ? null
+                  : (salida) => _anularSalidaCaja(cierre, salida),
             ),
             const SizedBox(height: 14),
             _CierreCollapsibleSection(
@@ -5079,6 +5180,588 @@ class _MeseroPageState extends ConsumerState<MeseroPage> {
     );
   }
 }
+
+class _SalidaCajaDecision {
+  const _SalidaCajaDecision({
+    required this.tipo,
+    required this.valor,
+    this.categoria,
+    this.descripcion,
+    this.gastoId,
+    this.pedidoId,
+  });
+
+  final String tipo;
+  final double valor;
+  final String? categoria;
+  final String? descripcion;
+  final int? gastoId;
+  final int? pedidoId;
+}
+
+class _SalidaCajaDialog extends StatefulWidget {
+  const _SalidaCajaDialog({
+    required this.opciones,
+    required this.palette,
+  });
+
+  final SalidaCajaOpcionesModel opciones;
+  final AppPalette palette;
+
+  @override
+  State<_SalidaCajaDialog> createState() => _SalidaCajaDialogState();
+}
+
+class _SalidaCajaDialogState extends State<_SalidaCajaDialog> {
+  final TextEditingController _valorController = TextEditingController();
+  final TextEditingController _descripcionController = TextEditingController();
+
+  String _tipo = 'GASTO_TURNO';
+  String _categoria = 'ASEO';
+  int? _gastoId;
+  int? _pedidoId;
+
+  static const List<String> _categorias = <String>[
+    'ASEO',
+    'INSUMOS',
+    'TRANSPORTE',
+    'MANTENIMIENTO',
+    'EMERGENCIA',
+    'OTROS',
+  ];
+
+  @override
+  void dispose() {
+    _valorController.dispose();
+    _descripcionController.dispose();
+    super.dispose();
+  }
+
+  double get _valor => _parseCurrencyInput(_valorController.text);
+
+  SalidaCajaPedidoOpcionModel? get _pedido {
+    for (final item in widget.opciones.pedidosPendientes) {
+      if (item.id == _pedidoId) return item;
+    }
+    return null;
+  }
+
+  SalidaCajaGastoOpcionModel? get _gasto {
+    for (final item in widget.opciones.gastosConfigurados) {
+      if (item.id == _gastoId) return item;
+    }
+    return null;
+  }
+
+  bool get _canSubmit {
+    if (_valor <= 0) return false;
+    if (_tipo == 'PAGO_GASTO') return _gastoId != null;
+    if (_tipo == 'PAGO_PEDIDO') {
+      final pedido = _pedido;
+      return pedido != null && _valor <= pedido.saldoPendiente + .01;
+    }
+    return _descripcionController.text.trim().isNotEmpty;
+  }
+
+  void _changeType(String tipo) {
+    setState(() {
+      _tipo = tipo;
+      _gastoId = null;
+      _pedidoId = null;
+      _valorController.clear();
+      _descripcionController.clear();
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final palette = widget.palette;
+    final size = MediaQuery.sizeOf(context);
+    final mobile = size.width < 700;
+    final dialogWidth = mobile ? size.width - 20 : 680.0;
+    final dialogHeight = mobile
+        ? size.height - 20
+        : (size.height - 48 < 720 ? size.height - 48 : 720.0);
+
+    return SizedBox(
+      width: dialogWidth,
+      height: dialogHeight,
+      child: Material(
+        color: palette.surface,
+        child: Column(
+          children: [
+            Container(
+              padding: EdgeInsets.fromLTRB(mobile ? 14 : 18, 14, 8, 12),
+              decoration: BoxDecoration(
+                color: palette.secondary.withOpacity(.055),
+                border: Border(
+                  bottom: BorderSide(color: palette.cardBorder.withOpacity(.55)),
+                ),
+              ),
+              child: Row(
+                children: [
+                  Container(
+                    width: 42,
+                    height: 42,
+                    decoration: BoxDecoration(
+                      color: palette.secondary.withOpacity(.12),
+                      borderRadius: BorderRadius.circular(14),
+                    ),
+                    child: Icon(Icons.outbox_rounded, color: palette.secondary),
+                  ),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'Registrar salida de caja',
+                          style: TextStyle(
+                            color: palette.textPrimary,
+                            fontWeight: FontWeight.w900,
+                            fontSize: mobile ? 16 : 18,
+                          ),
+                        ),
+                        Text(
+                          'Clasifica la salida para evitar duplicar gastos.',
+                          style: TextStyle(
+                            color: palette.textSecondary,
+                            fontWeight: FontWeight.w600,
+                            fontSize: 10.5,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  IconButton(
+                    onPressed: () => Navigator.pop(context),
+                    icon: const Icon(Icons.close_rounded),
+                  ),
+                ],
+              ),
+            ),
+            Expanded(
+              child: SingleChildScrollView(
+                padding: EdgeInsets.all(mobile ? 12 : 18),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    _SalidaTipoOption(
+                      selected: _tipo == 'GASTO_TURNO',
+                      icon: Icons.shopping_bag_outlined,
+                      title: 'Gasto del turno',
+                      subtitle: 'Aseo, bolsas, transporte o compras menores.',
+                      palette: palette,
+                      onTap: () => _changeType('GASTO_TURNO'),
+                    ),
+                    const SizedBox(height: 8),
+                    _SalidaTipoOption(
+                      selected: _tipo == 'PAGO_GASTO',
+                      icon: Icons.receipt_long_outlined,
+                      title: 'Pago de factura o gasto',
+                      subtitle: 'Ya existe en Costos fijos/variables.',
+                      palette: palette,
+                      onTap: () => _changeType('PAGO_GASTO'),
+                    ),
+                    const SizedBox(height: 8),
+                    _SalidaTipoOption(
+                      selected: _tipo == 'PAGO_PEDIDO',
+                      icon: Icons.local_shipping_outlined,
+                      title: 'Pago de pedido',
+                      subtitle: 'Abono o pago de un pedido de compra.',
+                      palette: palette,
+                      onTap: () => _changeType('PAGO_PEDIDO'),
+                    ),
+                    const SizedBox(height: 16),
+                    _buildFields(palette),
+                    const SizedBox(height: 14),
+                    _buildImpact(palette),
+                  ],
+                ),
+              ),
+            ),
+            Container(
+              padding: EdgeInsets.fromLTRB(
+                mobile ? 12 : 18,
+                10,
+                mobile ? 12 : 18,
+                mobile ? 12 : 14,
+              ),
+              decoration: BoxDecoration(
+                border: Border(
+                  top: BorderSide(color: palette.cardBorder.withOpacity(.55)),
+                ),
+              ),
+              child: Row(
+                children: [
+                  TextButton(
+                    onPressed: () => Navigator.pop(context),
+                    child: const Text('Cancelar'),
+                  ),
+                  const Spacer(),
+                  FilledButton.icon(
+                    onPressed: _canSubmit ? _submit : null,
+                    icon: const Icon(Icons.outbox_rounded),
+                    label: Text(
+                      _valor > 0
+                          ? 'Registrar ' + CurrencyUtils.format(_valor)
+                          : 'Registrar salida',
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildFields(AppPalette palette) {
+    Widget amountField() => TextField(
+          controller: _valorController,
+          keyboardType: const TextInputType.numberWithOptions(decimal: true),
+          inputFormatters: _currencyInputFormatters,
+          onChanged: (_) => setState(() {}),
+          decoration: InputDecoration(
+            labelText: 'Valor que salió de caja',
+            prefixIcon: const Icon(Icons.payments_outlined),
+            suffixText: 'COP',
+            helperText: _tipo == 'PAGO_PEDIDO' && _pedido != null
+                ? 'Máximo: ' + CurrencyUtils.format(_pedido!.saldoPendiente)
+                : null,
+          ),
+        );
+
+    if (_tipo == 'PAGO_PEDIDO') {
+      return Column(
+        children: [
+          DropdownButtonFormField<int>(
+            value: _pedidoId,
+            isExpanded: true,
+            decoration: const InputDecoration(
+              labelText: 'Pedido a pagar',
+              prefixIcon: Icon(Icons.inventory_2_outlined),
+            ),
+            items: widget.opciones.pedidosPendientes
+                .map(
+                  (item) => DropdownMenuItem<int>(
+                    value: item.id,
+                    child: Text(
+                      'Pedido #' +
+                          item.id.toString() +
+                          ' · saldo ' +
+                          CurrencyUtils.format(item.saldoPendiente),
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+                )
+                .toList(),
+            onChanged: (value) {
+              setState(() {
+                _pedidoId = value;
+                final pedido = _pedido;
+                if (pedido != null) {
+                  _valorController.text =
+                      _formatCurrencyInputAmount(pedido.saldoPendiente);
+                }
+              });
+            },
+          ),
+          if (_pedido != null) ...[
+            const SizedBox(height: 10),
+            _SalidaPedidoResumen(pedido: _pedido!, palette: palette),
+          ],
+          const SizedBox(height: 12),
+          amountField(),
+          const SizedBox(height: 12),
+          TextField(
+            controller: _descripcionController,
+            maxLength: 300,
+            decoration: const InputDecoration(
+              labelText: 'Nota opcional',
+              hintText: 'Ej. Abono factura proveedor',
+              counterText: '',
+              prefixIcon: Icon(Icons.notes_rounded),
+            ),
+          ),
+        ],
+      );
+    }
+
+    if (_tipo == 'PAGO_GASTO') {
+      return Column(
+        children: [
+          DropdownButtonFormField<int>(
+            value: _gastoId,
+            isExpanded: true,
+            decoration: const InputDecoration(
+              labelText: 'Factura o gasto configurado',
+              prefixIcon: Icon(Icons.receipt_long_outlined),
+            ),
+            items: widget.opciones.gastosConfigurados
+                .map(
+                  (item) => DropdownMenuItem<int>(
+                    value: item.id,
+                    child: Text(
+                      item.nombre + ' · ' + (item.tipo ?? 'Gasto'),
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+                )
+                .toList(),
+            onChanged: (value) {
+              setState(() {
+                _gastoId = value;
+                final gasto = _gasto;
+                if (gasto?.valorConfigurado != null) {
+                  _valorController.text =
+                      _formatCurrencyInputAmount(gasto!.valorConfigurado!);
+                }
+              });
+            },
+          ),
+          const SizedBox(height: 12),
+          amountField(),
+          const SizedBox(height: 12),
+          TextField(
+            controller: _descripcionController,
+            maxLength: 300,
+            decoration: const InputDecoration(
+              labelText: 'Referencia opcional',
+              hintText: 'Ej. Factura energía septiembre',
+              counterText: '',
+              prefixIcon: Icon(Icons.tag_rounded),
+            ),
+          ),
+        ],
+      );
+    }
+
+    return Column(
+      children: [
+        DropdownButtonFormField<String>(
+          value: _categoria,
+          decoration: const InputDecoration(
+            labelText: 'Categoría',
+            prefixIcon: Icon(Icons.category_outlined),
+          ),
+          items: _categorias
+              .map(
+                (value) => DropdownMenuItem<String>(
+                  value: value,
+                  child: Text(_labelCategoriaSalida(value)),
+                ),
+              )
+              .toList(),
+          onChanged: (value) {
+            if (value != null) setState(() => _categoria = value);
+          },
+        ),
+        const SizedBox(height: 12),
+        TextField(
+          controller: _descripcionController,
+          maxLength: 300,
+          onChanged: (_) => setState(() {}),
+          decoration: const InputDecoration(
+            labelText: '¿Qué se compró o pagó?',
+            hintText: 'Ej. Papel higiénico para baños',
+            counterText: '',
+            prefixIcon: Icon(Icons.edit_note_rounded),
+          ),
+        ),
+        const SizedBox(height: 12),
+        amountField(),
+      ],
+    );
+  }
+
+  Widget _buildImpact(AppPalette palette) {
+    final affects = _tipo == 'GASTO_TURNO';
+    final text = _tipo == 'PAGO_PEDIDO'
+        ? 'Descuenta caja y reduce el saldo pendiente del pedido.'
+        : _tipo == 'PAGO_GASTO'
+            ? 'Descuenta caja. No duplica el gasto que ya está configurado.'
+            : 'Descuenta caja y se suma a gastos variables del periodo.';
+    return Container(
+      padding: const EdgeInsets.all(13),
+      decoration: BoxDecoration(
+        color: (affects ? palette.warning : palette.secondary).withOpacity(.07),
+        borderRadius: BorderRadius.circular(15),
+        border: Border.all(
+          color: (affects ? palette.warning : palette.secondary).withOpacity(.18),
+        ),
+      ),
+      child: Row(
+        children: [
+          Icon(
+            affects ? Icons.trending_down_rounded : Icons.link_rounded,
+            color: affects ? palette.warning : palette.secondary,
+          ),
+          const SizedBox(width: 9),
+          Expanded(
+            child: Text(
+              text,
+              style: TextStyle(
+                color: palette.textPrimary,
+                fontWeight: FontWeight.w700,
+                fontSize: 10.5,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _submit() {
+    Navigator.pop(
+      context,
+      _SalidaCajaDecision(
+        tipo: _tipo,
+        valor: _valor,
+        categoria: _tipo == 'GASTO_TURNO' ? _categoria : null,
+        descripcion: _descripcionController.text.trim().isEmpty
+            ? null
+            : _descripcionController.text.trim(),
+        gastoId: _tipo == 'PAGO_GASTO' ? _gastoId : null,
+        pedidoId: _tipo == 'PAGO_PEDIDO' ? _pedidoId : null,
+      ),
+    );
+  }
+}
+
+class _SalidaTipoOption extends StatelessWidget {
+  const _SalidaTipoOption({
+    required this.selected,
+    required this.icon,
+    required this.title,
+    required this.subtitle,
+    required this.palette,
+    required this.onTap,
+  });
+
+  final bool selected;
+  final IconData icon;
+  final String title;
+  final String subtitle;
+  final AppPalette palette;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) => Material(
+        color: selected
+            ? palette.secondary.withOpacity(.10)
+            : palette.background.withOpacity(.28),
+        borderRadius: BorderRadius.circular(15),
+        child: InkWell(
+          onTap: onTap,
+          borderRadius: BorderRadius.circular(15),
+          child: Container(
+            padding: const EdgeInsets.all(11),
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(15),
+              border: Border.all(
+                color: selected
+                    ? palette.secondary.withOpacity(.35)
+                    : palette.cardBorder,
+              ),
+            ),
+            child: Row(
+              children: [
+                Icon(
+                  icon,
+                  color: selected ? palette.secondary : palette.textSecondary,
+                ),
+                const SizedBox(width: 9),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        title,
+                        style: TextStyle(
+                          color: palette.textPrimary,
+                          fontWeight: FontWeight.w900,
+                          fontSize: 11,
+                        ),
+                      ),
+                      Text(
+                        subtitle,
+                        style: TextStyle(
+                          color: palette.textSecondary,
+                          fontWeight: FontWeight.w600,
+                          fontSize: 9,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      );
+}
+
+class _SalidaPedidoResumen extends StatelessWidget {
+  const _SalidaPedidoResumen({
+    required this.pedido,
+    required this.palette,
+  });
+
+  final SalidaCajaPedidoOpcionModel pedido;
+  final AppPalette palette;
+
+  @override
+  Widget build(BuildContext context) => Container(
+        padding: const EdgeInsets.all(11),
+        decoration: BoxDecoration(
+          color: palette.secondary.withOpacity(.06),
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(color: palette.secondary.withOpacity(.16)),
+        ),
+        child: Wrap(
+          spacing: 18,
+          runSpacing: 7,
+          children: [
+            Text(
+              'Total ' + CurrencyUtils.format(pedido.total),
+              style: TextStyle(
+                color: palette.textPrimary,
+                fontWeight: FontWeight.w800,
+                fontSize: 10,
+              ),
+            ),
+            Text(
+              'Pagado ' + CurrencyUtils.format(pedido.pagado),
+              style: TextStyle(
+                color: palette.textSecondary,
+                fontWeight: FontWeight.w700,
+                fontSize: 10,
+              ),
+            ),
+            Text(
+              'Pendiente ' + CurrencyUtils.format(pedido.saldoPendiente),
+              style: TextStyle(
+                color: palette.secondary,
+                fontWeight: FontWeight.w900,
+                fontSize: 10,
+              ),
+            ),
+          ],
+        ),
+      );
+}
+
+String _labelCategoriaSalida(String value) => switch (value) {
+      'ASEO' => 'Aseo',
+      'INSUMOS' => 'Insumos',
+      'TRANSPORTE' => 'Transporte',
+      'MANTENIMIENTO' => 'Mantenimiento',
+      'EMERGENCIA' => 'Emergencia',
+      _ => 'Otros',
+    };
 
 class _CierrePosHeader extends ConsumerWidget {
   const _CierrePosHeader({
@@ -5473,7 +6156,7 @@ class _CierrePosResumenPanel extends ConsumerWidget {
           _CierrePosSummaryRow(label: 'Ventas del sistema', value: CurrencyUtils.format(totalVendido)),
           _CierrePosSummaryRow(label: 'Propinas', value: CurrencyUtils.format(propinas)),
           _CierrePosSummaryRow(label: 'Base inicial', value: CurrencyUtils.format(valorBase)),
-          _CierrePosSummaryRow(label: 'Gastos ($gastosRegistrados)', value: CurrencyUtils.format(totalGastos)),
+          _CierrePosSummaryRow(label: 'Salidas de caja ($gastosRegistrados)', value: CurrencyUtils.format(totalGastos)),
           _CierrePosSummaryRow(label: 'Total contado', value: CurrencyUtils.format(totalEntregado)),
           const SizedBox(height: 8),
           Divider(height: 1, color: palette.cardBorder),
@@ -5544,67 +6227,375 @@ class _CierrePosSummaryRow extends ConsumerWidget {
 class _CierrePosMovimientosPanel extends ConsumerWidget {
   const _CierrePosMovimientosPanel({
     required this.valorBase,
-    required this.totalGastos,
-    required this.gastos,
+    required this.totalSalidas,
+    required this.totalGastosTurno,
+    required this.totalPagosPedidos,
+    required this.totalPagosGastos,
+    required this.salidas,
+    required this.gastosLegacy,
     required this.cerrado,
     this.onEditarBase,
+    this.onRegistrarSalida,
+    this.onAnularSalida,
   });
 
   final double valorBase;
-  final double totalGastos;
-  final List<CierreCajaGastoModel> gastos;
+  final double totalSalidas;
+  final double totalGastosTurno;
+  final double totalPagosPedidos;
+  final double totalPagosGastos;
+  final List<SalidaCajaModel> salidas;
+  final List<CierreCajaGastoModel> gastosLegacy;
   final bool cerrado;
   final VoidCallback? onEditarBase;
+  final VoidCallback? onRegistrarSalida;
+  final ValueChanged<SalidaCajaModel>? onAnularSalida;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final palette = ref.watch(selectedAppPaletteProvider);
+
+    final header = LayoutBuilder(
+      builder: (context, constraints) {
+        final compact = constraints.maxWidth < 720;
+        final title = Row(
+          children: [
+            Icon(Icons.swap_vert_circle_rounded, color: palette.secondary),
+            const SizedBox(width: 9),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Movimientos de efectivo',
+                    style: TextStyle(
+                      color: palette.textPrimary,
+                      fontWeight: FontWeight.w900,
+                      fontSize: 16,
+                    ),
+                  ),
+                  Text(
+                    'Todo lo que salió de caja durante el turno, clasificado sin duplicar costos.',
+                    style: TextStyle(
+                      color: palette.textSecondary,
+                      fontWeight: FontWeight.w600,
+                      fontSize: 11,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        );
+
+        final actions = Wrap(
+          spacing: 8,
+          runSpacing: 8,
+          children: [
+            if (onEditarBase != null)
+              OutlinedButton.icon(
+                onPressed: onEditarBase,
+                icon: const Icon(Icons.savings_rounded, size: 18),
+                label: const Text('Base inicial'),
+              ),
+            if (onRegistrarSalida != null)
+              FilledButton.icon(
+                onPressed: onRegistrarSalida,
+                icon: const Icon(Icons.outbox_rounded, size: 18),
+                label: const Text('Registrar salida'),
+              ),
+          ],
+        );
+
+        if (compact) {
+          return Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              title,
+              const SizedBox(height: 12),
+              actions,
+            ],
+          );
+        }
+        return Row(
+          children: [
+            Expanded(child: title),
+            const SizedBox(width: 12),
+            actions,
+          ],
+        );
+      },
+    );
+
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: palette.surface.withOpacity(palette.darkBackground ? 0.86 : 0.98),
+        color: palette.surface.withOpacity(
+          palette.darkBackground ? 0.86 : 0.98,
+        ),
         borderRadius: BorderRadius.circular(22),
         border: Border.all(color: palette.cardBorder),
       ),
-      child: LayoutBuilder(
-        builder: (context, constraints) {
-          final compact = constraints.maxWidth < 680;
-          final metrics = Wrap(
-            spacing: 10,
-            runSpacing: 10,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          header,
+          const SizedBox(height: 14),
+          Wrap(
+            spacing: 9,
+            runSpacing: 9,
             children: [
-              _CierrePosMovementChip(icon: Icons.savings_rounded, label: 'Base inicial', value: CurrencyUtils.format(valorBase)),
-              _CierrePosMovementChip(icon: Icons.shopping_bag_rounded, label: 'Gastos', value: CurrencyUtils.format(totalGastos)),
-              _CierrePosMovementChip(icon: Icons.receipt_long_rounded, label: 'Movimientos', value: '${gastos.length}'),
-            ],
-          );
-          final title = Row(
-            children: [
-              Icon(Icons.swap_vert_circle_rounded, color: palette.secondary),
-              const SizedBox(width: 9),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text('Movimientos de efectivo', style: TextStyle(color: palette.textPrimary, fontWeight: FontWeight.w900, fontSize: 16)),
-                    Text('Base y gastos que afectan el cuadre.', style: TextStyle(color: palette.textSecondary, fontWeight: FontWeight.w600, fontSize: 12)),
-                  ],
-                ),
+              _CierrePosMovementChip(
+                icon: Icons.savings_rounded,
+                label: 'Base',
+                value: CurrencyUtils.format(valorBase),
+              ),
+              _CierrePosMovementChip(
+                icon: Icons.outbox_rounded,
+                label: 'Salidas',
+                value: CurrencyUtils.format(totalSalidas),
+              ),
+              _CierrePosMovementChip(
+                icon: Icons.shopping_bag_outlined,
+                label: 'Gasto turno',
+                value: CurrencyUtils.format(totalGastosTurno),
+              ),
+              _CierrePosMovementChip(
+                icon: Icons.local_shipping_outlined,
+                label: 'Pedidos',
+                value: CurrencyUtils.format(totalPagosPedidos),
+              ),
+              _CierrePosMovementChip(
+                icon: Icons.receipt_long_outlined,
+                label: 'Facturas',
+                value: CurrencyUtils.format(totalPagosGastos),
               ),
             ],
-          );
-          final edit = onEditarBase == null
-              ? null
-              : OutlinedButton.icon(onPressed: onEditarBase, icon: const Icon(Icons.edit_rounded, size: 18), label: const Text('Editar'));
-          if (compact) {
-            return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [title, const SizedBox(height: 12), metrics, if (edit != null) ...[const SizedBox(height: 12), edit]]);
-          }
-          return Row(children: [Expanded(flex: 3, child: title), const SizedBox(width: 16), Expanded(flex: 4, child: metrics), if (edit != null) ...[const SizedBox(width: 12), edit]]);
-        },
+          ),
+          if (salidas.isNotEmpty || gastosLegacy.isNotEmpty) ...[
+            const SizedBox(height: 14),
+            Divider(height: 1, color: palette.cardBorder),
+            const SizedBox(height: 10),
+            for (final salida in salidas) ...[
+              _SalidaCajaRow(
+                salida: salida,
+                palette: palette,
+                onAnular: onAnularSalida == null
+                    ? null
+                    : () => onAnularSalida!(salida),
+              ),
+              const SizedBox(height: 7),
+            ],
+            for (final gasto in gastosLegacy) ...[
+              _SalidaCajaLegacyRow(gasto: gasto, palette: palette),
+              const SizedBox(height: 7),
+            ],
+          ] else ...[
+            const SizedBox(height: 12),
+            Text(
+              cerrado
+                  ? 'No se registraron salidas de efectivo en este turno.'
+                  : 'Aún no hay salidas. Registra aquí cualquier dinero que salga de caja durante el turno.',
+              style: TextStyle(
+                color: palette.textSecondary,
+                fontWeight: FontWeight.w600,
+                fontSize: 11,
+              ),
+            ),
+          ],
+        ],
       ),
     );
   }
+}
+
+class _SalidaCajaRow extends StatelessWidget {
+  const _SalidaCajaRow({
+    required this.salida,
+    required this.palette,
+    this.onAnular,
+  });
+
+  final SalidaCajaModel salida;
+  final AppPalette palette;
+  final VoidCallback? onAnular;
+
+  @override
+  Widget build(BuildContext context) {
+    final type = salida.tipo ?? 'GASTO_TURNO';
+    final icon = switch (type) {
+      'PAGO_PEDIDO' => Icons.local_shipping_outlined,
+      'PAGO_GASTO' => Icons.receipt_long_outlined,
+      _ => Icons.shopping_bag_outlined,
+    };
+    final label = switch (type) {
+      'PAGO_PEDIDO' => 'Pago pedido #' + (salida.pedidoId?.toString() ?? '-'),
+      'PAGO_GASTO' => 'Pago de factura/gasto',
+      _ => 'Gasto del turno',
+    };
+    final affects = salida.afectaResultado == true;
+
+    return Container(
+      padding: const EdgeInsets.all(11),
+      decoration: BoxDecoration(
+        color: palette.background.withOpacity(.30),
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: palette.cardBorder.withOpacity(.65)),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Container(
+            width: 36,
+            height: 36,
+            decoration: BoxDecoration(
+              color: palette.secondary.withOpacity(.09),
+              borderRadius: BorderRadius.circular(11),
+            ),
+            child: Icon(icon, color: palette.secondary, size: 18),
+          ),
+          const SizedBox(width: 9),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  label,
+                  style: TextStyle(
+                    color: palette.textPrimary,
+                    fontWeight: FontWeight.w900,
+                    fontSize: 11.5,
+                  ),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  salida.descripcion ?? '-',
+                  style: TextStyle(
+                    color: palette.textSecondary,
+                    fontWeight: FontWeight.w600,
+                    fontSize: 10,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Wrap(
+                  spacing: 8,
+                  runSpacing: 4,
+                  children: [
+                    if ((salida.categoria ?? '').trim().isNotEmpty)
+                      Text(
+                        salida.categoria!,
+                        style: TextStyle(
+                          color: palette.textSecondary,
+                          fontSize: 9,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                    Text(
+                      affects
+                          ? 'Afecta rentabilidad'
+                          : 'Solo flujo de caja',
+                      style: TextStyle(
+                        color: affects
+                            ? palette.warning
+                            : palette.success,
+                        fontSize: 9,
+                        fontWeight: FontWeight.w800,
+                      ),
+                    ),
+                    if ((salida.fechaHora ?? '').trim().isNotEmpty)
+                      Text(
+                        _formatHoraSalidaCaja(salida.fechaHora),
+                        style: TextStyle(
+                          color: palette.textSecondary,
+                          fontSize: 9,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    if ((salida.registradoPor ?? '').trim().isNotEmpty)
+                      Text(
+                        'Por ' + salida.registradoPor!,
+                        style: TextStyle(
+                          color: palette.textSecondary,
+                          fontSize: 9,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(width: 8),
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.end,
+            children: [
+              Text(
+                CurrencyUtils.format(salida.valor),
+                style: TextStyle(
+                  color: palette.textPrimary,
+                  fontWeight: FontWeight.w900,
+                  fontSize: 12,
+                ),
+              ),
+              if (onAnular != null)
+                IconButton(
+                  tooltip: 'Anular salida',
+                  visualDensity: VisualDensity.compact,
+                  onPressed: onAnular,
+                  icon: const Icon(Icons.delete_outline_rounded, size: 18),
+                ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _SalidaCajaLegacyRow extends StatelessWidget {
+  const _SalidaCajaLegacyRow({
+    required this.gasto,
+    required this.palette,
+  });
+
+  final CierreCajaGastoModel gasto;
+  final AppPalette palette;
+
+  @override
+  Widget build(BuildContext context) => Container(
+        padding: const EdgeInsets.all(10),
+        decoration: BoxDecoration(
+          color: palette.background.withOpacity(.22),
+          borderRadius: BorderRadius.circular(13),
+          border: Border.all(color: palette.cardBorder.withOpacity(.55)),
+        ),
+        child: Row(
+          children: [
+            Icon(Icons.history_rounded, color: palette.textSecondary, size: 17),
+            const SizedBox(width: 8),
+            Expanded(
+              child: Text(
+                'Gasto histórico · ' + (gasto.descripcion ?? '-'),
+                style: TextStyle(
+                  color: palette.textSecondary,
+                  fontWeight: FontWeight.w700,
+                  fontSize: 10,
+                ),
+              ),
+            ),
+            Text(
+              CurrencyUtils.format(gasto.valor),
+              style: TextStyle(
+                color: palette.textPrimary,
+                fontWeight: FontWeight.w900,
+                fontSize: 10.5,
+              ),
+            ),
+          ],
+        ),
+      );
+
 }
 
 class _CierrePosMovementChip extends ConsumerWidget {
@@ -5640,6 +6631,21 @@ class _CierrePosMovementChip extends ConsumerWidget {
 
 
 
+String _formatHoraSalidaCaja(String? value) {
+  final raw = value?.trim();
+  if (raw == null || raw.isEmpty) return '';
+  final parsed = DateTime.tryParse(raw);
+  if (parsed == null) return raw;
+  return DateFormat('hh:mm a', 'es_CO').format(parsed);
+}
+
+String _tipoSalidaCajaLabel(String? tipo) => switch (tipo) {
+      'PAGO_PEDIDO' => 'Pago de pedido',
+      'PAGO_GASTO' => 'Pago de factura/gasto',
+      'GASTO_TURNO' => 'Gasto del turno',
+      _ => tipo ?? 'Salida',
+    };
+
 bool _esMedioEfectivoCierre(String? nombre) {
   final value = (nombre ?? '').toLowerCase().trim();
   return value.contains('efectivo') || value.contains('cash');
@@ -5665,7 +6671,7 @@ double _baseAplicadaMedioCierre(CierreCajaResumenModel cierre, CierreCajaMedioPa
 
 String _notaDiferenciaMedioCierre(CierreCajaResumenModel cierre, CierreCajaMedioPagoModel medio) {
   if (_esMedioEfectivoCierre(medio.medioPagoNombre)) {
-    return 'Efectivo ajustado: contado + gastos - base inicial - recibido sistema';
+    return 'Efectivo ajustado: contado + salidas de caja - base inicial - recibido sistema';
   }
   return 'Entregado - recibido sistema';
 }
@@ -5749,7 +6755,7 @@ Future<Uint8List> _crearPdfCierreCaja(CierreCajaResumenModel cierre) async {
             pw.TableRow(children: [
               summaryBox('Entregado medios', CurrencyUtils.format(cierre.totalEntregado)),
               summaryBox('Base inicial', CurrencyUtils.format(cierre.valorBase)),
-              summaryBox('Gastos', CurrencyUtils.format(cierre.totalGastos)),
+              summaryBox('Salidas de caja', CurrencyUtils.format(cierre.totalGastos)),
             ]),
             pw.TableRow(children: [
               summaryBox('Total cruce', CurrencyUtils.format(cierre.totalCruce ?? ((cierre.totalEntregado ?? 0) + (cierre.totalGastos ?? 0) - (cierre.valorBase ?? 0)))),
@@ -5759,7 +6765,7 @@ Future<Uint8List> _crearPdfCierreCaja(CierreCajaResumenModel cierre) async {
           ],
         ),
         pw.SizedBox(height: 8),
-        pw.Text('Formula de cruce: total contado por medios + gastos - base inicial = dinero real de ventas. Diferencia = cruce - total vendido.', style: const pw.TextStyle(fontSize: 8)),
+        pw.Text('Formula de cruce: total contado por medios + salidas de caja - base inicial = dinero real de ventas. Diferencia = cruce - total vendido.', style: const pw.TextStyle(fontSize: 8)),
         sectionTitle('1. Medios de pago - recibido, contado y diferencia ajustada'),
         pw.Table.fromTextArray(
           headerDecoration: pw.BoxDecoration(color: PdfColor.fromHex('#E2E8F0')),
@@ -5775,16 +6781,65 @@ Future<Uint8List> _crearPdfCierreCaja(CierreCajaResumenModel cierre) async {
             m.medioPagoNombre ?? '-',
           ]).toList(),
         ),
-        sectionTitle('2. Base inicial y gastos del turno'),
+        sectionTitle('2. Base inicial y salidas del turno'),
         pw.Table.fromTextArray(
           headerDecoration: pw.BoxDecoration(color: PdfColor.fromHex('#E2E8F0')),
           headerStyle: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 8),
           cellStyle: const pw.TextStyle(fontSize: 8),
           cellAlignment: pw.Alignment.centerLeft,
-          headers: const ['Valor', 'Concepto', 'Descripción'],
+          headers: const [
+            'Valor',
+            'Tipo',
+            'Descripción',
+            'Hora',
+            'Responsable',
+          ],
           data: [
-            [CurrencyUtils.format(cierre.valorBase), 'Base inicial recibida', 'Dinero recibido al iniciar el turno; se resta porque está incluido en el efectivo contado'],
-            ...cierre.gastos.map((g) => [CurrencyUtils.format(g.valor), 'Gasto', g.descripcion ?? '-']),
+            [
+              CurrencyUtils.format(cierre.valorBase),
+              'Base inicial',
+              'Dinero recibido al iniciar el turno',
+              '-',
+              '-',
+            ],
+            ...cierre.salidasCaja.map((s) => [
+                  CurrencyUtils.format(s.valor),
+                  _tipoSalidaCajaLabel(s.tipo),
+                  s.descripcion ?? '-',
+                  _formatHoraSalidaCaja(s.fechaHora),
+                  s.registradoPor ?? '-',
+                ]),
+            ...cierre.gastos.map((g) => [
+                  CurrencyUtils.format(g.valor),
+                  'Gasto histórico',
+                  g.descripcion ?? '-',
+                  '-',
+                  '-',
+                ]),
+          ],
+        ),
+        pw.SizedBox(height: 8),
+        pw.Table(
+          columnWidths: {
+            0: pw.FlexColumnWidth(),
+            1: pw.FlexColumnWidth(),
+            2: pw.FlexColumnWidth(),
+          },
+          children: [
+            pw.TableRow(children: [
+              summaryBox(
+                'Gastos del turno',
+                CurrencyUtils.format(cierre.totalGastosTurno),
+              ),
+              summaryBox(
+                'Pagos de pedidos',
+                CurrencyUtils.format(cierre.totalPagosPedidos),
+              ),
+              summaryBox(
+                'Pagos de facturas',
+                CurrencyUtils.format(cierre.totalPagosGastosConfigurados),
+              ),
+            ]),
           ],
         ),
         sectionTitle('3. Productos vendidos'),
@@ -5945,7 +7000,7 @@ class _CierreTurnSummary extends ConsumerWidget {
       (label: 'Propinas', value: totalPropinas, strong: false),
       (label: 'Total vendido', value: totalVendido, strong: true),
       (label: 'Entregado por medios', value: totalEntregado, strong: false),
-      (label: 'Más gastos', value: totalGastos, strong: false),
+      (label: 'Más salidas de caja', value: totalGastos, strong: false),
       (label: 'Menos base inicial', value: -valorBase, strong: false),
       (label: 'Total del cruce', value: totalCruce, strong: true),
     ];
