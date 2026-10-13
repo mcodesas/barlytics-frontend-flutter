@@ -505,11 +505,22 @@ class _ComandasToolbar extends StatelessWidget {
           const SizedBox(height: 14),
           LayoutBuilder(
             builder: (context, constraints) {
+              final maxWidth = constraints.maxWidth;
+              if (!maxWidth.isFinite || maxWidth <= 0) {
+                return const SizedBox.shrink();
+              }
+
               const spacing = 10.0;
-              final compact = constraints.maxWidth < 720;
-              final cardWidth = compact
-                  ? (constraints.maxWidth - spacing) / 2
-                  : (constraints.maxWidth - (spacing * 3)) / 4;
+              final columns = maxWidth < 260
+                  ? 1
+                  : maxWidth < 720
+                      ? 2
+                      : 4;
+              final totalSpacing = spacing * (columns - 1);
+              final cardWidth =
+                  ((maxWidth - totalSpacing) / columns)
+                      .clamp(0.0, maxWidth)
+                      .toDouble();
 
               return Wrap(
                 spacing: spacing,
@@ -552,6 +563,10 @@ class _ComandasToolbar extends StatelessWidget {
             ),
             child: LayoutBuilder(
               builder: (context, constraints) {
+                if (!constraints.maxWidth.isFinite ||
+                    constraints.maxWidth <= 0) {
+                  return const SizedBox.shrink();
+                }
                 return Wrap(
                   spacing: 8,
                   runSpacing: 8,
@@ -905,7 +920,12 @@ class _ComandasKanbanBoard extends StatelessWidget {
   Widget build(BuildContext context) {
     return LayoutBuilder(
       builder: (context, constraints) {
-        if (constraints.maxWidth >= 1180) {
+        final maxWidth = constraints.maxWidth;
+        if (!maxWidth.isFinite || maxWidth <= 0) {
+          return const SizedBox.shrink();
+        }
+
+        if (maxWidth >= 1180) {
           return Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
@@ -929,10 +949,8 @@ class _ComandasKanbanBoard extends StatelessWidget {
           );
         }
 
-        final columnWidth = constraints.maxWidth < 720
-            ? (constraints.maxWidth * .88)
-                .clamp(290.0, 360.0)
-                .toDouble()
+        final columnWidth = maxWidth < 720
+            ? (maxWidth * .88).clamp(280.0, 360.0).toDouble()
             : 360.0;
 
         return SingleChildScrollView(
@@ -1110,14 +1128,22 @@ class _ComandasOrderGrid extends StatelessWidget {
   Widget build(BuildContext context) {
     return LayoutBuilder(
       builder: (context, constraints) {
+        final maxWidth = constraints.maxWidth;
+        if (!maxWidth.isFinite || maxWidth <= 0) {
+          return const SizedBox.shrink();
+        }
+
         const spacing = 14.0;
-        final columns = constraints.maxWidth < 720
+        final columns = maxWidth < 720
             ? 1
-            : constraints.maxWidth < 1180
+            : maxWidth < 1180
                 ? 2
                 : 3;
+        final totalSpacing = spacing * (columns - 1);
         final width =
-            (constraints.maxWidth - (spacing * (columns - 1))) / columns;
+            ((maxWidth - totalSpacing) / columns)
+                .clamp(0.0, maxWidth)
+                .toDouble();
 
         return Wrap(
           spacing: spacing,
