@@ -12,6 +12,8 @@ import '../../../../core/widgets/app_empty_view.dart';
 import '../../../../core/widgets/app_loader.dart';
 import '../../../../core/widgets/tech_background.dart';
 
+enum _ComandaViewMode { cards, kanban }
+
 class ComandasPage extends ConsumerStatefulWidget {
   const ComandasPage({super.key});
 
@@ -34,6 +36,7 @@ class _ComandasPageState extends ConsumerState<ComandasPage> {
   bool _refreshing = false;
   String _station = 'TODAS';
   String _statusFilter = 'NUEVA';
+  _ComandaViewMode _viewMode = _ComandaViewMode.cards;
   int? _loadedBranchId;
 
   @override
@@ -196,6 +199,7 @@ class _ComandasPageState extends ConsumerState<ComandasPage> {
                       branchName: branchName,
                       station: _station,
                       statusFilter: _statusFilter,
+                      viewMode: _viewMode,
                       refreshing: _refreshing,
                       items: _items,
                       onStationChanged: (value) {
@@ -207,6 +211,17 @@ class _ComandasPageState extends ConsumerState<ComandasPage> {
                         if (_statusFilter == value) return;
                         setState(() => _statusFilter = value);
                       },
+                      onViewChanged: (value) {
+                        if (_viewMode == value) return;
+                        setState(() {
+                          _viewMode = value;
+                          if (value == _ComandaViewMode.kanban) {
+                            _statusFilter = 'TODAS';
+                          } else if (_statusFilter == 'TODAS') {
+                            _statusFilter = 'NUEVA';
+                          }
+                        });
+                      },
                       onRefresh: () => _load(silent: true),
                     ),
                   ),
@@ -216,13 +231,22 @@ class _ComandasPageState extends ConsumerState<ComandasPage> {
                     hasScrollBody: false,
                     child: AppLoader(),
                   )
-                else if (orderGroups.isEmpty)
+                else if (_viewMode == _ComandaViewMode.cards &&
+                    orderGroups.isEmpty)
                   SliverFillRemaining(
                     hasScrollBody: false,
                     child: AppEmptyView(
                       message: _statusFilter == 'TODAS'
                           ? 'No hay comandas para esta estación.'
                           : 'No hay pedidos en este estado.',
+                    ),
+                  )
+                else if (_viewMode == _ComandaViewMode.kanban &&
+                    _items.isEmpty)
+                  const SliverFillRemaining(
+                    hasScrollBody: false,
+                    child: AppEmptyView(
+                      message: 'No hay comandas para esta estación.',
                     ),
                   )
                 else
@@ -234,16 +258,27 @@ class _ComandasPageState extends ConsumerState<ComandasPage> {
                       96,
                     ),
                     sliver: SliverToBoxAdapter(
-                      child: _ComandasOrderGrid(
-                        groups: orderGroups,
-                        updating: _updating,
-                        palette: palette,
-                        onAdvance: (items) async {
-                          for (final item in items) {
-                            await _advance(item);
-                          }
-                        },
-                      ),
+                      child: _viewMode == _ComandaViewMode.cards
+                          ? _ComandasOrderGrid(
+                              groups: orderGroups,
+                              updating: _updating,
+                              palette: palette,
+                              onAdvance: (items) async {
+                                for (final item in items) {
+                                  await _advance(item);
+                                }
+                              },
+                            )
+                          : _ComandasKanbanBoard(
+                              items: _items,
+                              updating: _updating,
+                              palette: palette,
+                              onAdvance: (items) async {
+                                for (final item in items) {
+                                  await _advance(item);
+                                }
+                              },
+                            ),
                     ),
                   ),
               ],
@@ -322,10 +357,12 @@ class _ComandasToolbar extends StatelessWidget {
     required this.branchName,
     required this.station,
     required this.statusFilter,
+    required this.viewMode,
     required this.refreshing,
     required this.items,
     required this.onStationChanged,
     required this.onStatusChanged,
+    required this.onViewChanged,
     required this.onRefresh,
   });
 
@@ -333,10 +370,12 @@ class _ComandasToolbar extends StatelessWidget {
   final String branchName;
   final String station;
   final String statusFilter;
+  final _ComandaViewMode viewMode;
   final bool refreshing;
   final List<_ComandaItem> items;
   final ValueChanged<String> onStationChanged;
   final ValueChanged<String> onStatusChanged;
+  final ValueChanged<_ComandaViewMode> onViewChanged;
   final VoidCallback onRefresh;
 
   @override
@@ -506,7 +545,13 @@ class _ComandasToolbar extends StatelessWidget {
                       label: 'Barra',
                       onTap: () => onStationChanged('BARRA'),
                     ),
-                    _ComandaFilterChip(
+                    _ComandaViewSelector(
+                      palette: palette,
+                      value: viewMode,
+                      onChanged: onViewChanged,
+                    ),
+                    if (viewMode == _ComandaViewMode.cards)
+                      _ComandaFilterChip(
                       palette: palette,
                       selected: statusFilter == 'TODAS',
                       icon: Icons.view_list_rounded,
