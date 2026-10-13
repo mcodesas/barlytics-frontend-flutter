@@ -408,6 +408,127 @@ class _Header extends StatelessWidget {
   }
 }
 
+class _MobileStatusBar extends StatelessWidget {
+  const _MobileStatusBar({
+    required this.selected,
+    required this.items,
+    required this.onSelected,
+  });
+
+  final String selected;
+  final List<_ComandaItem> items;
+  final ValueChanged<String> onSelected;
+
+  static const _statuses = <String>[
+    'NUEVA',
+    'EN_PREPARACION',
+    'LISTA',
+    'ENTREGADA',
+  ];
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+
+    int countOrders(String status) {
+      return items
+          .where((item) => item.estado == status)
+          .map((item) => '${item.ventaId}|${item.cuentaId}|${item.mesaId ?? 0}')
+          .toSet()
+          .length;
+    }
+
+    String label(String status) => switch (status) {
+          'NUEVA' => 'Nuevas',
+          'EN_PREPARACION' => 'Preparación',
+          'LISTA' => 'Listas',
+          _ => 'Entregadas',
+        };
+
+    IconData icon(String status) => switch (status) {
+          'NUEVA' => Icons.notifications_active_outlined,
+          'EN_PREPARACION' => Icons.soup_kitchen_outlined,
+          'LISTA' => Icons.check_circle_outline_rounded,
+          _ => Icons.room_service_outlined,
+        };
+
+    return Container(
+      height: 58,
+      margin: const EdgeInsets.fromLTRB(10, 4, 10, 2),
+      child: ListView.separated(
+        scrollDirection: Axis.horizontal,
+        itemCount: _statuses.length,
+        separatorBuilder: (_, __) => const SizedBox(width: 7),
+        itemBuilder: (context, index) {
+          final status = _statuses[index];
+          final active = status == selected;
+          final count = countOrders(status);
+          return InkWell(
+            borderRadius: BorderRadius.circular(14),
+            onTap: () => onSelected(status),
+            child: AnimatedContainer(
+              duration: const Duration(milliseconds: 180),
+              padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 8),
+              decoration: BoxDecoration(
+                color: active
+                    ? theme.colorScheme.primaryContainer.withOpacity(.9)
+                    : theme.colorScheme.surface.withOpacity(.78),
+                borderRadius: BorderRadius.circular(14),
+                border: Border.all(
+                  color: active
+                      ? theme.colorScheme.primary.withOpacity(.5)
+                      : theme.colorScheme.outlineVariant.withOpacity(.45),
+                ),
+              ),
+              child: Row(
+                children: [
+                  Icon(
+                    icon(status),
+                    size: 18,
+                    color: active
+                        ? theme.colorScheme.onPrimaryContainer
+                        : theme.colorScheme.onSurfaceVariant,
+                  ),
+                  const SizedBox(width: 6),
+                  Text(
+                    label(status),
+                    style: theme.textTheme.labelLarge?.copyWith(
+                      fontWeight: FontWeight.w900,
+                      color: active
+                          ? theme.colorScheme.onPrimaryContainer
+                          : theme.colorScheme.onSurface,
+                    ),
+                  ),
+                  const SizedBox(width: 7),
+                  Container(
+                    constraints: const BoxConstraints(minWidth: 24),
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                    decoration: BoxDecoration(
+                      color: active
+                          ? theme.colorScheme.primary.withOpacity(.16)
+                          : theme.colorScheme.surfaceContainerHighest
+                              .withOpacity(.65),
+                      borderRadius: BorderRadius.circular(999),
+                    ),
+                    child: Text(
+                      '$count',
+                      textAlign: TextAlign.center,
+                      style: theme.textTheme.labelSmall?.copyWith(
+                        fontWeight: FontWeight.w900,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          );
+        },
+      ),
+    );
+  }
+}
+
 class _StatusSection extends StatelessWidget {
   const _StatusSection({
     required this.status,
