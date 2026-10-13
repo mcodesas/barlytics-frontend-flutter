@@ -4614,38 +4614,38 @@ class _NextOrderContentState extends ConsumerState<_NextOrderContent> {
     }
 
     setState(() => _confirming = true);
-    final created = <Map<String, dynamic>>[];
     try {
-      for (final entry in groups.entries) {
-        final body = <String, dynamic>{
-          'sucuId': branchId,
-          'observacion': _observationController.text.trim(),
-          'detalles': entry.value
-              .map(
-                (row) => <String, dynamic>{
-                  'prodId': _productId(row),
-                  'presentaciones':
-                      _toDouble(row['presentaciones_pedir']).round(),
-                },
-              )
-              .toList(growable: false),
-        };
-        if (entry.key != null) {
-          body['destinoId'] = entry.key;
-        }
+      final response = await ref.read(apiClientProvider).post<Object?>(
+            '/api/v1/pedidos-compra/confirmar-multiple',
+            <String, dynamic>{
+              'sucuId': branchId,
+              'observacion': _observationController.text.trim(),
+              'grupos': groups.entries.map((entry) {
+                final group = <String, dynamic>{
+                  'detalles': entry.value
+                      .map(
+                        (row) => <String, dynamic>{
+                          'prodId': _productId(row),
+                          'presentaciones':
+                              _toDouble(row['presentaciones_pedir']).round(),
+                        },
+                      )
+                      .toList(growable: false),
+                };
+                if (entry.key != null) group['destinoId'] = entry.key;
+                return group;
+              }).toList(growable: false),
+            },
+            (json) => json,
+          );
 
-        final response =
-            await ref.read(apiClientProvider).post<Map<String, dynamic>>(
-                  '/api/v1/pedidos-compra/confirmar',
-                  body,
-                  (json) => json is Map
-                      ? Map<String, dynamic>.from(json)
-                      : <String, dynamic>{},
-                );
-        final data = response.data ?? <String, dynamic>{};
-        if (data.isNotEmpty) created.add(data);
-      }
-
+      final raw = response.data;
+      final created = raw is List
+          ? raw
+              .whereType<Map>()
+              .map((item) => Map<String, dynamic>.from(item))
+              .toList(growable: false)
+          : const <Map<String, dynamic>>[];
       if (!mounted || created.isEmpty) return null;
 
       final confirmedRows = <Map<String, dynamic>>[
@@ -4694,14 +4694,9 @@ class _NextOrderContentState extends ConsumerState<_NextOrderContent> {
     } catch (error) {
       if (mounted) {
         _showMessage(
-          created.isEmpty
-              ? 'No fue posible confirmar el pedido: ' + error.toString()
-              : 'Se generaron ' +
-                  created.length.toString() +
-                  ' pedidos antes del error. Revisa el historial: ' +
-                  error.toString(),
+          'No fue posible confirmar los pedidos. No se guardó una creación parcial: ' +
+              error.toString(),
         );
-        if (created.isNotEmpty) _refreshOrderHistory();
       }
       return null;
     } finally {
