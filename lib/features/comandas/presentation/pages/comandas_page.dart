@@ -805,19 +805,29 @@ class _StationBadge extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final kitchen = station == 'COCINA';
-    return Tooltip(
-      message: kitchen ? 'Cocina' : 'Barra',
-      child: Container(
-        padding: const EdgeInsets.all(6),
-        decoration: BoxDecoration(
-          color: theme.colorScheme.secondaryContainer.withOpacity(.65),
-          borderRadius: BorderRadius.circular(10),
-        ),
-        child: Icon(
-          kitchen ? Icons.restaurant_rounded : Icons.local_bar_rounded,
-          size: 17,
-          color: theme.colorScheme.onSecondaryContainer,
-        ),
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+      decoration: BoxDecoration(
+        color: theme.colorScheme.secondaryContainer.withOpacity(.55),
+        borderRadius: BorderRadius.circular(999),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(
+            kitchen ? Icons.restaurant_rounded : Icons.local_bar_rounded,
+            size: 15,
+            color: theme.colorScheme.onSecondaryContainer,
+          ),
+          const SizedBox(width: 4),
+          Text(
+            kitchen ? 'Cocina' : 'Barra',
+            style: theme.textTheme.labelSmall?.copyWith(
+              color: theme.colorScheme.onSecondaryContainer,
+              fontWeight: FontWeight.w900,
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -836,22 +846,31 @@ class _InstructionLine extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => Padding(
-        padding: const EdgeInsets.only(bottom: 3),
-        child: Row(
-          children: [
-            Icon(icon, size: 17, color: tone),
-            const SizedBox(width: 6),
-            Expanded(
-              child: Text(
-                label,
-                style: TextStyle(
-                  color: tone,
-                  fontWeight: FontWeight.w900,
-                  fontSize: 12,
+        padding: const EdgeInsets.only(bottom: 5),
+        child: Container(
+          width: double.infinity,
+          padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 7),
+          decoration: BoxDecoration(
+            color: tone.withOpacity(.08),
+            borderRadius: BorderRadius.circular(10),
+            border: Border.all(color: tone.withOpacity(.16)),
+          ),
+          child: Row(
+            children: [
+              Icon(icon, size: 16, color: tone),
+              const SizedBox(width: 6),
+              Expanded(
+                child: Text(
+                  label,
+                  style: TextStyle(
+                    color: tone,
+                    fontWeight: FontWeight.w900,
+                    fontSize: 12,
+                  ),
                 ),
               ),
-            ),
-          ],
+            ],
+          ),
         ),
       );
 }
