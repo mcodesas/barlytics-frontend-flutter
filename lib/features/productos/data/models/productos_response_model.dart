@@ -14,6 +14,8 @@ class ProductosResponseModel {
     this.prodPresentacionCompra,
     this.prodStockMinimo,
     this.prodStockMaximo,
+    this.prodTipoControl,
+    this.prodUnidadBase,
     this.inventarioActual,
     this.ventasAyer,
     this.precioVigenteId,
@@ -38,6 +40,8 @@ class ProductosResponseModel {
   final String? prodPresentacionCompra;
   final double? prodStockMinimo;
   final double? prodStockMaximo;
+  final String? prodTipoControl;
+  final String? prodUnidadBase;
   final double? inventarioActual;
   final double? ventasAyer;
   final int? precioVigenteId;
@@ -62,6 +66,8 @@ class ProductosResponseModel {
         prodPresentacionCompra: json['prodPresentacionCompra']?.toString(),
         prodStockMinimo: _toDouble(json['prodStockMinimo']),
         prodStockMaximo: _toDouble(json['prodStockMaximo']),
+        prodTipoControl: json['prodTipoControl']?.toString(),
+        prodUnidadBase: json['prodUnidadBase']?.toString(),
         inventarioActual: _toDouble(json['inventarioActual']),
         ventasAyer: _toDouble(json['ventasAyer']),
         precioVigenteId: _toInt(json['precioVigenteId']),
@@ -87,6 +93,8 @@ class ProductosResponseModel {
         'prodPresentacionCompra': prodPresentacionCompra,
         'prodStockMinimo': prodStockMinimo,
         'prodStockMaximo': prodStockMaximo,
+        'prodTipoControl': prodTipoControl,
+        'prodUnidadBase': prodUnidadBase,
         'inventarioActual': inventarioActual,
         'ventasAyer': ventasAyer,
         'precioVigenteId': precioVigenteId,
