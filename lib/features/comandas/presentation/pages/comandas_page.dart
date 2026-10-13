@@ -798,18 +798,25 @@ class _OrderGroupCard extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          Container(
-            padding: const EdgeInsets.fromLTRB(12, 11, 12, 10),
-            decoration: BoxDecoration(
-              color: tone.withOpacity(.07),
+          Material(
+            color: Colors.transparent,
+            child: InkWell(
               borderRadius: const BorderRadius.vertical(
                 top: Radius.circular(18),
               ),
-            ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
+              onTap: () => _showOrderDetail(context, items),
+              child: Container(
+                padding: const EdgeInsets.fromLTRB(12, 11, 12, 10),
+                decoration: BoxDecoration(
+                  color: tone.withOpacity(.07),
+                  borderRadius: const BorderRadius.vertical(
+                    top: Radius.circular(18),
+                  ),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
                   children: [
                     Icon(
                       first.mesaNumero == null
@@ -867,9 +874,33 @@ class _OrderGroupCard extends StatelessWidget {
                           : Icons.restaurant_rounded,
                       label: stationLabel,
                     ),
+                    const SizedBox(height: 7),
+                    Row(
+                      children: [
+                        Icon(
+                          Icons.touch_app_outlined,
+                          size: 13,
+                          color: tone,
+                        ),
+                        const SizedBox(width: 4),
+                        Text(
+                          'Toca para ver el pedido completo',
+                          style: theme.textTheme.labelSmall?.copyWith(
+                            color: tone,
+                            fontWeight: FontWeight.w800,
+                          ),
+                        ),
+                        const Spacer(),
+                        Icon(
+                          Icons.chevron_right_rounded,
+                          size: 17,
+                          color: tone,
+                        ),
+                      ],
+                    ),
                   ],
                 ),
-              ],
+              ),
             ),
           ),
           Padding(
@@ -952,6 +983,236 @@ class _OrderGroupCard extends StatelessWidget {
             ),
         ],
       ),
+    );
+  }
+}
+
+Future<void> _showOrderDetail(
+  BuildContext context,
+  List<_ComandaItem> items,
+) async {
+  if (items.isEmpty) return;
+
+  final theme = Theme.of(context);
+  final first = items.first;
+  final tableLabel = first.mesaNumero == null
+      ? 'Venta directa'
+      : 'Mesa ${first.mesaNumero}${first.mesaDescripcion.trim().isEmpty ? '' : ' · ${first.mesaDescripcion.trim()}'}';
+  final accountLabel = 'Cuenta ${first.cuentaNumero ?? '-'}'
+      '${first.cuentaDescripcion.trim().isEmpty ? '' : ' · ${first.cuentaDescripcion.trim()}'}';
+
+  await showModalBottomSheet<void>(
+    context: context,
+    isScrollControlled: true,
+    useSafeArea: true,
+    backgroundColor: Colors.transparent,
+    builder: (sheetContext) {
+      return DraggableScrollableSheet(
+        initialChildSize: .78,
+        minChildSize: .5,
+        maxChildSize: .96,
+        expand: false,
+        builder: (context, controller) {
+          return Container(
+            decoration: BoxDecoration(
+              color: theme.colorScheme.surface,
+              borderRadius: const BorderRadius.vertical(
+                top: Radius.circular(26),
+              ),
+              border: Border.all(
+                color: theme.colorScheme.outlineVariant.withOpacity(.45),
+              ),
+            ),
+            child: ListView(
+              controller: controller,
+              padding: const EdgeInsets.fromLTRB(18, 10, 18, 30),
+              children: [
+                Center(
+                  child: Container(
+                    width: 44,
+                    height: 4,
+                    decoration: BoxDecoration(
+                      color: theme.colorScheme.outlineVariant,
+                      borderRadius: BorderRadius.circular(999),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 16),
+                Row(
+                  children: [
+                    CircleAvatar(
+                      backgroundColor: theme.colorScheme.primaryContainer,
+                      child: Icon(
+                        first.mesaNumero == null
+                            ? Icons.point_of_sale_rounded
+                            : Icons.table_restaurant_rounded,
+                        color: theme.colorScheme.onPrimaryContainer,
+                      ),
+                    ),
+                    const SizedBox(width: 11),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            tableLabel,
+                            style: theme.textTheme.titleLarge?.copyWith(
+                              fontWeight: FontWeight.w900,
+                            ),
+                          ),
+                          const SizedBox(height: 2),
+                          Text(
+                            'Pedido #${first.ventaId} · $accountLabel',
+                            style: theme.textTheme.bodySmall?.copyWith(
+                              color: theme.colorScheme.onSurfaceVariant,
+                              fontWeight: FontWeight.w700,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    IconButton(
+                      tooltip: 'Cerrar',
+                      onPressed: () => Navigator.of(sheetContext).pop(),
+                      icon: const Icon(Icons.close_rounded),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 16),
+                for (var index = 0; index < items.length; index++) ...[
+                  _DetailOrderProduct(item: items[index]),
+                  if (index < items.length - 1)
+                    Padding(
+                      padding: const EdgeInsets.symmetric(vertical: 10),
+                      child: Divider(
+                        color: theme.colorScheme.outlineVariant
+                            .withOpacity(.35),
+                      ),
+                    ),
+                ],
+                const SizedBox(height: 14),
+                if (first.fechaPedido != null)
+                  _DetailMetaRow(
+                    icon: Icons.schedule_rounded,
+                    label:
+                        'Hora: ${DateFormat('HH:mm').format(first.fechaPedido!)}',
+                  ),
+                if (first.mesero.trim().isNotEmpty)
+                  _DetailMetaRow(
+                    icon: Icons.person_outline_rounded,
+                    label: first.mesero,
+                  ),
+              ],
+            ),
+          );
+        },
+      );
+    },
+  );
+}
+
+class _DetailOrderProduct extends StatelessWidget {
+  const _DetailOrderProduct({required this.item});
+
+  final _ComandaItem item;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final customization = item.customization;
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Container(
+              constraints: const BoxConstraints(minWidth: 44),
+              padding:
+                  const EdgeInsets.symmetric(horizontal: 8, vertical: 7),
+              decoration: BoxDecoration(
+                color: theme.colorScheme.primary.withOpacity(.1),
+                borderRadius: BorderRadius.circular(10),
+              ),
+              child: Text(
+                'x${_formatQuantity(item.cantidad)}',
+                textAlign: TextAlign.center,
+                style: theme.textTheme.labelLarge?.copyWith(
+                  color: theme.colorScheme.primary,
+                  fontWeight: FontWeight.w900,
+                ),
+              ),
+            ),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Text(
+                item.productoNombre,
+                style: theme.textTheme.titleMedium?.copyWith(
+                  fontWeight: FontWeight.w900,
+                ),
+              ),
+            ),
+            _StationBadge(station: item.estacion),
+          ],
+        ),
+        const SizedBox(height: 9),
+        Text(
+          item.productoDescripcion.trim().isEmpty
+              ? 'Sin descripción registrada'
+              : item.productoDescripcion.trim(),
+          style: theme.textTheme.bodyMedium?.copyWith(
+            height: 1.45,
+            fontWeight: FontWeight.w600,
+          ),
+        ),
+        if (customization.removed.isNotEmpty ||
+            customization.additions.isNotEmpty) ...[
+          const SizedBox(height: 9),
+          Wrap(
+            spacing: 6,
+            runSpacing: 6,
+            children: [
+              for (final text in customization.removed)
+                _CompactModifier(
+                  icon: Icons.remove_rounded,
+                  label: 'SIN $text',
+                  tone: theme.colorScheme.error,
+                ),
+              for (final text in customization.additions)
+                _CompactModifier(
+                  icon: Icons.add_rounded,
+                  label: text,
+                  tone: theme.colorScheme.tertiary,
+                ),
+            ],
+          ),
+        ],
+        if (customization.observation != null &&
+            customization.observation!.isNotEmpty) ...[
+          const SizedBox(height: 9),
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Icon(
+                Icons.sticky_note_2_outlined,
+                size: 16,
+                color: theme.colorScheme.secondary,
+              ),
+              const SizedBox(width: 5),
+              Expanded(
+                child: Text(
+                  customization.observation!,
+                  style: theme.textTheme.bodySmall?.copyWith(
+                    fontWeight: FontWeight.w700,
+                    height: 1.35,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ],
+      ],
     );
   }
 }
