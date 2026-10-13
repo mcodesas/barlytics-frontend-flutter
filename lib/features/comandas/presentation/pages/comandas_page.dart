@@ -584,15 +584,53 @@ class _CommandCard extends StatelessWidget {
                   children: [
                     Text(
                       item.productoNombre,
-                      style: theme.textTheme.titleSmall?.copyWith(
+                      style: theme.textTheme.titleMedium?.copyWith(
                         fontWeight: FontWeight.w900,
+                        height: 1.15,
                       ),
                     ),
-                    const SizedBox(height: 3),
-                    Text(
-                      'Cuenta ${item.cuentaNumero ?? '-'}'
-                      '${item.cuentaDescripcion.trim().isEmpty ? '' : ' · ${item.cuentaDescripcion.trim()}'}',
-                      style: theme.textTheme.bodySmall,
+                    if (item.productoDescripcion.trim().isNotEmpty) ...[
+                      const SizedBox(height: 6),
+                      Container(
+                        width: double.infinity,
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 9,
+                          vertical: 8,
+                        ),
+                        decoration: BoxDecoration(
+                          color: theme.colorScheme.surfaceContainerHighest
+                              .withOpacity(.45),
+                          borderRadius: BorderRadius.circular(10),
+                        ),
+                        child: Text(
+                          item.productoDescripcion.trim(),
+                          style: theme.textTheme.bodySmall?.copyWith(
+                            color: theme.colorScheme.onSurfaceVariant,
+                            height: 1.35,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ),
+                    ],
+                    const SizedBox(height: 7),
+                    Row(
+                      children: [
+                        Icon(
+                          Icons.receipt_long_outlined,
+                          size: 15,
+                          color: theme.colorScheme.onSurfaceVariant,
+                        ),
+                        const SizedBox(width: 5),
+                        Expanded(
+                          child: Text(
+                            'Cuenta ${item.cuentaNumero ?? '-'}'
+                            '${item.cuentaDescripcion.trim().isEmpty ? '' : ' · ${item.cuentaDescripcion.trim()}'}',
+                            style: theme.textTheme.bodySmall?.copyWith(
+                              fontWeight: FontWeight.w700,
+                            ),
+                          ),
+                        ),
+                      ],
                     ),
                   ],
                 ),
