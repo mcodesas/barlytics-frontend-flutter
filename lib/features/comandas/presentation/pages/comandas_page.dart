@@ -219,7 +219,7 @@ class _ComandasPageState extends ConsumerState<ComandasPage> {
                                         index < _statuses.length;
                                         index++) ...[
                                       SizedBox(
-                                        width: 350,
+                                        width: 410,
                                         height: constraints.maxHeight - 16,
                                         child: _StatusSection(
                                           status: _statuses[index],
@@ -274,8 +274,8 @@ class _Header extends StatelessWidget {
 
     return Container(
       width: double.infinity,
-      margin: const EdgeInsets.fromLTRB(12, 12, 12, 8),
-      padding: const EdgeInsets.all(16),
+      margin: const EdgeInsets.fromLTRB(12, 10, 12, 6),
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 13),
       decoration: BoxDecoration(
         color: theme.colorScheme.surface.withOpacity(.94),
         borderRadius: BorderRadius.circular(22),
@@ -819,6 +819,7 @@ class _ComandaItem {
     required this.cuentaDescripcion,
     required this.productoId,
     required this.productoNombre,
+    required this.productoDescripcion,
     required this.cantidad,
     required this.estacion,
     required this.estado,
@@ -839,6 +840,7 @@ class _ComandaItem {
   final String cuentaDescripcion;
   final int productoId;
   final String productoNombre;
+  final String productoDescripcion;
   final double cantidad;
   final String estacion;
   final String estado;
@@ -859,6 +861,7 @@ class _ComandaItem {
         cuentaDescripcion: json['cuentaDescripcion']?.toString() ?? '',
         productoId: _asInt(json['productoId']) ?? 0,
         productoNombre: json['productoNombre']?.toString() ?? 'Producto',
+        productoDescripcion: json['productoDescripcion']?.toString() ?? '',
         cantidad: _asDouble(json['cantidad']) ?? 0,
         estacion:
             (json['estacion']?.toString() ?? 'COCINA').trim().toUpperCase(),
