@@ -5454,7 +5454,9 @@ class _SalidaCajaDialogState extends State<_SalidaCajaDialog> {
 
   bool get _canSubmit {
     if (_valor <= 0) return false;
-    if (_tipo == 'PAGO_GASTO') return _gastoId != null;
+    if (_tipo == 'PAGO_GASTO') {
+      return _gastoId != null && _medioPagoId != null;
+    }
     if (_tipo == 'PAGO_PEDIDO') {
       final pedido = _pedido;
       return pedido != null &&
@@ -5524,7 +5526,7 @@ class _SalidaCajaDialogState extends State<_SalidaCajaDialog> {
                           ),
                         ),
                         Text(
-                          'Registra el medio usado para cuadrar correctamente el turno.',
+                          'Solo el efectivo afecta el cierre; los giros electrónicos quedan como registro financiero.',
                           style: TextStyle(
                             color: palette.textSecondary,
                             fontWeight: FontWeight.w600,
@@ -5625,7 +5627,7 @@ class _SalidaCajaDialogState extends State<_SalidaCajaDialog> {
           inputFormatters: _currencyInputFormatters,
           onChanged: (_) => setState(() {}),
           decoration: InputDecoration(
-            labelText: _tipo == 'PAGO_PEDIDO'
+            labelText: _tipo == 'PAGO_PEDIDO' || _tipo == 'PAGO_GASTO'
                 ? 'Valor del pago'
                 : 'Valor que salió de caja',
             prefixIcon: const Icon(Icons.payments_outlined),
@@ -5768,6 +5770,49 @@ class _SalidaCajaDialogState extends State<_SalidaCajaDialog> {
             },
           ),
           const SizedBox(height: 12),
+          DropdownButtonFormField<int>(
+            value: _medioPagoId,
+            isExpanded: true,
+            decoration: InputDecoration(
+              labelText: 'Medio con el que se pagó',
+              prefixIcon: Icon(
+                _medioPago == null
+                    ? Icons.account_balance_wallet_outlined
+                    : _iconoMedioPago(_medioPago!),
+              ),
+              helperText:
+                  'Si es Nequi, Daviplata o transferencia, no afecta el efectivo del cierre.',
+            ),
+            items: (widget.mediosPago
+                      .where((medio) => medio.medioPagoId != null)
+                      .toList(growable: false)
+                    ..sort((a, b) {
+                      final prioridad =
+                          _prioridadMedioPago(a).compareTo(_prioridadMedioPago(b));
+                      if (prioridad != 0) return prioridad;
+                      return (a.nombre ?? '').compareTo(b.nombre ?? '');
+                    }))
+                .map(
+                  (medio) => DropdownMenuItem<int>(
+                    value: medio.medioPagoId,
+                    child: Row(
+                      children: [
+                        Icon(_iconoMedioPago(medio), size: 18),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: Text(
+                            medio.nombre ?? 'Medio ${medio.medioPagoId}',
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                )
+                .toList(growable: false),
+            onChanged: (value) => setState(() => _medioPagoId = value),
+          ),
+          const SizedBox(height: 12),
           amountField(),
           const SizedBox(height: 12),
           TextField(
@@ -5823,17 +5868,23 @@ class _SalidaCajaDialogState extends State<_SalidaCajaDialog> {
   }
 
   Widget _buildImpact(AppPalette palette) {
-    final affects = _tipo == 'GASTO_TURNO';
+    final affects = _tipo == 'GASTO_TURNO' ||
+        ((_tipo == 'PAGO_PEDIDO' || _tipo == 'PAGO_GASTO') &&
+            _esMedioPagoEfectivo(_medioPago));
     final medio = _medioPago;
     final text = _tipo == 'PAGO_PEDIDO'
         ? medio == null
-            ? 'Selecciona el medio usado para que el cierre descuente el pago del lugar correcto.'
+            ? 'Selecciona cómo se pagó el pedido.'
             : _esMedioPagoEfectivo(medio)
-                ? 'Reduce el saldo pendiente del pedido y descuenta el pago del efectivo del turno.'
-                : 'Reduce el saldo pendiente del pedido y descuenta el pago de ${medio.nombre ?? 'este medio'}; no descuenta efectivo.'
+                ? 'Reduce el saldo del pedido y sí afecta el efectivo que debe cuadrar la cajera.'
+                : 'Reduce el saldo del pedido, pero el pago por ${medio.nombre ?? 'giro electrónico'} no modifica el cierre de efectivo.'
         : _tipo == 'PAGO_GASTO'
-            ? 'Descuenta caja. No duplica el gasto que ya está configurado.'
-            : 'Descuenta caja y se suma a gastos variables del periodo.';
+            ? medio == null
+                ? 'Selecciona cómo se pagó la factura o gasto.'
+                : _esMedioPagoEfectivo(medio)
+                    ? 'Registra el pago y sí afecta el efectivo del turno.'
+                    : 'Registra el pago por ${medio.nombre ?? 'giro electrónico'}, pero no modifica el efectivo del cierre.'
+            : 'Descuenta efectivo y se suma a gastos variables del periodo.';
     return Container(
       padding: const EdgeInsets.all(13),
       decoration: BoxDecoration(
@@ -5877,7 +5928,10 @@ class _SalidaCajaDialogState extends State<_SalidaCajaDialog> {
             : _descripcionController.text.trim(),
         gastoId: _tipo == 'PAGO_GASTO' ? _gastoId : null,
         pedidoId: _tipo == 'PAGO_PEDIDO' ? _pedidoId : null,
-        medioPagoId: _tipo == 'PAGO_PEDIDO' ? _medioPagoId : null,
+        medioPagoId:
+            _tipo == 'PAGO_PEDIDO' || _tipo == 'PAGO_GASTO'
+                ? _medioPagoId
+                : null,
       ),
     );
   }
