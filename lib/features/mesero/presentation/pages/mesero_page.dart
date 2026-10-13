@@ -6312,7 +6312,14 @@ class _CierrePosMedioRow extends ConsumerWidget {
             children: [
               Expanded(child: _CierrePosMiniValue(label: 'Sistema', value: CurrencyUtils.format(item.totalSistema))),
               const SizedBox(width: 8),
-              Expanded(child: _CierrePosMiniValue(label: 'Contado', value: CurrencyUtils.format(contado))),
+              Expanded(
+                child: _CierrePosMiniValue(
+                  label: _esMedioEfectivoCierre(item.medioPagoNombre)
+                      ? 'Contado'
+                      : 'Automático',
+                  value: CurrencyUtils.format(contado),
+                ),
+              ),
               const SizedBox(width: 8),
               Expanded(
                 child: _CierrePosMiniValue(
@@ -6408,7 +6415,10 @@ class _CierrePosResumenPanel extends ConsumerWidget {
           _CierrePosSummaryRow(label: 'Ventas del sistema', value: CurrencyUtils.format(totalVendido)),
           _CierrePosSummaryRow(label: 'Propinas', value: CurrencyUtils.format(propinas)),
           _CierrePosSummaryRow(label: 'Base inicial', value: CurrencyUtils.format(valorBase)),
-          _CierrePosSummaryRow(label: 'Pagos y salidas ($gastosRegistrados)', value: CurrencyUtils.format(totalGastos)),
+          _CierrePosSummaryRow(
+            label: 'Salidas que afectan efectivo',
+            value: CurrencyUtils.format(totalGastos),
+          ),
           _CierrePosSummaryRow(label: 'Total contado', value: CurrencyUtils.format(totalEntregado)),
           const SizedBox(height: 8),
           Divider(height: 1, color: palette.cardBorder),
@@ -6924,28 +6934,36 @@ bool _mismoMedioSalidaCierre(String? medioCierre, String? medioSalida) {
   return cierre.isNotEmpty && cierre == salida;
 }
 
+bool _salidaAfectaCajaFisicaCierre(SalidaCajaModel salida) {
+  final medio = (salida.medioPagoNombre ?? '').trim();
+  if (medio.isEmpty || medio.toLowerCase() == 'caja') return true;
+  return _esMedioEfectivoCierre(medio);
+}
+
 double _salidasAplicadasMedioCierre(
   CierreCajaResumenModel cierre,
   CierreCajaMedioPagoModel medio,
 ) {
-  var total = cierre.salidasCaja
-      .where(
-        (salida) => _mismoMedioSalidaCierre(
-          medio.medioPagoNombre,
-          salida.medioPagoNombre,
-        ),
-      )
-      .fold<double>(0, (sum, salida) => sum + (salida.valor ?? 0));
-  if (_esMedioEfectivoCierre(medio.medioPagoNombre)) {
-    total += cierre.gastos.fold<double>(
-      0,
-      (sum, gasto) => sum + (gasto.valor ?? 0),
-    );
+  if (!_esMedioEfectivoCierre(medio.medioPagoNombre)) {
+    return 0;
   }
+  var total = cierre.salidasCaja
+      .where(_salidaAfectaCajaFisicaCierre)
+      .fold<double>(0, (sum, salida) => sum + (salida.valor ?? 0));
+  total += cierre.gastos.fold<double>(
+    0,
+    (sum, gasto) => sum + (gasto.valor ?? 0),
+  );
   return total;
 }
 
-double _diferenciaMedioCierreAjustada(CierreCajaResumenModel cierre, CierreCajaMedioPagoModel medio) {
+double _diferenciaMedioCierreAjustada(
+  CierreCajaResumenModel cierre,
+  CierreCajaMedioPagoModel medio,
+) {
+  if (!_esMedioEfectivoCierre(medio.medioPagoNombre)) {
+    return 0;
+  }
   final sistema = medio.totalSistema ?? 0;
   final entregado = medio.valorEntregado ?? 0;
   final base = _baseAplicadaMedioCierre(cierre, medio);
@@ -6960,11 +6978,14 @@ double _baseAplicadaMedioCierre(CierreCajaResumenModel cierre, CierreCajaMedioPa
   return 0;
 }
 
-String _notaDiferenciaMedioCierre(CierreCajaResumenModel cierre, CierreCajaMedioPagoModel medio) {
+String _notaDiferenciaMedioCierre(
+  CierreCajaResumenModel cierre,
+  CierreCajaMedioPagoModel medio,
+) {
   if (_esMedioEfectivoCierre(medio.medioPagoNombre)) {
-    return 'Efectivo: contado + pagos/salidas en efectivo - base inicial - recibido sistema';
+    return 'Efectivo: contado + salidas en efectivo - base inicial - recibido sistema';
   }
-  return 'Contado + pagos/salidas de este medio - recibido sistema';
+  return 'Informativo: se toma automáticamente de las ventas y no requiere conteo de la cajera.';
 }
 
 String _formatFechaCierre(String? value) {
