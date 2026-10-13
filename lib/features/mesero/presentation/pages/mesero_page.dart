@@ -5341,7 +5341,11 @@ class _SalidaCajaDialogState extends State<_SalidaCajaDialog> {
   @override
   void initState() {
     super.initState();
-    _medioPagoId = _defaultMedioPagoId(widget.mediosPago);
+    final disponibles = widget.mediosPago
+        .where((medio) => medio.medioPagoId != null)
+        .toList(growable: false);
+    _medioPagoId =
+        disponibles.length == 1 ? disponibles.first.medioPagoId : null;
   }
 
   @override
