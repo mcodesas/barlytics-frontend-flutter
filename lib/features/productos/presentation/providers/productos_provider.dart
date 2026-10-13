@@ -9,6 +9,11 @@ import '../../../../core/errors/error_mapper.dart';
 import '../../../../core/errors/failure.dart';
 import '../../../../core/providers/core_providers.dart';
 import '../../data/models/productos_response_model.dart';
+import '../../data/datasources/productos_setup_remote_datasource.dart';
+
+final productosSetupRemoteDataSourceProvider = Provider<ProductosSetupRemoteDataSource>(
+  (ref) => ProductosSetupRemoteDataSource(ref.watch(apiClientProvider)),
+);
 
 final productosCrudRepositoryProvider = Provider<CrudRepository<ProductosResponseModel>>((ref) {
   return CrudRepository<ProductosResponseModel>(
