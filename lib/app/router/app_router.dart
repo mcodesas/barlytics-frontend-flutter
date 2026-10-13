@@ -119,6 +119,12 @@ final appRouterProvider = Provider<GoRouter>((ref) {
     refreshListenable: _RouterRefresh(ref),
     redirect: (context, state) {
       final authState = ref.read(authControllerProvider);
+
+      // Durante la restauración inicial no se toma ninguna decisión de acceso.
+      // BarLyticsApp mantiene visible el loader de marca hasta conocer si existe
+      // una sesión válida, evitando el destello temporal de Login.
+      if (authState.restoringSession) return null;
+
       final path = state.uri.path;
       final matchedLocation = state.matchedLocation;
       final isLandingRoute = path == '/' || matchedLocation == '/';
