@@ -383,21 +383,21 @@ class _StatusSection extends StatelessWidget {
       if (items.isEmpty)
         const _EmptyColumn()
       else
-        ..._groupByTable(items).entries.expand(
-          (entry) => <Widget>[
-            _TableGroupHeader(label: entry.key, count: entry.value.length),
-            const SizedBox(height: 6),
-            ...entry.value.map(
-              (item) => Padding(
-                padding: const EdgeInsets.only(bottom: 8),
-                child: _CommandCard(
-                  item: item,
-                  updating: updating.contains(item.detalleId),
-                  onAdvance: () => onAdvance(item),
-                ),
+        ..._groupByOrder(items).entries.map(
+          (entry) => Padding(
+            padding: const EdgeInsets.only(bottom: 10),
+            child: _OrderGroupCard(
+              items: entry.value,
+              updating: entry.value.any(
+                (item) => updating.contains(item.detalleId),
               ),
+              onAdvance: () async {
+                for (final item in entry.value) {
+                  await onAdvance(item);
+                }
+              },
             ),
-          ],
+          ),
         ),
     ];
 
@@ -430,13 +430,18 @@ class _StatusSection extends StatelessWidget {
     );
   }
 
-  Map<String, List<_ComandaItem>> _groupByTable(List<_ComandaItem> values) {
+  Map<String, List<_ComandaItem>> _groupByOrder(List<_ComandaItem> values) {
     final result = <String, List<_ComandaItem>>{};
     for (final item in values) {
-      final key = item.mesaNumero == null
-          ? 'Venta directa'
-          : 'Mesa ${item.mesaNumero}${item.mesaDescripcion.trim().isEmpty ? '' : ' · ${item.mesaDescripcion.trim()}'}';
+      final key = '${item.ventaId}|${item.cuentaId}|${item.mesaId ?? 0}';
       result.putIfAbsent(key, () => <_ComandaItem>[]).add(item);
+    }
+    for (final group in result.values) {
+      group.sort((a, b) {
+        final aDate = a.fechaPedido ?? DateTime.fromMillisecondsSinceEpoch(0);
+        final bDate = b.fechaPedido ?? DateTime.fromMillisecondsSinceEpoch(0);
+        return aDate.compareTo(bDate);
+      });
     }
     return result;
   }
