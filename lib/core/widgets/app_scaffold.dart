@@ -2524,7 +2524,7 @@ IconData _customRoleMenuIcon(UserMenuItem item) {
   if (groupToken.isNotEmpty && groupToken.toLowerCase() != 'more_horiz') {
     return _menuGroupIcon(groupToken);
   }
-  return _customRoleMenuIcon(item);
+  return ModuleVisuals.byKey(item.keyName).icon;
 }
 
 class _CustomRoleBottomNavigation extends ConsumerWidget {
