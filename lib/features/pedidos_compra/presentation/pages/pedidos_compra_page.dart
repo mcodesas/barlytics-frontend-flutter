@@ -10,7 +10,11 @@ import '../../../../core/widgets/app_loader.dart';
 import '../../../../core/widgets/tech_background.dart';
 
 class PedidosCompraPage extends ConsumerStatefulWidget {
-  const PedidosCompraPage({super.key});
+  const PedidosCompraPage({super.key}) : providersOnly = false;
+
+  const PedidosCompraPage.proveedores({super.key}) : providersOnly = true;
+
+  final bool providersOnly;
 
   @override
   ConsumerState<PedidosCompraPage> createState() => _PedidosCompraPageState();
@@ -453,43 +457,42 @@ class _PedidosCompraPageState extends ConsumerState<PedidosCompraPage> {
         )
         .toList(growable: false);
 
-    return DefaultTabController(
-      length: 2,
-      child: Scaffold(
-        backgroundColor: Colors.transparent,
-        body: TechBackground(
-          child: SafeArea(
-            child: Padding(
-              padding: palette.pagePadding,
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  _pageHeader(
-                    palette,
-                    branchState.activeBranch?.sucuNombre ?? 'Sucursal',
-                    pending.length,
-                  ),
+    return Scaffold(
+      backgroundColor: Colors.transparent,
+      body: TechBackground(
+        child: SafeArea(
+          child: Padding(
+            padding: palette.pagePadding,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                _pageHeader(
+                  palette,
+                  branchState.activeBranch?.sucuNombre ?? 'Sucursal',
+                  pending.length,
+                ),
+                const SizedBox(height: 12),
+                if (!widget.providersOnly &&
+                    !_loading &&
+                    _error == null &&
+                    activeBranchId != null) ...[
+                  _summaryGrid(palette, pending),
                   const SizedBox(height: 12),
-                  if (!_loading && _error == null && activeBranchId != null) ...[
-                    _summaryGrid(palette, pending),
-                    const SizedBox(height: 12),
-                  ],
-                  _tabs(palette),
-                  const SizedBox(height: 12),
-                  Expanded(
-                    child: _loading
-                        ? const AppLoader(message: 'Cargando pedidos...')
-                        : _error != null
-                            ? _errorView(palette)
-                            : TabBarView(
-                                children: [
-                                  _pendingView(palette, activeBranchId),
-                                  _destinationsView(palette, activeBranchId),
-                                ],
-                              ),
-                  ),
                 ],
-              ),
+                Expanded(
+                  child: _loading
+                      ? AppLoader(
+                          message: widget.providersOnly
+                              ? 'Cargando proveedores...'
+                              : 'Cargando pedidos...',
+                        )
+                      : _error != null
+                          ? _errorView(palette)
+                          : widget.providersOnly
+                              ? _destinationsView(palette, activeBranchId)
+                              : _pendingView(palette, activeBranchId),
+                ),
+              ],
             ),
           ),
         ),
@@ -526,7 +529,9 @@ class _PedidosCompraPageState extends ConsumerState<PedidosCompraPage> {
               ],
             ),
             child: Icon(
-              Icons.local_shipping_rounded,
+              widget.providersOnly
+                  ? Icons.storefront_rounded
+                  : Icons.local_shipping_rounded,
               color: palette.onPrimary,
               size: 25,
             ),
@@ -537,7 +542,9 @@ class _PedidosCompraPageState extends ConsumerState<PedidosCompraPage> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  'Pedidos de compra',
+                  widget.providersOnly
+                      ? 'Proveedores de pedidos'
+                      : 'Pedidos de compra',
                   style: Theme.of(context).textTheme.titleLarge?.copyWith(
                         color: palette.textPrimary,
                         fontWeight: FontWeight.w900,
@@ -545,12 +552,15 @@ class _PedidosCompraPageState extends ConsumerState<PedidosCompraPage> {
                 ),
                 const SizedBox(height: 2),
                 Text(
-                  branchName +
-                      ' · ' +
-                      pendingCount.toString() +
-                      ' pedido' +
-                      (pendingCount == 1 ? '' : 's') +
-                      ' por recibir',
+                  widget.providersOnly
+                      ? branchName +
+                          ' · configura proveedores, WhatsApp y productos asociados'
+                      : branchName +
+                          ' · ' +
+                          pendingCount.toString() +
+                          ' pedido' +
+                          (pendingCount == 1 ? '' : 's') +
+                          ' por recibir',
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                   style: Theme.of(context).textTheme.bodySmall?.copyWith(
