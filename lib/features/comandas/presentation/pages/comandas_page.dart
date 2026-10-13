@@ -578,31 +578,38 @@ class _CommandCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final tone = switch (item.estado) {
+      'NUEVA' => theme.colorScheme.primary,
+      'EN_PREPARACION' => theme.colorScheme.tertiary,
+      'LISTA' => theme.colorScheme.secondary,
+      _ => theme.colorScheme.onSurfaceVariant,
+    };
     final customization = item.customization;
     final removed = customization.removed;
     final additions = customization.additions;
     final observation = customization.observation;
 
     final nextLabel = switch (item.estado) {
-      'NUEVA' => 'Tomar pedido',
-      'EN_PREPARACION' => 'Marcar lista',
+      'NUEVA' => 'Iniciar preparación',
+      'EN_PREPARACION' => 'Marcar como lista',
       'LISTA' => 'Marcar entregada',
       _ => null,
     };
 
     return Container(
       padding: const EdgeInsets.all(12),
+      clipBehavior: Clip.antiAlias,
       decoration: BoxDecoration(
-        color: theme.colorScheme.surface,
-        borderRadius: BorderRadius.circular(16),
+        color: theme.colorScheme.surface.withOpacity(.98),
+        borderRadius: BorderRadius.circular(18),
         border: Border.all(
-          color: theme.colorScheme.outlineVariant.withOpacity(.55),
+          color: tone.withOpacity(.28),
         ),
         boxShadow: [
           BoxShadow(
-            color: theme.colorScheme.shadow.withOpacity(.05),
-            blurRadius: 12,
-            offset: const Offset(0, 5),
+            color: theme.colorScheme.shadow.withOpacity(.07),
+            blurRadius: 16,
+            offset: const Offset(0, 7),
           ),
         ],
       ),
@@ -617,14 +624,15 @@ class _CommandCard extends StatelessWidget {
                 padding:
                     const EdgeInsets.symmetric(horizontal: 8, vertical: 7),
                 decoration: BoxDecoration(
-                  color: theme.colorScheme.primaryContainer.withOpacity(.7),
+                  color: tone.withOpacity(.11),
                   borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: tone.withOpacity(.18)),
                 ),
                 child: Text(
                   'x${_formatQuantity(item.cantidad)}',
                   textAlign: TextAlign.center,
                   style: TextStyle(
-                    color: theme.colorScheme.onPrimaryContainer,
+                    color: tone,
                     fontWeight: FontWeight.w900,
                   ),
                 ),
