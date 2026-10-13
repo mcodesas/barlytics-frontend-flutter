@@ -23,6 +23,8 @@ import '../../data/models/precios_response_model.dart';
 
 enum _PriceFilter { all, withPrice, withoutPrice, changed }
 
+enum _PriceViewMode { cards, table }
+
 final _preciosProductosPagedProvider = StateNotifierProvider.autoDispose<
     ProductosPagedNotifier, ProductosPagedState>((ref) {
   return ProductosPagedNotifier(
@@ -49,6 +51,7 @@ class _PreciosListPageState extends ConsumerState<PreciosListPage> {
 
   Timer? _searchDebounce;
   _PriceFilter _filter = _PriceFilter.all;
+  _PriceViewMode _viewMode = _PriceViewMode.cards;
   int? _sucursalId;
   int? _initializedBranchId;
   bool _savingAll = false;
@@ -138,6 +141,7 @@ class _PreciosListPageState extends ConsumerState<PreciosListPage> {
                       palette: palette,
                       searchController: _searchController,
                       filter: _filter,
+                      viewMode: _viewMode,
                       visibleOnPage: visible.length,
                       totalElements: _filter == _PriceFilter.changed ? changed : pagedState.totalElements,
                       changed: changed,
@@ -147,6 +151,8 @@ class _PreciosListPageState extends ConsumerState<PreciosListPage> {
                       onBranchChanged: _changeBranch,
                       onSearchChanged: _onSearchChanged,
                       onFilterChanged: _changeFilter,
+                      onViewModeChanged: (value) =>
+                          setState(() => _viewMode = value),
                       onRefresh: _refresh,
                       downloading: _downloading,
                       onDownload: _downloadPrices,
@@ -169,16 +175,27 @@ class _PreciosListPageState extends ConsumerState<PreciosListPage> {
                       14,
                     ),
                     sliver: SliverToBoxAdapter(
-                      child: _PriceProductsTable(
-                        products: visible,
-                        drafts: _drafts,
-                        currentPrices: _loadedPrices,
-                        savingProductIds: _savingProductIds,
-                        palette: palette,
-                        onChanged: () => setState(() {}),
-                        onSave: (product, currentPrice) =>
-                            _saveProduct(product, currentPrice),
-                      ),
+                      child: _viewMode == _PriceViewMode.table
+                          ? _PriceProductsTable(
+                              products: visible,
+                              drafts: _drafts,
+                              currentPrices: _loadedPrices,
+                              savingProductIds: _savingProductIds,
+                              palette: palette,
+                              onChanged: () => setState(() {}),
+                              onSave: (product, currentPrice) =>
+                                  _saveProduct(product, currentPrice),
+                            )
+                          : _PriceProductsCards(
+                              products: visible,
+                              drafts: _drafts,
+                              currentPrices: _loadedPrices,
+                              savingProductIds: _savingProductIds,
+                              palette: palette,
+                              onChanged: () => setState(() {}),
+                              onSave: (product, currentPrice) =>
+                                  _saveProduct(product, currentPrice),
+                            ),
                     ),
                   ),
                 if (_filter != _PriceFilter.changed && (pagedState.totalPages > 1 || pagedState.size != 12))
@@ -578,6 +595,7 @@ class _PricingToolbar extends StatelessWidget {
     required this.palette,
     required this.searchController,
     required this.filter,
+    required this.viewMode,
     required this.visibleOnPage,
     required this.totalElements,
     required this.changed,
@@ -587,6 +605,7 @@ class _PricingToolbar extends StatelessWidget {
     required this.onBranchChanged,
     required this.onSearchChanged,
     required this.onFilterChanged,
+    required this.onViewModeChanged,
     required this.onRefresh,
     required this.downloading,
     required this.onDownload,
@@ -595,6 +614,7 @@ class _PricingToolbar extends StatelessWidget {
   final AppPalette palette;
   final TextEditingController searchController;
   final _PriceFilter filter;
+  final _PriceViewMode viewMode;
   final int visibleOnPage;
   final int totalElements;
   final int changed;
@@ -604,6 +624,7 @@ class _PricingToolbar extends StatelessWidget {
   final ValueChanged<int?> onBranchChanged;
   final ValueChanged<String> onSearchChanged;
   final ValueChanged<_PriceFilter> onFilterChanged;
+  final ValueChanged<_PriceViewMode> onViewModeChanged;
   final VoidCallback onRefresh;
   final bool downloading;
   final VoidCallback onDownload;
@@ -679,9 +700,21 @@ class _PricingToolbar extends StatelessWidget {
             ],
           );
 
+          final viewSelector = _PriceViewSelector(
+            palette: palette,
+            value: viewMode,
+            onChanged: onViewModeChanged,
+          );
+
           final status = Row(
             children: [
-              Icon(Icons.table_rows_rounded, color: palette.secondary, size: 18),
+              Icon(
+                viewMode == _PriceViewMode.cards
+                    ? Icons.grid_view_rounded
+                    : Icons.table_rows_rounded,
+                color: palette.secondary,
+                size: 18,
+              ),
               const SizedBox(width: 7),
               Expanded(
                 child: Text(
@@ -721,6 +754,11 @@ class _PricingToolbar extends StatelessWidget {
                 search,
                 const SizedBox(height: 10),
                 filters,
+                const SizedBox(height: 10),
+                Align(
+                  alignment: Alignment.centerLeft,
+                  child: viewSelector,
+                ),
                 const SizedBox(height: 8),
                 status,
               ],
@@ -740,7 +778,14 @@ class _PricingToolbar extends StatelessWidget {
                 ],
               ),
               const SizedBox(height: 12),
-              filters,
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.center,
+                children: [
+                  Expanded(child: filters),
+                  const SizedBox(width: 12),
+                  viewSelector,
+                ],
+              ),
             ],
           );
         },
@@ -825,6 +870,169 @@ class _PriceFilterButton extends StatelessWidget {
           ),
         ),
       ),
+    );
+  }
+}
+
+class _PriceViewSelector extends StatelessWidget {
+  const _PriceViewSelector({
+    required this.palette,
+    required this.value,
+    required this.onChanged,
+  });
+
+  final AppPalette palette;
+  final _PriceViewMode value;
+  final ValueChanged<_PriceViewMode> onChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(4),
+      decoration: BoxDecoration(
+        color: palette.background.withOpacity(.32),
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: palette.cardBorder),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          _PriceViewButton(
+            label: 'Tarjetas',
+            icon: Icons.grid_view_rounded,
+            selected: value == _PriceViewMode.cards,
+            palette: palette,
+            onTap: () => onChanged(_PriceViewMode.cards),
+          ),
+          const SizedBox(width: 4),
+          _PriceViewButton(
+            label: 'Tabla',
+            icon: Icons.table_rows_rounded,
+            selected: value == _PriceViewMode.table,
+            palette: palette,
+            onTap: () => onChanged(_PriceViewMode.table),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _PriceViewButton extends StatelessWidget {
+  const _PriceViewButton({
+    required this.label,
+    required this.icon,
+    required this.selected,
+    required this.palette,
+    required this.onTap,
+  });
+
+  final String label;
+  final IconData icon;
+  final bool selected;
+  final AppPalette palette;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final color = selected ? palette.secondary : palette.textSecondary;
+    return Material(
+      color: selected ? palette.secondary.withOpacity(.14) : Colors.transparent,
+      borderRadius: BorderRadius.circular(10),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(10),
+        onTap: onTap,
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(icon, size: 16, color: color),
+              const SizedBox(width: 6),
+              Text(
+                label,
+                style: TextStyle(
+                  color: color,
+                  fontWeight: selected ? FontWeight.w900 : FontWeight.w700,
+                  fontSize: 11.5,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _PriceProductsCards extends StatelessWidget {
+  const _PriceProductsCards({
+    required this.products,
+    required this.drafts,
+    required this.currentPrices,
+    required this.savingProductIds,
+    required this.palette,
+    required this.onChanged,
+    required this.onSave,
+  });
+
+  final List<ProductosResponseModel> products;
+  final Map<int, _PriceDraft> drafts;
+  final Map<int, PreciosResponseModel?> currentPrices;
+  final Set<int> savingProductIds;
+  final AppPalette palette;
+  final VoidCallback onChanged;
+  final Future<bool> Function(
+    ProductosResponseModel product,
+    PreciosResponseModel? currentPrice,
+  ) onSave;
+
+  @override
+  Widget build(BuildContext context) {
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final maxWidth = constraints.maxWidth;
+        if (!maxWidth.isFinite || maxWidth <= 0) {
+          return const SizedBox.shrink();
+        }
+
+        const spacing = 14.0;
+        final columns = maxWidth < 760
+            ? 1
+            : maxWidth < 1320
+                ? 2
+                : 3;
+        final width = ((maxWidth - spacing * (columns - 1)) / columns)
+            .clamp(0.0, maxWidth)
+            .toDouble();
+
+        return Wrap(
+          spacing: spacing,
+          runSpacing: spacing,
+          children: [
+            for (final product in products)
+              if (product.prodId != null && drafts[product.prodId!] != null)
+                SizedBox(
+                  width: width,
+                  child: _PriceProductCard(
+                    producto: product,
+                    currentPrice: currentPrices[product.prodId!],
+                    draft: drafts[product.prodId!]!,
+                    palette: palette,
+                    saving: savingProductIds.contains(product.prodId),
+                    onChanged: onChanged,
+                    onReset: () {
+                      drafts[product.prodId!]!.reset();
+                      onChanged();
+                    },
+                    onSave: () {
+                      onSave(product, currentPrices[product.prodId!]);
+                    },
+                  ),
+                ),
+          ],
+        );
+      },
     );
   }
 }
@@ -1539,7 +1747,7 @@ class _PriceProductCard extends StatelessWidget {
                 ),
             ],
           ),
-          const Spacer(),
+          const SizedBox(height: 10),
           Row(
             children: [
               Expanded(child: _MarginIndicator(margin: margin, sale: sale, purchase: unitPurchaseCost, palette: palette)),
