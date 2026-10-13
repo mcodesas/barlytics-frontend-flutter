@@ -478,8 +478,14 @@ class _ComandasToolbar extends StatelessWidget {
                         palette: palette,
                         status: status,
                         count: _countComandaOrdersByStatus(items, status),
-                        selected: statusFilter == status,
-                        onTap: () => onStatusChanged(status),
+                        selected: viewMode == _ComandaViewMode.cards &&
+                            statusFilter == status,
+                        onTap: () {
+                          if (viewMode == _ComandaViewMode.kanban) {
+                            onViewChanged(_ComandaViewMode.cards);
+                          }
+                          onStatusChanged(status);
+                        },
                       ),
                     ),
                 ],
@@ -669,6 +675,104 @@ class _ComandaStatusCard extends StatelessWidget {
   }
 }
 
+class _ComandaViewSelector extends StatelessWidget {
+  const _ComandaViewSelector({
+    required this.palette,
+    required this.value,
+    required this.onChanged,
+  });
+
+  final AppPalette palette;
+  final _ComandaViewMode value;
+  final ValueChanged<_ComandaViewMode> onChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(3),
+      decoration: BoxDecoration(
+        color: palette.background.withOpacity(
+          palette.darkBackground ? .28 : .42,
+        ),
+        borderRadius: BorderRadius.circular(999),
+        border: Border.all(color: palette.cardBorder),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          _ComandaViewOption(
+            palette: palette,
+            selected: value == _ComandaViewMode.cards,
+            icon: Icons.grid_view_rounded,
+            label: 'Tarjetas',
+            onTap: () => onChanged(_ComandaViewMode.cards),
+          ),
+          _ComandaViewOption(
+            palette: palette,
+            selected: value == _ComandaViewMode.kanban,
+            icon: Icons.view_kanban_rounded,
+            label: 'Kanban',
+            onTap: () => onChanged(_ComandaViewMode.kanban),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _ComandaViewOption extends StatelessWidget {
+  const _ComandaViewOption({
+    required this.palette,
+    required this.selected,
+    required this.icon,
+    required this.label,
+    required this.onTap,
+  });
+
+  final AppPalette palette;
+  final bool selected;
+  final IconData icon;
+  final String label;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return InkWell(
+      borderRadius: BorderRadius.circular(999),
+      onTap: onTap,
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 160),
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+        decoration: BoxDecoration(
+          color: selected
+              ? palette.primary.withOpacity(.15)
+              : Colors.transparent,
+          borderRadius: BorderRadius.circular(999),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(
+              icon,
+              size: 15,
+              color: selected ? palette.primary : palette.textSecondary,
+            ),
+            const SizedBox(width: 4),
+            Text(
+              label,
+              style: Theme.of(context).textTheme.labelMedium?.copyWith(
+                    color:
+                        selected ? palette.textPrimary : palette.textSecondary,
+                    fontWeight: FontWeight.w900,
+                  ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
 class _ComandaFilterChip extends StatelessWidget {
   const _ComandaFilterChip({
     required this.palette,
@@ -721,6 +825,209 @@ class _ComandaFilterChip extends StatelessWidget {
             ),
           ],
         ),
+      ),
+    );
+  }
+}
+
+class _ComandasKanbanBoard extends StatelessWidget {
+  const _ComandasKanbanBoard({
+    required this.items,
+    required this.updating,
+    required this.palette,
+    required this.onAdvance,
+  });
+
+  final List<_ComandaItem> items;
+  final Set<int> updating;
+  final AppPalette palette;
+  final Future<void> Function(List<_ComandaItem>) onAdvance;
+
+  static const _statuses = <String>[
+    'NUEVA',
+    'EN_PREPARACION',
+    'LISTA',
+    'ENTREGADA',
+  ];
+
+  @override
+  Widget build(BuildContext context) {
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        if (constraints.maxWidth >= 1180) {
+          return Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              for (var index = 0; index < _statuses.length; index++) ...[
+                Expanded(
+                  child: _ComandaKanbanColumn(
+                    status: _statuses[index],
+                    items: items
+                        .where((item) => item.estado == _statuses[index])
+                        .toList(growable: false),
+                    updating: updating,
+                    palette: palette,
+                    onAdvance: onAdvance,
+                  ),
+                ),
+                if (index < _statuses.length - 1)
+                  const SizedBox(width: 12),
+              ],
+            ],
+          );
+        }
+
+        final columnWidth = constraints.maxWidth < 720
+            ? (constraints.maxWidth * .88).clamp(290.0, 360.0)
+            : 360.0;
+
+        return SingleChildScrollView(
+          scrollDirection: Axis.horizontal,
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              for (var index = 0; index < _statuses.length; index++) ...[
+                SizedBox(
+                  width: columnWidth,
+                  child: _ComandaKanbanColumn(
+                    status: _statuses[index],
+                    items: items
+                        .where((item) => item.estado == _statuses[index])
+                        .toList(growable: false),
+                    updating: updating,
+                    palette: palette,
+                    onAdvance: onAdvance,
+                  ),
+                ),
+                if (index < _statuses.length - 1)
+                  const SizedBox(width: 12),
+              ],
+            ],
+          ),
+        );
+      },
+    );
+  }
+}
+
+class _ComandaKanbanColumn extends StatelessWidget {
+  const _ComandaKanbanColumn({
+    required this.status,
+    required this.items,
+    required this.updating,
+    required this.palette,
+    required this.onAdvance,
+  });
+
+  final String status;
+  final List<_ComandaItem> items;
+  final Set<int> updating;
+  final AppPalette palette;
+  final Future<void> Function(List<_ComandaItem>) onAdvance;
+
+  @override
+  Widget build(BuildContext context) {
+    final tone = _comandaStatusTone(palette, status);
+    final groups = _groupComandaOrders(items);
+
+    return Container(
+      padding: const EdgeInsets.all(10),
+      decoration: palette.panelDecoration(
+        baseRadius: 24,
+        tint: tone,
+        elevated: false,
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 9),
+            decoration: BoxDecoration(
+              color: tone.withOpacity(.09),
+              borderRadius: BorderRadius.circular(palette.radius(15)),
+            ),
+            child: Row(
+              children: [
+                Container(
+                  width: 34,
+                  height: 34,
+                  decoration: BoxDecoration(
+                    color: tone.withOpacity(.13),
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  child: Icon(
+                    _comandaStatusIcon(status),
+                    color: tone,
+                    size: 18,
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    _comandaStatusLabel(status),
+                    style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                          color: palette.textPrimary,
+                          fontWeight: FontWeight.w900,
+                        ),
+                  ),
+                ),
+                Container(
+                  constraints: const BoxConstraints(minWidth: 28),
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                  decoration: BoxDecoration(
+                    color: tone.withOpacity(.12),
+                    borderRadius: BorderRadius.circular(999),
+                  ),
+                  child: Text(
+                    '${groups.length}',
+                    textAlign: TextAlign.center,
+                    style: Theme.of(context).textTheme.labelMedium?.copyWith(
+                          color: tone,
+                          fontWeight: FontWeight.w900,
+                        ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 10),
+          if (groups.isEmpty)
+            Padding(
+              padding: const EdgeInsets.symmetric(vertical: 28),
+              child: Column(
+                children: [
+                  Icon(
+                    _comandaStatusIcon(status),
+                    size: 28,
+                    color: palette.textSecondary.withOpacity(.45),
+                  ),
+                  const SizedBox(height: 7),
+                  Text(
+                    'Sin pedidos',
+                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                          color: palette.textSecondary,
+                          fontWeight: FontWeight.w600,
+                        ),
+                  ),
+                ],
+              ),
+            )
+          else
+            ...groups.map(
+              (group) => Padding(
+                padding: const EdgeInsets.only(bottom: 10),
+                child: _ComandaOrderCard(
+                  items: group,
+                  palette: palette,
+                  updating: group.any(
+                    (item) => updating.contains(item.detalleId),
+                  ),
+                  onAdvance: () => onAdvance(group),
+                ),
+              ),
+            ),
+        ],
       ),
     );
   }
