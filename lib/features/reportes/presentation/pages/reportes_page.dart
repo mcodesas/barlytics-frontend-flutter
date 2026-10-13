@@ -5175,6 +5175,8 @@ class _NextOrderContentState extends ConsumerState<_NextOrderContent> {
                                   );
                                 },
                               ),
+                            ],
+                          ),
                       ),
                     ],
                   ),
