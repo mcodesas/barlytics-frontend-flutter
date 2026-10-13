@@ -5018,22 +5018,44 @@ class _NextOrderContentState extends ConsumerState<_NextOrderContent> {
                 const SizedBox(height: 10),
                 Align(
                   alignment: Alignment.centerRight,
-                  child: OutlinedButton.icon(
-                    onPressed: () async {
-                      await context.push('/proveedores-pedidos');
-                      if (mounted) {
-                        await _loadOrderDestinations();
-                        _refreshOrderHistory();
-                      }
-                    },
-                    icon: const Icon(Icons.message_outlined, size: 17),
-                    label: Text(
-                      _orderDestinations.isEmpty
-                          ? 'Configurar proveedores / WhatsApp'
-                          : 'Proveedores / WhatsApp (' +
-                              _orderDestinations.length.toString() +
-                              ')',
-                    ),
+                  child: Wrap(
+                    spacing: 8,
+                    runSpacing: 8,
+                    alignment: WrapAlignment.end,
+                    children: [
+                      FilledButton.tonalIcon(
+                        onPressed: _confirming ||
+                                _exportingSelection ||
+                                _sendingWhatsapp
+                            ? null
+                            : () {
+                                _searchController.clear();
+                                setState(
+                                  () => _workspaceFilter =
+                                      _OrderWorkspaceFilter.todos,
+                                );
+                              },
+                        icon: const Icon(Icons.add_shopping_cart_rounded, size: 17),
+                        label: const Text('Pedido manual'),
+                      ),
+                      OutlinedButton.icon(
+                        onPressed: () async {
+                          await context.push('/proveedores-pedidos');
+                          if (mounted) {
+                            await _loadOrderDestinations();
+                            _refreshOrderHistory();
+                          }
+                        },
+                        icon: const Icon(Icons.storefront_outlined, size: 17),
+                        label: Text(
+                          _orderDestinations.isEmpty
+                              ? 'Configurar proveedores / WhatsApp'
+                              : 'Proveedores / WhatsApp (' +
+                                  _orderDestinations.length.toString() +
+                                  ')',
+                        ),
+                      ),
+                    ],
                   ),
                 ),
                 const SizedBox(height: 12),
