@@ -28,6 +28,7 @@ import '../../../tipos_producto/data/models/tipos_producto_response_model.dart';
 import '../../../tipos_producto/presentation/providers/tipos_producto_provider.dart';
 import '../../data/models/productos_response_model.dart';
 import '../providers/productos_provider.dart';
+import '../widgets/productos_setup_tools.dart';
 
 class ProductosListPage extends ConsumerStatefulWidget {
   const ProductosListPage({super.key});
@@ -162,6 +163,18 @@ class _ProductosListPageState extends ConsumerState<ProductosListPage> {
             child: CustomScrollView(
               physics: const AlwaysScrollableScrollPhysics(),
               slivers: [
+                if (!movementOnly)
+                  SliverToBoxAdapter(
+                    child: ProductosSetupTools(
+                      palette: palette,
+                      branches: branchState.branches,
+                      activeBranchId: branchState.activeBranchId,
+                      onCompleted: () async {
+                        _selectedProductIds.clear();
+                        await notifier.refresh();
+                      },
+                    ),
+                  ),
                 SliverToBoxAdapter(
                   child: _ProductosHeader(
                     total: state.totalElements,
