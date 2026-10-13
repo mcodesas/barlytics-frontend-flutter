@@ -35,8 +35,8 @@ class _ComandasPageState extends ConsumerState<ComandasPage> {
   bool _loading = true;
   bool _refreshing = false;
   String _station = 'TODAS';
-  String _statusFilter = 'NUEVA';
-  _ComandaViewMode _viewMode = _ComandaViewMode.cards;
+  String _statusFilter = 'TODAS';
+  _ComandaViewMode _viewMode = _ComandaViewMode.kanban;
   int? _loadedBranchId;
 
   @override
