@@ -2,6 +2,8 @@ import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../../core/files/file_download.dart';
+
 import '../../../../app/theme/app_palette.dart';
 import '../../../sucursales/data/models/sucursales_response_model.dart';
 import '../../data/models/productos_response_model.dart';
@@ -124,12 +126,13 @@ class _ProductosSetupToolsState extends ConsumerState<ProductosSetupTools> {
     setState(() => _busy = true);
     try {
       final bytes = await ref.read(productosSetupRemoteDataSourceProvider).downloadTemplate();
-      await FilePicker.platform.saveFile(
+      await saveDownloadedFile(
+        bytes: bytes,
         dialogTitle: 'Guardar plantilla de productos',
         fileName: 'plantilla_productos_barlytics.xlsx',
-        type: FileType.custom,
+        mimeType:
+            'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
         allowedExtensions: const ['xlsx'],
-        bytes: bytes,
       );
       if (!mounted) return;
       _message('Plantilla generada. Complétala y luego usa “Subir productos desde Excel”.');
@@ -152,12 +155,13 @@ class _ProductosSetupToolsState extends ConsumerState<ProductosSetupTools> {
       final bytes = await ref
           .read(productosSetupRemoteDataSourceProvider)
           .downloadProductList(branchId);
-      await FilePicker.platform.saveFile(
+      await saveDownloadedFile(
+        bytes: bytes,
         dialogTitle: 'Guardar lista de productos',
         fileName: 'productos_barlytics_sucursal_$branchId.xlsx',
-        type: FileType.custom,
+        mimeType:
+            'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
         allowedExtensions: const ['xlsx'],
-        bytes: bytes,
       );
       if (!mounted) return;
       _message(
