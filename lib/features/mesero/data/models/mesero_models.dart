@@ -58,6 +58,74 @@ class MeseroMedioPagoModel {
       );
 }
 
+class MeseroIngredienteGastroModel {
+  const MeseroIngredienteGastroModel({
+    this.id,
+    this.prodId,
+    this.nombre,
+    this.cantidad,
+    this.unidad,
+    this.removible,
+    this.precioCompra,
+    this.precioVenta,
+  });
+
+  final int? id;
+  final int? prodId;
+  final String? nombre;
+  final double? cantidad;
+  final String? unidad;
+  final bool? removible;
+  final double? precioCompra;
+  final double? precioVenta;
+
+  factory MeseroIngredienteGastroModel.fromJson(Map<String, dynamic> json) =>
+      MeseroIngredienteGastroModel(
+        id: (json['id'] as num?)?.toInt(),
+        prodId: (json['prodId'] as num?)?.toInt(),
+        nombre: json['nombre']?.toString(),
+        cantidad: (json['cantidad'] as num?)?.toDouble(),
+        unidad: json['unidad']?.toString(),
+        removible: json['removible'] as bool?,
+        precioCompra: (json['precioCompra'] as num?)?.toDouble(),
+        precioVenta: (json['precioVenta'] as num?)?.toDouble(),
+      );
+}
+
+class MeseroAdicionGastroModel {
+  const MeseroAdicionGastroModel({
+    this.id,
+    this.prodId,
+    this.nombre,
+    this.cantidad,
+    this.unidad,
+    this.precioAdicional,
+    this.precioCompra,
+    this.precioVenta,
+  });
+
+  final int? id;
+  final int? prodId;
+  final String? nombre;
+  final double? cantidad;
+  final String? unidad;
+  final double? precioAdicional;
+  final double? precioCompra;
+  final double? precioVenta;
+
+  factory MeseroAdicionGastroModel.fromJson(Map<String, dynamic> json) =>
+      MeseroAdicionGastroModel(
+        id: (json['id'] as num?)?.toInt(),
+        prodId: (json['prodId'] as num?)?.toInt(),
+        nombre: json['nombre']?.toString(),
+        cantidad: (json['cantidad'] as num?)?.toDouble(),
+        unidad: json['unidad']?.toString(),
+        precioAdicional: (json['precioAdicional'] as num?)?.toDouble(),
+        precioCompra: (json['precioCompra'] as num?)?.toDouble(),
+        precioVenta: (json['precioVenta'] as num?)?.toDouble(),
+      );
+}
+
 class MeseroProductoModel {
   const MeseroProductoModel({
     this.prodId,
@@ -71,6 +139,10 @@ class MeseroProductoModel {
     this.descripcion,
     this.foto,
     this.precioVenta,
+    this.tipoControl,
+    this.unidadBase,
+    this.ingredientes = const <MeseroIngredienteGastroModel>[],
+    this.adiciones = const <MeseroAdicionGastroModel>[],
   });
 
   final int? prodId;
@@ -84,6 +156,10 @@ class MeseroProductoModel {
   final String? descripcion;
   final String? foto;
   final double? precioVenta;
+  final String? tipoControl;
+  final String? unidadBase;
+  final List<MeseroIngredienteGastroModel> ingredientes;
+  final List<MeseroAdicionGastroModel> adiciones;
 
   factory MeseroProductoModel.fromJson(Map<String, dynamic> json) => MeseroProductoModel(
         prodId: (json['prodId'] as num?)?.toInt(),
@@ -97,6 +173,16 @@ class MeseroProductoModel {
         descripcion: json['descripcion']?.toString(),
         foto: json['foto']?.toString() ?? json['prodFoto']?.toString(),
         precioVenta: (json['precioVenta'] as num?)?.toDouble(),
+        tipoControl: json['tipoControl']?.toString(),
+        unidadBase: json['unidadBase']?.toString(),
+        ingredientes: (json['ingredientes'] as List? ?? const [])
+            .whereType<Map>()
+            .map((e) => MeseroIngredienteGastroModel.fromJson(Map<String, dynamic>.from(e)))
+            .toList(growable: false),
+        adiciones: (json['adiciones'] as List? ?? const [])
+            .whereType<Map>()
+            .map((e) => MeseroAdicionGastroModel.fromJson(Map<String, dynamic>.from(e)))
+            .toList(growable: false),
       );
 }
 
@@ -110,7 +196,9 @@ class MeseroDetalleProductoModel {
     this.productoFoto,
     this.cantidad,
     this.valorUnitario,
+    this.precioAdicionalUnitario,
     this.subtotal,
+    this.personalizacion,
     this.pagado,
   });
 
@@ -122,7 +210,9 @@ class MeseroDetalleProductoModel {
   final String? productoFoto;
   final double? cantidad;
   final double? valorUnitario;
+  final double? precioAdicionalUnitario;
   final double? subtotal;
+  final String? personalizacion;
   final bool? pagado;
 
   factory MeseroDetalleProductoModel.fromJson(Map<String, dynamic> json) => MeseroDetalleProductoModel(
@@ -134,7 +224,9 @@ class MeseroDetalleProductoModel {
         productoFoto: json['productoFoto']?.toString() ?? json['foto']?.toString(),
         cantidad: (json['cantidad'] as num?)?.toDouble(),
         valorUnitario: (json['valorUnitario'] as num?)?.toDouble(),
+        precioAdicionalUnitario: (json['precioAdicionalUnitario'] as num?)?.toDouble(),
         subtotal: (json['subtotal'] as num?)?.toDouble(),
+        personalizacion: json['personalizacion']?.toString(),
         pagado: json['pagado'] is bool
             ? json['pagado'] as bool
             : json['pagado'] == 1 ||
