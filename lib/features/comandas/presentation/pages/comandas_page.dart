@@ -457,6 +457,12 @@ class _StatusHeader extends StatelessWidget {
       'LISTA' => 'Listas',
       _ => 'Entregadas',
     };
+    final tone = switch (status) {
+      'NUEVA' => theme.colorScheme.primary,
+      'EN_PREPARACION' => theme.colorScheme.tertiary,
+      'LISTA' => theme.colorScheme.secondary,
+      _ => theme.colorScheme.onSurfaceVariant,
+    };
     final icon = switch (status) {
       'NUEVA' => Icons.notifications_active_outlined,
       'EN_PREPARACION' => Icons.soup_kitchen_outlined,
@@ -464,20 +470,51 @@ class _StatusHeader extends StatelessWidget {
       _ => Icons.room_service_outlined,
     };
 
-    return Row(
-      children: [
-        Icon(icon, size: 20, color: theme.colorScheme.primary),
-        const SizedBox(width: 8),
-        Expanded(
-          child: Text(
-            label,
-            style: theme.textTheme.titleMedium?.copyWith(
-              fontWeight: FontWeight.w900,
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 9),
+      decoration: BoxDecoration(
+        color: tone.withOpacity(.08),
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: tone.withOpacity(.18)),
+      ),
+      child: Row(
+        children: [
+          Container(
+            width: 32,
+            height: 32,
+            decoration: BoxDecoration(
+              color: tone.withOpacity(.13),
+              borderRadius: BorderRadius.circular(9),
+            ),
+            child: Icon(icon, size: 18, color: tone),
+          ),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Text(
+              label,
+              style: theme.textTheme.titleSmall?.copyWith(
+                fontWeight: FontWeight.w900,
+              ),
             ),
           ),
-        ),
-        Badge(label: Text('$count')),
-      ],
+          Container(
+            constraints: const BoxConstraints(minWidth: 28),
+            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+            decoration: BoxDecoration(
+              color: tone.withOpacity(.14),
+              borderRadius: BorderRadius.circular(999),
+            ),
+            child: Text(
+              '$count',
+              textAlign: TextAlign.center,
+              style: theme.textTheme.labelMedium?.copyWith(
+                color: tone,
+                fontWeight: FontWeight.w900,
+              ),
+            ),
+          ),
+        ],
+      ),
     );
   }
 }
@@ -491,23 +528,38 @@ class _TableGroupHeader extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    return Row(
-      children: [
-        Icon(Icons.table_restaurant_rounded,
-            size: 17, color: theme.colorScheme.secondary),
-        const SizedBox(width: 6),
-        Expanded(
-          child: Text(
-            label,
-            style: theme.textTheme.labelLarge
-                ?.copyWith(fontWeight: FontWeight.w900),
+    return Container(
+      margin: const EdgeInsets.only(top: 3),
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+      decoration: BoxDecoration(
+        color: theme.colorScheme.secondaryContainer.withOpacity(.25),
+        borderRadius: BorderRadius.circular(11),
+      ),
+      child: Row(
+        children: [
+          Icon(
+            Icons.table_restaurant_rounded,
+            size: 17,
+            color: theme.colorScheme.secondary,
           ),
-        ),
-        Text(
-          '$count',
-          style: theme.textTheme.labelSmall,
-        ),
-      ],
+          const SizedBox(width: 6),
+          Expanded(
+            child: Text(
+              label,
+              style: theme.textTheme.labelLarge?.copyWith(
+                fontWeight: FontWeight.w900,
+              ),
+            ),
+          ),
+          Text(
+            '$count',
+            style: theme.textTheme.labelSmall?.copyWith(
+              color: theme.colorScheme.onSurfaceVariant,
+              fontWeight: FontWeight.w800,
+            ),
+          ),
+        ],
+      ),
     );
   }
 }
