@@ -2381,40 +2381,6 @@ class _ProductsTableView extends StatelessWidget {
                                 ],
                               ),
                             ),
-                            if (allowProductManagement && id != null)
-                              PopupMenuButton<String>(
-                                tooltip: 'Más opciones',
-                                padding: EdgeInsets.zero,
-                                icon: Icon(
-                                  Icons.more_horiz_rounded,
-                                  color: palette.textSecondary,
-                                ),
-                                onSelected: (value) {
-                                  if (value == 'detail') {
-                                    context.go('/productos/$id');
-                                  } else if (value == 'delete') {
-                                    onDelete(id);
-                                  }
-                                },
-                                itemBuilder: (_) => const [
-                                  PopupMenuItem<String>(
-                                    value: 'detail',
-                                    child: ListTile(
-                                      dense: true,
-                                      leading: Icon(Icons.visibility_outlined),
-                                      title: Text('Ver detalle'),
-                                    ),
-                                  ),
-                                  PopupMenuItem<String>(
-                                    value: 'delete',
-                                    child: ListTile(
-                                      dense: true,
-                                      leading: Icon(Icons.delete_outline_rounded),
-                                      title: Text('Eliminar o inactivar'),
-                                    ),
-                                  ),
-                                ],
-                              ),
                           ],
                         ),
                         const SizedBox(height: 9),
@@ -2463,6 +2429,7 @@ class _ProductsTableView extends StatelessWidget {
                               id != null && productSavingIds.contains(id),
                           onRegisterMovement: onRegisterMovement,
                           onUpdateProduct: onUpdateProduct,
+                          onDelete: onDelete,
                           labeled: true,
                         ),
                         const SizedBox(height: 7),
@@ -2625,48 +2592,9 @@ class _ProductsTableView extends StatelessWidget {
                                   onRegisterMovement:
                                       onRegisterMovement,
                                   onUpdateProduct: onUpdateProduct,
+                                  onDelete: onDelete,
                                   labeled: false,
                                 ),
-                                if (allowProductManagement && id != null)
-                                  PopupMenuButton<String>(
-                                    tooltip: 'Más opciones',
-                                    padding: EdgeInsets.zero,
-                                    visualDensity: VisualDensity.compact,
-                                    icon: Icon(
-                                      Icons.more_horiz_rounded,
-                                      size: 20,
-                                      color: palette.textSecondary,
-                                    ),
-                                    onSelected: (value) {
-                                      if (value == 'detail') {
-                                        context.go('/productos/$id');
-                                      } else if (value == 'delete') {
-                                        onDelete(id);
-                                      }
-                                    },
-                                    itemBuilder: (_) => const [
-                                      PopupMenuItem<String>(
-                                        value: 'detail',
-                                        child: ListTile(
-                                          dense: true,
-                                          leading:
-                                              Icon(Icons.visibility_outlined),
-                                          title: Text('Ver detalle'),
-                                        ),
-                                      ),
-                                      PopupMenuItem<String>(
-                                        value: 'delete',
-                                        child: ListTile(
-                                          dense: true,
-                                          leading: Icon(
-                                            Icons.delete_outline_rounded,
-                                          ),
-                                          title:
-                                              Text('Eliminar o inactivar'),
-                                        ),
-                                      ),
-                                    ],
-                                  ),
                               ],
                             ),
                           ),
@@ -2695,6 +2623,7 @@ class _TableProductActions extends StatefulWidget {
     required this.productSaving,
     required this.onRegisterMovement,
     required this.onUpdateProduct,
+    required this.onDelete,
     required this.labeled,
   });
 
@@ -2713,6 +2642,7 @@ class _TableProductActions extends StatefulWidget {
     ProductosResponseModel item,
     Map<String, dynamic> body,
   ) onUpdateProduct;
+  final ValueChanged<Object> onDelete;
   final bool labeled;
 
   @override
@@ -2826,6 +2756,14 @@ class _TableProductActionsState extends State<_TableProductActions> {
         color: widget.palette.secondary,
         onPressed: _openHistory,
       ),
+      if (widget.allowProductManagement && widget.item.prodId != null)
+        _tableAction(
+          tooltip: 'Ver detalle',
+          label: 'Ver',
+          icon: Icons.visibility_outlined,
+          color: widget.palette.secondary,
+          onPressed: () => context.go('/productos/${widget.item.prodId}'),
+        ),
       if (widget.allowProductManagement)
         _tableAction(
           tooltip: 'Modificar producto',
@@ -2834,6 +2772,14 @@ class _TableProductActionsState extends State<_TableProductActions> {
           color: widget.palette.secondary,
           busy: widget.productSaving,
           onPressed: widget.productSaving ? null : _openEdit,
+        ),
+      if (widget.allowProductManagement && widget.item.prodId != null)
+        _tableAction(
+          tooltip: 'Eliminar o inactivar',
+          label: 'Eliminar',
+          icon: Icons.delete_outline_rounded,
+          color: Colors.redAccent,
+          onPressed: () => widget.onDelete(widget.item.prodId!),
         ),
     ];
 
