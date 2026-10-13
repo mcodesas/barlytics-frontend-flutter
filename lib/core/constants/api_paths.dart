@@ -72,6 +72,7 @@ class ApiPaths {
   static const meseroProductosMasPedidosHoy = '/api/v1/mesero/ventas/productos-mas-pedidos-hoy';
   static const meseroCierreCajaResumen = '/api/v1/mesero/cierre-caja/resumen';
   static const meseroCierreCaja = '/api/v1/mesero/cierre-caja';
+  static const meseroCierreCajaBaseInicial = '/api/v1/mesero/cierre-caja/base-inicial';
   static const meseroCierreCajaReporte = '/api/v1/mesero/cierre-caja/reporte';
   static const meseroCierreCajaSalidas = '/api/v1/mesero/cierre-caja/salidas';
   static const meseroCierreCajaSalidaOpciones = '/api/v1/mesero/cierre-caja/salidas/opciones';
