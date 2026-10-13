@@ -1,6 +1,10 @@
 import 'dart:async';
+import 'dart:math' as math;
+import 'dart:typed_data';
 
+import 'package:audioplayers/audioplayers.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
@@ -25,6 +29,8 @@ class ReadyOrderNotificationHost extends ConsumerStatefulWidget {
 class _ReadyOrderNotificationHostState
     extends ConsumerState<ReadyOrderNotificationHost> {
   Timer? _timer;
+  final AudioPlayer _alertPlayer = AudioPlayer();
+  Uint8List? _alertTone;
   bool _checking = false;
   int? _showingId;
   final Set<int> _markingRead = <int>{};
@@ -39,6 +45,7 @@ class _ReadyOrderNotificationHostState
   @override
   void dispose() {
     _timer?.cancel();
+    unawaited(_alertPlayer.dispose());
     super.dispose();
   }
 
@@ -92,6 +99,11 @@ class _ReadyOrderNotificationHostState
     final palette = ref.read(selectedAppPaletteProvider);
     final messenger = ScaffoldMessenger.of(context);
     final compact = MediaQuery.sizeOf(context).width < 700;
+
+    // Alerta inmediata en todos los ambientes soportados por Flutter.
+    // En móvil, HapticFeedback agrega una señal física además del sonido.
+    unawaited(_playAlert());
+    unawaited(HapticFeedback.heavyImpact());
 
     final controller = messenger.showSnackBar(
       SnackBar(
@@ -290,6 +302,91 @@ class _ReadyOrderNotificationHostState
         () => _check(),
       );
     });
+  }
+
+  Future<void> _playAlert() async {
+    try {
+      _alertTone ??= _buildAlertTone();
+      await _alertPlayer.stop();
+      await _alertPlayer.setVolume(1);
+      await _alertPlayer.play(
+        BytesSource(
+          _alertTone!,
+          mimeType: 'audio/wav',
+        ),
+      );
+    } catch (_) {
+      // El aviso visual sigue funcionando si el sistema/navegador bloquea
+      // temporalmente la reproducción de audio.
+    }
+  }
+
+  Uint8List _buildAlertTone() {
+    const sampleRate = 22050;
+    const channels = 1;
+    const bitsPerSample = 16;
+    const firstToneSeconds = .18;
+    const pauseSeconds = .07;
+    const secondToneSeconds = .26;
+
+    final firstSamples = (sampleRate * firstToneSeconds).round();
+    final pauseSamples = (sampleRate * pauseSeconds).round();
+    final secondSamples = (sampleRate * secondToneSeconds).round();
+    final totalSamples = firstSamples + pauseSamples + secondSamples;
+    final dataLength = totalSamples * channels * (bitsPerSample ~/ 8);
+    final bytes = ByteData(44 + dataLength);
+
+    void writeAscii(int offset, String value) {
+      for (var i = 0; i < value.length; i++) {
+        bytes.setUint8(offset + i, value.codeUnitAt(i));
+      }
+    }
+
+    writeAscii(0, 'RIFF');
+    bytes.setUint32(4, 36 + dataLength, Endian.little);
+    writeAscii(8, 'WAVE');
+    writeAscii(12, 'fmt ');
+    bytes.setUint32(16, 16, Endian.little);
+    bytes.setUint16(20, 1, Endian.little);
+    bytes.setUint16(22, channels, Endian.little);
+    bytes.setUint32(24, sampleRate, Endian.little);
+    bytes.setUint32(
+      28,
+      sampleRate * channels * (bitsPerSample ~/ 8),
+      Endian.little,
+    );
+    bytes.setUint16(32, channels * (bitsPerSample ~/ 8), Endian.little);
+    bytes.setUint16(34, bitsPerSample, Endian.little);
+    writeAscii(36, 'data');
+    bytes.setUint32(40, dataLength, Endian.little);
+
+    var offset = 44;
+
+    void writeTone(int sampleCount, double frequency) {
+      for (var sample = 0; sample < sampleCount; sample++) {
+        final progress = sample / sampleCount;
+        final fade = progress < .08
+            ? progress / .08
+            : progress > .86
+                ? (1 - progress) / .14
+                : 1.0;
+        final wave = math.sin(
+          2 * math.pi * frequency * sample / sampleRate,
+        );
+        final value = (wave * 0.48 * fade.clamp(0.0, 1.0) * 32767).round();
+        bytes.setInt16(offset, value, Endian.little);
+        offset += 2;
+      }
+    }
+
+    writeTone(firstSamples, 880);
+    for (var sample = 0; sample < pauseSamples; sample++) {
+      bytes.setInt16(offset, 0, Endian.little);
+      offset += 2;
+    }
+    writeTone(secondSamples, 1175);
+
+    return bytes.buffer.asUint8List();
   }
 
   Future<void> _snooze(
