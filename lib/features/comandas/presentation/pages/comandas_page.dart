@@ -372,7 +372,7 @@ class _StatusSection extends StatelessWidget {
   final String status;
   final List<_ComandaItem> items;
   final Set<int> updating;
-  final ValueChanged<_ComandaItem> onAdvance;
+  final Future<void> Function(_ComandaItem) onAdvance;
   final bool scrollable;
 
   @override
@@ -569,16 +569,230 @@ class _TableGroupHeader extends StatelessWidget {
   }
 }
 
+class _OrderGroupCard extends StatelessWidget {
+  const _OrderGroupCard({
+    required this.items,
+    required this.updating,
+    required this.onAdvance,
+  });
+
+  final List<_ComandaItem> items;
+  final bool updating;
+  final Future<void> Function() onAdvance;
+
+  @override
+  Widget build(BuildContext context) {
+    if (items.isEmpty) return const SizedBox.shrink();
+
+    final theme = Theme.of(context);
+    final first = items.first;
+    final tone = switch (first.estado) {
+      'NUEVA' => theme.colorScheme.primary,
+      'EN_PREPARACION' => theme.colorScheme.tertiary,
+      'LISTA' => theme.colorScheme.secondary,
+      _ => theme.colorScheme.onSurfaceVariant,
+    };
+
+    final tableLabel = first.mesaNumero == null
+        ? 'Venta directa'
+        : 'Mesa ${first.mesaNumero}${first.mesaDescripcion.trim().isEmpty ? '' : ' · ${first.mesaDescripcion.trim()}'}';
+    final accountLabel = 'Cuenta ${first.cuentaNumero ?? '-'}'
+        '${first.cuentaDescripcion.trim().isEmpty ? '' : ' · ${first.cuentaDescripcion.trim()}'}';
+    final stationNames = items.map((item) => item.estacion).toSet();
+    final stationLabel = stationNames.length == 1
+        ? (stationNames.first == 'BARRA' ? 'Barra' : 'Cocina')
+        : 'Cocina + Barra';
+
+    final nextLabel = switch (first.estado) {
+      'NUEVA' => 'Iniciar pedido completo',
+      'EN_PREPARACION' => 'Marcar pedido como listo',
+      'LISTA' => 'Marcar pedido entregado',
+      _ => null,
+    };
+
+    return Container(
+      decoration: BoxDecoration(
+        color: theme.colorScheme.surface.withOpacity(.92),
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: tone.withOpacity(.24)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Container(
+            padding: const EdgeInsets.fromLTRB(12, 11, 12, 10),
+            decoration: BoxDecoration(
+              color: tone.withOpacity(.07),
+              borderRadius: const BorderRadius.vertical(
+                top: Radius.circular(18),
+              ),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Icon(
+                      first.mesaNumero == null
+                          ? Icons.point_of_sale_rounded
+                          : Icons.table_restaurant_rounded,
+                      size: 19,
+                      color: tone,
+                    ),
+                    const SizedBox(width: 7),
+                    Expanded(
+                      child: Text(
+                        tableLabel,
+                        style: theme.textTheme.titleSmall?.copyWith(
+                          fontWeight: FontWeight.w900,
+                        ),
+                      ),
+                    ),
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 8,
+                        vertical: 4,
+                      ),
+                      decoration: BoxDecoration(
+                        color: tone.withOpacity(.12),
+                        borderRadius: BorderRadius.circular(999),
+                      ),
+                      child: Text(
+                        'Pedido #${first.ventaId}',
+                        style: theme.textTheme.labelSmall?.copyWith(
+                          color: tone,
+                          fontWeight: FontWeight.w900,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 7),
+                Wrap(
+                  spacing: 7,
+                  runSpacing: 6,
+                  children: [
+                    _GroupInfoChip(
+                      icon: Icons.receipt_long_outlined,
+                      label: accountLabel,
+                    ),
+                    _GroupInfoChip(
+                      icon: Icons.restaurant_menu_rounded,
+                      label:
+                          '${items.length} producto${items.length == 1 ? '' : 's'}',
+                    ),
+                    _GroupInfoChip(
+                      icon: stationNames.length == 1 &&
+                              stationNames.first == 'BARRA'
+                          ? Icons.local_bar_rounded
+                          : Icons.restaurant_rounded,
+                      label: stationLabel,
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(10, 10, 10, 4),
+            child: Column(
+              children: [
+                for (var index = 0; index < items.length; index++) ...[
+                  _CommandCard(
+                    item: items[index],
+                    updating: updating,
+                    showAction: false,
+                    onAdvance: () {},
+                  ),
+                  if (index < items.length - 1)
+                    Padding(
+                      padding: const EdgeInsets.symmetric(vertical: 8),
+                      child: Divider(
+                        height: 1,
+                        color: theme.colorScheme.outlineVariant
+                            .withOpacity(.35),
+                      ),
+                    ),
+                ],
+              ],
+            ),
+          ),
+          if (nextLabel != null)
+            Padding(
+              padding: const EdgeInsets.fromLTRB(10, 4, 10, 10),
+              child: FilledButton.icon(
+                onPressed: updating ? null : onAdvance,
+                icon: updating
+                    ? const SizedBox(
+                        width: 17,
+                        height: 17,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      )
+                    : Icon(
+                        first.estado == 'LISTA'
+                            ? Icons.room_service_rounded
+                            : Icons.arrow_forward_rounded,
+                      ),
+                label: Text(nextLabel),
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+}
+
+class _GroupInfoChip extends StatelessWidget {
+  const _GroupInfoChip({
+    required this.icon,
+    required this.label,
+  });
+
+  final IconData icon;
+  final String label;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
+      decoration: BoxDecoration(
+        color: theme.colorScheme.surfaceContainerHighest.withOpacity(.35),
+        borderRadius: BorderRadius.circular(999),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(
+            icon,
+            size: 14,
+            color: theme.colorScheme.onSurfaceVariant,
+          ),
+          const SizedBox(width: 4),
+          Text(
+            label,
+            style: theme.textTheme.labelSmall?.copyWith(
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
 class _CommandCard extends StatelessWidget {
   const _CommandCard({
     required this.item,
     required this.updating,
     required this.onAdvance,
+    this.showAction = true,
   });
 
   final _ComandaItem item;
   final bool updating;
   final VoidCallback onAdvance;
+  final bool showAction;
 
   @override
   Widget build(BuildContext context) {
@@ -806,7 +1020,7 @@ class _CommandCard extends StatelessWidget {
                 const Spacer(),
             ],
           ),
-          if (nextLabel != null) ...[
+          if (showAction && nextLabel != null) ...[
             const SizedBox(height: 10),
             SizedBox(
               width: double.infinity,
