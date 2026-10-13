@@ -999,6 +999,266 @@ class _ProductosFormPageState extends ConsumerState<ProductosFormPage> {
     ];
   }
 
+  Future<void> _addGastroIngredient(List<ProductosResponseModel> productos) async {
+    final candidates = productos
+        .where((item) =>
+            item.prodId != null &&
+            item.prodId != _editingId &&
+            item.sucuId == _sucursalId)
+        .toList()
+      ..sort((a, b) => (a.prodNombre ?? '').toLowerCase().compareTo((b.prodNombre ?? '').toLowerCase()));
+
+    if (candidates.isEmpty) {
+      _showError('Primero crea los insumos o ingredientes que utilizará esta receta.');
+      return;
+    }
+
+    final formKey = GlobalKey<FormState>();
+    int? selectedId;
+    String unit = 'UND';
+    bool removable = true;
+    final quantity = TextEditingController(text: '1');
+    try {
+      final result = await showDialog<_GastroIngredientDraft>(
+        context: context,
+        builder: (dialogContext) => StatefulBuilder(
+          builder: (dialogContext, setDialogState) => AlertDialog(
+            title: const Text('Agregar ingrediente'),
+            content: SizedBox(
+              width: 520,
+              child: Form(
+                key: formKey,
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    DropdownButtonFormField<int>(
+                      value: selectedId,
+                      isExpanded: true,
+                      decoration: const InputDecoration(
+                        labelText: 'Producto / insumo',
+                        prefixIcon: Icon(Icons.restaurant_menu_rounded),
+                      ),
+                      items: candidates
+                          .map((item) => DropdownMenuItem<int>(
+                                value: item.prodId,
+                                child: Text(
+                                  '${item.prodNombre ?? 'Producto'} · costo ${_formatNumber(item.precioCompraVigente ?? 0)}',
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                              ))
+                          .toList(),
+                      onChanged: (value) => setDialogState(() => selectedId = value),
+                      validator: (value) => value == null ? 'Selecciona un ingrediente' : null,
+                    ),
+                    const SizedBox(height: 12),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: TextFormField(
+                            controller: quantity,
+                            keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                            inputFormatters: InputConstraints.decimalFormatters(integerDigits: 13, fractionDigits: 4),
+                            decoration: const InputDecoration(
+                              labelText: 'Cantidad por preparación',
+                              prefixIcon: Icon(Icons.numbers_rounded),
+                            ),
+                            validator: _requiredPositive,
+                          ),
+                        ),
+                        const SizedBox(width: 10),
+                        SizedBox(
+                          width: 120,
+                          child: DropdownButtonFormField<String>(
+                            value: unit,
+                            decoration: const InputDecoration(labelText: 'Unidad'),
+                            items: const ['UND', 'G', 'KG', 'ML', 'L']
+                                .map((value) => DropdownMenuItem(value: value, child: Text(value)))
+                                .toList(),
+                            onChanged: (value) {
+                              if (value != null) setDialogState(() => unit = value);
+                            },
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 8),
+                    SwitchListTile.adaptive(
+                      contentPadding: EdgeInsets.zero,
+                      value: removable,
+                      title: const Text('Se puede quitar del pedido'),
+                      subtitle: const Text('Ejemplo: sin cebolla, sin tomate o sin salsa.'),
+                      onChanged: (value) => setDialogState(() => removable = value),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+            actions: [
+              TextButton(onPressed: () => Navigator.pop(dialogContext), child: const Text('Cancelar')),
+              FilledButton(
+                onPressed: () {
+                  if (!(formKey.currentState?.validate() ?? false)) return;
+                  final product = candidates.firstWhere((item) => item.prodId == selectedId);
+                  Navigator.pop(
+                    dialogContext,
+                    _GastroIngredientDraft(
+                      prodId: selectedId!,
+                      nombre: product.prodNombre ?? 'Producto $selectedId',
+                      cantidad: _parseDouble(quantity.text) ?? 1,
+                      unidad: unit,
+                      removible: removable,
+                      precioCompra: product.precioCompraVigente,
+                    ),
+                  );
+                },
+                child: const Text('Agregar'),
+              ),
+            ],
+          ),
+        ),
+      );
+
+      if (result == null || !mounted) return;
+      setState(() {
+        _gastroIngredientes.removeWhere((item) => item.prodId == result.prodId);
+        _gastroIngredientes.add(result);
+      });
+    } finally {
+      quantity.dispose();
+    }
+  }
+
+  Future<void> _addGastroAddition(List<ProductosResponseModel> productos) async {
+    final candidates = productos
+        .where((item) =>
+            item.prodId != null &&
+            item.prodId != _editingId &&
+            item.sucuId == _sucursalId)
+        .toList()
+      ..sort((a, b) => (a.prodNombre ?? '').toLowerCase().compareTo((b.prodNombre ?? '').toLowerCase()));
+
+    if (candidates.isEmpty) {
+      _showError('Primero crea los productos o insumos que se ofrecerán como adición.');
+      return;
+    }
+
+    final formKey = GlobalKey<FormState>();
+    int? selectedId;
+    String unit = 'UND';
+    final quantity = TextEditingController(text: '1');
+    final extraPrice = TextEditingController();
+    try {
+      final result = await showDialog<_GastroAdditionDraft>(
+        context: context,
+        builder: (dialogContext) => StatefulBuilder(
+          builder: (dialogContext, setDialogState) => AlertDialog(
+            title: const Text('Agregar adición al pedido'),
+            content: SizedBox(
+              width: 540,
+              child: Form(
+                key: formKey,
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    DropdownButtonFormField<int>(
+                      value: selectedId,
+                      isExpanded: true,
+                      decoration: const InputDecoration(
+                        labelText: 'Producto / insumo de la adición',
+                        prefixIcon: Icon(Icons.add_circle_outline_rounded),
+                      ),
+                      items: candidates
+                          .map((item) => DropdownMenuItem<int>(
+                                value: item.prodId,
+                                child: Text(
+                                  '${item.prodNombre ?? 'Producto'} · costo ${_formatNumber(item.precioCompraVigente ?? 0)}',
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                              ))
+                          .toList(),
+                      onChanged: (value) => setDialogState(() => selectedId = value),
+                      validator: (value) => value == null ? 'Selecciona una adición' : null,
+                    ),
+                    const SizedBox(height: 12),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: TextFormField(
+                            controller: quantity,
+                            keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                            inputFormatters: InputConstraints.decimalFormatters(integerDigits: 13, fractionDigits: 4),
+                            decoration: const InputDecoration(labelText: 'Cantidad', prefixIcon: Icon(Icons.numbers_rounded)),
+                            validator: _requiredPositive,
+                          ),
+                        ),
+                        const SizedBox(width: 10),
+                        SizedBox(
+                          width: 120,
+                          child: DropdownButtonFormField<String>(
+                            value: unit,
+                            decoration: const InputDecoration(labelText: 'Unidad'),
+                            items: const ['UND', 'G', 'KG', 'ML', 'L']
+                                .map((value) => DropdownMenuItem(value: value, child: Text(value)))
+                                .toList(),
+                            onChanged: (value) {
+                              if (value != null) setDialogState(() => unit = value);
+                            },
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 12),
+                    TextFormField(
+                      controller: extraPrice,
+                      keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                      inputFormatters: InputConstraints.decimalFormatters(integerDigits: 15, fractionDigits: 2),
+                      decoration: const InputDecoration(
+                        labelText: 'Precio adicional al cliente',
+                        helperText: 'Es independiente del costo de compra del ingrediente.',
+                        prefixIcon: Icon(Icons.payments_rounded),
+                      ),
+                      validator: _requiredPositiveOrZero,
+                    ),
+                  ],
+                ),
+              ),
+            ),
+            actions: [
+              TextButton(onPressed: () => Navigator.pop(dialogContext), child: const Text('Cancelar')),
+              FilledButton(
+                onPressed: () {
+                  if (!(formKey.currentState?.validate() ?? false)) return;
+                  final product = candidates.firstWhere((item) => item.prodId == selectedId);
+                  Navigator.pop(
+                    dialogContext,
+                    _GastroAdditionDraft(
+                      prodId: selectedId!,
+                      nombre: product.prodNombre ?? 'Producto $selectedId',
+                      cantidad: _parseDouble(quantity.text) ?? 1,
+                      unidad: unit,
+                      precioAdicional: _parseDouble(extraPrice.text) ?? 0,
+                      precioCompra: product.precioCompraVigente,
+                    ),
+                  );
+                },
+                child: const Text('Agregar'),
+              ),
+            ],
+          ),
+        ),
+      );
+
+      if (result == null || !mounted) return;
+      setState(() {
+        _gastroAdiciones.removeWhere((item) => item.prodId == result.prodId);
+        _gastroAdiciones.add(result);
+      });
+    } finally {
+      quantity.dispose();
+      extraPrice.dispose();
+    }
+  }
+
   Future<void> _pickExpirationDate() async {
     final now = DateTime.now();
     final selected = await showDatePicker(
