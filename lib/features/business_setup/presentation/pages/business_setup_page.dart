@@ -950,7 +950,7 @@ String _benefitFor(String code) {
     case 'BASE_CATALOGS':
       return 'Define las marcas y categorías propias de tu empresa. Todas tus sucursales las comparten, pero ninguna otra empresa puede verlas o modificarlas.';
     case 'CATALOG':
-      return 'Agrega lo que vendes y sus precios desde Administración de productos para que BarLytics sepa qué cobrar en cada venta.';
+      return 'Elige qué productos venderás. Puedes seleccionarlos de otra sucursal, migrar precio de compra y venta, o cargar los que no existan con la plantilla Excel de BarLytics.';
     case 'OPERATIONS':
       return 'Define el número que recibirá los pedidos de reposición para que esa función quede lista desde el primer día.';
     case 'TEAM':
@@ -971,7 +971,7 @@ String _friendlyHintFor(String code) {
     case 'BASE_CATALOGS':
       return 'BarLytics crea algunos ejemplos al registrar el negocio. Puedes conservarlos, renombrarlos, eliminarlos o agregar los tuyos.';
     case 'CATALOG':
-      return 'En Administración de productos deja definido precio de venta, costo de compra y stock mínimo de reposición.';
+      return 'No tienes que registrar todo uno a uno: usa la selección de productos o descarga la plantilla Excel, complétala y súbela. Luego revisa precios y cantidades.';
     case 'OPERATIONS':
       return 'El consecutivo del pedido lo genera BarLytics automáticamente; aquí solo defines el destino de los pedidos.';
     case 'TEAM':
@@ -992,7 +992,7 @@ String _friendlyActionFor(String code) {
     case 'BASE_CATALOGS':
       return 'Configurar marcas y tipos';
     case 'CATALOG':
-      return 'Ir a Administración de productos';
+      return 'Seleccionar o cargar productos';
     case 'OPERATIONS':
       return 'Configurar pedidos';
     case 'TEAM':
@@ -1013,7 +1013,7 @@ String _previewFor(String code) {
     case 'BASE_CATALOGS':
       return 'Revisa las marcas y los tipos de producto que utilizará tu empresa.';
     case 'CATALOG':
-      return 'Configura productos, precio de venta, costo de compra y stock mínimo desde Administración de productos.';
+      return 'Selecciona lo que venderás, migra precios o carga productos desde Excel sin registrarlos uno a uno.';
     case 'OPERATIONS':
       return 'Configura el WhatsApp general que recibirá los pedidos. El número consecutivo lo genera BarLytics automáticamente.';
     case 'TEAM':
