@@ -337,6 +337,8 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       GoRoute(path: '/proximo_pedido', builder: (context, state) => AppScaffold(child: const ReportesPage.proximoPedido())),
       GoRoute(path: '/pedidos-compra', builder: (context, state) => const AppScaffold(child: PedidosCompraPage())),
       GoRoute(path: '/proveedores-pedidos', builder: (context, state) => const AppScaffold(child: PedidosCompraPage.proveedores())),
+      GoRoute(path: '/pedidos_compra', builder: (context, state) => const AppScaffold(child: PedidosCompraPage())),
+      GoRoute(path: '/proveedores_pedidos', builder: (context, state) => const AppScaffold(child: PedidosCompraPage.proveedores())),
       GoRoute(
         path: '/reporte_cruce_conteo',
         builder: (context, state) => AppScaffold(
@@ -380,6 +382,9 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       GoRoute(path: '/mesero/resumen', builder: (context, state) => AppScaffold(child: const MeseroPage(initialMode: MeseroPageMode.resumen))),
       GoRoute(path: '/mesero/historial', builder: (context, state) => AppScaffold(child: const MeseroPage(initialMode: MeseroPageMode.historial))),
       GoRoute(path: '/mesero/cierre-caja', builder: (context, state) => AppScaffold(child: const MeseroPage(initialMode: MeseroPageMode.cierreCaja))),
+      GoRoute(path: '/historial_ventas', builder: (context, state) => AppScaffold(child: const MeseroPage(initialMode: MeseroPageMode.historial))),
+      GoRoute(path: '/cierre_caja', builder: (context, state) => AppScaffold(child: const MeseroPage(initialMode: MeseroPageMode.cierreCaja))),
+      GoRoute(path: '/administrar_mesas', builder: (context, state) => AppScaffold(child: const MeseroPage(initialMode: MeseroPageMode.mesas))),
 
       GoRoute(
         path: '/ciudades',

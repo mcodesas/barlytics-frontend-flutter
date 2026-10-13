@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../../app/theme/app_palette.dart';
+import '../../../../app/theme/module_visuals.dart';
 import '../../../../core/constants/api_paths.dart';
 import '../../../../core/providers/core_providers.dart';
 import '../../../../core/widgets/app_button.dart';
@@ -688,6 +689,8 @@ class _RolPersonalizadoFormSheetState extends ConsumerState<_RolPersonalizadoFor
   bool _branchScope = false;
   bool _active = true;
   bool _saving = false;
+  bool _previewMobile = false;
+  bool _previewMoreOpen = false;
   String? _error;
 
   @override
@@ -819,6 +822,447 @@ class _RolPersonalizadoFormSheetState extends ConsumerState<_RolPersonalizadoFor
       final item = _menuOrder.removeAt(index);
       _menuOrder.insert(newIndex, item);
     });
+  }
+
+  List<MenuAsignableModel> get _previewMenus => _menuOrder
+      .where(_selectedMenus.contains)
+      .map(_menuById)
+      .whereType<MenuAsignableModel>()
+      .toList(growable: false);
+
+  String _previewMenuKey(MenuAsignableModel menu) {
+    var key = menu.parametro.trim().toLowerCase();
+    key = key.replaceAll('-', '_').replaceAll(' ', '_');
+    switch (key) {
+      case 'cuentasventa':
+        return 'cuentas_venta';
+      case 'detallecuentaventa':
+        return 'detalle_cuenta_venta';
+      case 'mediospago':
+        return 'medios_pago';
+      case 'tiposproducto':
+        return 'tipos_producto';
+      case 'tiposmovimiento':
+        return 'tipos_movimiento';
+      case 'opcionesmenu':
+        return 'opciones_menu';
+      case 'rolespersonalizados':
+        return 'roles_personalizados';
+      case 'inventarioadmin':
+        return 'inventario_admin';
+      default:
+        return key;
+    }
+  }
+
+  IconData _previewIcon(MenuAsignableModel menu) {
+    return ModuleVisuals.byKey(_previewMenuKey(menu)).icon;
+  }
+
+  Widget _buildRolePreview(AppPalette palette) {
+    final menus = _previewMenus;
+    final roleName = _name.text.trim().isEmpty
+        ? 'Rol personalizado'
+        : _name.text.trim();
+    final mobile = _previewMobile;
+    final maxSlots = mobile ? 4 : 7;
+    final hasOverflow = menus.length > maxSlots;
+    final visibleCount = hasOverflow ? maxSlots - 1 : menus.length;
+    final visible = menus.take(visibleCount).toList(growable: false);
+    final overflow = hasOverflow
+        ? menus.skip(visibleCount).toList(growable: false)
+        : const <MenuAsignableModel>[];
+
+    Widget navItem(MenuAsignableModel menu, {bool active = false}) {
+      return Expanded(
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 3),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                width: mobile ? 34 : 38,
+                height: mobile ? 30 : 34,
+                decoration: BoxDecoration(
+                  color: active
+                      ? palette.secondary.withOpacity(0.20)
+                      : Colors.transparent,
+                  borderRadius: BorderRadius.circular(14),
+                ),
+                alignment: Alignment.center,
+                child: Icon(
+                  _previewIcon(menu),
+                  size: mobile ? 18 : 20,
+                  color: active
+                      ? palette.secondary
+                      : palette.textSecondary,
+                ),
+              ),
+              const SizedBox(height: 2),
+              Text(
+                menu.nombre,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  color: active
+                      ? palette.secondary
+                      : palette.textSecondary,
+                  fontSize: mobile ? 8.5 : 9.5,
+                  fontWeight: active ? FontWeight.w900 : FontWeight.w700,
+                ),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+
+    final previewWidth = mobile ? 390.0 : 900.0;
+    final currentTitle = menus.isEmpty ? 'Sin funciones' : menus.first.nombre;
+    final summary = hasOverflow
+        ? menus.length.toString() +
+            ' funciones autorizadas · ' +
+            visibleCount.toString() +
+            ' visibles · ' +
+            overflow.length.toString() +
+            ' en Más'
+        : menus.length.toString() +
+            (menus.length == 1
+                ? ' función autorizada · visible'
+                : ' funciones autorizadas · todas visibles');
+
+    return _Section(
+      palette: palette,
+      icon: Icons.preview_rounded,
+      title: 'Vista previa del rol',
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          LayoutBuilder(
+            builder: (context, constraints) {
+              final selector = SegmentedButton<bool>(
+                segments: const [
+                  ButtonSegment<bool>(
+                    value: false,
+                    icon: Icon(Icons.desktop_windows_rounded),
+                    label: Text('Escritorio'),
+                  ),
+                  ButtonSegment<bool>(
+                    value: true,
+                    icon: Icon(Icons.smartphone_rounded),
+                    label: Text('Celular'),
+                  ),
+                ],
+                selected: {_previewMobile},
+                onSelectionChanged: (values) => setState(() {
+                  _previewMobile = values.first;
+                  _previewMoreOpen = false;
+                }),
+              );
+              final description = Text(
+                'Así verá la navegación un usuario con este rol. La vista cambia al seleccionar, quitar o reordenar funciones.',
+                style: TextStyle(
+                  color: palette.textSecondary,
+                  fontWeight: FontWeight.w700,
+                ),
+              );
+              if (constraints.maxWidth < 650) {
+                return Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    description,
+                    const SizedBox(height: 10),
+                    Align(
+                      alignment: Alignment.centerLeft,
+                      child: selector,
+                    ),
+                  ],
+                );
+              }
+              return Row(
+                children: [
+                  Expanded(child: description),
+                  const SizedBox(width: 12),
+                  selector,
+                ],
+              );
+            },
+          ),
+          const SizedBox(height: 12),
+          Center(
+            child: AnimatedContainer(
+              duration: const Duration(milliseconds: 220),
+              curve: Curves.easeOutCubic,
+              width: math.min(
+                previewWidth,
+                math.max(
+                  260.0,
+                  MediaQuery.sizeOf(context).width - 64,
+                ),
+              ).toDouble(),
+              decoration: BoxDecoration(
+                color: palette.background.withOpacity(0.92),
+                borderRadius: BorderRadius.circular(mobile ? 24 : 20),
+                border: Border.all(color: palette.cardBorder),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withOpacity(0.16),
+                    blurRadius: 22,
+                    offset: const Offset(0, 10),
+                  ),
+                ],
+              ),
+              clipBehavior: Clip.antiAlias,
+              child: Column(
+                children: [
+                  Container(
+                    width: double.infinity,
+                    padding: EdgeInsets.symmetric(
+                      horizontal: mobile ? 14 : 18,
+                      vertical: mobile ? 11 : 13,
+                    ),
+                    decoration: BoxDecoration(
+                      color: palette.surface.withOpacity(0.96),
+                      border: Border(
+                        bottom: BorderSide(color: palette.cardBorder),
+                      ),
+                    ),
+                    child: Row(
+                      children: [
+                        Icon(
+                          mobile
+                              ? Icons.menu_rounded
+                              : Icons.dashboard_customize_rounded,
+                          size: mobile ? 18 : 20,
+                          color: palette.secondary,
+                        ),
+                        const SizedBox(width: 9),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                currentTitle,
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: TextStyle(
+                                  color: palette.textPrimary,
+                                  fontWeight: FontWeight.w900,
+                                  fontSize: mobile ? 13 : 15,
+                                ),
+                              ),
+                              Text(
+                                roleName,
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: TextStyle(
+                                  color: palette.textSecondary,
+                                  fontWeight: FontWeight.w700,
+                                  fontSize: mobile ? 9.5 : 10.5,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  Container(
+                    height: mobile ? 150 : 118,
+                    width: double.infinity,
+                    padding: EdgeInsets.all(mobile ? 14 : 18),
+                    alignment: Alignment.topLeft,
+                    child: menus.isEmpty
+                        ? Center(
+                            child: Text(
+                              'Selecciona funciones para ver la vista previa.',
+                              textAlign: TextAlign.center,
+                              style: TextStyle(
+                                color: palette.textSecondary,
+                                fontWeight: FontWeight.w700,
+                              ),
+                            ),
+                          )
+                        : Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                roleName,
+                                style: TextStyle(
+                                  color: palette.textPrimary,
+                                  fontWeight: FontWeight.w900,
+                                  fontSize: mobile ? 16 : 18,
+                                ),
+                              ),
+                              const SizedBox(height: 4),
+                              Text(
+                                menus.length.toString() +
+                                    (menus.length == 1
+                                        ? ' función autorizada'
+                                        : ' funciones autorizadas'),
+                                style: TextStyle(
+                                  color: palette.textSecondary,
+                                  fontWeight: FontWeight.w700,
+                                  fontSize: 11,
+                                ),
+                              ),
+                            ],
+                          ),
+                  ),
+                  if (menus.isNotEmpty)
+                    Container(
+                      width: double.infinity,
+                      padding: EdgeInsets.fromLTRB(
+                        mobile ? 4 : 8,
+                        7,
+                        mobile ? 4 : 8,
+                        6,
+                      ),
+                      decoration: BoxDecoration(
+                        color: palette.surface.withOpacity(0.98),
+                        border: Border(
+                          top: BorderSide(color: palette.cardBorder),
+                        ),
+                      ),
+                      child: Row(
+                        crossAxisAlignment: CrossAxisAlignment.end,
+                        children: [
+                          for (var index = 0;
+                              index < visible.length;
+                              index++)
+                            navItem(
+                              visible[index],
+                              active: index == 0,
+                            ),
+                          if (hasOverflow)
+                            Expanded(
+                              child: InkWell(
+                                borderRadius: BorderRadius.circular(14),
+                                onTap: () => setState(
+                                  () => _previewMoreOpen =
+                                      !_previewMoreOpen,
+                                ),
+                                child: Padding(
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 3,
+                                  ),
+                                  child: Column(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      Container(
+                                        width: mobile ? 34 : 38,
+                                        height: mobile ? 30 : 34,
+                                        decoration: BoxDecoration(
+                                          color: _previewMoreOpen
+                                              ? palette.secondary
+                                                  .withOpacity(0.20)
+                                              : Colors.transparent,
+                                          borderRadius:
+                                              BorderRadius.circular(14),
+                                        ),
+                                        alignment: Alignment.center,
+                                        child: Icon(
+                                          Icons.more_horiz_rounded,
+                                          size: mobile ? 19 : 21,
+                                          color: _previewMoreOpen
+                                              ? palette.secondary
+                                              : palette.textSecondary,
+                                        ),
+                                      ),
+                                      const SizedBox(height: 2),
+                                      Text(
+                                        'Más',
+                                        style: TextStyle(
+                                          color: _previewMoreOpen
+                                              ? palette.secondary
+                                              : palette.textSecondary,
+                                          fontSize: mobile ? 8.5 : 9.5,
+                                          fontWeight: _previewMoreOpen
+                                              ? FontWeight.w900
+                                              : FontWeight.w700,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              ),
+                            ),
+                        ],
+                      ),
+                    ),
+                ],
+              ),
+            ),
+          ),
+          if (menus.isNotEmpty) ...[
+            const SizedBox(height: 10),
+            Text(
+              summary,
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                color: palette.textSecondary,
+                fontWeight: FontWeight.w800,
+                fontSize: 11,
+              ),
+            ),
+          ],
+          if (_previewMoreOpen && overflow.isNotEmpty) ...[
+            const SizedBox(height: 10),
+            Container(
+              padding: const EdgeInsets.all(10),
+              decoration: BoxDecoration(
+                color: palette.background.withOpacity(0.62),
+                borderRadius: BorderRadius.circular(16),
+                border: Border.all(color: palette.cardBorder),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  Text(
+                    'Contenido de Más',
+                    style: TextStyle(
+                      color: palette.textPrimary,
+                      fontWeight: FontWeight.w900,
+                    ),
+                  ),
+                  const SizedBox(height: 7),
+                  for (final menu in overflow)
+                    ListTile(
+                      dense: true,
+                      contentPadding: const EdgeInsets.symmetric(
+                        horizontal: 6,
+                      ),
+                      leading: Icon(
+                        _previewIcon(menu),
+                        color: palette.secondary,
+                      ),
+                      title: Text(
+                        menu.nombre,
+                        style: TextStyle(
+                          color: palette.textPrimary,
+                          fontWeight: FontWeight.w800,
+                        ),
+                      ),
+                      subtitle: menu.descripcion.trim().isEmpty
+                          ? null
+                          : Text(
+                              menu.descripcion,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: TextStyle(
+                                color: palette.textSecondary,
+                                fontSize: 11,
+                              ),
+                            ),
+                    ),
+                ],
+              ),
+            ),
+          ],
+        ],
+      ),
+    );
   }
 
   Future<void> _save() async {
@@ -999,6 +1443,7 @@ class _RolPersonalizadoFormSheetState extends ConsumerState<_RolPersonalizadoFor
                                     controller: _name,
                                     maxLength: 50,
                                     textInputAction: TextInputAction.next,
+                                    onChanged: (_) => setState(() {}),
                                     validator: (value) =>
                                         value == null || value.trim().isEmpty
                                             ? 'Escribe el nombre del rol'
@@ -1195,6 +1640,111 @@ class _RolPersonalizadoFormSheetState extends ConsumerState<_RolPersonalizadoFor
                                 ],
                               ),
                             ),
+                            const SizedBox(height: 12),
+                            _buildRolePreview(palette),
+                            if (_menuOrder.isNotEmpty) ...[
+                              const SizedBox(height: 12),
+                              _Section(
+                                palette: palette,
+                                icon: Icons.low_priority_rounded,
+                                title: 'Orden del menú',
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                                  children: [
+                                    Text(
+                                      'Arrastra las opciones para definir cuál verá primero el usuario. Este orden se guarda con el rol personalizado.',
+                                      style: TextStyle(
+                                        color: palette.textSecondary,
+                                        fontWeight: FontWeight.w700,
+                                      ),
+                                    ),
+                                    const SizedBox(height: 10),
+                                    ReorderableListView.builder(
+                                      shrinkWrap: true,
+                                      physics: const NeverScrollableScrollPhysics(),
+                                      buildDefaultDragHandles: false,
+                                      itemCount: _menuOrder.length,
+                                      onReorder: _reorderMenus,
+                                      itemBuilder: (context, index) {
+                                        final menuId = _menuOrder[index];
+                                        final menu = _menuById(menuId);
+                                        final title = menu?.nombre ?? 'Menú $menuId';
+                                        final description = menu?.descripcion ?? '';
+                                        return Container(
+                                          key: ValueKey('menu-order-$menuId'),
+                                          margin: const EdgeInsets.only(bottom: 8),
+                                          decoration: BoxDecoration(
+                                            color: palette.background.withOpacity(0.70),
+                                            borderRadius: BorderRadius.circular(14),
+                                            border: Border.all(color: palette.cardBorder),
+                                          ),
+                                          child: ListTile(
+                                            leading: CircleAvatar(
+                                              radius: 16,
+                                              backgroundColor: palette.secondary.withOpacity(0.14),
+                                              child: Text(
+                                                '${index + 1}',
+                                                style: TextStyle(
+                                                  color: palette.textPrimary,
+                                                  fontSize: 12,
+                                                  fontWeight: FontWeight.w900,
+                                                ),
+                                              ),
+                                            ),
+                                            title: Text(
+                                              title,
+                                              style: TextStyle(
+                                                color: palette.textPrimary,
+                                                fontWeight: FontWeight.w900,
+                                              ),
+                                            ),
+                                            subtitle: description.isEmpty
+                                                ? null
+                                                : Text(
+                                                    description,
+                                                    maxLines: 1,
+                                                    overflow: TextOverflow.ellipsis,
+                                                    style: TextStyle(
+                                                      color: palette.textSecondary,
+                                                      fontWeight: FontWeight.w600,
+                                                    ),
+                                                  ),
+                                            trailing: Row(
+                                              mainAxisSize: MainAxisSize.min,
+                                              children: [
+                                                IconButton(
+                                                  tooltip: 'Subir',
+                                                  onPressed: index == 0 ? null : () => _moveMenu(index, -1),
+                                                  icon: const Icon(Icons.keyboard_arrow_up_rounded),
+                                                ),
+                                                IconButton(
+                                                  tooltip: 'Bajar',
+                                                  onPressed: index == _menuOrder.length - 1
+                                                      ? null
+                                                      : () => _moveMenu(index, 1),
+                                                  icon: const Icon(Icons.keyboard_arrow_down_rounded),
+                                                ),
+                                                ReorderableDragStartListener(
+                                                  index: index,
+                                                  child: Padding(
+                                                    padding: const EdgeInsets.all(10),
+                                                    child: Icon(
+                                                      Icons.drag_indicator_rounded,
+                                                      color: palette.textSecondary,
+                                                    ),
+                                                  ),
+                                                ),
+                                              ],
+                                            ),
+                                          ),
+                                        );
+                                      },
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ],
+
                             const SizedBox(height: 12),
                             _Section(
                               palette: palette,
@@ -1395,108 +1945,6 @@ class _RolPersonalizadoFormSheetState extends ConsumerState<_RolPersonalizadoFor
                                 ],
                               ),
                             ),
-                            if (_menuOrder.isNotEmpty) ...[
-                              const SizedBox(height: 12),
-                              _Section(
-                                palette: palette,
-                                icon: Icons.low_priority_rounded,
-                                title: 'Orden del menú',
-                                child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                                  children: [
-                                    Text(
-                                      'Arrastra las opciones para definir cuál verá primero el usuario. Este orden se guarda con el rol personalizado.',
-                                      style: TextStyle(
-                                        color: palette.textSecondary,
-                                        fontWeight: FontWeight.w700,
-                                      ),
-                                    ),
-                                    const SizedBox(height: 10),
-                                    ReorderableListView.builder(
-                                      shrinkWrap: true,
-                                      physics: const NeverScrollableScrollPhysics(),
-                                      buildDefaultDragHandles: false,
-                                      itemCount: _menuOrder.length,
-                                      onReorder: _reorderMenus,
-                                      itemBuilder: (context, index) {
-                                        final menuId = _menuOrder[index];
-                                        final menu = _menuById(menuId);
-                                        final title = menu?.nombre ?? 'Menú $menuId';
-                                        final description = menu?.descripcion ?? '';
-                                        return Container(
-                                          key: ValueKey('menu-order-$menuId'),
-                                          margin: const EdgeInsets.only(bottom: 8),
-                                          decoration: BoxDecoration(
-                                            color: palette.background.withOpacity(0.70),
-                                            borderRadius: BorderRadius.circular(14),
-                                            border: Border.all(color: palette.cardBorder),
-                                          ),
-                                          child: ListTile(
-                                            leading: CircleAvatar(
-                                              radius: 16,
-                                              backgroundColor: palette.secondary.withOpacity(0.14),
-                                              child: Text(
-                                                '${index + 1}',
-                                                style: TextStyle(
-                                                  color: palette.textPrimary,
-                                                  fontSize: 12,
-                                                  fontWeight: FontWeight.w900,
-                                                ),
-                                              ),
-                                            ),
-                                            title: Text(
-                                              title,
-                                              style: TextStyle(
-                                                color: palette.textPrimary,
-                                                fontWeight: FontWeight.w900,
-                                              ),
-                                            ),
-                                            subtitle: description.isEmpty
-                                                ? null
-                                                : Text(
-                                                    description,
-                                                    maxLines: 1,
-                                                    overflow: TextOverflow.ellipsis,
-                                                    style: TextStyle(
-                                                      color: palette.textSecondary,
-                                                      fontWeight: FontWeight.w600,
-                                                    ),
-                                                  ),
-                                            trailing: Row(
-                                              mainAxisSize: MainAxisSize.min,
-                                              children: [
-                                                IconButton(
-                                                  tooltip: 'Subir',
-                                                  onPressed: index == 0 ? null : () => _moveMenu(index, -1),
-                                                  icon: const Icon(Icons.keyboard_arrow_up_rounded),
-                                                ),
-                                                IconButton(
-                                                  tooltip: 'Bajar',
-                                                  onPressed: index == _menuOrder.length - 1
-                                                      ? null
-                                                      : () => _moveMenu(index, 1),
-                                                  icon: const Icon(Icons.keyboard_arrow_down_rounded),
-                                                ),
-                                                ReorderableDragStartListener(
-                                                  index: index,
-                                                  child: Padding(
-                                                    padding: const EdgeInsets.all(10),
-                                                    child: Icon(
-                                                      Icons.drag_indicator_rounded,
-                                                      color: palette.textSecondary,
-                                                    ),
-                                                  ),
-                                                ),
-                                              ],
-                                            ),
-                                          ),
-                                        );
-                                      },
-                                    ),
-                                  ],
-                                ),
-                              ),
-                            ],
                             const SizedBox(height: 12),
                             _Section(
                               palette: palette,

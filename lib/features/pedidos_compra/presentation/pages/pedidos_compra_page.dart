@@ -25,9 +25,11 @@ class _PedidosCompraPageState extends ConsumerState<PedidosCompraPage> {
   Object? _error;
   int? _branchId;
   final Set<int> _receiving = <int>{};
+  final Set<int> _deleting = <int>{};
   List<Map<String, dynamic>> _orders = const [];
   List<Map<String, dynamic>> _destinations = const [];
   List<Map<String, dynamic>> _products = const [];
+  List<Map<String, dynamic>> _productTypes = const [];
 
   final NumberFormat _money = NumberFormat.currency(
     locale: 'es_CO',
@@ -82,6 +84,7 @@ class _PedidosCompraPageState extends ConsumerState<PedidosCompraPage> {
         _orders = const [];
         _destinations = const [];
         _products = const [];
+        _productTypes = const [];
         _loading = false;
         _error = null;
       });
@@ -107,6 +110,10 @@ class _PedidosCompraPageState extends ConsumerState<PedidosCompraPage> {
           '/api/v1/productos/sucursal/' + branchId.toString(),
           (json) => json,
         );
+        final productTypes = await api.get<Object?>(
+          '/api/v1/tiposproducto',
+          (json) => json,
+        );
 
         if (!mounted) return;
         final productRows = _maps(products.data)
@@ -116,10 +123,18 @@ class _PedidosCompraPageState extends ConsumerState<PedidosCompraPage> {
                 .toLowerCase()
                 .compareTo((b['prodNombre'] ?? '').toString().toLowerCase()),
           );
+        final typeRows = _maps(productTypes.data)
+          ..sort(
+            (a, b) => (a['tpprNombre'] ?? '')
+                .toString()
+                .toLowerCase()
+                .compareTo((b['tpprNombre'] ?? '').toString().toLowerCase()),
+          );
         setState(() {
           _orders = const [];
           _destinations = _maps(destinations.data);
           _products = productRows;
+          _productTypes = typeRows;
           _loading = false;
         });
       } else {
@@ -133,6 +148,7 @@ class _PedidosCompraPageState extends ConsumerState<PedidosCompraPage> {
           _orders = _maps(orders.data);
           _destinations = const [];
           _products = const [];
+          _productTypes = const [];
           _loading = false;
         });
       }
@@ -211,196 +227,399 @@ class _PedidosCompraPageState extends ConsumerState<PedidosCompraPage> {
     }
   }
 
+  Future<void> _deleteOrder(Map<String, dynamic> order) async {
+    final id = (order['pediId'] as num?)?.toInt();
+    if (id == null || _deleting.contains(id) || _receiving.contains(id)) return;
+
+    final accepted = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: Text('Eliminar pedido #' + id.toString()),
+        content: const Text(
+          'Esta acción elimina el pedido pendiente y su detalle. '
+          'No se puede eliminar un pedido que ya fue recibido o tenga pagos/salidas de caja asociados.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext, false),
+            child: const Text('Cancelar'),
+          ),
+          FilledButton.icon(
+            onPressed: () => Navigator.pop(dialogContext, true),
+            icon: const Icon(Icons.delete_outline_rounded),
+            label: const Text('Eliminar pedido'),
+          ),
+        ],
+      ),
+    );
+    if (accepted != true || !mounted) return;
+
+    setState(() => _deleting.add(id));
+    try {
+      await ref.read(apiClientProvider).delete<Object?>(
+            '/api/v1/pedidos-compra/' + id.toString(),
+            (json) => json,
+          );
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Pedido #' + id.toString() + ' eliminado.')),
+      );
+      await _reload();
+    } catch (error) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('No fue posible eliminar el pedido: ' + error.toString())),
+      );
+    } finally {
+      if (mounted) setState(() => _deleting.remove(id));
+    }
+  }
+
   Future<void> _editDestination([Map<String, dynamic>? current]) async {
     final branchId = ref.read(branchScopeProvider).activeBranchId;
     if (branchId == null) return;
 
     final name = TextEditingController(text: current?['nombre']?.toString() ?? '');
     final phone = TextEditingController(text: current?['whatsapp']?.toString() ?? '');
+    final search = TextEditingController();
     final assigned = _ids(current?['productoIds']);
     final defaults = _ids(current?['productoIdsPredeterminados']);
+    final currentId = (current?['id'] as num?)?.toInt();
+    final assignedElsewhere = <int, String>{};
+    for (final destination in _destinations) {
+      final destinationId = (destination['id'] as num?)?.toInt();
+      if (currentId != null && destinationId == currentId) continue;
+      final destinationName =
+          destination['nombre']?.toString().trim().isNotEmpty == true
+              ? destination['nombre'].toString()
+              : 'Otro proveedor';
+      for (final productId in _ids(destination['productoIds'])) {
+        assignedElsewhere.putIfAbsent(productId, () => destinationName);
+      }
+    }
+    final typeNames = <int, String>{
+      for (final type in _productTypes)
+        if ((type['tpprId'] as num?)?.toInt() != null)
+          (type['tpprId'] as num).toInt():
+              type['tpprNombre']?.toString() ?? 'Tipo de producto',
+    };
+    var selectedTypeId = 0;
     var saving = false;
 
     try {
       final saved = await showDialog<bool>(
         context: context,
         builder: (dialogContext) => StatefulBuilder(
-          builder: (context, setLocal) => AlertDialog(
-            title: Text(current == null ? 'Nuevo proveedor / WhatsApp' : 'Editar proveedor / WhatsApp'),
-            content: SizedBox(
-              width: 620,
-              child: ConstrainedBox(
-                constraints: const BoxConstraints(maxHeight: 620),
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    TextField(
-                      controller: name,
-                      enabled: !saving,
-                      decoration: const InputDecoration(
-                        labelText: 'Proveedor / destino',
-                        hintText: 'Ej. Distribuidora de papas',
-                      ),
-                    ),
-                    const SizedBox(height: 10),
-                    TextField(
-                      controller: phone,
-                      enabled: !saving,
-                      keyboardType: TextInputType.phone,
-                      decoration: const InputDecoration(
-                        labelText: 'WhatsApp',
-                        hintText: '573001234567',
-                      ),
-                    ),
-                    const SizedBox(height: 14),
-                    const Align(
-                      alignment: Alignment.centerLeft,
-                      child: Text(
-                        'Productos asociados',
-                        style: TextStyle(fontWeight: FontWeight.w900),
-                      ),
-                    ),
-                    const SizedBox(height: 6),
-                    Flexible(
-                      child: Container(
-                        decoration: BoxDecoration(
-                          border: Border.all(color: Theme.of(context).dividerColor),
-                          borderRadius: BorderRadius.circular(12),
+          builder: (context, setLocal) {
+            final query = search.text.trim().toLowerCase();
+            final filteredProducts = _products.where((product) {
+              final productId = (product['prodId'] as num?)?.toInt();
+              if (productId == null) return false;
+              final nameValue = (product['prodNombre'] ?? '').toString().toLowerCase();
+              final description =
+                  (product['prodDescripcion'] ?? '').toString().toLowerCase();
+              final matchesSearch = query.isEmpty ||
+                  nameValue.contains(query) ||
+                  description.contains(query);
+              final productTypeId = (product['tpprId'] as num?)?.toInt() ?? 0;
+              final matchesType =
+                  selectedTypeId == 0 || productTypeId == selectedTypeId;
+              return matchesSearch && matchesType;
+            }).toList(growable: false);
+
+            return AlertDialog(
+              title: Text(
+                current == null
+                    ? 'Nuevo proveedor / WhatsApp'
+                    : 'Editar proveedor / WhatsApp',
+              ),
+              content: SizedBox(
+                width: 680,
+                child: ConstrainedBox(
+                  constraints: const BoxConstraints(maxHeight: 680),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      TextField(
+                        controller: name,
+                        enabled: !saving,
+                        decoration: const InputDecoration(
+                          labelText: 'Proveedor / destino',
+                          hintText: 'Ej. Distribuidora de papas',
                         ),
-                        child: ListView.builder(
-                          shrinkWrap: true,
-                          itemCount: _products.length,
-                          itemBuilder: (context, index) {
-                            final product = _products[index];
-                            final productId = (product['prodId'] as num?)?.toInt();
-                            if (productId == null) return const SizedBox.shrink();
-                            final checked = assigned.contains(productId);
-                            final primary = defaults.contains(productId);
-                            return CheckboxListTile(
-                              dense: true,
-                              value: checked,
-                              onChanged: saving
+                      ),
+                      const SizedBox(height: 10),
+                      TextField(
+                        controller: phone,
+                        enabled: !saving,
+                        keyboardType: TextInputType.phone,
+                        decoration: const InputDecoration(
+                          labelText: 'WhatsApp',
+                          hintText: '573001234567',
+                        ),
+                      ),
+                      const SizedBox(height: 14),
+                      Row(
+                        children: [
+                          const Expanded(
+                            child: Text(
+                              'Productos asociados',
+                              style: TextStyle(fontWeight: FontWeight.w900),
+                            ),
+                          ),
+                          Text(
+                            assigned.length.toString() + ' seleccionados',
+                            style: const TextStyle(fontSize: 11),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 8),
+                      LayoutBuilder(
+                        builder: (context, constraints) {
+                          final searchField = TextField(
+                            controller: search,
+                            enabled: !saving,
+                            onChanged: (_) => setLocal(() {}),
+                            decoration: InputDecoration(
+                              labelText: 'Buscar producto',
+                              hintText: 'Nombre o descripción',
+                              prefixIcon: const Icon(Icons.search_rounded),
+                              suffixIcon: search.text.isEmpty
                                   ? null
-                                  : (value) {
-                                      setLocal(() {
-                                        if (value == true) {
-                                          assigned.add(productId);
-                                        } else {
-                                          assigned.remove(productId);
-                                          defaults.remove(productId);
-                                        }
-                                      });
-                                    },
-                              title: Text(product['prodNombre']?.toString() ?? 'Producto'),
-                              subtitle: Text(primary ? 'WhatsApp predeterminado' : 'Proveedor disponible'),
-                              secondary: IconButton(
-                                tooltip: primary
-                                    ? 'Quitar predeterminado'
-                                    : 'Marcar predeterminado',
-                                onPressed: saving || !checked
-                                    ? null
-                                    : () {
-                                        setLocal(() {
-                                          if (primary) {
-                                            defaults.remove(productId);
-                                          } else {
-                                            defaults.add(productId);
-                                          }
-                                        });
+                                  : IconButton(
+                                      tooltip: 'Limpiar búsqueda',
+                                      onPressed: () {
+                                        search.clear();
+                                        setLocal(() {});
                                       },
-                                icon: Icon(
-                                  primary
-                                      ? Icons.star_rounded
-                                      : Icons.star_border_rounded,
-                                ),
+                                      icon: const Icon(Icons.close_rounded),
+                                    ),
+                            ),
+                          );
+                          final typeField = DropdownButtonFormField<int>(
+                            value: selectedTypeId,
+                            isExpanded: true,
+                            decoration: const InputDecoration(
+                              labelText: 'Tipo de producto',
+                              prefixIcon: Icon(Icons.category_outlined),
+                            ),
+                            items: [
+                              const DropdownMenuItem<int>(
+                                value: 0,
+                                child: Text('Todos los tipos'),
                               ),
+                              for (final entry in typeNames.entries)
+                                DropdownMenuItem<int>(
+                                  value: entry.key,
+                                  child: Text(
+                                    entry.value,
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                  ),
+                                ),
+                            ],
+                            onChanged: saving
+                                ? null
+                                : (value) =>
+                                    setLocal(() => selectedTypeId = value ?? 0),
+                          );
+                          if (constraints.maxWidth < 520) {
+                            return Column(
+                              children: [
+                                searchField,
+                                const SizedBox(height: 8),
+                                typeField,
+                              ],
                             );
-                          },
+                          }
+                          return Row(
+                            children: [
+                              Expanded(flex: 3, child: searchField),
+                              const SizedBox(width: 8),
+                              Expanded(flex: 2, child: typeField),
+                            ],
+                          );
+                        },
+                      ),
+                      const SizedBox(height: 8),
+                      Flexible(
+                        child: Container(
+                          decoration: BoxDecoration(
+                            border: Border.all(color: Theme.of(context).dividerColor),
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          child: filteredProducts.isEmpty
+                              ? const Center(
+                                  child: Padding(
+                                    padding: EdgeInsets.all(20),
+                                    child: Text(
+                                      'No hay productos que coincidan con los filtros.',
+                                      textAlign: TextAlign.center,
+                                    ),
+                                  ),
+                                )
+                              : ListView.builder(
+                                  itemCount: filteredProducts.length,
+                                  itemBuilder: (context, index) {
+                                    final product = filteredProducts[index];
+                                    final productId =
+                                        (product['prodId'] as num?)?.toInt();
+                                    if (productId == null) {
+                                      return const SizedBox.shrink();
+                                    }
+                                    final checked = assigned.contains(productId);
+                                    final primary = defaults.contains(productId);
+                                    final owner = assignedElsewhere[productId];
+                                    final locked = owner != null;
+                                    final productTypeId =
+                                        (product['tpprId'] as num?)?.toInt();
+                                    final typeName = productTypeId == null
+                                        ? null
+                                        : typeNames[productTypeId];
+
+                                    return CheckboxListTile(
+                                      dense: true,
+                                      value: checked,
+                                      onChanged: saving || locked
+                                          ? null
+                                          : (value) {
+                                              setLocal(() {
+                                                if (value == true) {
+                                                  assigned.add(productId);
+                                                  defaults.add(productId);
+                                                } else {
+                                                  assigned.remove(productId);
+                                                  defaults.remove(productId);
+                                                }
+                                              });
+                                            },
+                                      title: Text(
+                                        product['prodNombre']?.toString() ??
+                                            'Producto',
+                                      ),
+                                      subtitle: Text(
+                                        locked
+                                            ? 'Asignado a ' + owner
+                                            : [
+                                                if (typeName != null) typeName,
+                                                primary
+                                                    ? 'Proveedor predeterminado'
+                                                    : 'Disponible',
+                                              ].join(' · '),
+                                      ),
+                                      secondary: locked
+                                          ? Tooltip(
+                                              message:
+                                                  'Este producto ya pertenece a ' +
+                                                      owner,
+                                              child: const Icon(
+                                                Icons.lock_outline_rounded,
+                                              ),
+                                            )
+                                          : Icon(
+                                              primary
+                                                  ? Icons.star_rounded
+                                                  : Icons.inventory_2_outlined,
+                                            ),
+                                    );
+                                  },
+                                ),
                         ),
                       ),
-                    ),
-                    const SizedBox(height: 8),
-                    const Text(
-                      'Un producto puede tener varios proveedores. Solo uno puede quedar como predeterminado.',
-                      style: TextStyle(fontSize: 11),
-                    ),
-                  ],
+                      const SizedBox(height: 8),
+                      const Text(
+                        'Cada producto solo puede estar asignado a un proveedor. '
+                        'Los productos ya asignados aparecen bloqueados indicando su proveedor actual.',
+                        style: TextStyle(fontSize: 11),
+                      ),
+                    ],
+                  ),
                 ),
               ),
-            ),
-            actions: [
-              TextButton(
-                onPressed: saving ? null : () => Navigator.pop(dialogContext, false),
-                child: const Text('Cancelar'),
-              ),
-              FilledButton.icon(
-                onPressed: saving
-                    ? null
-                    : () async {
-                        if (name.text.trim().isEmpty || phone.text.trim().isEmpty) {
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            const SnackBar(content: Text('Completa nombre y WhatsApp.')),
-                          );
-                          return;
-                        }
-                        setLocal(() => saving = true);
-                        try {
-                          final body = <String, dynamic>{
-                            'sucuId': branchId,
-                            'nombre': name.text.trim(),
-                            'whatsapp': phone.text.trim(),
-                            'productoIds': assigned.toList()..sort(),
-                            'productoIdsPredeterminados': defaults.toList()..sort(),
-                          };
-                          final api = ref.read(apiClientProvider);
-                          if (current == null) {
-                            await api.post<Map<String, dynamic>>(
-                              '/api/v1/pedidos-compra/destinos',
-                              body,
-                              (json) => json is Map
-                                  ? Map<String, dynamic>.from(json)
-                                  : <String, dynamic>{},
-                            );
-                          } else {
-                            final id = (current['id'] as num?)?.toInt();
-                            await api.put<Map<String, dynamic>>(
-                              '/api/v1/pedidos-compra/destinos/' + id.toString(),
-                              body,
-                              (json) => json is Map
-                                  ? Map<String, dynamic>.from(json)
-                                  : <String, dynamic>{},
-                            );
-                          }
-                          if (dialogContext.mounted) {
-                            Navigator.pop(dialogContext, true);
-                          }
-                        } catch (error) {
-                          setLocal(() => saving = false);
-                          if (context.mounted) {
+              actions: [
+                TextButton(
+                  onPressed:
+                      saving ? null : () => Navigator.pop(dialogContext, false),
+                  child: const Text('Cancelar'),
+                ),
+                FilledButton.icon(
+                  onPressed: saving
+                      ? null
+                      : () async {
+                          if (name.text.trim().isEmpty ||
+                              phone.text.trim().isEmpty) {
                             ScaffoldMessenger.of(context).showSnackBar(
-                              SnackBar(
-                                content: Text('No fue posible guardar: ' + error.toString()),
+                              const SnackBar(
+                                content: Text('Completa nombre y WhatsApp.'),
                               ),
                             );
+                            return;
                           }
-                        }
-                      },
-                icon: saving
-                    ? const SizedBox.square(
-                        dimension: 16,
-                        child: CircularProgressIndicator(strokeWidth: 2),
-                      )
-                    : const Icon(Icons.save_rounded),
-                label: Text(saving ? 'Guardando' : 'Guardar'),
-              ),
-            ],
-          ),
+                          setLocal(() => saving = true);
+                          try {
+                            final body = <String, dynamic>{
+                              'sucuId': branchId,
+                              'nombre': name.text.trim(),
+                              'whatsapp': phone.text.trim(),
+                              'productoIds': assigned.toList()..sort(),
+                              'productoIdsPredeterminados':
+                                  assigned.toList()..sort(),
+                            };
+                            final api = ref.read(apiClientProvider);
+                            if (current == null) {
+                              await api.post<Map<String, dynamic>>(
+                                '/api/v1/pedidos-compra/destinos',
+                                body,
+                                (json) => json is Map
+                                    ? Map<String, dynamic>.from(json)
+                                    : <String, dynamic>{},
+                              );
+                            } else {
+                              final id = (current['id'] as num?)?.toInt();
+                              await api.put<Map<String, dynamic>>(
+                                '/api/v1/pedidos-compra/destinos/' +
+                                    id.toString(),
+                                body,
+                                (json) => json is Map
+                                    ? Map<String, dynamic>.from(json)
+                                    : <String, dynamic>{},
+                              );
+                            }
+                            if (dialogContext.mounted) {
+                              Navigator.pop(dialogContext, true);
+                            }
+                          } catch (error) {
+                            setLocal(() => saving = false);
+                            if (context.mounted) {
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                SnackBar(
+                                  content: Text(
+                                    'No fue posible guardar: ' +
+                                        error.toString(),
+                                  ),
+                                ),
+                              );
+                            }
+                          }
+                        },
+                  icon: saving
+                      ? const SizedBox.square(
+                          dimension: 16,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        )
+                      : const Icon(Icons.save_rounded),
+                  label: Text(saving ? 'Guardando' : 'Guardar'),
+                ),
+              ],
+            );
+          },
         ),
       );
       if (saved == true && mounted) await _reload();
     } finally {
       name.dispose();
       phone.dispose();
+      search.dispose();
     }
   }
 
@@ -878,7 +1097,9 @@ class _PedidosCompraPageState extends ConsumerState<PedidosCompraPage> {
   ) {
     final id = (order['pediId'] as num?)?.toInt();
     final details = _maps(order['detalles']);
-    final busy = id != null && _receiving.contains(id);
+    final receiving = id != null && _receiving.contains(id);
+    final deleting = id != null && _deleting.contains(id);
+    final busy = receiving || deleting;
     final provider =
         order['destinoNombre']?.toString().trim().isNotEmpty == true
             ? order['destinoNombre'].toString()
@@ -1061,21 +1282,47 @@ class _PedidosCompraPageState extends ConsumerState<PedidosCompraPage> {
             ],
           ),
           const SizedBox(height: 12),
-          FilledButton.icon(
-            onPressed: busy || id == null ? null : () => _receive(order),
-            style: FilledButton.styleFrom(
-              minimumSize: const Size.fromHeight(44),
-            ),
-            icon: busy
-                ? const SizedBox.square(
-                    dimension: 16,
-                    child: CircularProgressIndicator(strokeWidth: 2),
-                  )
-                : const Icon(Icons.inventory_rounded),
-            label: Text(
-              busy ? 'Recibiendo...' : 'Recibir y actualizar stock',
-              style: const TextStyle(fontWeight: FontWeight.w900),
-            ),
+          Row(
+            children: [
+              Expanded(
+                child: OutlinedButton.icon(
+                  onPressed: busy || id == null ? null : () => _deleteOrder(order),
+                  style: OutlinedButton.styleFrom(
+                    minimumSize: const Size.fromHeight(44),
+                  ),
+                  icon: deleting
+                      ? const SizedBox.square(
+                          dimension: 16,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        )
+                      : const Icon(Icons.delete_outline_rounded),
+                  label: Text(
+                    deleting ? 'Eliminando...' : 'Eliminar',
+                    style: const TextStyle(fontWeight: FontWeight.w900),
+                  ),
+                ),
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                flex: 2,
+                child: FilledButton.icon(
+                  onPressed: busy || id == null ? null : () => _receive(order),
+                  style: FilledButton.styleFrom(
+                    minimumSize: const Size.fromHeight(44),
+                  ),
+                  icon: receiving
+                      ? const SizedBox.square(
+                          dimension: 16,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        )
+                      : const Icon(Icons.inventory_rounded),
+                  label: Text(
+                    receiving ? 'Recibiendo...' : 'Recibir y actualizar stock',
+                    style: const TextStyle(fontWeight: FontWeight.w900),
+                  ),
+                ),
+              ),
+            ],
           ),
         ],
       ),
