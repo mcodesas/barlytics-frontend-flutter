@@ -23,6 +23,7 @@ import '../../../../core/widgets/app_scaffold.dart';
 import '../../../../core/widgets/tech_background.dart';
 import '../../../auth/presentation/providers/auth_provider.dart';
 import '../../../navigation/presentation/providers/active_role_provider.dart';
+import '../../../navigation/presentation/providers/user_menu_provider.dart';
 import '../../data/datasources/mesero_remote_datasource.dart';
 import '../../data/models/mesero_models.dart';
 import '../providers/mesero_tab_provider.dart';
@@ -931,9 +932,19 @@ class _MeseroPageState extends ConsumerState<MeseroPage> {
         if (snapshot.hasError) return AppErrorView(message: snapshot.error.toString(), onRetry: _reload);
 
         final isCajero = _isCajeroOperativo();
-        final selectedMode = !isCajero && (rawSelectedMode == MeseroPageMode.historial || rawSelectedMode == MeseroPageMode.cierreCaja)
-            ? MeseroPageMode.resumen
-            : rawSelectedMode;
+        final authorizedKeys = ref.watch(userMenuProvider).maybeWhen(
+              data: (items) => items.map((item) => item.keyName).toSet(),
+              orElse: () => const <String>{},
+            );
+        final canViewHistory =
+            isCajero || authorizedKeys.contains('historial_ventas');
+        final canCloseCash =
+            isCajero || authorizedKeys.contains('cierre_caja');
+        final selectedMode =
+            (rawSelectedMode == MeseroPageMode.historial && !canViewHistory) ||
+                    (rawSelectedMode == MeseroPageMode.cierreCaja && !canCloseCash)
+                ? MeseroPageMode.resumen
+                : rawSelectedMode;
 
         if (selectedMode != rawSelectedMode) {
           WidgetsBinding.instance.addPostFrameCallback((_) {
