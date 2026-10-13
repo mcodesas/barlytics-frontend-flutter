@@ -4613,6 +4613,8 @@ class _MeseroPageState extends ConsumerState<MeseroPage> {
       ScrollController? scrollController,
     }) {
       final size = MediaQuery.sizeOf(overlayContext);
+      final keyboardInset = MediaQuery.viewInsetsOf(overlayContext).bottom;
+      final keyboardVisible = keyboardInset > 0;
       final compact = mobileSheet || size.width < 760;
       final diferencia = diferenciaActual();
       final diferenciaColor = diferencia.abs() < 0.01 ? AppColors.success : AppColors.danger;
@@ -5041,6 +5043,28 @@ class _MeseroPageState extends ConsumerState<MeseroPage> {
                       return Column(
                         crossAxisAlignment: CrossAxisAlignment.stretch,
                         children: [
+                          if (keyboardVisible) ...[
+                            Row(
+                              children: [
+                                Expanded(
+                                  child: Text(
+                                    'Teclado activo',
+                                    style: TextStyle(
+                                      color: palette.textSecondary,
+                                      fontWeight: FontWeight.w700,
+                                      fontSize: 12,
+                                    ),
+                                  ),
+                                ),
+                                TextButton.icon(
+                                  onPressed: () => FocusManager.instance.primaryFocus?.unfocus(),
+                                  icon: const Icon(Icons.keyboard_hide_rounded, size: 18),
+                                  label: const Text('Listo'),
+                                ),
+                              ],
+                            ),
+                            const SizedBox(height: 6),
+                          ],
                           summaryContent(constraints.maxWidth),
                           const SizedBox(height: 11),
                           Row(
@@ -5055,7 +5079,10 @@ class _MeseroPageState extends ConsumerState<MeseroPage> {
                               Expanded(
                                 flex: 2,
                                 child: FilledButton.icon(
-                                  onPressed: () => Navigator.pop(overlayContext, true),
+                                  onPressed: () {
+                                    FocusManager.instance.primaryFocus?.unfocus();
+                                    Navigator.pop(overlayContext, true);
+                                  },
                                   icon: Icon(esModificacion ? Icons.save_rounded : Icons.lock_rounded),
                                   label: Text(esModificacion ? 'Guardar cambios' : 'Confirmar cierre'),
                                 ),
@@ -5119,19 +5146,25 @@ class _MeseroPageState extends ConsumerState<MeseroPage> {
         builder: (sheetContext) {
           return StatefulBuilder(
             builder: (context, setDialogState) {
-              return DraggableScrollableSheet(
-                expand: false,
-                initialChildSize: 0.94,
-                minChildSize: 0.72,
-                maxChildSize: 0.98,
-                builder: (context, scrollController) {
-                  return buildConteoSurface(
-                    sheetContext,
-                    setDialogState,
-                    mobileSheet: true,
-                    scrollController: scrollController,
-                  );
-                },
+              final keyboardInset = MediaQuery.viewInsetsOf(sheetContext).bottom;
+              return AnimatedPadding(
+                duration: const Duration(milliseconds: 180),
+                curve: Curves.easeOutCubic,
+                padding: EdgeInsets.only(bottom: keyboardInset),
+                child: DraggableScrollableSheet(
+                  expand: false,
+                  initialChildSize: keyboardInset > 0 ? 1.0 : 0.94,
+                  minChildSize: keyboardInset > 0 ? 0.86 : 0.72,
+                  maxChildSize: 1.0,
+                  builder: (context, scrollController) {
+                    return buildConteoSurface(
+                      sheetContext,
+                      setDialogState,
+                      mobileSheet: true,
+                      scrollController: scrollController,
+                    );
+                  },
+                ),
               );
             },
           );
