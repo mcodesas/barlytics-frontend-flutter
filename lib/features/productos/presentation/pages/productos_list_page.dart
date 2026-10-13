@@ -809,7 +809,7 @@ class _ProductosHeader extends StatelessWidget {
             ),
             const SizedBox(width: 8),
             SizedBox(
-              width: 122,
+              width: 154,
               child: _ViewSelector(
                 viewMode: viewMode,
                 palette: palette,
@@ -884,7 +884,7 @@ class _ProductosHeader extends StatelessWidget {
             ),
             const SizedBox(width: 10),
             SizedBox(
-              width: 176,
+              width: 246,
               child: _ViewSelector(
                 viewMode: viewMode,
                 palette: palette,
@@ -2101,7 +2101,7 @@ class _ProductosResults extends StatelessWidget {
     required this.tipos,
     required this.sucursales,
     required this.palette,
-    required this.gridView,
+    required this.viewMode,
     required this.onDelete,
     required this.onRegisterMovement,
     required this.onUpdateProduct,
@@ -2117,7 +2117,7 @@ class _ProductosResults extends StatelessWidget {
   final List<TiposProductoResponseModel> tipos;
   final List<SucursalesResponseModel> sucursales;
   final AppPalette palette;
-  final bool gridView;
+  final _ProductViewMode viewMode;
   final ValueChanged<Object> onDelete;
   final Future<bool> Function(ProductosResponseModel item, _QuickMovementDraft draft) onRegisterMovement;
   final Future<bool> Function(ProductosResponseModel item, Map<String, dynamic> body) onUpdateProduct;
@@ -2238,6 +2238,167 @@ class _ProductosResults extends StatelessWidget {
       _firstOrNull(values.where((element) => element.sucuId == item.sucuId))?.sucuNombre ?? 'Sucursal ${item.sucuId ?? '-'}';
 }
 
+
+class _ProductsTableView extends StatelessWidget {
+  const _ProductsTableView({
+    required this.items,
+    required this.marcas,
+    required this.tipos,
+    required this.sucursales,
+    required this.palette,
+    required this.allowProductManagement,
+    required this.selectedProductIds,
+    required this.onSelectionChanged,
+    required this.onDelete,
+  });
+
+  final List<ProductosResponseModel> items;
+  final List<MarcasResponseModel> marcas;
+  final List<TiposProductoResponseModel> tipos;
+  final List<SucursalesResponseModel> sucursales;
+  final AppPalette palette;
+  final bool allowProductManagement;
+  final Set<int> selectedProductIds;
+  final void Function(int id, bool selected) onSelectionChanged;
+  final ValueChanged<Object> onDelete;
+
+  @override
+  Widget build(BuildContext context) {
+    String brandName(ProductosResponseModel item) =>
+        _firstOrNull(marcas.where((value) => value.mrcaId == item.mrcaId))
+            ?.mrcaNombre ??
+        '-';
+    String typeName(ProductosResponseModel item) =>
+        _firstOrNull(tipos.where((value) => value.tpprId == item.tpprId))
+            ?.tpprNombre ??
+        '-';
+    String branchName(ProductosResponseModel item) =>
+        _firstOrNull(sucursales.where((value) => value.sucuId == item.sucuId))
+            ?.sucuNombre ??
+        'Sucursal ${item.sucuId ?? '-'}';
+
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 16, 16, 100),
+      child: Container(
+        decoration: BoxDecoration(
+          color: palette.surface.withOpacity(palette.darkBackground ? .94 : .99),
+          borderRadius: BorderRadius.circular(22),
+          border: Border.all(color: palette.cardBorder),
+          boxShadow: [
+            BoxShadow(
+              color: palette.cardShadow.withOpacity(.16),
+              blurRadius: 18,
+              offset: const Offset(0, 8),
+            ),
+          ],
+        ),
+        child: ClipRRect(
+          borderRadius: BorderRadius.circular(22),
+          child: SingleChildScrollView(
+            scrollDirection: Axis.horizontal,
+            child: DataTable(
+              headingRowHeight: 50,
+              dataRowMinHeight: 54,
+              dataRowMaxHeight: 66,
+              horizontalMargin: 14,
+              columnSpacing: 22,
+              columns: [
+                if (allowProductManagement)
+                  const DataColumn(label: Text('')),
+                const DataColumn(label: Text('Producto')),
+                const DataColumn(label: Text('Tipo')),
+                const DataColumn(label: Text('Marca')),
+                const DataColumn(label: Text('Cantidad'), numeric: true),
+                const DataColumn(label: Text('Unidad')),
+                const DataColumn(label: Text('Precio compra'), numeric: true),
+                const DataColumn(label: Text('Precio venta'), numeric: true),
+                const DataColumn(label: Text('Sucursal')),
+                if (allowProductManagement)
+                  const DataColumn(label: Text('Acciones')),
+              ],
+              rows: items.map((item) {
+                final id = item.prodId;
+                final selected =
+                    id != null && selectedProductIds.contains(id);
+                return DataRow(
+                  selected: selected,
+                  cells: [
+                    if (allowProductManagement)
+                      DataCell(
+                        id == null
+                            ? const SizedBox.shrink()
+                            : Checkbox(
+                                value: selected,
+                                onChanged: (value) =>
+                                    onSelectionChanged(id, value ?? false),
+                              ),
+                      ),
+                    DataCell(
+                      ConstrainedBox(
+                        constraints: const BoxConstraints(maxWidth: 260),
+                        child: Text(
+                          item.prodNombre ?? 'Producto ${item.prodId ?? '-'}',
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                          style: TextStyle(
+                            color: palette.textPrimary,
+                            fontWeight: FontWeight.w800,
+                          ),
+                        ),
+                      ),
+                    ),
+                    DataCell(Text(typeName(item))),
+                    DataCell(Text(brandName(item))),
+                    DataCell(
+                      Text(
+                        _formatNumber(item.inventarioActual ?? 0),
+                        style: TextStyle(
+                          color: palette.textPrimary,
+                          fontWeight: FontWeight.w900,
+                        ),
+                      ),
+                    ),
+                    DataCell(Text(item.prodUnidadBase ?? 'UND')),
+                    DataCell(Text(_tableMoney(item.precioCompraVigente))),
+                    DataCell(
+                      Text(
+                        _tableMoney(item.precioVentaVigente),
+                        style: TextStyle(
+                          color: palette.secondary,
+                          fontWeight: FontWeight.w900,
+                        ),
+                      ),
+                    ),
+                    DataCell(Text(branchName(item))),
+                    if (allowProductManagement)
+                      DataCell(
+                        Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            IconButton(
+                              tooltip: 'Ver detalle',
+                              onPressed:
+                                  id == null ? null : () => context.go('/productos/$id'),
+                              icon: const Icon(Icons.visibility_outlined),
+                            ),
+                            IconButton(
+                              tooltip: 'Eliminar o inactivar',
+                              onPressed: id == null ? null : () => onDelete(id),
+                              icon: const Icon(Icons.delete_outline_rounded),
+                            ),
+                          ],
+                        ),
+                      ),
+                  ],
+                );
+              }).toList(growable: false),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
 
 class _SimpleProductoTile extends StatelessWidget {
   const _SimpleProductoTile({
@@ -5949,6 +6110,18 @@ bool _expiresWithinDays(String? value, int days) {
 DateTime? _parseDate(String? value) {
   if (value == null || value.trim().isEmpty) return null;
   return DateTime.tryParse(value.trim());
+}
+
+String _tableMoney(num? value) {
+  if (value == null) return '-';
+  final rounded = value.round().toString();
+  final buffer = StringBuffer();
+  for (var index = 0; index < rounded.length; index++) {
+    final remaining = rounded.length - index;
+    buffer.write(rounded[index]);
+    if (remaining > 1 && remaining % 3 == 1) buffer.write('.');
+  }
+  return '\${buffer.toString()}';
 }
 
 String _formatNumber(num? value) {
