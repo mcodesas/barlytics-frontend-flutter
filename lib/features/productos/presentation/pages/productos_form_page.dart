@@ -971,6 +971,14 @@ class _ProductosFormPageState extends ConsumerState<ProductosFormPage> {
       _SummaryRow('Tipo de producto', tipoNombre),
       _SummaryRow('Marca', marcaNombre),
       _SummaryRow(
+        'Preparación',
+        _tipoControl == 'PREPARADO'
+            ? 'Producto preparado · ${_estacionPreparacion == 'BARRA' ? 'Barra' : 'Cocina'}'
+            : _tipoControl == 'INSUMO'
+                ? 'Ingrediente / insumo'
+                : 'Producto normal',
+      ),
+      _SummaryRow(
         'Fecha de vencimiento',
         _fechaVencimientoController.text.trim().isEmpty ? 'No registrada' : _fechaVencimientoController.text,
       ),
