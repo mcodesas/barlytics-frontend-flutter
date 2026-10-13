@@ -285,6 +285,7 @@ class _ProductosFormPageState extends ConsumerState<ProductosFormPage> {
                                     palette,
                                     tiposState.items,
                                     marcasState.items,
+                                    productosState.items,
                                     sucursalNombre,
                                   ),
                                   _buildPriceStep(palette),
@@ -364,6 +365,7 @@ class _ProductosFormPageState extends ConsumerState<ProductosFormPage> {
     AppPalette palette,
     List<TiposProductoResponseModel> tipos,
     List<MarcasResponseModel> marcas,
+    List<ProductosResponseModel> productos,
     String sucursalNombre,
   ) {
     return Form(
@@ -440,6 +442,30 @@ class _ProductosFormPageState extends ConsumerState<ProductosFormPage> {
                 itemLabel: (item) => item.mrcaNombre ?? 'Marca ${item.mrcaId ?? '-'}',
                 onChanged: (value) => setState(() => _marcaId = value),
                 onCreate: () => _createMarca(palette),
+              ),
+              const SizedBox(height: 18),
+              _GastroControlSection(
+                palette: palette,
+                tipoControl: _tipoControl,
+                unidadBase: _unidadBase,
+                ingredientes: _gastroIngredientes,
+                adiciones: _gastroAdiciones,
+                onTipoChanged: (value) => setState(() {
+                  _tipoControl = value;
+                  if (value != 'PREPARADO') {
+                    _gastroIngredientes.clear();
+                    _gastroAdiciones.clear();
+                  }
+                }),
+                onUnidadChanged: (value) => setState(() => _unidadBase = value),
+                onAddIngredient: _tipoControl == 'PREPARADO'
+                    ? () => _addGastroIngredient(productos)
+                    : null,
+                onAddAddition: _tipoControl == 'PREPARADO'
+                    ? () => _addGastroAddition(productos)
+                    : null,
+                onRemoveIngredient: (index) => setState(() => _gastroIngredientes.removeAt(index)),
+                onRemoveAddition: (index) => setState(() => _gastroAdiciones.removeAt(index)),
               ),
             ],
           );
