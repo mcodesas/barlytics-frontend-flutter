@@ -453,7 +453,7 @@ class _PedidosCompraPageState extends ConsumerState<PedidosCompraPage> {
         body: TechBackground(
           child: SafeArea(
             child: Padding(
-              padding: EdgeInsets.all(palette.pagePadding),
+              padding: palette.pagePadding,
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
