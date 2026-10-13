@@ -70,6 +70,7 @@ class _ProductosFormPageState extends ConsumerState<ProductosFormPage> {
   bool _gastroLoaded = false;
   String _tipoControl = 'NORMAL';
   String _unidadBase = 'UND';
+  String _estacionPreparacion = 'COCINA';
   final List<_GastroIngredientDraft> _gastroIngredientes = <_GastroIngredientDraft>[];
   final List<_GastroAdditionDraft> _gastroAdiciones = <_GastroAdditionDraft>[];
   double? _originalValorCompra;
@@ -142,6 +143,8 @@ class _ProductosFormPageState extends ConsumerState<ProductosFormPage> {
       setState(() {
         _tipoControl = (data['tipoControl']?.toString() ?? 'NORMAL').toUpperCase();
         _unidadBase = (data['unidadBase']?.toString() ?? 'UND').toUpperCase();
+        _estacionPreparacion =
+            (data['estacionPreparacion']?.toString() ?? 'COCINA').toUpperCase();
         _gastroIngredientes
           ..clear()
           ..addAll(ingredientes);
@@ -448,6 +451,7 @@ class _ProductosFormPageState extends ConsumerState<ProductosFormPage> {
                 palette: palette,
                 tipoControl: _tipoControl,
                 unidadBase: _unidadBase,
+                estacionPreparacion: _estacionPreparacion,
                 ingredientes: _gastroIngredientes,
                 adiciones: _gastroAdiciones,
                 onTipoChanged: (value) => setState(() {
@@ -458,6 +462,8 @@ class _ProductosFormPageState extends ConsumerState<ProductosFormPage> {
                   }
                 }),
                 onUnidadChanged: (value) => setState(() => _unidadBase = value),
+                onEstacionChanged: (value) =>
+                    setState(() => _estacionPreparacion = value),
                 onAddIngredient: _tipoControl == 'PREPARADO'
                     ? () => _addGastroIngredient(productos)
                     : null,
@@ -1442,6 +1448,8 @@ class _ProductosFormPageState extends ConsumerState<ProductosFormPage> {
         <String, dynamic>{
           'tipoControl': _tipoControl,
           'unidadBase': _unidadBase,
+          'estacionPreparacion':
+              _tipoControl == 'PREPARADO' ? _estacionPreparacion : null,
           'ingredientes': _tipoControl == 'PREPARADO'
               ? _gastroIngredientes.map((item) => item.toJson()).toList()
               : const <Map<String, dynamic>>[],
@@ -2738,10 +2746,12 @@ class _GastroControlSection extends StatelessWidget {
     required this.palette,
     required this.tipoControl,
     required this.unidadBase,
+    required this.estacionPreparacion,
     required this.ingredientes,
     required this.adiciones,
     required this.onTipoChanged,
     required this.onUnidadChanged,
+    required this.onEstacionChanged,
     required this.onAddIngredient,
     required this.onAddAddition,
     required this.onRemoveIngredient,
@@ -2751,10 +2761,12 @@ class _GastroControlSection extends StatelessWidget {
   final AppPalette palette;
   final String tipoControl;
   final String unidadBase;
+  final String estacionPreparacion;
   final List<_GastroIngredientDraft> ingredientes;
   final List<_GastroAdditionDraft> adiciones;
   final ValueChanged<String> onTipoChanged;
   final ValueChanged<String> onUnidadChanged;
+  final ValueChanged<String> onEstacionChanged;
   final VoidCallback? onAddIngredient;
   final VoidCallback? onAddAddition;
   final ValueChanged<int> onRemoveIngredient;
@@ -2849,6 +2861,29 @@ class _GastroControlSection extends StatelessWidget {
             },
           ),
           if (prepared) ...[
+            const SizedBox(height: 14),
+            DropdownButtonFormField<String>(
+              value: estacionPreparacion,
+              isExpanded: true,
+              decoration: const InputDecoration(
+                labelText: 'Estación de preparación',
+                prefixIcon: Icon(Icons.room_service_rounded),
+                helperText: 'Define a qué tablero llegará este producto cuando se ordene.',
+              ),
+              items: const [
+                DropdownMenuItem(
+                  value: 'COCINA',
+                  child: Text('Cocina'),
+                ),
+                DropdownMenuItem(
+                  value: 'BARRA',
+                  child: Text('Barra'),
+                ),
+              ],
+              onChanged: (value) {
+                if (value != null) onEstacionChanged(value);
+              },
+            ),
             const SizedBox(height: 18),
             Row(
               children: [
