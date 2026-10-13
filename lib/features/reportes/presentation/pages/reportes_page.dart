@@ -2,6 +2,7 @@ import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 import 'package:url_launcher/url_launcher.dart';
 
@@ -4004,6 +4005,9 @@ class _NextOrderContentState extends ConsumerState<_NextOrderContent> {
   double _confirmedBalance = 0;
   String? _confirmedPaymentStatus;
   List<Map<String, dynamic>> _confirmedRows = const <Map<String, dynamic>>[];
+  List<Map<String, dynamic>> _confirmedOrders = const <Map<String, dynamic>>[];
+  List<Map<String, dynamic>> _orderDestinations = const <Map<String, dynamic>>[];
+  final Map<int, int?> _selectedDestinationByProduct = <int, int?>{};
   Future<List<Map<String, dynamic>>>? _orderHistoryFuture;
   int? _orderHistoryBranchId;
 
@@ -4012,7 +4016,9 @@ class _NextOrderContentState extends ConsumerState<_NextOrderContent> {
     super.initState();
     _initializeSelection();
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (mounted) _refreshOrderHistory();
+      if (!mounted) return;
+      _refreshOrderHistory();
+      _loadOrderDestinations();
     });
   }
 
@@ -4022,7 +4028,9 @@ class _NextOrderContentState extends ConsumerState<_NextOrderContent> {
     if (!identical(oldWidget.payload.rows, widget.payload.rows)) {
       _initializeSelection();
       WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (mounted) _refreshOrderHistory();
+        if (!mounted) return;
+        _refreshOrderHistory();
+        _loadOrderDestinations();
       });
     }
   }
@@ -4051,6 +4059,7 @@ class _NextOrderContentState extends ConsumerState<_NextOrderContent> {
     _confirmedBalance = 0;
     _confirmedPaymentStatus = null;
     _confirmedRows = const <Map<String, dynamic>>[];
+    _confirmedOrders = const <Map<String, dynamic>>[];
   }
 
   int? _productId(Map<String, dynamic> row) =>
@@ -4179,6 +4188,7 @@ class _NextOrderContentState extends ConsumerState<_NextOrderContent> {
       _confirmedOrderId = null;
       _confirmedWhatsapp = null;
       _confirmedRows = const <Map<String, dynamic>>[];
+      _confirmedOrders = const <Map<String, dynamic>>[];
     });
   }
 
@@ -4227,9 +4237,7 @@ class _NextOrderContentState extends ConsumerState<_NextOrderContent> {
   }
 
   List<Map<String, dynamic>> get _effectiveOrderRows =>
-      _confirmedOrderId != null && _confirmedRows.isNotEmpty
-          ? _confirmedRows
-          : _selectedRows;
+      _confirmedRows.isNotEmpty ? _confirmedRows : _selectedRows;
 
   List<Map<String, dynamic>> _confirmedDetailsToRows(Object? raw) {
     if (raw is! List) return const <Map<String, dynamic>>[];
@@ -4268,6 +4276,168 @@ class _NextOrderContentState extends ConsumerState<_NextOrderContent> {
         'unidades': _sum(rows, 'unidades_pedir'),
         'total_estimado': _sum(rows, 'costo_pedido_estimado'),
       };
+
+  Future<void> _loadOrderDestinations() async {
+    final branchId = ref.read(branchScopeProvider).activeBranchId;
+    if (branchId == null) {
+      if (mounted) {
+        setState(() {
+          _orderDestinations = const <Map<String, dynamic>>[];
+          _selectedDestinationByProduct.clear();
+        });
+      }
+      return;
+    }
+
+    try {
+      final response = await ref.read(apiClientProvider).get<Object?>(
+            '/api/v1/pedidos-compra/destinos',
+            (json) => json,
+            queryParameters: <String, dynamic>{'sucursalId': branchId},
+          );
+      final raw = response.data;
+      final destinations = raw is List
+          ? raw
+              .whereType<Map>()
+              .map((item) => Map<String, dynamic>.from(item))
+              .toList(growable: false)
+          : const <Map<String, dynamic>>[];
+
+      final defaults = <int, int?>{};
+      for (final destination in destinations) {
+        final destinationId = (destination['id'] as num?)?.toInt();
+        final products = destination['productoIdsPredeterminados'];
+        if (destinationId == null || products is! List) continue;
+        for (final product in products.whereType<num>()) {
+          defaults[product.toInt()] = destinationId;
+        }
+      }
+
+      if (!mounted) return;
+      setState(() {
+        _orderDestinations = destinations;
+        for (final entry in defaults.entries) {
+          _selectedDestinationByProduct.putIfAbsent(
+            entry.key,
+            () => entry.value,
+          );
+        }
+      });
+    } catch (_) {
+      // La ausencia temporal de proveedores no debe impedir crear el pedido;
+      // se conserva el WhatsApp general como fallback.
+    }
+  }
+
+  Future<Map<int, int?>?> _chooseOrderDestinations(
+    List<Map<String, dynamic>> rows,
+  ) async {
+    if (_orderDestinations.isEmpty) {
+      return <int, int?>{
+        for (final row in rows)
+          if (_productId(row) != null) _productId(row)!: null,
+      };
+    }
+
+    final selection = <int, int>{
+      for (final row in rows)
+        if (_productId(row) != null)
+          _productId(row)!:
+              _selectedDestinationByProduct[_productId(row)!] ?? 0,
+    };
+
+    final accepted = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => StatefulBuilder(
+        builder: (context, setLocal) => AlertDialog(
+          title: const Text('Distribuir productos por proveedor'),
+          content: SizedBox(
+            width: 680,
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(maxHeight: 540),
+              child: ListView.separated(
+                shrinkWrap: true,
+                itemCount: rows.length,
+                separatorBuilder: (_, __) => const Divider(height: 18),
+                itemBuilder: (context, index) {
+                  final row = rows[index];
+                  final productId = _productId(row);
+                  if (productId == null) return const SizedBox.shrink();
+                  return Row(
+                    children: [
+                      Expanded(
+                        flex: 5,
+                        child: Text(
+                          (row['producto'] ?? 'Producto').toString(),
+                          style: const TextStyle(fontWeight: FontWeight.w800),
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        flex: 6,
+                        child: DropdownButtonFormField<int>(
+                          value: selection[productId] ?? 0,
+                          isExpanded: true,
+                          decoration: const InputDecoration(
+                            labelText: 'Enviar a',
+                            isDense: true,
+                          ),
+                          items: <DropdownMenuItem<int>>[
+                            const DropdownMenuItem<int>(
+                              value: 0,
+                              child: Text('WhatsApp general'),
+                            ),
+                            ..._orderDestinations.map((destination) {
+                              final id = (destination['id'] as num?)?.toInt();
+                              return DropdownMenuItem<int>(
+                                value: id,
+                                child: Text(
+                                  (destination['nombre'] ?? 'Proveedor')
+                                      .toString(),
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                              );
+                            }).where((item) => item.value != null),
+                          ],
+                          onChanged: (value) {
+                            if (value == null) return;
+                            setLocal(() => selection[productId] = value);
+                          },
+                        ),
+                      ),
+                    ],
+                  );
+                },
+              ),
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(dialogContext, false),
+              child: const Text('Cancelar'),
+            ),
+            FilledButton.icon(
+              onPressed: () => Navigator.pop(dialogContext, true),
+              icon: const Icon(Icons.call_split_rounded),
+              label: const Text('Continuar'),
+            ),
+          ],
+        ),
+      ),
+    );
+    if (accepted != true || !mounted) return null;
+
+    final resolved = <int, int?>{
+      for (final entry in selection.entries)
+        entry.key: entry.value == 0 ? null : entry.value,
+    };
+    setState(() {
+      _selectedDestinationByProduct
+        ..clear()
+        ..addAll(resolved);
+    });
+    return resolved;
+  }
 
   Future<List<Map<String, dynamic>>> _loadOrderHistory(
     int branchId,
