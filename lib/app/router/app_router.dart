@@ -336,6 +336,7 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       GoRoute(path: '/gastos_fijos', builder: (context, state) => const AppScaffold(child: GastosFijosPage())),
       GoRoute(path: '/proximo_pedido', builder: (context, state) => AppScaffold(child: const ReportesPage.proximoPedido())),
       GoRoute(path: '/pedidos-compra', builder: (context, state) => const AppScaffold(child: PedidosCompraPage())),
+      GoRoute(path: '/proveedores-pedidos', builder: (context, state) => const AppScaffold(child: PedidosCompraPage.proveedores())),
       GoRoute(
         path: '/reporte_cruce_conteo',
         builder: (context, state) => AppScaffold(
