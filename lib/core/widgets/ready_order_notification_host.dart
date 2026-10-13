@@ -119,9 +119,10 @@ class _ReadyOrderNotificationHostState
         actionOverflowThreshold: .34,
         content: ConstrainedBox(
           constraints: BoxConstraints(
-            minHeight: compact ? 68 : 88,
+            minHeight: compact ? 96 : 112,
           ),
           child: Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Container(
                 width: compact ? 50 : 60,
@@ -178,36 +179,145 @@ class _ReadyOrderNotificationHostState
                         height: 1.35,
                       ),
                     ),
+                    SizedBox(height: compact ? 9 : 12),
+                    Wrap(
+                      spacing: 8,
+                      runSpacing: 8,
+                      children: [
+                        OutlinedButton.icon(
+                          onPressed: () {
+                            ref
+                                .read(meseroSelectedModeProvider.notifier)
+                                .state = MeseroPageMode.mesas;
+                            context.go('/mesero');
+                          },
+                          style: OutlinedButton.styleFrom(
+                            foregroundColor: palette.secondary,
+                            side: BorderSide(
+                              color: palette.secondary.withOpacity(.42),
+                            ),
+                          ),
+                          icon: Icon(
+                            notification.mesaId == null
+                                ? Icons.receipt_long_outlined
+                                : Icons.table_restaurant_rounded,
+                            size: 17,
+                          ),
+                          label: Text(
+                            notification.mesaId == null
+                                ? 'VER VENTA'
+                                : 'VER MESA',
+                          ),
+                        ),
+                        FilledButton.icon(
+                          onPressed: notification.cuentaId == null
+                              ? null
+                              : () => _confirmDelivered(
+                                    notification,
+                                    branchId,
+                                  ),
+                          style: FilledButton.styleFrom(
+                            backgroundColor: palette.success,
+                            foregroundColor:
+                                palette.success.computeLuminance() > .52
+                                    ? Colors.black
+                                    : Colors.white,
+                          ),
+                          icon: const Icon(
+                            Icons.room_service_rounded,
+                            size: 18,
+                          ),
+                          label: const Text('ENTREGADO'),
+                        ),
+                      ],
+                    ),
                   ],
                 ),
               ),
             ],
           ),
         ),
-        action: SnackBarAction(
-          label: notification.mesaId == null ? 'VER VENTA' : 'VER MESA',
-          textColor: palette.secondary,
-          onPressed: () {
-            _markRead(notification.id, branchId);
-            ref.read(meseroSelectedModeProvider.notifier).state =
-                MeseroPageMode.mesas;
-            context.go('/mesero');
-          },
-        ),
       ),
     );
 
-    controller.closed.whenComplete(() async {
-      await _markRead(notification.id, branchId);
+    controller.closed.whenComplete(() {
       if (!mounted) return;
       if (_showingId == notification.id) {
         setState(() => _showingId = null);
       }
+      // Cerrar o dejar vencer el aviso no significa que el pedido fue
+      // atendido. La notificación continúa pendiente hasta que el mesero
+      // confirme ENTREGADO.
       Future<void>.delayed(
-        const Duration(milliseconds: 350),
+        const Duration(seconds: 8),
         () => _check(),
       );
     });
+  }
+
+  Future<void> _confirmDelivered(
+    _ReadyOrderNotification notification,
+    int branchId,
+  ) async {
+    final cuentaId = notification.cuentaId;
+    if (cuentaId == null || !mounted) return;
+
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Confirmar entrega'),
+        content: Text(
+          '${notification.mensaje}\n\n¿Confirmas que este pedido ya fue entregado a la mesa?',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(dialogContext).pop(false),
+            child: const Text('Cancelar'),
+          ),
+          FilledButton.icon(
+            onPressed: () => Navigator.of(dialogContext).pop(true),
+            icon: const Icon(Icons.check_rounded),
+            label: const Text('Sí, entregado'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true || !mounted) return;
+
+    try {
+      await ref.read(apiClientProvider).put<int>(
+            '/api/v1/comandas/cuenta/$cuentaId/entregar'
+            '?sucursalId=$branchId',
+            null,
+            (json) {
+              if (json is num) return json.toInt();
+              return int.tryParse(json?.toString() ?? '') ?? 0;
+            },
+          );
+      await _markRead(notification.id, branchId);
+      if (!mounted) return;
+
+      ScaffoldMessenger.of(context)
+        ..hideCurrentSnackBar()
+        ..showSnackBar(
+          const SnackBar(
+            behavior: SnackBarBehavior.floating,
+            content: Text('Pedido marcado como entregado a la mesa.'),
+          ),
+        );
+
+      setState(() => _showingId = null);
+    } catch (error) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          behavior: SnackBarBehavior.floating,
+          content: Text(
+            'No fue posible marcar el pedido como entregado: $error',
+          ),
+        ),
+      );
+    }
   }
 
   Future<void> _markRead(int notificationId, int branchId) async {
