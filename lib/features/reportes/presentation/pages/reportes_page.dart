@@ -6311,7 +6311,7 @@ class _OrderProductList extends StatelessWidget {
                 const SizedBox(width: 8),
                 Expanded(
                   child: Text(
-                    'Productos para reponer',
+                    'Productos del pedido',
                     style: TextStyle(
                       color: palette.textPrimary,
                       fontWeight: FontWeight.w900,
@@ -6385,7 +6385,10 @@ class _OrderProductRow extends StatelessWidget {
     final productId = (row['producto_id'] as num?)?.toInt();
     final selected = productId != null && selectedPresentations.containsKey(productId);
     final count = productId == null ? 0 : selectedPresentations[productId] ?? 0;
-    final suggested = math.max(1, _toDouble(row['presentaciones_pedir']).ceil());
+    final hasSuggestion = _toDouble(row['unidades_pedir']) > 0;
+    final suggested = hasSuggestion
+        ? math.max(1, _toDouble(row['presentaciones_pedir']).ceil())
+        : 1;
     final factor = math.max(1.0, _toDouble(row['unidades_por_presentacion']));
     final cost = _orderPresentationCost(row);
     final hasCost = cost > 0;
@@ -6448,7 +6451,7 @@ class _OrderProductRow extends StatelessWidget {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text(
-          'Sugerido',
+          hasSuggestion ? 'Sugerido' : 'Pedido manual',
           style: TextStyle(
             color: palette.textSecondary,
             fontSize: 11,
@@ -6457,7 +6460,9 @@ class _OrderProductRow extends StatelessWidget {
         ),
         const SizedBox(height: 2),
         Text(
-          '$suggested ${row['presentacion_compra'] ?? 'presentaciones'}',
+          hasSuggestion
+              ? '$suggested ${row['presentacion_compra'] ?? 'presentaciones'}'
+              : 'Disponible para agregar',
           style: TextStyle(
             color: palette.textPrimary,
             fontSize: 13,
@@ -6465,7 +6470,9 @@ class _OrderProductRow extends StatelessWidget {
           ),
         ),
         Text(
-          '${_displayValue(suggested * factor)} unidades',
+          hasSuggestion
+              ? '${_displayValue(suggested * factor)} unidades'
+              : 'El stock actual no bloquea el pedido',
           style: TextStyle(
             color: palette.textSecondary,
             fontSize: 11,
