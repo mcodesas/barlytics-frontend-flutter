@@ -3,6 +3,7 @@ import 'dart:typed_data';
 import 'package:dio/dio.dart';
 
 import '../../../../core/network/api_client.dart';
+import '../models/producto_catalogo_base_model.dart';
 import '../models/productos_response_model.dart';
 
 class ProductosSetupRemoteDataSource {
@@ -32,6 +33,37 @@ class ProductosSetupRemoteDataSource {
           .toList(growable: false),
     );
     return response.data ?? const <ProductosResponseModel>[];
+  }
+
+  Future<List<ProductoCatalogoBaseModel>> baseCatalog(int sucursalId) async {
+    final response = await _apiClient.get<List<ProductoCatalogoBaseModel>>(
+      '/api/v1/productos/setup/catalogo-base',
+      (json) => (json as List? ?? const <dynamic>[])
+          .whereType<Map>()
+          .map(
+            (item) => ProductoCatalogoBaseModel.fromJson(
+              Map<String, dynamic>.from(item),
+            ),
+          )
+          .toList(growable: false),
+      queryParameters: <String, dynamic>{'sucursalId': sucursalId},
+    );
+    return response.data ?? const <ProductoCatalogoBaseModel>[];
+  }
+
+  Future<Map<String, dynamic>> importBaseCatalog({
+    required int sucursalId,
+    required List<Map<String, dynamic>> items,
+  }) async {
+    final response = await _apiClient.post<Map<String, dynamic>>(
+      '/api/v1/productos/setup/catalogo-base/importar',
+      <String, dynamic>{
+        'sucursalId': sucursalId,
+        'items': items,
+      },
+      (json) => Map<String, dynamic>.from(json as Map),
+    );
+    return response.data ?? const <String, dynamic>{};
   }
 
   Future<Map<String, dynamic>> importExcel({
