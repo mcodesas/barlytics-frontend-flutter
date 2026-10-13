@@ -30,6 +30,8 @@ import '../../data/models/productos_response_model.dart';
 import '../providers/productos_provider.dart';
 import '../widgets/productos_setup_tools.dart';
 
+enum _ProductViewMode { cards, list, table }
+
 class ProductosListPage extends ConsumerStatefulWidget {
   const ProductosListPage({super.key});
 
@@ -42,7 +44,7 @@ class _ProductosListPageState extends ConsumerState<ProductosListPage> {
   int? _selectedTipoId;
   int? _selectedMarcaId;
   int? _selectedSucursalId;
-  bool _gridView = true;
+  _ProductViewMode _viewMode = _ProductViewMode.cards;
   Timer? _searchDebounce;
   Map<String, int>? _movementTypeIds;
   bool _branchInitialized = false;
@@ -132,7 +134,7 @@ class _ProductosListPageState extends ConsumerState<ProductosListPage> {
         tipos: tiposState.items,
         sucursales: branchState.branches,
         palette: palette,
-        gridView: _gridView,
+        viewMode: _viewMode,
         onDelete: (id) => _deleteProduct(context, id),
         onRegisterMovement: _registerMovementInline,
         onUpdateProduct: _updateProductInline,
@@ -194,7 +196,7 @@ class _ProductosListPageState extends ConsumerState<ProductosListPage> {
                     activeBranchId: branchState.activeBranchId,
                     onActiveBranchChanged: _changeActiveBranch,
                     sortOption: state.sortOption,
-                    gridView: _gridView,
+                    viewMode: _viewMode,
                     selectedQuickFilter: state.quickFilter,
                     onQuickFilterChanged: (filter) {
                       final nextFilter = state.quickFilter == filter
@@ -228,7 +230,7 @@ class _ProductosListPageState extends ConsumerState<ProductosListPage> {
                       if (value == null) return;
                       notifier.load(page: 0, sortOption: value);
                     },
-                    onViewChanged: (grid) => setState(() => _gridView = grid),
+                    onViewChanged: (mode) => setState(() => _viewMode = mode),
                     onClearFilters: () {
                       _searchDebounce?.cancel();
                       _searchController.clear();
@@ -643,7 +645,7 @@ class _ProductosHeader extends StatelessWidget {
     required this.activeBranchId,
     required this.onActiveBranchChanged,
     required this.sortOption,
-    required this.gridView,
+    required this.viewMode,
     required this.selectedQuickFilter,
     required this.onQuickFilterChanged,
     required this.onTipoChanged,
@@ -673,14 +675,14 @@ class _ProductosHeader extends StatelessWidget {
   final int? activeBranchId;
   final ValueChanged<int?> onActiveBranchChanged;
   final ProductosSortOption sortOption;
-  final bool gridView;
+  final _ProductViewMode viewMode;
   final ProductosQuickFilter selectedQuickFilter;
   final ValueChanged<ProductosQuickFilter> onQuickFilterChanged;
   final ValueChanged<int?> onTipoChanged;
   final ValueChanged<int?> onMarcaChanged;
   final ValueChanged<int?> onSucursalChanged;
   final ValueChanged<ProductosSortOption?> onSortChanged;
-  final ValueChanged<bool> onViewChanged;
+  final ValueChanged<_ProductViewMode> onViewChanged;
   final VoidCallback onClearFilters;
   final VoidCallback onRefresh;
   final AppPalette palette;
@@ -809,7 +811,7 @@ class _ProductosHeader extends StatelessWidget {
             SizedBox(
               width: 122,
               child: _ViewSelector(
-                gridView: gridView,
+                viewMode: viewMode,
                 palette: palette,
                 onChanged: onViewChanged,
                 compact: true,
@@ -884,7 +886,7 @@ class _ProductosHeader extends StatelessWidget {
             SizedBox(
               width: 176,
               child: _ViewSelector(
-                gridView: gridView,
+                viewMode: viewMode,
                 palette: palette,
                 onChanged: onViewChanged,
               ),
@@ -1002,7 +1004,7 @@ class _ProductosHeader extends StatelessWidget {
     var localMarca = selectedMarcaId;
     var localSucursal = selectedSucursalId;
     var localSort = sortOption;
-    var localGrid = gridView;
+    var localViewMode = viewMode;
 
     await showModalBottomSheet<void>(
       context: context,
@@ -1198,10 +1200,10 @@ class _ProductosHeader extends StatelessWidget {
                             ),
                             const SizedBox(height: 10),
                             _ViewSelector(
-                              gridView: localGrid,
+                              viewMode: localViewMode,
                               palette: palette,
                               onChanged: (value) {
-                                setModalState(() => localGrid = value);
+                                setModalState(() => localViewMode = value);
                                 onViewChanged(value);
                               },
                             ),
@@ -1234,7 +1236,7 @@ class _ProductosHeader extends StatelessWidget {
                                       ? activeBranchId
                                       : null;
                                   localSort = ProductosSortOption.nombreAsc;
-                                  localGrid = gridView;
+                                  localViewMode = viewMode;
                                 });
                               },
                               style: OutlinedButton.styleFrom(
@@ -1761,15 +1763,15 @@ class _HeaderDropdown<T> extends StatelessWidget {
 
 class _ViewSelector extends StatelessWidget {
   const _ViewSelector({
-    required this.gridView,
+    required this.viewMode,
     required this.palette,
     required this.onChanged,
     this.compact = false,
   });
 
-  final bool gridView;
+  final _ProductViewMode viewMode;
   final AppPalette palette;
-  final ValueChanged<bool> onChanged;
+  final ValueChanged<_ProductViewMode> onChanged;
   final bool compact;
 
   @override
@@ -1788,21 +1790,31 @@ class _ViewSelector extends StatelessWidget {
         children: [
           Expanded(
             child: _ViewOption(
-              active: gridView,
+              active: viewMode == _ProductViewMode.cards,
               icon: Icons.grid_view_rounded,
               label: compact ? '' : 'Tarjetas',
               palette: palette,
-              onTap: () => onChanged(true),
+              onTap: () => onChanged(_ProductViewMode.cards),
             ),
           ),
           const SizedBox(width: 4),
           Expanded(
             child: _ViewOption(
-              active: !gridView,
+              active: viewMode == _ProductViewMode.list,
               icon: Icons.view_list_rounded,
               label: compact ? '' : 'Lista',
               palette: palette,
-              onTap: () => onChanged(false),
+              onTap: () => onChanged(_ProductViewMode.list),
+            ),
+          ),
+          const SizedBox(width: 4),
+          Expanded(
+            child: _ViewOption(
+              active: viewMode == _ProductViewMode.table,
+              icon: Icons.table_rows_rounded,
+              label: compact ? '' : 'Tabla',
+              palette: palette,
+              onTap: () => onChanged(_ProductViewMode.table),
             ),
           ),
         ],
@@ -2117,7 +2129,21 @@ class _ProductosResults extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    if (!gridView) {
+    if (viewMode == _ProductViewMode.table) {
+      return _ProductsTableView(
+        items: items,
+        marcas: marcas,
+        tipos: tipos,
+        sucursales: sucursales,
+        palette: palette,
+        allowProductManagement: allowProductManagement,
+        selectedProductIds: selectedProductIds,
+        onSelectionChanged: onSelectionChanged,
+        onDelete: onDelete,
+      );
+    }
+
+    if (viewMode == _ProductViewMode.list) {
       return Padding(
         padding: const EdgeInsets.fromLTRB(16, 16, 16, 100),
         child: Container(
