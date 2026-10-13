@@ -1136,15 +1136,21 @@ class _ProductosFormPageState extends ConsumerState<ProductosFormPage> {
 
   Future<void> _addGastroAddition(List<ProductosResponseModel> productos) async {
     final candidates = productos
-        .where((item) =>
-            item.prodId != null &&
-            item.prodId != _editingId &&
-            item.sucuId == _sucursalId)
+        .where((item) {
+          final controlType =
+              (item.prodTipoControl ?? '').trim().toUpperCase();
+          return item.prodId != null &&
+              item.prodId != _editingId &&
+              item.sucuId == _sucursalId &&
+              (controlType == 'INSUMO' || controlType == 'PREPARADO');
+        })
         .toList()
       ..sort((a, b) => (a.prodNombre ?? '').toLowerCase().compareTo((b.prodNombre ?? '').toLowerCase()));
 
     if (candidates.isEmpty) {
-      _showError('Primero crea los productos o insumos que se ofrecerán como adición.');
+      _showError(
+        'No hay insumos ni productos preparados con receta disponibles en esta sucursal para usar como adición.',
+      );
       return;
     }
 
@@ -1170,7 +1176,7 @@ class _ProductosFormPageState extends ConsumerState<ProductosFormPage> {
                       value: selectedId,
                       isExpanded: true,
                       decoration: const InputDecoration(
-                        labelText: 'Producto / insumo de la adición',
+                        labelText: 'Insumo o producto preparado',
                         prefixIcon: Icon(Icons.add_circle_outline_rounded),
                       ),
                       items: candidates
