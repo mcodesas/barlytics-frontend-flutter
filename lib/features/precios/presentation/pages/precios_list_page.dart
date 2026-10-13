@@ -9,6 +9,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../../app/theme/app_control_metrics.dart';
 import '../../../../app/theme/app_palette.dart';
 import '../../../../core/branch/branch_scope_provider.dart';
+import '../../../../core/files/file_download.dart';
 import '../../../../core/providers/core_providers.dart';
 import '../../../../core/utils/input_constraints.dart';
 import '../../../../core/widgets/app_empty_view.dart';
@@ -51,6 +52,7 @@ class _PreciosListPageState extends ConsumerState<PreciosListPage> {
   int? _sucursalId;
   int? _initializedBranchId;
   bool _savingAll = false;
+  bool _downloading = false;
 
   @override
   void dispose() {
@@ -146,6 +148,8 @@ class _PreciosListPageState extends ConsumerState<PreciosListPage> {
                       onSearchChanged: _onSearchChanged,
                       onFilterChanged: _changeFilter,
                       onRefresh: _refresh,
+                      downloading: _downloading,
+                      onDownload: _downloadPrices,
                     ),
                   ),
                 ),
@@ -164,48 +168,17 @@ class _PreciosListPageState extends ConsumerState<PreciosListPage> {
                       palette.pagePadding.right,
                       14,
                     ),
-                    sliver: SliverLayoutBuilder(
-                      builder: (context, constraints) {
-                        final width = constraints.crossAxisExtent;
-                        final columns = width >= 1500
-                            ? 4
-                            : width >= 1040
-                                ? 3
-                                : width >= 680
-                                    ? 2
-                                    : 1;
-                        final cardHeight = width < 680 ? 438.0 : 408.0;
-                        return SliverGrid(
-                          gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-                            crossAxisCount: columns,
-                            mainAxisSpacing: 14,
-                            crossAxisSpacing: 14,
-                            mainAxisExtent: cardHeight,
-                          ),
-                          delegate: SliverChildBuilderDelegate(
-                            (context, index) {
-                              final producto = visible[index];
-                              final productId = producto.prodId!;
-                              final draft = _drafts[productId]!;
-                              final currentPrice = _loadedPrices[productId] ?? _priceFromProduct(producto);
-                              return _PriceProductCard(
-                                producto: producto,
-                                currentPrice: currentPrice,
-                                draft: draft,
-                                palette: palette,
-                                saving: _savingProductIds.contains(productId),
-                                onChanged: () => setState(() {}),
-                                onReset: () {
-                                  draft.reset();
-                                  setState(() {});
-                                },
-                                onSave: () => _saveProduct(producto, currentPrice),
-                              );
-                            },
-                            childCount: visible.length,
-                          ),
-                        );
-                      },
+                    sliver: SliverToBoxAdapter(
+                      child: _PriceProductsTable(
+                        products: visible,
+                        drafts: _drafts,
+                        currentPrices: _loadedPrices,
+                        savingProductIds: _savingProductIds,
+                        palette: palette,
+                        onChanged: () => setState(() {}),
+                        onSave: (product, currentPrice) =>
+                            _saveProduct(product, currentPrice),
+                      ),
                     ),
                   ),
                 if (_filter != _PriceFilter.changed && (pagedState.totalPages > 1 || pagedState.size != 12))
@@ -440,6 +413,40 @@ class _PreciosListPageState extends ConsumerState<PreciosListPage> {
         );
   }
 
+  Future<void> _downloadPrices() async {
+    final branchId = _sucursalId;
+    if (branchId == null || _downloading) {
+      if (branchId == null) {
+        _showMessage('Selecciona primero la sucursal que deseas descargar.', error: true);
+      }
+      return;
+    }
+
+    setState(() => _downloading = true);
+    try {
+      final bytes = await ref.read(apiClientProvider).getBytes(
+            '/api/v1/precios/export',
+            queryParameters: <String, dynamic>{'sucursalId': branchId},
+          );
+      await saveDownloadedFile(
+        bytes: bytes,
+        dialogTitle: 'Guardar lista de precios',
+        fileName: 'precios_barlytics_sucursal_$branchId.xlsx',
+        mimeType:
+            'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+        allowedExtensions: const ['xlsx'],
+      );
+      if (!mounted) return;
+      _showMessage('Lista de precios descargada correctamente.');
+    } catch (error) {
+      if (mounted) {
+        _showMessage('No fue posible descargar los precios: $error', error: true);
+      }
+    } finally {
+      if (mounted) setState(() => _downloading = false);
+    }
+  }
+
   Future<bool> _saveProduct(
     ProductosResponseModel product,
     PreciosResponseModel? currentPrice, {
@@ -581,6 +588,8 @@ class _PricingToolbar extends StatelessWidget {
     required this.onSearchChanged,
     required this.onFilterChanged,
     required this.onRefresh,
+    required this.downloading,
+    required this.onDownload,
   });
 
   final AppPalette palette;
@@ -596,6 +605,8 @@ class _PricingToolbar extends StatelessWidget {
   final ValueChanged<String> onSearchChanged;
   final ValueChanged<_PriceFilter> onFilterChanged;
   final VoidCallback onRefresh;
+  final bool downloading;
+  final VoidCallback onDownload;
 
   @override
   Widget build(BuildContext context) {
@@ -670,7 +681,7 @@ class _PricingToolbar extends StatelessWidget {
 
           final status = Row(
             children: [
-              Icon(Icons.view_module_rounded, color: palette.secondary, size: 18),
+              Icon(Icons.table_rows_rounded, color: palette.secondary, size: 18),
               const SizedBox(width: 7),
               Expanded(
                 child: Text(
@@ -679,6 +690,17 @@ class _PricingToolbar extends StatelessWidget {
                       : 'Mostrando $visibleOnPage de $totalElements productos',
                   style: TextStyle(color: palette.textSecondary, fontWeight: FontWeight.w800, fontSize: 12.2),
                 ),
+              ),
+              IconButton(
+                tooltip: 'Descargar precios Excel',
+                onPressed: loading || downloading || activeBranchId == null ? null : onDownload,
+                icon: downloading
+                    ? const SizedBox(
+                        width: 18,
+                        height: 18,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      )
+                    : const Icon(Icons.download_rounded),
               ),
               IconButton(
                 tooltip: 'Actualizar',
@@ -802,6 +824,360 @@ class _PriceFilterButton extends StatelessWidget {
             ],
           ),
         ),
+      ),
+    );
+  }
+}
+
+class _PriceProductsTable extends StatelessWidget {
+  const _PriceProductsTable({
+    required this.products,
+    required this.drafts,
+    required this.currentPrices,
+    required this.savingProductIds,
+    required this.palette,
+    required this.onChanged,
+    required this.onSave,
+  });
+
+  final List<ProductosResponseModel> products;
+  final Map<int, _PriceDraft> drafts;
+  final Map<int, PreciosResponseModel?> currentPrices;
+  final Set<int> savingProductIds;
+  final AppPalette palette;
+  final VoidCallback onChanged;
+  final Future<bool> Function(
+    ProductosResponseModel product,
+    PreciosResponseModel? currentPrice,
+  ) onSave;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      decoration: palette.panelDecoration(baseRadius: 22, elevated: false),
+      clipBehavior: Clip.antiAlias,
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          return SingleChildScrollView(
+            scrollDirection: Axis.horizontal,
+            child: ConstrainedBox(
+              constraints: BoxConstraints(minWidth: math.max(1180, constraints.maxWidth)),
+              child: DataTable(
+                showCheckboxColumn: false,
+                headingRowHeight: 50,
+                dataRowMinHeight: 76,
+                dataRowMaxHeight: 88,
+                columnSpacing: 18,
+                horizontalMargin: 14,
+                columns: const [
+                  DataColumn(label: Text('Producto')),
+                  DataColumn(label: Text('Compra')),
+                  DataColumn(label: Text('Venta')),
+                  DataColumn(label: Text('Presentación compra')),
+                  DataColumn(label: Text('Costo unitario')),
+                  DataColumn(label: Text('Margen')),
+                  DataColumn(label: Text('Estado')),
+                  DataColumn(label: Text('Acciones')),
+                ],
+                rows: products.map((product) {
+                  final productId = product.prodId;
+                  if (productId == null) {
+                    return const DataRow(cells: [
+                      DataCell(Text('-')),
+                      DataCell(Text('-')),
+                      DataCell(Text('-')),
+                      DataCell(Text('-')),
+                      DataCell(Text('-')),
+                      DataCell(Text('-')),
+                      DataCell(Text('-')),
+                      DataCell(Text('-')),
+                    ]);
+                  }
+
+                  final draft = drafts[productId]!;
+                  final currentPrice = currentPrices[productId];
+                  final saving = savingProductIds.contains(productId);
+                  final sale = draft.saleValue;
+                  final purchase = draft.purchaseValue;
+                  final units = draft.purchaseUnits;
+                  final unitCost = purchase == null
+                      ? null
+                      : !draft.purchaseByQuantity || units == null || units <= 0
+                          ? purchase
+                          : purchase / units;
+                  final margin = sale != null && sale > 0 && unitCost != null
+                      ? ((sale - unitCost) / sale) * 100
+                      : null;
+                  final isLoss =
+                      sale != null && unitCost != null && sale < unitCost;
+                  final dirty = draft.isDirty;
+
+                  return DataRow(
+                    cells: [
+                      DataCell(
+                        SizedBox(
+                          width: 230,
+                          child: Row(
+                            children: [
+                              _ProductImage(
+                                value: product.prodFoto,
+                                size: 42,
+                                palette: palette,
+                              ),
+                              const SizedBox(width: 10),
+                              Expanded(
+                                child: Column(
+                                  mainAxisAlignment: MainAxisAlignment.center,
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      product.prodNombre?.trim().isNotEmpty == true
+                                          ? product.prodNombre!.trim()
+                                          : 'Producto $productId',
+                                      maxLines: 2,
+                                      overflow: TextOverflow.ellipsis,
+                                      style: TextStyle(
+                                        color: palette.textPrimary,
+                                        fontWeight: FontWeight.w900,
+                                        fontSize: 13,
+                                      ),
+                                    ),
+                                    Text(
+                                      'Código $productId',
+                                      style: TextStyle(
+                                        color: palette.textSecondary,
+                                        fontSize: 10.5,
+                                        fontWeight: FontWeight.w700,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                      DataCell(
+                        SizedBox(
+                          width: 130,
+                          child: _MoneyField(
+                            label: 'Compra',
+                            controller: draft.purchaseController,
+                            palette: palette,
+                            accentColor: palette.secondary,
+                            onChanged: (_) => onChanged(),
+                            onSubmitted: (_) {
+                              if (draft.validationMessage == null) {
+                                onSave(product, currentPrice);
+                              }
+                            },
+                          ),
+                        ),
+                      ),
+                      DataCell(
+                        SizedBox(
+                          width: 130,
+                          child: _MoneyField(
+                            label: 'Venta',
+                            controller: draft.saleController,
+                            palette: palette,
+                            accentColor: palette.success,
+                            onChanged: (_) => onChanged(),
+                            onSubmitted: (_) {
+                              if (draft.validationMessage == null) {
+                                onSave(product, currentPrice);
+                              }
+                            },
+                          ),
+                        ),
+                      ),
+                      DataCell(
+                        SizedBox(
+                          width: 300,
+                          child: Row(
+                            children: [
+                              Switch.adaptive(
+                                value: draft.purchaseByQuantity,
+                                onChanged: saving
+                                    ? null
+                                    : (value) {
+                                        draft.setPurchaseByQuantity(value);
+                                        onChanged();
+                                      },
+                              ),
+                              if (!draft.purchaseByQuantity)
+                                Expanded(
+                                  child: Text(
+                                    'Unidad individual',
+                                    style: TextStyle(
+                                      color: palette.textSecondary,
+                                      fontWeight: FontWeight.w700,
+                                      fontSize: 11.5,
+                                    ),
+                                  ),
+                                )
+                              else ...[
+                                SizedBox(
+                                  width: 78,
+                                  child: TextField(
+                                    controller: draft.unitsController,
+                                    keyboardType:
+                                        const TextInputType.numberWithOptions(decimal: true),
+                                    inputFormatters: InputConstraints.decimalFormatters(
+                                      integerDigits: 10,
+                                      fractionDigits: 4,
+                                    ),
+                                    onChanged: (_) => onChanged(),
+                                    decoration: const InputDecoration(
+                                      labelText: 'Und.',
+                                      isDense: true,
+                                    ),
+                                  ),
+                                ),
+                                const SizedBox(width: 7),
+                                Expanded(
+                                  child: TextField(
+                                    controller: draft.presentationController,
+                                    maxLength: 60,
+                                    buildCounter: (_, {
+                                      required currentLength,
+                                      required isFocused,
+                                      maxLength,
+                                    }) =>
+                                        null,
+                                    onChanged: (_) => onChanged(),
+                                    decoration: const InputDecoration(
+                                      labelText: 'Presentación',
+                                      hintText: 'Caja, canasta...',
+                                      isDense: true,
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ],
+                          ),
+                        ),
+                      ),
+                      DataCell(
+                        SizedBox(
+                          width: 115,
+                          child: Text(
+                            _formatMoney(unitCost),
+                            style: TextStyle(
+                              color: palette.textPrimary,
+                              fontWeight: FontWeight.w900,
+                            ),
+                          ),
+                        ),
+                      ),
+                      DataCell(
+                        SizedBox(
+                          width: 105,
+                          child: Row(
+                            children: [
+                              Icon(
+                                isLoss
+                                    ? Icons.warning_amber_rounded
+                                    : Icons.trending_up_rounded,
+                                size: 17,
+                                color: isLoss
+                                    ? Theme.of(context).colorScheme.error
+                                    : palette.success,
+                              ),
+                              const SizedBox(width: 6),
+                              Flexible(
+                                child: Text(
+                                  margin == null
+                                      ? '-'
+                                      : '${margin.toStringAsFixed(1)}%',
+                                  style: TextStyle(
+                                    color: isLoss
+                                        ? Theme.of(context).colorScheme.error
+                                        : palette.success,
+                                    fontWeight: FontWeight.w900,
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                      DataCell(
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 9,
+                            vertical: 6,
+                          ),
+                          decoration: BoxDecoration(
+                            color: (currentPrice == null
+                                    ? palette.warning
+                                    : dirty
+                                        ? palette.accent
+                                        : palette.success)
+                                .withOpacity(.12),
+                            borderRadius: BorderRadius.circular(999),
+                          ),
+                          child: Text(
+                            currentPrice == null
+                                ? 'Sin precio'
+                                : dirty
+                                    ? 'Modificado'
+                                    : 'Vigente',
+                            style: TextStyle(
+                              color: currentPrice == null
+                                  ? palette.warning
+                                  : dirty
+                                      ? palette.accent
+                                      : palette.success,
+                              fontWeight: FontWeight.w900,
+                              fontSize: 10.5,
+                            ),
+                          ),
+                        ),
+                      ),
+                      DataCell(
+                        Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            IconButton(
+                              tooltip: 'Deshacer cambios',
+                              onPressed: saving || !dirty
+                                  ? null
+                                  : () {
+                                      draft.reset();
+                                      onChanged();
+                                    },
+                              icon: const Icon(Icons.undo_rounded),
+                            ),
+                            IconButton.filledTonal(
+                              tooltip: currentPrice == null
+                                  ? 'Crear precio'
+                                  : 'Guardar precio',
+                              onPressed: saving ||
+                                      !dirty ||
+                                      draft.validationMessage != null
+                                  ? null
+                                  : () => onSave(product, currentPrice),
+                              icon: saving
+                                  ? const SizedBox(
+                                      width: 17,
+                                      height: 17,
+                                      child: CircularProgressIndicator(
+                                        strokeWidth: 2,
+                                      ),
+                                    )
+                                  : const Icon(Icons.save_rounded, size: 19),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  );
+                }).toList(growable: false),
+              ),
+            ),
+          );
+        },
       ),
     );
   }
