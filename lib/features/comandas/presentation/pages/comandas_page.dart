@@ -824,87 +824,89 @@ class _OrderGroupCard extends StatelessWidget {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Row(
-                  children: [
-                    Icon(
-                      first.mesaNumero == null
-                          ? Icons.point_of_sale_rounded
-                          : Icons.table_restaurant_rounded,
-                      size: 19,
-                      color: tone,
-                    ),
-                    const SizedBox(width: 7),
-                    Expanded(
-                      child: Text(
-                        tableLabel,
-                        style: theme.textTheme.titleSmall?.copyWith(
-                          fontWeight: FontWeight.w900,
-                        ),
-                      ),
-                    ),
-                    Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 8,
-                        vertical: 4,
-                      ),
-                      decoration: BoxDecoration(
-                        color: tone.withOpacity(.12),
-                        borderRadius: BorderRadius.circular(999),
-                      ),
-                      child: Text(
-                        'Pedido #${first.ventaId}',
-                        style: theme.textTheme.labelSmall?.copyWith(
+                      children: [
+                        Icon(
+                          first.mesaNumero == null
+                              ? Icons.point_of_sale_rounded
+                              : Icons.table_restaurant_rounded,
+                          size: 19,
                           color: tone,
-                          fontWeight: FontWeight.w900,
                         ),
-                      ),
+                        const SizedBox(width: 7),
+                        Expanded(
+                          child: Text(
+                            tableLabel,
+                            style: theme.textTheme.titleSmall?.copyWith(
+                              fontWeight: FontWeight.w900,
+                            ),
+                          ),
+                        ),
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 8,
+                            vertical: 4,
+                          ),
+                          decoration: BoxDecoration(
+                            color: tone.withOpacity(.12),
+                            borderRadius: BorderRadius.circular(999),
+                          ),
+                          child: Text(
+                            'Pedido #${first.ventaId}',
+                            style: theme.textTheme.labelSmall?.copyWith(
+                              color: tone,
+                              fontWeight: FontWeight.w900,
+                            ),
+                          ),
+                        ),
+                      ],
                     ),
-                  ],
-                ),
-                const SizedBox(height: 7),
-                Wrap(
-                  spacing: 7,
-                  runSpacing: 6,
-                  children: [
-                    _GroupInfoChip(
-                      icon: Icons.receipt_long_outlined,
-                      label: accountLabel,
+                    const SizedBox(height: 7),
+                    Wrap(
+                      spacing: 7,
+                      runSpacing: 6,
+                      children: [
+                        _GroupInfoChip(
+                          icon: Icons.receipt_long_outlined,
+                          label: accountLabel,
+                        ),
+                        _GroupInfoChip(
+                          icon: Icons.restaurant_menu_rounded,
+                          label:
+                              '${items.length} producto${items.length == 1 ? '' : 's'}',
+                        ),
+                        _GroupInfoChip(
+                          icon: stationNames.length == 1 &&
+                                  stationNames.first == 'BARRA'
+                              ? Icons.local_bar_rounded
+                              : Icons.restaurant_rounded,
+                          label: stationLabel,
+                        ),
+                      ],
                     ),
-                    _GroupInfoChip(
-                      icon: Icons.restaurant_menu_rounded,
-                      label:
-                          '${items.length} producto${items.length == 1 ? '' : 's'}',
-                    ),
-                    _GroupInfoChip(
-                      icon: stationNames.length == 1 &&
-                              stationNames.first == 'BARRA'
-                          ? Icons.local_bar_rounded
-                          : Icons.restaurant_rounded,
-                      label: stationLabel,
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 8),
-                Row(
-                  children: [
-                    Icon(
-                      Icons.touch_app_outlined,
-                      size: 13,
-                      color: tone,
-                    ),
-                    const SizedBox(width: 4),
-                    Expanded(
-                      child: Text(
-                        'Toca para ver el pedido completo',
-                        style: theme.textTheme.labelSmall?.copyWith(
+                    const SizedBox(height: 8),
+                    Row(
+                      children: [
+                        Icon(
+                          Icons.touch_app_outlined,
+                          size: 13,
                           color: tone,
-                          fontWeight: FontWeight.w800,
                         ),
-                      ),
-                    ),
-                    Icon(
-                      Icons.chevron_right_rounded,
-                      size: 17,
-                      color: tone,
+                        const SizedBox(width: 4),
+                        Expanded(
+                          child: Text(
+                            'Toca para ver el pedido completo',
+                            style: theme.textTheme.labelSmall?.copyWith(
+                              color: tone,
+                              fontWeight: FontWeight.w800,
+                            ),
+                          ),
+                        ),
+                        Icon(
+                          Icons.chevron_right_rounded,
+                          size: 17,
+                          color: tone,
+                        ),
+                      ],
                     ),
                   ],
                 ),
@@ -922,8 +924,7 @@ class _OrderGroupCard extends StatelessWidget {
                       padding: const EdgeInsets.symmetric(vertical: 10),
                       child: Divider(
                         height: 1,
-                        color: theme.colorScheme.outlineVariant
-                            .withOpacity(.28),
+                        color: theme.colorScheme.outlineVariant.withOpacity(.28),
                       ),
                     ),
                 ],
