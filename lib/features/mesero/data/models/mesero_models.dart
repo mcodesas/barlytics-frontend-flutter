@@ -467,6 +467,7 @@ class SalidaCajaModel {
     this.valor,
     this.gastoId,
     this.pedidoId,
+    this.medioPagoNombre,
     this.afectaResultado,
     this.estado,
     this.registradoPor,
@@ -483,6 +484,7 @@ class SalidaCajaModel {
   final double? valor;
   final int? gastoId;
   final int? pedidoId;
+  final String? medioPagoNombre;
   final bool? afectaResultado;
   final String? estado;
   final String? registradoPor;
@@ -499,6 +501,7 @@ class SalidaCajaModel {
         valor: (json['valor'] as num?)?.toDouble(),
         gastoId: (json['gastoId'] as num?)?.toInt(),
         pedidoId: (json['pedidoId'] as num?)?.toInt(),
+        medioPagoNombre: json['medioPagoNombre']?.toString(),
         afectaResultado: json['afectaResultado'] as bool?,
         estado: json['estado']?.toString(),
         registradoPor: json['registradoPor']?.toString(),
