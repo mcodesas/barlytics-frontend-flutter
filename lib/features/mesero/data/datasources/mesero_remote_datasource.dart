@@ -393,6 +393,23 @@ class MeseroRemoteDataSource {
     return response.data!;
   }
 
+  Future<CierreCajaResumenModel> guardarBaseInicialCierreCaja({
+    required String fecha,
+    required double valorBase,
+  }) async {
+    final response = await _apiClient.put<CierreCajaResumenModel>(
+      ApiPaths.meseroCierreCajaBaseInicial,
+      {
+        'fecha': fecha,
+        'valorBase': valorBase,
+      },
+      (json) => CierreCajaResumenModel.fromJson(
+        Map<String, dynamic>.from(json as Map),
+      ),
+    );
+    return response.data!;
+  }
+
   Future<CierreCajaResumenModel> registrarCierreCaja({
     required String fecha,
     required List<Map<String, dynamic>> mediosPago,
