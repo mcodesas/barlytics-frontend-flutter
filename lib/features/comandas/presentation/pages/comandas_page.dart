@@ -208,6 +208,38 @@ class _ComandasPageState extends ConsumerState<ComandasPage> {
                                 );
                               }
 
+                              if (constraints.maxWidth >= 1180) {
+                                return Padding(
+                                  padding:
+                                      const EdgeInsets.fromLTRB(12, 8, 12, 90),
+                                  child: Row(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.stretch,
+                                    children: [
+                                      for (var index = 0;
+                                          index < _statuses.length;
+                                          index++) ...[
+                                        Expanded(
+                                          child: _StatusSection(
+                                            status: _statuses[index],
+                                            scrollable: true,
+                                            items: _items
+                                                .where((item) =>
+                                                    item.estado ==
+                                                    _statuses[index])
+                                                .toList(growable: false),
+                                            updating: _updating,
+                                            onAdvance: _advance,
+                                          ),
+                                        ),
+                                        if (index < _statuses.length - 1)
+                                          const SizedBox(width: 10),
+                                      ],
+                                    ],
+                                  ),
+                                );
+                              }
+
                               return SingleChildScrollView(
                                 padding:
                                     const EdgeInsets.fromLTRB(12, 8, 12, 90),
@@ -219,7 +251,7 @@ class _ComandasPageState extends ConsumerState<ComandasPage> {
                                         index < _statuses.length;
                                         index++) ...[
                                       SizedBox(
-                                        width: 410,
+                                        width: 360,
                                         height: constraints.maxHeight - 16,
                                         child: _StatusSection(
                                           status: _statuses[index],
@@ -234,7 +266,7 @@ class _ComandasPageState extends ConsumerState<ComandasPage> {
                                         ),
                                       ),
                                       if (index < _statuses.length - 1)
-                                        const SizedBox(width: 12),
+                                        const SizedBox(width: 10),
                                     ],
                                   ],
                                 ),
