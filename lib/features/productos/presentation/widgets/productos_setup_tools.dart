@@ -92,6 +92,11 @@ class _ProductosSetupToolsState extends ConsumerState<ProductosSetupTools> {
                   icon: const Icon(Icons.download_rounded),
                   label: const Text('Descargar plantilla Excel'),
                 ),
+                OutlinedButton.icon(
+                  onPressed: _busy ? null : _downloadProductList,
+                  icon: const Icon(Icons.table_view_rounded),
+                  label: const Text('Descargar lista'),
+                ),
                 FilledButton.tonalIcon(
                   onPressed: _busy ? null : _importExcel,
                   icon: const Icon(Icons.upload_rounded),
@@ -130,6 +135,38 @@ class _ProductosSetupToolsState extends ConsumerState<ProductosSetupTools> {
       _message('Plantilla generada. Complétala y luego usa “Subir productos desde Excel”.');
     } catch (error) {
       if (mounted) _message('No fue posible descargar la plantilla: $error', error: true);
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
+  Future<void> _downloadProductList() async {
+    final branchId = widget.activeBranchId;
+    if (branchId == null) {
+      _message('Selecciona primero la sucursal que deseas descargar.', error: true);
+      return;
+    }
+
+    setState(() => _busy = true);
+    try {
+      final bytes = await ref
+          .read(productosSetupRemoteDataSourceProvider)
+          .downloadProductList(branchId);
+      await FilePicker.platform.saveFile(
+        dialogTitle: 'Guardar lista de productos',
+        fileName: 'productos_barlytics_sucursal_$branchId.xlsx',
+        type: FileType.custom,
+        allowedExtensions: const ['xlsx'],
+        bytes: bytes,
+      );
+      if (!mounted) return;
+      _message(
+        'Lista descargada con producto, cantidad, unidad, precio de compra y precio de venta.',
+      );
+    } catch (error) {
+      if (mounted) {
+        _message('No fue posible descargar la lista de productos: $error', error: true);
+      }
     } finally {
       if (mounted) setState(() => _busy = false);
     }
