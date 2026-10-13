@@ -861,7 +861,7 @@ class _PriceProductsTable extends StatelessWidget {
           return SingleChildScrollView(
             scrollDirection: Axis.horizontal,
             child: ConstrainedBox(
-              constraints: BoxConstraints(minWidth: math.max(1180, constraints.maxWidth)),
+              constraints: BoxConstraints(minWidth: math.max(1180.0, constraints.maxWidth)),
               child: DataTable(
                 showCheckboxColumn: false,
                 headingRowHeight: 50,
