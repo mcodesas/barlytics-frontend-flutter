@@ -147,7 +147,7 @@ class _ReadyOrderNotificationHostState
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      'PEDIDO LISTO',
+                      'PRODUCTO LISTO',
                       style: TextStyle(
                         color: palette.success,
                         fontWeight: FontWeight.w900,
@@ -209,8 +209,45 @@ class _ReadyOrderNotificationHostState
                                 : 'VER MESA',
                           ),
                         ),
+                        OutlinedButton.icon(
+                          onPressed: () => _snooze(
+                            notification,
+                            branchId,
+                            3,
+                          ),
+                          style: OutlinedButton.styleFrom(
+                            foregroundColor: palette.warning,
+                            side: BorderSide(
+                              color: palette.warning.withOpacity(.42),
+                            ),
+                          ),
+                          icon: const Icon(
+                            Icons.snooze_rounded,
+                            size: 17,
+                          ),
+                          label: const Text('3 MIN'),
+                        ),
+                        OutlinedButton.icon(
+                          onPressed: () => _snooze(
+                            notification,
+                            branchId,
+                            5,
+                          ),
+                          style: OutlinedButton.styleFrom(
+                            foregroundColor: palette.warning,
+                            side: BorderSide(
+                              color: palette.warning.withOpacity(.42),
+                            ),
+                          ),
+                          icon: const Icon(
+                            Icons.more_time_rounded,
+                            size: 17,
+                          ),
+                          label: const Text('5 MIN'),
+                        ),
                         FilledButton.icon(
-                          onPressed: notification.cuentaId == null
+                          onPressed: notification.detalleId == null &&
+                                  notification.cuentaId == null
                               ? null
                               : () => _confirmDelivered(
                                     notification,
@@ -255,12 +292,54 @@ class _ReadyOrderNotificationHostState
     });
   }
 
+  Future<void> _snooze(
+    _ReadyOrderNotification notification,
+    int branchId,
+    int minutes,
+  ) async {
+    if (!mounted || (minutes != 3 && minutes != 5)) return;
+
+    try {
+      await ref.read(apiClientProvider).put<Map<String, dynamic>>(
+            '/api/v1/notificaciones/${notification.id}/recordar'
+            '?sucursalId=$branchId&minutos=$minutes',
+            null,
+            (json) => Map<String, dynamic>.from(json as Map),
+          );
+      if (!mounted) return;
+
+      setState(() => _showingId = null);
+      ScaffoldMessenger.of(context).hideCurrentSnackBar();
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          behavior: SnackBarBehavior.floating,
+          duration: const Duration(seconds: 2),
+          content: Text(
+            'Te recordaré este producto en $minutes minutos.',
+          ),
+        ),
+      );
+    } catch (error) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          behavior: SnackBarBehavior.floating,
+          content: Text(
+            'No fue posible programar el recordatorio: $error',
+          ),
+        ),
+      );
+    }
+  }
+
   Future<void> _confirmDelivered(
     _ReadyOrderNotification notification,
     int branchId,
   ) async {
+    final detalleId = notification.detalleId;
     final cuentaId = notification.cuentaId;
-    if (cuentaId == null || !mounted) return;
+    if ((detalleId == null && cuentaId == null) || !mounted) return;
 
     final confirmed = await showDialog<bool>(
       context: context,
@@ -285,15 +364,24 @@ class _ReadyOrderNotificationHostState
     if (confirmed != true || !mounted) return;
 
     try {
-      await ref.read(apiClientProvider).put<int>(
-            '/api/v1/comandas/cuenta/$cuentaId/entregar'
-            '?sucursalId=$branchId',
-            null,
-            (json) {
-              if (json is num) return json.toInt();
-              return int.tryParse(json?.toString() ?? '') ?? 0;
-            },
-          );
+      if (detalleId != null) {
+        await ref.read(apiClientProvider).put<Map<String, dynamic>>(
+              '/api/v1/comandas/$detalleId/entregar'
+              '?sucursalId=$branchId',
+              null,
+              (json) => Map<String, dynamic>.from(json as Map),
+            );
+      } else {
+        await ref.read(apiClientProvider).put<int>(
+              '/api/v1/comandas/cuenta/$cuentaId/entregar'
+              '?sucursalId=$branchId',
+              null,
+              (json) {
+                if (json is num) return json.toInt();
+                return int.tryParse(json?.toString() ?? '') ?? 0;
+              },
+            );
+      }
       await _markRead(notification.id, branchId);
       if (!mounted) return;
 
@@ -302,7 +390,7 @@ class _ReadyOrderNotificationHostState
         ..showSnackBar(
           const SnackBar(
             behavior: SnackBarBehavior.floating,
-            content: Text('Pedido marcado como entregado a la mesa.'),
+            content: Text('Producto marcado como entregado a la mesa.'),
           ),
         );
 
@@ -313,7 +401,7 @@ class _ReadyOrderNotificationHostState
         SnackBar(
           behavior: SnackBarBehavior.floating,
           content: Text(
-            'No fue posible marcar el pedido como entregado: $error',
+            'No fue posible marcar el producto como entregado: $error',
           ),
         ),
       );
@@ -351,6 +439,8 @@ class _ReadyOrderNotification {
     required this.ventaId,
     required this.cuentaId,
     required this.mesaId,
+    required this.detalleId,
+    required this.recordarEn,
   });
 
   final int id;
@@ -360,6 +450,8 @@ class _ReadyOrderNotification {
   final int? ventaId;
   final int? cuentaId;
   final int? mesaId;
+  final int? detalleId;
+  final DateTime? recordarEn;
 
   factory _ReadyOrderNotification.fromJson(Map<String, dynamic> json) {
     return _ReadyOrderNotification(
@@ -370,6 +462,8 @@ class _ReadyOrderNotification {
       ventaId: _asInt(json['ventaId']),
       cuentaId: _asInt(json['cuentaId']),
       mesaId: _asInt(json['mesaId']),
+      detalleId: _asInt(json['detalleId']),
+      recordarEn: DateTime.tryParse(json['recordarEn']?.toString() ?? ''),
     );
   }
 
