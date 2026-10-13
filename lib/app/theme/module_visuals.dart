@@ -57,8 +57,20 @@ class ModuleVisuals {
         return const ModuleVisual(icon: Icons.inventory_rounded, color: Color(0xFF0F766E), description: 'Control económico, conteos, diferencias, responsables y conciliaciones');
       case 'movimientos':
         return const ModuleVisual(icon: Icons.swap_horiz_rounded, color: Color(0xFF0D9488), description: 'Entradas, salidas y ajustes');
+      case 'home':
+        return const ModuleVisual(icon: Icons.home_rounded, color: Color(0xFF0EA5E9), description: 'Inicio y accesos rápidos');
       case 'mesas':
         return const ModuleVisual(icon: Icons.table_restaurant_rounded, color: Color(0xFF0EA5E9), description: 'Mesas y estado operativo');
+      case 'administrar_mesas':
+        return const ModuleVisual(icon: Icons.table_bar_rounded, color: Color(0xFF0284C7), description: 'Crear, editar e inactivar mesas');
+      case 'historial_ventas':
+        return const ModuleVisual(icon: Icons.receipt_long_rounded, color: Color(0xFF4F46E5), description: 'Historial de ventas y pagos');
+      case 'cierre_caja':
+        return const ModuleVisual(icon: Icons.point_of_sale_rounded, color: Color(0xFF059669), description: 'Conteo y cierre de caja');
+      case 'pedidos_compra':
+        return const ModuleVisual(icon: Icons.local_shipping_rounded, color: Color(0xFFF59E0B), description: 'Pedidos de compra y recepción');
+      case 'proveedores_pedidos':
+        return const ModuleVisual(icon: Icons.contact_phone_rounded, color: Color(0xFF14B8A6), description: 'Proveedores, WhatsApp y productos asociados');
       case 'ventas':
         return const ModuleVisual(icon: Icons.point_of_sale_rounded, color: Color(0xFF2563EB), description: 'Consumos y ventas por mesa');
       case 'mesero':
