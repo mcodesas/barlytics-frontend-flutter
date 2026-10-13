@@ -409,7 +409,11 @@ class _MeseroPageState extends ConsumerState<MeseroPage> {
 
   Future<void> _reloadCierreCaja() async {
     final future = _cargarCierreCaja();
-    setState(() => _cierreCajaFuture = future);
+    if (mounted) {
+      setState(() {
+        _cierreCajaFuture = future;
+      });
+    }
     await future;
   }
 
