@@ -25,6 +25,7 @@ import '../../features/admin_support/presentation/pages/admin_support_workspace_
 import '../../features/admin_support/presentation/pages/product_catalog_sync_page.dart';
 import '../../features/profile/presentation/pages/profile_page.dart';
 import '../../features/reportes/presentation/pages/reportes_page.dart';
+import '../../features/pedidos_compra/presentation/pages/pedidos_compra_page.dart';
 import '../../features/gastos_fijos/presentation/pages/gastos_fijos_page.dart';
 import '../../features/tablas_parametricas/presentation/pages/tablas_parametricas_page.dart';
 import '../../features/mesero/presentation/pages/mesero_page.dart';
@@ -334,6 +335,7 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       GoRoute(path: '/ganancias', builder: (context, state) => AppScaffold(child: const ReportesPage.ganancias())),
       GoRoute(path: '/gastos_fijos', builder: (context, state) => const AppScaffold(child: GastosFijosPage())),
       GoRoute(path: '/proximo_pedido', builder: (context, state) => AppScaffold(child: const ReportesPage.proximoPedido())),
+      GoRoute(path: '/pedidos-compra', builder: (context, state) => const AppScaffold(child: PedidosCompraPage())),
       GoRoute(
         path: '/reporte_cruce_conteo',
         builder: (context, state) => AppScaffold(
