@@ -1072,8 +1072,6 @@ class _ReporteDetailState extends ConsumerState<_ReporteDetail> {
                                   if (year != null) changeYear(year);
                                 },
                               ),
-                                ],
-                              ),
                             ),
                           ),
                           IconButton(
