@@ -28,6 +28,7 @@ import '../../features/reportes/presentation/pages/reportes_page.dart';
 import '../../features/gastos_fijos/presentation/pages/gastos_fijos_page.dart';
 import '../../features/tablas_parametricas/presentation/pages/tablas_parametricas_page.dart';
 import '../../features/mesero/presentation/pages/mesero_page.dart';
+import '../../features/comandas/presentation/pages/comandas_page.dart';
 import '../../features/mesero/presentation/providers/mesero_tab_provider.dart';
 import '../../core/widgets/app_scaffold.dart';
 import '../../core/widgets/dynamic_crud_detail_page.dart';
@@ -356,6 +357,7 @@ final appRouterProvider = Provider<GoRouter>((ref) {
         ),
       ),
       GoRoute(path: '/tablas_parametricas', builder: (context, state) => _setupAwareScaffold(ref, state, const TablasParametricasPage())),
+      GoRoute(path: '/comandas', builder: (context, state) => AppScaffold(child: const ComandasPage())),
       GoRoute(path: '/mesero', builder: (context, state) => AppScaffold(child: const MeseroPage())),
       GoRoute(path: '/mesero/productos', builder: (context, state) => AppScaffold(child: const MeseroPage(initialMode: MeseroPageMode.productos))),
       GoRoute(path: '/mesero/resumen', builder: (context, state) => AppScaffold(child: const MeseroPage(initialMode: MeseroPageMode.resumen))),
