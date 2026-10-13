@@ -1370,6 +1370,8 @@ class _ProductosFormPageState extends ConsumerState<ProductosFormPage> {
         'prodStockMaximo': _stockMaximoSinLimite
             ? null
             : _parseDouble(_stockMaximoController.text),
+        'prodTipoControl': _tipoControl,
+        'prodUnidadBase': _unidadBase,
       };
 
       final productResponse = _editing
@@ -1415,6 +1417,22 @@ class _ProductosFormPageState extends ConsumerState<ProductosFormPage> {
           (json) => PreciosResponseModel.fromJson(Map<String, dynamic>.from(json as Map)),
         );
       }
+
+      await apiClient.put<Map<String, dynamic>>(
+        '/api/v1/productos/$savedProductId/gastro',
+        <String, dynamic>{
+          'tipoControl': _tipoControl,
+          'unidadBase': _unidadBase,
+          'ingredientes': _tipoControl == 'PREPARADO'
+              ? _gastroIngredientes.map((item) => item.toJson()).toList()
+              : const <Map<String, dynamic>>[],
+          'adiciones': _tipoControl == 'PREPARADO'
+              ? _gastroAdiciones.map((item) => item.toJson()).toList()
+              : const <Map<String, dynamic>>[],
+        },
+        (json) => Map<String, dynamic>.from(json as Map),
+        queryParameters: <String, dynamic>{'sucursalId': savedSucursalId},
+      );
 
       if (_registrarInventario) {
         final cantidad = _parseDouble(_inventarioCantidadController.text);
