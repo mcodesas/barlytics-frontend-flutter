@@ -91,68 +91,98 @@ class _ReadyOrderNotificationHostState
 
     final palette = ref.read(selectedAppPaletteProvider);
     final messenger = ScaffoldMessenger.of(context);
+    final compact = MediaQuery.sizeOf(context).width < 700;
 
     final controller = messenger.showSnackBar(
       SnackBar(
         behavior: SnackBarBehavior.floating,
-        duration: const Duration(seconds: 12),
-        margin: const EdgeInsets.fromLTRB(16, 8, 16, 18),
-        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+        duration: const Duration(seconds: 15),
+        margin: EdgeInsets.fromLTRB(
+          compact ? 12 : 28,
+          10,
+          compact ? 12 : 28,
+          compact ? 14 : 24,
+        ),
+        padding: EdgeInsets.symmetric(
+          horizontal: compact ? 16 : 22,
+          vertical: compact ? 14 : 18,
+        ),
         backgroundColor: palette.surface,
         shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(palette.radius(18)),
+          borderRadius: BorderRadius.circular(palette.radius(compact ? 20 : 24)),
           side: BorderSide(
-            color: palette.success.withOpacity(.42),
+            color: palette.success.withOpacity(.55),
+            width: 1.5,
           ),
         ),
-        elevation: 12,
-        content: Row(
-          children: [
-            Container(
-              width: 42,
-              height: 42,
-              decoration: BoxDecoration(
-                color: palette.success.withOpacity(.13),
-                borderRadius: BorderRadius.circular(13),
-              ),
-              child: Icon(
-                Icons.notifications_active_rounded,
-                color: palette.success,
-                size: 22,
-              ),
-            ),
-            const SizedBox(width: 11),
-            Expanded(
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    notification.titulo.isEmpty
-                        ? 'Pedido listo'
-                        : notification.titulo,
-                    style: TextStyle(
-                      color: palette.textPrimary,
-                      fontWeight: FontWeight.w900,
-                      fontSize: 14,
-                    ),
+        elevation: 18,
+        actionOverflowThreshold: .34,
+        content: ConstrainedBox(
+          constraints: BoxConstraints(
+            minHeight: compact ? 68 : 88,
+          ),
+          child: Row(
+            children: [
+              Container(
+                width: compact ? 50 : 60,
+                height: compact ? 50 : 60,
+                decoration: BoxDecoration(
+                  color: palette.success.withOpacity(.14),
+                  borderRadius: BorderRadius.circular(compact ? 15 : 18),
+                  border: Border.all(
+                    color: palette.success.withOpacity(.22),
                   ),
-                  const SizedBox(height: 3),
-                  Text(
-                    notification.mensaje,
-                    maxLines: 3,
-                    overflow: TextOverflow.ellipsis,
-                    style: TextStyle(
-                      color: palette.textSecondary,
-                      fontWeight: FontWeight.w600,
-                      fontSize: 12,
-                      height: 1.3,
-                    ),
-                  ),
-                ],
+                ),
+                child: Icon(
+                  Icons.notifications_active_rounded,
+                  color: palette.success,
+                  size: compact ? 27 : 32,
+                ),
               ),
-            ),
-          ],
+              SizedBox(width: compact ? 12 : 16),
+              Expanded(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'PEDIDO LISTO',
+                      style: TextStyle(
+                        color: palette.success,
+                        fontWeight: FontWeight.w900,
+                        fontSize: compact ? 10.5 : 12,
+                        letterSpacing: .8,
+                      ),
+                    ),
+                    const SizedBox(height: 3),
+                    Text(
+                      notification.titulo.isEmpty
+                          ? 'Pedido listo para entregar'
+                          : notification.titulo,
+                      style: TextStyle(
+                        color: palette.textPrimary,
+                        fontWeight: FontWeight.w900,
+                        fontSize: compact ? 16 : 19,
+                        height: 1.15,
+                      ),
+                    ),
+                    SizedBox(height: compact ? 5 : 7),
+                    Text(
+                      notification.mensaje,
+                      maxLines: compact ? 3 : 4,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        color: palette.textSecondary,
+                        fontWeight: FontWeight.w650,
+                        fontSize: compact ? 13.5 : 15,
+                        height: 1.35,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
         ),
         action: SnackBarAction(
           label: notification.mesaId == null ? 'VER VENTA' : 'VER MESA',
