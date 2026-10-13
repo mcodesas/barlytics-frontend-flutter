@@ -384,6 +384,7 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       GoRoute(path: '/mesero/cierre-caja', builder: (context, state) => AppScaffold(child: const MeseroPage(initialMode: MeseroPageMode.cierreCaja))),
       GoRoute(path: '/historial_ventas', builder: (context, state) => AppScaffold(child: const MeseroPage(initialMode: MeseroPageMode.historial))),
       GoRoute(path: '/cierre_caja', builder: (context, state) => AppScaffold(child: const MeseroPage(initialMode: MeseroPageMode.cierreCaja))),
+      GoRoute(path: '/administrar_mesas', builder: (context, state) => AppScaffold(child: const MeseroPage(initialMode: MeseroPageMode.mesas))),
 
       GoRoute(
         path: '/ciudades',
