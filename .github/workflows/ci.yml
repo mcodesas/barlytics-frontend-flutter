@@ -34,7 +34,7 @@ jobs:
   windows-installer:
     if: github.event_name == 'pull_request'
     needs: test
-    runs-on: windows-latest
+    runs-on: windows-2022
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -237,7 +237,7 @@ jobs:
       - name: Compilar Android App Bundle
         run: |
           VERSION="$(sed -nE 's/^version:[[:space:]]*([^+[:space:]]+).*/\1/p' pubspec.yaml | head -n1)"
-          BUILD="$((GITHUB_RUN_NUMBER * 100 + GITHUB_RUN_ATTEMPT))"
+          BUILD="$((2000000000 + GITHUB_RUN_NUMBER * 10 + GITHUB_RUN_ATTEMPT))"
           test -n "$VERSION"
           flutter build appbundle --release \
             --build-name="$VERSION" \
