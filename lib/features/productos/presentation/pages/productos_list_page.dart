@@ -2277,29 +2277,196 @@ class _ProductsTableView extends StatelessWidget {
             ?.sucuNombre ??
         'Sucursal ${item.sucuId ?? '-'}';
 
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(16, 16, 16, 100),
-      child: Container(
-        decoration: BoxDecoration(
-          color: palette.surface.withOpacity(palette.darkBackground ? .94 : .99),
-          borderRadius: BorderRadius.circular(22),
-          border: Border.all(color: palette.cardBorder),
-          boxShadow: [
-            BoxShadow(
-              color: palette.cardShadow.withOpacity(.16),
-              blurRadius: 18,
-              offset: const Offset(0, 8),
-            ),
-          ],
-        ),
-        child: ClipRRect(
-          borderRadius: BorderRadius.circular(22),
-          child: LayoutBuilder(
-            builder: (context, constraints) {
-              final minWidth = allowProductManagement ? 1180.0 : 1040.0;
-              final tableWidth = math.max(constraints.maxWidth, minWidth);
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final width = constraints.maxWidth;
+        final compact = width < 700;
+        final medium = width >= 700 && width < 1100;
+        final padding = compact
+            ? const EdgeInsets.fromLTRB(8, 10, 8, 92)
+            : const EdgeInsets.fromLTRB(16, 16, 16, 100);
 
-              return SingleChildScrollView(
+        if (compact) {
+          return Padding(
+            padding: padding,
+            child: Container(
+              width: double.infinity,
+              decoration: BoxDecoration(
+                color: palette.surface.withOpacity(
+                  palette.darkBackground ? .94 : .99,
+                ),
+                borderRadius: BorderRadius.circular(18),
+                border: Border.all(color: palette.cardBorder),
+              ),
+              child: Column(
+                children: List.generate(items.length, (index) {
+                  final item = items[index];
+                  final id = item.prodId;
+                  final selected =
+                      id != null && selectedProductIds.contains(id);
+                  final isLast = index == items.length - 1;
+
+                  return Container(
+                    padding: const EdgeInsets.fromLTRB(10, 10, 8, 10),
+                    decoration: BoxDecoration(
+                      color: selected
+                          ? palette.secondary.withOpacity(.08)
+                          : Colors.transparent,
+                      border: isLast
+                          ? null
+                          : Border(
+                              bottom: BorderSide(color: palette.cardBorder),
+                            ),
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        Row(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            if (allowProductManagement && id != null)
+                              Padding(
+                                padding: const EdgeInsets.only(right: 4),
+                                child: Checkbox(
+                                  value: selected,
+                                  visualDensity: VisualDensity.compact,
+                                  onChanged: (value) =>
+                                      onSelectionChanged(id, value ?? false),
+                                ),
+                              ),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    item.prodNombre ??
+                                        'Producto ${item.prodId ?? '-'}',
+                                    maxLines: 2,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: TextStyle(
+                                      color: palette.textPrimary,
+                                      fontSize: 14,
+                                      fontWeight: FontWeight.w900,
+                                    ),
+                                  ),
+                                  const SizedBox(height: 3),
+                                  Text(
+                                    '${typeName(item)} · ${brandName(item)}',
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: TextStyle(
+                                      color: palette.textSecondary,
+                                      fontSize: 11,
+                                      fontWeight: FontWeight.w600,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                            if (allowProductManagement) ...[
+                              IconButton(
+                                tooltip: 'Ver detalle',
+                                visualDensity: VisualDensity.compact,
+                                onPressed: id == null
+                                    ? null
+                                    : () => context.go('/productos/$id'),
+                                icon: const Icon(
+                                  Icons.visibility_outlined,
+                                  size: 19,
+                                ),
+                              ),
+                              IconButton(
+                                tooltip: 'Eliminar o inactivar',
+                                visualDensity: VisualDensity.compact,
+                                onPressed:
+                                    id == null ? null : () => onDelete(id),
+                                icon: const Icon(
+                                  Icons.delete_outline_rounded,
+                                  size: 19,
+                                ),
+                              ),
+                            ],
+                          ],
+                        ),
+                        const SizedBox(height: 9),
+                        Row(
+                          children: [
+                            Expanded(
+                              child: _ResponsiveProductMetric(
+                                label: 'Cantidad',
+                                value:
+                                    '${_formatNumber(item.inventarioActual ?? 0)} ${item.prodUnidadBase ?? 'UND'}',
+                                palette: palette,
+                              ),
+                            ),
+                            const SizedBox(width: 8),
+                            Expanded(
+                              child: _ResponsiveProductMetric(
+                                label: 'Compra',
+                                value: _tableMoney(
+                                  item.precioCompraVigente,
+                                ),
+                                palette: palette,
+                              ),
+                            ),
+                            const SizedBox(width: 8),
+                            Expanded(
+                              child: _ResponsiveProductMetric(
+                                label: 'Venta',
+                                value: _tableMoney(
+                                  item.precioVentaVigente,
+                                ),
+                                palette: palette,
+                                accent: true,
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 7),
+                        Text(
+                          branchName(item),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: TextStyle(
+                            color: palette.textSecondary,
+                            fontSize: 10.5,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ],
+                    ),
+                  );
+                }),
+              ),
+            ),
+          );
+        }
+
+        final tableWidth = medium
+            ? math.max(width - 32, 820.0)
+            : math.max(width - 32, allowProductManagement ? 1160.0 : 1040.0);
+
+        return Padding(
+          padding: padding,
+          child: Container(
+            width: double.infinity,
+            decoration: BoxDecoration(
+              color: palette.surface.withOpacity(
+                palette.darkBackground ? .94 : .99,
+              ),
+              borderRadius: BorderRadius.circular(22),
+              border: Border.all(color: palette.cardBorder),
+              boxShadow: [
+                BoxShadow(
+                  color: palette.cardShadow.withOpacity(.16),
+                  blurRadius: 18,
+                  offset: const Offset(0, 8),
+                ),
+              ],
+            ),
+            child: ClipRRect(
+              borderRadius: BorderRadius.circular(22),
+              child: SingleChildScrollView(
                 scrollDirection: Axis.horizontal,
                 child: SizedBox(
                   width: tableWidth,
@@ -2307,20 +2474,26 @@ class _ProductsTableView extends StatelessWidget {
                     headingRowHeight: 50,
                     dataRowMinHeight: 54,
                     dataRowMaxHeight: 66,
-                    horizontalMargin: 18,
-                    columnSpacing: 28,
+                    horizontalMargin: medium ? 12 : 18,
+                    columnSpacing: medium ? 16 : 28,
                     dividerThickness: .7,
                     columns: [
                       if (allowProductManagement)
                         const DataColumn(label: Text('')),
                       const DataColumn(label: Text('Producto')),
                       const DataColumn(label: Text('Tipo')),
-                      const DataColumn(label: Text('Marca')),
+                      if (!medium) const DataColumn(label: Text('Marca')),
                       const DataColumn(label: Text('Cantidad'), numeric: true),
-                      const DataColumn(label: Text('Unidad')),
-                      const DataColumn(label: Text('Precio compra'), numeric: true),
-                      const DataColumn(label: Text('Precio venta'), numeric: true),
-                      const DataColumn(label: Text('Sucursal')),
+                      if (!medium) const DataColumn(label: Text('Unidad')),
+                      const DataColumn(
+                        label: Text('Precio compra'),
+                        numeric: true,
+                      ),
+                      const DataColumn(
+                        label: Text('Precio venta'),
+                        numeric: true,
+                      ),
+                      if (!medium) const DataColumn(label: Text('Sucursal')),
                       if (allowProductManagement)
                         const DataColumn(label: Text('Acciones')),
                     ],
@@ -2328,6 +2501,7 @@ class _ProductsTableView extends StatelessWidget {
                       final id = item.prodId;
                       final selected =
                           id != null && selectedProductIds.contains(id);
+
                       return DataRow(
                         selected: selected,
                         cells: [
@@ -2338,14 +2512,20 @@ class _ProductsTableView extends StatelessWidget {
                                   : Checkbox(
                                       value: selected,
                                       onChanged: (value) =>
-                                          onSelectionChanged(id, value ?? false),
+                                          onSelectionChanged(
+                                        id,
+                                        value ?? false,
+                                      ),
                                     ),
                             ),
                           DataCell(
                             ConstrainedBox(
-                              constraints: const BoxConstraints(maxWidth: 340),
+                              constraints: BoxConstraints(
+                                maxWidth: medium ? 220 : 340,
+                              ),
                               child: Text(
-                                item.prodNombre ?? 'Producto ${item.prodId ?? '-'}',
+                                item.prodNombre ??
+                                    'Producto ${item.prodId ?? '-'}',
                                 maxLines: 2,
                                 overflow: TextOverflow.ellipsis,
                                 style: TextStyle(
@@ -2356,18 +2536,25 @@ class _ProductsTableView extends StatelessWidget {
                             ),
                           ),
                           DataCell(Text(typeName(item))),
-                          DataCell(Text(brandName(item))),
+                          if (!medium) DataCell(Text(brandName(item))),
                           DataCell(
                             Text(
-                              _formatNumber(item.inventarioActual ?? 0),
+                              medium
+                                  ? '${_formatNumber(item.inventarioActual ?? 0)} ${item.prodUnidadBase ?? 'UND'}'
+                                  : _formatNumber(
+                                      item.inventarioActual ?? 0,
+                                    ),
                               style: TextStyle(
                                 color: palette.textPrimary,
                                 fontWeight: FontWeight.w900,
                               ),
                             ),
                           ),
-                          DataCell(Text(item.prodUnidadBase ?? 'UND')),
-                          DataCell(Text(_tableMoney(item.precioCompraVigente))),
+                          if (!medium)
+                            DataCell(Text(item.prodUnidadBase ?? 'UND')),
+                          DataCell(
+                            Text(_tableMoney(item.precioCompraVigente)),
+                          ),
                           DataCell(
                             Text(
                               _tableMoney(item.precioVentaVigente),
@@ -2377,7 +2564,7 @@ class _ProductsTableView extends StatelessWidget {
                               ),
                             ),
                           ),
-                          DataCell(Text(branchName(item))),
+                          if (!medium) DataCell(Text(branchName(item))),
                           if (allowProductManagement)
                             DataCell(
                               Row(
@@ -2385,16 +2572,26 @@ class _ProductsTableView extends StatelessWidget {
                                 children: [
                                   IconButton(
                                     tooltip: 'Ver detalle',
+                                    visualDensity: medium
+                                        ? VisualDensity.compact
+                                        : VisualDensity.standard,
                                     onPressed: id == null
                                         ? null
                                         : () => context.go('/productos/$id'),
-                                    icon: const Icon(Icons.visibility_outlined),
+                                    icon: const Icon(
+                                      Icons.visibility_outlined,
+                                    ),
                                   ),
                                   IconButton(
                                     tooltip: 'Eliminar o inactivar',
+                                    visualDensity: medium
+                                        ? VisualDensity.compact
+                                        : VisualDensity.standard,
                                     onPressed:
                                         id == null ? null : () => onDelete(id),
-                                    icon: const Icon(Icons.delete_outline_rounded),
+                                    icon: const Icon(
+                                      Icons.delete_outline_rounded,
+                                    ),
                                   ),
                                 ],
                               ),
@@ -2404,10 +2601,64 @@ class _ProductsTableView extends StatelessWidget {
                     }).toList(growable: false),
                   ),
                 ),
-              );
-            },
+              ),
+            ),
           ),
-        ),
+        );
+      },
+    );
+  }
+}
+
+class _ResponsiveProductMetric extends StatelessWidget {
+  const _ResponsiveProductMetric({
+    required this.label,
+    required this.value,
+    required this.palette,
+    this.accent = false,
+  });
+
+  final String label;
+  final String value;
+  final AppPalette palette;
+  final bool accent;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 7),
+      decoration: BoxDecoration(
+        color: accent
+            ? palette.secondary.withOpacity(.08)
+            : palette.background.withOpacity(.28),
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: palette.cardBorder),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            label,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: TextStyle(
+              color: palette.textSecondary,
+              fontSize: 9.5,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+          const SizedBox(height: 2),
+          Text(
+            value,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: TextStyle(
+              color: accent ? palette.secondary : palette.textPrimary,
+              fontSize: 11.5,
+              fontWeight: FontWeight.w900,
+            ),
+          ),
+        ],
       ),
     );
   }
