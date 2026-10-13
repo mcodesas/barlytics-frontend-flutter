@@ -5,8 +5,10 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 
+import '../../../../app/theme/app_palette.dart';
 import '../../../../core/branch/branch_scope_provider.dart';
 import '../../../../core/providers/core_providers.dart';
+import '../../../../core/widgets/app_empty_view.dart';
 import '../../../../core/widgets/app_loader.dart';
 import '../../../../core/widgets/tech_background.dart';
 
@@ -31,7 +33,7 @@ class _ComandasPageState extends ConsumerState<ComandasPage> {
   bool _loading = true;
   bool _refreshing = false;
   String _station = 'TODAS';
-  String _mobileStatus = 'NUEVA';
+  String _statusFilter = 'NUEVA';
   int? _loadedBranchId;
 
   @override
@@ -154,6 +156,7 @@ class _ComandasPageState extends ConsumerState<ComandasPage> {
 
   @override
   Widget build(BuildContext context) {
+    final palette = ref.watch(selectedAppPaletteProvider);
     final branch = ref.watch(branchScopeProvider);
     final branchId = branch.activeBranchId;
     if (branchId != null && branchId != _loadedBranchId && !_loading) {
@@ -163,138 +166,91 @@ class _ComandasPageState extends ConsumerState<ComandasPage> {
     }
 
     final branchName = branch.activeBranch?.sucuNombre ?? 'Sucursal activa';
-    return Stack(
-      children: [
-        const Positioned.fill(child: AppPageBackground()),
-        SafeArea(
-          child: Column(
-            children: [
-              _Header(
-                branchName: branchName,
-                station: _station,
-                refreshing: _refreshing,
-                items: _items,
-                onStationChanged: (value) {
-                  if (_station == value) return;
-                  setState(() => _station = value);
-                  _load();
-                },
-                onRefresh: () => _load(silent: true),
-              ),
-              Expanded(
-                child: _loading
-                    ? const AppLoader()
-                    : _items.isEmpty
-                        ? const _EmptyState()
-                        : LayoutBuilder(
-                            builder: (context, constraints) {
-                              if (constraints.maxWidth < 820) {
-                                return Column(
-                                  children: [
-                                    _MobileStatusBar(
-                                      selected: _mobileStatus,
-                                      items: _items,
-                                      onSelected: (value) {
-                                        setState(() => _mobileStatus = value);
-                                      },
-                                    ),
-                                    Expanded(
-                                      child: ListView(
-                                        padding: const EdgeInsets.fromLTRB(
-                                          10,
-                                          6,
-                                          10,
-                                          90,
-                                        ),
-                                        children: [
-                                          _StatusSection(
-                                            status: _mobileStatus,
-                                            showHeader: false,
-                                            items: _items
-                                                .where((item) =>
-                                                    item.estado ==
-                                                    _mobileStatus)
-                                                .toList(growable: false),
-                                            updating: _updating,
-                                            onAdvance: _advance,
-                                          ),
-                                        ],
-                                      ),
-                                    ),
-                                  ],
-                                );
-                              }
+    final visibleItems = _statusFilter == 'TODAS'
+        ? _items
+        : _items
+            .where((item) => item.estado == _statusFilter)
+            .toList(growable: false);
+    final orderGroups = _groupComandaOrders(visibleItems);
 
-                              if (constraints.maxWidth >= 1180) {
-                                return Padding(
-                                  padding:
-                                      const EdgeInsets.fromLTRB(12, 8, 12, 90),
-                                  child: Row(
-                                    crossAxisAlignment:
-                                        CrossAxisAlignment.stretch,
-                                    children: [
-                                      for (var index = 0;
-                                          index < _statuses.length;
-                                          index++) ...[
-                                        Expanded(
-                                          child: _StatusSection(
-                                            status: _statuses[index],
-                                            scrollable: true,
-                                            items: _items
-                                                .where((item) =>
-                                                    item.estado ==
-                                                    _statuses[index])
-                                                .toList(growable: false),
-                                            updating: _updating,
-                                            onAdvance: _advance,
-                                          ),
-                                        ),
-                                        if (index < _statuses.length - 1)
-                                          const SizedBox(width: 10),
-                                      ],
-                                    ],
-                                  ),
-                                );
-                              }
-
-                              return SingleChildScrollView(
-                                padding:
-                                    const EdgeInsets.fromLTRB(12, 8, 12, 90),
-                                scrollDirection: Axis.horizontal,
-                                child: Row(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    for (var index = 0;
-                                        index < _statuses.length;
-                                        index++) ...[
-                                      SizedBox(
-                                        width: 360,
-                                        height: constraints.maxHeight - 16,
-                                        child: _StatusSection(
-                                          status: _statuses[index],
-                                          scrollable: true,
-                                          items: _items
-                                              .where((item) =>
-                                                  item.estado ==
-                                                  _statuses[index])
-                                              .toList(growable: false),
-                                          updating: _updating,
-                                          onAdvance: _advance,
-                                        ),
-                                      ),
-                                      if (index < _statuses.length - 1)
-                                        const SizedBox(width: 10),
-                                    ],
-                                  ],
-                                ),
-                              );
-                            },
-                          ),
-              ),
-            ],
+    return Scaffold(
+      backgroundColor: Colors.transparent,
+      body: Stack(
+        children: [
+          const Positioned.fill(child: AppPageBackground()),
+          RefreshIndicator(
+            onRefresh: () => _load(silent: true),
+            child: CustomScrollView(
+              physics: const AlwaysScrollableScrollPhysics(),
+              slivers: [
+                SliverPadding(
+                  padding: EdgeInsets.fromLTRB(
+                    palette.pagePadding.left,
+                    palette.pagePadding.top,
+                    palette.pagePadding.right,
+                    10,
+                  ),
+                  sliver: SliverToBoxAdapter(
+                    child: _ComandasToolbar(
+                      palette: palette,
+                      branchName: branchName,
+                      station: _station,
+                      statusFilter: _statusFilter,
+                      refreshing: _refreshing,
+                      items: _items,
+                      onStationChanged: (value) {
+                        if (_station == value) return;
+                        setState(() => _station = value);
+                        _load();
+                      },
+                      onStatusChanged: (value) {
+                        if (_statusFilter == value) return;
+                        setState(() => _statusFilter = value);
+                      },
+                      onRefresh: () => _load(silent: true),
+                    ),
+                  ),
+                ),
+                if (_loading && _items.isEmpty)
+                  const SliverFillRemaining(
+                    hasScrollBody: false,
+                    child: AppLoader(),
+                  )
+                else if (orderGroups.isEmpty)
+                  SliverFillRemaining(
+                    hasScrollBody: false,
+                    child: AppEmptyView(
+                      message: _statusFilter == 'TODAS'
+                          ? 'No hay comandas para esta estación.'
+                          : 'No hay pedidos en este estado.',
+                    ),
+                  )
+                else
+                  SliverPadding(
+                    padding: EdgeInsets.fromLTRB(
+                      palette.pagePadding.left,
+                      0,
+                      palette.pagePadding.right,
+                      96,
+                    ),
+                    sliver: SliverToBoxAdapter(
+                      child: _ComandasOrderGrid(
+                        groups: orderGroups,
+                        updating: _updating,
+                        palette: palette,
+                        onAdvance: (items) async {
+                          for (final item in items) {
+                            await _advance(item);
+                          }
+                        },
+                      ),
+                    ),
+                  ),
+              ],
+            ),
           ),
-        ),
-      ],
+        ],
+      ),
     );
   }
 }
