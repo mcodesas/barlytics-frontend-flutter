@@ -255,6 +255,957 @@ class _ComandasPageState extends ConsumerState<ComandasPage> {
   }
 }
 
+List<List<_ComandaItem>> _groupComandaOrders(
+  List<_ComandaItem> values,
+) {
+  final grouped = <String, List<_ComandaItem>>{};
+  for (final item in values) {
+    final key = '${item.ventaId}|${item.cuentaId}|${item.mesaId ?? 0}';
+    grouped.putIfAbsent(key, () => <_ComandaItem>[]).add(item);
+  }
+
+  final result = grouped.values.toList(growable: false);
+  for (final group in result) {
+    group.sort((a, b) {
+      final aDate = a.fechaPedido ?? DateTime.fromMillisecondsSinceEpoch(0);
+      final bDate = b.fechaPedido ?? DateTime.fromMillisecondsSinceEpoch(0);
+      return aDate.compareTo(bDate);
+    });
+  }
+  result.sort((a, b) {
+    final aDate = a.first.fechaPedido ?? DateTime.fromMillisecondsSinceEpoch(0);
+    final bDate = b.first.fechaPedido ?? DateTime.fromMillisecondsSinceEpoch(0);
+    return aDate.compareTo(bDate);
+  });
+  return result;
+}
+
+int _countComandaOrdersByStatus(
+  List<_ComandaItem> items,
+  String status,
+) {
+  return _groupComandaOrders(
+    items.where((item) => item.estado == status).toList(growable: false),
+  ).length;
+}
+
+Color _comandaStatusTone(AppPalette palette, String status) {
+  return switch (status) {
+    'NUEVA' => palette.info,
+    'EN_PREPARACION' => palette.warning,
+    'LISTA' => palette.success,
+    _ => palette.textSecondary,
+  };
+}
+
+String _comandaStatusLabel(String status) {
+  return switch (status) {
+    'NUEVA' => 'Nuevas',
+    'EN_PREPARACION' => 'En preparación',
+    'LISTA' => 'Listas',
+    _ => 'Entregadas',
+  };
+}
+
+IconData _comandaStatusIcon(String status) {
+  return switch (status) {
+    'NUEVA' => Icons.notifications_active_outlined,
+    'EN_PREPARACION' => Icons.soup_kitchen_outlined,
+    'LISTA' => Icons.check_circle_outline_rounded,
+    _ => Icons.room_service_outlined,
+  };
+}
+
+class _ComandasToolbar extends StatelessWidget {
+  const _ComandasToolbar({
+    required this.palette,
+    required this.branchName,
+    required this.station,
+    required this.statusFilter,
+    required this.refreshing,
+    required this.items,
+    required this.onStationChanged,
+    required this.onStatusChanged,
+    required this.onRefresh,
+  });
+
+  final AppPalette palette;
+  final String branchName;
+  final String station;
+  final String statusFilter;
+  final bool refreshing;
+  final List<_ComandaItem> items;
+  final ValueChanged<String> onStationChanged;
+  final ValueChanged<String> onStatusChanged;
+  final VoidCallback onRefresh;
+
+  @override
+  Widget build(BuildContext context) {
+    final pending = _groupComandaOrders(
+      items
+          .where((item) => item.estado != 'ENTREGADA')
+          .toList(growable: false),
+    ).length;
+
+    return TechBackground(
+      padding: const EdgeInsets.fromLTRB(16, 14, 16, 16),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Container(
+                width: 46,
+                height: 46,
+                decoration: BoxDecoration(
+                  gradient: palette.mainGradient,
+                  borderRadius: BorderRadius.circular(palette.radius(15)),
+                  boxShadow: [
+                    BoxShadow(
+                      color: palette.cardShadow,
+                      blurRadius: 16,
+                      offset: const Offset(0, 7),
+                    ),
+                  ],
+                ),
+                child: Icon(
+                  Icons.room_service_rounded,
+                  color: palette.onPrimary,
+                  size: 24,
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Comandas',
+                      style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                            color: palette.textPrimary,
+                            fontWeight: FontWeight.w900,
+                          ),
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      '$branchName · $pending pedido${pending == 1 ? '' : 's'} pendiente${pending == 1 ? '' : 's'}',
+                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                            color: palette.textSecondary,
+                            fontWeight: FontWeight.w600,
+                          ),
+                    ),
+                  ],
+                ),
+              ),
+              IconButton.filledTonal(
+                tooltip: 'Actualizar comandas',
+                onPressed: refreshing ? null : onRefresh,
+                style: IconButton.styleFrom(
+                  foregroundColor: palette.primary,
+                  backgroundColor: palette.primary.withOpacity(.10),
+                ),
+                icon: refreshing
+                    ? const SizedBox(
+                        width: 18,
+                        height: 18,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      )
+                    : const Icon(Icons.refresh_rounded),
+              ),
+            ],
+          ),
+          const SizedBox(height: 14),
+          LayoutBuilder(
+            builder: (context, constraints) {
+              const spacing = 10.0;
+              final compact = constraints.maxWidth < 720;
+              final cardWidth = compact
+                  ? (constraints.maxWidth - spacing) / 2
+                  : (constraints.maxWidth - (spacing * 3)) / 4;
+
+              return Wrap(
+                spacing: spacing,
+                runSpacing: spacing,
+                children: [
+                  for (final status in const <String>[
+                    'NUEVA',
+                    'EN_PREPARACION',
+                    'LISTA',
+                    'ENTREGADA',
+                  ])
+                    SizedBox(
+                      width: cardWidth,
+                      child: _ComandaStatusCard(
+                        palette: palette,
+                        status: status,
+                        count: _countComandaOrdersByStatus(items, status),
+                        selected: statusFilter == status,
+                        onTap: () => onStatusChanged(status),
+                      ),
+                    ),
+                ],
+              );
+            },
+          ),
+          const SizedBox(height: 12),
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+            decoration: palette.panelDecoration(
+              baseRadius: 20,
+              tint: palette.secondary,
+              elevated: false,
+            ),
+            child: LayoutBuilder(
+              builder: (context, constraints) {
+                return Wrap(
+                  spacing: 8,
+                  runSpacing: 8,
+                  crossAxisAlignment: WrapCrossAlignment.center,
+                  children: [
+                    Padding(
+                      padding: const EdgeInsets.only(right: 4),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(
+                            Icons.tune_rounded,
+                            size: 18,
+                            color: palette.secondary,
+                          ),
+                          const SizedBox(width: 5),
+                          Text(
+                            'Vista',
+                            style:
+                                Theme.of(context).textTheme.labelLarge?.copyWith(
+                                      color: palette.textPrimary,
+                                      fontWeight: FontWeight.w900,
+                                    ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    _ComandaFilterChip(
+                      palette: palette,
+                      selected: station == 'TODAS',
+                      icon: Icons.dashboard_customize_rounded,
+                      label: 'Todas',
+                      onTap: () => onStationChanged('TODAS'),
+                    ),
+                    _ComandaFilterChip(
+                      palette: palette,
+                      selected: station == 'COCINA',
+                      icon: Icons.restaurant_rounded,
+                      label: 'Cocina',
+                      onTap: () => onStationChanged('COCINA'),
+                    ),
+                    _ComandaFilterChip(
+                      palette: palette,
+                      selected: station == 'BARRA',
+                      icon: Icons.local_bar_rounded,
+                      label: 'Barra',
+                      onTap: () => onStationChanged('BARRA'),
+                    ),
+                    _ComandaFilterChip(
+                      palette: palette,
+                      selected: statusFilter == 'TODAS',
+                      icon: Icons.view_list_rounded,
+                      label: 'Todos los estados',
+                      onTap: () => onStatusChanged('TODAS'),
+                    ),
+                  ],
+                );
+              },
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _ComandaStatusCard extends StatelessWidget {
+  const _ComandaStatusCard({
+    required this.palette,
+    required this.status,
+    required this.count,
+    required this.selected,
+    required this.onTap,
+  });
+
+  final AppPalette palette;
+  final String status;
+  final int count;
+  final bool selected;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final tone = _comandaStatusTone(palette, status);
+
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(palette.radius(18)),
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 180),
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 11),
+          decoration: BoxDecoration(
+            gradient: palette.panelGradient(tint: tone),
+            borderRadius: BorderRadius.circular(palette.radius(18)),
+            border: Border.all(
+              color: selected
+                  ? tone.withOpacity(.72)
+                  : palette.cardBorder,
+              width: selected ? 1.5 : 1,
+            ),
+            boxShadow: selected
+                ? [
+                    BoxShadow(
+                      color: tone.withOpacity(.12),
+                      blurRadius: 18,
+                      offset: const Offset(0, 7),
+                    ),
+                  ]
+                : null,
+          ),
+          child: Row(
+            children: [
+              Container(
+                width: 36,
+                height: 36,
+                decoration: BoxDecoration(
+                  color: tone.withOpacity(.13),
+                  borderRadius: BorderRadius.circular(11),
+                ),
+                child: Icon(
+                  _comandaStatusIcon(status),
+                  color: tone,
+                  size: 19,
+                ),
+              ),
+              const SizedBox(width: 9),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      _comandaStatusLabel(status),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: Theme.of(context).textTheme.labelLarge?.copyWith(
+                            color: palette.textPrimary,
+                            fontWeight: FontWeight.w900,
+                          ),
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      '$count pedido${count == 1 ? '' : 's'}',
+                      style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                            color: palette.textSecondary,
+                            fontWeight: FontWeight.w600,
+                          ),
+                    ),
+                  ],
+                ),
+              ),
+              if (selected)
+                Icon(
+                  Icons.check_circle_rounded,
+                  color: tone,
+                  size: 18,
+                ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _ComandaFilterChip extends StatelessWidget {
+  const _ComandaFilterChip({
+    required this.palette,
+    required this.selected,
+    required this.icon,
+    required this.label,
+    required this.onTap,
+  });
+
+  final AppPalette palette;
+  final bool selected;
+  final IconData icon;
+  final String label;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final tone = selected ? palette.primary : palette.textSecondary;
+
+    return InkWell(
+      borderRadius: BorderRadius.circular(999),
+      onTap: onTap,
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 160),
+        padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 7),
+        decoration: BoxDecoration(
+          color: selected
+              ? palette.primary.withOpacity(.12)
+              : palette.surface.withOpacity(.48),
+          borderRadius: BorderRadius.circular(999),
+          border: Border.all(
+            color: selected
+                ? palette.primary.withOpacity(.45)
+                : palette.cardBorder,
+          ),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(icon, size: 16, color: tone),
+            const SizedBox(width: 5),
+            Text(
+              label,
+              style: Theme.of(context).textTheme.labelMedium?.copyWith(
+                    color: selected
+                        ? palette.textPrimary
+                        : palette.textSecondary,
+                    fontWeight: FontWeight.w800,
+                  ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _ComandasOrderGrid extends StatelessWidget {
+  const _ComandasOrderGrid({
+    required this.groups,
+    required this.updating,
+    required this.palette,
+    required this.onAdvance,
+  });
+
+  final List<List<_ComandaItem>> groups;
+  final Set<int> updating;
+  final AppPalette palette;
+  final Future<void> Function(List<_ComandaItem>) onAdvance;
+
+  @override
+  Widget build(BuildContext context) {
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        const spacing = 14.0;
+        final columns = constraints.maxWidth < 720
+            ? 1
+            : constraints.maxWidth < 1180
+                ? 2
+                : 3;
+        final width =
+            (constraints.maxWidth - (spacing * (columns - 1))) / columns;
+
+        return Wrap(
+          spacing: spacing,
+          runSpacing: spacing,
+          children: [
+            for (final group in groups)
+              SizedBox(
+                width: width,
+                child: _ComandaOrderCard(
+                  items: group,
+                  palette: palette,
+                  updating: group.any(
+                    (item) => updating.contains(item.detalleId),
+                  ),
+                  onAdvance: () => onAdvance(group),
+                ),
+              ),
+          ],
+        );
+      },
+    );
+  }
+}
+
+class _ComandaOrderCard extends StatelessWidget {
+  const _ComandaOrderCard({
+    required this.items,
+    required this.palette,
+    required this.updating,
+    required this.onAdvance,
+  });
+
+  final List<_ComandaItem> items;
+  final AppPalette palette;
+  final bool updating;
+  final Future<void> Function() onAdvance;
+
+  @override
+  Widget build(BuildContext context) {
+    final first = items.first;
+    final tone = _comandaStatusTone(palette, first.estado);
+    final tableLabel = first.mesaNumero == null
+        ? 'Venta directa'
+        : 'Mesa ${first.mesaNumero}${first.mesaDescripcion.trim().isEmpty ? '' : ' · ${first.mesaDescripcion.trim()}'}';
+    final accountLabel = 'Cuenta ${first.cuentaNumero ?? '-'}'
+        '${first.cuentaDescripcion.trim().isEmpty ? '' : ' · ${first.cuentaDescripcion.trim()}'}';
+    final stations = items.map((item) => item.estacion).toSet();
+    final stationLabel = stations.length == 1
+        ? (stations.first == 'BARRA' ? 'Barra' : 'Cocina')
+        : 'Cocina + Barra';
+
+    final nextLabel = switch (first.estado) {
+      'NUEVA' => 'Iniciar preparación',
+      'EN_PREPARACION' => 'Marcar pedido listo',
+      'LISTA' => 'Marcar entregado',
+      _ => null,
+    };
+
+    return Container(
+      clipBehavior: Clip.antiAlias,
+      decoration: palette.panelDecoration(
+        baseRadius: 24,
+        tint: tone,
+        elevated: true,
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Material(
+            color: Colors.transparent,
+            child: InkWell(
+              onTap: () => _showOrderDetail(context, items),
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(14, 14, 14, 11),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Container(
+                          width: 42,
+                          height: 42,
+                          decoration: BoxDecoration(
+                            color: tone.withOpacity(.12),
+                            borderRadius: BorderRadius.circular(13),
+                          ),
+                          child: Icon(
+                            first.mesaNumero == null
+                                ? Icons.point_of_sale_rounded
+                                : Icons.table_restaurant_rounded,
+                            color: tone,
+                            size: 21,
+                          ),
+                        ),
+                        const SizedBox(width: 10),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                tableLabel,
+                                style: Theme.of(context)
+                                    .textTheme
+                                    .titleMedium
+                                    ?.copyWith(
+                                      color: palette.textPrimary,
+                                      fontWeight: FontWeight.w900,
+                                    ),
+                              ),
+                              const SizedBox(height: 3),
+                              Text(
+                                '$accountLabel · Pedido #${first.ventaId}',
+                                maxLines: 2,
+                                overflow: TextOverflow.ellipsis,
+                                style: Theme.of(context)
+                                    .textTheme
+                                    .bodySmall
+                                    ?.copyWith(
+                                      color: palette.textSecondary,
+                                      fontWeight: FontWeight.w600,
+                                    ),
+                              ),
+                            ],
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        _ComandaStatusBadge(
+                          palette: palette,
+                          status: first.estado,
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 11),
+                    Wrap(
+                      spacing: 7,
+                      runSpacing: 7,
+                      children: [
+                        _ComandaMetaChip(
+                          palette: palette,
+                          icon: stations.length == 1 &&
+                                  stations.first == 'BARRA'
+                              ? Icons.local_bar_rounded
+                              : Icons.restaurant_rounded,
+                          label: stationLabel,
+                        ),
+                        _ComandaMetaChip(
+                          palette: palette,
+                          icon: Icons.restaurant_menu_rounded,
+                          label:
+                              '${items.length} producto${items.length == 1 ? '' : 's'}',
+                        ),
+                        if (first.fechaPedido != null)
+                          _ComandaMetaChip(
+                            palette: palette,
+                            icon: Icons.schedule_rounded,
+                            label:
+                                DateFormat('HH:mm').format(first.fechaPedido!),
+                          ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+          Container(
+            margin: const EdgeInsets.symmetric(horizontal: 12),
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+            decoration: BoxDecoration(
+              color: palette.background.withOpacity(
+                palette.darkBackground ? .24 : .38,
+              ),
+              borderRadius: BorderRadius.circular(palette.radius(16)),
+            ),
+            child: Column(
+              children: [
+                for (var index = 0; index < items.length; index++) ...[
+                  _ComandaProductLine(
+                    item: items[index],
+                    palette: palette,
+                  ),
+                  if (index < items.length - 1)
+                    Divider(
+                      height: 1,
+                      color: palette.cardBorder.withOpacity(.7),
+                    ),
+                ],
+              ],
+            ),
+          ),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(14, 11, 14, 13),
+            child: Column(
+              children: [
+                Row(
+                  children: [
+                    Icon(
+                      Icons.person_outline_rounded,
+                      size: 15,
+                      color: palette.textSecondary,
+                    ),
+                    const SizedBox(width: 5),
+                    Expanded(
+                      child: Text(
+                        first.mesero.trim().isEmpty
+                            ? 'Sin mesero registrado'
+                            : first.mesero,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                              color: palette.textSecondary,
+                              fontWeight: FontWeight.w600,
+                            ),
+                      ),
+                    ),
+                    TextButton.icon(
+                      onPressed: () => _showOrderDetail(context, items),
+                      icon: const Icon(Icons.visibility_outlined, size: 16),
+                      label: const Text('Ver detalle'),
+                      style: TextButton.styleFrom(
+                        foregroundColor: palette.secondary,
+                      ),
+                    ),
+                  ],
+                ),
+                if (nextLabel != null) ...[
+                  const SizedBox(height: 7),
+                  SizedBox(
+                    width: double.infinity,
+                    child: FilledButton.icon(
+                      onPressed: updating ? null : () => onAdvance(),
+                      style: FilledButton.styleFrom(
+                        backgroundColor: palette.actionColor,
+                        foregroundColor: palette.onAction,
+                        padding: const EdgeInsets.symmetric(vertical: 11),
+                        shape: RoundedRectangleBorder(
+                          borderRadius:
+                              BorderRadius.circular(palette.radius(14)),
+                        ),
+                      ),
+                      icon: updating
+                          ? const SizedBox(
+                              width: 17,
+                              height: 17,
+                              child:
+                                  CircularProgressIndicator(strokeWidth: 2),
+                            )
+                          : Icon(
+                              first.estado == 'LISTA'
+                                  ? Icons.room_service_rounded
+                                  : Icons.arrow_forward_rounded,
+                              size: 18,
+                            ),
+                      label: Text(
+                        nextLabel,
+                        style: const TextStyle(fontWeight: FontWeight.w900),
+                      ),
+                    ),
+                  ),
+                ],
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _ComandaProductLine extends StatelessWidget {
+  const _ComandaProductLine({
+    required this.item,
+    required this.palette,
+  });
+
+  final _ComandaItem item;
+  final AppPalette palette;
+
+  @override
+  Widget build(BuildContext context) {
+    final customization = item.customization;
+    final description = item.productoDescripcion.trim();
+
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: () => _showProductDetail(context, item),
+        borderRadius: BorderRadius.circular(palette.radius(12)),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 2, vertical: 10),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Container(
+                constraints: const BoxConstraints(minWidth: 38),
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 7, vertical: 6),
+                decoration: BoxDecoration(
+                  color: palette.primary.withOpacity(.11),
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: Text(
+                  'x${_formatQuantity(item.cantidad)}',
+                  textAlign: TextAlign.center,
+                  style: Theme.of(context).textTheme.labelMedium?.copyWith(
+                        color: palette.primary,
+                        fontWeight: FontWeight.w900,
+                      ),
+                ),
+              ),
+              const SizedBox(width: 9),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      item.productoNombre,
+                      style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                            color: palette.textPrimary,
+                            fontWeight: FontWeight.w900,
+                          ),
+                    ),
+                    const SizedBox(height: 3),
+                    Text(
+                      description.isEmpty
+                          ? 'Sin descripción registrada'
+                          : description,
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                            color: palette.textSecondary,
+                            height: 1.3,
+                          ),
+                    ),
+                    if (customization.removed.isNotEmpty ||
+                        customization.additions.isNotEmpty) ...[
+                      const SizedBox(height: 6),
+                      Wrap(
+                        spacing: 5,
+                        runSpacing: 5,
+                        children: [
+                          for (final text in customization.removed)
+                            _ComandaModifierTag(
+                              palette: palette,
+                              label: 'SIN $text',
+                              tone: palette.danger,
+                            ),
+                          for (final text in customization.additions)
+                            _ComandaModifierTag(
+                              palette: palette,
+                              label: '+ $text',
+                              tone: palette.success,
+                            ),
+                        ],
+                      ),
+                    ],
+                    if (customization.observation != null &&
+                        customization.observation!.isNotEmpty) ...[
+                      const SizedBox(height: 6),
+                      Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Icon(
+                            Icons.sticky_note_2_outlined,
+                            size: 14,
+                            color: palette.secondary,
+                          ),
+                          const SizedBox(width: 4),
+                          Expanded(
+                            child: Text(
+                              customization.observation!,
+                              maxLines: 2,
+                              overflow: TextOverflow.ellipsis,
+                              style: Theme.of(context)
+                                  .textTheme
+                                  .bodySmall
+                                  ?.copyWith(
+                                    color: palette.textPrimary,
+                                    fontWeight: FontWeight.w700,
+                                  ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ],
+                ),
+              ),
+              const SizedBox(width: 6),
+              Icon(
+                Icons.chevron_right_rounded,
+                color: palette.textSecondary,
+                size: 18,
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _ComandaModifierTag extends StatelessWidget {
+  const _ComandaModifierTag({
+    required this.palette,
+    required this.label,
+    required this.tone,
+  });
+
+  final AppPalette palette;
+  final String label;
+  final Color tone;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 4),
+      decoration: BoxDecoration(
+        color: tone.withOpacity(.08),
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: Text(
+        label,
+        style: Theme.of(context).textTheme.labelSmall?.copyWith(
+              color: tone,
+              fontWeight: FontWeight.w900,
+            ),
+      ),
+    );
+  }
+}
+
+class _ComandaStatusBadge extends StatelessWidget {
+  const _ComandaStatusBadge({
+    required this.palette,
+    required this.status,
+  });
+
+  final AppPalette palette;
+  final String status;
+
+  @override
+  Widget build(BuildContext context) {
+    final tone = _comandaStatusTone(palette, status);
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
+      decoration: BoxDecoration(
+        color: tone.withOpacity(.10),
+        borderRadius: BorderRadius.circular(999),
+      ),
+      child: Text(
+        _comandaStatusLabel(status),
+        style: Theme.of(context).textTheme.labelSmall?.copyWith(
+              color: tone,
+              fontWeight: FontWeight.w900,
+            ),
+      ),
+    );
+  }
+}
+
+class _ComandaMetaChip extends StatelessWidget {
+  const _ComandaMetaChip({
+    required this.palette,
+    required this.icon,
+    required this.label,
+  });
+
+  final AppPalette palette;
+  final IconData icon;
+  final String label;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
+      decoration: BoxDecoration(
+        color: palette.surface.withOpacity(.46),
+        borderRadius: BorderRadius.circular(999),
+        border: Border.all(color: palette.cardBorder),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 14, color: palette.textSecondary),
+          const SizedBox(width: 4),
+          Text(
+            label,
+            style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                  color: palette.textSecondary,
+                  fontWeight: FontWeight.w700,
+                ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
 class _Header extends StatelessWidget {
   const _Header({
     required this.branchName,
