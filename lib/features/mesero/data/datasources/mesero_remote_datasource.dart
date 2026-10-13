@@ -281,6 +281,9 @@ class MeseroRemoteDataSource {
     required int productoId,
     int? precioId,
     double cantidad = 1,
+    List<int> ingredientesExcluidos = const <int>[],
+    List<int> adiciones = const <int>[],
+    String? observacion,
   }) async {
     final response = await _apiClient.post<MeseroVentaModel>(
       ApiPaths.meseroAgregarProductoCuenta(cuentaId),
@@ -288,6 +291,9 @@ class MeseroRemoteDataSource {
         'prodId': productoId,
         if (precioId != null) 'precId': precioId,
         'cantidad': cantidad,
+        if (ingredientesExcluidos.isNotEmpty) 'ingredientesExcluidos': ingredientesExcluidos,
+        if (adiciones.isNotEmpty) 'adiciones': adiciones,
+        if ((observacion ?? '').trim().isNotEmpty) 'observacion': observacion!.trim(),
       },
       (json) => MeseroVentaModel.fromJson(Map<String, dynamic>.from(json as Map)),
     );
@@ -387,6 +393,23 @@ class MeseroRemoteDataSource {
     return response.data!;
   }
 
+  Future<CierreCajaResumenModel> guardarBaseInicialCierreCaja({
+    required String fecha,
+    required double valorBase,
+  }) async {
+    final response = await _apiClient.put<CierreCajaResumenModel>(
+      ApiPaths.meseroCierreCajaBaseInicial,
+      {
+        'fecha': fecha,
+        'valorBase': valorBase,
+      },
+      (json) => CierreCajaResumenModel.fromJson(
+        Map<String, dynamic>.from(json as Map),
+      ),
+    );
+    return response.data!;
+  }
+
   Future<CierreCajaResumenModel> registrarCierreCaja({
     required String fecha,
     required List<Map<String, dynamic>> mediosPago,
@@ -448,6 +471,7 @@ class MeseroRemoteDataSource {
     String? descripcion,
     int? gastoId,
     int? pedidoId,
+    int? medioPagoId,
   }) async {
     final response = await _apiClient.post<SalidaCajaModel>(
       ApiPaths.meseroCierreCajaSalidas,
@@ -459,6 +483,7 @@ class MeseroRemoteDataSource {
         if ((descripcion ?? '').trim().isNotEmpty) 'descripcion': descripcion!.trim(),
         if (gastoId != null) 'gastoId': gastoId,
         if (pedidoId != null) 'pedidoId': pedidoId,
+        if (medioPagoId != null) 'medioPagoId': medioPagoId,
       },
       (json) => SalidaCajaModel.fromJson(
         Map<String, dynamic>.from(json as Map),

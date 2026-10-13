@@ -63,6 +63,8 @@ class ModuleVisuals {
         return const ModuleVisual(icon: Icons.point_of_sale_rounded, color: Color(0xFF2563EB), description: 'Consumos y ventas por mesa');
       case 'mesero':
         return const ModuleVisual(icon: Icons.room_service_rounded, color: Color(0xFFF59E0B), description: 'Operación rápida de mesas y cuentas');
+      case 'comandas':
+        return const ModuleVisual(icon: Icons.room_service_rounded, color: Color(0xFF0D9488), description: 'Pedidos de cocina y barra por mesa');
       case 'cuentas_venta':
         return const ModuleVisual(icon: Icons.receipt_long_rounded, color: Color(0xFF4F46E5), description: 'Cuentas asociadas a ventas');
       case 'detalle_cuenta_venta':

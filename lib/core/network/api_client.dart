@@ -1,3 +1,5 @@
+import 'dart:typed_data';
+
 import 'package:dio/dio.dart';
 
 import '../errors/app_exception.dart';
@@ -41,6 +43,45 @@ class ApiClient {
 
   Future<ApiResponse<T>> put<T>(String path, Object? body, T Function(Object? json) parser) async {
     return _send(() => _dio.put(path, data: normalizeJsonPayload(body)), parser);
+  }
+
+  Future<Uint8List> getBytes(
+    String path, {
+    Map<String, dynamic>? queryParameters,
+  }) async {
+    try {
+      final response = await _dio.get<List<int>>(
+        path,
+        queryParameters: normalizeJsonMap(queryParameters),
+        options: Options(responseType: ResponseType.bytes),
+      );
+      final data = response.data;
+      if (data == null) {
+        throw const ApiException('El servidor no devolvió el archivo solicitado');
+      }
+      return Uint8List.fromList(data);
+    } on DioException catch (e) {
+      throw NetworkException(
+        e.message ?? 'No fue posible descargar el archivo',
+        statusCode: e.response?.statusCode,
+      );
+    }
+  }
+
+  Future<ApiResponse<T>> postMultipart<T>(
+    String path,
+    FormData formData,
+    T Function(Object? json) parser, {
+    Map<String, dynamic>? queryParameters,
+  }) async {
+    return _send(
+      () => _dio.post(
+        path,
+        data: formData,
+        queryParameters: normalizeJsonMap(queryParameters),
+      ),
+      parser,
+    );
   }
 
   Future<ApiResponse<T>> delete<T>(String path, T Function(Object? json) parser) async {

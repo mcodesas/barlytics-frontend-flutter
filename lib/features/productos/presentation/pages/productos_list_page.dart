@@ -28,6 +28,9 @@ import '../../../tipos_producto/data/models/tipos_producto_response_model.dart';
 import '../../../tipos_producto/presentation/providers/tipos_producto_provider.dart';
 import '../../data/models/productos_response_model.dart';
 import '../providers/productos_provider.dart';
+import '../widgets/productos_setup_tools.dart';
+
+enum _ProductViewMode { cards, list, table }
 
 class ProductosListPage extends ConsumerStatefulWidget {
   const ProductosListPage({super.key});
@@ -41,7 +44,7 @@ class _ProductosListPageState extends ConsumerState<ProductosListPage> {
   int? _selectedTipoId;
   int? _selectedMarcaId;
   int? _selectedSucursalId;
-  bool _gridView = true;
+  _ProductViewMode _viewMode = _ProductViewMode.cards;
   Timer? _searchDebounce;
   Map<String, int>? _movementTypeIds;
   bool _branchInitialized = false;
@@ -131,7 +134,7 @@ class _ProductosListPageState extends ConsumerState<ProductosListPage> {
         tipos: tiposState.items,
         sucursales: branchState.branches,
         palette: palette,
-        gridView: _gridView,
+        viewMode: _viewMode,
         onDelete: (id) => _deleteProduct(context, id),
         onRegisterMovement: _registerMovementInline,
         onUpdateProduct: _updateProductInline,
@@ -162,6 +165,18 @@ class _ProductosListPageState extends ConsumerState<ProductosListPage> {
             child: CustomScrollView(
               physics: const AlwaysScrollableScrollPhysics(),
               slivers: [
+                if (!movementOnly)
+                  SliverToBoxAdapter(
+                    child: ProductosSetupTools(
+                      palette: palette,
+                      branches: branchState.branches,
+                      activeBranchId: branchState.activeBranchId,
+                      onCompleted: () async {
+                        _selectedProductIds.clear();
+                        await notifier.refresh();
+                      },
+                    ),
+                  ),
                 SliverToBoxAdapter(
                   child: _ProductosHeader(
                     total: state.totalElements,
@@ -181,7 +196,7 @@ class _ProductosListPageState extends ConsumerState<ProductosListPage> {
                     activeBranchId: branchState.activeBranchId,
                     onActiveBranchChanged: _changeActiveBranch,
                     sortOption: state.sortOption,
-                    gridView: _gridView,
+                    viewMode: _viewMode,
                     selectedQuickFilter: state.quickFilter,
                     onQuickFilterChanged: (filter) {
                       final nextFilter = state.quickFilter == filter
@@ -215,7 +230,7 @@ class _ProductosListPageState extends ConsumerState<ProductosListPage> {
                       if (value == null) return;
                       notifier.load(page: 0, sortOption: value);
                     },
-                    onViewChanged: (grid) => setState(() => _gridView = grid),
+                    onViewChanged: (mode) => setState(() => _viewMode = mode),
                     onClearFilters: () {
                       _searchDebounce?.cancel();
                       _searchController.clear();
@@ -630,7 +645,7 @@ class _ProductosHeader extends StatelessWidget {
     required this.activeBranchId,
     required this.onActiveBranchChanged,
     required this.sortOption,
-    required this.gridView,
+    required this.viewMode,
     required this.selectedQuickFilter,
     required this.onQuickFilterChanged,
     required this.onTipoChanged,
@@ -660,14 +675,14 @@ class _ProductosHeader extends StatelessWidget {
   final int? activeBranchId;
   final ValueChanged<int?> onActiveBranchChanged;
   final ProductosSortOption sortOption;
-  final bool gridView;
+  final _ProductViewMode viewMode;
   final ProductosQuickFilter selectedQuickFilter;
   final ValueChanged<ProductosQuickFilter> onQuickFilterChanged;
   final ValueChanged<int?> onTipoChanged;
   final ValueChanged<int?> onMarcaChanged;
   final ValueChanged<int?> onSucursalChanged;
   final ValueChanged<ProductosSortOption?> onSortChanged;
-  final ValueChanged<bool> onViewChanged;
+  final ValueChanged<_ProductViewMode> onViewChanged;
   final VoidCallback onClearFilters;
   final VoidCallback onRefresh;
   final AppPalette palette;
@@ -794,9 +809,9 @@ class _ProductosHeader extends StatelessWidget {
             ),
             const SizedBox(width: 8),
             SizedBox(
-              width: 122,
+              width: 154,
               child: _ViewSelector(
-                gridView: gridView,
+                viewMode: viewMode,
                 palette: palette,
                 onChanged: onViewChanged,
                 compact: true,
@@ -869,9 +884,9 @@ class _ProductosHeader extends StatelessWidget {
             ),
             const SizedBox(width: 10),
             SizedBox(
-              width: 176,
+              width: 246,
               child: _ViewSelector(
-                gridView: gridView,
+                viewMode: viewMode,
                 palette: palette,
                 onChanged: onViewChanged,
               ),
@@ -989,7 +1004,7 @@ class _ProductosHeader extends StatelessWidget {
     var localMarca = selectedMarcaId;
     var localSucursal = selectedSucursalId;
     var localSort = sortOption;
-    var localGrid = gridView;
+    var localViewMode = viewMode;
 
     await showModalBottomSheet<void>(
       context: context,
@@ -1185,10 +1200,10 @@ class _ProductosHeader extends StatelessWidget {
                             ),
                             const SizedBox(height: 10),
                             _ViewSelector(
-                              gridView: localGrid,
+                              viewMode: localViewMode,
                               palette: palette,
                               onChanged: (value) {
-                                setModalState(() => localGrid = value);
+                                setModalState(() => localViewMode = value);
                                 onViewChanged(value);
                               },
                             ),
@@ -1221,7 +1236,7 @@ class _ProductosHeader extends StatelessWidget {
                                       ? activeBranchId
                                       : null;
                                   localSort = ProductosSortOption.nombreAsc;
-                                  localGrid = gridView;
+                                  localViewMode = viewMode;
                                 });
                               },
                               style: OutlinedButton.styleFrom(
@@ -1748,15 +1763,15 @@ class _HeaderDropdown<T> extends StatelessWidget {
 
 class _ViewSelector extends StatelessWidget {
   const _ViewSelector({
-    required this.gridView,
+    required this.viewMode,
     required this.palette,
     required this.onChanged,
     this.compact = false,
   });
 
-  final bool gridView;
+  final _ProductViewMode viewMode;
   final AppPalette palette;
-  final ValueChanged<bool> onChanged;
+  final ValueChanged<_ProductViewMode> onChanged;
   final bool compact;
 
   @override
@@ -1775,21 +1790,31 @@ class _ViewSelector extends StatelessWidget {
         children: [
           Expanded(
             child: _ViewOption(
-              active: gridView,
+              active: viewMode == _ProductViewMode.cards,
               icon: Icons.grid_view_rounded,
               label: compact ? '' : 'Tarjetas',
               palette: palette,
-              onTap: () => onChanged(true),
+              onTap: () => onChanged(_ProductViewMode.cards),
             ),
           ),
           const SizedBox(width: 4),
           Expanded(
             child: _ViewOption(
-              active: !gridView,
+              active: viewMode == _ProductViewMode.list,
               icon: Icons.view_list_rounded,
               label: compact ? '' : 'Lista',
               palette: palette,
-              onTap: () => onChanged(false),
+              onTap: () => onChanged(_ProductViewMode.list),
+            ),
+          ),
+          const SizedBox(width: 4),
+          Expanded(
+            child: _ViewOption(
+              active: viewMode == _ProductViewMode.table,
+              icon: Icons.table_rows_rounded,
+              label: compact ? '' : 'Tabla',
+              palette: palette,
+              onTap: () => onChanged(_ProductViewMode.table),
             ),
           ),
         ],
@@ -2076,7 +2101,7 @@ class _ProductosResults extends StatelessWidget {
     required this.tipos,
     required this.sucursales,
     required this.palette,
-    required this.gridView,
+    required this.viewMode,
     required this.onDelete,
     required this.onRegisterMovement,
     required this.onUpdateProduct,
@@ -2092,7 +2117,7 @@ class _ProductosResults extends StatelessWidget {
   final List<TiposProductoResponseModel> tipos;
   final List<SucursalesResponseModel> sucursales;
   final AppPalette palette;
-  final bool gridView;
+  final _ProductViewMode viewMode;
   final ValueChanged<Object> onDelete;
   final Future<bool> Function(ProductosResponseModel item, _QuickMovementDraft draft) onRegisterMovement;
   final Future<bool> Function(ProductosResponseModel item, Map<String, dynamic> body) onUpdateProduct;
@@ -2104,7 +2129,25 @@ class _ProductosResults extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    if (!gridView) {
+    if (viewMode == _ProductViewMode.table) {
+      return _ProductsTableView(
+        items: items,
+        marcas: marcas,
+        tipos: tipos,
+        sucursales: sucursales,
+        palette: palette,
+        allowProductManagement: allowProductManagement,
+        selectedProductIds: selectedProductIds,
+        onSelectionChanged: onSelectionChanged,
+        onDelete: onDelete,
+        onRegisterMovement: onRegisterMovement,
+        onUpdateProduct: onUpdateProduct,
+        stockSavingIds: stockSavingIds,
+        productSavingIds: productSavingIds,
+      );
+    }
+
+    if (viewMode == _ProductViewMode.list) {
       return Padding(
         padding: const EdgeInsets.fromLTRB(16, 16, 16, 100),
         child: Container(
@@ -2199,6 +2242,658 @@ class _ProductosResults extends StatelessWidget {
       _firstOrNull(values.where((element) => element.sucuId == item.sucuId))?.sucuNombre ?? 'Sucursal ${item.sucuId ?? '-'}';
 }
 
+
+class _ProductsTableView extends StatelessWidget {
+  const _ProductsTableView({
+    required this.items,
+    required this.marcas,
+    required this.tipos,
+    required this.sucursales,
+    required this.palette,
+    required this.allowProductManagement,
+    required this.selectedProductIds,
+    required this.onSelectionChanged,
+    required this.onDelete,
+    required this.onRegisterMovement,
+    required this.onUpdateProduct,
+    required this.stockSavingIds,
+    required this.productSavingIds,
+  });
+
+  final List<ProductosResponseModel> items;
+  final List<MarcasResponseModel> marcas;
+  final List<TiposProductoResponseModel> tipos;
+  final List<SucursalesResponseModel> sucursales;
+  final AppPalette palette;
+  final bool allowProductManagement;
+  final Set<int> selectedProductIds;
+  final void Function(int id, bool selected) onSelectionChanged;
+  final ValueChanged<Object> onDelete;
+  final Future<bool> Function(
+    ProductosResponseModel item,
+    _QuickMovementDraft draft,
+  ) onRegisterMovement;
+  final Future<bool> Function(
+    ProductosResponseModel item,
+    Map<String, dynamic> body,
+  ) onUpdateProduct;
+  final Set<int> stockSavingIds;
+  final Set<int> productSavingIds;
+
+  @override
+  Widget build(BuildContext context) {
+    String brandName(ProductosResponseModel item) =>
+        _firstOrNull(marcas.where((value) => value.mrcaId == item.mrcaId))
+            ?.mrcaNombre ??
+        '-';
+    String typeName(ProductosResponseModel item) =>
+        _firstOrNull(tipos.where((value) => value.tpprId == item.tpprId))
+            ?.tpprNombre ??
+        '-';
+    String branchName(ProductosResponseModel item) =>
+        _firstOrNull(sucursales.where((value) => value.sucuId == item.sucuId))
+            ?.sucuNombre ??
+        'Sucursal ${item.sucuId ?? '-'}';
+
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final width = constraints.maxWidth;
+        final compact = width < 700;
+        final medium = width >= 700 && width < 1100;
+        final padding = compact
+            ? const EdgeInsets.fromLTRB(8, 10, 8, 92)
+            : const EdgeInsets.fromLTRB(16, 16, 16, 100);
+
+        if (compact) {
+          return Padding(
+            padding: padding,
+            child: Container(
+              width: double.infinity,
+              decoration: BoxDecoration(
+                color: palette.surface.withOpacity(
+                  palette.darkBackground ? .94 : .99,
+                ),
+                borderRadius: BorderRadius.circular(18),
+                border: Border.all(color: palette.cardBorder),
+              ),
+              child: Column(
+                children: List.generate(items.length, (index) {
+                  final item = items[index];
+                  final id = item.prodId;
+                  final selected =
+                      id != null && selectedProductIds.contains(id);
+                  final isLast = index == items.length - 1;
+
+                  return Container(
+                    padding: const EdgeInsets.fromLTRB(10, 10, 8, 10),
+                    decoration: BoxDecoration(
+                      color: selected
+                          ? palette.secondary.withOpacity(.08)
+                          : Colors.transparent,
+                      border: isLast
+                          ? null
+                          : Border(
+                              bottom: BorderSide(color: palette.cardBorder),
+                            ),
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        Row(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            if (allowProductManagement && id != null)
+                              Padding(
+                                padding: const EdgeInsets.only(right: 4),
+                                child: Checkbox(
+                                  value: selected,
+                                  visualDensity: VisualDensity.compact,
+                                  onChanged: (value) =>
+                                      onSelectionChanged(id, value ?? false),
+                                ),
+                              ),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    item.prodNombre ??
+                                        'Producto ${item.prodId ?? '-'}',
+                                    maxLines: 2,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: TextStyle(
+                                      color: palette.textPrimary,
+                                      fontSize: 14,
+                                      fontWeight: FontWeight.w900,
+                                    ),
+                                  ),
+                                  const SizedBox(height: 3),
+                                  Text(
+                                    '${typeName(item)} · ${brandName(item)}',
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: TextStyle(
+                                      color: palette.textSecondary,
+                                      fontSize: 11,
+                                      fontWeight: FontWeight.w600,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 9),
+                        Row(
+                          children: [
+                            Expanded(
+                              child: _ResponsiveProductMetric(
+                                label: 'Cantidad',
+                                value:
+                                    '${_formatNumber(item.inventarioActual ?? 0)} ${item.prodUnidadBase ?? 'UND'}',
+                                palette: palette,
+                              ),
+                            ),
+                            const SizedBox(width: 8),
+                            Expanded(
+                              child: _ResponsiveProductMetric(
+                                label: 'Compra',
+                                value: _tableMoney(
+                                  item.precioCompraVigente,
+                                ),
+                                palette: palette,
+                              ),
+                            ),
+                            const SizedBox(width: 8),
+                            Expanded(
+                              child: _ResponsiveProductMetric(
+                                label: 'Venta',
+                                value: _tableMoney(
+                                  item.precioVentaVigente,
+                                ),
+                                palette: palette,
+                                accent: true,
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 9),
+                        _TableProductActions(
+                          item: item,
+                          palette: palette,
+                          marcas: marcas,
+                          tipos: tipos,
+                          allowProductManagement: allowProductManagement,
+                          stockSaving: id != null && stockSavingIds.contains(id),
+                          productSaving:
+                              id != null && productSavingIds.contains(id),
+                          onRegisterMovement: onRegisterMovement,
+                          onUpdateProduct: onUpdateProduct,
+                          onDelete: onDelete,
+                          labeled: true,
+                        ),
+                        const SizedBox(height: 7),
+                        Text(
+                          branchName(item),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: TextStyle(
+                            color: palette.textSecondary,
+                            fontSize: 10.5,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ],
+                    ),
+                  );
+                }),
+              ),
+            ),
+          );
+        }
+
+        final tableWidth = medium
+            ? math.max(width - 32, 980.0)
+            : math.max(width - 32, allowProductManagement ? 1380.0 : 1220.0);
+
+        return Padding(
+          padding: padding,
+          child: Container(
+            width: double.infinity,
+            decoration: BoxDecoration(
+              color: palette.surface.withOpacity(
+                palette.darkBackground ? .94 : .99,
+              ),
+              borderRadius: BorderRadius.circular(22),
+              border: Border.all(color: palette.cardBorder),
+              boxShadow: [
+                BoxShadow(
+                  color: palette.cardShadow.withOpacity(.16),
+                  blurRadius: 18,
+                  offset: const Offset(0, 8),
+                ),
+              ],
+            ),
+            child: ClipRRect(
+              borderRadius: BorderRadius.circular(22),
+              child: SingleChildScrollView(
+                scrollDirection: Axis.horizontal,
+                child: SizedBox(
+                  width: tableWidth,
+                  child: DataTable(
+                    headingRowHeight: 50,
+                    dataRowMinHeight: 54,
+                    dataRowMaxHeight: 66,
+                    horizontalMargin: medium ? 12 : 18,
+                    columnSpacing: medium ? 16 : 28,
+                    dividerThickness: .7,
+                    columns: [
+                      if (allowProductManagement)
+                        const DataColumn(label: Text('')),
+                      const DataColumn(label: Text('Producto')),
+                      const DataColumn(label: Text('Tipo')),
+                      if (!medium) const DataColumn(label: Text('Marca')),
+                      const DataColumn(label: Text('Cantidad'), numeric: true),
+                      if (!medium) const DataColumn(label: Text('Unidad')),
+                      const DataColumn(
+                        label: Text('Precio compra'),
+                        numeric: true,
+                      ),
+                      const DataColumn(
+                        label: Text('Precio venta'),
+                        numeric: true,
+                      ),
+                      if (!medium) const DataColumn(label: Text('Sucursal')),
+                      const DataColumn(label: Text('Acciones')),
+                    ],
+                    rows: items.map((item) {
+                      final id = item.prodId;
+                      final selected =
+                          id != null && selectedProductIds.contains(id);
+
+                      return DataRow(
+                        selected: selected,
+                        cells: [
+                          if (allowProductManagement)
+                            DataCell(
+                              id == null
+                                  ? const SizedBox.shrink()
+                                  : Checkbox(
+                                      value: selected,
+                                      onChanged: (value) =>
+                                          onSelectionChanged(
+                                        id,
+                                        value ?? false,
+                                      ),
+                                    ),
+                            ),
+                          DataCell(
+                            ConstrainedBox(
+                              constraints: BoxConstraints(
+                                maxWidth: medium ? 220 : 340,
+                              ),
+                              child: Text(
+                                item.prodNombre ??
+                                    'Producto ${item.prodId ?? '-'}',
+                                maxLines: 2,
+                                overflow: TextOverflow.ellipsis,
+                                style: TextStyle(
+                                  color: palette.textPrimary,
+                                  fontWeight: FontWeight.w800,
+                                ),
+                              ),
+                            ),
+                          ),
+                          DataCell(Text(typeName(item))),
+                          if (!medium) DataCell(Text(brandName(item))),
+                          DataCell(
+                            Text(
+                              medium
+                                  ? '${_formatNumber(item.inventarioActual ?? 0)} ${item.prodUnidadBase ?? 'UND'}'
+                                  : _formatNumber(
+                                      item.inventarioActual ?? 0,
+                                    ),
+                              style: TextStyle(
+                                color: palette.textPrimary,
+                                fontWeight: FontWeight.w900,
+                              ),
+                            ),
+                          ),
+                          if (!medium)
+                            DataCell(Text(item.prodUnidadBase ?? 'UND')),
+                          DataCell(
+                            Text(_tableMoney(item.precioCompraVigente)),
+                          ),
+                          DataCell(
+                            Text(
+                              _tableMoney(item.precioVentaVigente),
+                              style: TextStyle(
+                                color: palette.secondary,
+                                fontWeight: FontWeight.w900,
+                              ),
+                            ),
+                          ),
+                          if (!medium) DataCell(Text(branchName(item))),
+                          DataCell(
+                            Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                _TableProductActions(
+                                  item: item,
+                                  palette: palette,
+                                  marcas: marcas,
+                                  tipos: tipos,
+                                  allowProductManagement:
+                                      allowProductManagement,
+                                  stockSaving:
+                                      id != null && stockSavingIds.contains(id),
+                                  productSaving: id != null &&
+                                      productSavingIds.contains(id),
+                                  onRegisterMovement:
+                                      onRegisterMovement,
+                                  onUpdateProduct: onUpdateProduct,
+                                  onDelete: onDelete,
+                                  labeled: false,
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
+                      );
+                    }).toList(growable: false),
+                  ),
+                ),
+              ),
+            ),
+          ),
+        );
+      },
+    );
+  }
+}
+
+class _TableProductActions extends StatefulWidget {
+  const _TableProductActions({
+    required this.item,
+    required this.palette,
+    required this.marcas,
+    required this.tipos,
+    required this.allowProductManagement,
+    required this.stockSaving,
+    required this.productSaving,
+    required this.onRegisterMovement,
+    required this.onUpdateProduct,
+    required this.onDelete,
+    required this.labeled,
+  });
+
+  final ProductosResponseModel item;
+  final AppPalette palette;
+  final List<MarcasResponseModel> marcas;
+  final List<TiposProductoResponseModel> tipos;
+  final bool allowProductManagement;
+  final bool stockSaving;
+  final bool productSaving;
+  final Future<bool> Function(
+    ProductosResponseModel item,
+    _QuickMovementDraft draft,
+  ) onRegisterMovement;
+  final Future<bool> Function(
+    ProductosResponseModel item,
+    Map<String, dynamic> body,
+  ) onUpdateProduct;
+  final ValueChanged<Object> onDelete;
+  final bool labeled;
+
+  @override
+  State<_TableProductActions> createState() => _TableProductActionsState();
+}
+
+class _TableProductActionsState extends State<_TableProductActions> {
+  Future<void> _openMovement(_QuickMovementType type) async {
+    FocusScope.of(context).unfocus();
+    await showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      useSafeArea: true,
+      backgroundColor: Colors.transparent,
+      barrierColor: Colors.black.withOpacity(.72),
+      elevation: 0,
+      builder: (_) => _QuickMovementPanel(
+        item: widget.item,
+        initialType: type,
+        palette: widget.palette,
+        onSubmit: (draft) =>
+            widget.onRegisterMovement(widget.item, draft),
+      ),
+    );
+  }
+
+  Future<void> _openHistory() async {
+    FocusScope.of(context).unfocus();
+    await showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      useSafeArea: true,
+      backgroundColor: Colors.transparent,
+      barrierColor: Colors.black.withOpacity(.72),
+      elevation: 0,
+      builder: (_) => LayoutBuilder(
+        builder: (context, constraints) => Align(
+          alignment: Alignment.bottomCenter,
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 760),
+            child: FractionallySizedBox(
+              heightFactor: constraints.maxHeight < 720 ? .98 : .92,
+              child: _ProductMovementHistoryBottomSheet(
+                item: widget.item,
+                palette: widget.palette,
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Future<void> _openEdit() async {
+    FocusScope.of(context).unfocus();
+    await showModalBottomSheet<bool>(
+      context: context,
+      isScrollControlled: true,
+      useSafeArea: true,
+      backgroundColor: Colors.transparent,
+      barrierColor: Colors.black.withOpacity(.72),
+      elevation: 0,
+      builder: (_) => LayoutBuilder(
+        builder: (context, constraints) => Align(
+          alignment: Alignment.bottomCenter,
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 760),
+            child: FractionallySizedBox(
+              heightFactor: constraints.maxHeight < 720 ? .98 : .94,
+              child: _ProductEditBottomSheet(
+                item: widget.item,
+                palette: widget.palette,
+                marcas: widget.marcas,
+                tipos: widget.tipos,
+                onUpdateProduct: widget.onUpdateProduct,
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final actions = <Widget>[
+      _tableAction(
+        tooltip: 'Agregar inventario',
+        label: 'Agregar',
+        icon: Icons.add_rounded,
+        color: widget.palette.success,
+        busy: widget.stockSaving,
+        onPressed: widget.stockSaving
+            ? null
+            : () => _openMovement(_QuickMovementType.entry),
+      ),
+      _tableAction(
+        tooltip: 'Quitar inventario',
+        label: 'Quitar',
+        icon: Icons.remove_rounded,
+        color: Colors.redAccent,
+        busy: widget.stockSaving,
+        onPressed: widget.stockSaving
+            ? null
+            : () => _openMovement(_QuickMovementType.exit),
+      ),
+      _tableAction(
+        tooltip: 'Historial',
+        label: 'Historial',
+        icon: Icons.history_rounded,
+        color: widget.palette.secondary,
+        onPressed: _openHistory,
+      ),
+      if (widget.allowProductManagement && widget.item.prodId != null)
+        _tableAction(
+          tooltip: 'Ver detalle',
+          label: 'Ver',
+          icon: Icons.visibility_outlined,
+          color: widget.palette.secondary,
+          onPressed: () => context.go('/productos/${widget.item.prodId}'),
+        ),
+      if (widget.allowProductManagement)
+        _tableAction(
+          tooltip: 'Modificar producto',
+          label: 'Modificar',
+          icon: Icons.edit_outlined,
+          color: widget.palette.secondary,
+          busy: widget.productSaving,
+          onPressed: widget.productSaving ? null : _openEdit,
+        ),
+      if (widget.allowProductManagement && widget.item.prodId != null)
+        _tableAction(
+          tooltip: 'Eliminar o inactivar',
+          label: 'Eliminar',
+          icon: Icons.delete_outline_rounded,
+          color: Colors.redAccent,
+          onPressed: () => widget.onDelete(widget.item.prodId!),
+        ),
+    ];
+
+    if (widget.labeled) {
+      return Wrap(
+        spacing: 6,
+        runSpacing: 6,
+        children: actions,
+      );
+    }
+
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: actions
+          .expand((action) => [action, const SizedBox(width: 2)])
+          .toList()
+        ..removeLast(),
+    );
+  }
+
+  Widget _tableAction({
+    required String tooltip,
+    required String label,
+    required IconData icon,
+    required Color color,
+    required VoidCallback? onPressed,
+    bool busy = false,
+  }) {
+    if (widget.labeled) {
+      return _CompactProductAction(
+        label: label,
+        icon: icon,
+        color: color,
+        palette: widget.palette,
+        busy: busy,
+        onPressed: onPressed,
+      );
+    }
+
+    return Tooltip(
+      message: tooltip,
+      child: IconButton(
+        visualDensity: VisualDensity.compact,
+        constraints: const BoxConstraints(minWidth: 34, minHeight: 34),
+        padding: const EdgeInsets.all(6),
+        onPressed: onPressed,
+        icon: busy
+            ? SizedBox(
+                width: 15,
+                height: 15,
+                child: CircularProgressIndicator(
+                  strokeWidth: 1.8,
+                  color: color,
+                ),
+              )
+            : Icon(icon, size: 18, color: color),
+      ),
+    );
+  }
+}
+
+class _ResponsiveProductMetric extends StatelessWidget {
+  const _ResponsiveProductMetric({
+    required this.label,
+    required this.value,
+    required this.palette,
+    this.accent = false,
+  });
+
+  final String label;
+  final String value;
+  final AppPalette palette;
+  final bool accent;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 7),
+      decoration: BoxDecoration(
+        color: accent
+            ? palette.secondary.withOpacity(.08)
+            : palette.background.withOpacity(.28),
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: palette.cardBorder),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            label,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: TextStyle(
+              color: palette.textSecondary,
+              fontSize: 9.5,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+          const SizedBox(height: 2),
+          Text(
+            value,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: TextStyle(
+              color: accent ? palette.secondary : palette.textPrimary,
+              fontSize: 11.5,
+              fontWeight: FontWeight.w900,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
 
 class _SimpleProductoTile extends StatelessWidget {
   const _SimpleProductoTile({
@@ -5912,6 +6607,18 @@ DateTime? _parseDate(String? value) {
   return DateTime.tryParse(value.trim());
 }
 
+String _tableMoney(num? value) {
+  if (value == null) return '-';
+  final rounded = value.round().toString();
+  final buffer = StringBuffer();
+  for (var index = 0; index < rounded.length; index++) {
+    final remaining = rounded.length - index;
+    buffer.write(rounded[index]);
+    if (remaining > 1 && remaining % 3 == 1) buffer.write('.');
+  }
+  return r'$' + buffer.toString();
+}
+
 String _formatNumber(num? value) {
   if (value == null) return '0';
   if (value % 1 == 0) return value.toInt().toString();
@@ -5926,12 +6633,13 @@ String _shortDate(String? value) {
   return '$day/$month/${parsed.year}';
 }
 
-
 String _presentationSummary(ProductosResponseModel item) {
   final quantity = item.prodCantidadCompra;
   final presentation = (item.prodPresentacionCompra ?? '').trim();
   if (quantity != null && presentation.isNotEmpty) {
-    final qty = quantity % 1 == 0 ? quantity.toInt().toString() : quantity.toStringAsFixed(2);
+    final qty = quantity % 1 == 0
+        ? quantity.toInt().toString()
+        : quantity.toStringAsFixed(2);
     return '$qty $presentation';
   }
   if (presentation.isNotEmpty) return presentation;

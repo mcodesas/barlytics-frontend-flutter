@@ -61,6 +61,7 @@ class AuthState {
   const AuthState({
     this.authenticated = false,
     this.loading = false,
+    this.restoringSession = false,
     this.failure,
     this.roles = const <String>[],
     this.subscriptionStatus,
@@ -70,6 +71,11 @@ class AuthState {
 
   final bool authenticated;
   final bool loading;
+
+  /// Indica que BarLytics todavía está resolviendo la sesión almacenada.
+  /// Mientras sea true no debe mostrarse Login ni decidir rutas protegidas.
+  final bool restoringSession;
+
   final Failure? failure;
 
   /// Roles del usuario autenticado devueltos por el backend en el login.
@@ -82,6 +88,7 @@ class AuthState {
   AuthState copyWith({
     bool? authenticated,
     bool? loading,
+    bool? restoringSession,
     Failure? failure,
     List<String>? roles,
     String? subscriptionStatus,
@@ -91,6 +98,7 @@ class AuthState {
       AuthState(
         authenticated: authenticated ?? this.authenticated,
         loading: loading ?? this.loading,
+        restoringSession: restoringSession ?? this.restoringSession,
         failure: failure,
         roles: roles ?? this.roles,
         subscriptionStatus: subscriptionStatus ?? this.subscriptionStatus,
@@ -106,7 +114,7 @@ class AuthController extends StateNotifier<AuthState> {
     this._repository,
     this._sessionExpirationNotifier,
     this._ref,
-  ) : super(const AuthState()) {
+  ) : super(const AuthState(restoringSession: true)) {
     _sessionExpirationNotifier.addListener(_handleSessionExpired);
     checkSession();
   }
@@ -133,13 +141,14 @@ class AuthController extends StateNotifier<AuthState> {
   }
 
   Future<void> checkSession() async {
-    final hasSession = await _repository.hasSession();
-    if (!hasSession) {
-      state = const AuthState();
-      return;
-    }
+    try {
+      final hasSession = await _repository.hasSession();
+      if (!hasSession) {
+        state = const AuthState();
+        return;
+      }
 
-    final roles = await _repository.getStoredRoles();
+      final roles = await _repository.getStoredRoles();
     if (roles.isEmpty) {
       // Un JWT sin roles útiles no puede conservar una sesión operativa. Se
       // elimina silenciosamente para evitar pantallas de "menú sin roles".
@@ -177,8 +186,14 @@ class AuthController extends StateNotifier<AuthState> {
       subscriptionActive: subscriptionActive,
       businessSetupComplete: businessSetupComplete,
     );
-    if (subscriptionActive && businessSetupComplete) {
-      await _ref.read(branchScopeProvider.notifier).load();
+      if (subscriptionActive && businessSetupComplete) {
+        await _ref.read(branchScopeProvider.notifier).load();
+      }
+    } catch (_) {
+      // Un fallo inesperado al restaurar almacenamiento/sesión no debe dejar
+      // la aplicación bloqueada en el splash. Se vuelve a un estado anónimo.
+      _ref.invalidate(branchScopeProvider);
+      state = const AuthState();
     }
   }
 

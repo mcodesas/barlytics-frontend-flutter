@@ -11,6 +11,9 @@ class PreciosRequestModel {
     this.precAplicaImpuesto,
     this.precPorcentajeImpuesto,
     this.precValorImpuesto,
+    this.prodCompraPorCantidad,
+    this.prodCantidadCompra,
+    this.prodPresentacionCompra,
   });
 
   final int? precEstado;
@@ -23,6 +26,9 @@ class PreciosRequestModel {
   final int? precAplicaImpuesto;
   final double? precPorcentajeImpuesto;
   final double? precValorImpuesto;
+  final int? prodCompraPorCantidad;
+  final double? prodCantidadCompra;
+  final String? prodPresentacionCompra;
 
   factory PreciosRequestModel.fromJson(Map<String, dynamic> json) => PreciosRequestModel(
         precEstado: (json['precEstado'] as num?)?.toInt(),
@@ -35,6 +41,9 @@ class PreciosRequestModel {
         precAplicaImpuesto: (json['precAplicaImpuesto'] as num?)?.toInt(),
         precPorcentajeImpuesto: (json['precPorcentajeImpuesto'] as num?)?.toDouble(),
         precValorImpuesto: (json['precValorImpuesto'] as num?)?.toDouble(),
+        prodCompraPorCantidad: (json['prodCompraPorCantidad'] as num?)?.toInt(),
+        prodCantidadCompra: (json['prodCantidadCompra'] as num?)?.toDouble(),
+        prodPresentacionCompra: json['prodPresentacionCompra']?.toString(),
       );
 
   Map<String, dynamic> toJson() => <String, dynamic>{
@@ -48,5 +57,10 @@ class PreciosRequestModel {
         if (precAplicaImpuesto != null) 'precAplicaImpuesto': precAplicaImpuesto,
         if (precPorcentajeImpuesto != null) 'precPorcentajeImpuesto': precPorcentajeImpuesto,
         if (precValorImpuesto != null) 'precValorImpuesto': precValorImpuesto,
+        if (prodCompraPorCantidad != null)
+          'prodCompraPorCantidad': prodCompraPorCantidad,
+        if (prodCantidadCompra != null) 'prodCantidadCompra': prodCantidadCompra,
+        if (prodPresentacionCompra != null)
+          'prodPresentacionCompra': prodPresentacionCompra,
       };
 }

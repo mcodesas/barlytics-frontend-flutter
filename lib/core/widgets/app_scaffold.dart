@@ -15,6 +15,7 @@ import '../../features/navigation/presentation/providers/active_role_provider.da
 import '../../features/profile/presentation/providers/profile_header_provider.dart';
 import '../utils/responsive_utils.dart';
 import 'barlytics_brand.dart';
+import 'ready_order_notification_host.dart';
 import 'tech_background.dart';
 
 final ScrollController _desktopNavigationScrollController = ScrollController();
@@ -115,6 +116,13 @@ class _AppScaffoldState extends ConsumerState<AppScaffold> {
     final isInventario = !hasPersonalizedRole && roles.any(_isInventoryRole);
     final isManager = !hasPersonalizedRole && roles.any(_isManagerRole);
     final isGlobalAdmin = roles.any(_isGlobalAdminRole);
+    // Las notificaciones pertenecen al usuario autenticado, no al rol
+    // actualmente seleccionado. El backend ya filtra por destinatario, por lo
+    // que todos los shells autenticados pueden consultar sus propios avisos.
+    Widget withReadyOrderNotifications(Widget scaffold) {
+      return ReadyOrderNotificationHost(child: scaffold);
+    }
+
     final operationalMenuOpen = ref.watch(operationalMenuOpenProvider);
     final pageTitle = _resolveCurrentPageTitle(
       context,
@@ -153,22 +161,25 @@ class _AppScaffoldState extends ConsumerState<AppScaffold> {
     );
 
     if (isManager) {
-      return _ManagerScaffold(
-        child: widget.child,
-        onLogout: () => _logout(context),
-        collapsed: _mainMenuCollapsed,
-        onToggleCollapsed: () => setState(() => _mainMenuCollapsed = !_mainMenuCollapsed),
-        palette: palette,
-        pageTitle: pageTitle,
-        pageSubtitle: pageSubtitle,
-        pageEyebrow: pageEyebrow,
-        pageStatusText: pageStatusText,
-        pageIcon: pageIcon,
+      return withReadyOrderNotifications(
+        _ManagerScaffold(
+          child: widget.child,
+          onLogout: () => _logout(context),
+          collapsed: _mainMenuCollapsed,
+          onToggleCollapsed: () =>
+              setState(() => _mainMenuCollapsed = !_mainMenuCollapsed),
+          palette: palette,
+          pageTitle: pageTitle,
+          pageSubtitle: pageSubtitle,
+          pageEyebrow: pageEyebrow,
+          pageStatusText: pageStatusText,
+          pageIcon: pageIcon,
+        ),
       );
     }
 
     if (isOperativo) {
-      return _MeseroScaffold(
+      final operationalScaffold = _MeseroScaffold(
         child: widget.child,
         onLogout: () => _logout(context),
         collapsed: !operationalMenuOpen,
@@ -183,10 +194,13 @@ class _AppScaffoldState extends ConsumerState<AppScaffold> {
         pageIcon: pageIcon,
         bottomMenuType: isInventario ? _OperationalBottomMenuType.inventory : _OperationalBottomMenuType.mesa,
       );
+
+      return withReadyOrderNotifications(operationalScaffold);
     }
 
     if (isDesktop) {
-      return Scaffold(
+      return withReadyOrderNotifications(
+        Scaffold(
         body: SafeArea(
           child: Stack(
             children: [
@@ -238,10 +252,12 @@ class _AppScaffoldState extends ConsumerState<AppScaffold> {
             ],
           ),
         ),
+        ),
       );
     }
 
-    return Scaffold(
+    return withReadyOrderNotifications(
+      Scaffold(
       drawer: Drawer(
         backgroundColor: Colors.transparent,
         surfaceTintColor: Colors.transparent,
@@ -274,6 +290,7 @@ class _AppScaffoldState extends ConsumerState<AppScaffold> {
       bottomNavigationBar: isGlobalAdmin
           ? const _AdminBottomNavigation()
           : const _ManagerBottomNavigation(),
+      ),
     );
   }
 
@@ -1721,7 +1738,11 @@ class _OperationalBottomNavigation extends ConsumerWidget {
           orElse: () => const <UserMenuItem>[],
         );
     final roles = ref.watch(activeRolesProvider);
-    final isCajero = roles.any((role) => role.toUpperCase().contains('CAJER'));
+    final assignedRoles = ref.watch(authControllerProvider).roles;
+    final isCajero = assignedRoles.any(
+      (role) => _normalizedRoleToken(role) == 'CAJERO' ||
+          _normalizedRoleToken(role) == 'CAJERA',
+    );
     final selectedMode = !isCajero &&
             (rawSelectedMode == MeseroPageMode.historial ||
                 rawSelectedMode == MeseroPageMode.cierreCaja)
@@ -1782,6 +1803,14 @@ class _OperationalBottomNavigation extends ConsumerWidget {
           ),
         ),
         (
+          path: '/pedidos-compra',
+          mode: null,
+          item: const BottomNavigationBarItem(
+            icon: Icon(Icons.local_shipping_rounded),
+            label: 'Pedidos',
+          ),
+        ),
+        (
           path: '/mesero/cierre-caja',
           mode: MeseroPageMode.cierreCaja,
           item: const BottomNavigationBarItem(
@@ -1816,11 +1845,24 @@ class _OperationalBottomNavigation extends ConsumerWidget {
     ];
 
     final currentPath = GoRouterState.of(context).uri.path;
-    var selectedIndex = currentPath == '/home'
-        ? 0
-        : navigationEntries.indexWhere((entry) => entry.mode == selectedMode);
-    if (extraMenus.any((item) => currentPath == item.path || currentPath.startsWith('${item.path}/'))) {
-      selectedIndex = navigationEntries.indexWhere((entry) => entry.path == '__more__');
+    var selectedIndex = navigationEntries.indexWhere(
+      (entry) =>
+          entry.path != '__more__' &&
+          (currentPath == entry.path ||
+              (entry.path != '/home' &&
+                  currentPath.startsWith('${entry.path}/'))),
+    );
+    if (selectedIndex < 0 && currentPath.startsWith('/mesero')) {
+      selectedIndex =
+          navigationEntries.indexWhere((entry) => entry.mode == selectedMode);
+    }
+    if (extraMenus.any(
+      (item) =>
+          currentPath == item.path ||
+          currentPath.startsWith('${item.path}/'),
+    )) {
+      selectedIndex =
+          navigationEntries.indexWhere((entry) => entry.path == '__more__');
     }
 
     return Container(
@@ -3730,6 +3772,9 @@ IconData _menuGroupIcon(String token) {
     case 'support_agent':
     case 'soporte':
       return Icons.support_agent_rounded;
+    case 'room_service':
+    case 'comandas':
+      return Icons.receipt_long_rounded;
     default:
       return Icons.more_horiz_rounded;
   }

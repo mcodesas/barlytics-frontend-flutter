@@ -67,6 +67,12 @@ class _ProductosFormPageState extends ConsumerState<ProductosFormPage> {
   bool _loadedStorage = false;
   bool _hydratedProduct = false;
   bool _hydratedPrice = false;
+  bool _gastroLoaded = false;
+  String _tipoControl = 'NORMAL';
+  String _unidadBase = 'UND';
+  String _estacionPreparacion = 'COCINA';
+  final List<_GastroIngredientDraft> _gastroIngredientes = <_GastroIngredientDraft>[];
+  final List<_GastroAdditionDraft> _gastroAdiciones = <_GastroAdditionDraft>[];
   double? _originalValorCompra;
   double? _originalValorVenta;
   double? _originalPorcentajeImpuesto;
@@ -105,6 +111,53 @@ class _ProductosFormPageState extends ConsumerState<ProductosFormPage> {
       _sucursalId = int.tryParse(raw ?? '');
       _loadedStorage = true;
     });
+    if (_editing) {
+      await _loadGastroConfig();
+    }
+  }
+
+  Future<void> _loadGastroConfig() async {
+    if (_gastroLoaded) return;
+    final productId = _editingId;
+    final branchId = _sucursalId;
+    if (productId == null || branchId == null) return;
+
+    try {
+      final response = await ref.read(apiClientProvider).get<Map<String, dynamic>>(
+            '/api/v1/productos/$productId/gastro',
+            (json) => Map<String, dynamic>.from(json as Map),
+            queryParameters: <String, dynamic>{'sucursalId': branchId},
+          );
+      final data = response.data;
+      if (!mounted || data == null) return;
+
+      final ingredientes = (data['ingredientes'] as List? ?? const <dynamic>[])
+          .whereType<Map>()
+          .map((item) => _GastroIngredientDraft.fromJson(Map<String, dynamic>.from(item)))
+          .toList();
+      final adiciones = (data['adiciones'] as List? ?? const <dynamic>[])
+          .whereType<Map>()
+          .map((item) => _GastroAdditionDraft.fromJson(Map<String, dynamic>.from(item)))
+          .toList();
+
+      setState(() {
+        _tipoControl = (data['tipoControl']?.toString() ?? 'NORMAL').toUpperCase();
+        _unidadBase = (data['unidadBase']?.toString() ?? 'UND').toUpperCase();
+        _estacionPreparacion =
+            (data['estacionPreparacion']?.toString() ?? 'COCINA').toUpperCase();
+        _gastroIngredientes
+          ..clear()
+          ..addAll(ingredientes);
+        _gastroAdiciones
+          ..clear()
+          ..addAll(adiciones);
+        _gastroLoaded = true;
+      });
+    } catch (_) {
+      // Los productos existentes siguen siendo compatibles como NORMAL aunque
+      // la configuración gastrobar todavía no haya sido creada.
+      if (mounted) setState(() => _gastroLoaded = true);
+    }
   }
 
   void _hydrateProduct(ProductosResponseModel producto) {
@@ -128,6 +181,10 @@ class _ProductosFormPageState extends ConsumerState<ProductosFormPage> {
     _stockMaximoController.text = _stockMaximoSinLimite
         ? ''
         : _toFieldNumber(producto.prodStockMaximo);
+    if (!_gastroLoaded) {
+      _tipoControl = (producto.prodTipoControl ?? 'NORMAL').toUpperCase();
+      _unidadBase = (producto.prodUnidadBase ?? 'UND').toUpperCase();
+    }
   }
 
   void _hydratePrice(List<PreciosResponseModel> precios) {
@@ -231,6 +288,7 @@ class _ProductosFormPageState extends ConsumerState<ProductosFormPage> {
                                     palette,
                                     tiposState.items,
                                     marcasState.items,
+                                    productosState.items,
                                     sucursalNombre,
                                   ),
                                   _buildPriceStep(palette),
@@ -310,6 +368,7 @@ class _ProductosFormPageState extends ConsumerState<ProductosFormPage> {
     AppPalette palette,
     List<TiposProductoResponseModel> tipos,
     List<MarcasResponseModel> marcas,
+    List<ProductosResponseModel> productos,
     String sucursalNombre,
   ) {
     return Form(
@@ -387,6 +446,33 @@ class _ProductosFormPageState extends ConsumerState<ProductosFormPage> {
                 onChanged: (value) => setState(() => _marcaId = value),
                 onCreate: () => _createMarca(palette),
               ),
+              const SizedBox(height: 18),
+              _GastroControlSection(
+                palette: palette,
+                tipoControl: _tipoControl,
+                unidadBase: _unidadBase,
+                estacionPreparacion: _estacionPreparacion,
+                ingredientes: _gastroIngredientes,
+                adiciones: _gastroAdiciones,
+                onTipoChanged: (value) => setState(() {
+                  _tipoControl = value;
+                  if (value != 'PREPARADO') {
+                    _gastroIngredientes.clear();
+                    _gastroAdiciones.clear();
+                  }
+                }),
+                onUnidadChanged: (value) => setState(() => _unidadBase = value),
+                onEstacionChanged: (value) =>
+                    setState(() => _estacionPreparacion = value),
+                onAddIngredient: _tipoControl == 'PREPARADO'
+                    ? () => _addGastroIngredient(productos)
+                    : null,
+                onAddAddition: _tipoControl == 'PREPARADO'
+                    ? () => _addGastroAddition(productos)
+                    : null,
+                onRemoveIngredient: (index) => setState(() => _gastroIngredientes.removeAt(index)),
+                onRemoveAddition: (index) => setState(() => _gastroAdiciones.removeAt(index)),
+              ),
             ],
           );
 
@@ -446,11 +532,15 @@ class _ProductosFormPageState extends ConsumerState<ProductosFormPage> {
                     child: _FormTextField(
                       palette: palette,
                       controller: _valorVentaController,
-                      label: 'Valor venta',
+                      label: _tipoControl == 'INSUMO'
+                          ? 'Valor venta (puede ser 0)'
+                          : 'Valor venta',
                       inputFormatters: InputConstraints.decimalFormatters(integerDigits: 15, fractionDigits: 0),
                       icon: Icons.payments_rounded,
                       keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                      validator: _requiredPositive,
+                      validator: _tipoControl == 'INSUMO'
+                          ? _requiredPositiveOrZero
+                          : _requiredPositive,
                       onChanged: (_) => setState(() {}),
                     ),
                   ),
@@ -881,6 +971,14 @@ class _ProductosFormPageState extends ConsumerState<ProductosFormPage> {
       _SummaryRow('Tipo de producto', tipoNombre),
       _SummaryRow('Marca', marcaNombre),
       _SummaryRow(
+        'Preparación',
+        _tipoControl == 'PREPARADO'
+            ? 'Producto preparado · ${_estacionPreparacion == 'BARRA' ? 'Barra' : 'Cocina'}'
+            : _tipoControl == 'INSUMO'
+                ? 'Ingrediente / insumo'
+                : 'Producto normal',
+      ),
+      _SummaryRow(
         'Fecha de vencimiento',
         _fechaVencimientoController.text.trim().isEmpty ? 'No registrada' : _fechaVencimientoController.text,
       ),
@@ -917,6 +1015,272 @@ class _ProductosFormPageState extends ConsumerState<ProductosFormPage> {
         _registrarInventario ? '${_inventarioCantidadController.text} unidades' : 'No se registrará ahora',
       ),
     ];
+  }
+
+  Future<void> _addGastroIngredient(List<ProductosResponseModel> productos) async {
+    final candidates = productos
+        .where((item) =>
+            item.prodId != null &&
+            item.prodId != _editingId &&
+            item.sucuId == _sucursalId &&
+            (item.prodTipoControl ?? '').trim().toUpperCase() == 'INSUMO')
+        .toList()
+      ..sort((a, b) => (a.prodNombre ?? '').toLowerCase().compareTo((b.prodNombre ?? '').toLowerCase()));
+
+    if (candidates.isEmpty) {
+      _showError(
+        'No hay productos configurados como Ingrediente / insumo en esta sucursal. '
+        'Crea primero el ingrediente con Control del producto = Ingrediente / insumo.',
+      );
+      return;
+    }
+
+    final formKey = GlobalKey<FormState>();
+    int? selectedId;
+    String unit = 'UND';
+    bool removable = true;
+    String quantityValue = '1';
+    final result = await showDialog<_GastroIngredientDraft>(
+        context: context,
+        builder: (dialogContext) => StatefulBuilder(
+          builder: (dialogContext, setDialogState) => AlertDialog(
+            scrollable: true,
+            title: const Text('Agregar ingrediente'),
+            content: SizedBox(
+              width: 520,
+              child: Form(
+                key: formKey,
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    DropdownButtonFormField<int>(
+                      value: selectedId,
+                      isExpanded: true,
+                      decoration: const InputDecoration(
+                        labelText: 'Ingrediente / insumo',
+                        prefixIcon: Icon(Icons.restaurant_menu_rounded),
+                      ),
+                      items: candidates
+                          .map((item) => DropdownMenuItem<int>(
+                                value: item.prodId,
+                                child: Text(
+                                  '${item.prodNombre ?? 'Producto'} · costo ${_formatNumber(item.precioCompraVigente ?? 0)}',
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                              ))
+                          .toList(),
+                      onChanged: (value) => setDialogState(() => selectedId = value),
+                      validator: (value) => value == null ? 'Selecciona un ingrediente' : null,
+                    ),
+                    const SizedBox(height: 12),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: TextFormField(
+                            initialValue: '1',
+                            keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                            inputFormatters: InputConstraints.decimalFormatters(integerDigits: 13, fractionDigits: 4),
+                            decoration: const InputDecoration(
+                              labelText: 'Cantidad por preparación',
+                              prefixIcon: Icon(Icons.numbers_rounded),
+                            ),
+                            validator: _requiredPositive,
+                            onChanged: (value) => quantityValue = value,
+                          ),
+                        ),
+                        const SizedBox(width: 10),
+                        SizedBox(
+                          width: 120,
+                          child: DropdownButtonFormField<String>(
+                            value: unit,
+                            decoration: const InputDecoration(labelText: 'Unidad'),
+                            items: const ['UND', 'G', 'KG', 'ML', 'L']
+                                .map((value) => DropdownMenuItem(value: value, child: Text(value)))
+                                .toList(),
+                            onChanged: (value) {
+                              if (value != null) setDialogState(() => unit = value);
+                            },
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 8),
+                    SwitchListTile.adaptive(
+                      contentPadding: EdgeInsets.zero,
+                      value: removable,
+                      title: const Text('Se puede quitar del pedido'),
+                      subtitle: const Text('Ejemplo: sin cebolla, sin tomate o sin salsa.'),
+                      onChanged: (value) => setDialogState(() => removable = value),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+            actions: [
+              TextButton(onPressed: () => Navigator.pop(dialogContext), child: const Text('Cancelar')),
+              FilledButton(
+                onPressed: () {
+                  if (!(formKey.currentState?.validate() ?? false)) return;
+                  final product = candidates.firstWhere((item) => item.prodId == selectedId);
+                  Navigator.pop(
+                    dialogContext,
+                    _GastroIngredientDraft(
+                      prodId: selectedId!,
+                      nombre: product.prodNombre ?? 'Producto $selectedId',
+                      cantidad: _parseDouble(quantityValue) ?? 1,
+                      unidad: unit,
+                      removible: removable,
+                      precioCompra: product.precioCompraVigente,
+                    ),
+                  );
+                },
+                child: const Text('Agregar'),
+              ),
+            ],
+          ),
+        ),
+      );
+
+    if (result == null || !mounted) return;
+    setState(() {
+      _gastroIngredientes.removeWhere((item) => item.prodId == result.prodId);
+      _gastroIngredientes.add(result);
+    });
+  }
+
+  Future<void> _addGastroAddition(List<ProductosResponseModel> productos) async {
+    final candidates = productos
+        .where((item) {
+          final controlType =
+              (item.prodTipoControl ?? '').trim().toUpperCase();
+          return item.prodId != null &&
+              item.prodId != _editingId &&
+              item.sucuId == _sucursalId &&
+              (controlType == 'INSUMO' || controlType == 'PREPARADO');
+        })
+        .toList()
+      ..sort((a, b) => (a.prodNombre ?? '').toLowerCase().compareTo((b.prodNombre ?? '').toLowerCase()));
+
+    if (candidates.isEmpty) {
+      _showError(
+        'No hay insumos ni productos preparados con receta disponibles en esta sucursal para usar como adición.',
+      );
+      return;
+    }
+
+    final formKey = GlobalKey<FormState>();
+    int? selectedId;
+    String unit = 'UND';
+    String quantityValue = '1';
+    String extraPriceValue = '';
+    final result = await showDialog<_GastroAdditionDraft>(
+        context: context,
+        builder: (dialogContext) => StatefulBuilder(
+          builder: (dialogContext, setDialogState) => AlertDialog(
+            scrollable: true,
+            title: const Text('Agregar adición al pedido'),
+            content: SizedBox(
+              width: 540,
+              child: Form(
+                key: formKey,
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    DropdownButtonFormField<int>(
+                      value: selectedId,
+                      isExpanded: true,
+                      decoration: const InputDecoration(
+                        labelText: 'Insumo o producto preparado',
+                        prefixIcon: Icon(Icons.add_circle_outline_rounded),
+                      ),
+                      items: candidates
+                          .map((item) => DropdownMenuItem<int>(
+                                value: item.prodId,
+                                child: Text(
+                                  '${item.prodNombre ?? 'Producto'} · costo ${_formatNumber(item.precioCompraVigente ?? 0)}',
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                              ))
+                          .toList(),
+                      onChanged: (value) => setDialogState(() => selectedId = value),
+                      validator: (value) => value == null ? 'Selecciona una adición' : null,
+                    ),
+                    const SizedBox(height: 12),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: TextFormField(
+                            initialValue: '1',
+                            keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                            inputFormatters: InputConstraints.decimalFormatters(integerDigits: 13, fractionDigits: 4),
+                            decoration: const InputDecoration(labelText: 'Cantidad', prefixIcon: Icon(Icons.numbers_rounded)),
+                            validator: _requiredPositive,
+                            onChanged: (value) => quantityValue = value,
+                          ),
+                        ),
+                        const SizedBox(width: 10),
+                        SizedBox(
+                          width: 120,
+                          child: DropdownButtonFormField<String>(
+                            value: unit,
+                            decoration: const InputDecoration(labelText: 'Unidad'),
+                            items: const ['UND', 'G', 'KG', 'ML', 'L']
+                                .map((value) => DropdownMenuItem(value: value, child: Text(value)))
+                                .toList(),
+                            onChanged: (value) {
+                              if (value != null) setDialogState(() => unit = value);
+                            },
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 12),
+                    TextFormField(
+                      initialValue: '',
+                      keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                      inputFormatters: InputConstraints.decimalFormatters(integerDigits: 15, fractionDigits: 2),
+                      decoration: const InputDecoration(
+                        labelText: 'Precio adicional al cliente',
+                        helperText: 'Es independiente del costo de compra del ingrediente.',
+                        prefixIcon: Icon(Icons.payments_rounded),
+                      ),
+                      validator: _requiredPositiveOrZero,
+                      onChanged: (value) => extraPriceValue = value,
+                    ),
+                  ],
+                ),
+              ),
+            ),
+            actions: [
+              TextButton(onPressed: () => Navigator.pop(dialogContext), child: const Text('Cancelar')),
+              FilledButton(
+                onPressed: () {
+                  if (!(formKey.currentState?.validate() ?? false)) return;
+                  final product = candidates.firstWhere((item) => item.prodId == selectedId);
+                  Navigator.pop(
+                    dialogContext,
+                    _GastroAdditionDraft(
+                      prodId: selectedId!,
+                      nombre: product.prodNombre ?? 'Producto $selectedId',
+                      cantidad: _parseDouble(quantityValue) ?? 1,
+                      unidad: unit,
+                      precioAdicional: _parseDouble(extraPriceValue) ?? 0,
+                      precioCompra: product.precioCompraVigente,
+                    ),
+                  );
+                },
+                child: const Text('Agregar'),
+              ),
+            ],
+          ),
+        ),
+      );
+
+    if (result == null || !mounted) return;
+    setState(() {
+      _gastroAdiciones.removeWhere((item) => item.prodId == result.prodId);
+      _gastroAdiciones.add(result);
+    });
   }
 
   Future<void> _pickExpirationDate() async {
@@ -979,6 +1343,15 @@ class _ProductosFormPageState extends ConsumerState<ProductosFormPage> {
     final unitPurchasePrice = _compraPorCantidad
         ? purchasePrice / purchaseQuantity!
         : purchasePrice;
+
+    if (_tipoControl == 'INSUMO') {
+      if (salePrice < 0) {
+        _showError('El precio de venta del insumo no puede ser negativo.');
+        return false;
+      }
+      return true;
+    }
+
     if (salePrice < unitPurchasePrice) {
       _showError(
         'El precio de venta no puede ser menor que el costo unitario de compra.',
@@ -1030,6 +1403,8 @@ class _ProductosFormPageState extends ConsumerState<ProductosFormPage> {
         'prodStockMaximo': _stockMaximoSinLimite
             ? null
             : _parseDouble(_stockMaximoController.text),
+        'prodTipoControl': _tipoControl,
+        'prodUnidadBase': _unidadBase,
       };
 
       final productResponse = _editing
@@ -1075,6 +1450,23 @@ class _ProductosFormPageState extends ConsumerState<ProductosFormPage> {
           (json) => PreciosResponseModel.fromJson(Map<String, dynamic>.from(json as Map)),
         );
       }
+
+      await apiClient.put<Map<String, dynamic>>(
+        '/api/v1/productos/$savedProductId/gastro?sucursalId=$savedSucursalId',
+        <String, dynamic>{
+          'tipoControl': _tipoControl,
+          'unidadBase': _unidadBase,
+          'estacionPreparacion':
+              _tipoControl == 'PREPARADO' ? _estacionPreparacion : null,
+          'ingredientes': _tipoControl == 'PREPARADO'
+              ? _gastroIngredientes.map((item) => item.toJson()).toList()
+              : const <Map<String, dynamic>>[],
+          'adiciones': _tipoControl == 'PREPARADO'
+              ? _gastroAdiciones.map((item) => item.toJson()).toList()
+              : const <Map<String, dynamic>>[],
+        },
+        (json) => Map<String, dynamic>.from(json as Map),
+      );
 
       if (_registrarInventario) {
         final cantidad = _parseDouble(_inventarioCantidadController.text);
@@ -2282,6 +2674,309 @@ class _WizardActionButton extends StatelessWidget {
           ),
           child: child,
         ),
+      ),
+    );
+  }
+}
+
+class _GastroIngredientDraft {
+  const _GastroIngredientDraft({
+    required this.prodId,
+    required this.nombre,
+    required this.cantidad,
+    required this.unidad,
+    required this.removible,
+    this.precioCompra,
+  });
+
+  final int prodId;
+  final String nombre;
+  final double cantidad;
+  final String unidad;
+  final bool removible;
+  final double? precioCompra;
+
+  factory _GastroIngredientDraft.fromJson(Map<String, dynamic> json) =>
+      _GastroIngredientDraft(
+        prodId: (json['prodId'] as num).toInt(),
+        nombre: json['nombre']?.toString() ?? 'Ingrediente',
+        cantidad: (json['cantidad'] as num?)?.toDouble() ?? 1,
+        unidad: json['unidad']?.toString() ?? 'UND',
+        removible: json['removible'] != false,
+        precioCompra: (json['precioCompra'] as num?)?.toDouble(),
+      );
+
+  Map<String, dynamic> toJson() => <String, dynamic>{
+        'prodId': prodId,
+        'cantidad': cantidad,
+        'unidad': unidad,
+        'removible': removible,
+      };
+}
+
+class _GastroAdditionDraft {
+  const _GastroAdditionDraft({
+    required this.prodId,
+    required this.nombre,
+    required this.cantidad,
+    required this.unidad,
+    required this.precioAdicional,
+    this.precioCompra,
+  });
+
+  final int prodId;
+  final String nombre;
+  final double cantidad;
+  final String unidad;
+  final double precioAdicional;
+  final double? precioCompra;
+
+  factory _GastroAdditionDraft.fromJson(Map<String, dynamic> json) =>
+      _GastroAdditionDraft(
+        prodId: (json['prodId'] as num).toInt(),
+        nombre: json['nombre']?.toString() ?? 'Adición',
+        cantidad: (json['cantidad'] as num?)?.toDouble() ?? 1,
+        unidad: json['unidad']?.toString() ?? 'UND',
+        precioAdicional: (json['precioAdicional'] as num?)?.toDouble() ?? 0,
+        precioCompra: (json['precioCompra'] as num?)?.toDouble(),
+      );
+
+  Map<String, dynamic> toJson() => <String, dynamic>{
+        'prodId': prodId,
+        'cantidad': cantidad,
+        'unidad': unidad,
+        'precioAdicional': precioAdicional,
+      };
+}
+
+class _GastroControlSection extends StatelessWidget {
+  const _GastroControlSection({
+    required this.palette,
+    required this.tipoControl,
+    required this.unidadBase,
+    required this.estacionPreparacion,
+    required this.ingredientes,
+    required this.adiciones,
+    required this.onTipoChanged,
+    required this.onUnidadChanged,
+    required this.onEstacionChanged,
+    required this.onAddIngredient,
+    required this.onAddAddition,
+    required this.onRemoveIngredient,
+    required this.onRemoveAddition,
+  });
+
+  final AppPalette palette;
+  final String tipoControl;
+  final String unidadBase;
+  final String estacionPreparacion;
+  final List<_GastroIngredientDraft> ingredientes;
+  final List<_GastroAdditionDraft> adiciones;
+  final ValueChanged<String> onTipoChanged;
+  final ValueChanged<String> onUnidadChanged;
+  final ValueChanged<String> onEstacionChanged;
+  final VoidCallback? onAddIngredient;
+  final VoidCallback? onAddAddition;
+  final ValueChanged<int> onRemoveIngredient;
+  final ValueChanged<int> onRemoveAddition;
+
+  @override
+  Widget build(BuildContext context) {
+    final prepared = tipoControl == 'PREPARADO';
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: palette.secondary.withOpacity(.05),
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: palette.cardBorder),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(Icons.restaurant_rounded, color: palette.secondary),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  'Configuración para gastrobar',
+                  style: TextStyle(
+                    color: palette.textPrimary,
+                    fontWeight: FontWeight.w900,
+                    fontSize: 15,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 5),
+          Text(
+            'Define si el registro es un producto normal, un insumo o un plato/bebida preparada con receta.',
+            style: TextStyle(
+              color: palette.textSecondary,
+              fontWeight: FontWeight.w600,
+              fontSize: 12,
+            ),
+          ),
+          const SizedBox(height: 14),
+          LayoutBuilder(
+            builder: (context, constraints) {
+              final horizontal = constraints.maxWidth >= 560;
+              final typeField = DropdownButtonFormField<String>(
+                value: tipoControl,
+                isExpanded: true,
+                decoration: const InputDecoration(
+                  labelText: 'Control del producto',
+                  prefixIcon: Icon(Icons.category_outlined),
+                ),
+                items: const [
+                  DropdownMenuItem(value: 'NORMAL', child: Text('Producto normal')),
+                  DropdownMenuItem(value: 'INSUMO', child: Text('Ingrediente / insumo')),
+                  DropdownMenuItem(value: 'PREPARADO', child: Text('Producto preparado / receta')),
+                ],
+                onChanged: (value) {
+                  if (value != null) onTipoChanged(value);
+                },
+              );
+              final unitField = DropdownButtonFormField<String>(
+                value: unidadBase,
+                isExpanded: true,
+                decoration: const InputDecoration(
+                  labelText: 'Unidad base de inventario',
+                  prefixIcon: Icon(Icons.straighten_rounded),
+                ),
+                items: const ['UND', 'G', 'KG', 'ML', 'L']
+                    .map((value) => DropdownMenuItem(value: value, child: Text(value)))
+                    .toList(),
+                onChanged: (value) {
+                  if (value != null) onUnidadChanged(value);
+                },
+              );
+
+              if (!horizontal) {
+                return Column(
+                  children: [typeField, const SizedBox(height: 10), unitField],
+                );
+              }
+              return Row(
+                children: [
+                  Expanded(child: typeField),
+                  const SizedBox(width: 10),
+                  Expanded(child: unitField),
+                ],
+              );
+            },
+          ),
+          if (prepared) ...[
+            const SizedBox(height: 14),
+            DropdownButtonFormField<String>(
+              value: estacionPreparacion,
+              isExpanded: true,
+              decoration: const InputDecoration(
+                labelText: 'Estación de preparación',
+                prefixIcon: Icon(Icons.room_service_rounded),
+                helperText: 'Define a qué tablero llegará este producto cuando se ordene.',
+              ),
+              items: const [
+                DropdownMenuItem(
+                  value: 'COCINA',
+                  child: Text('Cocina'),
+                ),
+                DropdownMenuItem(
+                  value: 'BARRA',
+                  child: Text('Barra'),
+                ),
+              ],
+              onChanged: (value) {
+                if (value != null) onEstacionChanged(value);
+              },
+            ),
+            const SizedBox(height: 18),
+            Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    'Receta base',
+                    style: TextStyle(color: palette.textPrimary, fontWeight: FontWeight.w900),
+                  ),
+                ),
+                OutlinedButton.icon(
+                  onPressed: onAddIngredient,
+                  icon: const Icon(Icons.add_rounded),
+                  label: const Text('Ingrediente'),
+                ),
+              ],
+            ),
+            const SizedBox(height: 8),
+            if (ingredientes.isEmpty)
+              Text(
+                'Aún no hay ingredientes. Agrégalos para permitir pedidos como “sin cebolla”.',
+                style: TextStyle(color: palette.textSecondary, fontSize: 12),
+              )
+            else
+              ...List.generate(ingredientes.length, (index) {
+                final item = ingredientes[index];
+                return ListTile(
+                  contentPadding: EdgeInsets.zero,
+                  dense: true,
+                  leading: const Icon(Icons.restaurant_menu_rounded),
+                  title: Text(item.nombre, style: TextStyle(color: palette.textPrimary, fontWeight: FontWeight.w800)),
+                  subtitle: Text(
+                    '${_formatNumber(item.cantidad)} ${item.unidad} · costo ${_money(item.precioCompra)}'
+                    '${item.removible ? ' · se puede quitar' : ' · obligatorio'}',
+                    style: TextStyle(color: palette.textSecondary),
+                  ),
+                  trailing: IconButton(
+                    tooltip: 'Quitar de la receta',
+                    onPressed: () => onRemoveIngredient(index),
+                    icon: const Icon(Icons.delete_outline_rounded, color: Colors.redAccent),
+                  ),
+                );
+              }),
+            const Divider(height: 24),
+            Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    'Adiciones disponibles',
+                    style: TextStyle(color: palette.textPrimary, fontWeight: FontWeight.w900),
+                  ),
+                ),
+                OutlinedButton.icon(
+                  onPressed: onAddAddition,
+                  icon: const Icon(Icons.add_circle_outline_rounded),
+                  label: const Text('Adición'),
+                ),
+              ],
+            ),
+            const SizedBox(height: 8),
+            if (adiciones.isEmpty)
+              Text(
+                'Puedes ofrecer queso extra, carne adicional, tocineta u otras opciones con precio propio.',
+                style: TextStyle(color: palette.textSecondary, fontSize: 12),
+              )
+            else
+              ...List.generate(adiciones.length, (index) {
+                final item = adiciones[index];
+                return ListTile(
+                  contentPadding: EdgeInsets.zero,
+                  dense: true,
+                  leading: const Icon(Icons.add_circle_outline_rounded),
+                  title: Text(item.nombre, style: TextStyle(color: palette.textPrimary, fontWeight: FontWeight.w800)),
+                  subtitle: Text(
+                    '${_formatNumber(item.cantidad)} ${item.unidad} · costo ${_money(item.precioCompra)} · cobra +${_money(item.precioAdicional)}',
+                    style: TextStyle(color: palette.textSecondary),
+                  ),
+                  trailing: IconButton(
+                    tooltip: 'Quitar adición',
+                    onPressed: () => onRemoveAddition(index),
+                    icon: const Icon(Icons.delete_outline_rounded, color: Colors.redAccent),
+                  ),
+                );
+              }),
+          ],
+        ],
       ),
     );
   }

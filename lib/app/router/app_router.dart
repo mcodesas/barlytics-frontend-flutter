@@ -25,9 +25,11 @@ import '../../features/admin_support/presentation/pages/admin_support_workspace_
 import '../../features/admin_support/presentation/pages/product_catalog_sync_page.dart';
 import '../../features/profile/presentation/pages/profile_page.dart';
 import '../../features/reportes/presentation/pages/reportes_page.dart';
+import '../../features/pedidos_compra/presentation/pages/pedidos_compra_page.dart';
 import '../../features/gastos_fijos/presentation/pages/gastos_fijos_page.dart';
 import '../../features/tablas_parametricas/presentation/pages/tablas_parametricas_page.dart';
 import '../../features/mesero/presentation/pages/mesero_page.dart';
+import '../../features/comandas/presentation/pages/comandas_page.dart';
 import '../../features/mesero/presentation/providers/mesero_tab_provider.dart';
 import '../../core/widgets/app_scaffold.dart';
 import '../../core/widgets/dynamic_crud_detail_page.dart';
@@ -118,6 +120,12 @@ final appRouterProvider = Provider<GoRouter>((ref) {
     refreshListenable: _RouterRefresh(ref),
     redirect: (context, state) {
       final authState = ref.read(authControllerProvider);
+
+      // Durante la restauración inicial no se toma ninguna decisión de acceso.
+      // BarLyticsApp mantiene visible el loader de marca hasta conocer si existe
+      // una sesión válida, evitando el destello temporal de Login.
+      if (authState.restoringSession) return null;
+
       final path = state.uri.path;
       final matchedLocation = state.matchedLocation;
       final isLandingRoute = path == '/' || matchedLocation == '/';
@@ -187,6 +195,10 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       final pricesOnly = activeRoles.isNotEmpty && activeRoles.every((role) {
         return normalizeRoleName(role) == 'PRECIOS';
       });
+      final commandsOnly = activeRoles.isNotEmpty && activeRoles.every((role) {
+        final normalized = normalizeRoleName(role);
+        return const {'COCINA', 'BARRA', 'COMANDAS'}.contains(normalized);
+      });
       final restrictedOperationalOnly = activeRoles.isNotEmpty && activeRoles.every((role) {
         final normalized = normalizeRoleName(role);
         return const {
@@ -219,6 +231,10 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       if (authState.authenticated && pricesOnly) {
         final allowed = path == '/home' || path == '/profile' || path.startsWith('/precios');
         if (!allowed) return '/precios';
+      }
+      if (authState.authenticated && commandsOnly) {
+        final allowed = path == '/home' || path == '/profile' || path.startsWith('/comandas');
+        if (!allowed) return '/comandas';
       }
       if (authState.authenticated &&
           restrictedOperationalOnly &&
@@ -319,6 +335,8 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       GoRoute(path: '/ganancias', builder: (context, state) => AppScaffold(child: const ReportesPage.ganancias())),
       GoRoute(path: '/gastos_fijos', builder: (context, state) => const AppScaffold(child: GastosFijosPage())),
       GoRoute(path: '/proximo_pedido', builder: (context, state) => AppScaffold(child: const ReportesPage.proximoPedido())),
+      GoRoute(path: '/pedidos-compra', builder: (context, state) => const AppScaffold(child: PedidosCompraPage())),
+      GoRoute(path: '/proveedores-pedidos', builder: (context, state) => const AppScaffold(child: PedidosCompraPage.proveedores())),
       GoRoute(
         path: '/reporte_cruce_conteo',
         builder: (context, state) => AppScaffold(
@@ -356,6 +374,7 @@ final appRouterProvider = Provider<GoRouter>((ref) {
         ),
       ),
       GoRoute(path: '/tablas_parametricas', builder: (context, state) => _setupAwareScaffold(ref, state, const TablasParametricasPage())),
+      GoRoute(path: '/comandas', builder: (context, state) => AppScaffold(child: const ComandasPage())),
       GoRoute(path: '/mesero', builder: (context, state) => AppScaffold(child: const MeseroPage())),
       GoRoute(path: '/mesero/productos', builder: (context, state) => AppScaffold(child: const MeseroPage(initialMode: MeseroPageMode.productos))),
       GoRoute(path: '/mesero/resumen', builder: (context, state) => AppScaffold(child: const MeseroPage(initialMode: MeseroPageMode.resumen))),

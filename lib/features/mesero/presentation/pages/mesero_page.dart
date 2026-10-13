@@ -82,6 +82,35 @@ String _catalogoDescripcionProducto(MeseroProductoModel producto) {
   return descripcion;
 }
 
+List<String> _personalizacionPedidoResumen(MeseroDetalleProductoModel producto) {
+  final raw = (producto.personalizacion ?? '').trim();
+  if (raw.isEmpty) return const <String>[];
+  try {
+    final decoded = jsonDecode(raw);
+    if (decoded is! Map) return const <String>[];
+    final data = Map<String, dynamic>.from(decoded);
+    final lines = <String>[];
+
+    for (final item in (data['quitados'] as List? ?? const <dynamic>[])) {
+      if (item is! Map) continue;
+      final nombre = item['nombre']?.toString().trim();
+      if (nombre != null && nombre.isNotEmpty) lines.add('Sin $nombre');
+    }
+    for (final item in (data['adiciones'] as List? ?? const <dynamic>[])) {
+      if (item is! Map) continue;
+      final nombre = item['nombre']?.toString().trim();
+      if (nombre != null && nombre.isNotEmpty) lines.add('+ $nombre');
+    }
+    final observacion = data['observacion']?.toString().trim();
+    if (observacion != null && observacion.isNotEmpty) {
+      lines.add(observacion);
+    }
+    return lines;
+  } catch (_) {
+    return const <String>[];
+  }
+}
+
 bool _cuentaEstaVacia(MeseroCuentaModel cuenta) {
   final propina = cuenta.propina ?? 0;
   final total = cuenta.total ?? 0;
@@ -380,7 +409,11 @@ class _MeseroPageState extends ConsumerState<MeseroPage> {
 
   Future<void> _reloadCierreCaja() async {
     final future = _cargarCierreCaja();
-    setState(() => _cierreCajaFuture = future);
+    if (mounted) {
+      setState(() {
+        _cierreCajaFuture = future;
+      });
+    }
     await future;
   }
 
@@ -2734,13 +2767,36 @@ class _MeseroPageState extends ConsumerState<MeseroPage> {
         final productoSeleccionado = producto;
         if (productoSeleccionado == null || productoSeleccionado.prodId == null) continue;
 
+        final prepared =
+            (productoSeleccionado.tipoControl ?? '').trim().toUpperCase() ==
+                'PREPARADO';
+        _PedidoProductoDecision? decision;
+        if (prepared) {
+          if (!mounted) return false;
+          decision = await showDialog<_PedidoProductoDecision>(
+            context: context,
+            builder: (dialogContext) => _PersonalizarProductoDialog(
+              producto: productoSeleccionado,
+              initialQuantity: entry.value,
+            ),
+          );
+          if (decision == null) {
+            continue;
+          }
+        }
+
+        final cantidad = decision?.cantidad ?? entry.value;
         ventaActualizada = await _dataSource.agregarProducto(
           cuentaId: cuentaId,
           productoId: productoSeleccionado.prodId!,
           precioId: productoSeleccionado.precId,
-          cantidad: entry.value,
+          cantidad: cantidad,
+          ingredientesExcluidos:
+              decision?.ingredientesExcluidos ?? const <int>[],
+          adiciones: decision?.adiciones ?? const <int>[],
+          observacion: decision?.observacion,
         );
-        unidadesAgregadas += entry.value;
+        unidadesAgregadas += cantidad;
         productosAgregados++;
       }
 
@@ -4178,6 +4234,25 @@ class _MeseroPageState extends ConsumerState<MeseroPage> {
   }
 
   Future<void> _seleccionarCantidadYAgregarProducto(int cuentaId, MeseroProductoModel producto) async {
+    final prepared = (producto.tipoControl ?? '').trim().toUpperCase() == 'PREPARADO';
+
+    if (prepared) {
+      final decision = await showDialog<_PedidoProductoDecision>(
+        context: context,
+        builder: (context) => _PersonalizarProductoDialog(producto: producto),
+      );
+      if (decision == null || decision.cantidad <= 0) return;
+      await _agregarProducto(
+        cuentaId,
+        producto,
+        cantidad: decision.cantidad,
+        ingredientesExcluidos: decision.ingredientesExcluidos,
+        adiciones: decision.adiciones,
+        observacion: decision.observacion,
+      );
+      return;
+    }
+
     final cantidad = await showDialog<double>(
       context: context,
       builder: (context) => _CantidadProductoDialog(producto: producto),
@@ -4187,7 +4262,14 @@ class _MeseroPageState extends ConsumerState<MeseroPage> {
     await _agregarProducto(cuentaId, producto, cantidad: cantidad);
   }
 
-  Future<void> _agregarProducto(int cuentaId, MeseroProductoModel producto, {double cantidad = 1}) async {
+  Future<void> _agregarProducto(
+    int cuentaId,
+    MeseroProductoModel producto, {
+    double cantidad = 1,
+    List<int> ingredientesExcluidos = const <int>[],
+    List<int> adiciones = const <int>[],
+    String? observacion,
+  }) async {
     if (producto.prodId == null) return;
     setState(() => _processing = true);
     try {
@@ -4196,6 +4278,9 @@ class _MeseroPageState extends ConsumerState<MeseroPage> {
         productoId: producto.prodId!,
         precioId: producto.precId,
         cantidad: cantidad,
+        ingredientesExcluidos: ingredientesExcluidos,
+        adiciones: adiciones,
+        observacion: observacion,
       );
       final future = _load();
       final volverACuenta = _irACuentaDespuesAgregarProducto;
@@ -4283,9 +4368,33 @@ class _MeseroPageState extends ConsumerState<MeseroPage> {
       );
       if (confirmado != true) return;
       final valorBase = _parseCurrencyInput(controller.text);
-      setState(() => _baseInicialCierrePorFecha[fecha] = valorBase);
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Base inicial registrada: ${CurrencyUtils.format(valorBase)}')));
+      setState(() => _processing = true);
+      try {
+        final actualizado = await _dataSource.guardarBaseInicialCierreCaja(
+          fecha: fecha,
+          valorBase: valorBase,
+        );
+        if (!mounted) return;
+        setState(() {
+          _baseInicialCierrePorFecha[fecha] = actualizado.valorBase ?? valorBase;
+          _cierreCajaFuture = Future<CierreCajaResumenModel>.value(actualizado);
+        });
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              'Base inicial guardada: ${CurrencyUtils.format(actualizado.valorBase ?? valorBase)}',
+            ),
+          ),
+        );
+      } catch (error) {
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('No fue posible guardar la base inicial: $error')),
+        );
+      } finally {
+        if (mounted) setState(() => _processing = false);
+      }
     } finally {
       controller.dispose();
     }
@@ -4341,6 +4450,7 @@ class _MeseroPageState extends ConsumerState<MeseroPage> {
           clipBehavior: Clip.antiAlias,
           child: _SalidaCajaDialog(
             opciones: opciones,
+            mediosPago: _mediosPago,
             palette: ref.read(selectedAppPaletteProvider),
           ),
         ),
@@ -4357,6 +4467,7 @@ class _MeseroPageState extends ConsumerState<MeseroPage> {
         descripcion: decision.descripcion,
         gastoId: decision.gastoId,
         pedidoId: decision.pedidoId,
+        medioPagoId: decision.medioPagoId,
       );
       await _reloadCierreCaja();
       if (!mounted) return;
@@ -4427,9 +4538,11 @@ class _MeseroPageState extends ConsumerState<MeseroPage> {
     final controllers = <int, TextEditingController>{};
     for (final medio in cierre.mediosPago) {
       final id = medio.medioPagoId;
-      if (id != null) {
+      if (id != null && _esMedioEfectivoCierre(medio.medioPagoNombre)) {
         controllers[id] = TextEditingController(
-          text: _formatCurrencyInputAmount(medio.valorEntregado ?? medio.totalSistema ?? 0),
+          text: _formatCurrencyInputAmount(
+            medio.valorEntregado ?? medio.totalSistema ?? 0,
+          ),
         );
       }
     }
@@ -4447,7 +4560,15 @@ class _MeseroPageState extends ConsumerState<MeseroPage> {
 
     double totalEntregadoActual() => cierre.mediosPago.fold<double>(
           0,
-          (sum, medio) => sum + _parseCurrencyInput(controllers[medio.medioPagoId]?.text ?? '0'),
+          (sum, medio) {
+            if (_esMedioEfectivoCierre(medio.medioPagoNombre)) {
+              return sum +
+                  _parseCurrencyInput(
+                    controllers[medio.medioPagoId]?.text ?? '0',
+                  );
+            }
+            return sum + (medio.totalSistema ?? 0);
+          },
         );
     double totalGastosActual() =>
         (cierre.totalSalidasCaja ?? 0) +
@@ -4458,13 +4579,29 @@ class _MeseroPageState extends ConsumerState<MeseroPage> {
     double baseActual() => _parseCurrencyInput(baseController.text);
     double totalCruceActual() => totalEntregadoActual() + totalGastosActual() - baseActual();
     double diferenciaActual() => totalCruceActual() - (cierre.totalVendido ?? 0);
-    double diferenciaMedioActual(CierreCajaMedioPagoModel medio) {
-      final entregado = _parseCurrencyInput(controllers[medio.medioPagoId]?.text ?? '0');
-      final sistema = medio.totalSistema ?? 0;
-      if (_esMedioEfectivoCierre(medio.medioPagoNombre)) {
-        return entregado + totalGastosActual() - baseActual() - sistema;
+    double salidasMedioActual(CierreCajaMedioPagoModel medio) {
+      if (!_esMedioEfectivoCierre(medio.medioPagoNombre)) {
+        return 0;
       }
-      return entregado - sistema;
+      var total = cierre.salidasCaja
+          .where(_salidaAfectaCajaFisicaCierre)
+          .fold<double>(0, (sum, salida) => sum + (salida.valor ?? 0));
+      total += gastos.fold<double>(
+        0,
+        (sum, gasto) => sum + _parseCurrencyInput(gasto.valor.text),
+      );
+      return total;
+    }
+
+    double diferenciaMedioActual(CierreCajaMedioPagoModel medio) {
+      if (!_esMedioEfectivoCierre(medio.medioPagoNombre)) {
+        return 0;
+      }
+      final entregado = _parseCurrencyInput(
+        controllers[medio.medioPagoId]?.text ?? '0',
+      );
+      final sistema = medio.totalSistema ?? 0;
+      return entregado + salidasMedioActual(medio) - baseActual() - sistema;
     }
 
     final palette = ref.read(selectedAppPaletteProvider);
@@ -4594,22 +4731,59 @@ class _MeseroPageState extends ConsumerState<MeseroPage> {
                 ],
               ),
               const SizedBox(height: 10),
-              TextField(
-                controller: controllers[medio.medioPagoId],
-                keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                textInputAction: TextInputAction.done,
-                onSubmitted: (_) => FocusScope.of(context).unfocus(),
-                inputFormatters: _currencyInputFormatters,
-                onChanged: (_) => setDialogState(() {}),
-                decoration: InputDecoration(
-                  labelText: _esMedioEfectivoCierre(medio.medioPagoNombre)
-                      ? 'Efectivo contado'
-                      : 'Valor confirmado',
-                  prefixIcon: const Icon(Icons.edit_rounded),
-                  isDense: compact,
-                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(14)),
+              if (_esMedioEfectivoCierre(medio.medioPagoNombre))
+                TextField(
+                  controller: controllers[medio.medioPagoId],
+                  keyboardType:
+                      const TextInputType.numberWithOptions(decimal: true),
+                  textInputAction: TextInputAction.done,
+                  onSubmitted: (_) => FocusScope.of(context).unfocus(),
+                  inputFormatters: _currencyInputFormatters,
+                  onChanged: (_) => setDialogState(() {}),
+                  decoration: InputDecoration(
+                    labelText: 'Efectivo contado',
+                    helperText:
+                        'Incluye la base inicial y el efectivo que quedó físicamente en caja.',
+                    prefixIcon: const Icon(Icons.edit_rounded),
+                    isDense: compact,
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(14),
+                    ),
+                  ),
+                )
+              else
+                Container(
+                  width: double.infinity,
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                  decoration: BoxDecoration(
+                    color: palette.background.withOpacity(.42),
+                    borderRadius: BorderRadius.circular(14),
+                    border: Border.all(color: palette.cardBorder),
+                  ),
+                  child: Row(
+                    children: [
+                      Icon(
+                        Icons.lock_outline_rounded,
+                        size: 18,
+                        color: palette.textSecondary,
+                      ),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Text(
+                          'Automático desde ventas: '
+                          '${CurrencyUtils.format(medio.totalSistema)}. '
+                          'No se cuenta físicamente ni cambia por pagos de proveedores.',
+                          style: TextStyle(
+                            color: palette.textSecondary,
+                            fontWeight: FontWeight.w700,
+                            fontSize: 11,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
-              ),
             ],
           ),
         );
@@ -4618,7 +4792,8 @@ class _MeseroPageState extends ConsumerState<MeseroPage> {
       final mediosSection = sectionCard(
         icon: Icons.account_balance_wallet_rounded,
         title: 'Conteo por medio',
-        subtitle: 'Registra lo que realmente quedó en caja.',
+        subtitle:
+            'Solo se cuenta efectivo. Nequi, Daviplata y otros giros se toman automáticamente del sistema.',
         child: cierre.mediosPago.isEmpty
             ? Text('No hay medios de pago registrados para este día.', style: TextStyle(color: palette.textSecondary))
             : Column(children: cierre.mediosPago.map(medioCard).toList(growable: false)),
@@ -4628,7 +4803,7 @@ class _MeseroPageState extends ConsumerState<MeseroPage> {
         icon: Icons.tune_rounded,
         title: 'Base y observación',
         subtitle: cierre.salidasCaja.isEmpty
-            ? 'Las salidas de efectivo se registran desde el panel del turno.'
+            ? 'Los pagos y salidas se registran desde el panel del turno.'
             : '${cierre.salidasCaja.length} salida(s) de caja ya incluidas automáticamente.',
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -5001,10 +5176,16 @@ class _MeseroPageState extends ConsumerState<MeseroPage> {
     }
 
     final medios = cierre.mediosPago
-        .where((medio) => medio.medioPagoId != null)
+        .where(
+          (medio) =>
+              medio.medioPagoId != null &&
+              _esMedioEfectivoCierre(medio.medioPagoNombre),
+        )
         .map((medio) => {
               'medioPagoId': medio.medioPagoId,
-              'valorEntregado': _parseCurrencyInput(controllers[medio.medioPagoId]?.text ?? '0'),
+              'valorEntregado': _parseCurrencyInput(
+                controllers[medio.medioPagoId]?.text ?? '0',
+              ),
             })
         .toList(growable: false);
     final gastosRequest = gastos
@@ -5189,6 +5370,7 @@ class _SalidaCajaDecision {
     this.descripcion,
     this.gastoId,
     this.pedidoId,
+    this.medioPagoId,
   });
 
   final String tipo;
@@ -5197,15 +5379,18 @@ class _SalidaCajaDecision {
   final String? descripcion;
   final int? gastoId;
   final int? pedidoId;
+  final int? medioPagoId;
 }
 
 class _SalidaCajaDialog extends StatefulWidget {
   const _SalidaCajaDialog({
     required this.opciones,
+    required this.mediosPago,
     required this.palette,
   });
 
   final SalidaCajaOpcionesModel opciones;
+  final List<MeseroMedioPagoModel> mediosPago;
   final AppPalette palette;
 
   @override
@@ -5220,6 +5405,7 @@ class _SalidaCajaDialogState extends State<_SalidaCajaDialog> {
   String _categoria = 'ASEO';
   int? _gastoId;
   int? _pedidoId;
+  int? _medioPagoId;
 
   static const List<String> _categorias = <String>[
     'ASEO',
@@ -5229,6 +5415,16 @@ class _SalidaCajaDialogState extends State<_SalidaCajaDialog> {
     'EMERGENCIA',
     'OTROS',
   ];
+
+  @override
+  void initState() {
+    super.initState();
+    final disponibles = widget.mediosPago
+        .where((medio) => medio.medioPagoId != null)
+        .toList(growable: false);
+    _medioPagoId =
+        disponibles.length == 1 ? disponibles.first.medioPagoId : null;
+  }
 
   @override
   void dispose() {
@@ -5253,12 +5449,19 @@ class _SalidaCajaDialogState extends State<_SalidaCajaDialog> {
     return null;
   }
 
+  MeseroMedioPagoModel? get _medioPago =>
+      _medioPagoById(widget.mediosPago, _medioPagoId);
+
   bool get _canSubmit {
     if (_valor <= 0) return false;
-    if (_tipo == 'PAGO_GASTO') return _gastoId != null;
+    if (_tipo == 'PAGO_GASTO') {
+      return _gastoId != null && _medioPagoId != null;
+    }
     if (_tipo == 'PAGO_PEDIDO') {
       final pedido = _pedido;
-      return pedido != null && _valor <= pedido.saldoPendiente + .01;
+      return pedido != null &&
+          _medioPagoId != null &&
+          _valor <= pedido.saldoPendiente + .01;
     }
     return _descripcionController.text.trim().isNotEmpty;
   }
@@ -5315,7 +5518,7 @@ class _SalidaCajaDialogState extends State<_SalidaCajaDialog> {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text(
-                          'Registrar salida de caja',
+                          'Registrar pago o salida',
                           style: TextStyle(
                             color: palette.textPrimary,
                             fontWeight: FontWeight.w900,
@@ -5323,7 +5526,7 @@ class _SalidaCajaDialogState extends State<_SalidaCajaDialog> {
                           ),
                         ),
                         Text(
-                          'Clasifica la salida para evitar duplicar gastos.',
+                          'Solo el efectivo afecta el cierre; los giros electrónicos quedan como registro financiero.',
                           style: TextStyle(
                             color: palette.textSecondary,
                             fontWeight: FontWeight.w600,
@@ -5405,7 +5608,7 @@ class _SalidaCajaDialogState extends State<_SalidaCajaDialog> {
                     label: Text(
                       _valor > 0
                           ? 'Registrar ' + CurrencyUtils.format(_valor)
-                          : 'Registrar salida',
+                          : 'Registrar movimiento',
                     ),
                   ),
                 ],
@@ -5424,7 +5627,9 @@ class _SalidaCajaDialogState extends State<_SalidaCajaDialog> {
           inputFormatters: _currencyInputFormatters,
           onChanged: (_) => setState(() {}),
           decoration: InputDecoration(
-            labelText: 'Valor que salió de caja',
+            labelText: _tipo == 'PAGO_PEDIDO' || _tipo == 'PAGO_GASTO'
+                ? 'Valor del pago'
+                : 'Valor que salió de caja',
             prefixIcon: const Icon(Icons.payments_outlined),
             suffixText: 'COP',
             helperText: _tipo == 'PAGO_PEDIDO' && _pedido != null
@@ -5473,6 +5678,49 @@ class _SalidaCajaDialogState extends State<_SalidaCajaDialog> {
             _SalidaPedidoResumen(pedido: _pedido!, palette: palette),
           ],
           const SizedBox(height: 12),
+          DropdownButtonFormField<int>(
+            value: _medioPagoId,
+            isExpanded: true,
+            decoration: InputDecoration(
+              labelText: 'Medio con el que se pagó',
+              prefixIcon: Icon(
+                _medioPago == null
+                    ? Icons.account_balance_wallet_outlined
+                    : _iconoMedioPago(_medioPago!),
+              ),
+              helperText:
+                  'Efectivo, Nequi, Daviplata, transferencia u otro medio activo.',
+            ),
+            items: (widget.mediosPago
+                      .where((medio) => medio.medioPagoId != null)
+                      .toList(growable: false)
+                    ..sort((a, b) {
+                      final prioridad =
+                          _prioridadMedioPago(a).compareTo(_prioridadMedioPago(b));
+                      if (prioridad != 0) return prioridad;
+                      return (a.nombre ?? '').compareTo(b.nombre ?? '');
+                    }))
+                .map(
+                  (medio) => DropdownMenuItem<int>(
+                    value: medio.medioPagoId,
+                    child: Row(
+                      children: [
+                        Icon(_iconoMedioPago(medio), size: 18),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: Text(
+                            medio.nombre ?? 'Medio ${medio.medioPagoId}',
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                )
+                .toList(growable: false),
+            onChanged: (value) => setState(() => _medioPagoId = value),
+          ),
+          const SizedBox(height: 12),
           amountField(),
           const SizedBox(height: 12),
           TextField(
@@ -5520,6 +5768,49 @@ class _SalidaCajaDialogState extends State<_SalidaCajaDialog> {
                 }
               });
             },
+          ),
+          const SizedBox(height: 12),
+          DropdownButtonFormField<int>(
+            value: _medioPagoId,
+            isExpanded: true,
+            decoration: InputDecoration(
+              labelText: 'Medio con el que se pagó',
+              prefixIcon: Icon(
+                _medioPago == null
+                    ? Icons.account_balance_wallet_outlined
+                    : _iconoMedioPago(_medioPago!),
+              ),
+              helperText:
+                  'Si es Nequi, Daviplata o transferencia, no afecta el efectivo del cierre.',
+            ),
+            items: (widget.mediosPago
+                      .where((medio) => medio.medioPagoId != null)
+                      .toList(growable: false)
+                    ..sort((a, b) {
+                      final prioridad =
+                          _prioridadMedioPago(a).compareTo(_prioridadMedioPago(b));
+                      if (prioridad != 0) return prioridad;
+                      return (a.nombre ?? '').compareTo(b.nombre ?? '');
+                    }))
+                .map(
+                  (medio) => DropdownMenuItem<int>(
+                    value: medio.medioPagoId,
+                    child: Row(
+                      children: [
+                        Icon(_iconoMedioPago(medio), size: 18),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: Text(
+                            medio.nombre ?? 'Medio ${medio.medioPagoId}',
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                )
+                .toList(growable: false),
+            onChanged: (value) => setState(() => _medioPagoId = value),
           ),
           const SizedBox(height: 12),
           amountField(),
@@ -5577,12 +5868,23 @@ class _SalidaCajaDialogState extends State<_SalidaCajaDialog> {
   }
 
   Widget _buildImpact(AppPalette palette) {
-    final affects = _tipo == 'GASTO_TURNO';
+    final affects = _tipo == 'GASTO_TURNO' ||
+        ((_tipo == 'PAGO_PEDIDO' || _tipo == 'PAGO_GASTO') &&
+            _esMedioPagoEfectivo(_medioPago));
+    final medio = _medioPago;
     final text = _tipo == 'PAGO_PEDIDO'
-        ? 'Descuenta caja y reduce el saldo pendiente del pedido.'
+        ? medio == null
+            ? 'Selecciona cómo se pagó el pedido.'
+            : _esMedioPagoEfectivo(medio)
+                ? 'Reduce el saldo del pedido y sí afecta el efectivo que debe cuadrar la cajera.'
+                : 'Reduce el saldo del pedido, pero el pago por ${medio.nombre ?? 'giro electrónico'} no modifica el cierre de efectivo.'
         : _tipo == 'PAGO_GASTO'
-            ? 'Descuenta caja. No duplica el gasto que ya está configurado.'
-            : 'Descuenta caja y se suma a gastos variables del periodo.';
+            ? medio == null
+                ? 'Selecciona cómo se pagó la factura o gasto.'
+                : _esMedioPagoEfectivo(medio)
+                    ? 'Registra el pago y sí afecta el efectivo del turno.'
+                    : 'Registra el pago por ${medio.nombre ?? 'giro electrónico'}, pero no modifica el efectivo del cierre.'
+            : 'Descuenta efectivo y se suma a gastos variables del periodo.';
     return Container(
       padding: const EdgeInsets.all(13),
       decoration: BoxDecoration(
@@ -5626,6 +5928,10 @@ class _SalidaCajaDialogState extends State<_SalidaCajaDialog> {
             : _descripcionController.text.trim(),
         gastoId: _tipo == 'PAGO_GASTO' ? _gastoId : null,
         pedidoId: _tipo == 'PAGO_PEDIDO' ? _pedidoId : null,
+        medioPagoId:
+            _tipo == 'PAGO_PEDIDO' || _tipo == 'PAGO_GASTO'
+                ? _medioPagoId
+                : null,
       ),
     );
   }
@@ -6060,7 +6366,14 @@ class _CierrePosMedioRow extends ConsumerWidget {
             children: [
               Expanded(child: _CierrePosMiniValue(label: 'Sistema', value: CurrencyUtils.format(item.totalSistema))),
               const SizedBox(width: 8),
-              Expanded(child: _CierrePosMiniValue(label: 'Contado', value: CurrencyUtils.format(contado))),
+              Expanded(
+                child: _CierrePosMiniValue(
+                  label: _esMedioEfectivoCierre(item.medioPagoNombre)
+                      ? 'Contado'
+                      : 'Automático',
+                  value: CurrencyUtils.format(contado),
+                ),
+              ),
               const SizedBox(width: 8),
               Expanded(
                 child: _CierrePosMiniValue(
@@ -6156,7 +6469,10 @@ class _CierrePosResumenPanel extends ConsumerWidget {
           _CierrePosSummaryRow(label: 'Ventas del sistema', value: CurrencyUtils.format(totalVendido)),
           _CierrePosSummaryRow(label: 'Propinas', value: CurrencyUtils.format(propinas)),
           _CierrePosSummaryRow(label: 'Base inicial', value: CurrencyUtils.format(valorBase)),
-          _CierrePosSummaryRow(label: 'Salidas de caja ($gastosRegistrados)', value: CurrencyUtils.format(totalGastos)),
+          _CierrePosSummaryRow(
+            label: 'Salidas que afectan efectivo',
+            value: CurrencyUtils.format(totalGastos),
+          ),
           _CierrePosSummaryRow(label: 'Total contado', value: CurrencyUtils.format(totalEntregado)),
           const SizedBox(height: 8),
           Divider(height: 1, color: palette.cardBorder),
@@ -6395,8 +6711,8 @@ class _CierrePosMovimientosPanel extends ConsumerWidget {
             const SizedBox(height: 12),
             Text(
               cerrado
-                  ? 'No se registraron salidas de efectivo en este turno.'
-                  : 'Aún no hay salidas. Registra aquí cualquier dinero que salga de caja durante el turno.',
+                  ? 'No se registraron pagos ni salidas en este turno.'
+                  : 'Aún no hay movimientos. Registra aquí pagos de pedidos, facturas o salidas del turno.',
               style: TextStyle(
                 color: palette.textSecondary,
                 fontWeight: FontWeight.w600,
@@ -6491,10 +6807,19 @@ class _SalidaCajaRow extends StatelessWidget {
                           fontWeight: FontWeight.w700,
                         ),
                       ),
+                    if ((salida.medioPagoNombre ?? '').trim().isNotEmpty)
+                      Text(
+                        'Medio: ${salida.medioPagoNombre}',
+                        style: TextStyle(
+                          color: palette.secondary,
+                          fontSize: 9,
+                          fontWeight: FontWeight.w800,
+                        ),
+                      ),
                     Text(
                       affects
                           ? 'Afecta rentabilidad'
-                          : 'Solo flujo de caja',
+                          : 'Solo flujo del medio',
                       style: TextStyle(
                         color: affects
                             ? palette.warning
@@ -6651,15 +6976,53 @@ bool _esMedioEfectivoCierre(String? nombre) {
   return value.contains('efectivo') || value.contains('cash');
 }
 
-double _diferenciaMedioCierreAjustada(CierreCajaResumenModel cierre, CierreCajaMedioPagoModel medio) {
+bool _mismoMedioSalidaCierre(String? medioCierre, String? medioSalida) {
+  final cierre = (medioCierre ?? '').trim().toLowerCase();
+  final salida = (medioSalida ?? '').trim().toLowerCase();
+  if (salida.isEmpty ||
+      salida == 'caja' ||
+      salida == 'efectivo' ||
+      salida == 'cash') {
+    return _esMedioEfectivoCierre(medioCierre);
+  }
+  return cierre.isNotEmpty && cierre == salida;
+}
+
+bool _salidaAfectaCajaFisicaCierre(SalidaCajaModel salida) {
+  final medio = (salida.medioPagoNombre ?? '').trim();
+  if (medio.isEmpty || medio.toLowerCase() == 'caja') return true;
+  return _esMedioEfectivoCierre(medio);
+}
+
+double _salidasAplicadasMedioCierre(
+  CierreCajaResumenModel cierre,
+  CierreCajaMedioPagoModel medio,
+) {
+  if (!_esMedioEfectivoCierre(medio.medioPagoNombre)) {
+    return 0;
+  }
+  var total = cierre.salidasCaja
+      .where(_salidaAfectaCajaFisicaCierre)
+      .fold<double>(0, (sum, salida) => sum + (salida.valor ?? 0));
+  total += cierre.gastos.fold<double>(
+    0,
+    (sum, gasto) => sum + (gasto.valor ?? 0),
+  );
+  return total;
+}
+
+double _diferenciaMedioCierreAjustada(
+  CierreCajaResumenModel cierre,
+  CierreCajaMedioPagoModel medio,
+) {
+  if (!_esMedioEfectivoCierre(medio.medioPagoNombre)) {
+    return 0;
+  }
   final sistema = medio.totalSistema ?? 0;
   final entregado = medio.valorEntregado ?? 0;
-  if (_esMedioEfectivoCierre(medio.medioPagoNombre)) {
-    final base = cierre.valorBase ?? 0;
-    final gastos = cierre.totalGastos ?? 0;
-    return entregado + gastos - base - sistema;
-  }
-  return entregado - sistema;
+  final base = _baseAplicadaMedioCierre(cierre, medio);
+  final salidas = _salidasAplicadasMedioCierre(cierre, medio);
+  return entregado + salidas - base - sistema;
 }
 
 double _baseAplicadaMedioCierre(CierreCajaResumenModel cierre, CierreCajaMedioPagoModel medio) {
@@ -6669,11 +7032,14 @@ double _baseAplicadaMedioCierre(CierreCajaResumenModel cierre, CierreCajaMedioPa
   return 0;
 }
 
-String _notaDiferenciaMedioCierre(CierreCajaResumenModel cierre, CierreCajaMedioPagoModel medio) {
+String _notaDiferenciaMedioCierre(
+  CierreCajaResumenModel cierre,
+  CierreCajaMedioPagoModel medio,
+) {
   if (_esMedioEfectivoCierre(medio.medioPagoNombre)) {
-    return 'Efectivo ajustado: contado + salidas de caja - base inicial - recibido sistema';
+    return 'Efectivo: contado + salidas en efectivo - base inicial - recibido sistema';
   }
-  return 'Entregado - recibido sistema';
+  return 'Informativo: se toma automáticamente de las ventas y no requiere conteo de la cajera.';
 }
 
 String _formatFechaCierre(String? value) {
@@ -6755,7 +7121,7 @@ Future<Uint8List> _crearPdfCierreCaja(CierreCajaResumenModel cierre) async {
             pw.TableRow(children: [
               summaryBox('Entregado medios', CurrencyUtils.format(cierre.totalEntregado)),
               summaryBox('Base inicial', CurrencyUtils.format(cierre.valorBase)),
-              summaryBox('Salidas de caja', CurrencyUtils.format(cierre.totalGastos)),
+              summaryBox('Pagos y salidas', CurrencyUtils.format(cierre.totalGastos)),
             ]),
             pw.TableRow(children: [
               summaryBox('Total cruce', CurrencyUtils.format(cierre.totalCruce ?? ((cierre.totalEntregado ?? 0) + (cierre.totalGastos ?? 0) - (cierre.valorBase ?? 0)))),
@@ -6765,7 +7131,7 @@ Future<Uint8List> _crearPdfCierreCaja(CierreCajaResumenModel cierre) async {
           ],
         ),
         pw.SizedBox(height: 8),
-        pw.Text('Formula de cruce: total contado por medios + salidas de caja - base inicial = dinero real de ventas. Diferencia = cruce - total vendido.', style: const pw.TextStyle(fontSize: 8)),
+        pw.Text('Formula de cruce: total contado por medios + pagos/salidas del turno - base inicial = dinero real de ventas. Diferencia = cruce - total vendido.', style: const pw.TextStyle(fontSize: 8)),
         sectionTitle('1. Medios de pago - recibido, contado y diferencia ajustada'),
         pw.Table.fromTextArray(
           headerDecoration: pw.BoxDecoration(color: PdfColor.fromHex('#E2E8F0')),
@@ -7000,7 +7366,7 @@ class _CierreTurnSummary extends ConsumerWidget {
       (label: 'Propinas', value: totalPropinas, strong: false),
       (label: 'Total vendido', value: totalVendido, strong: true),
       (label: 'Entregado por medios', value: totalEntregado, strong: false),
-      (label: 'Más salidas de caja', value: totalGastos, strong: false),
+      (label: 'Más pagos/salidas', value: totalGastos, strong: false),
       (label: 'Menos base inicial', value: -valorBase, strong: false),
       (label: 'Total del cruce', value: totalCruce, strong: true),
     ];
@@ -19305,7 +19671,9 @@ class _AgregarProductosOverlayPanelState extends ConsumerState<_AgregarProductos
     final cantidad = (producto.cantidad ?? 0).toDouble();
     final pagado = producto.pagado == true;
     final nombre = producto.productoNombre ?? 'Producto ${producto.productoId ?? '-'}';
-    final total = producto.subtotal ?? cantidad * (producto.valorUnitario ?? 0);
+    final unitario = (producto.valorUnitario ?? 0) + (producto.precioAdicionalUnitario ?? 0);
+    final total = producto.subtotal ?? cantidad * unitario;
+    final personalizacion = _personalizacionPedidoResumen(producto);
 
     return Container(
       width: double.infinity,
@@ -19345,10 +19713,34 @@ class _AgregarProductosOverlayPanelState extends ConsumerState<_AgregarProductos
                       spacing: 10,
                       runSpacing: 4,
                       children: [
-                        Text('Unidad ${CurrencyUtils.format(producto.valorUnitario)}', style: TextStyle(color: palette.textSecondary, fontWeight: FontWeight.w700, fontSize: 11)),
+                        Text('Unidad ${CurrencyUtils.format(unitario)}', style: TextStyle(color: palette.textSecondary, fontWeight: FontWeight.w700, fontSize: 11)),
                         Text('Subtotal ${CurrencyUtils.format(total)}', style: TextStyle(color: palette.secondary, fontWeight: FontWeight.w900, fontSize: 11)),
                       ],
                     ),
+                    if (personalizacion.isNotEmpty) ...[
+                      const SizedBox(height: 6),
+                      Wrap(
+                        spacing: 5,
+                        runSpacing: 5,
+                        children: personalizacion
+                            .map((text) => Container(
+                                  padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
+                                  decoration: BoxDecoration(
+                                    color: palette.secondary.withOpacity(.08),
+                                    borderRadius: BorderRadius.circular(999),
+                                  ),
+                                  child: Text(
+                                    text,
+                                    style: TextStyle(
+                                      color: palette.textSecondary,
+                                      fontWeight: FontWeight.w700,
+                                      fontSize: 9.5,
+                                    ),
+                                  ),
+                                ))
+                            .toList(),
+                      ),
+                    ],
                   ],
                 ),
               ),
@@ -19940,7 +20332,9 @@ class _CantidadProductoExistenteDialogState extends ConsumerState<_CantidadProdu
   Widget build(BuildContext context) {
     final palette = ref.watch(selectedAppPaletteProvider);
     final cantidad = _cantidad();
-    final total = cantidad * (widget.producto.valorUnitario ?? 0);
+    final total = cantidad *
+        ((widget.producto.valorUnitario ?? 0) +
+            (widget.producto.precioAdicionalUnitario ?? 0));
     return AlertDialog(
       backgroundColor: palette.surface.withOpacity(0.99),
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24), side: BorderSide(color: palette.secondary.withOpacity(0.18))),
@@ -20203,6 +20597,332 @@ class _CantidadAgregarDesdePanelDialogState extends ConsumerState<_CantidadAgreg
         FilledButton(
           onPressed: cantidad < 0 ? null : () => Navigator.of(context).pop(cantidad),
           child: const Text('Aplicar'),
+        ),
+      ],
+    );
+  }
+}
+
+class _PedidoProductoDecision {
+  const _PedidoProductoDecision({
+    required this.cantidad,
+    required this.ingredientesExcluidos,
+    required this.adiciones,
+    this.observacion,
+  });
+
+  final double cantidad;
+  final List<int> ingredientesExcluidos;
+  final List<int> adiciones;
+  final String? observacion;
+}
+
+class _PersonalizarProductoDialog extends ConsumerStatefulWidget {
+  const _PersonalizarProductoDialog({
+    required this.producto,
+    this.initialQuantity = 1,
+  });
+
+  final MeseroProductoModel producto;
+  final double initialQuantity;
+
+  @override
+  ConsumerState<_PersonalizarProductoDialog> createState() =>
+      _PersonalizarProductoDialogState();
+}
+
+class _PersonalizarProductoDialogState
+    extends ConsumerState<_PersonalizarProductoDialog> {
+  final _formKey = GlobalKey<FormState>();
+  late final TextEditingController _cantidadController;
+  final _observacionController = TextEditingController();
+  final Set<int> _excluded = <int>{};
+  final Set<int> _additions = <int>{};
+
+  @override
+  void initState() {
+    super.initState();
+    _cantidadController = TextEditingController(
+      text: _formatCantidadGeneral(widget.initialQuantity),
+    );
+  }
+
+  @override
+  void dispose() {
+    _cantidadController.dispose();
+    _observacionController.dispose();
+    super.dispose();
+  }
+
+  double get _cantidad =>
+      double.tryParse(_cantidadController.text.trim().replaceAll(',', '.')) ?? 0;
+
+  double get _adicionalUnitario {
+    return widget.producto.adiciones
+        .where((item) => item.id != null && _additions.contains(item.id))
+        .fold<double>(0, (sum, item) => sum + (item.precioAdicional ?? 0));
+  }
+
+  double get _total =>
+      _cantidad * ((widget.producto.precioVenta ?? 0) + _adicionalUnitario);
+
+  @override
+  Widget build(BuildContext context) {
+    final palette = ref.watch(selectedAppPaletteProvider);
+    final producto = widget.producto;
+    final removibles = producto.ingredientes
+        .where((item) => item.removible == true && item.id != null)
+        .toList(growable: false);
+    final obligatorios = producto.ingredientes
+        .where((item) => item.removible != true)
+        .toList(growable: false);
+
+    return AlertDialog(
+      backgroundColor:
+          palette.surface.withOpacity(palette.darkBackground ? .98 : 1),
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(24),
+        side: BorderSide(color: palette.cardBorder),
+      ),
+      title: Row(
+        children: [
+          _ProductImageThumb(value: producto.foto, size: 52),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  producto.nombre ?? 'Producto preparado',
+                  style: TextStyle(
+                    color: palette.textPrimary,
+                    fontWeight: FontWeight.w900,
+                    fontSize: 18,
+                  ),
+                ),
+                Text(
+                  'Personaliza el pedido',
+                  style: TextStyle(
+                    color: palette.textSecondary,
+                    fontWeight: FontWeight.w600,
+                    fontSize: 12,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+      content: SizedBox(
+        width: 600,
+        child: Form(
+          key: _formKey,
+          child: SingleChildScrollView(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Row(
+                  children: [
+                    Expanded(
+                      child: TextFormField(
+                        controller: _cantidadController,
+                        keyboardType: TextInputType.number,
+                        inputFormatters:
+                            InputConstraints.decimalFormatters(integerDigits: 10, fractionDigits: 0),
+                        decoration: const InputDecoration(
+                          labelText: 'Cantidad',
+                          prefixIcon: Icon(Icons.numbers_rounded),
+                        ),
+                        onChanged: (_) => setState(() {}),
+                        validator: (value) {
+                          final parsed = double.tryParse(
+                                  (value ?? '').trim().replaceAll(',', '.')) ??
+                              0;
+                          return parsed <= 0
+                              ? 'Ingresa una cantidad mayor a cero'
+                              : null;
+                        },
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 12, vertical: 11),
+                        decoration: BoxDecoration(
+                          color: palette.secondary.withOpacity(.08),
+                          borderRadius: BorderRadius.circular(14),
+                          border: Border.all(color: palette.cardBorder),
+                        ),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              'Total del pedido',
+                              style: TextStyle(
+                                color: palette.textSecondary,
+                                fontSize: 11,
+                                fontWeight: FontWeight.w700,
+                              ),
+                            ),
+                            Text(
+                              CurrencyUtils.format(_total),
+                              style: TextStyle(
+                                color: palette.secondary,
+                                fontSize: 18,
+                                fontWeight: FontWeight.w900,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+                if (removibles.isNotEmpty) ...[
+                  const SizedBox(height: 18),
+                  Text(
+                    'Quitar ingredientes',
+                    style: TextStyle(
+                      color: palette.textPrimary,
+                      fontWeight: FontWeight.w900,
+                    ),
+                  ),
+                  const SizedBox(height: 5),
+                  Text(
+                    'Marca lo que el cliente no quiere.',
+                    style: TextStyle(
+                      color: palette.textSecondary,
+                      fontSize: 12,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                  ...removibles.map((item) {
+                    final id = item.id!;
+                    return CheckboxListTile(
+                      value: _excluded.contains(id),
+                      contentPadding: EdgeInsets.zero,
+                      controlAffinity: ListTileControlAffinity.leading,
+                      title: Text(
+                        'Sin ${item.nombre ?? 'ingrediente'}',
+                        style: TextStyle(
+                          color: palette.textPrimary,
+                          fontWeight: FontWeight.w800,
+                        ),
+                      ),
+                      subtitle: Text(
+                        '${_formatCantidadGeneral(item.cantidad ?? 0)} ${item.unidad ?? ''}',
+                        style: TextStyle(color: palette.textSecondary),
+                      ),
+                      onChanged: (checked) => setState(() {
+                        if (checked == true) {
+                          _excluded.add(id);
+                        } else {
+                          _excluded.remove(id);
+                        }
+                      }),
+                    );
+                  }),
+                ],
+                if (obligatorios.isNotEmpty) ...[
+                  const SizedBox(height: 8),
+                  Text(
+                    'Ingredientes base no removibles: ${obligatorios.map((e) => e.nombre ?? 'Ingrediente').join(', ')}',
+                    style: TextStyle(
+                      color: palette.textSecondary,
+                      fontSize: 11.5,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ],
+                if (producto.adiciones.isNotEmpty) ...[
+                  const SizedBox(height: 18),
+                  Text(
+                    'Adiciones',
+                    style: TextStyle(
+                      color: palette.textPrimary,
+                      fontWeight: FontWeight.w900,
+                    ),
+                  ),
+                  const SizedBox(height: 5),
+                  ...producto.adiciones.where((item) => item.id != null).map((item) {
+                    final id = item.id!;
+                    return CheckboxListTile(
+                      value: _additions.contains(id),
+                      contentPadding: EdgeInsets.zero,
+                      controlAffinity: ListTileControlAffinity.leading,
+                      title: Text(
+                        item.nombre ?? 'Adición',
+                        style: TextStyle(
+                          color: palette.textPrimary,
+                          fontWeight: FontWeight.w800,
+                        ),
+                      ),
+                      subtitle: Text(
+                        '${_formatCantidadGeneral(item.cantidad ?? 0)} ${item.unidad ?? ''} · +${CurrencyUtils.format(item.precioAdicional ?? 0)}',
+                        style: TextStyle(color: palette.textSecondary),
+                      ),
+                      onChanged: (checked) => setState(() {
+                        if (checked == true) {
+                          _additions.add(id);
+                        } else {
+                          _additions.remove(id);
+                        }
+                      }),
+                    );
+                  }),
+                ],
+                const SizedBox(height: 16),
+                TextFormField(
+                  controller: _observacionController,
+                  maxLength: 500,
+                  minLines: 2,
+                  maxLines: 4,
+                  decoration: const InputDecoration(
+                    labelText: 'Preparación / observación',
+                    hintText:
+                        'Ejemplo: término medio, sin sal, salsa aparte...',
+                    prefixIcon: Icon(Icons.edit_note_rounded),
+                  ),
+                ),
+                if (_adicionalUnitario > 0) ...[
+                  const SizedBox(height: 8),
+                  Text(
+                    'Adiciones por unidad: +${CurrencyUtils.format(_adicionalUnitario)}',
+                    textAlign: TextAlign.right,
+                    style: TextStyle(
+                      color: palette.secondary,
+                      fontWeight: FontWeight.w800,
+                    ),
+                  ),
+                ],
+              ],
+            ),
+          ),
+        ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(context),
+          child: const Text('Cancelar'),
+        ),
+        FilledButton.icon(
+          onPressed: () {
+            if (!(_formKey.currentState?.validate() ?? false)) return;
+            Navigator.pop(
+              context,
+              _PedidoProductoDecision(
+                cantidad: _cantidad,
+                ingredientesExcluidos: _excluded.toList(growable: false),
+                adiciones: _additions.toList(growable: false),
+                observacion: _observacionController.text.trim().isEmpty
+                    ? null
+                    : _observacionController.text.trim(),
+              ),
+            );
+          },
+          icon: const Icon(Icons.add_shopping_cart_rounded),
+          label: Text('Agregar · ${CurrencyUtils.format(_total)}'),
         ),
       ],
     );
