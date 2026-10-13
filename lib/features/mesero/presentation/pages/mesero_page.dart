@@ -2763,13 +2763,36 @@ class _MeseroPageState extends ConsumerState<MeseroPage> {
         final productoSeleccionado = producto;
         if (productoSeleccionado == null || productoSeleccionado.prodId == null) continue;
 
+        final prepared =
+            (productoSeleccionado.tipoControl ?? '').trim().toUpperCase() ==
+                'PREPARADO';
+        _PedidoProductoDecision? decision;
+        if (prepared) {
+          if (!mounted) return false;
+          decision = await showDialog<_PedidoProductoDecision>(
+            context: context,
+            builder: (dialogContext) => _PersonalizarProductoDialog(
+              producto: productoSeleccionado,
+              initialQuantity: entry.value,
+            ),
+          );
+          if (decision == null) {
+            continue;
+          }
+        }
+
+        final cantidad = decision?.cantidad ?? entry.value;
         ventaActualizada = await _dataSource.agregarProducto(
           cuentaId: cuentaId,
           productoId: productoSeleccionado.prodId!,
           precioId: productoSeleccionado.precId,
-          cantidad: entry.value,
+          cantidad: cantidad,
+          ingredientesExcluidos:
+              decision?.ingredientesExcluidos ?? const <int>[],
+          adiciones: decision?.adiciones ?? const <int>[],
+          observacion: decision?.observacion,
         );
-        unidadesAgregadas += entry.value;
+        unidadesAgregadas += cantidad;
         productosAgregados++;
       }
 
@@ -20310,9 +20333,13 @@ class _PedidoProductoDecision {
 }
 
 class _PersonalizarProductoDialog extends ConsumerStatefulWidget {
-  const _PersonalizarProductoDialog({required this.producto});
+  const _PersonalizarProductoDialog({
+    required this.producto,
+    this.initialQuantity = 1,
+  });
 
   final MeseroProductoModel producto;
+  final double initialQuantity;
 
   @override
   ConsumerState<_PersonalizarProductoDialog> createState() =>
@@ -20322,10 +20349,18 @@ class _PersonalizarProductoDialog extends ConsumerStatefulWidget {
 class _PersonalizarProductoDialogState
     extends ConsumerState<_PersonalizarProductoDialog> {
   final _formKey = GlobalKey<FormState>();
-  final _cantidadController = TextEditingController(text: '1');
+  late final TextEditingController _cantidadController;
   final _observacionController = TextEditingController();
   final Set<int> _excluded = <int>{};
   final Set<int> _additions = <int>{};
+
+  @override
+  void initState() {
+    super.initState();
+    _cantidadController = TextEditingController(
+      text: _formatCantidadGeneral(widget.initialQuantity),
+    );
+  }
 
   @override
   void dispose() {
