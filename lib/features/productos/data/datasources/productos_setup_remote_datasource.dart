@@ -3,6 +3,7 @@ import 'dart:typed_data';
 import 'package:dio/dio.dart';
 
 import '../../../../core/network/api_client.dart';
+import '../models/productos_response_model.dart';
 
 class ProductosSetupRemoteDataSource {
   ProductosSetupRemoteDataSource(this._apiClient);
@@ -11,6 +12,19 @@ class ProductosSetupRemoteDataSource {
 
   Future<Uint8List> downloadTemplate() {
     return _apiClient.getBytes('/api/v1/productos/setup/template');
+  }
+
+  Future<List<ProductosResponseModel>> branchProducts(int sucursalId) async {
+    final response = await _apiClient.get<List<ProductosResponseModel>>(
+      '/api/v1/productos/sucursal/$sucursalId',
+      (json) => (json as List? ?? const <dynamic>[])
+          .whereType<Map>()
+          .map((item) => ProductosResponseModel.fromJson(
+                Map<String, dynamic>.from(item),
+              ))
+          .toList(growable: false),
+    );
+    return response.data ?? const <ProductosResponseModel>[];
   }
 
   Future<Map<String, dynamic>> importExcel({
