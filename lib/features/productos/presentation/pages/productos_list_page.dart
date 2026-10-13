@@ -2140,6 +2140,10 @@ class _ProductosResults extends StatelessWidget {
         selectedProductIds: selectedProductIds,
         onSelectionChanged: onSelectionChanged,
         onDelete: onDelete,
+        onRegisterMovement: onRegisterMovement,
+        onUpdateProduct: onUpdateProduct,
+        stockSavingIds: stockSavingIds,
+        productSavingIds: productSavingIds,
       );
     }
 
@@ -2250,6 +2254,10 @@ class _ProductsTableView extends StatelessWidget {
     required this.selectedProductIds,
     required this.onSelectionChanged,
     required this.onDelete,
+    required this.onRegisterMovement,
+    required this.onUpdateProduct,
+    required this.stockSavingIds,
+    required this.productSavingIds,
   });
 
   final List<ProductosResponseModel> items;
@@ -2261,6 +2269,16 @@ class _ProductsTableView extends StatelessWidget {
   final Set<int> selectedProductIds;
   final void Function(int id, bool selected) onSelectionChanged;
   final ValueChanged<Object> onDelete;
+  final Future<bool> Function(
+    ProductosResponseModel item,
+    _QuickMovementDraft draft,
+  ) onRegisterMovement;
+  final Future<bool> Function(
+    ProductosResponseModel item,
+    Map<String, dynamic> body,
+  ) onUpdateProduct;
+  final Set<int> stockSavingIds;
+  final Set<int> productSavingIds;
 
   @override
   Widget build(BuildContext context) {
@@ -2363,29 +2381,40 @@ class _ProductsTableView extends StatelessWidget {
                                 ],
                               ),
                             ),
-                            if (allowProductManagement) ...[
-                              IconButton(
-                                tooltip: 'Ver detalle',
-                                visualDensity: VisualDensity.compact,
-                                onPressed: id == null
-                                    ? null
-                                    : () => context.go('/productos/$id'),
-                                icon: const Icon(
-                                  Icons.visibility_outlined,
-                                  size: 19,
+                            if (allowProductManagement && id != null)
+                              PopupMenuButton<String>(
+                                tooltip: 'Más opciones',
+                                padding: EdgeInsets.zero,
+                                icon: Icon(
+                                  Icons.more_horiz_rounded,
+                                  color: palette.textSecondary,
                                 ),
+                                onSelected: (value) {
+                                  if (value == 'detail') {
+                                    context.go('/productos/$id');
+                                  } else if (value == 'delete') {
+                                    onDelete(id);
+                                  }
+                                },
+                                itemBuilder: (_) => const [
+                                  PopupMenuItem<String>(
+                                    value: 'detail',
+                                    child: ListTile(
+                                      dense: true,
+                                      leading: Icon(Icons.visibility_outlined),
+                                      title: Text('Ver detalle'),
+                                    ),
+                                  ),
+                                  PopupMenuItem<String>(
+                                    value: 'delete',
+                                    child: ListTile(
+                                      dense: true,
+                                      leading: Icon(Icons.delete_outline_rounded),
+                                      title: Text('Eliminar o inactivar'),
+                                    ),
+                                  ),
+                                ],
                               ),
-                              IconButton(
-                                tooltip: 'Eliminar o inactivar',
-                                visualDensity: VisualDensity.compact,
-                                onPressed:
-                                    id == null ? null : () => onDelete(id),
-                                icon: const Icon(
-                                  Icons.delete_outline_rounded,
-                                  size: 19,
-                                ),
-                              ),
-                            ],
                           ],
                         ),
                         const SizedBox(height: 9),
@@ -2422,6 +2451,20 @@ class _ProductsTableView extends StatelessWidget {
                             ),
                           ],
                         ),
+                        const SizedBox(height: 9),
+                        _TableProductActions(
+                          item: item,
+                          palette: palette,
+                          marcas: marcas,
+                          tipos: tipos,
+                          allowProductManagement: allowProductManagement,
+                          stockSaving: id != null && stockSavingIds.contains(id),
+                          productSaving:
+                              id != null && productSavingIds.contains(id),
+                          onRegisterMovement: onRegisterMovement,
+                          onUpdateProduct: onUpdateProduct,
+                          labeled: true,
+                        ),
                         const SizedBox(height: 7),
                         Text(
                           branchName(item),
@@ -2443,8 +2486,8 @@ class _ProductsTableView extends StatelessWidget {
         }
 
         final tableWidth = medium
-            ? math.max(width - 32, 820.0)
-            : math.max(width - 32, allowProductManagement ? 1160.0 : 1040.0);
+            ? math.max(width - 32, 980.0)
+            : math.max(width - 32, allowProductManagement ? 1380.0 : 1220.0);
 
         return Padding(
           padding: padding,
@@ -2494,8 +2537,7 @@ class _ProductsTableView extends StatelessWidget {
                         numeric: true,
                       ),
                       if (!medium) const DataColumn(label: Text('Sucursal')),
-                      if (allowProductManagement)
-                        const DataColumn(label: Text('Acciones')),
+                      const DataColumn(label: Text('Acciones')),
                     ],
                     rows: items.map((item) {
                       final id = item.prodId;
@@ -2565,37 +2607,69 @@ class _ProductsTableView extends StatelessWidget {
                             ),
                           ),
                           if (!medium) DataCell(Text(branchName(item))),
-                          if (allowProductManagement)
-                            DataCell(
-                              Row(
-                                mainAxisSize: MainAxisSize.min,
-                                children: [
-                                  IconButton(
-                                    tooltip: 'Ver detalle',
-                                    visualDensity: medium
-                                        ? VisualDensity.compact
-                                        : VisualDensity.standard,
-                                    onPressed: id == null
-                                        ? null
-                                        : () => context.go('/productos/$id'),
-                                    icon: const Icon(
-                                      Icons.visibility_outlined,
+                          DataCell(
+                            Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                _TableProductActions(
+                                  item: item,
+                                  palette: palette,
+                                  marcas: marcas,
+                                  tipos: tipos,
+                                  allowProductManagement:
+                                      allowProductManagement,
+                                  stockSaving:
+                                      id != null && stockSavingIds.contains(id),
+                                  productSaving: id != null &&
+                                      productSavingIds.contains(id),
+                                  onRegisterMovement:
+                                      onRegisterMovement,
+                                  onUpdateProduct: onUpdateProduct,
+                                  labeled: false,
+                                ),
+                                if (allowProductManagement && id != null)
+                                  PopupMenuButton<String>(
+                                    tooltip: 'Más opciones',
+                                    padding: EdgeInsets.zero,
+                                    visualDensity: VisualDensity.compact,
+                                    icon: Icon(
+                                      Icons.more_horiz_rounded,
+                                      size: 20,
+                                      color: palette.textSecondary,
                                     ),
+                                    onSelected: (value) {
+                                      if (value == 'detail') {
+                                        context.go('/productos/$id');
+                                      } else if (value == 'delete') {
+                                        onDelete(id);
+                                      }
+                                    },
+                                    itemBuilder: (_) => const [
+                                      PopupMenuItem<String>(
+                                        value: 'detail',
+                                        child: ListTile(
+                                          dense: true,
+                                          leading:
+                                              Icon(Icons.visibility_outlined),
+                                          title: Text('Ver detalle'),
+                                        ),
+                                      ),
+                                      PopupMenuItem<String>(
+                                        value: 'delete',
+                                        child: ListTile(
+                                          dense: true,
+                                          leading: Icon(
+                                            Icons.delete_outline_rounded,
+                                          ),
+                                          title:
+                                              Text('Eliminar o inactivar'),
+                                        ),
+                                      ),
+                                    ],
                                   ),
-                                  IconButton(
-                                    tooltip: 'Eliminar o inactivar',
-                                    visualDensity: medium
-                                        ? VisualDensity.compact
-                                        : VisualDensity.standard,
-                                    onPressed:
-                                        id == null ? null : () => onDelete(id),
-                                    icon: const Icon(
-                                      Icons.delete_outline_rounded,
-                                    ),
-                                  ),
-                                ],
-                              ),
+                              ],
                             ),
+                          ),
                         ],
                       );
                     }).toList(growable: false),
@@ -2606,6 +2680,217 @@ class _ProductsTableView extends StatelessWidget {
           ),
         );
       },
+    );
+  }
+}
+
+class _TableProductActions extends StatefulWidget {
+  const _TableProductActions({
+    required this.item,
+    required this.palette,
+    required this.marcas,
+    required this.tipos,
+    required this.allowProductManagement,
+    required this.stockSaving,
+    required this.productSaving,
+    required this.onRegisterMovement,
+    required this.onUpdateProduct,
+    required this.labeled,
+  });
+
+  final ProductosResponseModel item;
+  final AppPalette palette;
+  final List<MarcasResponseModel> marcas;
+  final List<TiposProductoResponseModel> tipos;
+  final bool allowProductManagement;
+  final bool stockSaving;
+  final bool productSaving;
+  final Future<bool> Function(
+    ProductosResponseModel item,
+    _QuickMovementDraft draft,
+  ) onRegisterMovement;
+  final Future<bool> Function(
+    ProductosResponseModel item,
+    Map<String, dynamic> body,
+  ) onUpdateProduct;
+  final bool labeled;
+
+  @override
+  State<_TableProductActions> createState() => _TableProductActionsState();
+}
+
+class _TableProductActionsState extends State<_TableProductActions> {
+  Future<void> _openMovement(_QuickMovementType type) async {
+    FocusScope.of(context).unfocus();
+    await showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      useSafeArea: true,
+      backgroundColor: Colors.transparent,
+      barrierColor: Colors.black.withOpacity(.72),
+      elevation: 0,
+      builder: (_) => _QuickMovementPanel(
+        item: widget.item,
+        initialType: type,
+        palette: widget.palette,
+        onSubmit: (draft) =>
+            widget.onRegisterMovement(widget.item, draft),
+      ),
+    );
+  }
+
+  Future<void> _openHistory() async {
+    FocusScope.of(context).unfocus();
+    await showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      useSafeArea: true,
+      backgroundColor: Colors.transparent,
+      barrierColor: Colors.black.withOpacity(.72),
+      elevation: 0,
+      builder: (_) => LayoutBuilder(
+        builder: (context, constraints) => Align(
+          alignment: Alignment.bottomCenter,
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 760),
+            child: FractionallySizedBox(
+              heightFactor: constraints.maxHeight < 720 ? .98 : .92,
+              child: _ProductMovementHistoryBottomSheet(
+                item: widget.item,
+                palette: widget.palette,
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Future<void> _openEdit() async {
+    FocusScope.of(context).unfocus();
+    await showModalBottomSheet<bool>(
+      context: context,
+      isScrollControlled: true,
+      useSafeArea: true,
+      backgroundColor: Colors.transparent,
+      barrierColor: Colors.black.withOpacity(.72),
+      elevation: 0,
+      builder: (_) => LayoutBuilder(
+        builder: (context, constraints) => Align(
+          alignment: Alignment.bottomCenter,
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 760),
+            child: FractionallySizedBox(
+              heightFactor: constraints.maxHeight < 720 ? .98 : .94,
+              child: _ProductEditBottomSheet(
+                item: widget.item,
+                palette: widget.palette,
+                marcas: widget.marcas,
+                tipos: widget.tipos,
+                onUpdateProduct: widget.onUpdateProduct,
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final actions = <Widget>[
+      _tableAction(
+        tooltip: 'Agregar inventario',
+        label: 'Agregar',
+        icon: Icons.add_rounded,
+        color: widget.palette.success,
+        busy: widget.stockSaving,
+        onPressed: widget.stockSaving
+            ? null
+            : () => _openMovement(_QuickMovementType.entry),
+      ),
+      _tableAction(
+        tooltip: 'Quitar inventario',
+        label: 'Quitar',
+        icon: Icons.remove_rounded,
+        color: Colors.redAccent,
+        busy: widget.stockSaving,
+        onPressed: widget.stockSaving
+            ? null
+            : () => _openMovement(_QuickMovementType.exit),
+      ),
+      _tableAction(
+        tooltip: 'Historial',
+        label: 'Historial',
+        icon: Icons.history_rounded,
+        color: widget.palette.secondary,
+        onPressed: _openHistory,
+      ),
+      if (widget.allowProductManagement)
+        _tableAction(
+          tooltip: 'Modificar producto',
+          label: 'Modificar',
+          icon: Icons.edit_outlined,
+          color: widget.palette.secondary,
+          busy: widget.productSaving,
+          onPressed: widget.productSaving ? null : _openEdit,
+        ),
+    ];
+
+    if (widget.labeled) {
+      return Wrap(
+        spacing: 6,
+        runSpacing: 6,
+        children: actions,
+      );
+    }
+
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: actions
+          .expand((action) => [action, const SizedBox(width: 2)])
+          .toList()
+        ..removeLast(),
+    );
+  }
+
+  Widget _tableAction({
+    required String tooltip,
+    required String label,
+    required IconData icon,
+    required Color color,
+    required VoidCallback? onPressed,
+    bool busy = false,
+  }) {
+    if (widget.labeled) {
+      return _CompactProductAction(
+        label: label,
+        icon: icon,
+        color: color,
+        palette: widget.palette,
+        busy: busy,
+        onPressed: onPressed,
+      );
+    }
+
+    return Tooltip(
+      message: tooltip,
+      child: IconButton(
+        visualDensity: VisualDensity.compact,
+        constraints: const BoxConstraints(minWidth: 34, minHeight: 34),
+        padding: const EdgeInsets.all(6),
+        onPressed: onPressed,
+        icon: busy
+            ? SizedBox(
+                width: 15,
+                height: 15,
+                child: CircularProgressIndicator(
+                  strokeWidth: 1.8,
+                  color: color,
+                ),
+              )
+            : Icon(icon, size: 18, color: color),
+      ),
     );
   }
 }
