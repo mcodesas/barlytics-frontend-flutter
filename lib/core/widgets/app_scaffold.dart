@@ -2516,14 +2516,9 @@ class _InventoryBottomNavigation extends ConsumerWidget {
 }
 
 IconData _customRoleMenuIcon(UserMenuItem item) {
-  final bottomToken = item.bottomIcon.trim();
-  if (bottomToken.isNotEmpty && bottomToken.toLowerCase() != 'more_horiz') {
-    return _menuGroupIcon(bottomToken);
-  }
-  final groupToken = item.groupIcon.trim();
-  if (groupToken.isNotEmpty && groupToken.toLowerCase() != 'more_horiz') {
-    return _menuGroupIcon(groupToken);
-  }
+  // Para roles personalizados usamos el ícono propio de cada función.
+  // Así "Mesas", "Cierre de caja", "Historial", etc. no heredan el ícono
+  // genérico del grupo inferior (Ventas/Inventario/Reportes).
   return ModuleVisuals.byKey(item.keyName).icon;
 }
 
