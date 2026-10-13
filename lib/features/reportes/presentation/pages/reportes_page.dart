@@ -4493,9 +4493,11 @@ class _NextOrderContentState extends ConsumerState<_NextOrderContent> {
             },
           )
           .toList(growable: false);
-      final orderLabel = _confirmedOrderId == null
+      final orderLabel = _confirmedOrders.isEmpty
           ? 'Borrador de pedido'
-          : 'Pedido #$_confirmedOrderId';
+          : _confirmedOrders.length == 1
+              ? 'Pedido #${_confirmedOrderId ?? _confirmedOrders.first['pediId']}'
+              : '${_confirmedOrders.length} pedidos confirmados';
       final observation = _observationController.text.trim();
       final bytes = await ReportePdfService().build(
         title: orderLabel,
@@ -4516,9 +4518,11 @@ class _NextOrderContentState extends ConsumerState<_NextOrderContent> {
         chartLabelKey: 'producto',
         chartValueKey: 'unidades',
       );
-      final suffix = _confirmedOrderId == null
+      final suffix = _confirmedOrders.isEmpty
           ? DateFormat('yyyyMMdd_HHmm').format(DateTime.now())
-          : '$_confirmedOrderId';
+          : _confirmedOrders.length == 1
+              ? '${_confirmedOrderId ?? _confirmedOrders.first['pediId']}'
+              : 'multiples_${DateFormat('yyyyMMdd_HHmm').format(DateTime.now())}';
       final saved = await downloadBytesFile(
         fileName: 'pedido_compra_$suffix.pdf',
         bytes: bytes,
@@ -4878,7 +4882,10 @@ class _NextOrderContentState extends ConsumerState<_NextOrderContent> {
   }
 
   Future<void> _sendWhatsapp() async {
-    if (_selectedRows.isEmpty || _sendingWhatsapp) return;
+    if ((_selectedRows.isEmpty && _confirmedOrders.isEmpty) ||
+        _sendingWhatsapp) {
+      return;
+    }
 
     if (_confirmedOrders.isEmpty) {
       final confirmFirst = await showDialog<bool>(
@@ -5076,6 +5083,7 @@ class _NextOrderContentState extends ConsumerState<_NextOrderContent> {
                                     observationController:
                                         _observationController,
                                     confirmedOrderId: _confirmedOrderId,
+                                    confirmedOrderCount: _confirmedOrders.length,
                                     confirmedPaid: _confirmedPaid,
                                     confirmedBalance: _confirmedBalance,
                                     confirmedPaymentStatus:
@@ -6423,6 +6431,7 @@ class _OrderCartSummary extends StatelessWidget {
     required this.palette,
     required this.observationController,
     required this.confirmedOrderId,
+    required this.confirmedOrderCount,
     required this.confirmedPaid,
     required this.confirmedBalance,
     required this.confirmedPaymentStatus,
@@ -6439,6 +6448,7 @@ class _OrderCartSummary extends StatelessWidget {
   final AppPalette palette;
   final TextEditingController observationController;
   final int? confirmedOrderId;
+  final int confirmedOrderCount;
   final double confirmedPaid;
   final double confirmedBalance;
   final String? confirmedPaymentStatus;
@@ -6452,6 +6462,7 @@ class _OrderCartSummary extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final confirmed = confirmedOrderCount > 0;
     final total = _sum(selectedRows, 'costo_pedido_estimado');
     final presentations = _sum(selectedRows, 'presentaciones_pedir');
     final units = _sum(selectedRows, 'unidades_pedir');
@@ -6577,7 +6588,7 @@ class _OrderCartSummary extends StatelessWidget {
           const SizedBox(height: 12),
           TextField(
             controller: observationController,
-            enabled: !busy && confirmedOrderId == null,
+            enabled: !busy && !confirmed,
             minLines: 2,
             maxLines: 3,
             maxLength: 500,
@@ -6589,7 +6600,7 @@ class _OrderCartSummary extends StatelessWidget {
               counterText: '',
             ).compactFilter(fixedHeight: false),
           ),
-          if (confirmedOrderId != null) ...[
+          if (confirmed) ...[
             const SizedBox(height: 10),
             Container(
               padding: const EdgeInsets.all(9),
@@ -6608,7 +6619,9 @@ class _OrderCartSummary extends StatelessWidget {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text(
-                          'Pedido #$confirmedOrderId confirmado',
+                          confirmedOrderCount == 1
+                              ? 'Pedido #${confirmedOrderId ?? ''} confirmado'
+                              : '$confirmedOrderCount pedidos confirmados',
                           style: TextStyle(
                             color: palette.textPrimary,
                             fontWeight: FontWeight.w900,
@@ -6617,9 +6630,11 @@ class _OrderCartSummary extends StatelessWidget {
                         ),
                         const SizedBox(height: 2),
                         Text(
-                          '${confirmedPaymentStatus ?? 'PENDIENTE'} · '
-                          'Pagado ${_displayValue(confirmedPaid, currency: true)} · '
-                          'Saldo ${_displayValue(confirmedBalance, currency: true)}',
+                          (confirmedOrderCount == 1
+                                  ? '${confirmedPaymentStatus ?? 'PENDIENTE'} · '
+                                  : '') +
+                              'Pagado ${_displayValue(confirmedPaid, currency: true)} · '
+                              'Saldo ${_displayValue(confirmedBalance, currency: true)}',
                           style: TextStyle(
                             color: palette.textSecondary,
                             fontWeight: FontWeight.w700,
@@ -6651,7 +6666,7 @@ class _OrderCartSummary extends StatelessWidget {
           SizedBox(
             height: AppControlMetrics.filterHeight,
             child: FilledButton.icon(
-              onPressed: busy || !enabled || confirmedOrderId != null
+              onPressed: busy || !enabled || confirmed
                   ? null
                   : onConfirm,
               icon: confirming
