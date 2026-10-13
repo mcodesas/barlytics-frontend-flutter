@@ -197,12 +197,7 @@ class _ReadyOrderNotificationHostState
                       runSpacing: 8,
                       children: [
                         OutlinedButton.icon(
-                          onPressed: () {
-                            ref
-                                .read(meseroSelectedModeProvider.notifier)
-                                .state = MeseroPageMode.mesas;
-                            context.go('/mesero');
-                          },
+                          onPressed: () => _openOrder(notification),
                           style: OutlinedButton.styleFrom(
                             foregroundColor: palette.secondary,
                             side: BorderSide(
@@ -302,6 +297,16 @@ class _ReadyOrderNotificationHostState
         () => _check(),
       );
     });
+  }
+
+  void _openOrder(_ReadyOrderNotification notification) {
+    if (!mounted || !context.mounted) return;
+
+    ref.read(meseroSelectedModeProvider.notifier).state =
+        MeseroPageMode.mesas;
+
+    if (!mounted || !context.mounted) return;
+    context.go('/mesero');
   }
 
   Future<void> _playAlert() async {
@@ -479,6 +484,7 @@ class _ReadyOrderNotificationHostState
               },
             );
       }
+      if (!mounted) return;
       await _markRead(notification.id, branchId);
       if (!mounted) return;
 
@@ -506,7 +512,7 @@ class _ReadyOrderNotificationHostState
   }
 
   Future<void> _markRead(int notificationId, int branchId) async {
-    if (_markingRead.contains(notificationId)) return;
+    if (!mounted || _markingRead.contains(notificationId)) return;
     _markingRead.add(notificationId);
 
     try {
