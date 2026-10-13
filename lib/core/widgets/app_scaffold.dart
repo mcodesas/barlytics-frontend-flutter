@@ -3747,6 +3747,9 @@ IconData _menuGroupIcon(String token) {
     case 'support_agent':
     case 'soporte':
       return Icons.support_agent_rounded;
+    case 'room_service':
+    case 'comandas':
+      return Icons.receipt_long_rounded;
     default:
       return Icons.more_horiz_rounded;
   }
