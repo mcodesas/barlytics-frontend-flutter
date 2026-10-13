@@ -107,9 +107,7 @@ class _AppScaffoldState extends ConsumerState<AppScaffold> {
   Widget build(BuildContext context) {
     final isDesktop = ResponsiveUtils.isDesktop(context);
     final palette = ref.watch(selectedAppPaletteProvider);
-    final authState = ref.watch(authControllerProvider);
     final roles = ref.watch(activeRolesProvider);
-    final assignedRoles = authState.roles;
     final hasPersonalizedRole = roles.any(_isPersonalizedRole);
     // Un rol personalizado debe navegar exclusivamente con el catálogo que
     // devuelve /me/menus. No debe heredar shells ni menús predefinidos por el
@@ -118,15 +116,11 @@ class _AppScaffoldState extends ConsumerState<AppScaffold> {
     final isInventario = !hasPersonalizedRole && roles.any(_isInventoryRole);
     final isManager = !hasPersonalizedRole && roles.any(_isManagerRole);
     final isGlobalAdmin = roles.any(_isGlobalAdminRole);
-    // Las notificaciones pertenecen al usuario, no a la vista de rol
-    // seleccionada. Un usuario GERENTE + MESERO debe seguir recibiéndolas
-    // aunque temporalmente esté navegando únicamente con la vista GERENTE.
-    final shouldReceiveReadyOrderNotifications =
-        assignedRoles.any(_isMesaCashierSellerRole);
+    // Las notificaciones pertenecen al usuario autenticado, no al rol
+    // actualmente seleccionado. El backend ya filtra por destinatario, por lo
+    // que todos los shells autenticados pueden consultar sus propios avisos.
     Widget withReadyOrderNotifications(Widget scaffold) {
-      return shouldReceiveReadyOrderNotifications
-          ? ReadyOrderNotificationHost(child: scaffold)
-          : scaffold;
+      return ReadyOrderNotificationHost(child: scaffold);
     }
 
     final operationalMenuOpen = ref.watch(operationalMenuOpenProvider);
