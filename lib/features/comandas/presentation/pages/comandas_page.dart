@@ -874,29 +874,30 @@ class _OrderGroupCard extends StatelessWidget {
                           : Icons.restaurant_rounded,
                       label: stationLabel,
                     ),
-                    const SizedBox(height: 7),
-                    Row(
-                      children: [
-                        Icon(
-                          Icons.touch_app_outlined,
-                          size: 13,
+                  ],
+                ),
+                const SizedBox(height: 8),
+                Row(
+                  children: [
+                    Icon(
+                      Icons.touch_app_outlined,
+                      size: 13,
+                      color: tone,
+                    ),
+                    const SizedBox(width: 4),
+                    Expanded(
+                      child: Text(
+                        'Toca para ver el pedido completo',
+                        style: theme.textTheme.labelSmall?.copyWith(
                           color: tone,
+                          fontWeight: FontWeight.w800,
                         ),
-                        const SizedBox(width: 4),
-                        Text(
-                          'Toca para ver el pedido completo',
-                          style: theme.textTheme.labelSmall?.copyWith(
-                            color: tone,
-                            fontWeight: FontWeight.w800,
-                          ),
-                        ),
-                        const Spacer(),
-                        Icon(
-                          Icons.chevron_right_rounded,
-                          size: 17,
-                          color: tone,
-                        ),
-                      ],
+                      ),
+                    ),
+                    Icon(
+                      Icons.chevron_right_rounded,
+                      size: 17,
+                      color: tone,
                     ),
                   ],
                 ),
