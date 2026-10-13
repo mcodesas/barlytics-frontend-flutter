@@ -4558,15 +4558,40 @@ class _NextOrderContentState extends ConsumerState<_NextOrderContent> {
       return null;
     }
 
+    final destinations = await _chooseOrderDestinations(rows);
+    if (destinations == null || !mounted) return null;
+
+    final groups = <int?, List<Map<String, dynamic>>>{};
+    for (final row in rows) {
+      final productId = _productId(row);
+      if (productId == null) continue;
+      final destinationId = destinations[productId];
+      groups.putIfAbsent(destinationId, () => <Map<String, dynamic>>[]).add(row);
+    }
+    if (groups.isEmpty) return null;
+
     if (askConfirmation) {
       final accepted = await showDialog<bool>(
         context: context,
         builder: (dialogContext) => AlertDialog(
-          title: const Text('Confirmar pedido'),
+          title: Text(
+            groups.length == 1
+                ? 'Confirmar pedido'
+                : 'Confirmar ' + groups.length.toString() + ' pedidos',
+          ),
           content: Text(
-            'Se confirmarán ${rows.length} productos por un total estimado de '
-            '${_displayValue(_sum(rows, 'costo_pedido_estimado'), currency: true)}. '
-            'El pedido quedará guardado y ya no será un borrador.',
+            'Se confirmarán ' +
+                rows.length.toString() +
+                ' productos por un total estimado de ' +
+                _displayValue(
+                  _sum(rows, 'costo_pedido_estimado'),
+                  currency: true,
+                ) +
+                '.\n\nBarLytics los dividirá en ' +
+                groups.length.toString() +
+                (groups.length == 1
+                    ? ' pedido según el WhatsApp seleccionado.'
+                    : ' pedidos independientes según cada proveedor/WhatsApp.'),
           ),
           actions: [
             TextButton(
@@ -4585,49 +4610,95 @@ class _NextOrderContentState extends ConsumerState<_NextOrderContent> {
     }
 
     setState(() => _confirming = true);
+    final created = <Map<String, dynamic>>[];
     try {
-      final response = await ref.read(apiClientProvider).post<Map<String, dynamic>>(
-            '/api/v1/pedidos-compra/confirmar',
-            <String, dynamic>{
-              'sucuId': branchId,
-              'observacion': _observationController.text.trim(),
-              'detalles': rows
-                  .map(
-                    (row) => <String, dynamic>{
-                      'prodId': _productId(row),
-                      'presentaciones':
-                          _toDouble(row['presentaciones_pedir']).round(),
-                    },
-                  )
-                  .toList(growable: false),
-            },
-            (json) => json is Map
-                ? Map<String, dynamic>.from(json)
-                : <String, dynamic>{},
-          );
-      final data = response.data ?? <String, dynamic>{};
-      if (mounted) {
-        setState(() {
-          _confirmedOrderId = (data['pediId'] as num?)?.toInt();
-          _confirmedWhatsapp = data['whatsappDestino']?.toString();
-          _confirmedPaid = _toDouble(data['totalPagado']);
-          _confirmedBalance = _toDouble(data['saldoPendiente']);
-          _confirmedPaymentStatus = data['estadoPago']?.toString();
-          _confirmedRows = _confirmedDetailsToRows(data['detalles']);
-        });
-        _refreshOrderHistory();
-        if (showSuccess) {
-          _showMessage(
-            _confirmedOrderId == null
-                ? 'Pedido confirmado correctamente.'
-                : 'Pedido #$_confirmedOrderId confirmado · saldo pendiente '
-                    '${_displayValue(_confirmedBalance, currency: true)}.',
-          );
+      for (final entry in groups.entries) {
+        final body = <String, dynamic>{
+          'sucuId': branchId,
+          'observacion': _observationController.text.trim(),
+          'detalles': entry.value
+              .map(
+                (row) => <String, dynamic>{
+                  'prodId': _productId(row),
+                  'presentaciones':
+                      _toDouble(row['presentaciones_pedir']).round(),
+                },
+              )
+              .toList(growable: false),
+        };
+        if (entry.key != null) {
+          body['destinoId'] = entry.key;
         }
+
+        final response =
+            await ref.read(apiClientProvider).post<Map<String, dynamic>>(
+                  '/api/v1/pedidos-compra/confirmar',
+                  body,
+                  (json) => json is Map
+                      ? Map<String, dynamic>.from(json)
+                      : <String, dynamic>{},
+                );
+        final data = response.data ?? <String, dynamic>{};
+        if (data.isNotEmpty) created.add(data);
       }
-      return data;
+
+      if (!mounted || created.isEmpty) return null;
+
+      final confirmedRows = <Map<String, dynamic>>[
+        for (final order in created)
+          ..._confirmedDetailsToRows(order['detalles']),
+      ];
+      setState(() {
+        _confirmedOrders = List<Map<String, dynamic>>.unmodifiable(created);
+        _confirmedOrderId = created.length == 1
+            ? (created.first['pediId'] as num?)?.toInt()
+            : null;
+        _confirmedWhatsapp = created.length == 1
+            ? created.first['whatsappDestino']?.toString()
+            : null;
+        _confirmedPaid = created.fold<double>(
+          0,
+          (value, order) => value + _toDouble(order['totalPagado']),
+        );
+        _confirmedBalance = created.fold<double>(
+          0,
+          (value, order) => value + _toDouble(order['saldoPendiente']),
+        );
+        _confirmedPaymentStatus = created.length == 1
+            ? created.first['estadoPago']?.toString()
+            : null;
+        _confirmedRows = confirmedRows;
+      });
+      _refreshOrderHistory();
+
+      if (showSuccess) {
+        final ids = created
+            .map((order) => (order['pediId'] as num?)?.toInt())
+            .whereType<int>()
+            .map((id) => '#' + id.toString())
+            .join(', ');
+        _showMessage(
+          created.length == 1
+              ? 'Pedido ' + ids + ' confirmado correctamente.'
+              : created.length.toString() +
+                  ' pedidos generados correctamente: ' +
+                  ids +
+                  '.',
+        );
+      }
+      return created.first;
     } catch (error) {
-      if (mounted) _showMessage('No fue posible confirmar el pedido: $error');
+      if (mounted) {
+        _showMessage(
+          created.isEmpty
+              ? 'No fue posible confirmar el pedido: ' + error.toString()
+              : 'Se generaron ' +
+                  created.length.toString() +
+                  ' pedidos antes del error. Revisa el historial: ' +
+                  error.toString(),
+        );
+        if (created.isNotEmpty) _refreshOrderHistory();
+      }
       return null;
     } finally {
       if (mounted) setState(() => _confirming = false);
