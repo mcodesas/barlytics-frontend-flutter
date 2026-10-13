@@ -2644,6 +2644,282 @@ class _WizardActionButton extends StatelessWidget {
   }
 }
 
+class _GastroIngredientDraft {
+  const _GastroIngredientDraft({
+    required this.prodId,
+    required this.nombre,
+    required this.cantidad,
+    required this.unidad,
+    required this.removible,
+    this.precioCompra,
+  });
+
+  final int prodId;
+  final String nombre;
+  final double cantidad;
+  final String unidad;
+  final bool removible;
+  final double? precioCompra;
+
+  factory _GastroIngredientDraft.fromJson(Map<String, dynamic> json) =>
+      _GastroIngredientDraft(
+        prodId: (json['prodId'] as num).toInt(),
+        nombre: json['nombre']?.toString() ?? 'Ingrediente',
+        cantidad: (json['cantidad'] as num?)?.toDouble() ?? 1,
+        unidad: json['unidad']?.toString() ?? 'UND',
+        removible: json['removible'] != false,
+        precioCompra: (json['precioCompra'] as num?)?.toDouble(),
+      );
+
+  Map<String, dynamic> toJson() => <String, dynamic>{
+        'prodId': prodId,
+        'cantidad': cantidad,
+        'unidad': unidad,
+        'removible': removible,
+      };
+}
+
+class _GastroAdditionDraft {
+  const _GastroAdditionDraft({
+    required this.prodId,
+    required this.nombre,
+    required this.cantidad,
+    required this.unidad,
+    required this.precioAdicional,
+    this.precioCompra,
+  });
+
+  final int prodId;
+  final String nombre;
+  final double cantidad;
+  final String unidad;
+  final double precioAdicional;
+  final double? precioCompra;
+
+  factory _GastroAdditionDraft.fromJson(Map<String, dynamic> json) =>
+      _GastroAdditionDraft(
+        prodId: (json['prodId'] as num).toInt(),
+        nombre: json['nombre']?.toString() ?? 'Adición',
+        cantidad: (json['cantidad'] as num?)?.toDouble() ?? 1,
+        unidad: json['unidad']?.toString() ?? 'UND',
+        precioAdicional: (json['precioAdicional'] as num?)?.toDouble() ?? 0,
+        precioCompra: (json['precioCompra'] as num?)?.toDouble(),
+      );
+
+  Map<String, dynamic> toJson() => <String, dynamic>{
+        'prodId': prodId,
+        'cantidad': cantidad,
+        'unidad': unidad,
+        'precioAdicional': precioAdicional,
+      };
+}
+
+class _GastroControlSection extends StatelessWidget {
+  const _GastroControlSection({
+    required this.palette,
+    required this.tipoControl,
+    required this.unidadBase,
+    required this.ingredientes,
+    required this.adiciones,
+    required this.onTipoChanged,
+    required this.onUnidadChanged,
+    required this.onAddIngredient,
+    required this.onAddAddition,
+    required this.onRemoveIngredient,
+    required this.onRemoveAddition,
+  });
+
+  final AppPalette palette;
+  final String tipoControl;
+  final String unidadBase;
+  final List<_GastroIngredientDraft> ingredientes;
+  final List<_GastroAdditionDraft> adiciones;
+  final ValueChanged<String> onTipoChanged;
+  final ValueChanged<String> onUnidadChanged;
+  final VoidCallback? onAddIngredient;
+  final VoidCallback? onAddAddition;
+  final ValueChanged<int> onRemoveIngredient;
+  final ValueChanged<int> onRemoveAddition;
+
+  @override
+  Widget build(BuildContext context) {
+    final prepared = tipoControl == 'PREPARADO';
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: palette.secondary.withOpacity(.05),
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: palette.cardBorder),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(Icons.restaurant_rounded, color: palette.secondary),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  'Configuración para gastrobar',
+                  style: TextStyle(
+                    color: palette.textPrimary,
+                    fontWeight: FontWeight.w900,
+                    fontSize: 15,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 5),
+          Text(
+            'Define si el registro es un producto normal, un insumo o un plato/bebida preparada con receta.',
+            style: TextStyle(
+              color: palette.textSecondary,
+              fontWeight: FontWeight.w600,
+              fontSize: 12,
+            ),
+          ),
+          const SizedBox(height: 14),
+          LayoutBuilder(
+            builder: (context, constraints) {
+              final horizontal = constraints.maxWidth >= 560;
+              final typeField = DropdownButtonFormField<String>(
+                value: tipoControl,
+                isExpanded: true,
+                decoration: const InputDecoration(
+                  labelText: 'Control del producto',
+                  prefixIcon: Icon(Icons.category_outlined),
+                ),
+                items: const [
+                  DropdownMenuItem(value: 'NORMAL', child: Text('Producto normal')),
+                  DropdownMenuItem(value: 'INSUMO', child: Text('Ingrediente / insumo')),
+                  DropdownMenuItem(value: 'PREPARADO', child: Text('Producto preparado / receta')),
+                ],
+                onChanged: (value) {
+                  if (value != null) onTipoChanged(value);
+                },
+              );
+              final unitField = DropdownButtonFormField<String>(
+                value: unidadBase,
+                isExpanded: true,
+                decoration: const InputDecoration(
+                  labelText: 'Unidad base de inventario',
+                  prefixIcon: Icon(Icons.straighten_rounded),
+                ),
+                items: const ['UND', 'G', 'KG', 'ML', 'L']
+                    .map((value) => DropdownMenuItem(value: value, child: Text(value)))
+                    .toList(),
+                onChanged: (value) {
+                  if (value != null) onUnidadChanged(value);
+                },
+              );
+
+              if (!horizontal) {
+                return Column(
+                  children: [typeField, const SizedBox(height: 10), unitField],
+                );
+              }
+              return Row(
+                children: [
+                  Expanded(child: typeField),
+                  const SizedBox(width: 10),
+                  Expanded(child: unitField),
+                ],
+              );
+            },
+          ),
+          if (prepared) ...[
+            const SizedBox(height: 18),
+            Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    'Receta base',
+                    style: TextStyle(color: palette.textPrimary, fontWeight: FontWeight.w900),
+                  ),
+                ),
+                OutlinedButton.icon(
+                  onPressed: onAddIngredient,
+                  icon: const Icon(Icons.add_rounded),
+                  label: const Text('Ingrediente'),
+                ),
+              ],
+            ),
+            const SizedBox(height: 8),
+            if (ingredientes.isEmpty)
+              Text(
+                'Aún no hay ingredientes. Agrégalos para permitir pedidos como “sin cebolla”.',
+                style: TextStyle(color: palette.textSecondary, fontSize: 12),
+              )
+            else
+              ...List.generate(ingredientes.length, (index) {
+                final item = ingredientes[index];
+                return ListTile(
+                  contentPadding: EdgeInsets.zero,
+                  dense: true,
+                  leading: const Icon(Icons.restaurant_menu_rounded),
+                  title: Text(item.nombre, style: TextStyle(color: palette.textPrimary, fontWeight: FontWeight.w800)),
+                  subtitle: Text(
+                    '${_formatNumber(item.cantidad)} ${item.unidad} · costo ${_money(item.precioCompra)}'
+                    '${item.removible ? ' · se puede quitar' : ' · obligatorio'}',
+                    style: TextStyle(color: palette.textSecondary),
+                  ),
+                  trailing: IconButton(
+                    tooltip: 'Quitar de la receta',
+                    onPressed: () => onRemoveIngredient(index),
+                    icon: const Icon(Icons.delete_outline_rounded, color: Colors.redAccent),
+                  ),
+                );
+              }),
+            const Divider(height: 24),
+            Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    'Adiciones disponibles',
+                    style: TextStyle(color: palette.textPrimary, fontWeight: FontWeight.w900),
+                  ),
+                ),
+                OutlinedButton.icon(
+                  onPressed: onAddAddition,
+                  icon: const Icon(Icons.add_circle_outline_rounded),
+                  label: const Text('Adición'),
+                ),
+              ],
+            ),
+            const SizedBox(height: 8),
+            if (adiciones.isEmpty)
+              Text(
+                'Puedes ofrecer queso extra, carne adicional, tocineta u otras opciones con precio propio.',
+                style: TextStyle(color: palette.textSecondary, fontSize: 12),
+              )
+            else
+              ...List.generate(adiciones.length, (index) {
+                final item = adiciones[index];
+                return ListTile(
+                  contentPadding: EdgeInsets.zero,
+                  dense: true,
+                  leading: const Icon(Icons.add_circle_outline_rounded),
+                  title: Text(item.nombre, style: TextStyle(color: palette.textPrimary, fontWeight: FontWeight.w800)),
+                  subtitle: Text(
+                    '${_formatNumber(item.cantidad)} ${item.unidad} · costo ${_money(item.precioCompra)} · cobra +${_money(item.precioAdicional)}',
+                    style: TextStyle(color: palette.textSecondary),
+                  ),
+                  trailing: IconButton(
+                    tooltip: 'Quitar adición',
+                    onPressed: () => onRemoveAddition(index),
+                    icon: const Icon(Icons.delete_outline_rounded, color: Colors.redAccent),
+                  ),
+                );
+              }),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
 String _titleForStep(int step) => switch (step) {
       0 => 'Información general',
       1 => 'Precio, compra e impuesto',
