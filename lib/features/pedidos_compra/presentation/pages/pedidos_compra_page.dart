@@ -96,35 +96,46 @@ class _PedidosCompraPageState extends ConsumerState<PedidosCompraPage> {
 
     try {
       final api = ref.read(apiClientProvider);
-      final orders = await api.get<Object?>(
-        '/api/v1/pedidos-compra/sucursal/' + branchId.toString(),
-        (json) => json,
-        queryParameters: const <String, dynamic>{'conSaldo': false},
-      );
-      final destinations = await api.get<Object?>(
-        '/api/v1/pedidos-compra/destinos',
-        (json) => json,
-        queryParameters: <String, dynamic>{'sucursalId': branchId},
-      );
-      final products = await api.get<Object?>(
-        '/api/v1/productos/sucursal/' + branchId.toString(),
-        (json) => json,
-      );
 
-      if (!mounted) return;
-      final productRows = _maps(products.data)
-        ..sort(
-          (a, b) => (a['prodNombre'] ?? '')
-              .toString()
-              .toLowerCase()
-              .compareTo((b['prodNombre'] ?? '').toString().toLowerCase()),
+      if (widget.providersOnly) {
+        final destinations = await api.get<Object?>(
+          '/api/v1/pedidos-compra/destinos',
+          (json) => json,
+          queryParameters: <String, dynamic>{'sucursalId': branchId},
         );
-      setState(() {
-        _orders = _maps(orders.data);
-        _destinations = _maps(destinations.data);
-        _products = productRows;
-        _loading = false;
-      });
+        final products = await api.get<Object?>(
+          '/api/v1/productos/sucursal/' + branchId.toString(),
+          (json) => json,
+        );
+
+        if (!mounted) return;
+        final productRows = _maps(products.data)
+          ..sort(
+            (a, b) => (a['prodNombre'] ?? '')
+                .toString()
+                .toLowerCase()
+                .compareTo((b['prodNombre'] ?? '').toString().toLowerCase()),
+          );
+        setState(() {
+          _orders = const [];
+          _destinations = _maps(destinations.data);
+          _products = productRows;
+          _loading = false;
+        });
+      } else {
+        final orders = await api.get<Object?>(
+          '/api/v1/pedidos-compra/sucursal/' + branchId.toString(),
+          (json) => json,
+          queryParameters: const <String, dynamic>{'conSaldo': false},
+        );
+        if (!mounted) return;
+        setState(() {
+          _orders = _maps(orders.data);
+          _destinations = const [];
+          _products = const [];
+          _loading = false;
+        });
+      }
     } catch (error) {
       if (!mounted) return;
       setState(() {
@@ -572,7 +583,8 @@ class _PedidosCompraPageState extends ConsumerState<PedidosCompraPage> {
             ),
           ),
           IconButton.filledTonal(
-            tooltip: 'Actualizar pedidos',
+            tooltip:
+                widget.providersOnly ? 'Actualizar proveedores' : 'Actualizar pedidos',
             onPressed: _reload,
             style: IconButton.styleFrom(
               foregroundColor: palette.secondary,
