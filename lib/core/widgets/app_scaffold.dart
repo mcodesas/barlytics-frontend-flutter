@@ -220,6 +220,8 @@ class _AppScaffoldState extends ConsumerState<AppScaffold> {
                     Expanded(child: _PaletteAwareBody(child: widget.child, palette: palette)),
                     if (isGlobalAdmin)
                       const _AdminBottomNavigation()
+                    else if (hasPersonalizedRole)
+                      const _CustomRoleBottomNavigation()
                     else
                       const _ManagerBottomNavigation(),
                   ],
@@ -289,7 +291,9 @@ class _AppScaffoldState extends ConsumerState<AppScaffold> {
       ),
       bottomNavigationBar: isGlobalAdmin
           ? const _AdminBottomNavigation()
-          : const _ManagerBottomNavigation(),
+          : hasPersonalizedRole
+              ? const _CustomRoleBottomNavigation()
+              : const _ManagerBottomNavigation(),
       ),
     );
   }
@@ -3267,6 +3271,8 @@ class _SideNavigation extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final menuAsync = ref.watch(userMenuProvider);
+    final personalizedRole =
+        ref.watch(activeRolesProvider).any(_isPersonalizedRole);
     final profile = ref.watch(profileHeaderProvider).maybeWhen(
           data: (value) => value,
           orElse: () => const ProfileHeaderInfo(),
@@ -3295,14 +3301,16 @@ class _SideNavigation extends ConsumerWidget {
                     children: [
                       _MenuProfileCard(profile: profile, palette: palette, compact: collapsed),
                       const SizedBox(height: 6),
-                      _NavTile(title: 'Inicio', keyName: 'home', path: '/home', compact: collapsed, palette: palette),
-                      if (!collapsed) const SizedBox(height: 8),
+                      if (!personalizedRole)
+                        _NavTile(title: 'Inicio', keyName: 'home', path: '/home', compact: collapsed, palette: palette),
+                      if (!collapsed && !personalizedRole) const SizedBox(height: 8),
                       ..._authorizedMenuWidgets(
                         ref: ref,
                         menuAsync: menuAsync,
                         dark: false,
                         compact: collapsed,
                         palette: palette,
+                        preserveExactOrder: personalizedRole,
                       ),
                     ],
                   ),
@@ -3328,6 +3336,8 @@ class _DrawerContent extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final menuAsync = ref.watch(userMenuProvider);
+    final personalizedRole =
+        ref.watch(activeRolesProvider).any(_isPersonalizedRole);
     final profile = ref.watch(profileHeaderProvider).maybeWhen(
           data: (value) => value,
           orElse: () => const ProfileHeaderInfo(),
@@ -3347,14 +3357,16 @@ class _DrawerContent extends ConsumerWidget {
               children: [
                 _MenuProfileCard(profile: profile, palette: palette),
                 const SizedBox(height: 6),
-                _NavTile(title: 'Inicio', keyName: 'home', path: '/home', palette: palette),
-                const Divider(),
+                if (!personalizedRole)
+                  _NavTile(title: 'Inicio', keyName: 'home', path: '/home', palette: palette),
+                if (!personalizedRole) const Divider(),
                 ..._authorizedMenuWidgets(
                   ref: ref,
                   menuAsync: menuAsync,
                   dark: false,
                   compact: false,
                   palette: palette,
+                  preserveExactOrder: personalizedRole,
                 ),
               ],
             ),
@@ -3375,6 +3387,7 @@ List<Widget> _authorizedMenuWidgets({
   required bool dark,
   required bool compact,
   required AppPalette palette,
+  bool preserveExactOrder = false,
 }) {
   return menuAsync.when(
     loading: () => compact
@@ -3440,6 +3453,7 @@ List<Widget> _authorizedMenuWidgets({
           dark: dark,
           compact: compact,
           palette: palette,
+          preserveExactOrder: preserveExactOrder,
         ),
       ];
     },
@@ -3468,12 +3482,14 @@ class _AuthorizedMenuGroups extends StatefulWidget {
     required this.dark,
     required this.compact,
     required this.palette,
+    this.preserveExactOrder = false,
   });
 
   final List<UserMenuItem> items;
   final bool dark;
   final bool compact;
   final AppPalette palette;
+  final bool preserveExactOrder;
 
   @override
   State<_AuthorizedMenuGroups> createState() => _AuthorizedMenuGroupsState();
@@ -3503,6 +3519,18 @@ class _AuthorizedMenuGroupsState extends State<_AuthorizedMenuGroups> {
 
   @override
   Widget build(BuildContext context) {
+    if (widget.preserveExactOrder) {
+      final orderedItems = widget.items
+          .where((item) => item.path.trim().isNotEmpty)
+          .toList(growable: false);
+      if (orderedItems.isEmpty) return const SizedBox.shrink();
+      return Column(
+        children: [
+          for (final item in orderedItems) _menuItem(item),
+        ],
+      );
+    }
+
     final groups = _buildGroups();
     if (groups.isEmpty) return const SizedBox.shrink();
 
