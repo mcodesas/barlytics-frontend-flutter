@@ -4731,7 +4731,7 @@ class _MeseroPageState extends ConsumerState<MeseroPage> {
         icon: Icons.tune_rounded,
         title: 'Base y observación',
         subtitle: cierre.salidasCaja.isEmpty
-            ? 'Las salidas de efectivo se registran desde el panel del turno.'
+            ? 'Los pagos y salidas se registran desde el panel del turno.'
             : '${cierre.salidasCaja.length} salida(s) de caja ya incluidas automáticamente.',
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -5528,7 +5528,7 @@ class _SalidaCajaDialogState extends State<_SalidaCajaDialog> {
                     label: Text(
                       _valor > 0
                           ? 'Registrar ' + CurrencyUtils.format(_valor)
-                          : 'Registrar salida',
+                          : 'Registrar movimiento',
                     ),
                   ),
                 ],
@@ -6978,7 +6978,7 @@ Future<Uint8List> _crearPdfCierreCaja(CierreCajaResumenModel cierre) async {
           ],
         ),
         pw.SizedBox(height: 8),
-        pw.Text('Formula de cruce: total contado por medios + salidas de caja - base inicial = dinero real de ventas. Diferencia = cruce - total vendido.', style: const pw.TextStyle(fontSize: 8)),
+        pw.Text('Formula de cruce: total contado por medios + pagos/salidas del turno - base inicial = dinero real de ventas. Diferencia = cruce - total vendido.', style: const pw.TextStyle(fontSize: 8)),
         sectionTitle('1. Medios de pago - recibido, contado y diferencia ajustada'),
         pw.Table.fromTextArray(
           headerDecoration: pw.BoxDecoration(color: PdfColor.fromHex('#E2E8F0')),
@@ -7213,7 +7213,7 @@ class _CierreTurnSummary extends ConsumerWidget {
       (label: 'Propinas', value: totalPropinas, strong: false),
       (label: 'Total vendido', value: totalVendido, strong: true),
       (label: 'Entregado por medios', value: totalEntregado, strong: false),
-      (label: 'Más salidas de caja', value: totalGastos, strong: false),
+      (label: 'Más pagos/salidas', value: totalGastos, strong: false),
       (label: 'Menos base inicial', value: -valorBase, strong: false),
       (label: 'Total del cruce', value: totalCruce, strong: true),
     ];
