@@ -174,7 +174,7 @@ class _PreciosListPageState extends ConsumerState<PreciosListPage> {
                                 : width >= 680
                                     ? 2
                                     : 1;
-                        final cardHeight = width < 680 ? 326.0 : 316.0;
+                        final cardHeight = width < 680 ? 438.0 : 408.0;
                         return SliverGrid(
                           gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
                             crossAxisCount: columns,
@@ -301,9 +301,9 @@ class _PreciosListPageState extends ConsumerState<PreciosListPage> {
       final current = currentPrices[productId];
       final existing = _drafts[productId];
       if (existing == null) {
-        _drafts[productId] = _PriceDraft.fromPrice(current);
-      } else if (!existing.isDirty && existing.priceId != current?.precId) {
-        existing.synchronize(current);
+        _drafts[productId] = _PriceDraft.fromProduct(current, product);
+      } else if (!existing.isDirty) {
+        existing.synchronize(current, product);
       }
     }
   }
@@ -481,6 +481,11 @@ class _PreciosListPageState extends ConsumerState<PreciosListPage> {
               'precAplicaImpuesto': appliesTax,
               'precPorcentajeImpuesto': taxPercentage,
               'precValorImpuesto': appliesTax == 1 ? sale * taxPercentage / 100 : 0,
+              'prodCompraPorCantidad': draft.purchaseByQuantity ? 1 : 0,
+              'prodCantidadCompra':
+                  draft.purchaseByQuantity ? draft.purchaseUnits : null,
+              'prodPresentacionCompra':
+                  draft.purchaseByQuantity ? draft.purchasePresentation : null,
             },
             (json) => PreciosResponseModel.fromJson(Map<String, dynamic>.from(json as Map)),
           );
@@ -924,11 +929,11 @@ class _PriceProductCard extends StatelessWidget {
     final dirty = draft.isDirty;
     final sale = draft.saleValue;
     final purchase = draft.purchaseValue;
-    final purchaseUnits = _purchaseUnits(producto);
-    final purchasePresentation = _purchasePresentation(producto);
+    final purchaseUnits = draft.purchaseUnits;
+    final purchasePresentation = draft.purchasePresentation;
     final unitPurchaseCost = purchase == null
         ? null
-        : purchaseUnits == null
+        : !draft.purchaseByQuantity || purchaseUnits == null
             ? purchase
             : purchase / purchaseUnits;
     final margin = sale != null && unitPurchaseCost != null && sale > 0
@@ -976,7 +981,7 @@ class _PriceProductCard extends StatelessWidget {
                             style: TextStyle(color: palette.textSecondary, fontWeight: FontWeight.w700, fontSize: 11.5),
                           ),
                         ),
-                        if (purchaseUnits != null) ...[
+                        if (draft.purchaseByQuantity && purchaseUnits != null) ...[
                           const SizedBox(width: 7),
                           Container(
                             padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
@@ -1041,16 +1046,89 @@ class _PriceProductCard extends StatelessWidget {
               ),
             ],
           ),
-          if (purchaseUnits != null) ...[
-            const SizedBox(height: 9),
-            _PurchaseUnitCostSummary(
-              palette: palette,
-              presentation: purchasePresentation,
-              units: purchaseUnits,
-              totalPurchase: purchase,
-              unitPurchaseCost: unitPurchaseCost,
+          const SizedBox(height: 9),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+            decoration: BoxDecoration(
+              color: palette.background.withOpacity(.35),
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: palette.cardBorder),
             ),
-          ],
+            child: Column(
+              children: [
+                Row(
+                  children: [
+                    Expanded(
+                      child: Text(
+                        '¿El precio de compra corresponde a varias unidades?',
+                        style: TextStyle(
+                          color: palette.textPrimary,
+                          fontWeight: FontWeight.w800,
+                          fontSize: 11.5,
+                        ),
+                      ),
+                    ),
+                    Switch.adaptive(
+                      value: draft.purchaseByQuantity,
+                      onChanged: saving
+                          ? null
+                          : (value) {
+                              draft.setPurchaseByQuantity(value);
+                              onChanged();
+                            },
+                    ),
+                  ],
+                ),
+                if (draft.purchaseByQuantity) ...[
+                  const SizedBox(height: 7),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: TextField(
+                          controller: draft.unitsController,
+                          keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                          inputFormatters: InputConstraints.decimalFormatters(
+                            integerDigits: 10,
+                            fractionDigits: 4,
+                          ),
+                          onChanged: (_) => onChanged(),
+                          decoration: const InputDecoration(
+                            labelText: 'Unidades de compra',
+                            hintText: 'Ej. 24',
+                            isDense: true,
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: TextField(
+                          controller: draft.presentationController,
+                          maxLength: 60,
+                          buildCounter: (_, {required currentLength, required isFocused, maxLength}) => null,
+                          onChanged: (_) => onChanged(),
+                          decoration: const InputDecoration(
+                            labelText: 'Presentación',
+                            hintText: 'Caja, canasta, paquete...',
+                            isDense: true,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                  if (purchaseUnits != null) ...[
+                    const SizedBox(height: 7),
+                    _PurchaseUnitCostSummary(
+                      palette: palette,
+                      presentation: purchasePresentation,
+                      units: purchaseUnits,
+                      totalPurchase: purchase,
+                      unitPurchaseCost: unitPurchaseCost,
+                    ),
+                  ],
+                ],
+              ],
+            ),
+          ),
           const SizedBox(height: 10),
           Row(
             children: [
@@ -1379,35 +1457,90 @@ class _PriceDraft {
   _PriceDraft({
     required this.saleController,
     required this.purchaseController,
+    required this.unitsController,
+    required this.presentationController,
+    required this.purchaseByQuantity,
     required this.originalSale,
     required this.originalPurchase,
+    required this.originalPurchaseByQuantity,
+    required this.originalPurchaseUnits,
+    required this.originalPresentation,
     required this.priceId,
   });
 
-  factory _PriceDraft.fromPrice(PreciosResponseModel? price) => _PriceDraft(
+  factory _PriceDraft.fromProduct(
+    PreciosResponseModel? price,
+    ProductosResponseModel product,
+  ) =>
+      _PriceDraft(
         saleController: TextEditingController(text: _editableNumber(price?.precValorVenta)),
         purchaseController: TextEditingController(text: _editableNumber(price?.precValorCompra)),
+        unitsController: TextEditingController(text: _editableNumber(product.prodCantidadCompra)),
+        presentationController:
+            TextEditingController(text: product.prodPresentacionCompra ?? ''),
+        purchaseByQuantity: (product.prodCompraPorCantidad ?? 0) == 1,
         originalSale: price?.precValorVenta,
         originalPurchase: price?.precValorCompra,
+        originalPurchaseByQuantity: (product.prodCompraPorCantidad ?? 0) == 1,
+        originalPurchaseUnits: product.prodCantidadCompra,
+        originalPresentation: product.prodPresentacionCompra ?? '',
         priceId: price?.precId,
       );
 
   final TextEditingController saleController;
   final TextEditingController purchaseController;
+  final TextEditingController unitsController;
+  final TextEditingController presentationController;
+
+  bool purchaseByQuantity;
   double? originalSale;
   double? originalPurchase;
+  bool originalPurchaseByQuantity;
+  double? originalPurchaseUnits;
+  String originalPresentation;
   int? priceId;
 
   double? get saleValue => _parseMoney(saleController.text);
   double? get purchaseValue => _parseMoney(purchaseController.text);
+  double? get purchaseUnits => _parseMoney(unitsController.text);
+  String get purchasePresentation {
+    final value = presentationController.text.trim();
+    return value.isEmpty ? 'Paquete' : value;
+  }
 
-  bool get isDirty => !_sameNumber(saleValue, originalSale) || !_sameNumber(purchaseValue, originalPurchase);
+  bool get isDirty =>
+      !_sameNumber(saleValue, originalSale) ||
+      !_sameNumber(purchaseValue, originalPurchase) ||
+      purchaseByQuantity != originalPurchaseByQuantity ||
+      !_sameNumber(purchaseUnits, originalPurchaseUnits) ||
+      presentationController.text.trim() != originalPresentation.trim();
 
   String? get validationMessage {
     if ((saleController.text.trim().isEmpty && purchaseController.text.trim().isEmpty) && !isDirty) return null;
     if (saleValue == null || saleValue! <= 0) return 'El precio de venta debe ser mayor que cero.';
     if (purchaseValue == null || purchaseValue! <= 0) return 'El precio de compra debe ser mayor que cero.';
+    if (purchaseByQuantity) {
+      if (purchaseUnits == null || purchaseUnits! <= 1) {
+        return 'Indica cuántas unidades trae la compra; debe ser mayor que 1.';
+      }
+      if (presentationController.text.trim().isEmpty) {
+        return 'Indica la presentación de compra: caja, canasta, paquete, etc.';
+      }
+    }
     return null;
+  }
+
+  void setPurchaseByQuantity(bool value) {
+    purchaseByQuantity = value;
+    if (!value) {
+      unitsController.clear();
+      presentationController.clear();
+    } else {
+      if (unitsController.text.trim().isEmpty) unitsController.text = '2';
+      if (presentationController.text.trim().isEmpty) {
+        presentationController.text = 'Paquete';
+      }
+    }
   }
 
   void changeSaleBy(double amount) {
@@ -1419,18 +1552,35 @@ class _PriceDraft {
   void reset() {
     saleController.text = _editableNumber(originalSale);
     purchaseController.text = _editableNumber(originalPurchase);
+    purchaseByQuantity = originalPurchaseByQuantity;
+    unitsController.text = _editableNumber(originalPurchaseUnits);
+    presentationController.text = originalPresentation;
   }
 
-  void synchronize(PreciosResponseModel? price) {
+  void synchronize(
+    PreciosResponseModel? price,
+    ProductosResponseModel product,
+  ) {
     originalSale = price?.precValorVenta;
     originalPurchase = price?.precValorCompra;
+    originalPurchaseByQuantity = (product.prodCompraPorCantidad ?? 0) == 1;
+    originalPurchaseUnits = product.prodCantidadCompra;
+    originalPresentation = product.prodPresentacionCompra ?? '';
     priceId = price?.precId;
     reset();
   }
 
-  void commit(PreciosResponseModel? price, {required double sale, required double purchase}) {
+  void commit(
+    PreciosResponseModel? price, {
+    required double sale,
+    required double purchase,
+  }) {
     originalSale = price?.precValorVenta ?? sale;
     originalPurchase = price?.precValorCompra ?? purchase;
+    originalPurchaseByQuantity = purchaseByQuantity;
+    originalPurchaseUnits = purchaseByQuantity ? purchaseUnits : null;
+    originalPresentation =
+        purchaseByQuantity ? presentationController.text.trim() : '';
     priceId = price?.precId ?? priceId;
     reset();
   }
@@ -1438,6 +1588,8 @@ class _PriceDraft {
   void dispose() {
     saleController.dispose();
     purchaseController.dispose();
+    unitsController.dispose();
+    presentationController.dispose();
   }
 }
 
