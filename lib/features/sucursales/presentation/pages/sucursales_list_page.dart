@@ -264,8 +264,8 @@ class _SucursalesListPageState extends ConsumerState<SucursalesListPage> {
                         constraints: const BoxConstraints(maxWidth: 1180),
                         child: _Header(
                           palette: palette,
-                          total: _items.length,
-                          visible: filtered.length,
+                          active: active,
+                          inactive: inactive,
                           loading: _loading,
                           onRefresh: _load,
                         ),
@@ -377,7 +377,7 @@ class _SucursalesListPageState extends ConsumerState<SucursalesListPage> {
                                             palette: palette,
                                             onOpen: () => _showQuickDetail(item),
                                             onEdit: () => _openEditSheet(item),
-                                            onDelete: () => _delete(item),
+                                            onDeactivate: () => _deactivate(item),
                                           ),
                                         ),
                                     ],
@@ -407,7 +407,7 @@ class _SucursalesListPageState extends ConsumerState<SucursalesListPage> {
     );
   }
 
-  Future<void> _delete(SucursalesResponseModel item) async {
+  Future<void> _deactivate(SucursalesResponseModel item) async {
     final id = item.sucuId;
     if (id == null) return;
     final confirmed = await showConfirmationDialog(
@@ -540,15 +540,15 @@ class _SucursalesListPageState extends ConsumerState<SucursalesListPage> {
 class _Header extends StatelessWidget {
   const _Header({
     required this.palette,
-    required this.total,
-    required this.visible,
+    required this.active,
+    required this.inactive,
     required this.loading,
     required this.onRefresh,
   });
 
   final AppPalette palette;
-  final int total;
-  final int visible;
+  final int active;
+  final int inactive;
   final bool loading;
   final VoidCallback onRefresh;
 
@@ -579,7 +579,7 @@ class _Header extends StatelessWidget {
                 ),
                 const SizedBox(height: 4),
                 Text(
-                  'Gestiona sedes, ubicación, moneda, contacto y disponibilidad operativa.',
+                  'Gestiona sedes, ubicación, moneda y disponibilidad. Las sucursales inactivas no consumen cupo del plan.',
                   maxLines: 2,
                   overflow: TextOverflow.ellipsis,
                   style: TextStyle(color: palette.textSecondary, fontWeight: FontWeight.w700, height: 1.25),
@@ -595,7 +595,7 @@ class _Header extends StatelessWidget {
               borderRadius: BorderRadius.circular(99),
             ),
             child: Text(
-              '$visible/$total',
+              '$active activa${active == 1 ? '' : 's'}',
               style: TextStyle(color: palette.secondary, fontWeight: FontWeight.w900),
             ),
           ),
@@ -868,7 +868,7 @@ class _SucursalCard extends StatelessWidget {
     required this.palette,
     required this.onOpen,
     required this.onEdit,
-    required this.onDelete,
+    required this.onDeactivate,
   });
 
   final SucursalesResponseModel item;
@@ -876,7 +876,7 @@ class _SucursalCard extends StatelessWidget {
   final AppPalette palette;
   final VoidCallback onOpen;
   final VoidCallback onEdit;
-  final VoidCallback onDelete;
+  final VoidCallback onDeactivate;
 
   @override
   Widget build(BuildContext context) {
@@ -922,13 +922,13 @@ class _SucursalCard extends StatelessWidget {
                     onSelected: (value) {
                       if (value == 'open') onOpen();
                       if (value == 'edit') onEdit();
-                      if (value == 'delete') onDelete();
+                      if (value == 'deactivate') onDeactivate();
                     },
                     itemBuilder: (context) => [
                       const PopupMenuItem(value: 'open', child: ListTile(leading: Icon(Icons.visibility_rounded), title: Text('Consultar'), contentPadding: EdgeInsets.zero)),
                       const PopupMenuItem(value: 'edit', child: ListTile(leading: Icon(Icons.edit_rounded), title: Text('Modificar'), contentPadding: EdgeInsets.zero)),
                       if (active)
-                        const PopupMenuItem(value: 'delete', child: ListTile(leading: Icon(Icons.pause_circle_rounded), title: Text('Inactivar'), contentPadding: EdgeInsets.zero)),
+                        const PopupMenuItem(value: 'deactivate', child: ListTile(leading: Icon(Icons.pause_circle_rounded), title: Text('Inactivar'), contentPadding: EdgeInsets.zero)),
                     ],
                     child: const Padding(
                       padding: EdgeInsets.all(4),
