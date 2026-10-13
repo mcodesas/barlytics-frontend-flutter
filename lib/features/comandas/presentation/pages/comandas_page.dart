@@ -864,26 +864,61 @@ class _OrderGroupCard extends StatelessWidget {
             ),
           ),
           Padding(
-            padding: const EdgeInsets.fromLTRB(10, 10, 10, 4),
+            padding: const EdgeInsets.fromLTRB(12, 12, 12, 6),
             child: Column(
               children: [
                 for (var index = 0; index < items.length; index++) ...[
-                  _CommandCard(
-                    item: items[index],
-                    updating: updating,
-                    showAction: false,
-                    onAdvance: () {},
-                  ),
+                  _OrderProductRow(item: items[index]),
                   if (index < items.length - 1)
                     Padding(
-                      padding: const EdgeInsets.symmetric(vertical: 8),
+                      padding: const EdgeInsets.symmetric(vertical: 10),
                       child: Divider(
                         height: 1,
                         color: theme.colorScheme.outlineVariant
-                            .withOpacity(.35),
+                            .withOpacity(.28),
                       ),
                     ),
                 ],
+              ],
+            ),
+          ),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(12, 4, 12, 8),
+            child: Row(
+              children: [
+                Icon(
+                  Icons.schedule_rounded,
+                  size: 14,
+                  color: theme.colorScheme.onSurfaceVariant,
+                ),
+                const SizedBox(width: 4),
+                Text(
+                  first.fechaPedido == null
+                      ? 'Sin hora'
+                      : DateFormat('HH:mm').format(first.fechaPedido!),
+                  style: theme.textTheme.labelSmall?.copyWith(
+                    color: theme.colorScheme.onSurfaceVariant,
+                  ),
+                ),
+                if (first.mesero.trim().isNotEmpty) ...[
+                  const SizedBox(width: 12),
+                  Icon(
+                    Icons.person_outline_rounded,
+                    size: 14,
+                    color: theme.colorScheme.onSurfaceVariant,
+                  ),
+                  const SizedBox(width: 4),
+                  Expanded(
+                    child: Text(
+                      first.mesero,
+                      overflow: TextOverflow.ellipsis,
+                      style: theme.textTheme.labelSmall?.copyWith(
+                        color: theme.colorScheme.onSurfaceVariant,
+                      ),
+                    ),
+                  ),
+                ] else
+                  const Spacer(),
               ],
             ),
           ),
