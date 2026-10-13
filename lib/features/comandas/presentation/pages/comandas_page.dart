@@ -377,13 +377,14 @@ class _StatusSection extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final groupedOrders = _groupByOrder(items);
     final content = <Widget>[
-      _StatusHeader(status: status, count: items.length),
+      _StatusHeader(status: status, count: groupedOrders.length),
       const SizedBox(height: 8),
       if (items.isEmpty)
         const _EmptyColumn()
       else
-        ..._groupByOrder(items).entries.map(
+        ...groupedOrders.entries.map(
           (entry) => Padding(
             padding: const EdgeInsets.only(bottom: 10),
             child: _OrderGroupCard(
