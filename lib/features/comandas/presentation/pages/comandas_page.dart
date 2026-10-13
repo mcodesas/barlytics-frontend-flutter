@@ -883,10 +883,6 @@ class _ComandasKanbanBoard extends StatelessWidget {
   const _ComandasKanbanBoard({
     required this.items,
     required this.updating,
-class _ComandasKanbanBoard extends StatelessWidget {
-  const _ComandasKanbanBoard({
-    required this.items,
-    required this.updating,
     required this.palette,
     required this.canManage,
     required this.onAdvance,
@@ -1099,10 +1095,6 @@ class _ComandasOrderGrid extends StatelessWidget {
   const _ComandasOrderGrid({
     required this.groups,
     required this.updating,
-class _ComandasOrderGrid extends StatelessWidget {
-  const _ComandasOrderGrid({
-    required this.groups,
-    required this.updating,
     required this.palette,
     required this.canManage,
     required this.onAdvance,
@@ -1151,21 +1143,53 @@ class _ComandasOrderGrid extends StatelessWidget {
   }
 }
 
-class _ComandaOrderCard extends StatelessWidget {
+class _ComandaOrderCard extends StatefulWidget {
   const _ComandaOrderCard({
     required this.items,
     required this.palette,
+    required this.canManage,
     required this.updating,
     required this.onAdvance,
   });
 
   final List<_ComandaItem> items;
   final AppPalette palette;
+  final bool canManage;
   final bool updating;
   final Future<void> Function() onAdvance;
 
   @override
+  State<_ComandaOrderCard> createState() => _ComandaOrderCardState();
+}
+
+class _ComandaOrderCardState extends State<_ComandaOrderCard> {
+  late bool _collapsed;
+
+  @override
+  void initState() {
+    super.initState();
+    _collapsed = widget.items.isNotEmpty &&
+        widget.items.first.estado == 'ENTREGADA';
+  }
+
+  @override
+  void didUpdateWidget(covariant _ComandaOrderCard oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (widget.items.isEmpty) return;
+    final oldStatus =
+        oldWidget.items.isEmpty ? '' : oldWidget.items.first.estado;
+    final newStatus = widget.items.first.estado;
+    if (oldStatus != newStatus && newStatus == 'ENTREGADA') {
+      _collapsed = true;
+    }
+  }
+
+  @override
   Widget build(BuildContext context) {
+    final items = widget.items;
+    if (items.isEmpty) return const SizedBox.shrink();
+
+    final palette = widget.palette;
     final first = items.first;
     final tone = _comandaStatusTone(palette, first.estado);
     final tableLabel = first.mesaNumero == null
@@ -1178,12 +1202,14 @@ class _ComandaOrderCard extends StatelessWidget {
         ? (stations.first == 'BARRA' ? 'Barra' : 'Cocina')
         : 'Cocina + Barra';
 
-    final nextLabel = switch (first.estado) {
-      'NUEVA' => 'Iniciar preparación',
-      'EN_PREPARACION' => 'Marcar pedido listo',
-      'LISTA' => 'Marcar entregado',
-      _ => null,
-    };
+    final nextLabel = widget.canManage
+        ? switch (first.estado) {
+            'NUEVA' => 'Iniciar preparación',
+            'EN_PREPARACION' => 'Marcar pedido listo',
+            'LISTA' => 'Marcar entregado',
+            _ => null,
+          }
+        : (first.estado == 'LISTA' ? 'Marcar entregado' : null);
 
     return Container(
       clipBehavior: Clip.antiAlias,
@@ -1200,7 +1226,7 @@ class _ComandaOrderCard extends StatelessWidget {
             child: InkWell(
               onTap: () => _showOrderDetail(context, items),
               child: Padding(
-                padding: const EdgeInsets.fromLTRB(14, 14, 14, 11),
+                padding: const EdgeInsets.fromLTRB(14, 14, 10, 11),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
@@ -1247,20 +1273,34 @@ class _ComandaOrderCard extends StatelessWidget {
                                     .bodySmall
                                     ?.copyWith(
                                       color: palette.textSecondary,
-                                      fontWeight: FontWeight.w600,
+                                      fontWeight: FontWeight.w700,
                                     ),
                               ),
                             ],
                           ),
                         ),
-                        const SizedBox(width: 8),
+                        const SizedBox(width: 6),
                         _ComandaStatusBadge(
                           palette: palette,
                           status: first.estado,
                         ),
+                        const SizedBox(width: 2),
+                        IconButton(
+                          tooltip: _collapsed ? 'Expandir' : 'Contraer',
+                          visualDensity: VisualDensity.compact,
+                          onPressed: () {
+                            setState(() => _collapsed = !_collapsed);
+                          },
+                          icon: Icon(
+                            _collapsed
+                                ? Icons.expand_more_rounded
+                                : Icons.expand_less_rounded,
+                            color: palette.textSecondary,
+                          ),
+                        ),
                       ],
                     ),
-                    const SizedBox(height: 11),
+                    const SizedBox(height: 10),
                     Wrap(
                       spacing: 7,
                       runSpacing: 7,
@@ -1293,104 +1333,116 @@ class _ComandaOrderCard extends StatelessWidget {
               ),
             ),
           ),
-          Container(
-            margin: const EdgeInsets.symmetric(horizontal: 12),
-            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-            decoration: BoxDecoration(
-              color: palette.background.withOpacity(
-                palette.darkBackground ? .24 : .38,
+          if (!_collapsed)
+            Container(
+              margin: const EdgeInsets.symmetric(horizontal: 12),
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+              decoration: BoxDecoration(
+                color: palette.background.withOpacity(
+                  palette.darkBackground ? .24 : .38,
+                ),
+                borderRadius: BorderRadius.circular(palette.radius(16)),
               ),
-              borderRadius: BorderRadius.circular(palette.radius(16)),
-            ),
-            child: Column(
-              children: [
-                for (var index = 0; index < items.length; index++) ...[
-                  _ComandaProductLine(
-                    item: items[index],
-                    palette: palette,
-                  ),
-                  if (index < items.length - 1)
-                    Divider(
-                      height: 1,
-                      color: palette.cardBorder.withOpacity(.7),
+              child: Column(
+                children: [
+                  for (var index = 0; index < items.length; index++) ...[
+                    _ComandaProductLine(
+                      item: items[index],
+                      palette: palette,
                     ),
-                ],
-              ],
-            ),
-          ),
-          Padding(
-            padding: const EdgeInsets.fromLTRB(14, 11, 14, 13),
-            child: Column(
-              children: [
-                Row(
-                  children: [
-                    Icon(
-                      Icons.person_outline_rounded,
-                      size: 15,
-                      color: palette.textSecondary,
-                    ),
-                    const SizedBox(width: 5),
-                    Expanded(
-                      child: Text(
-                        first.mesero.trim().isEmpty
-                            ? 'Sin mesero registrado'
-                            : first.mesero,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                              color: palette.textSecondary,
-                              fontWeight: FontWeight.w600,
-                            ),
+                    if (index < items.length - 1)
+                      Divider(
+                        height: 1,
+                        color: palette.cardBorder.withOpacity(.7),
                       ),
+                  ],
+                ],
+              ),
+            ),
+          if (!_collapsed || nextLabel != null)
+            Padding(
+              padding: EdgeInsets.fromLTRB(
+                14,
+                _collapsed ? 4 : 11,
+                14,
+                13,
+              ),
+              child: Column(
+                children: [
+                  if (!_collapsed)
+                    Row(
+                      children: [
+                        Icon(
+                          Icons.person_outline_rounded,
+                          size: 15,
+                          color: palette.textSecondary,
+                        ),
+                        const SizedBox(width: 5),
+                        Expanded(
+                          child: Text(
+                            first.mesero.trim().isEmpty
+                                ? 'Sin mesero registrado'
+                                : first.mesero,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style:
+                                Theme.of(context).textTheme.labelSmall?.copyWith(
+                                      color: palette.textSecondary,
+                                      fontWeight: FontWeight.w600,
+                                    ),
+                          ),
+                        ),
+                        TextButton.icon(
+                          onPressed: () => _showOrderDetail(context, items),
+                          icon:
+                              const Icon(Icons.visibility_outlined, size: 16),
+                          label: const Text('Ver detalle'),
+                          style: TextButton.styleFrom(
+                            foregroundColor: palette.secondary,
+                          ),
+                        ),
+                      ],
                     ),
-                    TextButton.icon(
-                      onPressed: () => _showOrderDetail(context, items),
-                      icon: const Icon(Icons.visibility_outlined, size: 16),
-                      label: const Text('Ver detalle'),
-                      style: TextButton.styleFrom(
-                        foregroundColor: palette.secondary,
+                  if (nextLabel != null) ...[
+                    if (!_collapsed) const SizedBox(height: 7),
+                    SizedBox(
+                      width: double.infinity,
+                      child: FilledButton.icon(
+                        onPressed:
+                            widget.updating ? null : () => widget.onAdvance(),
+                        style: FilledButton.styleFrom(
+                          backgroundColor: palette.actionColor,
+                          foregroundColor: palette.onAction,
+                          padding: const EdgeInsets.symmetric(vertical: 11),
+                          shape: RoundedRectangleBorder(
+                            borderRadius:
+                                BorderRadius.circular(palette.radius(14)),
+                          ),
+                        ),
+                        icon: widget.updating
+                            ? const SizedBox(
+                                width: 17,
+                                height: 17,
+                                child:
+                                    CircularProgressIndicator(strokeWidth: 2),
+                              )
+                            : Icon(
+                                first.estado == 'LISTA'
+                                    ? Icons.room_service_rounded
+                                    : Icons.arrow_forward_rounded,
+                                size: 18,
+                              ),
+                        label: Text(
+                          nextLabel,
+                          style:
+                              const TextStyle(fontWeight: FontWeight.w900),
+                        ),
                       ),
                     ),
                   ],
-                ),
-                if (nextLabel != null) ...[
-                  const SizedBox(height: 7),
-                  SizedBox(
-                    width: double.infinity,
-                    child: FilledButton.icon(
-                      onPressed: updating ? null : () => onAdvance(),
-                      style: FilledButton.styleFrom(
-                        backgroundColor: palette.actionColor,
-                        foregroundColor: palette.onAction,
-                        padding: const EdgeInsets.symmetric(vertical: 11),
-                        shape: RoundedRectangleBorder(
-                          borderRadius:
-                              BorderRadius.circular(palette.radius(14)),
-                        ),
-                      ),
-                      icon: updating
-                          ? const SizedBox(
-                              width: 17,
-                              height: 17,
-                              child:
-                                  CircularProgressIndicator(strokeWidth: 2),
-                            )
-                          : Icon(
-                              first.estado == 'LISTA'
-                                  ? Icons.room_service_rounded
-                                  : Icons.arrow_forward_rounded,
-                              size: 18,
-                            ),
-                      label: Text(
-                        nextLabel,
-                        style: const TextStyle(fontWeight: FontWeight.w900),
-                      ),
-                    ),
-                  ),
                 ],
-              ],
+              ),
             ),
-          ),
         ],
       ),
     );
