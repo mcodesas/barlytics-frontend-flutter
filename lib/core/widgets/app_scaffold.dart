@@ -2515,6 +2515,348 @@ class _InventoryBottomNavigation extends ConsumerWidget {
   }
 }
 
+class _CustomRoleBottomNavigation extends ConsumerWidget {
+  const _CustomRoleBottomNavigation();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final palette = ref.watch(selectedAppPaletteProvider);
+    final currentPath = GoRouterState.of(context).uri.path;
+    final width = MediaQuery.sizeOf(context).width;
+    final authorizedMenus = ref.watch(userMenuProvider).maybeWhen(
+          data: (items) => items,
+          orElse: () => const <UserMenuItem>[],
+        );
+
+    final uniqueByPath = <String, UserMenuItem>{};
+    for (final item in authorizedMenus) {
+      final path = item.path.trim();
+      if (path.isEmpty) continue;
+      uniqueByPath.putIfAbsent(path, () => item);
+    }
+    final allItems = uniqueByPath.values.toList(growable: false);
+    if (allItems.isEmpty) return const SizedBox.shrink();
+
+    if (allItems.length == 1) {
+      final item = allItems.first;
+      final selected = _matchesPath(currentPath, item.path);
+      return Container(
+        decoration: BoxDecoration(
+          color: palette.surface.withOpacity(
+            palette.darkBackground ? 0.96 : 0.99,
+          ),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withOpacity(
+                palette.darkBackground ? 0.24 : 0.11,
+              ),
+              blurRadius: 24,
+              offset: const Offset(0, -8),
+            ),
+          ],
+        ),
+        child: SafeArea(
+          top: false,
+          child: InkWell(
+            onTap: () => context.go(item.path),
+            child: Padding(
+              padding: const EdgeInsets.symmetric(vertical: 10),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(
+                    ModuleVisuals.byKey(item.keyName).icon,
+                    color:
+                        selected ? palette.secondary : palette.textSecondary,
+                    size: 22,
+                  ),
+                  const SizedBox(height: 3),
+                  Text(
+                    item.title,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      color:
+                          selected ? palette.secondary : palette.textSecondary,
+                      fontSize: 10,
+                      fontWeight:
+                          selected ? FontWeight.w900 : FontWeight.w700,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      );
+    }
+
+    final maxSlots = width >= 1280
+        ? 7
+        : width >= 720
+            ? 5
+            : 4;
+    final hasOverflow = allItems.length > maxSlots;
+    final visibleCount =
+        hasOverflow ? maxSlots - 1 : allItems.length;
+    final visibleItems =
+        allItems.take(visibleCount).toList(growable: false);
+    final overflowItems = hasOverflow
+        ? allItems.skip(visibleCount).toList(growable: false)
+        : const <UserMenuItem>[];
+
+    var selectedIndex = visibleItems.indexWhere(
+      (item) => _matchesPath(currentPath, item.path),
+    );
+    final selectedInOverflow = overflowItems.any(
+      (item) => _matchesPath(currentPath, item.path),
+    );
+    if (selectedIndex < 0 && selectedInOverflow) {
+      selectedIndex = visibleItems.length;
+    }
+    if (selectedIndex < 0) selectedIndex = 0;
+
+    final compact = width < 720;
+    return Container(
+      decoration: BoxDecoration(
+        color: palette.surface.withOpacity(
+          palette.darkBackground ? 0.96 : 0.99,
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(
+              palette.darkBackground ? 0.24 : 0.11,
+            ),
+            blurRadius: 24,
+            offset: const Offset(0, -8),
+          ),
+        ],
+      ),
+      child: SafeArea(
+        top: false,
+        child: BottomNavigationBar(
+          currentIndex: selectedIndex,
+          type: BottomNavigationBarType.fixed,
+          backgroundColor: Colors.transparent,
+          elevation: 0,
+          selectedItemColor: palette.secondary,
+          unselectedItemColor: palette.textSecondary.withOpacity(0.86),
+          selectedFontSize: compact ? 9.5 : 11,
+          unselectedFontSize: compact ? 9 : 10.5,
+          iconSize: compact ? 21 : 23,
+          selectedLabelStyle:
+              const TextStyle(fontWeight: FontWeight.w900, height: 1.15),
+          unselectedLabelStyle:
+              const TextStyle(fontWeight: FontWeight.w700, height: 1.15),
+          showSelectedLabels: true,
+          showUnselectedLabels: true,
+          onTap: (index) {
+            if (hasOverflow && index == visibleItems.length) {
+              _showMore(
+                context: context,
+                palette: palette,
+                items: overflowItems,
+                currentPath: currentPath,
+              );
+              return;
+            }
+            context.go(visibleItems[index].path);
+          },
+          items: [
+            for (final item in visibleItems)
+              BottomNavigationBarItem(
+                icon: Padding(
+                  padding: const EdgeInsets.only(bottom: 3),
+                  child: Icon(ModuleVisuals.byKey(item.keyName).icon),
+                ),
+                activeIcon: Container(
+                  margin: const EdgeInsets.only(bottom: 3),
+                  padding: EdgeInsets.symmetric(
+                    horizontal: compact ? 10 : 13,
+                    vertical: 5,
+                  ),
+                  decoration: BoxDecoration(
+                    color: palette.secondary.withOpacity(
+                      palette.darkBackground ? 0.22 : 0.14,
+                    ),
+                    borderRadius: BorderRadius.circular(18),
+                  ),
+                  child: Icon(ModuleVisuals.byKey(item.keyName).icon),
+                ),
+                label: item.title,
+              ),
+            if (hasOverflow)
+              const BottomNavigationBarItem(
+                icon: Padding(
+                  padding: EdgeInsets.only(bottom: 3),
+                  child: Icon(Icons.more_horiz_rounded),
+                ),
+                label: 'Más',
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  bool _matchesPath(String currentPath, String itemPath) {
+    return currentPath == itemPath ||
+        (itemPath != '/home' && currentPath.startsWith('$itemPath/'));
+  }
+
+  Future<void> _showMore({
+    required BuildContext context,
+    required AppPalette palette,
+    required List<UserMenuItem> items,
+    required String currentPath,
+  }) async {
+    var query = '';
+    await showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (sheetContext) => StatefulBuilder(
+        builder: (sheetContext, setSheetState) {
+          final filtered = items
+              .where(
+                (item) => _matchesMenuSearch(
+                  query,
+                  [item.title, item.keyName, item.description],
+                ),
+              )
+              .toList(growable: false);
+
+          return SafeArea(
+            child: Container(
+              margin: const EdgeInsets.all(12),
+              constraints: BoxConstraints(
+                maxHeight: MediaQuery.sizeOf(sheetContext).height * 0.78,
+              ),
+              padding: const EdgeInsets.fromLTRB(14, 10, 14, 14),
+              decoration: BoxDecoration(
+                color: palette.surface,
+                borderRadius: BorderRadius.circular(palette.radius(26)),
+                border: Border.all(color: palette.cardBorder),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withOpacity(0.20),
+                    blurRadius: 28,
+                    offset: const Offset(0, 12),
+                  ),
+                ],
+              ),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Center(
+                    child: Container(
+                      width: 44,
+                      height: 4,
+                      margin: const EdgeInsets.only(bottom: 14),
+                      decoration: BoxDecoration(
+                        color: palette.textSecondary.withOpacity(0.30),
+                        borderRadius: BorderRadius.circular(99),
+                      ),
+                    ),
+                  ),
+                  Text(
+                    'Más funciones',
+                    style: TextStyle(
+                      color: palette.textPrimary,
+                      fontSize: 18,
+                      fontWeight: FontWeight.w900,
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    'Funciones adicionales autorizadas para este rol.',
+                    style: TextStyle(
+                      color: palette.textSecondary,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  _menuSearchField(
+                    palette: palette,
+                    onChanged: (value) =>
+                        setSheetState(() => query = value),
+                  ),
+                  const SizedBox(height: 12),
+                  Flexible(
+                    child: filtered.isEmpty
+                        ? _emptyMenuSearchState(palette)
+                        : ListView.separated(
+                            shrinkWrap: true,
+                            itemCount: filtered.length,
+                            separatorBuilder: (_, __) =>
+                                const SizedBox(height: 7),
+                            itemBuilder: (itemContext, index) {
+                              final item = filtered[index];
+                              final selected =
+                                  _matchesPath(currentPath, item.path);
+                              return ListTile(
+                                selected: selected,
+                                onTap: () {
+                                  Navigator.pop(sheetContext);
+                                  WidgetsBinding.instance
+                                      .addPostFrameCallback((_) {
+                                    if (context.mounted) {
+                                      context.go(item.path);
+                                    }
+                                  });
+                                },
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(15),
+                                  side: BorderSide(
+                                    color: selected
+                                        ? palette.secondary
+                                        : palette.cardBorder,
+                                  ),
+                                ),
+                                tileColor:
+                                    palette.background.withOpacity(0.56),
+                                selectedTileColor:
+                                    palette.secondary.withOpacity(0.10),
+                                leading: Icon(
+                                  ModuleVisuals.byKey(item.keyName).icon,
+                                  color: selected
+                                      ? palette.secondary
+                                      : palette.textSecondary,
+                                ),
+                                title: Text(
+                                  item.title,
+                                  style: TextStyle(
+                                    color: palette.textPrimary,
+                                    fontWeight: FontWeight.w900,
+                                  ),
+                                ),
+                                subtitle:
+                                    item.description?.trim().isNotEmpty == true
+                                        ? Text(
+                                            item.description!,
+                                            maxLines: 2,
+                                            overflow: TextOverflow.ellipsis,
+                                            style: TextStyle(
+                                              color: palette.textSecondary,
+                                              fontSize: 11,
+                                            ),
+                                          )
+                                        : null,
+                              );
+                            },
+                          ),
+                  ),
+                ],
+              ),
+            ),
+          );
+        },
+      ),
+    );
+  }
+}
+
 class _AdminBottomNavigation extends ConsumerWidget {
   const _AdminBottomNavigation();
 
