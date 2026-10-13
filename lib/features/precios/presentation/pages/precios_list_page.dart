@@ -908,8 +908,10 @@ class _PriceProductsTable extends StatelessWidget {
                   final margin = sale != null && sale > 0 && unitCost != null
                       ? ((sale - unitCost) / sale) * 100
                       : null;
-                  final isLoss =
-                      sale != null && unitCost != null && sale < unitCost;
+                  final isLoss = !draft.isInput &&
+                      sale != null &&
+                      unitCost != null &&
+                      sale < unitCost;
                   final dirty = draft.isDirty;
                   final onlyCost = currentPrice != null &&
                       !dirty &&
