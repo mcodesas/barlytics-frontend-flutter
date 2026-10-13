@@ -344,7 +344,7 @@ class _Header extends StatelessWidget {
                   ),
                   avatar: Icon(
                     option == 'COCINA'
-                        ? Icons.skillet_rounded
+                        ? Icons.restaurant_rounded
                         : option == 'BARRA'
                             ? Icons.local_bar_rounded
                             : Icons.dashboard_customize_rounded,
@@ -716,7 +716,7 @@ class _StationBadge extends StatelessWidget {
           borderRadius: BorderRadius.circular(10),
         ),
         child: Icon(
-          kitchen ? Icons.skillet_rounded : Icons.local_bar_rounded,
+          kitchen ? Icons.restaurant_rounded : Icons.local_bar_rounded,
           size: 17,
           color: theme.colorScheme.onSecondaryContainer,
         ),
