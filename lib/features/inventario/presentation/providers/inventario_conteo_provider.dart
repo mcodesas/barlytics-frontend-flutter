@@ -98,12 +98,15 @@ class InventarioConteoNotifier extends StateNotifier<InventarioConteoState> {
     try {
       final productos = await _loadAllProducts(selectedSucursalId);
       final registros = await _loadInventoryRecords(selectedSucursalId);
+      final estadosConciliacion =
+          await _loadReconciliationStatuses(selectedSucursalId);
       final registrosHoy = _latestRecordsToday(registros);
       final ultimosConteos = _latestPhysicalCounts(registros);
       final conteosPendientes = <int, InventarioResponseModel>{
         for (final entry in ultimosConteos.entries)
           if (entry.value.invtOrigen == 'CONTEO_FISICO' &&
-              (entry.value.invtDiferencia ?? 0).abs() > 0.0001)
+              (entry.value.invtDiferencia ?? 0).abs() > 0.0001 &&
+              estadosConciliacion[entry.value.invtId] == 'PENDIENTE')
             entry.key: entry.value,
       };
       final ultimoConteoEn = _latestCountDate(ultimosConteos.values);
@@ -316,6 +319,32 @@ class InventarioConteoNotifier extends StateNotifier<InventarioConteoState> {
           .toList(growable: false),
     );
     return response.data ?? const <InventarioResponseModel>[];
+  }
+
+  Future<Map<int, String>> _loadReconciliationStatuses(
+    int sucursalId,
+  ) async {
+    final response = await _apiClient.get<List<Map<String, dynamic>>>(
+      '/api/v1/inventario/administracion',
+      (json) => (json as List? ?? const <Object>[])
+          .whereType<Map>()
+          .map((item) => Map<String, dynamic>.from(item))
+          .toList(growable: false),
+      queryParameters: <String, dynamic>{
+        'sucursalId': sucursalId,
+      },
+    );
+
+    final result = <int, String>{};
+    for (final row in response.data ?? const <Map<String, dynamic>>[]) {
+      final rawId = row['conteo_id'];
+      final id = rawId is num
+          ? rawId.toInt()
+          : int.tryParse(rawId?.toString() ?? '');
+      if (id == null) continue;
+      result[id] = (row['estado']?.toString() ?? '').trim().toUpperCase();
+    }
+    return result;
   }
 
   Map<int, InventarioResponseModel> _latestPhysicalCounts(
