@@ -281,6 +281,9 @@ class MeseroRemoteDataSource {
     required int productoId,
     int? precioId,
     double cantidad = 1,
+    List<int> ingredientesExcluidos = const <int>[],
+    List<int> adiciones = const <int>[],
+    String? observacion,
   }) async {
     final response = await _apiClient.post<MeseroVentaModel>(
       ApiPaths.meseroAgregarProductoCuenta(cuentaId),
@@ -288,6 +291,9 @@ class MeseroRemoteDataSource {
         'prodId': productoId,
         if (precioId != null) 'precId': precioId,
         'cantidad': cantidad,
+        if (ingredientesExcluidos.isNotEmpty) 'ingredientesExcluidos': ingredientesExcluidos,
+        if (adiciones.isNotEmpty) 'adiciones': adiciones,
+        if ((observacion ?? '').trim().isNotEmpty) 'observacion': observacion!.trim(),
       },
       (json) => MeseroVentaModel.fromJson(Map<String, dynamic>.from(json as Map)),
     );
