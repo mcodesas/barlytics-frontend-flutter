@@ -188,6 +188,10 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       final pricesOnly = activeRoles.isNotEmpty && activeRoles.every((role) {
         return normalizeRoleName(role) == 'PRECIOS';
       });
+      final commandsOnly = activeRoles.isNotEmpty && activeRoles.every((role) {
+        final normalized = normalizeRoleName(role);
+        return const {'COCINA', 'BARRA', 'COMANDAS'}.contains(normalized);
+      });
       final restrictedOperationalOnly = activeRoles.isNotEmpty && activeRoles.every((role) {
         final normalized = normalizeRoleName(role);
         return const {
@@ -220,6 +224,10 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       if (authState.authenticated && pricesOnly) {
         final allowed = path == '/home' || path == '/profile' || path.startsWith('/precios');
         if (!allowed) return '/precios';
+      }
+      if (authState.authenticated && commandsOnly) {
+        final allowed = path == '/home' || path == '/profile' || path.startsWith('/comandas');
+        if (!allowed) return '/comandas';
       }
       if (authState.authenticated &&
           restrictedOperationalOnly &&
