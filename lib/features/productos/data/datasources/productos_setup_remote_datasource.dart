@@ -14,6 +14,13 @@ class ProductosSetupRemoteDataSource {
     return _apiClient.getBytes('/api/v1/productos/setup/template');
   }
 
+  Future<Uint8List> downloadProductList(int sucursalId) {
+    return _apiClient.getBytes(
+      '/api/v1/productos/setup/export',
+      queryParameters: <String, dynamic>{'sucursalId': sucursalId},
+    );
+  }
+
   Future<List<ProductosResponseModel>> branchProducts(int sucursalId) async {
     final response = await _apiClient.get<List<ProductosResponseModel>>(
       '/api/v1/productos/sucursal/$sucursalId',
