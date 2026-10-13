@@ -1004,12 +1004,16 @@ class _ProductosFormPageState extends ConsumerState<ProductosFormPage> {
         .where((item) =>
             item.prodId != null &&
             item.prodId != _editingId &&
-            item.sucuId == _sucursalId)
+            item.sucuId == _sucursalId &&
+            (item.prodTipoControl ?? '').trim().toUpperCase() == 'INSUMO')
         .toList()
       ..sort((a, b) => (a.prodNombre ?? '').toLowerCase().compareTo((b.prodNombre ?? '').toLowerCase()));
 
     if (candidates.isEmpty) {
-      _showError('Primero crea los insumos o ingredientes que utilizará esta receta.');
+      _showError(
+        'No hay productos configurados como Ingrediente / insumo en esta sucursal. '
+        'Crea primero el ingrediente con Control del producto = Ingrediente / insumo.',
+      );
       return;
     }
 
@@ -1035,7 +1039,7 @@ class _ProductosFormPageState extends ConsumerState<ProductosFormPage> {
                       value: selectedId,
                       isExpanded: true,
                       decoration: const InputDecoration(
-                        labelText: 'Producto / insumo',
+                        labelText: 'Ingrediente / insumo',
                         prefixIcon: Icon(Icons.restaurant_menu_rounded),
                       ),
                       items: candidates
