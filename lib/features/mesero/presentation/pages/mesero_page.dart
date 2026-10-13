@@ -4368,9 +4368,33 @@ class _MeseroPageState extends ConsumerState<MeseroPage> {
       );
       if (confirmado != true) return;
       final valorBase = _parseCurrencyInput(controller.text);
-      setState(() => _baseInicialCierrePorFecha[fecha] = valorBase);
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Base inicial registrada: ${CurrencyUtils.format(valorBase)}')));
+      setState(() => _processing = true);
+      try {
+        final actualizado = await _dataSource.guardarBaseInicialCierreCaja(
+          fecha: fecha,
+          valorBase: valorBase,
+        );
+        if (!mounted) return;
+        setState(() {
+          _baseInicialCierrePorFecha[fecha] = actualizado.valorBase ?? valorBase;
+          _cierreCajaFuture = Future<CierreCajaResumenModel>.value(actualizado);
+        });
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              'Base inicial guardada: ${CurrencyUtils.format(actualizado.valorBase ?? valorBase)}',
+            ),
+          ),
+        );
+      } catch (error) {
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('No fue posible guardar la base inicial: $error')),
+        );
+      } finally {
+        if (mounted) setState(() => _processing = false);
+      }
     } finally {
       controller.dispose();
     }
