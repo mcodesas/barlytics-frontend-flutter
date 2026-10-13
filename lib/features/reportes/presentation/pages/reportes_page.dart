@@ -1072,6 +1072,8 @@ class _ReporteDetailState extends ConsumerState<_ReporteDetail> {
                                   if (year != null) changeYear(year);
                                 },
                               ),
+                                ],
+                              ),
                             ),
                           ),
                           IconButton(
@@ -3967,7 +3969,7 @@ _ProfitProductStatus _profitProductStatus(
 
 enum _ProfitOrderFilter { pedirAhora, todos, sinConfigurar, sobrestock }
 
-enum _OrderWorkspaceFilter { sugeridos, criticos, seleccionados, sinCosto }
+enum _OrderWorkspaceFilter { sugeridos, todos, criticos, seleccionados, sinCosto }
 
 class _NextOrderContent extends ConsumerStatefulWidget {
   const _NextOrderContent({
@@ -4044,14 +4046,19 @@ class _NextOrderContentState extends ConsumerState<_NextOrderContent> {
 
   void _initializeSelection() {
     _selectedPresentations.clear();
+    var hasSuggested = false;
     for (final row in widget.payload.rows) {
       final productId = _productId(row);
       final suggested = _toDouble(row['presentaciones_pedir']).ceil();
       if (productId != null &&
           suggested > 0 &&
           _purchasePresentationCost(row) > 0) {
+        hasSuggested = true;
         _selectedPresentations[productId] = suggested;
       }
+    }
+    if (!hasSuggested && _workspaceFilter == _OrderWorkspaceFilter.sugeridos) {
+      _workspaceFilter = _OrderWorkspaceFilter.todos;
     }
     _confirmedOrderId = null;
     _confirmedWhatsapp = null;
@@ -4070,14 +4077,26 @@ class _NextOrderContentState extends ConsumerState<_NextOrderContent> {
 
   List<Map<String, dynamic>> get _orderRows {
     final rows = widget.payload.rows
-        .where((row) => _toDouble(row['unidades_pedir']) > 0)
+        .where((row) => _productId(row) != null)
         .toList(growable: false)
-      ..sort(
-        (a, b) => _toDouble(b['costo_pedido_estimado'])
-            .compareTo(_toDouble(a['costo_pedido_estimado'])),
-      );
+      ..sort((a, b) {
+        final aSuggested = _toDouble(a['unidades_pedir']) > 0;
+        final bSuggested = _toDouble(b['unidades_pedir']) > 0;
+        if (aSuggested != bSuggested) return aSuggested ? -1 : 1;
+        final stockCompare = _toDouble(a['stock_actual'])
+            .compareTo(_toDouble(b['stock_actual']));
+        if (stockCompare != 0) return stockCompare;
+        return (a['producto'] ?? '')
+            .toString()
+            .toLowerCase()
+            .compareTo((b['producto'] ?? '').toString().toLowerCase());
+      });
     return rows;
   }
+
+  List<Map<String, dynamic>> get _suggestedOrderRows => _orderRows
+      .where((row) => _toDouble(row['unidades_pedir']) > 0)
+      .toList(growable: false);
 
   List<Map<String, dynamic>> get _selectedRows {
     final rows = <Map<String, dynamic>>[];
@@ -4127,7 +4146,8 @@ class _NextOrderContentState extends ConsumerState<_NextOrderContent> {
     final status = (row['estado_reposicion'] ?? '').toString().toUpperCase();
     final stock = _toDouble(row['stock_actual']);
     return switch (_workspaceFilter) {
-      _OrderWorkspaceFilter.sugeridos => true,
+      _OrderWorkspaceFilter.sugeridos => _toDouble(row['unidades_pedir']) > 0,
+      _OrderWorkspaceFilter.todos => true,
       _OrderWorkspaceFilter.criticos =>
         stock <= 0 || status == 'STOCK_NEGATIVO',
       _OrderWorkspaceFilter.seleccionados =>
@@ -4168,7 +4188,9 @@ class _NextOrderContentState extends ConsumerState<_NextOrderContent> {
   Map<_OrderWorkspaceFilter, int> get _workspaceCounts {
     final rows = _orderRows;
     return <_OrderWorkspaceFilter, int>{
-      _OrderWorkspaceFilter.sugeridos: rows.length,
+      _OrderWorkspaceFilter.sugeridos:
+          rows.where((row) => _toDouble(row['unidades_pedir']) > 0).length,
+      _OrderWorkspaceFilter.todos: rows.length,
       _OrderWorkspaceFilter.criticos: rows.where((row) {
         final status = (row['estado_reposicion'] ?? '').toString().toUpperCase();
         return _toDouble(row['stock_actual']) <= 0 || status == 'STOCK_NEGATIVO';
@@ -4222,7 +4244,7 @@ class _NextOrderContentState extends ConsumerState<_NextOrderContent> {
 
   void _selectAll() {
     _selectionChanged(() {
-      for (final row in _orderRows) {
+      for (final row in _suggestedOrderRows) {
         final productId = _productId(row);
         if (productId != null && _purchasePresentationCost(row) > 0) {
           _selectedPresentations[productId] =
@@ -4973,6 +4995,7 @@ class _NextOrderContentState extends ConsumerState<_NextOrderContent> {
   Widget build(BuildContext context) {
     final allRows = widget.payload.rows;
     final orderRows = _orderRows;
+    final suggestedRows = _suggestedOrderRows;
     final selectedRows = _selectedRows;
     final visibleRows = _visibleOrderRows;
     final filteredRows = _rowsForDefinition(widget.definition, _filteredRows);
@@ -4988,7 +5011,7 @@ class _NextOrderContentState extends ConsumerState<_NextOrderContent> {
               children: [
                 _OrderHealthStrip(
                   allRows: allRows,
-                  orderRows: orderRows,
+                  orderRows: suggestedRows,
                   selectedRows: selectedRows,
                   palette: widget.palette,
                 ),
@@ -4997,7 +5020,7 @@ class _NextOrderContentState extends ConsumerState<_NextOrderContent> {
                   alignment: Alignment.centerRight,
                   child: OutlinedButton.icon(
                     onPressed: () async {
-                      await context.push('/pedidos-compra');
+                      await context.push('/proveedores-pedidos');
                       if (mounted) {
                         await _loadOrderDestinations();
                         _refreshOrderHistory();
@@ -5055,9 +5078,44 @@ class _NextOrderContentState extends ConsumerState<_NextOrderContent> {
                             ? _PositiveEmptyState(
                                 palette: widget.palette,
                                 message:
-                                    'El inventario está cubierto. No hay productos que requieran reposición.',
+                                    'No hay productos disponibles para construir un pedido.',
                               )
-                            : LayoutBuilder(
+                            : Column(
+                                crossAxisAlignment: CrossAxisAlignment.stretch,
+                                children: [
+                                  if (suggestedRows.isEmpty) ...[
+                                    Container(
+                                      margin: const EdgeInsets.only(bottom: 12),
+                                      padding: const EdgeInsets.all(12),
+                                      decoration: BoxDecoration(
+                                        color: widget.palette.success.withOpacity(.08),
+                                        borderRadius: BorderRadius.circular(16),
+                                        border: Border.all(
+                                          color: widget.palette.success.withOpacity(.20),
+                                        ),
+                                      ),
+                                      child: Row(
+                                        children: [
+                                          Icon(
+                                            Icons.inventory_2_outlined,
+                                            color: widget.palette.success,
+                                          ),
+                                          const SizedBox(width: 9),
+                                          Expanded(
+                                            child: Text(
+                                              'El inventario está cubierto. Puedes crear un pedido manual seleccionando cualquier producto del catálogo.',
+                                              style: TextStyle(
+                                                color: widget.palette.textPrimary,
+                                                fontWeight: FontWeight.w700,
+                                                fontSize: 11.5,
+                                              ),
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                  ],
+                                  LayoutBuilder(
                                 builder: (context, constraints) {
                                   final wide = constraints.maxWidth >= 1040;
                                   final products = _OrderProductList(
@@ -5964,6 +6022,7 @@ class _OrderWorkspaceToolbar extends StatelessWidget {
   Widget build(BuildContext context) {
     const labels = <_OrderWorkspaceFilter, String>{
       _OrderWorkspaceFilter.sugeridos: 'Sugeridos',
+      _OrderWorkspaceFilter.todos: 'Todos',
       _OrderWorkspaceFilter.criticos: 'Agotados',
       _OrderWorkspaceFilter.seleccionados: 'En pedido',
       _OrderWorkspaceFilter.sinCosto: 'Sin costo',
