@@ -31,6 +31,7 @@ class _ComandasPageState extends ConsumerState<ComandasPage> {
   bool _loading = true;
   bool _refreshing = false;
   String _station = 'TODAS';
+  String _mobileStatus = 'NUEVA';
   int? _loadedBranchId;
 
   @override
@@ -188,22 +189,37 @@ class _ComandasPageState extends ConsumerState<ComandasPage> {
                         : LayoutBuilder(
                             builder: (context, constraints) {
                               if (constraints.maxWidth < 820) {
-                                return ListView(
-                                  padding:
-                                      const EdgeInsets.fromLTRB(12, 8, 12, 90),
+                                return Column(
                                   children: [
-                                    for (final status in _statuses) ...[
-                                      _StatusSection(
-                                        status: status,
-                                        items: _items
-                                            .where((item) =>
-                                                item.estado == status)
-                                            .toList(growable: false),
-                                        updating: _updating,
-                                        onAdvance: _advance,
+                                    _MobileStatusBar(
+                                      selected: _mobileStatus,
+                                      items: _items,
+                                      onSelected: (value) {
+                                        setState(() => _mobileStatus = value);
+                                      },
+                                    ),
+                                    Expanded(
+                                      child: ListView(
+                                        padding: const EdgeInsets.fromLTRB(
+                                          10,
+                                          6,
+                                          10,
+                                          90,
+                                        ),
+                                        children: [
+                                          _StatusSection(
+                                            status: _mobileStatus,
+                                            items: _items
+                                                .where((item) =>
+                                                    item.estado ==
+                                                    _mobileStatus)
+                                                .toList(growable: false),
+                                            updating: _updating,
+                                            onAdvance: _advance,
+                                          ),
+                                        ],
                                       ),
-                                      const SizedBox(height: 12),
-                                    ],
+                                    ),
                                   ],
                                 );
                               }
