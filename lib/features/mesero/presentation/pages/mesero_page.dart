@@ -293,6 +293,12 @@ class _MeseroPageState extends ConsumerState<MeseroPage> {
   }
 
   @override
+  void initState() {
+    super.initState();
+    _medioPagoId = _defaultMedioPagoId(widget.mediosPago);
+  }
+
+  @override
   void dispose() {
     _productoFiltroController.dispose();
     _mesaBuscarController.dispose();
@@ -4422,6 +4428,7 @@ class _MeseroPageState extends ConsumerState<MeseroPage> {
           clipBehavior: Clip.antiAlias,
           child: _SalidaCajaDialog(
             opciones: opciones,
+            mediosPago: _mediosPago,
             palette: ref.read(selectedAppPaletteProvider),
           ),
         ),
@@ -4438,6 +4445,7 @@ class _MeseroPageState extends ConsumerState<MeseroPage> {
         descripcion: decision.descripcion,
         gastoId: decision.gastoId,
         pedidoId: decision.pedidoId,
+        medioPagoId: decision.medioPagoId,
       );
       await _reloadCierreCaja();
       if (!mounted) return;
@@ -5270,6 +5278,7 @@ class _SalidaCajaDecision {
     this.descripcion,
     this.gastoId,
     this.pedidoId,
+    this.medioPagoId,
   });
 
   final String tipo;
@@ -5278,15 +5287,18 @@ class _SalidaCajaDecision {
   final String? descripcion;
   final int? gastoId;
   final int? pedidoId;
+  final int? medioPagoId;
 }
 
 class _SalidaCajaDialog extends StatefulWidget {
   const _SalidaCajaDialog({
     required this.opciones,
+    required this.mediosPago,
     required this.palette,
   });
 
   final SalidaCajaOpcionesModel opciones;
+  final List<MeseroMedioPagoModel> mediosPago;
   final AppPalette palette;
 
   @override
@@ -5301,6 +5313,7 @@ class _SalidaCajaDialogState extends State<_SalidaCajaDialog> {
   String _categoria = 'ASEO';
   int? _gastoId;
   int? _pedidoId;
+  int? _medioPagoId;
 
   static const List<String> _categorias = <String>[
     'ASEO',
@@ -5334,12 +5347,17 @@ class _SalidaCajaDialogState extends State<_SalidaCajaDialog> {
     return null;
   }
 
+  MeseroMedioPagoModel? get _medioPago =>
+      _medioPagoById(widget.mediosPago, _medioPagoId);
+
   bool get _canSubmit {
     if (_valor <= 0) return false;
     if (_tipo == 'PAGO_GASTO') return _gastoId != null;
     if (_tipo == 'PAGO_PEDIDO') {
       final pedido = _pedido;
-      return pedido != null && _valor <= pedido.saldoPendiente + .01;
+      return pedido != null &&
+          _medioPagoId != null &&
+          _valor <= pedido.saldoPendiente + .01;
     }
     return _descripcionController.text.trim().isNotEmpty;
   }
@@ -5396,7 +5414,7 @@ class _SalidaCajaDialogState extends State<_SalidaCajaDialog> {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text(
-                          'Registrar salida de caja',
+                          'Registrar pago o salida',
                           style: TextStyle(
                             color: palette.textPrimary,
                             fontWeight: FontWeight.w900,
@@ -5404,7 +5422,7 @@ class _SalidaCajaDialogState extends State<_SalidaCajaDialog> {
                           ),
                         ),
                         Text(
-                          'Clasifica la salida para evitar duplicar gastos.',
+                          'Registra el medio usado para cuadrar correctamente el turno.',
                           style: TextStyle(
                             color: palette.textSecondary,
                             fontWeight: FontWeight.w600,
@@ -5505,7 +5523,9 @@ class _SalidaCajaDialogState extends State<_SalidaCajaDialog> {
           inputFormatters: _currencyInputFormatters,
           onChanged: (_) => setState(() {}),
           decoration: InputDecoration(
-            labelText: 'Valor que salió de caja',
+            labelText: _tipo == 'PAGO_PEDIDO'
+                ? 'Valor del pago'
+                : 'Valor que salió de caja',
             prefixIcon: const Icon(Icons.payments_outlined),
             suffixText: 'COP',
             helperText: _tipo == 'PAGO_PEDIDO' && _pedido != null
@@ -5553,6 +5573,49 @@ class _SalidaCajaDialogState extends State<_SalidaCajaDialog> {
             const SizedBox(height: 10),
             _SalidaPedidoResumen(pedido: _pedido!, palette: palette),
           ],
+          const SizedBox(height: 12),
+          DropdownButtonFormField<int>(
+            value: _medioPagoId,
+            isExpanded: true,
+            decoration: InputDecoration(
+              labelText: 'Medio con el que se pagó',
+              prefixIcon: Icon(
+                _medioPago == null
+                    ? Icons.account_balance_wallet_outlined
+                    : _iconoMedioPago(_medioPago!),
+              ),
+              helperText:
+                  'Efectivo, Nequi, Daviplata, transferencia u otro medio activo.',
+            ),
+            items: (widget.mediosPago
+                      .where((medio) => medio.medioPagoId != null)
+                      .toList(growable: false)
+                    ..sort((a, b) {
+                      final prioridad =
+                          _prioridadMedioPago(a).compareTo(_prioridadMedioPago(b));
+                      if (prioridad != 0) return prioridad;
+                      return (a.nombre ?? '').compareTo(b.nombre ?? '');
+                    }))
+                .map(
+                  (medio) => DropdownMenuItem<int>(
+                    value: medio.medioPagoId,
+                    child: Row(
+                      children: [
+                        Icon(_iconoMedioPago(medio), size: 18),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: Text(
+                            medio.nombre ?? 'Medio ${medio.medioPagoId}',
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                )
+                .toList(growable: false),
+            onChanged: (value) => setState(() => _medioPagoId = value),
+          ),
           const SizedBox(height: 12),
           amountField(),
           const SizedBox(height: 12),
@@ -5659,8 +5722,13 @@ class _SalidaCajaDialogState extends State<_SalidaCajaDialog> {
 
   Widget _buildImpact(AppPalette palette) {
     final affects = _tipo == 'GASTO_TURNO';
+    final medio = _medioPago;
     final text = _tipo == 'PAGO_PEDIDO'
-        ? 'Descuenta caja y reduce el saldo pendiente del pedido.'
+        ? medio == null
+            ? 'Selecciona el medio usado para que el cierre descuente el pago del lugar correcto.'
+            : _esMedioPagoEfectivo(medio)
+                ? 'Reduce el saldo pendiente del pedido y descuenta el pago del efectivo del turno.'
+                : 'Reduce el saldo pendiente del pedido y descuenta el pago de ${medio.nombre ?? 'este medio'}; no descuenta efectivo.'
         : _tipo == 'PAGO_GASTO'
             ? 'Descuenta caja. No duplica el gasto que ya está configurado.'
             : 'Descuenta caja y se suma a gastos variables del periodo.';
@@ -5707,6 +5775,7 @@ class _SalidaCajaDialogState extends State<_SalidaCajaDialog> {
             : _descripcionController.text.trim(),
         gastoId: _tipo == 'PAGO_GASTO' ? _gastoId : null,
         pedidoId: _tipo == 'PAGO_PEDIDO' ? _pedidoId : null,
+        medioPagoId: _tipo == 'PAGO_PEDIDO' ? _medioPagoId : null,
       ),
     );
   }
