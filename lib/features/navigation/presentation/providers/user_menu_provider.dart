@@ -77,6 +77,16 @@ final userMenuProvider = FutureProvider<List<UserMenuItem>>((ref) async {
         ]
       : filteredItems;
 
+  final commandsOnly = normalizedActive.isNotEmpty &&
+      normalizedActive.every(
+        (role) => const {'COCINA', 'BARRA', 'COMANDAS'}.contains(role),
+      );
+  if (commandsOnly) {
+    return withCommands
+        .where((item) => item.keyName == 'comandas')
+        .toList(growable: false);
+  }
+
   final operationalOnly = normalizedActive.isNotEmpty &&
       normalizedActive.every((role) => const {
             'INVENTARIO',
