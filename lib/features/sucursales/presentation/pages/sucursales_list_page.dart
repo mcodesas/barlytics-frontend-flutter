@@ -579,7 +579,9 @@ class _Header extends StatelessWidget {
                 ),
                 const SizedBox(height: 4),
                 Text(
-                  'Gestiona sedes, ubicación, moneda y disponibilidad. Las sucursales inactivas no consumen cupo del plan.',
+                  inactive == 0
+                      ? 'Gestiona sedes, ubicación, moneda y disponibilidad. Solo las sucursales activas consumen cupo del plan.'
+                      : '$inactive sucursal${inactive == 1 ? '' : 'es'} inactiva${inactive == 1 ? '' : 's'} conservada${inactive == 1 ? '' : 's'} como histórico; no consume${inactive == 1 ? '' : 'n'} cupo del plan.',
                   maxLines: 2,
                   overflow: TextOverflow.ellipsis,
                   style: TextStyle(color: palette.textSecondary, fontWeight: FontWeight.w700, height: 1.25),
