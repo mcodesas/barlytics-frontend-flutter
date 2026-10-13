@@ -2138,7 +2138,7 @@ class _OperationalBottomNavigation extends ConsumerWidget {
                                                           borderRadius: BorderRadius.circular(11),
                                                         ),
                                                         child: Icon(
-                                                          ModuleVisuals.byKey(item.keyName).icon,
+                                                          _customRoleMenuIcon(item),
                                                           color: palette.secondary,
                                                           size: 18,
                                                         ),
@@ -2273,7 +2273,7 @@ class _InventoryBottomNavigation extends ConsumerWidget {
         path,
         () => standard ?? (
           label: item.title.trim().isEmpty ? item.keyName : item.title.trim(),
-          icon: ModuleVisuals.byKey(item.keyName).icon,
+          icon: _customRoleMenuIcon(item),
           path: path,
         ),
       );
@@ -2515,6 +2515,18 @@ class _InventoryBottomNavigation extends ConsumerWidget {
   }
 }
 
+IconData _customRoleMenuIcon(UserMenuItem item) {
+  final bottomToken = item.bottomIcon.trim();
+  if (bottomToken.isNotEmpty && bottomToken.toLowerCase() != 'more_horiz') {
+    return _menuGroupIcon(bottomToken);
+  }
+  final groupToken = item.groupIcon.trim();
+  if (groupToken.isNotEmpty && groupToken.toLowerCase() != 'more_horiz') {
+    return _menuGroupIcon(groupToken);
+  }
+  return _customRoleMenuIcon(item);
+}
+
 class _CustomRoleBottomNavigation extends ConsumerWidget {
   const _CustomRoleBottomNavigation();
 
@@ -2565,7 +2577,7 @@ class _CustomRoleBottomNavigation extends ConsumerWidget {
                 mainAxisSize: MainAxisSize.min,
                 children: [
                   Icon(
-                    ModuleVisuals.byKey(item.keyName).icon,
+                    _customRoleMenuIcon(item),
                     color:
                         selected ? palette.secondary : palette.textSecondary,
                     size: 22,
@@ -2667,7 +2679,7 @@ class _CustomRoleBottomNavigation extends ConsumerWidget {
               BottomNavigationBarItem(
                 icon: Padding(
                   padding: const EdgeInsets.only(bottom: 3),
-                  child: Icon(ModuleVisuals.byKey(item.keyName).icon),
+                  child: Icon(_customRoleMenuIcon(item)),
                 ),
                 activeIcon: Container(
                   margin: const EdgeInsets.only(bottom: 3),
@@ -2681,7 +2693,7 @@ class _CustomRoleBottomNavigation extends ConsumerWidget {
                     ),
                     borderRadius: BorderRadius.circular(18),
                   ),
-                  child: Icon(ModuleVisuals.byKey(item.keyName).icon),
+                  child: Icon(_customRoleMenuIcon(item)),
                 ),
                 label: item.title,
               ),
@@ -2819,7 +2831,7 @@ class _CustomRoleBottomNavigation extends ConsumerWidget {
                                 selectedTileColor:
                                     palette.secondary.withOpacity(0.10),
                                 leading: Icon(
-                                  ModuleVisuals.byKey(item.keyName).icon,
+                                  _customRoleMenuIcon(item),
                                   color: selected
                                       ? palette.secondary
                                       : palette.textSecondary,
@@ -2966,7 +2978,7 @@ class _AdminBottomNavigation extends ConsumerWidget {
             !const {'/home', '/empresas', '/usuarios', '/soporte_global', '/explorador_datos', '/diagnostico_sistema', '/auditoria_soporte', '/sincronizar_catalogo'}.contains(item.path))
           _AdminNavigationItem(
             label: item.title.trim().isEmpty ? item.keyName : item.title.trim(),
-            icon: ModuleVisuals.byKey(item.keyName).icon,
+            icon: _customRoleMenuIcon(item),
             path: item.path,
             searchTerms: '${item.keyName} ${item.description ?? ''}',
           ),
@@ -3493,7 +3505,7 @@ class _ManagerBottomNavigation extends ConsumerWidget {
                                                   ? Icons.person_rounded
                                                   : item.path == '__appearance__'
                                                       ? Icons.palette_outlined
-                                                      : ModuleVisuals.byKey(item.keyName).icon,
+                                                      : _customRoleMenuIcon(item),
                                               color: item.path == selectedPath
                                                   ? palette.secondary
                                                   : palette.textSecondary,
@@ -4048,7 +4060,7 @@ class _AuthorizedMenuGroupsState extends State<_AuthorizedMenuGroups> {
                     Icon(
                       item.system && item.path == '__appearance__'
                           ? Icons.palette_outlined
-                          : ModuleVisuals.byKey(item.keyName).icon,
+                          : _customRoleMenuIcon(item),
                       size: 19,
                     ),
                     const SizedBox(width: 10),
@@ -4145,6 +4157,27 @@ IconData _menuGroupIcon(String token) {
     case 'room_service':
     case 'comandas':
       return Icons.receipt_long_rounded;
+    case 'home':
+      return Icons.home_rounded;
+    case 'table_restaurant':
+    case 'table_bar':
+      return Icons.table_restaurant_rounded;
+    case 'receipt_long':
+    case 'history':
+      return Icons.receipt_long_rounded;
+    case 'local_shipping':
+      return Icons.local_shipping_rounded;
+    case 'contact_phone':
+      return Icons.contact_phone_rounded;
+    case 'fact_check':
+      return Icons.fact_check_rounded;
+    case 'payments':
+      return Icons.payments_rounded;
+    case 'sell':
+      return Icons.sell_rounded;
+    case 'people':
+    case 'people_alt':
+      return Icons.people_alt_rounded;
     default:
       return Icons.more_horiz_rounded;
   }
