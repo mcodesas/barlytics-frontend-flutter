@@ -173,7 +173,7 @@ class _ReadyOrderNotificationHostState
                       overflow: TextOverflow.ellipsis,
                       style: TextStyle(
                         color: palette.textSecondary,
-                        fontWeight: FontWeight.w650,
+                        fontWeight: FontWeight.w600,
                         fontSize: compact ? 13.5 : 15,
                         height: 1.35,
                       ),
