@@ -10,13 +10,6 @@ on:
   push:
     branches:
       - main
-    paths:
-      - 'lib/**'
-      - 'assets/**'
-      - 'ios/**'
-      - 'pubspec.yaml'
-      - 'pubspec.lock'
-      - '.github/workflows/ios-testflight.yml'
     tags:
       - "ios-v*"
 

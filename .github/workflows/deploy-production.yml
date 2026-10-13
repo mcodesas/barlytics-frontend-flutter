@@ -3,9 +3,6 @@ name: Frontend Production
 on:
   push:
     branches: [main]
-    paths-ignore:
-      - 'ios/**'
-      - '.github/workflows/ios-*.yml'
   workflow_dispatch:
 
 concurrency:
@@ -65,7 +62,14 @@ jobs:
       - name: Compilar Android App Bundle
         run: |
           VERSION="$(sed -nE 's/^version:[[:space:]]*([^+[:space:]]+).*/\1/p' pubspec.yaml | head -n1)"
-          BUILD="$((GITHUB_RUN_NUMBER * 100 + GITHUB_RUN_ATTEMPT))"
+          BASE_EPOCH=1767225600
+          NOW_EPOCH="$(date +%s)"
+          BUILD="$((2001000000 + (NOW_EPOCH - BASE_EPOCH) / 2))"
+          if [ "$BUILD" -le 2000000692 ] || [ "$BUILD" -gt 2100000000 ]; then
+            echo "ERROR: versionCode Android fuera de rango seguro: $BUILD"
+            exit 1
+          fi
+          echo "Android versionCode de producción: $BUILD"
           flutter build appbundle --release --build-name="$VERSION" --build-number="$BUILD" --dart-define=ENV=prod --dart-define=BARLYTICS_APP_VERSION="$VERSION" --dart-define=BARLYTICS_APP_BUILD="$BUILD"
 
       - name: Restaurar credenciales Google Play
