@@ -649,29 +649,61 @@ class _CommandCard extends StatelessWidget {
                         height: 1.15,
                       ),
                     ),
-                    if (item.productoDescripcion.trim().isNotEmpty) ...[
-                      const SizedBox(height: 6),
-                      Container(
-                        width: double.infinity,
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 9,
-                          vertical: 8,
-                        ),
-                        decoration: BoxDecoration(
-                          color: theme.colorScheme.surfaceContainerHighest
-                              .withOpacity(.45),
-                          borderRadius: BorderRadius.circular(10),
-                        ),
-                        child: Text(
-                          item.productoDescripcion.trim(),
-                          style: theme.textTheme.bodySmall?.copyWith(
-                            color: theme.colorScheme.onSurfaceVariant,
-                            height: 1.35,
-                            fontWeight: FontWeight.w600,
-                          ),
+                    const SizedBox(height: 7),
+                    Container(
+                      width: double.infinity,
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 10,
+                        vertical: 9,
+                      ),
+                      decoration: BoxDecoration(
+                        color: theme.colorScheme.surfaceContainerHighest
+                            .withOpacity(.45),
+                        borderRadius: BorderRadius.circular(10),
+                        border: Border.all(
+                          color: theme.colorScheme.outlineVariant
+                              .withOpacity(.35),
                         ),
                       ),
-                    ],
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Row(
+                            children: [
+                              Icon(
+                                Icons.notes_rounded,
+                                size: 15,
+                                color: theme.colorScheme.primary,
+                              ),
+                              const SizedBox(width: 5),
+                              Text(
+                                'Descripción',
+                                style: theme.textTheme.labelSmall?.copyWith(
+                                  color: theme.colorScheme.primary,
+                                  fontWeight: FontWeight.w900,
+                                ),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 5),
+                          Text(
+                            item.productoDescripcion.trim().isEmpty
+                                ? 'Sin descripción registrada'
+                                : item.productoDescripcion.trim(),
+                            style: theme.textTheme.bodySmall?.copyWith(
+                              color: item.productoDescripcion.trim().isEmpty
+                                  ? theme.colorScheme.onSurfaceVariant
+                                      .withOpacity(.7)
+                                  : theme.colorScheme.onSurface,
+                              height: 1.4,
+                              fontWeight: item.productoDescripcion.trim().isEmpty
+                                  ? FontWeight.w500
+                                  : FontWeight.w700,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
                     const SizedBox(height: 7),
                     Row(
                       children: [
