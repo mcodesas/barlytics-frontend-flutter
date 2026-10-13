@@ -579,8 +579,7 @@ class _PedidosCompraPageState extends ConsumerState<PedidosCompraPage> {
   Widget _pendingView(AppPalette palette, int? branchId) {
     if (branchId == null) {
       return const AppEmptyView(
-        title: 'Selecciona una sucursal',
-        message: 'La recepción siempre afecta el inventario de una sucursal.',
+        message: 'Selecciona una sucursal. La recepción siempre afecta el inventario de una sucursal.',
       );
     }
     final pending = _orders
@@ -591,8 +590,7 @@ class _PedidosCompraPageState extends ConsumerState<PedidosCompraPage> {
         .toList(growable: false);
     if (pending.isEmpty) {
       return const AppEmptyView(
-        title: 'No hay pedidos por recibir',
-        message: 'Los pedidos confirmados aparecerán aquí hasta su recepción.',
+        message: 'No hay pedidos por recibir. Los pedidos confirmados aparecerán aquí hasta su recepción.',
       );
     }
 
@@ -718,8 +716,7 @@ class _PedidosCompraPageState extends ConsumerState<PedidosCompraPage> {
   Widget _destinationsView(AppPalette palette, int? branchId) {
     if (branchId == null) {
       return const AppEmptyView(
-        title: 'Selecciona una sucursal',
-        message: 'Los proveedores se parametrizan por sucursal.',
+        message: 'Selecciona una sucursal. Los proveedores se parametrizan por sucursal.',
       );
     }
 
@@ -738,9 +735,8 @@ class _PedidosCompraPageState extends ConsumerState<PedidosCompraPage> {
         Expanded(
           child: _destinations.isEmpty
               ? const AppEmptyView(
-                  title: 'Sin proveedores configurados',
                   message:
-                      'Agrega varios WhatsApp y asocia los productos que compras con cada uno.',
+                      'Sin proveedores configurados. Agrega varios WhatsApp y asocia los productos que compras con cada uno.',
                 )
               : ListView.separated(
                   padding: const EdgeInsets.only(bottom: 80),
