@@ -1738,7 +1738,11 @@ class _OperationalBottomNavigation extends ConsumerWidget {
           orElse: () => const <UserMenuItem>[],
         );
     final roles = ref.watch(activeRolesProvider);
-    final isCajero = roles.any((role) => role.toUpperCase().contains('CAJER'));
+    final assignedRoles = ref.watch(authControllerProvider).roles;
+    final isCajero = assignedRoles.any(
+      (role) => _normalizedRoleToken(role) == 'CAJERO' ||
+          _normalizedRoleToken(role) == 'CAJERA',
+    );
     final selectedMode = !isCajero &&
             (rawSelectedMode == MeseroPageMode.historial ||
                 rawSelectedMode == MeseroPageMode.cierreCaja)
