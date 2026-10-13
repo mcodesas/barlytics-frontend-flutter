@@ -32,6 +32,51 @@ final userMenuProvider = FutureProvider<List<UserMenuItem>>((ref) async {
         }).toList(growable: false);
 
   final normalizedActive = activeRoles.map(normalizeRoleName).toSet();
+  final canUseCommands = normalizedActive.any((role) => const {
+        'MESERO',
+        'MESERA',
+        'CAJERO',
+        'CAJERA',
+        'VENDEDOR',
+        'VENDEDORA',
+        'VENTAS',
+        'SELLER',
+        'GERENTE',
+        'MANAGER',
+        'SUPERVISOR',
+        'COCINA',
+        'BARRA',
+        'COMANDAS',
+        'ADMIN',
+        'ADMINISTRADOR',
+        'SUPERADMIN',
+        'SUPER_ADMIN',
+      }.contains(role));
+
+  final withCommands = canUseCommands &&
+          !filteredItems.any((item) => item.keyName == 'comandas')
+      ? <UserMenuItem>[
+          ...filteredItems,
+          const UserMenuItem(
+            keyName: 'comandas',
+            title: 'Comandas',
+            path: '/comandas',
+            description: 'Pedidos pendientes de Cocina y Barra',
+            groupCode: 'OPERACION',
+            groupName: 'Operación',
+            groupIcon: 'room_service',
+            groupOrder: 2,
+            menuOrder: 4,
+            bottomCode: 'COMANDAS',
+            bottomName: 'Comandas',
+            bottomIcon: 'room_service',
+            bottomOrder: 4,
+            bottomVisible: true,
+            system: true,
+          ),
+        ]
+      : filteredItems;
+
   final operationalOnly = normalizedActive.isNotEmpty &&
       normalizedActive.every((role) => const {
             'INVENTARIO',
@@ -42,9 +87,9 @@ final userMenuProvider = FutureProvider<List<UserMenuItem>>((ref) async {
             'MOVIMIENTO',
           }.contains(role));
 
-  if (!operationalOnly) return filteredItems;
+  if (!operationalOnly) return withCommands;
 
-  return filteredItems.map((item) {
+  return withCommands.map((item) {
     if (item.keyName == 'inventario' &&
         normalizedActive.any((role) => const {
               'INVENTARIO',
