@@ -4990,6 +4990,27 @@ class _NextOrderContentState extends ConsumerState<_NextOrderContent> {
                   selectedRows: selectedRows,
                   palette: widget.palette,
                 ),
+                const SizedBox(height: 10),
+                Align(
+                  alignment: Alignment.centerRight,
+                  child: OutlinedButton.icon(
+                    onPressed: () async {
+                      await context.push('/pedidos-compra');
+                      if (mounted) {
+                        await _loadOrderDestinations();
+                        _refreshOrderHistory();
+                      }
+                    },
+                    icon: const Icon(Icons.message_outlined, size: 17),
+                    label: Text(
+                      _orderDestinations.isEmpty
+                          ? 'Configurar proveedores / WhatsApp'
+                          : 'Proveedores / WhatsApp (' +
+                              _orderDestinations.length.toString() +
+                              ')',
+                    ),
+                  ),
+                ),
                 const SizedBox(height: 12),
                 Container(
                   decoration: BoxDecoration(
