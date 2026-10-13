@@ -588,6 +588,13 @@ class _StatusSection extends StatelessWidget {
       );
     }
 
+    if (!showHeader) {
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: content,
+      );
+    }
+
     return Container(
       padding: const EdgeInsets.all(10),
       decoration: _columnDecoration(context),
