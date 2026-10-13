@@ -116,6 +116,14 @@ class _AppScaffoldState extends ConsumerState<AppScaffold> {
     final isInventario = !hasPersonalizedRole && roles.any(_isInventoryRole);
     final isManager = !hasPersonalizedRole && roles.any(_isManagerRole);
     final isGlobalAdmin = roles.any(_isGlobalAdminRole);
+    final shouldReceiveReadyOrderNotifications =
+        roles.any(_isMesaCashierSellerRole);
+    Widget withReadyOrderNotifications(Widget scaffold) {
+      return shouldReceiveReadyOrderNotifications
+          ? ReadyOrderNotificationHost(child: scaffold)
+          : scaffold;
+    }
+
     final operationalMenuOpen = ref.watch(operationalMenuOpenProvider);
     final pageTitle = _resolveCurrentPageTitle(
       context,
@@ -154,17 +162,20 @@ class _AppScaffoldState extends ConsumerState<AppScaffold> {
     );
 
     if (isManager) {
-      return _ManagerScaffold(
-        child: widget.child,
-        onLogout: () => _logout(context),
-        collapsed: _mainMenuCollapsed,
-        onToggleCollapsed: () => setState(() => _mainMenuCollapsed = !_mainMenuCollapsed),
-        palette: palette,
-        pageTitle: pageTitle,
-        pageSubtitle: pageSubtitle,
-        pageEyebrow: pageEyebrow,
-        pageStatusText: pageStatusText,
-        pageIcon: pageIcon,
+      return withReadyOrderNotifications(
+        _ManagerScaffold(
+          child: widget.child,
+          onLogout: () => _logout(context),
+          collapsed: _mainMenuCollapsed,
+          onToggleCollapsed: () =>
+              setState(() => _mainMenuCollapsed = !_mainMenuCollapsed),
+          palette: palette,
+          pageTitle: pageTitle,
+          pageSubtitle: pageSubtitle,
+          pageEyebrow: pageEyebrow,
+          pageStatusText: pageStatusText,
+          pageIcon: pageIcon,
+        ),
       );
     }
 
@@ -185,14 +196,12 @@ class _AppScaffoldState extends ConsumerState<AppScaffold> {
         bottomMenuType: isInventario ? _OperationalBottomMenuType.inventory : _OperationalBottomMenuType.mesa,
       );
 
-      if (roles.any(_isMesaCashierSellerRole)) {
-        return ReadyOrderNotificationHost(child: operationalScaffold);
-      }
-      return operationalScaffold;
+      return withReadyOrderNotifications(operationalScaffold);
     }
 
     if (isDesktop) {
-      return Scaffold(
+      return withReadyOrderNotifications(
+        Scaffold(
         body: SafeArea(
           child: Stack(
             children: [
@@ -244,10 +253,12 @@ class _AppScaffoldState extends ConsumerState<AppScaffold> {
             ],
           ),
         ),
+        ),
       );
     }
 
-    return Scaffold(
+    return withReadyOrderNotifications(
+      Scaffold(
       drawer: Drawer(
         backgroundColor: Colors.transparent,
         surfaceTintColor: Colors.transparent,
@@ -280,6 +291,7 @@ class _AppScaffoldState extends ConsumerState<AppScaffold> {
       bottomNavigationBar: isGlobalAdmin
           ? const _AdminBottomNavigation()
           : const _ManagerBottomNavigation(),
+      ),
     );
   }
 
