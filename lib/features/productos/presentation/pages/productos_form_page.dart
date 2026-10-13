@@ -1419,7 +1419,7 @@ class _ProductosFormPageState extends ConsumerState<ProductosFormPage> {
       }
 
       await apiClient.put<Map<String, dynamic>>(
-        '/api/v1/productos/$savedProductId/gastro',
+        '/api/v1/productos/$savedProductId/gastro?sucursalId=$savedSucursalId',
         <String, dynamic>{
           'tipoControl': _tipoControl,
           'unidadBase': _unidadBase,
@@ -1431,7 +1431,6 @@ class _ProductosFormPageState extends ConsumerState<ProductosFormPage> {
               : const <Map<String, dynamic>>[],
         },
         (json) => Map<String, dynamic>.from(json as Map),
-        queryParameters: <String, dynamic>{'sucursalId': savedSucursalId},
       );
 
       if (_registrarInventario) {
