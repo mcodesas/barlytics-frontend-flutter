@@ -6121,7 +6121,42 @@ String _tableMoney(num? value) {
     buffer.write(rounded[index]);
     if (remaining > 1 && remaining % 3 == 1) buffer.write('.');
   }
-  return '\${buffer.toString()}';
+  return r'
+}
+
+String _formatNumber(num? value) {
+  if (value == null) return '0';
+  if (value % 1 == 0) return value.toInt().toString();
+  return value.toStringAsFixed(2);
+}
+
+String _shortDate(String? value) {
+  final parsed = _parseDate(value);
+  if (parsed == null) return '-';
+  final day = parsed.day.toString().padLeft(2, '0');
+  final month = parsed.month.toString().padLeft(2, '0');
+  return '$day/$month/${parsed.year}';
+}
+
+
+String _presentationSummary(ProductosResponseModel item) {
+  final quantity = item.prodCantidadCompra;
+  final presentation = (item.prodPresentacionCompra ?? '').trim();
+  if (quantity != null && presentation.isNotEmpty) {
+    final qty = quantity % 1 == 0 ? quantity.toInt().toString() : quantity.toStringAsFixed(2);
+    return '$qty $presentation';
+  }
+  if (presentation.isNotEmpty) return presentation;
+  if (quantity != null) return 'Cantidad $quantity';
+  return 'Presentación no definida';
+}
+
+T? _firstOrNull<T>(Iterable<T> items) {
+  final iterator = items.iterator;
+  if (!iterator.moveNext()) return null;
+  return iterator.current;
+}
+ + buffer.toString();
 }
 
 String _formatNumber(num? value) {
