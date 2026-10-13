@@ -4178,6 +4178,25 @@ class _MeseroPageState extends ConsumerState<MeseroPage> {
   }
 
   Future<void> _seleccionarCantidadYAgregarProducto(int cuentaId, MeseroProductoModel producto) async {
+    final prepared = (producto.tipoControl ?? '').trim().toUpperCase() == 'PREPARADO';
+
+    if (prepared) {
+      final decision = await showDialog<_PedidoProductoDecision>(
+        context: context,
+        builder: (context) => _PersonalizarProductoDialog(producto: producto),
+      );
+      if (decision == null || decision.cantidad <= 0) return;
+      await _agregarProducto(
+        cuentaId,
+        producto,
+        cantidad: decision.cantidad,
+        ingredientesExcluidos: decision.ingredientesExcluidos,
+        adiciones: decision.adiciones,
+        observacion: decision.observacion,
+      );
+      return;
+    }
+
     final cantidad = await showDialog<double>(
       context: context,
       builder: (context) => _CantidadProductoDialog(producto: producto),
@@ -4187,7 +4206,14 @@ class _MeseroPageState extends ConsumerState<MeseroPage> {
     await _agregarProducto(cuentaId, producto, cantidad: cantidad);
   }
 
-  Future<void> _agregarProducto(int cuentaId, MeseroProductoModel producto, {double cantidad = 1}) async {
+  Future<void> _agregarProducto(
+    int cuentaId,
+    MeseroProductoModel producto, {
+    double cantidad = 1,
+    List<int> ingredientesExcluidos = const <int>[],
+    List<int> adiciones = const <int>[],
+    String? observacion,
+  }) async {
     if (producto.prodId == null) return;
     setState(() => _processing = true);
     try {
@@ -4196,6 +4222,9 @@ class _MeseroPageState extends ConsumerState<MeseroPage> {
         productoId: producto.prodId!,
         precioId: producto.precId,
         cantidad: cantidad,
+        ingredientesExcluidos: ingredientesExcluidos,
+        adiciones: adiciones,
+        observacion: observacion,
       );
       final future = _load();
       final volverACuenta = _irACuentaDespuesAgregarProducto;
