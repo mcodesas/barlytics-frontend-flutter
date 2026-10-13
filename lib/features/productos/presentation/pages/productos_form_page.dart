@@ -67,6 +67,11 @@ class _ProductosFormPageState extends ConsumerState<ProductosFormPage> {
   bool _loadedStorage = false;
   bool _hydratedProduct = false;
   bool _hydratedPrice = false;
+  bool _gastroLoaded = false;
+  String _tipoControl = 'NORMAL';
+  String _unidadBase = 'UND';
+  final List<_GastroIngredientDraft> _gastroIngredientes = <_GastroIngredientDraft>[];
+  final List<_GastroAdditionDraft> _gastroAdiciones = <_GastroAdditionDraft>[];
   double? _originalValorCompra;
   double? _originalValorVenta;
   double? _originalPorcentajeImpuesto;
@@ -105,6 +110,51 @@ class _ProductosFormPageState extends ConsumerState<ProductosFormPage> {
       _sucursalId = int.tryParse(raw ?? '');
       _loadedStorage = true;
     });
+    if (_editing) {
+      await _loadGastroConfig();
+    }
+  }
+
+  Future<void> _loadGastroConfig() async {
+    if (_gastroLoaded) return;
+    final productId = _editingId;
+    final branchId = _sucursalId;
+    if (productId == null || branchId == null) return;
+
+    try {
+      final response = await ref.read(apiClientProvider).get<Map<String, dynamic>>(
+            '/api/v1/productos/$productId/gastro',
+            (json) => Map<String, dynamic>.from(json as Map),
+            queryParameters: <String, dynamic>{'sucursalId': branchId},
+          );
+      final data = response.data;
+      if (!mounted || data == null) return;
+
+      final ingredientes = (data['ingredientes'] as List? ?? const <dynamic>[])
+          .whereType<Map>()
+          .map((item) => _GastroIngredientDraft.fromJson(Map<String, dynamic>.from(item)))
+          .toList();
+      final adiciones = (data['adiciones'] as List? ?? const <dynamic>[])
+          .whereType<Map>()
+          .map((item) => _GastroAdditionDraft.fromJson(Map<String, dynamic>.from(item)))
+          .toList();
+
+      setState(() {
+        _tipoControl = (data['tipoControl']?.toString() ?? 'NORMAL').toUpperCase();
+        _unidadBase = (data['unidadBase']?.toString() ?? 'UND').toUpperCase();
+        _gastroIngredientes
+          ..clear()
+          ..addAll(ingredientes);
+        _gastroAdiciones
+          ..clear()
+          ..addAll(adiciones);
+        _gastroLoaded = true;
+      });
+    } catch (_) {
+      // Los productos existentes siguen siendo compatibles como NORMAL aunque
+      // la configuración gastrobar todavía no haya sido creada.
+      if (mounted) setState(() => _gastroLoaded = true);
+    }
   }
 
   void _hydrateProduct(ProductosResponseModel producto) {
@@ -128,6 +178,10 @@ class _ProductosFormPageState extends ConsumerState<ProductosFormPage> {
     _stockMaximoController.text = _stockMaximoSinLimite
         ? ''
         : _toFieldNumber(producto.prodStockMaximo);
+    if (!_gastroLoaded) {
+      _tipoControl = (producto.prodTipoControl ?? 'NORMAL').toUpperCase();
+      _unidadBase = (producto.prodUnidadBase ?? 'UND').toUpperCase();
+    }
   }
 
   void _hydratePrice(List<PreciosResponseModel> precios) {
