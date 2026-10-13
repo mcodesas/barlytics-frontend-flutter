@@ -947,6 +947,522 @@ class _OrderGroupCard extends StatelessWidget {
   }
 }
 
+Future<void> _showProductDetail(
+  BuildContext context,
+  _ComandaItem item,
+) async {
+  final theme = Theme.of(context);
+  final customization = item.customization;
+  final tableLabel = item.mesaNumero == null
+      ? 'Venta directa'
+      : 'Mesa ${item.mesaNumero}${item.mesaDescripcion.trim().isEmpty ? '' : ' · ${item.mesaDescripcion.trim()}'}';
+  final accountLabel = 'Cuenta ${item.cuentaNumero ?? '-'}'
+      '${item.cuentaDescripcion.trim().isEmpty ? '' : ' · ${item.cuentaDescripcion.trim()}'}';
+
+  await showModalBottomSheet<void>(
+    context: context,
+    isScrollControlled: true,
+    useSafeArea: true,
+    backgroundColor: Colors.transparent,
+    builder: (sheetContext) {
+      return DraggableScrollableSheet(
+        initialChildSize: .72,
+        minChildSize: .45,
+        maxChildSize: .94,
+        expand: false,
+        builder: (context, controller) {
+          return Container(
+            decoration: BoxDecoration(
+              color: theme.colorScheme.surface,
+              borderRadius: const BorderRadius.vertical(
+                top: Radius.circular(26),
+              ),
+              border: Border.all(
+                color: theme.colorScheme.outlineVariant.withOpacity(.45),
+              ),
+            ),
+            child: ListView(
+              controller: controller,
+              padding: const EdgeInsets.fromLTRB(18, 10, 18, 28),
+              children: [
+                Center(
+                  child: Container(
+                    width: 44,
+                    height: 4,
+                    decoration: BoxDecoration(
+                      color: theme.colorScheme.outlineVariant,
+                      borderRadius: BorderRadius.circular(999),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 16),
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Container(
+                      constraints: const BoxConstraints(minWidth: 48),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 10,
+                        vertical: 9,
+                      ),
+                      decoration: BoxDecoration(
+                        color: theme.colorScheme.primaryContainer,
+                        borderRadius: BorderRadius.circular(13),
+                      ),
+                      child: Text(
+                        'x${_formatQuantity(item.cantidad)}',
+                        textAlign: TextAlign.center,
+                        style: theme.textTheme.titleMedium?.copyWith(
+                          color: theme.colorScheme.onPrimaryContainer,
+                          fontWeight: FontWeight.w900,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            item.productoNombre,
+                            style: theme.textTheme.titleLarge?.copyWith(
+                              fontWeight: FontWeight.w900,
+                              height: 1.1,
+                            ),
+                          ),
+                          const SizedBox(height: 5),
+                          Text(
+                            item.estacion == 'BARRA' ? 'Barra' : 'Cocina',
+                            style: theme.textTheme.labelLarge?.copyWith(
+                              color: theme.colorScheme.primary,
+                              fontWeight: FontWeight.w800,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    IconButton(
+                      tooltip: 'Cerrar',
+                      onPressed: () => Navigator.of(sheetContext).pop(),
+                      icon: const Icon(Icons.close_rounded),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 18),
+                _DetailSection(
+                  icon: Icons.notes_rounded,
+                  title: 'Descripción completa',
+                  child: Text(
+                    item.productoDescripcion.trim().isEmpty
+                        ? 'Sin descripción registrada'
+                        : item.productoDescripcion.trim(),
+                    style: theme.textTheme.bodyLarge?.copyWith(
+                      height: 1.45,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ),
+                if (customization.removed.isNotEmpty) ...[
+                  const SizedBox(height: 12),
+                  _DetailSection(
+                    icon: Icons.remove_circle_outline_rounded,
+                    title: 'Sin ingredientes',
+                    child: Wrap(
+                      spacing: 7,
+                      runSpacing: 7,
+                      children: [
+                        for (final text in customization.removed)
+                          _CompactModifier(
+                            icon: Icons.remove_rounded,
+                            label: text,
+                            tone: theme.colorScheme.error,
+                          ),
+                      ],
+                    ),
+                  ),
+                ],
+                if (customization.additions.isNotEmpty) ...[
+                  const SizedBox(height: 12),
+                  _DetailSection(
+                    icon: Icons.add_circle_outline_rounded,
+                    title: 'Adiciones',
+                    child: Wrap(
+                      spacing: 7,
+                      runSpacing: 7,
+                      children: [
+                        for (final text in customization.additions)
+                          _CompactModifier(
+                            icon: Icons.add_rounded,
+                            label: text,
+                            tone: theme.colorScheme.tertiary,
+                          ),
+                      ],
+                    ),
+                  ),
+                ],
+                if (customization.observation != null &&
+                    customization.observation!.isNotEmpty) ...[
+                  const SizedBox(height: 12),
+                  _DetailSection(
+                    icon: Icons.sticky_note_2_outlined,
+                    title: 'Observaciones',
+                    child: Text(
+                      customization.observation!,
+                      style: theme.textTheme.bodyMedium?.copyWith(
+                        height: 1.4,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                  ),
+                ],
+                const SizedBox(height: 16),
+                _DetailMetaRow(
+                  icon: Icons.table_restaurant_rounded,
+                  label: tableLabel,
+                ),
+                _DetailMetaRow(
+                  icon: Icons.receipt_long_outlined,
+                  label: accountLabel,
+                ),
+                _DetailMetaRow(
+                  icon: Icons.tag_rounded,
+                  label: 'Pedido #${item.ventaId}',
+                ),
+                if (item.fechaPedido != null)
+                  _DetailMetaRow(
+                    icon: Icons.schedule_rounded,
+                    label:
+                        'Hora: ${DateFormat('HH:mm').format(item.fechaPedido!)}',
+                  ),
+                if (item.mesero.trim().isNotEmpty)
+                  _DetailMetaRow(
+                    icon: Icons.person_outline_rounded,
+                    label: item.mesero,
+                  ),
+              ],
+            ),
+          );
+        },
+      );
+    },
+  );
+}
+
+class _OrderProductRow extends StatelessWidget {
+  const _OrderProductRow({required this.item});
+
+  final _ComandaItem item;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final customization = item.customization;
+    final description = item.productoDescripcion.trim();
+    final kitchen = item.estacion == 'COCINA';
+
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        borderRadius: BorderRadius.circular(14),
+        onTap: () => _showProductDetail(context, item),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 2, vertical: 4),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Container(
+                constraints: const BoxConstraints(minWidth: 40),
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 8, vertical: 7),
+                decoration: BoxDecoration(
+                  color: theme.colorScheme.primary.withOpacity(.10),
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: Text(
+                  'x${_formatQuantity(item.cantidad)}',
+                  textAlign: TextAlign.center,
+                  style: theme.textTheme.labelLarge?.copyWith(
+                    color: theme.colorScheme.primary,
+                    fontWeight: FontWeight.w900,
+                  ),
+                ),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Expanded(
+                          child: Text(
+                            item.productoNombre,
+                            style: theme.textTheme.titleSmall?.copyWith(
+                              fontWeight: FontWeight.w900,
+                              height: 1.15,
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 7),
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 7,
+                            vertical: 4,
+                          ),
+                          decoration: BoxDecoration(
+                            color: theme.colorScheme.secondaryContainer
+                                .withOpacity(.42),
+                            borderRadius: BorderRadius.circular(999),
+                          ),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Icon(
+                                kitchen
+                                    ? Icons.restaurant_rounded
+                                    : Icons.local_bar_rounded,
+                                size: 13,
+                                color:
+                                    theme.colorScheme.onSecondaryContainer,
+                              ),
+                              const SizedBox(width: 3),
+                              Text(
+                                kitchen ? 'Cocina' : 'Barra',
+                                style: theme.textTheme.labelSmall?.copyWith(
+                                  color:
+                                      theme.colorScheme.onSecondaryContainer,
+                                  fontWeight: FontWeight.w800,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      description.isEmpty
+                          ? 'Sin descripción registrada'
+                          : description,
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: theme.textTheme.bodySmall?.copyWith(
+                        color: description.isEmpty
+                            ? theme.colorScheme.onSurfaceVariant
+                                .withOpacity(.62)
+                            : theme.colorScheme.onSurfaceVariant,
+                        height: 1.3,
+                        fontWeight: description.isEmpty
+                            ? FontWeight.w500
+                            : FontWeight.w600,
+                      ),
+                    ),
+                    if (customization.removed.isNotEmpty ||
+                        customization.additions.isNotEmpty) ...[
+                      const SizedBox(height: 7),
+                      Wrap(
+                        spacing: 5,
+                        runSpacing: 5,
+                        children: [
+                          for (final text in customization.removed)
+                            _CompactModifier(
+                              icon: Icons.remove_rounded,
+                              label: 'SIN $text',
+                              tone: theme.colorScheme.error,
+                            ),
+                          for (final text in customization.additions)
+                            _CompactModifier(
+                              icon: Icons.add_rounded,
+                              label: text,
+                              tone: theme.colorScheme.tertiary,
+                            ),
+                        ],
+                      ),
+                    ],
+                    if (customization.observation != null &&
+                        customization.observation!.isNotEmpty) ...[
+                      const SizedBox(height: 7),
+                      Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Icon(
+                            Icons.sticky_note_2_outlined,
+                            size: 14,
+                            color: theme.colorScheme.secondary,
+                          ),
+                          const SizedBox(width: 4),
+                          Expanded(
+                            child: Text(
+                              customization.observation!,
+                              maxLines: 2,
+                              overflow: TextOverflow.ellipsis,
+                              style: theme.textTheme.bodySmall?.copyWith(
+                                fontWeight: FontWeight.w700,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
+                    const SizedBox(height: 6),
+                    Row(
+                      children: [
+                        Icon(
+                          Icons.touch_app_outlined,
+                          size: 13,
+                          color: theme.colorScheme.primary,
+                        ),
+                        const SizedBox(width: 4),
+                        Text(
+                          'Toca para ver detalle',
+                          style: theme.textTheme.labelSmall?.copyWith(
+                            color: theme.colorScheme.primary,
+                            fontWeight: FontWeight.w800,
+                          ),
+                        ),
+                        const Spacer(),
+                        Icon(
+                          Icons.chevron_right_rounded,
+                          size: 17,
+                          color: theme.colorScheme.onSurfaceVariant,
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _CompactModifier extends StatelessWidget {
+  const _CompactModifier({
+    required this.icon,
+    required this.label,
+    required this.tone,
+  });
+
+  final IconData icon;
+  final String label;
+  final Color tone;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 4),
+      decoration: BoxDecoration(
+        color: tone.withOpacity(.08),
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: tone.withOpacity(.14)),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 12, color: tone),
+          const SizedBox(width: 3),
+          Text(
+            label,
+            style: TextStyle(
+              color: tone,
+              fontSize: 10.5,
+              fontWeight: FontWeight.w900,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _DetailSection extends StatelessWidget {
+  const _DetailSection({
+    required this.icon,
+    required this.title,
+    required this.child,
+  });
+
+  final IconData icon;
+  final String title;
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(13),
+      decoration: BoxDecoration(
+        color: theme.colorScheme.surfaceContainerHighest.withOpacity(.36),
+        borderRadius: BorderRadius.circular(15),
+        border: Border.all(
+          color: theme.colorScheme.outlineVariant.withOpacity(.32),
+        ),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(icon, size: 17, color: theme.colorScheme.primary),
+              const SizedBox(width: 6),
+              Text(
+                title,
+                style: theme.textTheme.labelLarge?.copyWith(
+                  color: theme.colorScheme.primary,
+                  fontWeight: FontWeight.w900,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          child,
+        ],
+      ),
+    );
+  }
+}
+
+class _DetailMetaRow extends StatelessWidget {
+  const _DetailMetaRow({
+    required this.icon,
+    required this.label,
+  });
+
+  final IconData icon;
+  final String label;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 8),
+      child: Row(
+        children: [
+          Icon(
+            icon,
+            size: 17,
+            color: theme.colorScheme.onSurfaceVariant,
+          ),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Text(
+              label,
+              style: theme.textTheme.bodySmall?.copyWith(
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
 class _GroupInfoChip extends StatelessWidget {
   const _GroupInfoChip({
     required this.icon,
