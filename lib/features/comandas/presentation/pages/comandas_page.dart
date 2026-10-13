@@ -209,6 +209,7 @@ class _ComandasPageState extends ConsumerState<ComandasPage> {
                                         children: [
                                           _StatusSection(
                                             status: _mobileStatus,
+                                            showHeader: false,
                                             items: _items
                                                 .where((item) =>
                                                     item.estado ==
@@ -318,7 +319,11 @@ class _Header extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final pending = items.where((item) => item.estado != 'ENTREGADA').length;
+    final pending = items
+        .where((item) => item.estado != 'ENTREGADA')
+        .map((item) => '${item.ventaId}|${item.cuentaId}|${item.mesaId ?? 0}')
+        .toSet()
+        .length;
 
     return Container(
       width: double.infinity,
@@ -356,7 +361,7 @@ class _Header extends StatelessWidget {
                       ),
                     ),
                     Text(
-                      '$branchName · $pending pendientes',
+                      '$branchName · $pending pedido${pending == 1 ? '' : 's'} pendiente${pending == 1 ? '' : 's'}',
                       style: theme.textTheme.bodySmall,
                     ),
                   ],
@@ -536,6 +541,7 @@ class _StatusSection extends StatelessWidget {
     required this.updating,
     required this.onAdvance,
     this.scrollable = false,
+    this.showHeader = true,
   });
 
   final String status;
@@ -543,13 +549,16 @@ class _StatusSection extends StatelessWidget {
   final Set<int> updating;
   final Future<void> Function(_ComandaItem) onAdvance;
   final bool scrollable;
+  final bool showHeader;
 
   @override
   Widget build(BuildContext context) {
     final groupedOrders = _groupByOrder(items);
     final content = <Widget>[
-      _StatusHeader(status: status, count: groupedOrders.length),
-      const SizedBox(height: 8),
+      if (showHeader) ...[
+        _StatusHeader(status: status, count: groupedOrders.length),
+        const SizedBox(height: 8),
+      ],
       if (items.isEmpty)
         const _EmptyColumn()
       else
