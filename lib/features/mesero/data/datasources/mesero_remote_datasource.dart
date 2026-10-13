@@ -454,6 +454,7 @@ class MeseroRemoteDataSource {
     String? descripcion,
     int? gastoId,
     int? pedidoId,
+    int? medioPagoId,
   }) async {
     final response = await _apiClient.post<SalidaCajaModel>(
       ApiPaths.meseroCierreCajaSalidas,
@@ -465,6 +466,7 @@ class MeseroRemoteDataSource {
         if ((descripcion ?? '').trim().isNotEmpty) 'descripcion': descripcion!.trim(),
         if (gastoId != null) 'gastoId': gastoId,
         if (pedidoId != null) 'pedidoId': pedidoId,
+        if (medioPagoId != null) 'medioPagoId': medioPagoId,
       },
       (json) => SalidaCajaModel.fromJson(
         Map<String, dynamic>.from(json as Map),
