@@ -1025,12 +1025,12 @@ class _ProductosFormPageState extends ConsumerState<ProductosFormPage> {
     int? selectedId;
     String unit = 'UND';
     bool removable = true;
-    final quantity = TextEditingController(text: '1');
-    try {
-      final result = await showDialog<_GastroIngredientDraft>(
+    String quantityValue = '1';
+    final result = await showDialog<_GastroIngredientDraft>(
         context: context,
         builder: (dialogContext) => StatefulBuilder(
           builder: (dialogContext, setDialogState) => AlertDialog(
+            scrollable: true,
             title: const Text('Agregar ingrediente'),
             content: SizedBox(
               width: 520,
@@ -1063,7 +1063,7 @@ class _ProductosFormPageState extends ConsumerState<ProductosFormPage> {
                       children: [
                         Expanded(
                           child: TextFormField(
-                            controller: quantity,
+                            initialValue: '1',
                             keyboardType: const TextInputType.numberWithOptions(decimal: true),
                             inputFormatters: InputConstraints.decimalFormatters(integerDigits: 13, fractionDigits: 4),
                             decoration: const InputDecoration(
@@ -1071,6 +1071,7 @@ class _ProductosFormPageState extends ConsumerState<ProductosFormPage> {
                               prefixIcon: Icon(Icons.numbers_rounded),
                             ),
                             validator: _requiredPositive,
+                            onChanged: (value) => quantityValue = value,
                           ),
                         ),
                         const SizedBox(width: 10),
@@ -1112,7 +1113,7 @@ class _ProductosFormPageState extends ConsumerState<ProductosFormPage> {
                     _GastroIngredientDraft(
                       prodId: selectedId!,
                       nombre: product.prodNombre ?? 'Producto $selectedId',
-                      cantidad: _parseDouble(quantity.text) ?? 1,
+                      cantidad: _parseDouble(quantityValue) ?? 1,
                       unidad: unit,
                       removible: removable,
                       precioCompra: product.precioCompraVigente,
@@ -1126,14 +1127,11 @@ class _ProductosFormPageState extends ConsumerState<ProductosFormPage> {
         ),
       );
 
-      if (result == null || !mounted) return;
-      setState(() {
-        _gastroIngredientes.removeWhere((item) => item.prodId == result.prodId);
-        _gastroIngredientes.add(result);
-      });
-    } finally {
-      quantity.dispose();
-    }
+    if (result == null || !mounted) return;
+    setState(() {
+      _gastroIngredientes.removeWhere((item) => item.prodId == result.prodId);
+      _gastroIngredientes.add(result);
+    });
   }
 
   Future<void> _addGastroAddition(List<ProductosResponseModel> productos) async {
@@ -1153,13 +1151,13 @@ class _ProductosFormPageState extends ConsumerState<ProductosFormPage> {
     final formKey = GlobalKey<FormState>();
     int? selectedId;
     String unit = 'UND';
-    final quantity = TextEditingController(text: '1');
-    final extraPrice = TextEditingController();
-    try {
-      final result = await showDialog<_GastroAdditionDraft>(
+    String quantityValue = '1';
+    String extraPriceValue = '';
+    final result = await showDialog<_GastroAdditionDraft>(
         context: context,
         builder: (dialogContext) => StatefulBuilder(
           builder: (dialogContext, setDialogState) => AlertDialog(
+            scrollable: true,
             title: const Text('Agregar adición al pedido'),
             content: SizedBox(
               width: 540,
@@ -1192,11 +1190,12 @@ class _ProductosFormPageState extends ConsumerState<ProductosFormPage> {
                       children: [
                         Expanded(
                           child: TextFormField(
-                            controller: quantity,
+                            initialValue: '1',
                             keyboardType: const TextInputType.numberWithOptions(decimal: true),
                             inputFormatters: InputConstraints.decimalFormatters(integerDigits: 13, fractionDigits: 4),
                             decoration: const InputDecoration(labelText: 'Cantidad', prefixIcon: Icon(Icons.numbers_rounded)),
                             validator: _requiredPositive,
+                            onChanged: (value) => quantityValue = value,
                           ),
                         ),
                         const SizedBox(width: 10),
@@ -1217,7 +1216,7 @@ class _ProductosFormPageState extends ConsumerState<ProductosFormPage> {
                     ),
                     const SizedBox(height: 12),
                     TextFormField(
-                      controller: extraPrice,
+                      initialValue: '',
                       keyboardType: const TextInputType.numberWithOptions(decimal: true),
                       inputFormatters: InputConstraints.decimalFormatters(integerDigits: 15, fractionDigits: 2),
                       decoration: const InputDecoration(
@@ -1226,6 +1225,7 @@ class _ProductosFormPageState extends ConsumerState<ProductosFormPage> {
                         prefixIcon: Icon(Icons.payments_rounded),
                       ),
                       validator: _requiredPositiveOrZero,
+                      onChanged: (value) => extraPriceValue = value,
                     ),
                   ],
                 ),
@@ -1242,9 +1242,9 @@ class _ProductosFormPageState extends ConsumerState<ProductosFormPage> {
                     _GastroAdditionDraft(
                       prodId: selectedId!,
                       nombre: product.prodNombre ?? 'Producto $selectedId',
-                      cantidad: _parseDouble(quantity.text) ?? 1,
+                      cantidad: _parseDouble(quantityValue) ?? 1,
                       unidad: unit,
-                      precioAdicional: _parseDouble(extraPrice.text) ?? 0,
+                      precioAdicional: _parseDouble(extraPriceValue) ?? 0,
                       precioCompra: product.precioCompraVigente,
                     ),
                   );
@@ -1256,15 +1256,11 @@ class _ProductosFormPageState extends ConsumerState<ProductosFormPage> {
         ),
       );
 
-      if (result == null || !mounted) return;
-      setState(() {
-        _gastroAdiciones.removeWhere((item) => item.prodId == result.prodId);
-        _gastroAdiciones.add(result);
-      });
-    } finally {
-      quantity.dispose();
-      extraPrice.dispose();
-    }
+    if (result == null || !mounted) return;
+    setState(() {
+      _gastroAdiciones.removeWhere((item) => item.prodId == result.prodId);
+      _gastroAdiciones.add(result);
+    });
   }
 
   Future<void> _pickExpirationDate() async {
