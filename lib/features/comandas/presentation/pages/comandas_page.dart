@@ -11,6 +11,7 @@ import '../../../../core/providers/core_providers.dart';
 import '../../../../core/widgets/app_empty_view.dart';
 import '../../../../core/widgets/app_loader.dart';
 import '../../../../core/widgets/tech_background.dart';
+import '../../../auth/presentation/providers/auth_provider.dart';
 import '../../../navigation/presentation/providers/active_role_provider.dart';
 
 enum _ComandaViewMode { cards, kanban }
@@ -126,7 +127,8 @@ class _ComandasPageState extends ConsumerState<ComandasPage> {
     final branchId = ref.read(branchScopeProvider).activeBranchId;
     if (branchId == null || _updating.contains(item.detalleId)) return;
 
-    final canManage = _canManageCommands(ref.read(activeRolesProvider));
+    final canManage =
+        _canManageCommands(ref.read(authControllerProvider).roles);
     final next = canManage
         ? switch (item.estado) {
             'NUEVA' => 'EN_PREPARACION',
@@ -206,7 +208,7 @@ class _ComandasPageState extends ConsumerState<ComandasPage> {
   Widget build(BuildContext context) {
     final palette = ref.watch(selectedAppPaletteProvider);
     final canManageCommands =
-        _canManageCommands(ref.watch(activeRolesProvider));
+        _canManageCommands(ref.watch(authControllerProvider).roles);
     final branch = ref.watch(branchScopeProvider);
     final branchId = branch.activeBranchId;
     if (branchId != null && branchId != _loadedBranchId && !_loading) {
