@@ -293,12 +293,6 @@ class _MeseroPageState extends ConsumerState<MeseroPage> {
   }
 
   @override
-  void initState() {
-    super.initState();
-    _medioPagoId = _defaultMedioPagoId(widget.mediosPago);
-  }
-
-  @override
   void dispose() {
     _productoFiltroController.dispose();
     _mesaBuscarController.dispose();
@@ -5323,6 +5317,12 @@ class _SalidaCajaDialogState extends State<_SalidaCajaDialog> {
     'EMERGENCIA',
     'OTROS',
   ];
+
+  @override
+  void initState() {
+    super.initState();
+    _medioPagoId = _defaultMedioPagoId(widget.mediosPago);
+  }
 
   @override
   void dispose() {
