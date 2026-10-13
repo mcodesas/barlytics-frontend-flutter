@@ -11,8 +11,28 @@ import '../../../../core/providers/core_providers.dart';
 import '../../../../core/widgets/app_empty_view.dart';
 import '../../../../core/widgets/app_loader.dart';
 import '../../../../core/widgets/tech_background.dart';
+import '../../../navigation/presentation/providers/active_role_provider.dart';
 
 enum _ComandaViewMode { cards, kanban }
+
+const _commandManagementRoles = <String>{
+  'COCINA',
+  'BARRA',
+  'COMANDAS',
+  'GERENTE',
+  'MANAGER',
+  'SUPERVISOR',
+  'ADMIN',
+  'ADMINISTRADOR',
+  'SUPERADMIN',
+  'SUPER_ADMIN',
+};
+
+bool _canManageCommands(Iterable<String> roles) =>
+    roles.map(normalizeRoleName).any(_commandManagementRoles.contains);
+
+String _formatComandaNumber(int? value) =>
+    value == null ? '---' : value.toString().padLeft(3, '0');
 
 class ComandasPage extends ConsumerStatefulWidget {
   const ComandasPage({super.key});
@@ -103,27 +123,48 @@ class _ComandasPageState extends ConsumerState<ComandasPage> {
   }
 
   Future<void> _advance(_ComandaItem item) async {
-    final next = switch (item.estado) {
-      'NUEVA' => 'EN_PREPARACION',
-      'EN_PREPARACION' => 'LISTA',
-      'LISTA' => 'ENTREGADA',
-      _ => null,
-    };
     final branchId = ref.read(branchScopeProvider).activeBranchId;
-    if (next == null || branchId == null || _updating.contains(item.detalleId)) {
+    if (branchId == null || _updating.contains(item.detalleId)) return;
+
+    final canManage = _canManageCommands(ref.read(activeRolesProvider));
+    final next = canManage
+        ? switch (item.estado) {
+            'NUEVA' => 'EN_PREPARACION',
+            'EN_PREPARACION' => 'LISTA',
+            'LISTA' => 'ENTREGADA',
+            _ => null,
+          }
+        : (item.estado == 'LISTA' ? 'ENTREGADA' : null);
+
+    if (next == null) {
+      if (!canManage) {
+        _message(
+          'Vista de consulta: puedes revisar el estado y marcar como entregados los productos listos.',
+        );
+      }
       return;
     }
 
     setState(() => _updating.add(item.detalleId));
     try {
-      final response = await ref.read(apiClientProvider).put<_ComandaItem>(
-            '/api/v1/comandas/${item.detalleId}/estado'
-            '?sucursalId=$branchId&estado=$next',
-            null,
-            (json) => _ComandaItem.fromJson(
-              Map<String, dynamic>.from(json as Map),
-            ),
-          );
+      final response = next == 'ENTREGADA' && !canManage
+          ? await ref.read(apiClientProvider).put<_ComandaItem>(
+                '/api/v1/comandas/${item.detalleId}/entregar'
+                '?sucursalId=$branchId',
+                null,
+                (json) => _ComandaItem.fromJson(
+                  Map<String, dynamic>.from(json as Map),
+                ),
+              )
+          : await ref.read(apiClientProvider).put<_ComandaItem>(
+                '/api/v1/comandas/${item.detalleId}/estado'
+                '?sucursalId=$branchId&estado=$next',
+                null,
+                (json) => _ComandaItem.fromJson(
+                  Map<String, dynamic>.from(json as Map),
+                ),
+              );
+
       if (!mounted) return;
       final updated = response.data;
       if (updated != null) {
@@ -137,8 +178,12 @@ class _ComandasPageState extends ConsumerState<ComandasPage> {
         });
       }
     } catch (error) {
-      _message('No fue posible cambiar el estado de la comanda: $error',
-          error: true);
+      _message(
+        next == 'ENTREGADA'
+            ? 'No fue posible marcar el producto como entregado: $error'
+            : 'No fue posible cambiar el estado de la comanda: $error',
+        error: true,
+      );
     } finally {
       if (mounted) setState(() => _updating.remove(item.detalleId));
     }
@@ -160,6 +205,8 @@ class _ComandasPageState extends ConsumerState<ComandasPage> {
   @override
   Widget build(BuildContext context) {
     final palette = ref.watch(selectedAppPaletteProvider);
+    final canManageCommands =
+        _canManageCommands(ref.watch(activeRolesProvider));
     final branch = ref.watch(branchScopeProvider);
     final branchId = branch.activeBranchId;
     if (branchId != null && branchId != _loadedBranchId && !_loading) {
@@ -263,6 +310,7 @@ class _ComandasPageState extends ConsumerState<ComandasPage> {
                               groups: orderGroups,
                               updating: _updating,
                               palette: palette,
+                              canManage: canManageCommands,
                               onAdvance: (items) async {
                                 for (final item in items) {
                                   await _advance(item);
@@ -273,6 +321,7 @@ class _ComandasPageState extends ConsumerState<ComandasPage> {
                               items: _items,
                               updating: _updating,
                               palette: palette,
+                              canManage: canManageCommands,
                               onAdvance: (items) async {
                                 for (final item in items) {
                                   await _advance(item);
@@ -834,13 +883,19 @@ class _ComandasKanbanBoard extends StatelessWidget {
   const _ComandasKanbanBoard({
     required this.items,
     required this.updating,
+class _ComandasKanbanBoard extends StatelessWidget {
+  const _ComandasKanbanBoard({
+    required this.items,
+    required this.updating,
     required this.palette,
+    required this.canManage,
     required this.onAdvance,
   });
 
   final List<_ComandaItem> items;
   final Set<int> updating;
   final AppPalette palette;
+  final bool canManage;
   final Future<void> Function(List<_ComandaItem>) onAdvance;
 
   static const _statuses = <String>[
@@ -867,6 +922,7 @@ class _ComandasKanbanBoard extends StatelessWidget {
                         .toList(growable: false),
                     updating: updating,
                     palette: palette,
+                    canManage: canManage,
                     onAdvance: onAdvance,
                   ),
                 ),
@@ -898,6 +954,7 @@ class _ComandasKanbanBoard extends StatelessWidget {
                         .toList(growable: false),
                     updating: updating,
                     palette: palette,
+                    canManage: canManage,
                     onAdvance: onAdvance,
                   ),
                 ),
@@ -918,6 +975,7 @@ class _ComandaKanbanColumn extends StatelessWidget {
     required this.items,
     required this.updating,
     required this.palette,
+    required this.canManage,
     required this.onAdvance,
   });
 
@@ -925,6 +983,7 @@ class _ComandaKanbanColumn extends StatelessWidget {
   final List<_ComandaItem> items;
   final Set<int> updating;
   final AppPalette palette;
+  final bool canManage;
   final Future<void> Function(List<_ComandaItem>) onAdvance;
 
   @override
@@ -1022,6 +1081,7 @@ class _ComandaKanbanColumn extends StatelessWidget {
                 child: _ComandaOrderCard(
                   items: group,
                   palette: palette,
+                  canManage: canManage,
                   updating: group.any(
                     (item) => updating.contains(item.detalleId),
                   ),
@@ -1039,13 +1099,19 @@ class _ComandasOrderGrid extends StatelessWidget {
   const _ComandasOrderGrid({
     required this.groups,
     required this.updating,
+class _ComandasOrderGrid extends StatelessWidget {
+  const _ComandasOrderGrid({
+    required this.groups,
+    required this.updating,
     required this.palette,
+    required this.canManage,
     required this.onAdvance,
   });
 
   final List<List<_ComandaItem>> groups;
   final Set<int> updating;
   final AppPalette palette;
+  final bool canManage;
   final Future<void> Function(List<_ComandaItem>) onAdvance;
 
   @override
@@ -1071,6 +1137,7 @@ class _ComandasOrderGrid extends StatelessWidget {
                 child: _ComandaOrderCard(
                   items: group,
                   palette: palette,
+                  canManage: canManage,
                   updating: group.any(
                     (item) => updating.contains(item.detalleId),
                   ),
@@ -1172,7 +1239,7 @@ class _ComandaOrderCard extends StatelessWidget {
                               ),
                               const SizedBox(height: 3),
                               Text(
-                                '$accountLabel · Pedido #${first.ventaId}',
+                                'Comanda #${_formatComandaNumber(first.comandaNumero)} · $accountLabel',
                                 maxLines: 2,
                                 overflow: TextOverflow.ellipsis,
                                 style: Theme.of(context)
@@ -2112,7 +2179,7 @@ class _OrderGroupCard extends StatelessWidget {
                             borderRadius: BorderRadius.circular(999),
                           ),
                           child: Text(
-                            'Pedido #${first.ventaId}',
+                            'Comanda #${_formatComandaNumber(first.comandaNumero)}',
                             style: theme.textTheme.labelSmall?.copyWith(
                               color: tone,
                               fontWeight: FontWeight.w900,
@@ -2332,7 +2399,7 @@ Future<void> _showOrderDetail(
                           ),
                           const SizedBox(height: 2),
                           Text(
-                            'Pedido #${first.ventaId} · $accountLabel',
+                            'Comanda #${_formatComandaNumber(first.comandaNumero)} · $accountLabel',
                             style: theme.textTheme.bodySmall?.copyWith(
                               color: theme.colorScheme.onSurfaceVariant,
                               fontWeight: FontWeight.w700,
@@ -2666,7 +2733,7 @@ Future<void> _showProductDetail(
                 ),
                 _DetailMetaRow(
                   icon: Icons.tag_rounded,
-                  label: 'Pedido #${item.ventaId}',
+                  label: 'Comanda #${_formatComandaNumber(item.comandaNumero)} · Pedido #${item.ventaId}',
                 ),
                 if (item.fechaPedido != null)
                   _DetailMetaRow(
@@ -3446,6 +3513,7 @@ class _ComandaItem {
     required this.cuentaId,
     required this.cuentaNumero,
     required this.cuentaDescripcion,
+    required this.comandaNumero,
     required this.productoId,
     required this.productoNombre,
     required this.productoDescripcion,
@@ -3467,6 +3535,7 @@ class _ComandaItem {
   final int cuentaId;
   final int? cuentaNumero;
   final String cuentaDescripcion;
+  final int? comandaNumero;
   final int productoId;
   final String productoNombre;
   final String productoDescripcion;
@@ -3488,6 +3557,7 @@ class _ComandaItem {
         cuentaId: _asInt(json['cuentaId']) ?? 0,
         cuentaNumero: _asInt(json['cuentaNumero']),
         cuentaDescripcion: json['cuentaDescripcion']?.toString() ?? '',
+        comandaNumero: _asInt(json['comandaNumero']),
         productoId: _asInt(json['productoId']) ?? 0,
         productoNombre: json['productoNombre']?.toString() ?? 'Producto',
         productoDescripcion: json['productoDescripcion']?.toString() ?? '',
