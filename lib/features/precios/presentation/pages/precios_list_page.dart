@@ -911,6 +911,24 @@ class _PriceProductsTable extends StatelessWidget {
                   final isLoss =
                       sale != null && unitCost != null && sale < unitCost;
                   final dirty = draft.isDirty;
+                  final onlyCost = currentPrice != null &&
+                      !dirty &&
+                      draft.isInput &&
+                      (sale ?? currentPrice.precValorVenta ?? 0) == 0;
+                  final statusColor = currentPrice == null
+                      ? palette.warning
+                      : dirty
+                          ? palette.accent
+                          : onlyCost
+                              ? palette.secondary
+                              : palette.success;
+                  final statusLabel = currentPrice == null
+                      ? 'Sin precio'
+                      : dirty
+                          ? 'Modificado'
+                          : onlyCost
+                              ? 'Solo costo'
+                              : 'Vigente';
 
                   return DataRow(
                     cells: [
@@ -1109,26 +1127,13 @@ class _PriceProductsTable extends StatelessWidget {
                             vertical: 6,
                           ),
                           decoration: BoxDecoration(
-                            color: (currentPrice == null
-                                    ? palette.warning
-                                    : dirty
-                                        ? palette.accent
-                                        : palette.success)
-                                .withOpacity(.12),
+                            color: statusColor.withOpacity(.12),
                             borderRadius: BorderRadius.circular(999),
                           ),
                           child: Text(
-                            currentPrice == null
-                                ? 'Sin precio'
-                                : dirty
-                                    ? 'Modificado'
-                                    : 'Vigente',
+                            statusLabel,
                             style: TextStyle(
-                              color: currentPrice == null
-                                  ? palette.warning
-                                  : dirty
-                                      ? palette.accent
-                                      : palette.success,
+                              color: statusColor,
                               fontWeight: FontWeight.w900,
                               fontSize: 10.5,
                             ),
@@ -1842,6 +1847,7 @@ class _PriceDraft {
     required this.originalPurchaseUnits,
     required this.originalPresentation,
     required this.priceId,
+    required this.controlType,
   });
 
   factory _PriceDraft.fromProduct(
@@ -1861,6 +1867,7 @@ class _PriceDraft {
         originalPurchaseUnits: product.prodCantidadCompra,
         originalPresentation: product.prodPresentacionCompra ?? '',
         priceId: price?.precId,
+        controlType: (product.prodTipoControl ?? 'NORMAL').trim().toUpperCase(),
       );
 
   final TextEditingController saleController;
@@ -1875,6 +1882,9 @@ class _PriceDraft {
   double? originalPurchaseUnits;
   String originalPresentation;
   int? priceId;
+  String controlType;
+
+  bool get isInput => controlType == 'INSUMO';
 
   double? get saleValue => _parseMoney(saleController.text);
   double? get purchaseValue => _parseMoney(purchaseController.text);
@@ -1893,7 +1903,12 @@ class _PriceDraft {
 
   String? get validationMessage {
     if ((saleController.text.trim().isEmpty && purchaseController.text.trim().isEmpty) && !isDirty) return null;
-    if (saleValue == null || saleValue! <= 0) return 'El precio de venta debe ser mayor que cero.';
+    if (saleValue == null) return 'Ingresa el precio de venta.';
+    if (isInput) {
+      if (saleValue! < 0) return 'El precio de venta del insumo no puede ser negativo.';
+    } else if (saleValue! <= 0) {
+      return 'El precio de venta debe ser mayor que cero.';
+    }
     if (purchaseValue == null || purchaseValue! <= 0) return 'El precio de compra debe ser mayor que cero.';
     if (purchaseByQuantity) {
       if (purchaseUnits == null || purchaseUnits! <= 1) {
@@ -1943,6 +1958,7 @@ class _PriceDraft {
     originalPurchaseUnits = product.prodCantidadCompra;
     originalPresentation = product.prodPresentacionCompra ?? '';
     priceId = price?.precId;
+    controlType = (product.prodTipoControl ?? 'NORMAL').trim().toUpperCase();
     reset();
   }
 
