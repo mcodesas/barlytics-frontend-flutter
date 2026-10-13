@@ -904,6 +904,18 @@ class _MeseroPageState extends ConsumerState<MeseroPage> {
         joined.contains('CAJA');
   }
 
+  Set<String> _authorizedMenuKeys() {
+    return ref.watch(userMenuProvider).maybeWhen(
+          data: (items) => items.map((item) => item.keyName).toSet(),
+          orElse: () => const <String>{},
+        );
+  }
+
+  bool _canManageTables() {
+    return _isCajeroOperativo() ||
+        _authorizedMenuKeys().contains('administrar_mesas');
+  }
+
   bool _esVentaDirecta(MeseroVentaModel venta) =>
       (venta.tipoVenta ?? '').trim().toUpperCase() == 'DIRECTA' || venta.mesaId == null;
 
@@ -1068,7 +1080,7 @@ class _MeseroPageState extends ConsumerState<MeseroPage> {
                 delegate: SliverChildBuilderDelegate(
                   (context, index) {
                     final mesa = mesasVisibles[index];
-                    final isCajero = _isCajeroOperativo();
+                    final isCajero = _canManageTables();
                     final inactiva = _mesaInactiva(mesa);
                     return _MesaCard(
                       mesa: mesa,
@@ -1235,7 +1247,7 @@ class _MeseroPageState extends ConsumerState<MeseroPage> {
           ],
         );
 
-        final addMesaButton = _isCajeroOperativo()
+        final addMesaButton = _canManageTables()
             ? FilledButton.icon(
                 onPressed: _processing ? null : _crearMesa,
                 icon: const Icon(Icons.add_rounded, size: 18),
@@ -1318,7 +1330,7 @@ class _MeseroPageState extends ConsumerState<MeseroPage> {
                 ),
                 itemBuilder: (context, index) {
                   final mesa = mesasVisibles[index];
-                  final isCajero = _isCajeroOperativo();
+                  final isCajero = _canManageTables();
                   final inactiva = _mesaInactiva(mesa);
                   return _MesaCard(
                     mesa: mesa,
