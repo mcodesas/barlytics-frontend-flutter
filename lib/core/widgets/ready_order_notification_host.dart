@@ -346,7 +346,7 @@ class _ReadyOrderNotificationHostState
       builder: (dialogContext) => AlertDialog(
         title: const Text('Confirmar entrega'),
         content: Text(
-          '${notification.mensaje}\n\n¿Confirmas que este pedido ya fue entregado a la mesa?',
+          '${notification.mensaje}\n\n¿Confirmas que este producto ya fue entregado a la mesa?',
         ),
         actions: [
           TextButton(
