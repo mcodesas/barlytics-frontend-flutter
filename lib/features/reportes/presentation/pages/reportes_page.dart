@@ -4756,34 +4756,69 @@ class _NextOrderContentState extends ConsumerState<_NextOrderContent> {
   String _buildWhatsappMessage(
     List<Map<String, dynamic>> rows,
     String companyName,
-    String branchName,
-  ) {
+    String branchName, {
+    int? orderId,
+    String? destinationName,
+  }) {
     final buffer = StringBuffer()
-      ..writeln('*PEDIDO DE COMPRA${_confirmedOrderId == null ? '' : ' #$_confirmedOrderId'}*')
-      ..writeln('*Empresa:* $companyName')
-      ..writeln('*Sucursal:* $branchName')
-      ..writeln('*Fecha:* ${DateFormat('dd/MM/yyyy HH:mm').format(DateTime.now())}')
+      ..writeln(
+        '*PEDIDO DE COMPRA' +
+            (orderId == null ? '' : ' #' + orderId.toString()) +
+            '*',
+      )
+      ..writeln('*Empresa:* ' + companyName)
+      ..writeln('*Sucursal:* ' + branchName);
+    if (destinationName != null && destinationName.trim().isNotEmpty) {
+      buffer.writeln('*Proveedor:* ' + destinationName.trim());
+    }
+    buffer
+      ..writeln(
+        '*Fecha:* ' +
+            DateFormat('dd/MM/yyyy HH:mm').format(DateTime.now()),
+      )
       ..writeln()
       ..writeln('*Productos:*');
+
     for (var index = 0; index < rows.length; index++) {
       final row = rows[index];
       final presentations = _displayValue(row['presentaciones_pedir']);
-      final presentation = (row['presentacion_compra'] ?? 'Unidad').toString();
+      final presentation =
+          (row['presentacion_compra'] ?? 'Unidad').toString();
       final units = _displayValue(row['unidades_pedir']);
       final subtotal =
           _displayValue(row['costo_pedido_estimado'], currency: true);
       buffer
-        ..writeln('${index + 1}. *${row['producto'] ?? 'Producto'}*')
-        ..writeln('   $presentations $presentation ($units unidades) - $subtotal');
+        ..writeln(
+          (index + 1).toString() +
+              '. *' +
+              (row['producto'] ?? 'Producto').toString() +
+              '*',
+        )
+        ..writeln(
+          '   ' +
+              presentations +
+              ' ' +
+              presentation +
+              ' (' +
+              units +
+              ' unidades) - ' +
+              subtotal,
+        );
     }
     buffer
       ..writeln()
-      ..writeln('*Total estimado:* ${_displayValue(_sum(rows, 'costo_pedido_estimado'), currency: true)}');
+      ..writeln(
+        '*Total estimado:* ' +
+            _displayValue(
+              _sum(rows, 'costo_pedido_estimado'),
+              currency: true,
+            ),
+      );
     final observation = _observationController.text.trim();
     if (observation.isNotEmpty) {
       buffer
         ..writeln()
-        ..writeln('*Observación:* $observation');
+        ..writeln('*Observación:* ' + observation);
     }
     buffer
       ..writeln()
@@ -4791,17 +4826,67 @@ class _NextOrderContentState extends ConsumerState<_NextOrderContent> {
     return buffer.toString();
   }
 
-  Future<void> _sendWhatsapp() async {
-    var rows = _effectiveOrderRows;
-    if (rows.isEmpty || _sendingWhatsapp) return;
+  Future<Map<String, dynamic>?> _selectConfirmedOrderForWhatsapp() async {
+    if (_confirmedOrders.isEmpty) return null;
+    if (_confirmedOrders.length == 1) return _confirmedOrders.first;
 
-    if (_confirmedOrderId == null) {
+    return showDialog<Map<String, dynamic>>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Selecciona el pedido a enviar'),
+        content: SizedBox(
+          width: 520,
+          child: ListView.separated(
+            shrinkWrap: true,
+            itemCount: _confirmedOrders.length,
+            separatorBuilder: (_, __) => const Divider(height: 1),
+            itemBuilder: (context, index) {
+              final order = _confirmedOrders[index];
+              final id = (order['pediId'] as num?)?.toInt();
+              final destination =
+                  order['destinoNombre']?.toString().trim().isNotEmpty == true
+                      ? order['destinoNombre'].toString()
+                      : 'WhatsApp general';
+              final phone =
+                  order['whatsappDestino']?.toString().trim() ?? '';
+              return ListTile(
+                leading: const Icon(Icons.message_outlined),
+                title: Text(
+                  (id == null ? 'Pedido' : 'Pedido #' + id.toString()) +
+                      ' · ' +
+                      destination,
+                ),
+                subtitle: Text(
+                  phone.isEmpty
+                      ? 'Sin número específico; se usará el general.'
+                      : phone,
+                ),
+                trailing: const Icon(Icons.open_in_new_rounded),
+                onTap: () => Navigator.pop(dialogContext, order),
+              );
+            },
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext),
+            child: const Text('Cerrar'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _sendWhatsapp() async {
+    if (_selectedRows.isEmpty || _sendingWhatsapp) return;
+
+    if (_confirmedOrders.isEmpty) {
       final confirmFirst = await showDialog<bool>(
         context: context,
         builder: (dialogContext) => AlertDialog(
           title: const Text('Confirmar antes de enviar'),
           content: const Text(
-            'Para mantener la trazabilidad, el pedido debe confirmarse antes de enviarlo por WhatsApp.',
+            'Para mantener la trazabilidad, primero se crearán los pedidos separados por proveedor/WhatsApp.',
           ),
           actions: [
             TextButton(
@@ -4821,16 +4906,25 @@ class _NextOrderContentState extends ConsumerState<_NextOrderContent> {
         askConfirmation: false,
       );
       if (confirmed == null || !mounted) return;
-      rows = _effectiveOrderRows;
+    }
+
+    final order = await _selectConfirmedOrderForWhatsapp();
+    if (order == null || !mounted) return;
+
+    final rows = _confirmedDetailsToRows(order['detalles']);
+    if (rows.isEmpty) {
+      _showMessage('El pedido seleccionado no tiene productos para enviar.');
+      return;
     }
 
     setState(() => _sendingWhatsapp = true);
     try {
-      final number = _normalizeWhatsapp(_confirmedWhatsapp ?? '') ??
-          await _loadWhatsappNumber();
+      final number =
+          _normalizeWhatsapp(order['whatsappDestino']?.toString() ?? '') ??
+              await _loadWhatsappNumber();
       if (number == null) {
         _showMessage(
-          'Configura $_whatsappParameterCode para la sucursal activa o para su empresa. Ejemplo: 573001234567.',
+          'Configura un WhatsApp para el proveedor o el número general de la sucursal.',
         );
         return;
       }
@@ -4840,17 +4934,26 @@ class _NextOrderContentState extends ConsumerState<_NextOrderContent> {
         rows,
         companyName,
         branch?.sucuNombre ?? 'Sucursal seleccionada',
+        orderId: (order['pediId'] as num?)?.toInt(),
+        destinationName: order['destinoNombre']?.toString(),
       );
       final uri = Uri.parse(
-        'https://wa.me/$number?text=${Uri.encodeComponent(message)}',
+        'https://wa.me/' +
+            number +
+            '?text=' +
+            Uri.encodeComponent(message),
       );
-      final opened = await launchUrl(uri, mode: LaunchMode.externalApplication);
+      final opened =
+          await launchUrl(uri, mode: LaunchMode.externalApplication);
       if (!opened && mounted) {
         _showMessage('No fue posible abrir WhatsApp en este dispositivo.');
       }
     } catch (error) {
       if (mounted) {
-        _showMessage('No fue posible preparar el mensaje de WhatsApp: $error');
+        _showMessage(
+          'No fue posible preparar el mensaje de WhatsApp: ' +
+              error.toString(),
+        );
       }
     } finally {
       if (mounted) setState(() => _sendingWhatsapp = false);
