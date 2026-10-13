@@ -1799,6 +1799,14 @@ class _OperationalBottomNavigation extends ConsumerWidget {
           ),
         ),
         (
+          path: '/pedidos-compra',
+          mode: null,
+          item: const BottomNavigationBarItem(
+            icon: Icon(Icons.local_shipping_rounded),
+            label: 'Pedidos',
+          ),
+        ),
+        (
           path: '/mesero/cierre-caja',
           mode: MeseroPageMode.cierreCaja,
           item: const BottomNavigationBarItem(
@@ -1833,11 +1841,24 @@ class _OperationalBottomNavigation extends ConsumerWidget {
     ];
 
     final currentPath = GoRouterState.of(context).uri.path;
-    var selectedIndex = currentPath == '/home'
-        ? 0
-        : navigationEntries.indexWhere((entry) => entry.mode == selectedMode);
-    if (extraMenus.any((item) => currentPath == item.path || currentPath.startsWith('${item.path}/'))) {
-      selectedIndex = navigationEntries.indexWhere((entry) => entry.path == '__more__');
+    var selectedIndex = navigationEntries.indexWhere(
+      (entry) =>
+          entry.path != '__more__' &&
+          (currentPath == entry.path ||
+              (entry.path != '/home' &&
+                  currentPath.startsWith('${entry.path}/'))),
+    );
+    if (selectedIndex < 0 && currentPath.startsWith('/mesero')) {
+      selectedIndex =
+          navigationEntries.indexWhere((entry) => entry.mode == selectedMode);
+    }
+    if (extraMenus.any(
+      (item) =>
+          currentPath == item.path ||
+          currentPath.startsWith('${item.path}/'),
+    )) {
+      selectedIndex =
+          navigationEntries.indexWhere((entry) => entry.path == '__more__');
     }
 
     return Container(
