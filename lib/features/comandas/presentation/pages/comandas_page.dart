@@ -878,7 +878,9 @@ class _ComandasKanbanBoard extends StatelessWidget {
         }
 
         final columnWidth = constraints.maxWidth < 720
-            ? (constraints.maxWidth * .88).clamp(290.0, 360.0)
+            ? (constraints.maxWidth * .88)
+                .clamp(290.0, 360.0)
+                .toDouble()
             : 360.0;
 
         return SingleChildScrollView(
