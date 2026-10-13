@@ -1593,18 +1593,6 @@ class _PriceDraft {
   }
 }
 
-double? _purchaseUnits(ProductosResponseModel product) {
-  if ((product.prodCompraPorCantidad ?? 0) != 1) return null;
-  final units = product.prodCantidadCompra;
-  if (units == null || units <= 0) return null;
-  return units;
-}
-
-String _purchasePresentation(ProductosResponseModel product) {
-  final value = (product.prodPresentacionCompra ?? '').trim();
-  return value.isEmpty ? 'presentación' : value;
-}
-
 String _formatQuantity(num value) {
   final number = value.toDouble();
   return number % 1 == 0 ? number.toInt().toString() : number.toStringAsFixed(2);
