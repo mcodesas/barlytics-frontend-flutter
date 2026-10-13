@@ -4541,13 +4541,33 @@ class _MeseroPageState extends ConsumerState<MeseroPage> {
     double baseActual() => _parseCurrencyInput(baseController.text);
     double totalCruceActual() => totalEntregadoActual() + totalGastosActual() - baseActual();
     double diferenciaActual() => totalCruceActual() - (cierre.totalVendido ?? 0);
-    double diferenciaMedioActual(CierreCajaMedioPagoModel medio) {
-      final entregado = _parseCurrencyInput(controllers[medio.medioPagoId]?.text ?? '0');
-      final sistema = medio.totalSistema ?? 0;
+    double salidasMedioActual(CierreCajaMedioPagoModel medio) {
+      var total = cierre.salidasCaja
+          .where(
+            (salida) => _mismoMedioSalidaCierre(
+              medio.medioPagoNombre,
+              salida.medioPagoNombre,
+            ),
+          )
+          .fold<double>(0, (sum, salida) => sum + (salida.valor ?? 0));
       if (_esMedioEfectivoCierre(medio.medioPagoNombre)) {
-        return entregado + totalGastosActual() - baseActual() - sistema;
+        total += gastos.fold<double>(
+          0,
+          (sum, gasto) => sum + _parseCurrencyInput(gasto.valor.text),
+        );
       }
-      return entregado - sistema;
+      return total;
+    }
+
+    double diferenciaMedioActual(CierreCajaMedioPagoModel medio) {
+      final entregado = _parseCurrencyInput(
+        controllers[medio.medioPagoId]?.text ?? '0',
+      );
+      final sistema = medio.totalSistema ?? 0;
+      final base = _esMedioEfectivoCierre(medio.medioPagoNombre)
+          ? baseActual()
+          : 0;
+      return entregado + salidasMedioActual(medio) - base - sistema;
     }
 
     final palette = ref.read(selectedAppPaletteProvider);
@@ -6306,7 +6326,7 @@ class _CierrePosResumenPanel extends ConsumerWidget {
           _CierrePosSummaryRow(label: 'Ventas del sistema', value: CurrencyUtils.format(totalVendido)),
           _CierrePosSummaryRow(label: 'Propinas', value: CurrencyUtils.format(propinas)),
           _CierrePosSummaryRow(label: 'Base inicial', value: CurrencyUtils.format(valorBase)),
-          _CierrePosSummaryRow(label: 'Salidas de caja ($gastosRegistrados)', value: CurrencyUtils.format(totalGastos)),
+          _CierrePosSummaryRow(label: 'Pagos y salidas ($gastosRegistrados)', value: CurrencyUtils.format(totalGastos)),
           _CierrePosSummaryRow(label: 'Total contado', value: CurrencyUtils.format(totalEntregado)),
           const SizedBox(height: 8),
           Divider(height: 1, color: palette.cardBorder),
@@ -6545,8 +6565,8 @@ class _CierrePosMovimientosPanel extends ConsumerWidget {
             const SizedBox(height: 12),
             Text(
               cerrado
-                  ? 'No se registraron salidas de efectivo en este turno.'
-                  : 'Aún no hay salidas. Registra aquí cualquier dinero que salga de caja durante el turno.',
+                  ? 'No se registraron pagos ni salidas en este turno.'
+                  : 'Aún no hay movimientos. Registra aquí pagos de pedidos, facturas o salidas del turno.',
               style: TextStyle(
                 color: palette.textSecondary,
                 fontWeight: FontWeight.w600,
@@ -6641,10 +6661,19 @@ class _SalidaCajaRow extends StatelessWidget {
                           fontWeight: FontWeight.w700,
                         ),
                       ),
+                    if ((salida.medioPagoNombre ?? '').trim().isNotEmpty)
+                      Text(
+                        'Medio: ${salida.medioPagoNombre}',
+                        style: TextStyle(
+                          color: palette.secondary,
+                          fontSize: 9,
+                          fontWeight: FontWeight.w800,
+                        ),
+                      ),
                     Text(
                       affects
                           ? 'Afecta rentabilidad'
-                          : 'Solo flujo de caja',
+                          : 'Solo flujo del medio',
                       style: TextStyle(
                         color: affects
                             ? palette.warning
@@ -6801,15 +6830,45 @@ bool _esMedioEfectivoCierre(String? nombre) {
   return value.contains('efectivo') || value.contains('cash');
 }
 
+bool _mismoMedioSalidaCierre(String? medioCierre, String? medioSalida) {
+  final cierre = (medioCierre ?? '').trim().toLowerCase();
+  final salida = (medioSalida ?? '').trim().toLowerCase();
+  if (salida.isEmpty ||
+      salida == 'caja' ||
+      salida == 'efectivo' ||
+      salida == 'cash') {
+    return _esMedioEfectivoCierre(medioCierre);
+  }
+  return cierre.isNotEmpty && cierre == salida;
+}
+
+double _salidasAplicadasMedioCierre(
+  CierreCajaResumenModel cierre,
+  CierreCajaMedioPagoModel medio,
+) {
+  var total = cierre.salidasCaja
+      .where(
+        (salida) => _mismoMedioSalidaCierre(
+          medio.medioPagoNombre,
+          salida.medioPagoNombre,
+        ),
+      )
+      .fold<double>(0, (sum, salida) => sum + (salida.valor ?? 0));
+  if (_esMedioEfectivoCierre(medio.medioPagoNombre)) {
+    total += cierre.gastos.fold<double>(
+      0,
+      (sum, gasto) => sum + (gasto.valor ?? 0),
+    );
+  }
+  return total;
+}
+
 double _diferenciaMedioCierreAjustada(CierreCajaResumenModel cierre, CierreCajaMedioPagoModel medio) {
   final sistema = medio.totalSistema ?? 0;
   final entregado = medio.valorEntregado ?? 0;
-  if (_esMedioEfectivoCierre(medio.medioPagoNombre)) {
-    final base = cierre.valorBase ?? 0;
-    final gastos = cierre.totalGastos ?? 0;
-    return entregado + gastos - base - sistema;
-  }
-  return entregado - sistema;
+  final base = _baseAplicadaMedioCierre(cierre, medio);
+  final salidas = _salidasAplicadasMedioCierre(cierre, medio);
+  return entregado + salidas - base - sistema;
 }
 
 double _baseAplicadaMedioCierre(CierreCajaResumenModel cierre, CierreCajaMedioPagoModel medio) {
@@ -6821,9 +6880,9 @@ double _baseAplicadaMedioCierre(CierreCajaResumenModel cierre, CierreCajaMedioPa
 
 String _notaDiferenciaMedioCierre(CierreCajaResumenModel cierre, CierreCajaMedioPagoModel medio) {
   if (_esMedioEfectivoCierre(medio.medioPagoNombre)) {
-    return 'Efectivo ajustado: contado + salidas de caja - base inicial - recibido sistema';
+    return 'Efectivo: contado + pagos/salidas en efectivo - base inicial - recibido sistema';
   }
-  return 'Entregado - recibido sistema';
+  return 'Contado + pagos/salidas de este medio - recibido sistema';
 }
 
 String _formatFechaCierre(String? value) {
@@ -6905,7 +6964,7 @@ Future<Uint8List> _crearPdfCierreCaja(CierreCajaResumenModel cierre) async {
             pw.TableRow(children: [
               summaryBox('Entregado medios', CurrencyUtils.format(cierre.totalEntregado)),
               summaryBox('Base inicial', CurrencyUtils.format(cierre.valorBase)),
-              summaryBox('Salidas de caja', CurrencyUtils.format(cierre.totalGastos)),
+              summaryBox('Pagos y salidas', CurrencyUtils.format(cierre.totalGastos)),
             ]),
             pw.TableRow(children: [
               summaryBox('Total cruce', CurrencyUtils.format(cierre.totalCruce ?? ((cierre.totalEntregado ?? 0) + (cierre.totalGastos ?? 0) - (cierre.valorBase ?? 0)))),
