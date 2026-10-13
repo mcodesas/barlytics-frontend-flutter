@@ -1641,6 +1641,111 @@ class _RolPersonalizadoFormSheetState extends ConsumerState<_RolPersonalizadoFor
                               ),
                             ),
                             const SizedBox(height: 12),
+                            _buildRolePreview(palette),
+                            if (_menuOrder.isNotEmpty) ...[
+                              const SizedBox(height: 12),
+                              _Section(
+                                palette: palette,
+                                icon: Icons.low_priority_rounded,
+                                title: 'Orden del menú',
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                                  children: [
+                                    Text(
+                                      'Arrastra las opciones para definir cuál verá primero el usuario. Este orden se guarda con el rol personalizado.',
+                                      style: TextStyle(
+                                        color: palette.textSecondary,
+                                        fontWeight: FontWeight.w700,
+                                      ),
+                                    ),
+                                    const SizedBox(height: 10),
+                                    ReorderableListView.builder(
+                                      shrinkWrap: true,
+                                      physics: const NeverScrollableScrollPhysics(),
+                                      buildDefaultDragHandles: false,
+                                      itemCount: _menuOrder.length,
+                                      onReorder: _reorderMenus,
+                                      itemBuilder: (context, index) {
+                                        final menuId = _menuOrder[index];
+                                        final menu = _menuById(menuId);
+                                        final title = menu?.nombre ?? 'Menú $menuId';
+                                        final description = menu?.descripcion ?? '';
+                                        return Container(
+                                          key: ValueKey('menu-order-$menuId'),
+                                          margin: const EdgeInsets.only(bottom: 8),
+                                          decoration: BoxDecoration(
+                                            color: palette.background.withOpacity(0.70),
+                                            borderRadius: BorderRadius.circular(14),
+                                            border: Border.all(color: palette.cardBorder),
+                                          ),
+                                          child: ListTile(
+                                            leading: CircleAvatar(
+                                              radius: 16,
+                                              backgroundColor: palette.secondary.withOpacity(0.14),
+                                              child: Text(
+                                                '${index + 1}',
+                                                style: TextStyle(
+                                                  color: palette.textPrimary,
+                                                  fontSize: 12,
+                                                  fontWeight: FontWeight.w900,
+                                                ),
+                                              ),
+                                            ),
+                                            title: Text(
+                                              title,
+                                              style: TextStyle(
+                                                color: palette.textPrimary,
+                                                fontWeight: FontWeight.w900,
+                                              ),
+                                            ),
+                                            subtitle: description.isEmpty
+                                                ? null
+                                                : Text(
+                                                    description,
+                                                    maxLines: 1,
+                                                    overflow: TextOverflow.ellipsis,
+                                                    style: TextStyle(
+                                                      color: palette.textSecondary,
+                                                      fontWeight: FontWeight.w600,
+                                                    ),
+                                                  ),
+                                            trailing: Row(
+                                              mainAxisSize: MainAxisSize.min,
+                                              children: [
+                                                IconButton(
+                                                  tooltip: 'Subir',
+                                                  onPressed: index == 0 ? null : () => _moveMenu(index, -1),
+                                                  icon: const Icon(Icons.keyboard_arrow_up_rounded),
+                                                ),
+                                                IconButton(
+                                                  tooltip: 'Bajar',
+                                                  onPressed: index == _menuOrder.length - 1
+                                                      ? null
+                                                      : () => _moveMenu(index, 1),
+                                                  icon: const Icon(Icons.keyboard_arrow_down_rounded),
+                                                ),
+                                                ReorderableDragStartListener(
+                                                  index: index,
+                                                  child: Padding(
+                                                    padding: const EdgeInsets.all(10),
+                                                    child: Icon(
+                                                      Icons.drag_indicator_rounded,
+                                                      color: palette.textSecondary,
+                                                    ),
+                                                  ),
+                                                ),
+                                              ],
+                                            ),
+                                          ),
+                                        );
+                                      },
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ],
+
+                            const SizedBox(height: 12),
                             _Section(
                               palette: palette,
                               icon: Icons.apps_rounded,
@@ -1840,110 +1945,6 @@ class _RolPersonalizadoFormSheetState extends ConsumerState<_RolPersonalizadoFor
                                 ],
                               ),
                             ),
-                            if (_menuOrder.isNotEmpty) ...[
-                              const SizedBox(height: 12),
-                              _Section(
-                                palette: palette,
-                                icon: Icons.low_priority_rounded,
-                                title: 'Orden del menú',
-                                child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                                  children: [
-                                    Text(
-                                      'Arrastra las opciones para definir cuál verá primero el usuario. Este orden se guarda con el rol personalizado.',
-                                      style: TextStyle(
-                                        color: palette.textSecondary,
-                                        fontWeight: FontWeight.w700,
-                                      ),
-                                    ),
-                                    const SizedBox(height: 10),
-                                    ReorderableListView.builder(
-                                      shrinkWrap: true,
-                                      physics: const NeverScrollableScrollPhysics(),
-                                      buildDefaultDragHandles: false,
-                                      itemCount: _menuOrder.length,
-                                      onReorder: _reorderMenus,
-                                      itemBuilder: (context, index) {
-                                        final menuId = _menuOrder[index];
-                                        final menu = _menuById(menuId);
-                                        final title = menu?.nombre ?? 'Menú $menuId';
-                                        final description = menu?.descripcion ?? '';
-                                        return Container(
-                                          key: ValueKey('menu-order-$menuId'),
-                                          margin: const EdgeInsets.only(bottom: 8),
-                                          decoration: BoxDecoration(
-                                            color: palette.background.withOpacity(0.70),
-                                            borderRadius: BorderRadius.circular(14),
-                                            border: Border.all(color: palette.cardBorder),
-                                          ),
-                                          child: ListTile(
-                                            leading: CircleAvatar(
-                                              radius: 16,
-                                              backgroundColor: palette.secondary.withOpacity(0.14),
-                                              child: Text(
-                                                '${index + 1}',
-                                                style: TextStyle(
-                                                  color: palette.textPrimary,
-                                                  fontSize: 12,
-                                                  fontWeight: FontWeight.w900,
-                                                ),
-                                              ),
-                                            ),
-                                            title: Text(
-                                              title,
-                                              style: TextStyle(
-                                                color: palette.textPrimary,
-                                                fontWeight: FontWeight.w900,
-                                              ),
-                                            ),
-                                            subtitle: description.isEmpty
-                                                ? null
-                                                : Text(
-                                                    description,
-                                                    maxLines: 1,
-                                                    overflow: TextOverflow.ellipsis,
-                                                    style: TextStyle(
-                                                      color: palette.textSecondary,
-                                                      fontWeight: FontWeight.w600,
-                                                    ),
-                                                  ),
-                                            trailing: Row(
-                                              mainAxisSize: MainAxisSize.min,
-                                              children: [
-                                                IconButton(
-                                                  tooltip: 'Subir',
-                                                  onPressed: index == 0 ? null : () => _moveMenu(index, -1),
-                                                  icon: const Icon(Icons.keyboard_arrow_up_rounded),
-                                                ),
-                                                IconButton(
-                                                  tooltip: 'Bajar',
-                                                  onPressed: index == _menuOrder.length - 1
-                                                      ? null
-                                                      : () => _moveMenu(index, 1),
-                                                  icon: const Icon(Icons.keyboard_arrow_down_rounded),
-                                                ),
-                                                ReorderableDragStartListener(
-                                                  index: index,
-                                                  child: Padding(
-                                                    padding: const EdgeInsets.all(10),
-                                                    child: Icon(
-                                                      Icons.drag_indicator_rounded,
-                                                      color: palette.textSecondary,
-                                                    ),
-                                                  ),
-                                                ),
-                                              ],
-                                            ),
-                                          ),
-                                        );
-                                      },
-                                    ),
-                                  ],
-                                ),
-                              ),
-                            ],
-                            const SizedBox(height: 12),
-                            _buildRolePreview(palette),
                             const SizedBox(height: 12),
                             _Section(
                               palette: palette,
