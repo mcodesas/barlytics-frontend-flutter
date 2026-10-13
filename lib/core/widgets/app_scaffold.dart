@@ -15,6 +15,7 @@ import '../../features/navigation/presentation/providers/active_role_provider.da
 import '../../features/profile/presentation/providers/profile_header_provider.dart';
 import '../utils/responsive_utils.dart';
 import 'barlytics_brand.dart';
+import 'ready_order_notification_host.dart';
 import 'tech_background.dart';
 
 final ScrollController _desktopNavigationScrollController = ScrollController();
@@ -168,7 +169,7 @@ class _AppScaffoldState extends ConsumerState<AppScaffold> {
     }
 
     if (isOperativo) {
-      return _MeseroScaffold(
+      final operationalScaffold = _MeseroScaffold(
         child: widget.child,
         onLogout: () => _logout(context),
         collapsed: !operationalMenuOpen,
@@ -183,6 +184,11 @@ class _AppScaffoldState extends ConsumerState<AppScaffold> {
         pageIcon: pageIcon,
         bottomMenuType: isInventario ? _OperationalBottomMenuType.inventory : _OperationalBottomMenuType.mesa,
       );
+
+      if (roles.any(_isMesaCashierSellerRole)) {
+        return ReadyOrderNotificationHost(child: operationalScaffold);
+      }
+      return operationalScaffold;
     }
 
     if (isDesktop) {
