@@ -442,7 +442,7 @@ class _PedidosCompraPageState extends ConsumerState<PedidosCompraPage> {
                         },
                       ),
                       const SizedBox(height: 8),
-                      Expanded(
+                      Flexible(
                         child: Container(
                           decoration: BoxDecoration(
                             border: Border.all(color: Theme.of(context).dividerColor),
