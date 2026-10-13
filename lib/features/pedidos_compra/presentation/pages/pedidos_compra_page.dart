@@ -434,7 +434,7 @@ class _PedidosCompraPageState extends ConsumerState<PedidosCompraPage> {
     }
   }
 
-  @override
+@override
   Widget build(BuildContext context) {
     final palette = ref.watch(selectedAppPaletteProvider);
     final branchState = ref.watch(branchScopeProvider);
@@ -445,6 +445,13 @@ class _PedidosCompraPageState extends ConsumerState<PedidosCompraPage> {
         if (mounted) _reload();
       });
     }
+
+    final pending = _orders
+        .where(
+          (order) =>
+              (order['estado'] ?? '').toString().toUpperCase() != 'RECIBIDO',
+        )
+        .toList(growable: false);
 
     return DefaultTabController(
       length: 2,
@@ -457,109 +464,23 @@ class _PedidosCompraPageState extends ConsumerState<PedidosCompraPage> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  Container(
-                    padding: const EdgeInsets.all(16),
-                    decoration: palette.panelDecoration(
-                      baseRadius: 22,
-                      tint: palette.secondary,
-                      elevated: true,
-                    ),
-                    child: Row(
-                      children: [
-                        Container(
-                          width: 50,
-                          height: 50,
-                          decoration: BoxDecoration(
-                            color: palette.secondary.withOpacity(.12),
-                            borderRadius: BorderRadius.circular(15),
-                          ),
-                          child: Icon(
-                            Icons.local_shipping_rounded,
-                            color: palette.secondary,
-                          ),
-                        ),
-                        const SizedBox(width: 12),
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                'Pedidos de compra',
-                                style: TextStyle(
-                                  color: palette.textPrimary,
-                                  fontWeight: FontWeight.w900,
-                                  fontSize: 20,
-                                ),
-                              ),
-                              Text(
-                                (branchState.activeBranch?.sucuNombre ?? 'Sucursal') +
-                                    ' · recepción y proveedores',
-                                style: TextStyle(
-                                  color: palette.textSecondary,
-                                  fontWeight: FontWeight.w600,
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                        IconButton(
-                          tooltip: 'Actualizar',
-                          onPressed: _reload,
-                          icon: const Icon(Icons.refresh_rounded),
-                        ),
-                      ],
-                    ),
+                  _pageHeader(
+                    palette,
+                    branchState.activeBranch?.sucuNombre ?? 'Sucursal',
+                    pending.length,
                   ),
                   const SizedBox(height: 12),
-                  Container(
-                    decoration: palette.panelDecoration(
-                      baseRadius: 18,
-                      elevated: false,
-                    ),
-                    child: TabBar(
-                      labelColor: palette.secondary,
-                      unselectedLabelColor: palette.textSecondary,
-                      indicatorColor: palette.secondary,
-                      tabs: const [
-                        Tab(
-                          icon: Icon(Icons.inventory_2_outlined),
-                          text: 'Por recibir',
-                        ),
-                        Tab(
-                          icon: Icon(Icons.message_outlined),
-                          text: 'Proveedores / WhatsApp',
-                        ),
-                      ],
-                    ),
-                  ),
+                  if (!_loading && _error == null && activeBranchId != null) ...[
+                    _summaryGrid(palette, pending),
+                    const SizedBox(height: 12),
+                  ],
+                  _tabs(palette),
                   const SizedBox(height: 12),
                   Expanded(
                     child: _loading
                         ? const AppLoader(message: 'Cargando pedidos...')
                         : _error != null
-                            ? Center(
-                                child: Column(
-                                  mainAxisSize: MainAxisSize.min,
-                                  children: [
-                                    Text(
-                                      'No fue posible cargar la información.',
-                                      style: TextStyle(color: palette.textPrimary),
-                                    ),
-                                    const SizedBox(height: 8),
-                                    Text(
-                                      _error.toString(),
-                                      textAlign: TextAlign.center,
-                                      style: TextStyle(color: palette.textSecondary),
-                                    ),
-                                    const SizedBox(height: 12),
-                                    FilledButton.icon(
-                                      onPressed: _reload,
-                                      icon: const Icon(Icons.refresh_rounded),
-                                      label: const Text('Reintentar'),
-                                    ),
-                                  ],
-                                ),
-                              )
+                            ? _errorView(palette)
                             : TabBarView(
                                 children: [
                                   _pendingView(palette, activeBranchId),
@@ -576,60 +497,411 @@ class _PedidosCompraPageState extends ConsumerState<PedidosCompraPage> {
     );
   }
 
+  Widget _pageHeader(
+    AppPalette palette,
+    String branchName,
+    int pendingCount,
+  ) {
+    return Container(
+      padding: const EdgeInsets.fromLTRB(16, 14, 14, 14),
+      decoration: palette.panelDecoration(
+        baseRadius: 22,
+        tint: palette.secondary,
+        elevated: true,
+      ),
+      child: Row(
+        children: [
+          Container(
+            width: 48,
+            height: 48,
+            decoration: BoxDecoration(
+              gradient: palette.mainGradient,
+              borderRadius: BorderRadius.circular(15),
+              boxShadow: [
+                BoxShadow(
+                  color: palette.cardShadow,
+                  blurRadius: 16,
+                  offset: const Offset(0, 7),
+                ),
+              ],
+            ),
+            child: Icon(
+              Icons.local_shipping_rounded,
+              color: palette.onPrimary,
+              size: 25,
+            ),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Pedidos de compra',
+                  style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                        color: palette.textPrimary,
+                        fontWeight: FontWeight.w900,
+                      ),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  branchName +
+                      ' · ' +
+                      pendingCount.toString() +
+                      ' pedido' +
+                      (pendingCount == 1 ? '' : 's') +
+                      ' por recibir',
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                        color: palette.textSecondary,
+                        fontWeight: FontWeight.w600,
+                      ),
+                ),
+              ],
+            ),
+          ),
+          IconButton.filledTonal(
+            tooltip: 'Actualizar pedidos',
+            onPressed: _reload,
+            style: IconButton.styleFrom(
+              foregroundColor: palette.secondary,
+              backgroundColor: palette.secondary.withOpacity(.10),
+            ),
+            icon: const Icon(Icons.refresh_rounded),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _summaryGrid(
+    AppPalette palette,
+    List<Map<String, dynamic>> pending,
+  ) {
+    var totalUnits = 0.0;
+    var totalValue = 0.0;
+    final productIds = <int>{};
+
+    for (final order in pending) {
+      totalValue += _number(order['totalEstimado']);
+      for (final detail in _maps(order['detalles'])) {
+        totalUnits += _number(detail['unidades']);
+        final productId = (detail['prodId'] as num?)?.toInt();
+        if (productId != null) productIds.add(productId);
+      }
+    }
+
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        const spacing = 10.0;
+        final columns = constraints.maxWidth < 620 ? 2 : 4;
+        final width =
+            ((constraints.maxWidth - (spacing * (columns - 1))) / columns)
+                .clamp(0.0, constraints.maxWidth)
+                .toDouble();
+
+        return Wrap(
+          spacing: spacing,
+          runSpacing: spacing,
+          children: [
+            SizedBox(
+              width: width,
+              child: _metricCard(
+                palette: palette,
+                icon: Icons.pending_actions_rounded,
+                label: 'Por recibir',
+                value: pending.length.toString(),
+                tone: palette.warning,
+              ),
+            ),
+            SizedBox(
+              width: width,
+              child: _metricCard(
+                palette: palette,
+                icon: Icons.inventory_2_outlined,
+                label: 'Productos',
+                value: productIds.length.toString(),
+                tone: palette.info,
+              ),
+            ),
+            SizedBox(
+              width: width,
+              child: _metricCard(
+                palette: palette,
+                icon: Icons.layers_outlined,
+                label: 'Unidades',
+                value: _qty(totalUnits),
+                tone: palette.secondary,
+              ),
+            ),
+            SizedBox(
+              width: width,
+              child: _metricCard(
+                palette: palette,
+                icon: Icons.payments_outlined,
+                label: 'Total estimado',
+                value: '\$ ' + _money.format(totalValue),
+                tone: palette.success,
+              ),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  Widget _metricCard({
+    required AppPalette palette,
+    required IconData icon,
+    required String label,
+    required String value,
+    required Color tone,
+  }) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 11),
+      decoration: palette.panelDecoration(
+        baseRadius: 18,
+        tint: tone,
+        elevated: false,
+      ),
+      child: Row(
+        children: [
+          Container(
+            width: 34,
+            height: 34,
+            decoration: BoxDecoration(
+              color: tone.withOpacity(.13),
+              borderRadius: BorderRadius.circular(11),
+            ),
+            child: Icon(icon, color: tone, size: 19),
+          ),
+          const SizedBox(width: 9),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  value,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    color: palette.textPrimary,
+                    fontSize: 14,
+                    fontWeight: FontWeight.w900,
+                  ),
+                ),
+                const SizedBox(height: 1),
+                Text(
+                  label,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    color: palette.textSecondary,
+                    fontSize: 10,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _tabs(AppPalette palette) {
+    return Container(
+      padding: const EdgeInsets.all(5),
+      decoration: palette.panelDecoration(
+        baseRadius: 18,
+        elevated: false,
+      ),
+      child: TabBar(
+        dividerColor: Colors.transparent,
+        indicatorSize: TabBarIndicatorSize.tab,
+        indicator: BoxDecoration(
+          color: palette.secondary.withOpacity(.12),
+          borderRadius: BorderRadius.circular(13),
+          border: Border.all(color: palette.secondary.withOpacity(.24)),
+        ),
+        labelColor: palette.secondary,
+        unselectedLabelColor: palette.textSecondary,
+        labelStyle: const TextStyle(fontWeight: FontWeight.w900),
+        unselectedLabelStyle: const TextStyle(fontWeight: FontWeight.w700),
+        tabs: const [
+          Tab(
+            icon: Icon(Icons.inventory_2_outlined, size: 20),
+            text: 'Por recibir',
+          ),
+          Tab(
+            icon: Icon(Icons.message_outlined, size: 20),
+            text: 'Proveedores / WhatsApp',
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _errorView(AppPalette palette) {
+    return Center(
+      child: Container(
+        constraints: const BoxConstraints(maxWidth: 520),
+        padding: const EdgeInsets.all(20),
+        decoration: palette.panelDecoration(
+          baseRadius: 20,
+          tint: palette.warning,
+          elevated: false,
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(
+              Icons.cloud_off_rounded,
+              size: 34,
+              color: palette.warning,
+            ),
+            const SizedBox(height: 10),
+            Text(
+              'No fue posible cargar la información.',
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                color: palette.textPrimary,
+                fontWeight: FontWeight.w900,
+              ),
+            ),
+            const SizedBox(height: 6),
+            Text(
+              _error.toString(),
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                color: palette.textSecondary,
+                fontSize: 11,
+              ),
+            ),
+            const SizedBox(height: 14),
+            FilledButton.icon(
+              onPressed: _reload,
+              icon: const Icon(Icons.refresh_rounded),
+              label: const Text('Reintentar'),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
   Widget _pendingView(AppPalette palette, int? branchId) {
     if (branchId == null) {
       return const AppEmptyView(
-        message: 'Selecciona una sucursal. La recepción siempre afecta el inventario de una sucursal.',
+        message:
+            'Selecciona una sucursal. La recepción siempre afecta el inventario de una sucursal.',
       );
     }
+
     final pending = _orders
         .where(
           (order) =>
               (order['estado'] ?? '').toString().toUpperCase() != 'RECIBIDO',
         )
         .toList(growable: false);
+
     if (pending.isEmpty) {
       return const AppEmptyView(
-        message: 'No hay pedidos por recibir. Los pedidos confirmados aparecerán aquí hasta su recepción.',
+        message:
+            'No hay pedidos por recibir. Los pedidos confirmados aparecerán aquí hasta su recepción.',
       );
     }
 
     return RefreshIndicator(
       onRefresh: _reload,
-      child: ListView.separated(
-        padding: const EdgeInsets.only(bottom: 80),
-        itemCount: pending.length,
-        separatorBuilder: (_, __) => const SizedBox(height: 12),
-        itemBuilder: (context, index) {
-          final order = pending[index];
-          final id = (order['pediId'] as num?)?.toInt();
-          final details = _maps(order['detalles']);
-          final busy = id != null && _receiving.contains(id);
-          final provider =
-              order['destinoNombre']?.toString().trim().isNotEmpty == true
-                  ? order['destinoNombre'].toString()
-                  : 'Destino general';
-          final phone = order['whatsappDestino']?.toString().trim() ?? '';
+      child: ListView(
+        physics: const AlwaysScrollableScrollPhysics(),
+        padding: const EdgeInsets.only(bottom: 88),
+        children: [
+          LayoutBuilder(
+            builder: (context, constraints) {
+              const spacing = 12.0;
+              final columns = constraints.maxWidth >= 1320
+                  ? 3
+                  : constraints.maxWidth >= 760
+                      ? 2
+                      : 1;
+              final cardWidth =
+                  ((constraints.maxWidth - spacing * (columns - 1)) / columns)
+                      .clamp(0.0, constraints.maxWidth)
+                      .toDouble();
 
-          return Container(
-            padding: const EdgeInsets.all(14),
-            decoration: palette.panelDecoration(
-              baseRadius: 20,
-              tint: palette.warning,
-              elevated: false,
-            ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                Row(
+              return Wrap(
+                spacing: spacing,
+                runSpacing: spacing,
+                children: [
+                  for (final order in pending)
+                    SizedBox(
+                      width: cardWidth,
+                      child: _orderCard(palette, order),
+                    ),
+                ],
+              );
+            },
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _orderCard(
+    AppPalette palette,
+    Map<String, dynamic> order,
+  ) {
+    final id = (order['pediId'] as num?)?.toInt();
+    final details = _maps(order['detalles']);
+    final busy = id != null && _receiving.contains(id);
+    final provider =
+        order['destinoNombre']?.toString().trim().isNotEmpty == true
+            ? order['destinoNombre'].toString()
+            : 'Destino general';
+    final phone = order['whatsappDestino']?.toString().trim() ?? '';
+    final totalUnits = details.fold<double>(
+      0,
+      (value, item) => value + _number(item['unidades']),
+    );
+
+    return Container(
+      padding: const EdgeInsets.all(14),
+      decoration: palette.panelDecoration(
+        baseRadius: 20,
+        tint: palette.warning,
+        elevated: false,
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Container(
+                width: 40,
+                height: 40,
+                decoration: BoxDecoration(
+                  color: palette.warning.withOpacity(.13),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Icon(
+                  Icons.local_shipping_outlined,
+                  color: palette.warning,
+                  size: 21,
+                ),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Icon(Icons.local_shipping_outlined, color: palette.warning),
-                    const SizedBox(width: 9),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
+                    Row(
+                      children: [
+                        Expanded(
+                          child: Text(
                             id == null ? 'Pedido' : 'Pedido #' + id.toString(),
                             style: TextStyle(
                               color: palette.textPrimary,
@@ -637,169 +909,578 @@ class _PedidosCompraPageState extends ConsumerState<PedidosCompraPage> {
                               fontSize: 15,
                             ),
                           ),
-                          Text(
-                            provider + (phone.isEmpty ? '' : ' · ' + phone),
-                            style: TextStyle(
-                              color: palette.textSecondary,
-                              fontWeight: FontWeight.w700,
-                              fontSize: 11,
-                            ),
-                          ),
-                        ],
-                      ),
+                        ),
+                        _statusBadge(
+                          palette,
+                          'POR RECIBIR',
+                          palette.warning,
+                        ),
+                      ],
                     ),
+                    const SizedBox(height: 3),
                     Text(
-                      _money.format(_number(order['totalEstimado'])),
+                      _date(order['fecha']),
                       style: TextStyle(
-                        color: palette.textPrimary,
-                        fontWeight: FontWeight.w900,
+                        color: palette.textSecondary,
+                        fontSize: 10,
+                        fontWeight: FontWeight.w600,
                       ),
                     ),
                   ],
                 ),
-                const SizedBox(height: 5),
-                Text(
-                  _date(order['fecha']),
-                  style: TextStyle(color: palette.textSecondary, fontSize: 10),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          Container(
+            padding: const EdgeInsets.all(11),
+            decoration: BoxDecoration(
+              color: palette.warning.withOpacity(.055),
+              borderRadius: BorderRadius.circular(14),
+              border: Border.all(
+                color: palette.warning.withOpacity(.13),
+              ),
+            ),
+            child: Column(
+              children: [
+                _infoRow(
+                  palette,
+                  Icons.storefront_outlined,
+                  'Proveedor',
+                  provider,
                 ),
-                const SizedBox(height: 10),
-                for (final detail in details)
-                  Padding(
-                    padding: const EdgeInsets.symmetric(vertical: 3),
-                    child: Row(
-                      children: [
-                        Expanded(
-                          child: Text(
-                            detail['producto']?.toString() ?? 'Producto',
-                            style: TextStyle(
-                              color: palette.textPrimary,
-                              fontWeight: FontWeight.w700,
-                            ),
-                          ),
-                        ),
-                        Text(
-                          _qty(detail['presentaciones']) +
-                              ' ' +
-                              (detail['presentacion']?.toString() ?? 'und.') +
-                              ' · ' +
-                              _qty(detail['unidades']) +
-                              ' und.',
-                          style: TextStyle(
-                            color: palette.textSecondary,
-                            fontSize: 10.5,
-                          ),
-                        ),
-                      ],
-                    ),
+                if (phone.isNotEmpty) ...[
+                  const SizedBox(height: 7),
+                  _infoRow(
+                    palette,
+                    Icons.chat_outlined,
+                    'WhatsApp',
+                    phone,
                   ),
-                const SizedBox(height: 10),
-                FilledButton.icon(
-                  onPressed: busy || id == null ? null : () => _receive(order),
-                  icon: busy
-                      ? const SizedBox.square(
-                          dimension: 16,
-                          child: CircularProgressIndicator(strokeWidth: 2),
-                        )
-                      : const Icon(Icons.inventory_rounded),
-                  label: Text(
-                    busy ? 'Recibiendo...' : 'Recibir pedido y actualizar stock',
-                  ),
-                ),
+                ],
               ],
             ),
-          );
-        },
+          ),
+          const SizedBox(height: 12),
+          Row(
+            children: [
+              Expanded(
+                child: _miniMetric(
+                  palette,
+                  Icons.inventory_2_outlined,
+                  details.length.toString() + ' productos',
+                ),
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: _miniMetric(
+                  palette,
+                  Icons.layers_outlined,
+                  _qty(totalUnits) + ' unidades',
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          Container(
+            padding: const EdgeInsets.fromLTRB(11, 9, 11, 8),
+            decoration: BoxDecoration(
+              color: palette.secondary.withOpacity(.045),
+              borderRadius: BorderRadius.circular(14),
+              border: Border.all(
+                color: palette.cardBorder.withOpacity(.82),
+              ),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Text(
+                  'DETALLE DEL PEDIDO',
+                  style: TextStyle(
+                    color: palette.textSecondary,
+                    fontSize: 9,
+                    fontWeight: FontWeight.w900,
+                    letterSpacing: .7,
+                  ),
+                ),
+                const SizedBox(height: 5),
+                for (var index = 0; index < details.length; index++) ...[
+                  if (index > 0)
+                    Divider(
+                      height: 10,
+                      color: palette.cardBorder.withOpacity(.55),
+                    ),
+                  _detailRow(palette, details[index]),
+                ],
+              ],
+            ),
+          ),
+          const SizedBox(height: 12),
+          Row(
+            children: [
+              Expanded(
+                child: Text(
+                  'Total estimado',
+                  style: TextStyle(
+                    color: palette.textSecondary,
+                    fontSize: 11,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+              ),
+              Text(
+                '\$ ' + _money.format(_number(order['totalEstimado'])),
+                style: TextStyle(
+                  color: palette.textPrimary,
+                  fontSize: 17,
+                  fontWeight: FontWeight.w900,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          FilledButton.icon(
+            onPressed: busy || id == null ? null : () => _receive(order),
+            style: FilledButton.styleFrom(
+              minimumSize: const Size.fromHeight(44),
+            ),
+            icon: busy
+                ? const SizedBox.square(
+                    dimension: 16,
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  )
+                : const Icon(Icons.inventory_rounded),
+            label: Text(
+              busy ? 'Recibiendo...' : 'Recibir y actualizar stock',
+              style: const TextStyle(fontWeight: FontWeight.w900),
+            ),
+          ),
+        ],
       ),
+    );
+  }
+
+  Widget _statusBadge(
+    AppPalette palette,
+    String label,
+    Color tone,
+  ) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      decoration: BoxDecoration(
+        color: tone.withOpacity(.11),
+        borderRadius: BorderRadius.circular(999),
+        border: Border.all(color: tone.withOpacity(.28)),
+      ),
+      child: Text(
+        label,
+        style: TextStyle(
+          color: tone,
+          fontSize: 8.5,
+          fontWeight: FontWeight.w900,
+          letterSpacing: .35,
+        ),
+      ),
+    );
+  }
+
+  Widget _infoRow(
+    AppPalette palette,
+    IconData icon,
+    String label,
+    String value,
+  ) {
+    return Row(
+      children: [
+        Icon(icon, size: 16, color: palette.secondary),
+        const SizedBox(width: 8),
+        Text(
+          label + ': ',
+          style: TextStyle(
+            color: palette.textSecondary,
+            fontSize: 10.5,
+            fontWeight: FontWeight.w700,
+          ),
+        ),
+        Expanded(
+          child: Text(
+            value,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: TextStyle(
+              color: palette.textPrimary,
+              fontSize: 10.5,
+              fontWeight: FontWeight.w800,
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _miniMetric(
+    AppPalette palette,
+    IconData icon,
+    String text,
+  ) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 8),
+      decoration: BoxDecoration(
+        color: palette.secondary.withOpacity(.055),
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Row(
+        children: [
+          Icon(icon, size: 15, color: palette.secondary),
+          const SizedBox(width: 6),
+          Expanded(
+            child: Text(
+              text,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(
+                color: palette.textSecondary,
+                fontSize: 9.5,
+                fontWeight: FontWeight.w800,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _detailRow(
+    AppPalette palette,
+    Map<String, dynamic> detail,
+  ) {
+    final product = detail['producto']?.toString() ?? 'Producto';
+    final presentation = detail['presentacion']?.toString() ?? 'und.';
+
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Expanded(
+          child: Text(
+            product,
+            maxLines: 2,
+            overflow: TextOverflow.ellipsis,
+            style: TextStyle(
+              color: palette.textPrimary,
+              fontSize: 11,
+              fontWeight: FontWeight.w800,
+            ),
+          ),
+        ),
+        const SizedBox(width: 8),
+        Text(
+          _qty(detail['presentaciones']) +
+              ' ' +
+              presentation +
+              ' · ' +
+              _qty(detail['unidades']) +
+              ' und.',
+          style: TextStyle(
+            color: palette.textSecondary,
+            fontSize: 9.5,
+            fontWeight: FontWeight.w700,
+          ),
+        ),
+      ],
     );
   }
 
   Widget _destinationsView(AppPalette palette, int? branchId) {
     if (branchId == null) {
       return const AppEmptyView(
-        message: 'Selecciona una sucursal. Los proveedores se parametrizan por sucursal.',
+        message:
+            'Selecciona una sucursal. Los proveedores se parametrizan por sucursal.',
       );
     }
 
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        Align(
-          alignment: Alignment.centerRight,
-          child: FilledButton.icon(
-            onPressed: () => _editDestination(),
-            icon: const Icon(Icons.add_rounded),
-            label: const Text('Agregar proveedor / WhatsApp'),
-          ),
-        ),
-        const SizedBox(height: 10),
-        Expanded(
-          child: _destinations.isEmpty
-              ? const AppEmptyView(
-                  message:
-                      'Sin proveedores configurados. Agrega varios WhatsApp y asocia los productos que compras con cada uno.',
-                )
-              : ListView.separated(
-                  padding: const EdgeInsets.only(bottom: 80),
-                  itemCount: _destinations.length,
-                  separatorBuilder: (_, __) => const SizedBox(height: 10),
-                  itemBuilder: (context, index) {
-                    final destination = _destinations[index];
-                    final productCount = _ids(destination['productoIds']).length;
-                    final defaultCount =
-                        _ids(destination['productoIdsPredeterminados']).length;
-                    return Container(
-                      padding: const EdgeInsets.all(13),
-                      decoration: palette.panelDecoration(
-                        baseRadius: 18,
-                        elevated: false,
+    return RefreshIndicator(
+      onRefresh: _reload,
+      child: ListView(
+        physics: const AlwaysScrollableScrollPhysics(),
+        padding: const EdgeInsets.only(bottom: 88),
+        children: [
+          Container(
+            padding: const EdgeInsets.all(13),
+            decoration: palette.panelDecoration(
+              baseRadius: 18,
+              tint: palette.secondary,
+              elevated: false,
+            ),
+            child: LayoutBuilder(
+              builder: (context, constraints) {
+                final compact = constraints.maxWidth < 560;
+                final description = Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Destinos de pedido',
+                      style: TextStyle(
+                        color: palette.textPrimary,
+                        fontWeight: FontWeight.w900,
+                        fontSize: 14,
                       ),
-                      child: Row(
-                        children: [
-                          Icon(Icons.message_outlined, color: palette.secondary),
-                          const SizedBox(width: 10),
-                          Expanded(
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Text(
-                                  destination['nombre']?.toString() ?? 'Proveedor',
-                                  style: TextStyle(
-                                    color: palette.textPrimary,
-                                    fontWeight: FontWeight.w900,
-                                  ),
-                                ),
-                                Text(
-                                  (destination['whatsapp']?.toString() ?? '') +
-                                      ' · ' +
-                                      productCount.toString() +
-                                      ' productos · ' +
-                                      defaultCount.toString() +
-                                      ' predeterminados',
-                                  style: TextStyle(
-                                    color: palette.textSecondary,
-                                    fontSize: 10.5,
-                                  ),
-                                ),
-                              ],
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      'Asocia productos con cada proveedor y define su WhatsApp predeterminado.',
+                      style: TextStyle(
+                        color: palette.textSecondary,
+                        fontSize: 10.5,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ],
+                );
+
+                final button = FilledButton.icon(
+                  onPressed: () => _editDestination(),
+                  icon: const Icon(Icons.add_rounded),
+                  label: const Text(
+                    'Agregar proveedor',
+                    style: TextStyle(fontWeight: FontWeight.w900),
+                  ),
+                );
+
+                if (compact) {
+                  return Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      description,
+                      const SizedBox(height: 10),
+                      button,
+                    ],
+                  );
+                }
+
+                return Row(
+                  children: [
+                    Expanded(child: description),
+                    const SizedBox(width: 12),
+                    button,
+                  ],
+                );
+              },
+            ),
+          ),
+          const SizedBox(height: 12),
+          if (_destinations.isEmpty)
+            const SizedBox(
+              height: 260,
+              child: AppEmptyView(
+                message:
+                    'Sin proveedores configurados. Agrega varios WhatsApp y asocia los productos que compras con cada uno.',
+              ),
+            )
+          else
+            LayoutBuilder(
+              builder: (context, constraints) {
+                const spacing = 12.0;
+                final columns = constraints.maxWidth >= 1120
+                    ? 3
+                    : constraints.maxWidth >= 680
+                        ? 2
+                        : 1;
+                final cardWidth =
+                    ((constraints.maxWidth - spacing * (columns - 1)) / columns)
+                        .clamp(0.0, constraints.maxWidth)
+                        .toDouble();
+
+                return Wrap(
+                  spacing: spacing,
+                  runSpacing: spacing,
+                  children: [
+                    for (final destination in _destinations)
+                      SizedBox(
+                        width: cardWidth,
+                        child: _destinationCard(palette, destination),
+                      ),
+                  ],
+                );
+              },
+            ),
+        ],
+      ),
+    );
+  }
+
+  Widget _destinationCard(
+    AppPalette palette,
+    Map<String, dynamic> destination,
+  ) {
+    final productCount = _ids(destination['productoIds']).length;
+    final defaultCount =
+        _ids(destination['productoIdsPredeterminados']).length;
+    final name = destination['nombre']?.toString() ?? 'Proveedor';
+    final phone = destination['whatsapp']?.toString() ?? '';
+
+    return Container(
+      padding: const EdgeInsets.all(14),
+      decoration: palette.panelDecoration(
+        baseRadius: 20,
+        tint: palette.secondary,
+        elevated: false,
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Row(
+            children: [
+              Container(
+                width: 40,
+                height: 40,
+                decoration: BoxDecoration(
+                  color: palette.secondary.withOpacity(.12),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Icon(
+                  Icons.storefront_outlined,
+                  color: palette.secondary,
+                  size: 21,
+                ),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      name,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        color: palette.textPrimary,
+                        fontWeight: FontWeight.w900,
+                        fontSize: 14,
+                      ),
+                    ),
+                    const SizedBox(height: 2),
+                    Row(
+                      children: [
+                        Icon(
+                          Icons.chat_outlined,
+                          size: 13,
+                          color: palette.textSecondary,
+                        ),
+                        const SizedBox(width: 4),
+                        Expanded(
+                          child: Text(
+                            phone,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: TextStyle(
+                              color: palette.textSecondary,
+                              fontSize: 10,
+                              fontWeight: FontWeight.w700,
                             ),
                           ),
-                          IconButton(
-                            tooltip: 'Editar',
-                            onPressed: () => _editDestination(destination),
-                            icon: const Icon(Icons.edit_outlined),
-                          ),
-                          IconButton(
-                            tooltip: 'Eliminar',
-                            onPressed: () => _removeDestination(destination),
-                            icon: const Icon(Icons.delete_outline_rounded),
-                          ),
-                        ],
-                      ),
-                    );
-                  },
+                        ),
+                      ],
+                    ),
+                  ],
                 ),
-        ),
-      ],
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          Row(
+            children: [
+              Expanded(
+                child: _destinationMetric(
+                  palette,
+                  Icons.inventory_2_outlined,
+                  productCount.toString(),
+                  'Productos',
+                ),
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: _destinationMetric(
+                  palette,
+                  Icons.star_rounded,
+                  defaultCount.toString(),
+                  'Predeterminados',
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          Row(
+            children: [
+              Expanded(
+                child: OutlinedButton.icon(
+                  onPressed: () => _editDestination(destination),
+                  icon: const Icon(Icons.edit_outlined, size: 18),
+                  label: const Text(
+                    'Editar',
+                    style: TextStyle(fontWeight: FontWeight.w800),
+                  ),
+                ),
+              ),
+              const SizedBox(width: 8),
+              IconButton.filledTonal(
+                tooltip: 'Eliminar proveedor',
+                onPressed: () => _removeDestination(destination),
+                style: IconButton.styleFrom(
+                  foregroundColor: palette.warning,
+                  backgroundColor: palette.warning.withOpacity(.10),
+                ),
+                icon: const Icon(Icons.delete_outline_rounded),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _destinationMetric(
+    AppPalette palette,
+    IconData icon,
+    String value,
+    String label,
+  ) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 8),
+      decoration: BoxDecoration(
+        color: palette.secondary.withOpacity(.055),
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Row(
+        children: [
+          Icon(icon, size: 16, color: palette.secondary),
+          const SizedBox(width: 7),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  value,
+                  style: TextStyle(
+                    color: palette.textPrimary,
+                    fontWeight: FontWeight.w900,
+                    fontSize: 12,
+                  ),
+                ),
+                Text(
+                  label,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    color: palette.textSecondary,
+                    fontWeight: FontWeight.w700,
+                    fontSize: 8.5,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
     );
   }
 }
