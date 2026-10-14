@@ -108,7 +108,9 @@ class _AppScaffoldState extends ConsumerState<AppScaffold> {
     final isDesktop = ResponsiveUtils.isDesktop(context);
     final palette = ref.watch(selectedAppPaletteProvider);
     final roles = ref.watch(activeRolesProvider);
-    final hasPersonalizedRole = roles.any(_isPersonalizedRole);
+    // Only an exclusively selected personalized role uses its custom flat order.
+    // 'Todos los roles' must retain the grouped navigation from the backend.
+    final hasPersonalizedRole = roles.length == 1 && _isPersonalizedRole(roles.first);
     // Un rol personalizado debe navegar exclusivamente con el catálogo que
     // devuelve /me/menus. No debe heredar shells ni menús predefinidos por el
     // nombre de otro rol que el usuario también tenga asignado.
@@ -3620,8 +3622,9 @@ class _SideNavigation extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final menuAsync = ref.watch(userMenuProvider);
+    final activeRoles = ref.watch(activeRolesProvider);
     final personalizedRole =
-        ref.watch(activeRolesProvider).any(_isPersonalizedRole);
+        activeRoles.length == 1 && _isPersonalizedRole(activeRoles.first);
     final profile = ref.watch(profileHeaderProvider).maybeWhen(
           data: (value) => value,
           orElse: () => const ProfileHeaderInfo(),
@@ -3685,8 +3688,9 @@ class _DrawerContent extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final menuAsync = ref.watch(userMenuProvider);
+    final activeRoles = ref.watch(activeRolesProvider);
     final personalizedRole =
-        ref.watch(activeRolesProvider).any(_isPersonalizedRole);
+        activeRoles.length == 1 && _isPersonalizedRole(activeRoles.first);
     final profile = ref.watch(profileHeaderProvider).maybeWhen(
           data: (value) => value,
           orElse: () => const ProfileHeaderInfo(),
@@ -3949,10 +3953,6 @@ class _AuthorizedMenuGroupsState extends State<_AuthorizedMenuGroups> {
   }
 
   Widget _buildExpandedGroup(_MenuGroupData group) {
-    if (group.items.length == 1) {
-      return _menuItem(group.items.first);
-    }
-
     final expanded = _expandedCode == group.code;
     final selected = _groupContainsPath(group, _currentPath());
     final foreground = widget.dark ? Colors.white : widget.palette.textPrimary;
@@ -4033,10 +4033,6 @@ class _AuthorizedMenuGroupsState extends State<_AuthorizedMenuGroups> {
   }
 
   Widget _buildCompactGroup(_MenuGroupData group) {
-    if (group.items.length == 1) {
-      return _menuItem(group.items.first);
-    }
-
     final selected = _groupContainsPath(group, _currentPath());
     final accent = widget.dark ? widget.palette.accent : widget.palette.secondary;
     return Padding(

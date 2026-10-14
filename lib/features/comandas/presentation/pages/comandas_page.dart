@@ -282,8 +282,10 @@ class _ComandasPageState extends ConsumerState<ComandasPage> {
                   )
                 else if (_viewMode == _ComandaViewMode.cards &&
                     orderGroups.isEmpty)
+                  // AppEmptyView uses LayoutBuilder; the non-scrollable sliver
+                  // measures intrinsic height and triggers a Flutter assertion.
                   SliverFillRemaining(
-                    hasScrollBody: false,
+                    hasScrollBody: true,
                     child: AppEmptyView(
                       message: _statusFilter == 'TODAS'
                           ? 'No hay comandas para esta estación.'
@@ -292,8 +294,9 @@ class _ComandasPageState extends ConsumerState<ComandasPage> {
                   )
                 else if (_viewMode == _ComandaViewMode.kanban &&
                     _items.isEmpty)
+                  // Keep a bounded height for the empty-state LayoutBuilder.
                   const SliverFillRemaining(
-                    hasScrollBody: false,
+                    hasScrollBody: true,
                     child: AppEmptyView(
                       message: 'No hay comandas para esta estación.',
                     ),
@@ -927,58 +930,37 @@ class _ComandasKanbanBoard extends StatelessWidget {
           return const SizedBox.shrink();
         }
 
-        if (maxWidth >= 1180) {
-          return Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              for (var index = 0; index < _statuses.length; index++) ...[
-                Expanded(
-                  child: _ComandaKanbanColumn(
-                    status: _statuses[index],
-                    items: items
-                        .where((item) => item.estado == _statuses[index])
-                        .toList(growable: false),
-                    updating: updating,
-                    palette: palette,
-                    canManage: canManage,
-                    onAdvance: onAdvance,
-                  ),
-                ),
-                if (index < _statuses.length - 1)
-                  const SizedBox(width: 12),
-              ],
-            ],
-          );
-        }
+        // Adapt the board to the available width instead of clipping columns
+        // behind a horizontal scroller on smaller desktop and tablet screens.
+        // The surrounding CustomScrollView handles vertical scrolling.
+        const spacing = 12.0;
+        final columnCount = maxWidth >= 1180
+            ? 4
+            : maxWidth >= 720
+                ? 2
+                : 1;
+        final columnWidth =
+            (maxWidth - spacing * (columnCount - 1)) / columnCount;
 
-        final columnWidth = maxWidth < 720
-            ? (maxWidth * .88).clamp(280.0, 360.0).toDouble()
-            : 360.0;
-
-        return SingleChildScrollView(
-          scrollDirection: Axis.horizontal,
-          child: Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              for (var index = 0; index < _statuses.length; index++) ...[
-                SizedBox(
-                  width: columnWidth,
-                  child: _ComandaKanbanColumn(
-                    status: _statuses[index],
-                    items: items
-                        .where((item) => item.estado == _statuses[index])
-                        .toList(growable: false),
-                    updating: updating,
-                    palette: palette,
-                    canManage: canManage,
-                    onAdvance: onAdvance,
-                  ),
+        return Wrap(
+          spacing: spacing,
+          runSpacing: spacing,
+          children: [
+            for (final status in _statuses)
+              SizedBox(
+                width: columnWidth,
+                child: _ComandaKanbanColumn(
+                  status: status,
+                  items: items
+                      .where((item) => item.estado == status)
+                      .toList(growable: false),
+                  updating: updating,
+                  palette: palette,
+                  canManage: canManage,
+                  onAdvance: onAdvance,
                 ),
-                if (index < _statuses.length - 1)
-                  const SizedBox(width: 12),
-              ],
-            ],
-          ),
+              ),
+          ],
         );
       },
     );

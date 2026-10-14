@@ -6,6 +6,7 @@ import 'package:go_router/go_router.dart';
 
 import '../../../../app/theme/app_palette.dart';
 import '../../../../core/constants/api_paths.dart';
+import '../../../../core/branch/branch_scope_provider.dart';
 import '../../../../core/providers/core_providers.dart';
 import '../../../../core/widgets/app_loader.dart';
 import '../../../../core/widgets/confirmation_dialog.dart';
@@ -13,6 +14,7 @@ import '../../../../core/widgets/tech_background.dart';
 import '../../data/models/sucursales_response_model.dart';
 import 'sucursales_form_page.dart';
 import '../sucursales_view_data.dart';
+import '../widgets/confirm_permanent_branch_delete.dart';
 
 enum _SucursalStatusFilter { todas, activas, inactivas }
 
@@ -378,6 +380,7 @@ class _SucursalesListPageState extends ConsumerState<SucursalesListPage> {
                                             onOpen: () => _showQuickDetail(item),
                                             onEdit: () => _openEditSheet(item),
                                             onDeactivate: () => _deactivate(item),
+                                            onDelete: () => _permanentlyDelete(item),
                                           ),
                                         ),
                                     ],
@@ -431,6 +434,36 @@ class _SucursalesListPageState extends ConsumerState<SucursalesListPage> {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('No fue posible inactivar la sucursal: $error')),
+      );
+    }
+  }
+
+  Future<void> _permanentlyDelete(SucursalesResponseModel item) async {
+    final id = item.sucuId;
+    final branchName = item.sucuNombre;
+    if (id == null || branchName == null) return;
+
+    final confirmation = await confirmPermanentBranchDeletion(
+      context,
+      branchName: branchName,
+    );
+    if (confirmation == null || !mounted) return;
+
+    try {
+      await ref.read(apiClientProvider).delete<Object?>(
+        '${ApiPaths.sucursales}/$id/permanent?confirmation=${Uri.encodeQueryComponent(confirmation)}',
+        (json) => json,
+      );
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Sucursal y datos asociados eliminados definitivamente')),
+      );
+      await ref.read(branchScopeProvider.notifier).load();
+      await _load();
+    } catch (error) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('No se pudo eliminar la sucursal: $error')),
       );
     }
   }
@@ -871,6 +904,7 @@ class _SucursalCard extends StatelessWidget {
     required this.onOpen,
     required this.onEdit,
     required this.onDeactivate,
+    required this.onDelete,
   });
 
   final SucursalesResponseModel item;
@@ -879,6 +913,7 @@ class _SucursalCard extends StatelessWidget {
   final VoidCallback onOpen;
   final VoidCallback onEdit;
   final VoidCallback onDeactivate;
+  final VoidCallback onDelete;
 
   @override
   Widget build(BuildContext context) {
@@ -925,12 +960,14 @@ class _SucursalCard extends StatelessWidget {
                       if (value == 'open') onOpen();
                       if (value == 'edit') onEdit();
                       if (value == 'deactivate') onDeactivate();
+                      if (value == 'delete') onDelete();
                     },
                     itemBuilder: (context) => [
                       const PopupMenuItem(value: 'open', child: ListTile(leading: Icon(Icons.visibility_rounded), title: Text('Consultar'), contentPadding: EdgeInsets.zero)),
                       const PopupMenuItem(value: 'edit', child: ListTile(leading: Icon(Icons.edit_rounded), title: Text('Modificar'), contentPadding: EdgeInsets.zero)),
                       if (active)
                         const PopupMenuItem(value: 'deactivate', child: ListTile(leading: Icon(Icons.pause_circle_rounded), title: Text('Inactivar'), contentPadding: EdgeInsets.zero)),
+                      const PopupMenuItem(value: 'delete', child: ListTile(leading: Icon(Icons.delete_forever_rounded, color: Colors.redAccent), title: Text('Eliminar definitivamente'), contentPadding: EdgeInsets.zero)),
                     ],
                     child: const Padding(
                       padding: EdgeInsets.all(4),

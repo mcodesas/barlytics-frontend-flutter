@@ -422,7 +422,11 @@ class _SucursalesFormPageState extends ConsumerState<SucursalesFormPage> {
               ),
             ],
           ),
+          // Keep the footer at its intrinsic height inside a modal sheet.
+          // An unconstrained Center expands to the entire available height,
+          // leaving the Scaffold body (the actual form) with no space.
           child: Center(
+            heightFactor: 1,
             child: ConstrainedBox(
               constraints: const BoxConstraints(maxWidth: 820),
               child: LayoutBuilder(
