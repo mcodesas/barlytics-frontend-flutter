@@ -2824,6 +2824,9 @@ class _GastroControlSection extends StatelessWidget {
             builder: (context, constraints) {
               final horizontal = constraints.maxWidth >= 560;
               final typeField = DropdownButtonFormField<String>(
+                // Flutter conserva el estado interno del FormField al reconstruir;
+                // la clave permite reflejar la clasificación cargada al editar.
+                key: ValueKey('tipo-control-$tipoControl'),
                 value: tipoControl,
                 isExpanded: true,
                 decoration: const InputDecoration(
@@ -2840,6 +2843,7 @@ class _GastroControlSection extends StatelessWidget {
                 },
               );
               final unitField = DropdownButtonFormField<String>(
+                key: ValueKey('unidad-base-$unidadBase'),
                 value: unidadBase,
                 isExpanded: true,
                 decoration: const InputDecoration(
