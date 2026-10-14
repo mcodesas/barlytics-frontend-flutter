@@ -82,8 +82,12 @@ class BranchScopeNotifier extends StateNotifier<BranchScopeState> {
 
       if (activeId != null) {
         await secureStorage.write(StorageKeys.sucursalId, '$activeId');
-        if (!mounted) return;
+      } else {
+        // The last branch may have been permanently deleted. Never keep a
+        // stale branch identifier in storage for subsequent API requests.
+        await secureStorage.delete(StorageKeys.sucursalId);
       }
+      if (!mounted) return;
 
       state = BranchScopeState(
         branches: branches,
