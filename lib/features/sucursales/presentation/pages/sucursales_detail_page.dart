@@ -10,6 +10,7 @@ import '../../../../core/widgets/confirmation_dialog.dart';
 import '../../../../core/widgets/tech_background.dart';
 import '../../data/models/sucursales_response_model.dart';
 import '../sucursales_view_data.dart';
+import '../widgets/confirm_permanent_branch_delete.dart';
 
 class SucursalesDetailPage extends ConsumerStatefulWidget {
   const SucursalesDetailPage({super.key, required this.id});
@@ -84,6 +85,34 @@ class _SucursalesDetailPageState extends ConsumerState<SucursalesDetailPage> {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('No fue posible inactivar la sucursal: $error')),
+      );
+    }
+  }
+
+  Future<void> _permanentlyDelete() async {
+    final branch = _item;
+    final id = branch?.sucuId;
+    final branchName = branch?.sucuNombre;
+    if (id == null || branchName == null) return;
+    final confirmation = await confirmPermanentBranchDeletion(
+      context,
+      branchName: branchName,
+    );
+    if (confirmation == null || !mounted) return;
+    try {
+      await ref.read(apiClientProvider).delete<Object?>(
+        '${ApiPaths.sucursales}/$id/permanent?confirmation=${Uri.encodeQueryComponent(confirmation)}',
+        (json) => json,
+      );
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Sucursal y datos asociados eliminados definitivamente')),
+      );
+      context.go('/sucursales');
+    } catch (error) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('No se pudo eliminar la sucursal: $error')),
       );
     }
   }
@@ -210,13 +239,12 @@ class _SucursalesDetailPageState extends ConsumerState<SucursalesDetailPage> {
                                 ),
                                 const SizedBox(height: 14),
                                 _QuickAccess(palette: palette),
-                                if (active) ...[
-                                  const SizedBox(height: 14),
-                                  _DangerZone(
-                                    palette: palette,
-                                    onInactivate: _inactivate,
-                                  ),
-                                ],
+                                const SizedBox(height: 14),
+                                _DangerZone(
+                                  palette: palette,
+                                  onInactivate: active ? _inactivate : null,
+                                  onDelete: _permanentlyDelete,
+                                ),
                               ],
                             );
 
@@ -655,10 +683,11 @@ class _QuickAccess extends StatelessWidget {
 }
 
 class _DangerZone extends StatelessWidget {
-  const _DangerZone({required this.palette, required this.onInactivate});
+  const _DangerZone({required this.palette, required this.onInactivate, required this.onDelete});
 
   final AppPalette palette;
-  final VoidCallback onInactivate;
+  final VoidCallback? onInactivate;
+  final VoidCallback onDelete;
 
   @override
   Widget build(BuildContext context) {
@@ -674,21 +703,40 @@ class _DangerZone extends StatelessWidget {
           final copy = Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text('Inactivar sucursal', style: TextStyle(color: palette.textPrimary, fontWeight: FontWeight.w900, fontSize: 15)),
+              Text('Administración de sucursal', style: TextStyle(color: palette.textPrimary, fontWeight: FontWeight.w900, fontSize: 15)),
               const SizedBox(height: 3),
-              Text('La sede dejará de estar disponible para nuevas operaciones, pero conservará su información histórica.', style: TextStyle(color: palette.textSecondary, fontWeight: FontWeight.w700, fontSize: 12.2, height: 1.3)),
+              Text('Inactivar conserva el historial. Eliminar definitivamente borra los datos propios de esta sucursal y no se puede deshacer.', style: TextStyle(color: palette.textSecondary, fontWeight: FontWeight.w700, fontSize: 12.2, height: 1.3)),
             ],
           );
-          final button = OutlinedButton.icon(
-            onPressed: onInactivate,
-            icon: const Icon(Icons.pause_circle_rounded),
-            label: const Text('Inactivar'),
-            style: OutlinedButton.styleFrom(foregroundColor: palette.warning, side: BorderSide(color: palette.warning.withOpacity(0.45))),
+          final buttons = Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: [
+              if (onInactivate != null)
+                OutlinedButton.icon(
+                  onPressed: onInactivate,
+                  icon: const Icon(Icons.pause_circle_rounded),
+                  label: const Text('Inactivar'),
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: palette.warning,
+                    side: BorderSide(color: palette.warning.withOpacity(0.45)),
+                  ),
+                ),
+              OutlinedButton.icon(
+                onPressed: onDelete,
+                icon: const Icon(Icons.delete_forever_rounded),
+                label: const Text('Eliminar definitivamente'),
+                style: OutlinedButton.styleFrom(
+                  foregroundColor: Colors.redAccent,
+                  side: const BorderSide(color: Colors.redAccent),
+                ),
+              ),
+            ],
           );
           if (constraints.maxWidth < 560) {
-            return Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [copy, const SizedBox(height: 12), button]);
+            return Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [copy, const SizedBox(height: 12), buttons]);
           }
-          return Row(children: [Expanded(child: copy), const SizedBox(width: 14), button]);
+          return Row(children: [Expanded(child: copy), const SizedBox(width: 14), Flexible(child: buttons)]);
         },
       ),
     );
