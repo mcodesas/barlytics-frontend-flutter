@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 
 import '../../../../app/theme/app_palette.dart';
 import '../../../../core/constants/api_paths.dart';
+import '../../../../core/branch/branch_scope_provider.dart';
 import '../../../../core/providers/core_providers.dart';
 import '../../../../core/widgets/app_loader.dart';
 import '../../../../core/widgets/confirmation_dialog.dart';
@@ -108,6 +109,7 @@ class _SucursalesDetailPageState extends ConsumerState<SucursalesDetailPage> {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Sucursal y datos asociados eliminados definitivamente')),
       );
+      await ref.read(branchScopeProvider.notifier).load();
       context.go('/sucursales');
     } catch (error) {
       if (!mounted) return;
