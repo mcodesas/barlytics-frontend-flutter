@@ -282,8 +282,10 @@ class _ComandasPageState extends ConsumerState<ComandasPage> {
                   )
                 else if (_viewMode == _ComandaViewMode.cards &&
                     orderGroups.isEmpty)
+                  // AppEmptyView uses LayoutBuilder; the non-scrollable sliver
+                  // measures intrinsic height and triggers a Flutter assertion.
                   SliverFillRemaining(
-                    hasScrollBody: false,
+                    hasScrollBody: true,
                     child: AppEmptyView(
                       message: _statusFilter == 'TODAS'
                           ? 'No hay comandas para esta estación.'
@@ -292,8 +294,9 @@ class _ComandasPageState extends ConsumerState<ComandasPage> {
                   )
                 else if (_viewMode == _ComandaViewMode.kanban &&
                     _items.isEmpty)
+                  // Keep a bounded height for the empty-state LayoutBuilder.
                   const SliverFillRemaining(
-                    hasScrollBody: false,
+                    hasScrollBody: true,
                     child: AppEmptyView(
                       message: 'No hay comandas para esta estación.',
                     ),
