@@ -14871,9 +14871,22 @@ class _DetalleHistorialVentaPageState extends ConsumerState<_DetalleHistorialVen
       final total = venta.total ?? (subtotal + propina);
       final pagado = venta.totalPagado ?? 0;
       final pagos = venta.cuentas.expand((cuenta) => cuenta.pagos).toList();
-      final pageHeight = (145.0 + items.length * 15 + pagos.length * 13).clamp(200.0, 2000.0);
+      // Altura del rollo proporcional al contenido, no una hoja A4 ni
+      // una página de longitud fija. Dejamos espacio para nombres extensos.
+      final lineasProductos = items.fold<int>(0, (sum, item) {
+        final nombre = item.productoNombre ?? 'Producto';
+        return sum + ((nombre.length + 4) / 30).ceil().clamp(1, 20);
+      });
+      final lineasAviso = 3;
+      final altoContenidoPt = 155.0 + (lineasProductos * 14.0) + (lineasAviso * 9.0);
+      final pageHeight = (altoContenidoPt / PdfPageFormat.mm + 15.0).clamp(95.0, 2000.0).toDouble();
+      final ticketFormat = PdfPageFormat(
+        80 * PdfPageFormat.mm,
+        pageHeight * PdfPageFormat.mm,
+        marginAll: 5 * PdfPageFormat.mm,
+      );
       pdf.addPage(pw.Page(
-        pageFormat: PdfPageFormat(80 * PdfPageFormat.mm, pageHeight * PdfPageFormat.mm, marginAll: 5 * PdfPageFormat.mm),
+        pageFormat: ticketFormat,
         build: (context) => pw.Column(
           crossAxisAlignment: pw.CrossAxisAlignment.start,
           children: [
@@ -14905,7 +14918,8 @@ class _DetalleHistorialVentaPageState extends ConsumerState<_DetalleHistorialVen
       await Printing.layoutPdf(
         onLayout: (_) => pdf.save(),
         name: 'ticket_venta_${venta.ventaId ?? 0}',
-        format: PdfPageFormat(80 * PdfPageFormat.mm, pageHeight * PdfPageFormat.mm),
+        format: ticketFormat,
+        usePrinterSettings: false,
       );
     } catch (error) {
       if (mounted) ScaffoldMessenger.of(context).showSnackBar(
