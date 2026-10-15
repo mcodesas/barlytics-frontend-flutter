@@ -485,12 +485,31 @@ class _ProductosListPageState extends ConsumerState<ProductosListPage> {
     final purchasePrice =
         (productBody.remove('_uiPrecioCompra') as num?)?.toDouble();
     final priceChanged = productBody.remove('_uiPrecioCambio') == true;
+    final noneSelected = productBody.remove('_uiMarcaNinguna') == true;
     final controlChanged = productBody['prodTipoControl'] != null &&
         productBody['prodTipoControl'] != (item.prodTipoControl ?? 'NORMAL').toUpperCase();
 
     setState(() => _productSavingIds.add(productId));
     try {
       final client = ref.read(apiClientProvider);
+      if (noneSelected) {
+        final brands = ref.read(marcasProvider).items;
+        final matching = brands.where((brand) =>
+            (brand.mrcaNombre ?? '').trim().toLowerCase() == 'ninguna' &&
+            brand.mrcaId != null);
+        int? defaultId = matching.isEmpty ? null : matching.first.mrcaId;
+        if (defaultId == null) {
+          final created = await client.post<MarcasResponseModel>(
+            '/api/v1/marcas',
+            <String, dynamic>{'mrcaNombre': 'Ninguna', 'mrcaIdentificacion': 'SIN_MARCA'},
+            (json) => MarcasResponseModel.fromJson(Map<String, dynamic>.from(json as Map)),
+          );
+          defaultId = created.data?.mrcaId;
+          await ref.read(marcasProvider.notifier).load();
+        }
+        if (defaultId == null) throw StateError('No fue posible seleccionar Ninguna como marca.');
+        productBody['mrcaId'] = defaultId;
+      }
       await client.put<ProductosResponseModel>(
         '/api/v1/productos/$productId',
         productBody,
@@ -5607,6 +5626,7 @@ class _ProductEditBottomSheetState extends State<_ProductEditBottomSheet> {
         'sucuId': item.sucuId,
         'tpprId': _typeId,
         'mrcaId': _brandId,
+        '_uiMarcaNinguna': _brandId == null,
         'prodTipoControl': _controlType,
         'prodUnidadBase': _baseUnit,
         'prodNombre': _nameController.text.trim(),
@@ -5665,7 +5685,8 @@ class _ProductEditBottomSheetState extends State<_ProductEditBottomSheet> {
         )
         .toList(growable: false);
     final brandItems = widget.marcas
-        .where((item) => item.mrcaId != null)
+        .where((item) => item.mrcaId != null &&
+            (item.mrcaNombre ?? '').trim().toLowerCase() != 'ninguna')
         .map(
           (item) => DropdownMenuItem<int>(
             value: item.mrcaId,
@@ -5838,9 +5859,14 @@ class _ProductEditBottomSheetState extends State<_ProductEditBottomSheet> {
                                 labelText: 'Marca',
                                 prefixIcon: Icon(Icons.sell_outlined),
                               ),
-                              items: brandItems,
+                              items: [
+                                const DropdownMenuItem<int>(
+                                  value: null,
+                                  child: Text('Ninguna'),
+                                ),
+                                ...brandItems,
+                              ],
                               onChanged: _saving ? null : (value) => setState(() => _brandId = value),
-                              validator: (value) => value == null ? 'Selecciona la marca.' : null,
                             );
                             if (constraints.maxWidth < 560) {
                               return Column(
