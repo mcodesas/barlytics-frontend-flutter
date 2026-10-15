@@ -236,8 +236,11 @@ class _PedidosCompraPageState extends ConsumerState<PedidosCompraPage> {
       builder: (dialogContext) => AlertDialog(
         title: Text('Eliminar pedido #' + id.toString()),
         content: const Text(
-          'Esta acción elimina el pedido pendiente y su detalle. '
-          'No se puede eliminar un pedido que ya fue recibido o tenga pagos/salidas de caja asociados.',
+          '¿Confirmas que deseas eliminar este pedido? '
+          'Si tiene pagos o salidas de caja, dejará de aparecer en la lista, '
+          'pero los movimientos financieros se conservarán para auditoría '
+          'y seguirán contabilizados en el cierre de caja. '
+          'Los pedidos ya recibidos no pueden eliminarse.',
         ),
         actions: [
           TextButton(
