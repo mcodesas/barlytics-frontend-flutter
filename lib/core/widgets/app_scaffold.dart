@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../app/theme/app_colors.dart';
+import '../branch/branch_scope_provider.dart';
 import '../../app/theme/app_palette.dart';
 import '../../app/theme/module_visuals.dart';
 import '../../features/auth/presentation/providers/auth_provider.dart';
@@ -121,8 +122,68 @@ class _AppScaffoldState extends ConsumerState<AppScaffold> {
     // Las notificaciones pertenecen al usuario autenticado, no al rol
     // actualmente seleccionado. El backend ya filtra por destinatario, por lo
     // que todos los shells autenticados pueden consultar sus propios avisos.
+    final branchScope = ref.watch(branchScopeProvider);
     Widget withReadyOrderNotifications(Widget scaffold) {
-      return ReadyOrderNotificationHost(child: scaffold);
+      final branches = branchScope.branches;
+      if (branches.length <= 1) {
+        return ReadyOrderNotificationHost(child: scaffold);
+      }
+      return ReadyOrderNotificationHost(
+        child: Column(
+          children: [
+            Material(
+              color: palette.surface,
+              child: SafeArea(
+                bottom: false,
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 5),
+                  child: Row(
+                    children: [
+                      Icon(Icons.storefront_outlined, size: 18, color: palette.secondary),
+                      const SizedBox(width: 8),
+                      const Text('Sucursal:', style: TextStyle(fontSize: 12)),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: DropdownButtonHideUnderline(
+                          child: DropdownButton<int>(
+                            isExpanded: true,
+                            isDense: true,
+                            value: branches.any((b) => b.sucuId == branchScope.activeBranchId)
+                                ? branchScope.activeBranchId
+                                : null,
+                            hint: const Text('Selecciona sucursal'),
+                            items: branches
+                                .map((branch) => DropdownMenuItem<int>(
+                                      value: branch.sucuId,
+                                      child: Text(
+                                        branch.sucuNombre ?? 'Sucursal ${branch.sucuId}',
+                                        overflow: TextOverflow.ellipsis,
+                                      ),
+                                    ))
+                                .toList(),
+                            onChanged: branchScope.loading
+                                ? null
+                                : (id) async {
+                                    if (id == null || id == branchScope.activeBranchId) return;
+                                    await ref.read(branchScopeProvider.notifier).select(id);
+                                  },
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+            Expanded(
+              child: KeyedSubtree(
+                key: ValueKey('sucursal-${branchScope.activeBranchId}'),
+                child: scaffold,
+              ),
+            ),
+          ],
+        ),
+      );
     }
 
     final operationalMenuOpen = ref.watch(operationalMenuOpenProvider);
