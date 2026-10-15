@@ -24,8 +24,9 @@ En cada caso anotar: fecha, ID, ronda, plataforma/dispositivo, versión, rol, su
 | Fecha | Caso | Entorno | Ronda | Estado | Observaciones |
 | --- | --- | --- | --- | --- | --- |
 | 2026-10-15 | QA-001 | Web | 1 — Funcional | **APROBADO** | Ninguna (resultado informado por el usuario) |
+| 2026-10-15 | QA-002 | Web | 1 — Funcional | **APROBADO** | Ninguna (resultado informado por el usuario) |
 
-**Avance verificable:** 1 de 12 combinaciones de ronda/entorno de QA-001; los demás entornos y rondas permanecen pendientes. El caso maestro QA-001 no se marca completo hasta cubrir las combinaciones aplicables.
+**Avance verificable:** QA-001 y QA-002 aprobadas en Web / Ronda 1. Los demás entornos y rondas permanecen pendientes; cada caso maestro se completa cuando se cubren las combinaciones aplicables.
 
 ## Catálogo de casos
 
