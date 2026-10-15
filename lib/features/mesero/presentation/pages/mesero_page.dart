@@ -474,12 +474,29 @@ class _MeseroPageState extends ConsumerState<MeseroPage> {
     return resultado;
   }
 
+bool _visibleEnCatalogoMesa(
+  MeseroProductoModel producto,
+  Set<int> idsAdiciones,
+) {
+  final control = (producto.tipoControl ?? '').trim().toUpperCase();
+  return control != 'INSUMO' ||
+      (producto.prodId != null && idsAdiciones.contains(producto.prodId));
+}
+
+Set<int> _idsAdiciones(List<MeseroProductoModel> productos) =>
+    productos.expand((producto) => producto.adiciones)
+        .map((adicion) => adicion.prodId)
+        .whereType<int>()
+        .toSet();
+
   List<MeseroProductoModel> get _productosFiltrados {
+    final idsAdiciones = _idsAdiciones(_productos);
     final query = _productoFiltro.trim().toLowerCase();
     final tipo = (_tipoProductoFiltro ?? '').trim().toLowerCase();
     final marca = (_marcaProductoFiltro ?? '').trim().toLowerCase();
 
     return _productos.where((producto) {
+      if (!_visibleEnCatalogoMesa(producto, idsAdiciones)) return false;
       final tipoProducto = _productoTipoLabel(producto);
       final marcaProducto = _productoMarcaLabel(producto);
       final nombre = (producto.nombre ?? '').toLowerCase();
@@ -19174,7 +19191,9 @@ class _AgregarProductosOverlayPanelState extends ConsumerState<_AgregarProductos
   }
 
   List<String> get _tipos {
+    final idsAdiciones = _idsAdiciones(widget.productos);
     final values = widget.productos
+        .where((producto) => _visibleEnCatalogoMesa(producto, idsAdiciones))
         .map((producto) => (producto.tipoProductoNombre ?? '').trim())
         .where((value) => value.isNotEmpty)
         .toSet()
@@ -19185,7 +19204,9 @@ class _AgregarProductosOverlayPanelState extends ConsumerState<_AgregarProductos
 
   List<MeseroProductoModel> get _productosFiltrados {
     final query = _busquedaController.text.trim().toLowerCase();
+    final idsAdiciones = _idsAdiciones(widget.productos);
     final productos = widget.productos.where((producto) {
+      if (!_visibleEnCatalogoMesa(producto, idsAdiciones)) return false;
       final tipo = (producto.tipoProductoNombre ?? '').trim();
       if (_tipoSeleccionado != null && tipo != _tipoSeleccionado) return false;
       if (query.isEmpty) return true;
