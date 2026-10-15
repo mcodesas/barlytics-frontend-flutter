@@ -2018,13 +2018,17 @@ class _OperationalBottomNavigation extends ConsumerWidget {
     ];
 
     final currentPath = GoRouterState.of(context).uri.path;
+    // Priorizar la ruta exacta: /mesero coincide por prefijo con
+    // /mesero/historial y /mesero/productos, pero no es la pestaña activa.
     var selectedIndex = navigationEntries.indexWhere(
-      (entry) =>
-          entry.path != '__more__' &&
-          (currentPath == entry.path ||
-              (entry.path != '/home' &&
-                  currentPath.startsWith('${entry.path}/'))),
+      (entry) => entry.path != '__more__' && currentPath == entry.path,
     );
+    if (selectedIndex < 0) {
+      selectedIndex = navigationEntries.indexWhere(
+        (entry) => entry.path != '__more__' && entry.path != '/home' &&
+            currentPath.startsWith('${entry.path}/'),
+      );
+    }
     if (selectedIndex < 0 && currentPath.startsWith('/mesero')) {
       selectedIndex =
           navigationEntries.indexWhere((entry) => entry.mode == selectedMode);
