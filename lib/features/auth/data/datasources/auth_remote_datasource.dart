@@ -8,6 +8,16 @@ class AuthRemoteDataSource {
   AuthRemoteDataSource(this._apiClient);
   final ApiClient _apiClient;
 
+  Future<void> revokeDevice(String refreshToken) async {
+    try {
+      await _apiClient.post<void>(
+        '/api/v1/auth/device/revoke', {'refreshToken': refreshToken}, (_) => null,
+      );
+    } catch (_) {
+      // Sesión ya eliminada localmente.
+    }
+  }
+
   Future<LoginResponseModel> login(LoginRequestModel request) async {
     final response = await _apiClient.post<LoginResponseModel>(
       ApiPaths.authLogin,
