@@ -319,6 +319,9 @@ class _SucursalesFormPageState extends ConsumerState<SucursalesFormPage> {
     }
 
     return Scaffold(
+      // El modal padre ya ajusta el tamaño por el teclado de iOS/Safari.
+      // Evita que el Scaffold reduzca el formulario por segunda vez.
+      resizeToAvoidBottomInset: false,
       backgroundColor: Colors.transparent,
       body: Stack(
         children: [
@@ -407,7 +410,11 @@ class _SucursalesFormPageState extends ConsumerState<SucursalesFormPage> {
           ),
         ],
       ),
-      bottomNavigationBar: SafeArea(
+      // No mantener dos botones fijos encima del teclado: dejan sin espacio
+      // a los campos. Reaparecen al cerrar el teclado.
+      bottomNavigationBar: MediaQuery.viewInsetsOf(context).bottom > 0
+          ? null
+          : SafeArea(
         top: false,
         child: Container(
           padding: const EdgeInsets.fromLTRB(16, 10, 16, 12),
