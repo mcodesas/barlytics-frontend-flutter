@@ -5,14 +5,19 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'network_ticket_printer.dart';
 
 /// Permite configurar una impresora LAN por sucursal y enviar un ticket ESC/POS.
-Future<bool> printTicketOverLan(BuildContext context, int branchId, String ticket) async {
+Future<bool> printTicketOverLan(BuildContext context, int branchId, String ticket, {bool autoPrintIfConfigured = false}) async {
   final prefs = await SharedPreferences.getInstance();
   if (!context.mounted) return false;
   final prefix = 'barlytics.ticket.$branchId';
   final ip = TextEditingController(text: prefs.getString('$prefix.ip') ?? '');
   final port = TextEditingController(text: '${prefs.getInt('$prefix.port') ?? 9100}');
   try {
-    final choice = await showDialog<(String, int)>(
+    final savedIp = (prefs.getString('$prefix.ip') ?? '').trim();
+    final savedPort = prefs.getInt('$prefix.port') ?? 9100;
+    final (String, int)? choice = autoPrintIfConfigured &&
+            savedIp.isNotEmpty && savedPort > 0 && savedPort <= 65535
+        ? (savedIp, savedPort)
+        : await showDialog<(String, int)>(
       context: context,
       builder: (dialogContext) => AlertDialog(
         title: const Text('Imprimir por Wi-Fi / LAN'),
