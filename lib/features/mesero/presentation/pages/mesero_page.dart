@@ -3886,7 +3886,7 @@ class _MeseroPageState extends ConsumerState<MeseroPage> {
         ),
       );
       if ((updated.saldoPendiente ?? 0) <= 0.009 && updated.ventaId != null) {
-        await _ofrecerComprobantePorCorreo(updated.ventaId!);
+        await _ofrecerOpcionesComprobante(updated);
       }
       return true;
     } catch (error) {
@@ -3895,6 +3895,46 @@ class _MeseroPageState extends ConsumerState<MeseroPage> {
       return false;
     } finally {
       if (mounted) setState(() => _processing = false);
+    }
+  }
+
+  Future<void> _ofrecerOpcionesComprobante(MeseroVentaModel venta) async {
+    if (!mounted || venta.ventaId == null) return;
+    final opcion = await showDialog<String>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Cobro registrado'),
+        content: const Text('¿Deseas entregar un comprobante al cliente?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('Ahora no'),
+          ),
+          TextButton.icon(
+            onPressed: () => Navigator.pop(ctx, 'correo'),
+            icon: const Icon(Icons.email_outlined),
+            label: const Text('Enviar correo'),
+          ),
+          FilledButton.icon(
+            onPressed: () => Navigator.pop(ctx, 'imprimir'),
+            icon: const Icon(Icons.print_outlined),
+            label: const Text('Imprimir ticket'),
+          ),
+        ],
+      ),
+    );
+    if (!mounted) return;
+    if (opcion == 'correo') {
+      await _ofrecerComprobantePorCorreo(venta.ventaId!);
+    } else if (opcion == 'imprimir') {
+      await Navigator.of(context).push(
+        MaterialPageRoute<void>(
+          builder: (_) => _DetalleHistorialVentaPage(
+            venta: venta,
+            imprimirAlAbrir: true,
+          ),
+        ),
+      );
     }
   }
 
@@ -14693,9 +14733,10 @@ List<_FacturaProductoAgrupado> _agruparProductosFactura(Iterable<MeseroDetallePr
 }
 
 class _DetalleHistorialVentaPage extends ConsumerStatefulWidget {
-  const _DetalleHistorialVentaPage({required this.venta});
+  const _DetalleHistorialVentaPage({required this.venta, this.imprimirAlAbrir = false});
 
   final MeseroVentaModel venta;
+  final bool imprimirAlAbrir;
 
   @override
   ConsumerState<_DetalleHistorialVentaPage> createState() => _DetalleHistorialVentaPageState();
@@ -14711,6 +14752,11 @@ class _DetalleHistorialVentaPageState extends ConsumerState<_DetalleHistorialVen
     super.initState();
     _venta = widget.venta;
     _dataSource = MeseroRemoteDataSource(ref.read(apiClientProvider));
+    if (widget.imprimirAlAbrir) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) _imprimirTicketTermico();
+      });
+    }
   }
 
   bool _imprimiendoTicket = false;
