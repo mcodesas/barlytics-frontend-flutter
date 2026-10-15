@@ -8,6 +8,9 @@ import 'package:flutter/services.dart';
 import 'package:intl/intl.dart';
 import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
+import 'package:printing/printing.dart';
+import '../../../../core/printing/network_ticket_dialog.dart';
+import '../../../../core/branch/branch_scope_provider.dart';
 
 import '../../../../app/theme/app_control_metrics.dart';
 import '../../../../app/theme/app_colors.dart';
@@ -1643,18 +1646,21 @@ class _MeseroPageState extends ConsumerState<MeseroPage> {
     setState(() {
       _historialDiaFiltro = _soloFecha(picked);
     });
+    unawaited(_reloadHistorialVentas());
   }
 
   void _filtrarHistorialHoy() {
     setState(() {
       _historialDiaFiltro = _soloFecha(DateTime.now());
     });
+    unawaited(_reloadHistorialVentas());
   }
 
   void _limpiarFiltroHistorial() {
     setState(() {
       _historialDiaFiltro = null;
     });
+    unawaited(_reloadHistorialVentas());
   }
 
   DateTime? _parseFechaHoraVentaHistorial(String? value) {
@@ -1910,7 +1916,7 @@ class _MeseroPageState extends ConsumerState<MeseroPage> {
 
         final ventas = snapshot.data ?? _historialVentas;
         if (ventas.isEmpty) {
-          return const AppEmptyView(message: 'Todavía no hay ventas registradas para las mesas de tu sucursal.');
+          return const AppEmptyView(message: 'No hay ventas registradas para la fecha seleccionada. Prueba con otra fecha o selecciona «Todos los días».');
         }
 
         final ventasFiltradas = _filtrarYOrdenarHistorial(ventas);
@@ -1984,11 +1990,11 @@ class _MeseroPageState extends ConsumerState<MeseroPage> {
     );
   }
 
-  Future<void> _mostrarDetalleHistorialVenta(MeseroVentaModel venta) async {
+  Future<void> _mostrarDetalleHistorialVenta(MeseroVentaModel venta, {String? comprobanteInicial}) async {
     await Navigator.of(context, rootNavigator: true).push<void>(
       MaterialPageRoute(
         fullscreenDialog: false,
-        builder: (_) => _DetalleHistorialVentaPage(venta: venta),
+        builder: (_) => _DetalleHistorialVentaPage(venta: venta, imprimirAlAbrir: comprobanteInicial == 'imprimir', enviarCorreoAlAbrir: comprobanteInicial == 'correo'),
       ),
     );
     if (mounted) {
@@ -2380,6 +2386,126 @@ class _MeseroPageState extends ConsumerState<MeseroPage> {
     );
   }
 
+  Future<void> _reimprimirComandaCocina(MeseroVentaModel venta, MeseroCuentaModel cuenta) async {
+    final sucursalId = venta.sucursalId;
+    final cuentaId = cuenta.cuentaId;
+    if (sucursalId == null || cuentaId == null || _processing) return;
+    setState(() => _processing = true);
+    try {
+      final response = await ref.read(apiClientProvider).get<List<dynamic>>(
+        '/api/v1/comandas',
+        (json) => json is List ? json : <dynamic>[],
+        queryParameters: {'sucursalId': sucursalId},
+      );
+      final detalles = (response.data ?? <dynamic>[])
+          .whereType<Map>()
+          .map((item) => Map<String, dynamic>.from(item))
+          .where((item) => item['cuentaId'] == cuentaId && item['fechaEnvio'] != null)
+          .toList();
+      if (!mounted) return;
+      if (detalles.isEmpty) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Esta cuenta todavía no tiene comandas enviadas.')),
+        );
+        return;
+      }
+      final ticket = StringBuffer()
+        ..writeln('REIMPRESION COMANDA')
+        ..writeln('--------------------------------')
+        ..writeln(_ventaEsDirecta(venta) ? 'VENTA DIRECTA' : 'MESA ${venta.mesaNumero ?? "-"}')
+        ..writeln(_cuentaNombreVisible(cuenta))
+        ..writeln('Venta #${venta.ventaId ?? "-"}')
+        ..writeln('--------------------------------');
+      for (final item in detalles) {
+        ticket.writeln('${item['cantidad'] ?? 0} x ${item['productoNombre'] ?? 'Producto'}');
+        final nota = (item['personalizacion'] ?? '').toString().trim();
+        if (nota.isNotEmpty) ticket.writeln('  ${nota.replaceAll(RegExp(r'[\\r\\n]+'), ' ')}');
+      }
+      final printed = await printTicketOverLan(
+        context,
+        sucursalId,
+        ticket.toString(),
+        autoPrintIfConfigured: true,
+        station: 'cocina',
+      );
+      if (mounted && printed) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Comanda reimpresa correctamente.')),
+        );
+      }
+    } catch (error) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('No fue posible reimprimir la comanda: $error')),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _processing = false);
+    }
+  }
+
+  Future<void> _enviarComandaCocina(MeseroVentaModel venta, MeseroCuentaModel cuenta) async {
+    final sucursalId = venta.sucursalId;
+    final cuentaId = cuenta.cuentaId;
+    if (sucursalId == null || cuentaId == null || _processing) return;
+    setState(() => _processing = true);
+    try {
+      final response = await ref.read(apiClientProvider).post<List<dynamic>>(
+        '/api/v1/comandas/cuenta/$cuentaId/enviar',
+        null,
+        (json) => json is List ? json : <dynamic>[],
+        queryParameters: {'sucursalId': sucursalId},
+      );
+      final detalles = (response.data ?? <dynamic>[])
+          .whereType<Map>()
+          .map((item) => Map<String, dynamic>.from(item))
+          .toList();
+      if (!mounted) return;
+      if (detalles.isEmpty) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('No hay productos nuevos pendientes de enviar a cocina.')),
+        );
+        return;
+      }
+      final ticket = StringBuffer()
+        ..writeln('COMANDA - COCINA')
+        ..writeln('--------------------------------')
+        ..writeln(_ventaEsDirecta(venta) ? 'VENTA DIRECTA' : 'MESA ${venta.mesaNumero ?? "-"}')
+        ..writeln(_cuentaNombreVisible(cuenta))
+        ..writeln('Venta #${venta.ventaId ?? "-"}')
+        ..writeln('Hora: ${DateFormat('dd/MM/yyyy HH:mm').format(DateTime.now())}')
+        ..writeln('--------------------------------');
+      for (final detalle in detalles) {
+        ticket.writeln('${detalle['cantidad'] ?? 0} x ${detalle['productoNombre'] ?? 'Producto'}');
+        final observacion = (detalle['personalizacion'] ?? '').toString().trim();
+        if (observacion.isNotEmpty) ticket.writeln('  ${observacion.replaceAll(RegExp(r'[\\r\\n]+'), ' ')}');
+      }
+      ticket
+        ..writeln('--------------------------------')
+        ..writeln('PEDIDO NUEVO');
+      final enviadoImpresora = await printTicketOverLan(
+        context,
+        sucursalId,
+        ticket.toString(),
+        autoPrintIfConfigured: true,
+        station: 'cocina',
+      );
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(enviadoImpresora
+            ? 'Comanda enviada e impresa correctamente.'
+            : 'Comanda registrada. Pendiente de imprimir: utiliza la opción de reimpresión.')),
+      );
+    } catch (error) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('No fue posible enviar la comanda: $error')),
+      );
+    } finally {
+      if (mounted) setState(() => _processing = false);
+    }
+  }
+
   Widget _buildVentaActiva(MeseroVentaModel venta) {
     final cuentas = venta.cuentas;
     MeseroCuentaModel? cuentaSeleccionada;
@@ -2410,6 +2536,48 @@ class _MeseroPageState extends ConsumerState<MeseroPage> {
               ? null
               : () => _limpiarVentaSinConsumos(venta),
         ),
+        if (venta.ventaId != null && (venta.totalPagado ?? 0) > 0.009) ...[
+          const SizedBox(height: 12),
+          Align(
+            alignment: Alignment.centerRight,
+            child: PopupMenuButton<String>(
+              tooltip: 'Opciones de comprobante',
+              enabled: !_processing,
+              onSelected: (opcion) => _mostrarDetalleHistorialVenta(venta, comprobanteInicial: opcion),
+              itemBuilder: (context) => const [
+                PopupMenuItem(
+                  value: 'imprimir',
+                  child: ListTile(
+                    contentPadding: EdgeInsets.zero,
+                    leading: Icon(Icons.print_outlined),
+                    title: Text('Imprimir ticket'),
+                  ),
+                ),
+                PopupMenuItem(
+                  value: 'correo',
+                  child: ListTile(
+                    contentPadding: EdgeInsets.zero,
+                    leading: Icon(Icons.email_outlined),
+                    title: Text('Enviar por correo'),
+                  ),
+                ),
+              ],
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(Icons.receipt_long_outlined, size: 18, color: palette.secondary),
+                    const SizedBox(width: 7),
+                    Text('Comprobante', style: TextStyle(color: palette.secondary, fontWeight: FontWeight.w800)),
+                    const SizedBox(width: 3),
+                    Icon(Icons.keyboard_arrow_down_rounded, size: 20, color: palette.secondary),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ],
         const SizedBox(height: 18),
         Container(
           decoration: BoxDecoration(
@@ -2500,6 +2668,26 @@ class _MeseroPageState extends ConsumerState<MeseroPage> {
                   onDeleteEmptyAccount: (cuenta) => _eliminarCuentaVacia(venta, cuenta),
                 ),
               const SizedBox(height: 20),
+              if (cuentaSeleccionada != null && cuentaSeleccionada.cuentaId != null && cuentaSeleccionada.productos.isNotEmpty) ...[
+                Align(
+                  alignment: Alignment.centerRight,
+                  child: FilledButton.icon(
+                    onPressed: _processing ? null : () => _enviarComandaCocina(venta, cuentaSeleccionada!),
+                    icon: const Icon(Icons.soup_kitchen_rounded),
+                    label: const Text('Enviar comanda a cocina'),
+                  ),
+                ),
+                const SizedBox(height: 8),
+                Align(
+                  alignment: Alignment.centerRight,
+                  child: TextButton.icon(
+                    onPressed: _processing ? null : () => _reimprimirComandaCocina(venta, cuentaSeleccionada!),
+                    icon: const Icon(Icons.print_outlined),
+                    label: const Text('Reimprimir comanda'),
+                  ),
+                ),
+                const SizedBox(height: 12),
+              ],
               if (cuentaSeleccionada != null)
                 _CuentaDetalle(
                   cuenta: cuentaSeleccionada,
@@ -3883,6 +4071,9 @@ class _MeseroPageState extends ConsumerState<MeseroPage> {
           ),
         ),
       );
+      if ((updated.saldoPendiente ?? 0) <= 0.009 && updated.ventaId != null) {
+        await _ofrecerOpcionesComprobante(updated);
+      }
       return true;
     } catch (error) {
       if (!mounted) return false;
@@ -3890,6 +4081,98 @@ class _MeseroPageState extends ConsumerState<MeseroPage> {
       return false;
     } finally {
       if (mounted) setState(() => _processing = false);
+    }
+  }
+
+  Future<void> _ofrecerOpcionesComprobante(MeseroVentaModel venta) async {
+    if (!mounted || venta.ventaId == null) return;
+    final opcion = await showDialog<String>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Cobro registrado'),
+        content: const Text('¿Deseas entregar un comprobante al cliente?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('Ahora no'),
+          ),
+          TextButton.icon(
+            onPressed: () => Navigator.pop(ctx, 'correo'),
+            icon: const Icon(Icons.email_outlined),
+            label: const Text('Enviar correo'),
+          ),
+          FilledButton.icon(
+            onPressed: () => Navigator.pop(ctx, 'imprimir'),
+            icon: const Icon(Icons.print_outlined),
+            label: const Text('Imprimir ticket'),
+          ),
+        ],
+      ),
+    );
+    if (!mounted) return;
+    if (opcion == 'correo') {
+      await _ofrecerComprobantePorCorreo(venta.ventaId!);
+    } else if (opcion == 'imprimir') {
+      await Navigator.of(context).push(
+        MaterialPageRoute<void>(
+          builder: (_) => _DetalleHistorialVentaPage(
+            venta: venta,
+            imprimirAlAbrir: true,
+          ),
+        ),
+      );
+    }
+  }
+
+  Future<void> _ofrecerComprobantePorCorreo(int ventaId) async {
+    if (!mounted) return;
+    final correoController = TextEditingController();
+    final email = await showDialog<String>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('¿Enviar comprobante al cliente?'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Text('Es opcional. El cliente debe proporcionar su correo para recibir el resumen de la venta.'),
+            const SizedBox(height: 12),
+            TextField(
+              controller: correoController,
+              keyboardType: TextInputType.emailAddress,
+              decoration: const InputDecoration(labelText: 'Correo del cliente'),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Ahora no')),
+          FilledButton(onPressed: () {
+            final value = correoController.text.trim();
+            if (value.contains('@') && value.split('@').length == 2 && value.split('@').last.contains('.')) {
+              Navigator.pop(ctx, value);
+            } else {
+              ScaffoldMessenger.of(ctx).showSnackBar(
+                const SnackBar(content: Text('Ingresa un correo válido')),
+              );
+            }
+          }, child: const Text('Enviar')),
+        ],
+      ),
+    );
+    correoController.dispose();
+    if (email == null || !mounted) return;
+    try {
+      await ref.read(apiClientProvider).post<void>(
+        '/api/v1/mesero/ventas/$ventaId/comprobante/email',
+        {'email': email},
+        (_) => null,
+      );
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Comprobante enviado por correo')),
+      );
+    } catch (error) {
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('No se pudo enviar el correo: $error')),
+      );
     }
   }
 
@@ -5532,9 +5815,10 @@ class _SalidaCajaDialogState extends State<_SalidaCajaDialog> {
     }
     if (_tipo == 'PAGO_PEDIDO') {
       final pedido = _pedido;
-      return pedido != null &&
-          _medioPagoId != null &&
-          _valor <= pedido.saldoPendiente + .01;
+      return _medioPagoId != null &&
+          (pedido != null
+              ? _valor <= pedido.saldoPendiente + .01
+              : _descripcionController.text.trim().isNotEmpty);
     }
     return _descripcionController.text.trim().isNotEmpty;
   }
@@ -5718,7 +6002,8 @@ class _SalidaCajaDialogState extends State<_SalidaCajaDialog> {
             value: _pedidoId,
             isExpanded: true,
             decoration: const InputDecoration(
-              labelText: 'Pedido a pagar',
+              labelText: 'Pedido registrado (opcional)',
+              helperText: 'Si la compra fue fuera de BarLytics, deja el pedido sin seleccionar.',
               prefixIcon: Icon(Icons.inventory_2_outlined),
             ),
             items: widget.opciones.pedidosPendientes
@@ -5749,6 +6034,13 @@ class _SalidaCajaDialogState extends State<_SalidaCajaDialog> {
           if (_pedido != null) ...[
             const SizedBox(height: 10),
             _SalidaPedidoResumen(pedido: _pedido!, palette: palette),
+          ],
+          if (_pedidoId == null) ...[
+            const SizedBox(height: 12),
+            Text(
+              'Pedido externo: registra el valor, el medio de pago y una descripción. No se modificará el inventario ni se asociará a un pedido del sistema.',
+              style: TextStyle(color: palette.textSecondary, fontSize: 12),
+            ),
           ],
           const SizedBox(height: 12),
           DropdownButtonFormField<int>(
@@ -5799,9 +6091,10 @@ class _SalidaCajaDialogState extends State<_SalidaCajaDialog> {
           TextField(
             controller: _descripcionController,
             maxLength: 300,
-            decoration: const InputDecoration(
-              labelText: 'Nota opcional',
-              hintText: 'Ej. Abono factura proveedor',
+            onChanged: (_) => setState(() {}),
+            decoration: InputDecoration(
+              labelText: _pedidoId == null ? 'Descripción del pedido externo *' : 'Nota opcional',
+              hintText: 'Ej. Compra de bebidas al proveedor',
               counterText: '',
               prefixIcon: Icon(Icons.notes_rounded),
             ),
@@ -6819,7 +7112,9 @@ class _SalidaCajaRow extends StatelessWidget {
       _ => Icons.shopping_bag_outlined,
     };
     final label = switch (type) {
-      'PAGO_PEDIDO' => 'Pago pedido #' + (salida.pedidoId?.toString() ?? '-'),
+      'PAGO_PEDIDO' => salida.pedidoId == null
+          ? 'Pago de pedido externo'
+          : 'Pago pedido #${salida.pedidoId}',
       'PAGO_GASTO' => 'Pago de factura/gasto',
       _ => 'Gasto del turno',
     };
@@ -14624,9 +14919,11 @@ List<_FacturaProductoAgrupado> _agruparProductosFactura(Iterable<MeseroDetallePr
 }
 
 class _DetalleHistorialVentaPage extends ConsumerStatefulWidget {
-  const _DetalleHistorialVentaPage({required this.venta});
+  const _DetalleHistorialVentaPage({required this.venta, this.imprimirAlAbrir = false, this.enviarCorreoAlAbrir = false});
 
   final MeseroVentaModel venta;
+  final bool imprimirAlAbrir;
+  final bool enviarCorreoAlAbrir;
 
   @override
   ConsumerState<_DetalleHistorialVentaPage> createState() => _DetalleHistorialVentaPageState();
@@ -14642,6 +14939,208 @@ class _DetalleHistorialVentaPageState extends ConsumerState<_DetalleHistorialVen
     super.initState();
     _venta = widget.venta;
     _dataSource = MeseroRemoteDataSource(ref.read(apiClientProvider));
+    if (widget.imprimirAlAbrir || widget.enviarCorreoAlAbrir) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted) return;
+        if (widget.imprimirAlAbrir) {
+          _imprimirTicketTermico();
+        } else {
+          _enviarComprobanteCorreo();
+        }
+      });
+    }
+  }
+
+  bool _imprimiendoTicket = false;
+
+  String _nombreSucursalTicket(int? sucursalId) {
+    final sucursales = ref.read(branchScopeProvider).branches;
+    for (final sucursal in sucursales) {
+      if (sucursal.sucuId == sucursalId) {
+        final nombre = (sucursal.sucuNombre ?? '').trim();
+        if (nombre.isNotEmpty) return nombre;
+      }
+    }
+    return sucursalId == null ? 'Sucursal' : 'Sucursal #$sucursalId';
+  }
+
+  Future<void> _imprimirTicketTermico() async {
+    if (_imprimiendoTicket) return;
+    final method = await showModalBottomSheet<String>(
+      context: context,
+      builder: (sheet) => SafeArea(child: Column(mainAxisSize: MainAxisSize.min, children: [
+        ListTile(
+          leading: const Icon(Icons.wifi_rounded),
+          title: const Text('Imprimir por Wi-Fi / LAN'),
+          subtitle: const Text('Impresora térmica ESC/POS por IP'),
+          onTap: () => Navigator.pop(sheet, 'lan'),
+        ),
+        ListTile(
+          leading: const Icon(Icons.print_outlined),
+          title: const Text('Imprimir con el sistema'),
+          subtitle: const Text('Impresora instalada o servicio de impresión'),
+          onTap: () => Navigator.pop(sheet, 'system'),
+        ),
+      ])),
+    );
+    if (method == null || !mounted) return;
+    setState(() => _imprimiendoTicket = true);
+    try {
+      if (method == 'lan') {
+        final venta = _venta;
+        final items = venta.cuentas.expand((cuenta) => cuenta.productos).toList();
+        final subtotal = items.fold<double>(0, (sum, item) => sum + _detalleProductoSubtotal(item));
+        final propina = venta.propina ?? venta.cuentas.fold<double>(0, (sum, cuenta) => sum + (cuenta.propina ?? 0));
+        final ticket = StringBuffer()
+          ..writeln(_nombreSucursalTicket(venta.sucursalId).toUpperCase())
+          ..writeln('COMPROBANTE DE VENTA')
+          ..writeln('Venta #${venta.ventaId ?? "-"}')
+          ..writeln(_nombreSucursalTicket(venta.sucursalId))
+          ..writeln('Fecha: ${venta.fecha ?? "-"}')
+          ..writeln('--------------------------------');
+        for (final item in items) {
+          ticket.writeln('${item.cantidad ?? 0} x ${item.productoNombre ?? "Producto"}');
+          ticket.writeln('  ${CurrencyUtils.format(_detalleProductoSubtotal(item))}');
+        }
+        ticket
+          ..writeln('--------------------------------')
+          ..writeln('Subtotal: ${CurrencyUtils.format(subtotal)}')
+          ..writeln('Servicio/propina: ${CurrencyUtils.format(propina)}')
+          ..writeln('TOTAL: ${CurrencyUtils.format(venta.total ?? subtotal + propina)}')
+          ..writeln('Pagado: ${CurrencyUtils.format(venta.totalPagado ?? 0)}')
+          ..writeln()
+          ..writeln('Gracias por tu compra')
+          ..writeln('Comprobante informativo. No es')
+          ..writeln('factura electronica DIAN.');
+        final printed = await printTicketOverLan(context, venta.sucursalId ?? 0, ticket.toString());
+        if (printed && mounted) ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Ticket enviado a la impresora de red')),
+        );
+        return;
+      }
+      final venta = _venta;
+      final pdf = pw.Document();
+      final items = venta.cuentas.expand((cuenta) => cuenta.productos).toList();
+      final subtotal = items.fold<double>(0, (sum, producto) => sum + _detalleProductoSubtotal(producto));
+      final propina = venta.propina ?? venta.cuentas.fold<double>(0, (sum, cuenta) => sum + (cuenta.propina ?? 0));
+      final total = venta.total ?? (subtotal + propina);
+      final pagado = venta.totalPagado ?? 0;
+      final pagos = venta.cuentas.expand((cuenta) => cuenta.pagos).toList();
+      // Altura del rollo proporcional al contenido, no una hoja A4 ni
+      // una página de longitud fija. Dejamos espacio para nombres extensos.
+      final lineasProductos = items.fold<int>(0, (sum, item) {
+        final nombre = item.productoNombre ?? 'Producto';
+        return sum + ((nombre.length + 4) / 30).ceil().clamp(1, 20);
+      });
+      final lineasAviso = 3;
+      final altoContenidoPt = 155.0 + (lineasProductos * 14.0) + (lineasAviso * 9.0);
+      final pageHeight = (altoContenidoPt / PdfPageFormat.mm + 15.0).clamp(95.0, 2000.0).toDouble();
+      final ticketFormat = PdfPageFormat(
+        80 * PdfPageFormat.mm,
+        pageHeight * PdfPageFormat.mm,
+        marginAll: 5 * PdfPageFormat.mm,
+      );
+      pdf.addPage(pw.Page(
+        pageFormat: ticketFormat,
+        build: (context) => pw.Column(
+          crossAxisAlignment: pw.CrossAxisAlignment.start,
+          children: [
+            pw.Center(child: pw.Text(_nombreSucursalTicket(venta.sucursalId).toUpperCase(), textAlign: pw.TextAlign.center, style: pw.TextStyle(fontSize: 15, fontWeight: pw.FontWeight.bold))),
+            pw.Center(child: pw.Text('Comprobante de venta', style: const pw.TextStyle(fontSize: 10))),
+            pw.SizedBox(height: 8),
+            pw.Text('Venta #${venta.ventaId ?? "-"}', style: pw.TextStyle(fontWeight: pw.FontWeight.bold)),
+            pw.Text('Fecha: ${venta.fecha ?? ""}', style: const pw.TextStyle(fontSize: 8)),
+            pw.Text(_nombreSucursalTicket(venta.sucursalId), style: const pw.TextStyle(fontSize: 8)),
+            pw.Divider(),
+            ...items.map((item) => pw.Padding(
+              padding: const pw.EdgeInsets.only(bottom: 4),
+              child: pw.Row(children: [
+                pw.Expanded(child: pw.Text('${item.productoNombre ?? "Producto"} x${item.cantidad ?? 0}', style: const pw.TextStyle(fontSize: 8))),
+                pw.Text(CurrencyUtils.format(_detalleProductoSubtotal(item)), style: const pw.TextStyle(fontSize: 8)),
+              ]),
+            )),
+            pw.Divider(),
+            pw.Text('Productos: ${CurrencyUtils.format(subtotal)}', style: const pw.TextStyle(fontSize: 9)),
+            pw.Text('Servicio / propina: ${CurrencyUtils.format(propina)}', style: const pw.TextStyle(fontSize: 9)),
+            pw.Text('TOTAL: ${CurrencyUtils.format(total)}', style: pw.TextStyle(fontSize: 12, fontWeight: pw.FontWeight.bold)),
+            pw.Text('Pagado: ${CurrencyUtils.format(pagado)}', style: const pw.TextStyle(fontSize: 9)),
+            pw.SizedBox(height: 6),
+            pw.Center(child: pw.Text('Gracias por tu compra', style: const pw.TextStyle(fontSize: 9))),
+            pw.Center(child: pw.Text('Comprobante informativo. No equivale a factura electrónica DIAN.', textAlign: pw.TextAlign.center, style: const pw.TextStyle(fontSize: 7))),
+          ],
+        ),
+      ));
+      await Printing.layoutPdf(
+        onLayout: (_) => pdf.save(),
+        name: 'ticket_venta_${venta.ventaId ?? 0}',
+        format: ticketFormat,
+        usePrinterSettings: false,
+      );
+    } catch (error) {
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('No fue posible imprimir el ticket: $error')),
+      );
+    } finally {
+      if (mounted) setState(() => _imprimiendoTicket = false);
+    }
+  }
+
+  bool _enviandoComprobante = false;
+
+  Future<void> _enviarComprobanteCorreo() async {
+    final ventaId = _venta.ventaId;
+    if (ventaId == null || _enviandoComprobante) return;
+    final controller = TextEditingController();
+    final email = await showDialog<String>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Enviar comprobante por correo'),
+        content: TextField(
+          controller: controller,
+          autofocus: true,
+          keyboardType: TextInputType.emailAddress,
+          decoration: const InputDecoration(
+            labelText: 'Correo del cliente',
+            hintText: 'cliente@correo.com',
+          ),
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(dialogContext), child: const Text('Cancelar')),
+          FilledButton(
+            onPressed: () {
+              final value = controller.text.trim();
+              if (value.contains('@') && value.split('@').length == 2 && value.split('@').last.contains('.')) {
+                Navigator.pop(dialogContext, value);
+              } else {
+                ScaffoldMessenger.of(dialogContext).showSnackBar(
+                  const SnackBar(content: Text('Ingresa un correo válido.')),
+                );
+              }
+            },
+            child: const Text('Enviar'),
+          ),
+        ],
+      ),
+    );
+    controller.dispose();
+    if (email == null || !mounted) return;
+    setState(() => _enviandoComprobante = true);
+    try {
+      await ref.read(apiClientProvider).post<void>(
+        '/api/v1/mesero/ventas/$ventaId/comprobante/email',
+        {'email': email},
+        (_) => null,
+      );
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Comprobante enviado correctamente')),
+      );
+    } catch (error) {
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('No se pudo enviar el comprobante: ＄error')),
+      );
+    } finally {
+      if (mounted) setState(() => _enviandoComprobante = false);
+    }
   }
 
   Future<void> _cambiarMedioPago(MeseroCuentaModel cuenta, MeseroPagoModel pago) async {
@@ -14772,6 +15271,18 @@ class _DetalleHistorialVentaPageState extends ConsumerState<_DetalleHistorialVen
         foregroundColor: palette.onTitle,
         iconTheme: IconThemeData(color: palette.onTitle),
         titleSpacing: 0,
+        actions: [
+          IconButton(
+            tooltip: 'Imprimir ticket de 80 mm',
+            onPressed: _imprimiendoTicket ? null : _imprimirTicketTermico,
+            icon: const Icon(Icons.print_outlined),
+          ),
+          IconButton(
+            tooltip: 'Enviar comprobante por correo',
+            onPressed: _enviandoComprobante ? null : _enviarComprobanteCorreo,
+            icon: const Icon(Icons.email_outlined),
+          ),
+        ],
         title: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           mainAxisSize: MainAxisSize.min,
@@ -16425,6 +16936,7 @@ class _PagarCuentaDialogState extends State<_PagarCuentaDialog> {
   final _formKey = GlobalKey<FormState>();
   final ScrollController _pagosScrollController = ScrollController();
   late final TextEditingController _propinaController;
+  bool _servicioSugeridoSeleccionado = false;
   late final List<_PagoFormRowData> _pagos;
   late double _ultimaPropinaSincronizada;
   bool _mostrarDetalleProductos = false;
@@ -16459,6 +16971,20 @@ class _PagarCuentaDialogState extends State<_PagarCuentaDialog> {
   double _parse(String value) => _parseCurrencyInput(value);
 
   double get _propina => _parse(_propinaController.text);
+
+  // Servicio sugerido, voluntario y calculado únicamente sobre productos pendientes
+  // de esta cuenta: evita cobrar propina dos veces por productos ya pagados.
+  double get _servicioSugerido => (_subtotalProductos * 0.10).roundToDouble();
+
+  void _seleccionarServicioSugerido(bool selected) {
+    setState(() {
+      _servicioSugeridoSeleccionado = selected;
+      _propinaController.text = selected
+          ? _formatCurrencyInputAmount(_servicioSugerido)
+          : '';
+      _sincronizarPagosPorCambioPropina();
+    });
+  }
 
   double get _propinaRegistrada => (widget.cuenta.propina ?? 0).toDouble();
 
@@ -17473,12 +17999,38 @@ class _PagarCuentaDialogState extends State<_PagarCuentaDialog> {
                     Text(
                       _propinaRegistrada > 0
                           ? 'Registrada ${CurrencyUtils.format(_propinaRegistrada)} · agrega solo una propina nueva si aplica.'
-                          : 'Agrega una propina si el cliente desea dejarla.',
+                          : 'El servicio del 10 % es sugerido y solo se agrega si el cliente lo acepta.',
                       style: TextStyle(color: palette.textSecondary, fontWeight: FontWeight.w600, fontSize: 12),
                     ),
                   ],
                 ),
               ),
+            ],
+          );
+
+          final controls = Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text('Servicio sugerido (10 %)', style: TextStyle(
+                fontWeight: FontWeight.w800, color: palette.textPrimary)),
+              const SizedBox(height: 4),
+              Text(
+                'Opcional y sujeto a la aceptación del cliente. Calculado sobre productos pendientes: ${CurrencyUtils.format(_subtotalProductos)}.',
+                style: TextStyle(color: palette.textSecondary, fontSize: 11.5),
+              ),
+              const SizedBox(height: 8),
+              Wrap(spacing: 8, runSpacing: 8, children: [
+                ChoiceChip(
+                  label: Text('Agregar 10 % · ${CurrencyUtils.format(_servicioSugerido)}'),
+                  selected: _servicioSugeridoSeleccionado,
+                  onSelected: (_) => _seleccionarServicioSugerido(!_servicioSugeridoSeleccionado),
+                ),
+                ChoiceChip(
+                  label: const Text('Sin servicio'),
+                  selected: !_servicioSugeridoSeleccionado && _propina == 0,
+                  onSelected: (_) => _seleccionarServicioSugerido(false),
+                ),
+              ]),
             ],
           );
 
@@ -17491,14 +18043,17 @@ class _PagarCuentaDialogState extends State<_PagarCuentaDialog> {
               hintText: '0',
               prefixIcon: Icon(Icons.attach_money_rounded),
             ),
-            onChanged: (_) => setState(_sincronizarPagosPorCambioPropina),
+            onChanged: (_) => setState(() {
+              _servicioSugeridoSeleccionado = false;
+              _sincronizarPagosPorCambioPropina();
+            }),
             validator: (value) => _parse(value ?? '') < 0 ? 'La propina no puede ser negativa' : null,
           );
 
           if (compact) {
-            return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [info, const SizedBox(height: 12), field]);
+            return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [info, const SizedBox(height: 12), controls, const SizedBox(height: 12), field]);
           }
-          return Row(children: [Expanded(child: info), const SizedBox(width: 14), SizedBox(width: 230, child: field)]);
+          return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [info, const SizedBox(height: 12), controls, const SizedBox(height: 12), field]);
         },
       ),
     );

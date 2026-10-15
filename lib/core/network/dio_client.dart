@@ -21,7 +21,7 @@ class DioClient {
     );
     dio.interceptors.addAll([
       ApiInterceptor(),
-      AuthInterceptor(storage, sessionExpirationNotifier),
+      AuthInterceptor(storage, sessionExpirationNotifier, dio),
     ]);
     return dio;
   }

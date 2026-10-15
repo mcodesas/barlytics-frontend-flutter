@@ -37,6 +37,7 @@ class _VentasListPageState extends ConsumerState<VentasListPage> {
   bool _loading = true;
   String? _error;
   int? _loadedBranchId;
+  int _loadGeneration = 0;
   Map<String, dynamic> _summary = const {};
   Map<String, dynamic> _previousSummary = const {};
   List<_ManagerSale> _sales = const [];
@@ -80,7 +81,18 @@ class _VentasListPageState extends ConsumerState<VentasListPage> {
       branchScopeProvider.select((state) => state.activeBranchId),
       (previous, next) {
         if (previous == next || next == null) return;
-        WidgetsBinding.instance.addPostFrameCallback((_) => _load(force: true));
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (!mounted) return;
+          setState(() {
+            _summary = const {};
+            _previousSummary = const {};
+            _sales = const [];
+            _liveSales = const [];
+            _loadedBranchId = null;
+            _liveError = null;
+          });
+          _load(force: true);
+        });
       },
     );
 
@@ -643,6 +655,7 @@ class _VentasListPageState extends ConsumerState<VentasListPage> {
   }
 
   Future<void> _load({bool force = false}) async {
+    final generation = ++_loadGeneration;
     final branchId = ref.read(branchScopeProvider).activeBranchId;
     if (branchId == null) {
       if (mounted) {
@@ -691,7 +704,8 @@ class _VentasListPageState extends ConsumerState<VentasListPage> {
         ),
       ]);
 
-      if (!mounted) return;
+      if (!mounted || generation != _loadGeneration ||
+          ref.read(branchScopeProvider).activeBranchId != branchId) return;
       final current = responses[0].data as Map<String, dynamic>? ?? const <String, dynamic>{};
       final previous = responses[1].data as Map<String, dynamic>? ?? const <String, dynamic>{};
       final details = responses[2].data as List<Map<String, dynamic>>? ?? const <Map<String, dynamic>>[];
@@ -710,7 +724,8 @@ class _VentasListPageState extends ConsumerState<VentasListPage> {
         _page = 0;
       });
     } catch (error) {
-      if (!mounted) return;
+      if (!mounted || generation != _loadGeneration ||
+          ref.read(branchScopeProvider).activeBranchId != branchId) return;
       final message = ErrorMapper.map(error).message;
       setState(() {
         _loading = false;
@@ -746,7 +761,7 @@ class _VentasListPageState extends ConsumerState<VentasListPage> {
             _parseMapList,
             queryParameters: {'sucursalId': branchId},
           );
-      if (!mounted) return;
+      if (!mounted || ref.read(branchScopeProvider).activeBranchId != branchId) return;
       final rows = response.data ?? const <Map<String, dynamic>>[];
       setState(() {
         _liveSales = rows.map(_LiveSale.fromJson).toList(growable: false);
@@ -755,7 +770,7 @@ class _VentasListPageState extends ConsumerState<VentasListPage> {
         _liveError = null;
       });
     } catch (error) {
-      if (!mounted) return;
+      if (!mounted || ref.read(branchScopeProvider).activeBranchId != branchId) return;
       setState(() {
         _liveLoading = false;
         _liveError = ErrorMapper.map(error).message;

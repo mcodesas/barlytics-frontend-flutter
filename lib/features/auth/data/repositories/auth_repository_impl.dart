@@ -44,6 +44,9 @@ class AuthRepositoryImpl implements AuthRepository {
   @override
   Future<void> saveSession(LoginResponseModel response) async {
     await _storage.write(StorageKeys.authToken, response.token);
+    if (response.refreshToken != null && response.refreshToken!.isNotEmpty) {
+      await _storage.write(StorageKeys.refreshToken, response.refreshToken!);
+    }
     if (response.userId != null) await _storage.write(StorageKeys.userId, response.userId.toString());
     if (response.empresaId != null) await _storage.write(StorageKeys.empresaId, response.empresaId.toString());
     if (response.sucursalId != null) await _storage.write(StorageKeys.sucursalId, response.sucursalId.toString());
@@ -62,7 +65,11 @@ class AuthRepositoryImpl implements AuthRepository {
     // aplicación esperando al backend. Se conserva el JWT solo para intentar
     // registrar el evento LOGOUT de forma no bloqueante.
     final token = await _storage.read(StorageKeys.authToken);
+    final refreshToken = await _storage.read(StorageKeys.refreshToken);
     await _storage.clear();
+    if (refreshToken != null && refreshToken.isNotEmpty) {
+      unawaited(_remote.revokeDevice(refreshToken));
+    }
 
     if (token != null && token.trim().isNotEmpty) {
       unawaited(_notifyRemoteLogout(token));

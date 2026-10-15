@@ -3,8 +3,11 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../app/theme/app_colors.dart';
+import '../branch/branch_scope_provider.dart';
+import '../help/module_help_catalog.dart';
 import '../../app/theme/app_palette.dart';
 import '../../app/theme/module_visuals.dart';
 import '../../features/auth/presentation/providers/auth_provider.dart';
@@ -102,6 +105,28 @@ class AppScaffold extends ConsumerStatefulWidget {
 
 class _AppScaffoldState extends ConsumerState<AppScaffold> {
   bool _mainMenuCollapsed = true;
+  bool _guideScheduled = false;
+
+  void _scheduleHeaderGuide({required bool hasRoles, required bool hasBranches}) {
+    if (_guideScheduled || (!hasRoles && !hasBranches)) return;
+    _guideScheduled = true;
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
+      final prefs = await SharedPreferences.getInstance();
+      if (!mounted || prefs.getBool('barlytics.header_selection_guide_v1') == true) return;
+      final guide = hasRoles && hasBranches
+          ? 'Puedes cambiar la vista por rol y elegir qué sucursal consultar desde el encabezado.'
+          : hasRoles
+              ? 'Puedes seleccionar uno, varios o todos tus roles desde Vista por rol.'
+              : 'Puedes elegir qué sucursal consultar tocando el icono de tienda.';
+      ScaffoldMessenger.maybeOf(context)?.showSnackBar(SnackBar(
+        content: Text(guide),
+        duration: const Duration(seconds: 8),
+        action: SnackBarAction(label: 'Entendido', onPressed: () {}),
+      ));
+      await prefs.setBool('barlytics.header_selection_guide_v1', true);
+    });
+  }
+
 
   @override
   Widget build(BuildContext context) {
@@ -121,8 +146,22 @@ class _AppScaffoldState extends ConsumerState<AppScaffold> {
     // Las notificaciones pertenecen al usuario autenticado, no al rol
     // actualmente seleccionado. El backend ya filtra por destinatario, por lo
     // que todos los shells autenticados pueden consultar sus propios avisos.
+    final branchScope = ref.watch(branchScopeProvider);
+    _scheduleHeaderGuide(
+      hasRoles: ref.watch(authControllerProvider).roles.length > 1,
+      hasBranches: branchScope.branches.length > 1,
+    );
     Widget withReadyOrderNotifications(Widget scaffold) {
-      return ReadyOrderNotificationHost(child: scaffold);
+      final branches = branchScope.branches;
+      if (branches.length <= 1) {
+        return ReadyOrderNotificationHost(child: scaffold);
+      }
+      return ReadyOrderNotificationHost(
+        child: KeyedSubtree(
+          key: ValueKey('sucursal-${branchScope.activeBranchId}'),
+          child: scaffold,
+        ),
+      );
     }
 
     final operationalMenuOpen = ref.watch(operationalMenuOpenProvider);
@@ -750,6 +789,16 @@ class _PageTopBar extends ConsumerWidget {
                   ),
                   const SizedBox(width: 10),
                   _RoleScopeSelector(palette: palette, compact: compact),
+                  const SizedBox(width: 8),
+                  _CompactBranchSelector(palette: palette, compact: compact),
+                  const SizedBox(width: 4),
+                  IconButton(
+                    tooltip: 'Ayuda de esta pantalla',
+                    visualDensity: VisualDensity.compact,
+                    constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
+                    icon: Icon(Icons.help_outline_rounded, size: 19, color: palette.textSecondary),
+                    onPressed: () => _showContextHelp(context, ref),
+                  ),
                   if ((statusText ?? '').trim().isNotEmpty && !compact) ...[
                     SizedBox(width: dense ? 10 : 12),
                     Container(
@@ -774,6 +823,124 @@ class _PageTopBar extends ConsumerWidget {
             ),
           ),
         ],
+      ),
+    );
+  }
+}
+
+/// Ayuda contextual reutilizable del encabezado de todos los módulos.
+void _showContextHelp(BuildContext context, WidgetRef ref) {
+  final path = GoRouterState.of(context).uri.path.toLowerCase();
+  final roles = ref.read(authControllerProvider).roles;
+  final branches = ref.read(branchScopeProvider).branches;
+  final guide = helpForRoute(path);
+  final operation = helpForOperation(path);
+  showDialog<void>(
+    context: context,
+    builder: (dialogContext) => AlertDialog(
+      title: Text(guide.title),
+      content: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: 440),
+        child: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              ListTile(
+                contentPadding: EdgeInsets.zero,
+                leading: const Icon(Icons.tips_and_updates_outlined),
+                title: const Text('¿Qué puedo hacer aquí?'),
+                subtitle: Text(guide.description),
+              ),
+              for (final entry in [...operation, ...guide.entries])
+                ListTile(
+                  contentPadding: EdgeInsets.zero,
+                  dense: true,
+                  leading: const Icon(Icons.check_circle_outline_rounded),
+                  title: Text(entry.title),
+                  subtitle: Text(entry.description),
+              ),
+              if (roles.length > 1)
+                const ListTile(
+                  contentPadding: EdgeInsets.zero,
+                  leading: Icon(Icons.manage_accounts_outlined),
+                  title: Text('Cambiar vista por rol'),
+                  subtitle: Text('Desde el encabezado puedes elegir uno, varios o todos tus roles y ver sus opciones.'),
+                ),
+              if (branches.length > 1)
+                const ListTile(
+                  contentPadding: EdgeInsets.zero,
+                  leading: Icon(Icons.storefront_outlined),
+                  title: Text('Cambiar sucursal'),
+                  subtitle: Text('Selecciona el icono de tienda para consultar la información de otra sucursal autorizada.'),
+                ),
+            ],
+          ),
+        ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.of(dialogContext).pop(),
+          child: const Text('Entendido'),
+        ),
+      ],
+    ),
+  );
+}
+
+/// Selector en el encabezado, sin añadir otra franja vertical.
+class _CompactBranchSelector extends ConsumerWidget {
+  const _CompactBranchSelector({required this.palette, required this.compact});
+  final AppPalette palette;
+  final bool compact;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final scope = ref.watch(branchScopeProvider);
+    if (scope.branches.length <= 1) return const SizedBox.shrink();
+    final selected = scope.activeBranch;
+    final name = (selected?.sucuNombre ?? 'Seleccionar sucursal').trim();
+    return PopupMenuButton<int>(
+      tooltip: 'Elegir sucursal: cambia los datos que estás viendo',
+      enabled: !scope.loading,
+      onSelected: (id) async {
+        if (id == scope.activeBranchId) return;
+        await ref.read(branchScopeProvider.notifier).select(id);
+      },
+      itemBuilder: (_) => scope.branches.map((branch) {
+        final active = branch.sucuId == scope.activeBranchId;
+        return PopupMenuItem<int>(
+          value: branch.sucuId,
+          child: Row(children: [
+            Icon(active ? Icons.check_circle_rounded : Icons.storefront_outlined,
+              size: 19, color: active ? palette.secondary : palette.textSecondary),
+            const SizedBox(width: 10),
+            Expanded(child: Text(branch.sucuNombre ?? 'Sucursal ${branch.sucuId}',
+              maxLines: 2, overflow: TextOverflow.ellipsis)),
+          ]),
+        );
+      }).toList(),
+      child: Container(
+        constraints: BoxConstraints(maxWidth: compact ? 44 : 190),
+        height: 38,
+        padding: EdgeInsets.symmetric(horizontal: compact ? 10 : 12),
+        decoration: BoxDecoration(
+          color: palette.secondary.withOpacity(0.09),
+          borderRadius: BorderRadius.circular(palette.radius(12)),
+          border: Border.all(color: palette.secondary.withOpacity(0.24)),
+        ),
+        child: Row(mainAxisSize: MainAxisSize.min, children: [
+          Icon(Icons.storefront_outlined, size: 18, color: palette.secondary),
+          if (!compact) ...[
+            const SizedBox(width: 7),
+            Flexible(child: Text(name.isEmpty ? 'Sucursal' : name,
+              maxLines: 1, overflow: TextOverflow.ellipsis,
+              style: TextStyle(color: palette.textPrimary, fontSize: 12,
+                fontWeight: FontWeight.w700))),
+            const SizedBox(width: 4),
+            Icon(Icons.keyboard_arrow_down_rounded, size: 18, color: palette.textSecondary),
+          ],
+        ]),
       ),
     );
   }
