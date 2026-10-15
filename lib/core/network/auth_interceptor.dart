@@ -55,6 +55,17 @@ class AuthInterceptor extends Interceptor {
         options.headers.remove('Authorization');
       }
     }
+    // El backend no puede deducir el cambio de sucursal desde el JWT:
+    // el token conserva la sede inicial. Enviar la sede activa por petición.
+    if (!isPublicRequest) {
+      final selectedBranch = await _storage.read(StorageKeys.sucursalId);
+      final id = int.tryParse(selectedBranch ?? '');
+      if (id != null && id > 0) {
+        options.headers['X-Sucursal-Id'] = id.toString();
+      } else {
+        options.headers.remove('X-Sucursal-Id');
+      }
+    }
     options.headers['Accept'] = 'application/json';
     super.onRequest(options, handler);
   }
