@@ -1337,13 +1337,6 @@ class _ProductosFormPageState extends ConsumerState<ProductosFormPage> {
         .toList()
       ..sort((a, b) => (a.prodNombre ?? '').toLowerCase().compareTo((b.prodNombre ?? '').toLowerCase()));
 
-    if (candidates.isEmpty) {
-      _showError(
-        'No hay insumos ni productos preparados con receta disponibles en esta sucursal para usar como adición.',
-      );
-      return;
-    }
-
     final formKey = GlobalKey<FormState>();
     int? selectedId;
     String unit = 'UND';
@@ -1362,6 +1355,18 @@ class _ProductosFormPageState extends ConsumerState<ProductosFormPage> {
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
                   children: [
+                    Align(
+                      alignment: Alignment.centerRight,
+                      child: TextButton.icon(
+                        onPressed: () async {
+                          Navigator.pop(dialogContext);
+                          await _createGastroAdditionInline();
+                        },
+                        icon: const Icon(Icons.add_circle_outline_rounded),
+                        label: const Text('Crear adición nueva'),
+                      ),
+                    ),
+                    if (candidates.isNotEmpty)
                     DropdownButtonFormField<int>(
                       value: selectedId,
                       isExpanded: true,
@@ -1381,6 +1386,8 @@ class _ProductosFormPageState extends ConsumerState<ProductosFormPage> {
                       onChanged: (value) => setDialogState(() => selectedId = value),
                       validator: (value) => value == null ? 'Selecciona una adición' : null,
                     ),
+                    if (candidates.isEmpty)
+                      const Text('Aún no hay adiciones registradas. Crea una aquí mismo.'),
                     const SizedBox(height: 12),
                     Row(
                       children: [
@@ -1430,7 +1437,7 @@ class _ProductosFormPageState extends ConsumerState<ProductosFormPage> {
             actions: [
               TextButton(onPressed: () => Navigator.pop(dialogContext), child: const Text('Cancelar')),
               FilledButton(
-                onPressed: () {
+                onPressed: candidates.isEmpty ? null : () {
                   if (!(formKey.currentState?.validate() ?? false)) return;
                   final product = candidates.firstWhere((item) => item.prodId == selectedId);
                   Navigator.pop(
@@ -1457,6 +1464,162 @@ class _ProductosFormPageState extends ConsumerState<ProductosFormPage> {
       _gastroAdiciones.removeWhere((item) => item.prodId == result.prodId);
       _gastroAdiciones.add(result);
     });
+  }
+
+
+  Future<void> _createGastroAdditionInline() async {
+    if (_sucursalId == null || _tipoId == null) {
+      _showError('Selecciona primero el tipo de producto.');
+      return;
+    }
+    final name = TextEditingController();
+    final description = TextEditingController();
+    final purchase = TextEditingController();
+    final extraPrice = TextEditingController(text: '0');
+    final quantity = TextEditingController(text: '1');
+    final formKey = GlobalKey<FormState>();
+    String unit = 'UND';
+    try {
+      final values = await showDialog<Map<String, dynamic>>(
+        context: context,
+        builder: (ctx) => StatefulBuilder(
+          builder: (ctx, update) => AlertDialog(
+            scrollable: true,
+            title: const Text('Crear adición nueva'),
+            content: SizedBox(
+              width: 460,
+              child: Form(
+                key: formKey,
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    TextFormField(
+                      controller: name,
+                      maxLength: 120,
+                      decoration: const InputDecoration(labelText: 'Nombre de la adición'),
+                      validator: _required,
+                    ),
+                    const SizedBox(height: 16),
+                    TextFormField(
+                      controller: description,
+                      maxLength: 400,
+                      decoration: const InputDecoration(labelText: 'Descripción'),
+                      validator: _required,
+                    ),
+                    const SizedBox(height: 16),
+                    DropdownButtonFormField<String>(
+                      value: unit,
+                      decoration: const InputDecoration(labelText: 'Unidad base'),
+                      items: const ['UND', 'G', 'KG', 'ML', 'L']
+                          .map((value) => DropdownMenuItem(value: value, child: Text(value)))
+                          .toList(),
+                      onChanged: (value) {
+                        if (value != null) update(() => unit = value);
+                      },
+                    ),
+                    const SizedBox(height: 16),
+                    TextFormField(
+                      controller: purchase,
+                      keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                      inputFormatters: InputConstraints.decimalFormatters(integerDigits: 13, fractionDigits: 2),
+                      decoration: const InputDecoration(labelText: 'Costo de compra'),
+                      validator: _requiredPositive,
+                    ),
+                    const SizedBox(height: 16),
+                    TextFormField(
+                      controller: extraPrice,
+                      keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                      inputFormatters: InputConstraints.decimalFormatters(integerDigits: 13, fractionDigits: 2),
+                      decoration: const InputDecoration(labelText: 'Precio adicional al cliente'),
+                      validator: _requiredPositiveOrZero,
+                    ),
+                    const SizedBox(height: 16),
+                    TextFormField(
+                      controller: quantity,
+                      keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                      inputFormatters: InputConstraints.decimalFormatters(integerDigits: 13, fractionDigits: 4),
+                      decoration: const InputDecoration(labelText: 'Cantidad por pedido'),
+                      validator: _requiredPositive,
+                    ),
+                  ],
+                ),
+              ),
+            ),
+            actions: [
+              TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Cancelar')),
+              FilledButton(
+                onPressed: () {
+                  if (!(formKey.currentState?.validate() ?? false)) return;
+                  Navigator.pop(ctx, <String, dynamic>{
+                    'name': name.text.trim(),
+                    'description': description.text.trim(),
+                    'unit': unit,
+                    'cost': _parseDouble(purchase.text)!,
+                    'price': _parseDouble(extraPrice.text)!,
+                    'quantity': _parseDouble(quantity.text)!,
+                  });
+                },
+                child: const Text('Crear y agregar'),
+              ),
+            ],
+          ),
+        ),
+      );
+      if (values == null || !mounted) return;
+      final client = ref.read(apiClientProvider);
+      final product = await client.post<ProductosResponseModel>(
+        '/api/v1/productos',
+        <String, dynamic>{
+          'sucuId': _sucursalId,
+          'tpprId': _tipoId,
+          'mrcaId': await _resolveMarcaId(),
+          'prodNombre': values['name'],
+          'prodDescripcion': values['description'],
+          'prodTipoControl': 'INSUMO',
+          'prodUnidadBase': values['unit'],
+          'prodStockMinimo': 0,
+        },
+        (json) => ProductosResponseModel.fromJson(Map<String, dynamic>.from(json as Map)),
+      );
+      final id = product.data?.prodId;
+      if (id == null) throw StateError('No se obtuvo el identificador de la adición.');
+      await client.post<PreciosResponseModel>(
+        '/api/v1/precios',
+        <String, dynamic>{
+          'prodId': id,
+          'sucuId': _sucursalId,
+          'precEstado': 1,
+          'precValorCompra': values['cost'],
+          'precValorVenta': values['price'],
+          'precFechaInicia': DateTime.now().toIso8601String(),
+          'precAplicaImpuesto': 0,
+          'precPorcentajeImpuesto': 0,
+          'precValorImpuesto': 0,
+        },
+        (json) => PreciosResponseModel.fromJson(Map<String, dynamic>.from(json as Map)),
+      );
+      if (!mounted) return;
+      setState(() {
+        _gastroAdiciones.removeWhere((item) => item.prodId == id);
+        _gastroAdiciones.add(_GastroAdditionDraft(
+          prodId: id,
+          nombre: values['name'] as String,
+          cantidad: values['quantity'] as double,
+          unidad: values['unit'] as String,
+          precioAdicional: values['price'] as double,
+          precioCompra: values['cost'] as double,
+        ));
+      });
+      await ref.read(productosProvider.notifier).load();
+    } catch (error) {
+      if (mounted) _showError('No fue posible crear la adición: $error');
+    } finally {
+      name.dispose();
+      description.dispose();
+      purchase.dispose();
+      extraPrice.dispose();
+      quantity.dispose();
+    }
   }
 
   Future<void> _pickExpirationDate() async {
