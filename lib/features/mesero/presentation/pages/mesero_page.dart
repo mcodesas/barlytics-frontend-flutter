@@ -14656,6 +14656,7334 @@ class _DetalleHistorialVentaPageState extends ConsumerState<_DetalleHistorialVen
     _dataSource = MeseroRemoteDataSource(ref.read(apiClientProvider));
   }
 
+  bool _enviandoComprobante = false;
+
+  Future<void> _enviarComprobanteCorreo() async {
+    final ventaId = _venta.ventaId;
+    if (ventaId == null || _enviandoComprobante) return;
+    final controller = TextEditingController();
+    final email = await showDialog<String>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Enviar comprobante por correo'),
+        content: TextField(
+          controller: controller,
+          autofocus: true,
+          keyboardType: TextInputType.emailAddress,
+          decoration: const InputDecoration(
+            labelText: 'Correo del cliente',
+            hintText: 'cliente@correo.com',
+          ),
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(dialogContext), child: const Text('Cancelar')),
+          FilledButton(onPressed: () {
+            final value = controller.text.trim();
+            if (RegExp(r'^[^\\s@]+@[^\\s@]+\\.[^\\s@]+
+    final cuentaId = cuenta.cuentaId;
+    final pagoId = pago.pagoId;
+    if (cuentaId == null || pagoId == null || _actualizandoPagoId != null) return;
+
+    try {
+      final medios = await _dataSource.listarMediosPago();
+      if (!mounted) return;
+      final disponibles = medios
+          .where((medio) => medio.medioPagoId != null && medio.medioPagoId != pago.medioPagoId)
+          .toList(growable: false);
+      if (disponibles.isEmpty) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('No hay otro medio de pago activo disponible para realizar la corrección.')),
+        );
+        return;
+      }
+
+      final nuevoMedioId = await showDialog<int>(
+        context: context,
+        builder: (dialogContext) {
+          final palette = ref.read(selectedAppPaletteProvider);
+          return AlertDialog(
+            backgroundColor: palette.surface,
+            title: Text('Corregir medio de pago', style: TextStyle(color: palette.textPrimary, fontWeight: FontWeight.w900)),
+            content: ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 460),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Pago actual: ${pago.medioPagoNombre ?? 'Medio ${pago.medioPagoId ?? '-'}'} · ${CurrencyUtils.format(pago.valor)}',
+                    style: TextStyle(color: palette.textSecondary, fontWeight: FontWeight.w700),
+                  ),
+                  const SizedBox(height: 14),
+                  ...disponibles.map((medio) => Padding(
+                        padding: const EdgeInsets.only(bottom: 8),
+                        child: Material(
+                          color: palette.background.withOpacity(palette.darkBackground ? 0.55 : 0.72),
+                          borderRadius: BorderRadius.circular(14),
+                          child: ListTile(
+                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                            leading: Icon(_iconoMedioPago(medio), color: palette.secondary),
+                            title: Text(medio.nombre ?? 'Medio ${medio.medioPagoId}', style: TextStyle(color: palette.textPrimary, fontWeight: FontWeight.w900)),
+                            subtitle: (medio.descripcion ?? '').trim().isEmpty
+                                ? null
+                                : Text(medio.descripcion ?? '', style: TextStyle(color: palette.textSecondary)),
+                            trailing: const Icon(Icons.chevron_right_rounded),
+                            onTap: () => Navigator.of(dialogContext).pop(medio.medioPagoId),
+                          ),
+                        ),
+                      )),
+                ],
+              ),
+            ),
+            actions: [
+              TextButton(onPressed: () => Navigator.of(dialogContext).pop(), child: const Text('Cancelar')),
+            ],
+          );
+        },
+      );
+      if (nuevoMedioId == null || !mounted) return;
+
+      setState(() => _actualizandoPagoId = pagoId);
+      await _dataSource.cambiarMedioPagoCuenta(
+        pagoId: pagoId,
+        medioPagoId: nuevoMedioId,
+      );
+      final ventaId = _venta.ventaId;
+      final actualizada = ventaId == null ? _venta : await _dataSource.consultarVenta(ventaId);
+      if (!mounted) return;
+      setState(() {
+        _venta = actualizada;
+        _actualizandoPagoId = null;
+      });
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Medio de pago corregido. El valor de la venta no fue modificado.')),
+      );
+    } catch (error) {
+      if (!mounted) return;
+      setState(() => _actualizandoPagoId = null);
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(error.toString())));
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final venta = _venta;
+    final palette = ref.watch(selectedAppPaletteProvider);
+    final productos = _agruparProductosFactura(venta.cuentas.expand((cuenta) => cuenta.productos));
+    final pagos = venta.cuentas.expand((cuenta) => cuenta.pagos.map((pago) => (cuenta: cuenta, pago: pago))).toList(growable: false);
+    final totalProductos = venta.cuentas.fold<double>(
+      0,
+      (sum, cuenta) => sum +
+          (cuenta.subtotalProductos ??
+              cuenta.productos.fold<double>(0, (acc, producto) => acc + _detalleProductoSubtotal(producto))),
+    );
+    final totalPropina = venta.propina ?? venta.cuentas.fold<double>(0, (sum, cuenta) => sum + (cuenta.propina ?? 0));
+    final totalCambio = pagos.fold<double>(0, (sum, item) => sum + (item.pago.cambio ?? 0));
+    final totalUnidades = productos.fold<double>(0, (sum, producto) => sum + producto.cantidad);
+
+    final productosPanel = _HistorialFacturaProductos(productos: productos);
+    final cuentasPanel = _HistorialCuentasPanel(venta: venta);
+    final resumenPanel = _HistorialCobroResumen(
+      venta: venta,
+      totalProductos: totalProductos,
+      totalPropina: totalPropina,
+      totalCambio: totalCambio,
+    );
+    final ventaFinalizada = (venta.estado ?? '').trim().toUpperCase() == 'FINALIZADA';
+    final pagosPanel = _HistorialPagosPanel(
+      pagos: pagos,
+      onCambiarMedioPago: ventaFinalizada ? _cambiarMedioPago : null,
+      actualizandoPagoId: _actualizandoPagoId,
+    );
+
+    return Scaffold(
+      backgroundColor: palette.background,
+      appBar: AppBar(
+        toolbarHeight: 72,
+        elevation: 0,
+        scrolledUnderElevation: 0,
+        backgroundColor: palette.titleBackground,
+        surfaceTintColor: Colors.transparent,
+        foregroundColor: palette.onTitle,
+        iconTheme: IconThemeData(color: palette.onTitle),
+        titleSpacing: 0,
+        actions: [
+          IconButton(
+            tooltip: 'Enviar comprobante por correo',
+            onPressed: _enviandoComprobante ? null : _enviarComprobanteCorreo,
+            icon: _enviandoComprobante
+                ? const SizedBox(width: 19, height: 19, child: CircularProgressIndicator(strokeWidth: 2))
+                : const Icon(Icons.mark_email_unread_outlined),
+          ),
+        ],
+        title: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(
+              'Detalle de venta',
+              style: TextStyle(color: palette.onTitle, fontWeight: FontWeight.w900, fontSize: 18),
+            ),
+            const SizedBox(height: 2),
+            Text(
+              'Venta #${venta.ventaId ?? '-'} · ${_origenVentaVisible(venta)}',
+              style: TextStyle(color: palette.onTitle.withOpacity(0.72), fontWeight: FontWeight.w700, fontSize: 11.5),
+            ),
+          ],
+        ),
+        bottom: PreferredSize(
+          preferredSize: const Size.fromHeight(1),
+          child: Container(height: 1, color: palette.secondary.withOpacity(0.20)),
+        ),
+      ),
+      body: Stack(
+        fit: StackFit.expand,
+        children: [
+          const AppPageBackground(),
+          SafeArea(
+            top: false,
+            child: LayoutBuilder(
+              builder: (context, viewport) {
+                final minHeight = viewport.maxHeight > 48 ? viewport.maxHeight - 48 : 0.0;
+                return SingleChildScrollView(
+                  padding: const EdgeInsets.fromLTRB(18, 18, 18, 34),
+                  child: ConstrainedBox(
+                    constraints: BoxConstraints(minHeight: minHeight),
+                    child: Align(
+                      alignment: Alignment.topCenter,
+                      child: ConstrainedBox(
+                        constraints: const BoxConstraints(maxWidth: 1460),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            _HistorialVentaCabecera(
+                              venta: venta,
+                              productos: productos.length,
+                              unidades: totalUnidades,
+                              pagos: pagos.length,
+                            ),
+                            const SizedBox(height: 16),
+                            LayoutBuilder(
+                              builder: (context, constraints) {
+                                final desktop = constraints.maxWidth >= 980;
+                                if (!desktop) {
+                                  return Column(
+                                    children: [
+                                      productosPanel,
+                                      const SizedBox(height: 14),
+                                      resumenPanel,
+                                      const SizedBox(height: 14),
+                                      pagosPanel,
+                                      const SizedBox(height: 14),
+                                      cuentasPanel,
+                                    ],
+                                  );
+                                }
+
+                                return Row(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Expanded(
+                                      flex: 7,
+                                      child: Column(
+                                        children: [
+                                          productosPanel,
+                                          const SizedBox(height: 14),
+                                          cuentasPanel,
+                                        ],
+                                      ),
+                                    ),
+                                    const SizedBox(width: 16),
+                                    SizedBox(
+                                      width: 390,
+                                      child: Column(
+                                        children: [
+                                          resumenPanel,
+                                          const SizedBox(height: 14),
+                                          pagosPanel,
+                                        ],
+                                      ),
+                                    ),
+                                  ],
+                                );
+                              },
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ),
+                );
+              },
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _HistorialVentaCabecera extends ConsumerWidget {
+  const _HistorialVentaCabecera({
+    required this.venta,
+    required this.productos,
+    required this.unidades,
+    required this.pagos,
+  });
+
+  final MeseroVentaModel venta;
+  final int productos;
+  final double unidades;
+  final int pagos;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final palette = ref.watch(selectedAppPaletteProvider);
+    final descripcion = (venta.mesaDescripcion ?? '').trim();
+    final ventaDirecta = (venta.tipoVenta ?? '').trim().toUpperCase() == 'DIRECTA' || venta.mesaId == null;
+    final pagada = venta.pagada == true || (venta.saldoPendiente ?? 0) <= 0.009;
+
+    Widget identity() {
+      return Row(
+        crossAxisAlignment: CrossAxisAlignment.center,
+        children: [
+          ventaDirecta
+              ? Container(
+                  width: 68,
+                  height: 68,
+                  decoration: BoxDecoration(color: palette.secondary.withOpacity(0.14), borderRadius: BorderRadius.circular(22)),
+                  child: Icon(Icons.point_of_sale_rounded, color: palette.secondary, size: 32),
+                )
+              : _MesaNumberPhotoBadge(
+                  mesaNumero: venta.mesaNumero,
+                  mesaFoto: venta.mesaFoto,
+                  size: 68,
+                  radius: 34,
+                  accentColor: palette.secondary,
+                  backgroundColor: palette.background.withOpacity(0.72),
+                  textColor: Colors.white,
+                  compact: false,
+                  veryTight: false,
+                ),
+          const SizedBox(width: 14),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Expanded(
+                      child: Text(
+                        'Venta #${venta.ventaId ?? '-'}',
+                        style: Theme.of(context).textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.w900, color: palette.textPrimary),
+                      ),
+                    ),
+                    _HistorialEstadoChip(pagada: pagada),
+                  ],
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  ventaDirecta ? 'Venta directa · Mostrador' : (descripcion.isEmpty ? 'Mesa ${venta.mesaNumero ?? venta.mesaId ?? '-'}' : descripcion),
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(color: palette.textSecondary, fontWeight: FontWeight.w700),
+                ),
+                if ((venta.fecha ?? '').trim().isNotEmpty) ...[
+                  const SizedBox(height: 5),
+                  Row(
+                    children: [
+                      Icon(Icons.schedule_rounded, size: 15, color: palette.textSecondary),
+                      const SizedBox(width: 5),
+                      Expanded(
+                        child: Text(
+                          _formatFechaHoraVentaDetalle(venta.fecha),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: TextStyle(color: palette.textSecondary, fontWeight: FontWeight.w700, fontSize: 12),
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ],
+            ),
+          ),
+        ],
+      );
+    }
+
+    final total = Container(
+      padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 14),
+      decoration: BoxDecoration(
+        color: palette.background.withOpacity(palette.darkBackground ? 0.48 : 0.72),
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: palette.secondary.withOpacity(0.18)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.end,
+        children: [
+          Text('Total de la venta', style: TextStyle(color: palette.textSecondary, fontSize: 11, fontWeight: FontWeight.w800)),
+          const SizedBox(height: 3),
+          Text(CurrencyUtils.format(venta.total), style: TextStyle(color: palette.secondary, fontSize: 25, fontWeight: FontWeight.w900)),
+          if (!pagada) ...[
+            const SizedBox(height: 4),
+            Text('Saldo ${CurrencyUtils.format(venta.saldoPendiente)}', style: const TextStyle(color: AppColors.danger, fontWeight: FontWeight.w900, fontSize: 12)),
+          ],
+        ],
+      ),
+    );
+
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: palette.surface.withOpacity(palette.darkBackground ? 0.92 : 0.98),
+        borderRadius: BorderRadius.circular(26),
+        border: Border.all(color: palette.secondary.withOpacity(0.18)),
+        boxShadow: [BoxShadow(color: palette.cardShadow.withOpacity(0.22), blurRadius: 24, offset: const Offset(0, 10))],
+      ),
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          final compact = constraints.maxWidth < 760;
+          return Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              if (compact) ...[
+                identity(),
+                const SizedBox(height: 14),
+                SizedBox(width: double.infinity, child: total),
+              ] else
+                Row(children: [Expanded(child: identity()), const SizedBox(width: 18), total]),
+              const SizedBox(height: 16),
+              Divider(height: 1, color: palette.cardBorder),
+              const SizedBox(height: 14),
+              Wrap(
+                spacing: 18,
+                runSpacing: 10,
+                children: [
+                  _HistorialDatoInline(icon: Icons.call_split_rounded, label: 'Cuentas', value: '${venta.cuentas.length}'),
+                  _HistorialDatoInline(icon: Icons.inventory_2_rounded, label: 'Productos', value: '$productos'),
+                  _HistorialDatoInline(icon: Icons.numbers_rounded, label: 'Unidades', value: _formatCantidadGeneral(unidades)),
+                  _HistorialDatoInline(icon: Icons.payments_rounded, label: 'Pagos', value: '$pagos'),
+                ],
+              ),
+            ],
+          );
+        },
+      ),
+    );
+  }
+}
+
+class _HistorialEstadoChip extends ConsumerWidget {
+  const _HistorialEstadoChip({required this.pagada});
+  final bool pagada;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final palette = ref.watch(selectedAppPaletteProvider);
+    final color = pagada ? AppColors.success : AppColors.danger;
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+      decoration: BoxDecoration(color: color.withOpacity(0.12), borderRadius: BorderRadius.circular(999), border: Border.all(color: color.withOpacity(0.28))),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(pagada ? Icons.check_circle_rounded : Icons.pending_actions_rounded, size: 15, color: color),
+          const SizedBox(width: 5),
+          Text(pagada ? 'Pagada' : 'Pendiente', style: TextStyle(color: pagada ? color : (palette.darkBackground ? color : AppColors.danger), fontWeight: FontWeight.w900, fontSize: 11)),
+        ],
+      ),
+    );
+  }
+}
+
+class _HistorialDatoInline extends ConsumerWidget {
+  const _HistorialDatoInline({required this.icon, required this.label, required this.value});
+  final IconData icon;
+  final String label;
+  final String value;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final palette = ref.watch(selectedAppPaletteProvider);
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Icon(icon, size: 18, color: palette.secondary),
+        const SizedBox(width: 7),
+        Text('$label: ', style: TextStyle(color: palette.textSecondary, fontWeight: FontWeight.w700, fontSize: 12)),
+        Text(value, style: TextStyle(color: palette.textPrimary, fontWeight: FontWeight.w900, fontSize: 13)),
+      ],
+    );
+  }
+}
+
+class _HistorialFacturaProductos extends ConsumerWidget {
+  const _HistorialFacturaProductos({required this.productos});
+  final List<_FacturaProductoAgrupado> productos;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final palette = ref.watch(selectedAppPaletteProvider);
+    return Container(
+      width: double.infinity,
+      decoration: BoxDecoration(
+        color: palette.surface.withOpacity(palette.darkBackground ? 0.90 : 0.98),
+        borderRadius: BorderRadius.circular(22),
+        border: Border.all(color: palette.cardBorder),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 15, 16, 13),
+            child: Row(
+              children: [
+                Icon(Icons.receipt_long_rounded, color: palette.secondary),
+                const SizedBox(width: 10),
+                Expanded(child: Text('Productos facturados', style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w900, color: palette.textPrimary))),
+                Text(productos.length == 1 ? '1 referencia' : '${productos.length} referencias', style: TextStyle(color: palette.textSecondary, fontWeight: FontWeight.w700, fontSize: 12)),
+              ],
+            ),
+          ),
+          Divider(height: 1, color: palette.cardBorder),
+          if (productos.isEmpty)
+            Padding(
+              padding: const EdgeInsets.all(18),
+              child: Text('Esta venta no tiene productos registrados.', style: TextStyle(color: palette.textSecondary, fontWeight: FontWeight.w700)),
+            )
+          else
+            LayoutBuilder(
+              builder: (context, constraints) {
+                final compact = constraints.maxWidth < 650;
+                if (compact) {
+                  return Column(
+                    children: [
+                      for (var i = 0; i < productos.length; i++)
+                        _HistorialProductoFacturaMobile(producto: productos[i], last: i == productos.length - 1),
+                    ],
+                  );
+                }
+                return Column(
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                      color: palette.background.withOpacity(palette.darkBackground ? 0.35 : 0.65),
+                      child: Row(
+                        children: [
+                          const SizedBox(width: 70, child: _HistorialTablaHeader('Cant.')),
+                          const Expanded(child: _HistorialTablaHeader('Producto')),
+                          const SizedBox(width: 120, child: _HistorialTablaHeader('Unitario', alignEnd: true)),
+                          const SizedBox(width: 130, child: _HistorialTablaHeader('Total', alignEnd: true)),
+                        ],
+                      ),
+                    ),
+                    for (var i = 0; i < productos.length; i++)
+                      _HistorialProductoFacturaRow(producto: productos[i], last: i == productos.length - 1),
+                  ],
+                );
+              },
+            ),
+        ],
+      ),
+    );
+  }
+}
+
+class _HistorialTablaHeader extends ConsumerWidget {
+  const _HistorialTablaHeader(this.text, {this.alignEnd = false});
+  final String text;
+  final bool alignEnd;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final palette = ref.watch(selectedAppPaletteProvider);
+    return Align(
+      alignment: alignEnd ? Alignment.centerRight : Alignment.centerLeft,
+      child: Text(text, style: TextStyle(color: palette.textSecondary, fontSize: 11, fontWeight: FontWeight.w900)),
+    );
+  }
+}
+
+class _HistorialProductoFacturaRow extends ConsumerWidget {
+  const _HistorialProductoFacturaRow({required this.producto, required this.last});
+  final _FacturaProductoAgrupado producto;
+  final bool last;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final palette = ref.watch(selectedAppPaletteProvider);
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+      decoration: BoxDecoration(border: last ? null : Border(bottom: BorderSide(color: palette.cardBorder))),
+      child: Row(
+        children: [
+          SizedBox(width: 70, child: Text(_formatCantidadGeneral(producto.cantidad), style: TextStyle(color: palette.textPrimary, fontWeight: FontWeight.w900))),
+          Expanded(child: Text(producto.nombre, maxLines: 2, overflow: TextOverflow.ellipsis, style: TextStyle(color: palette.textPrimary, fontWeight: FontWeight.w800))),
+          SizedBox(width: 120, child: Text(CurrencyUtils.format(producto.precioUnitario), textAlign: TextAlign.right, style: TextStyle(color: palette.textSecondary, fontWeight: FontWeight.w700))),
+          SizedBox(width: 130, child: Text(CurrencyUtils.format(producto.total), textAlign: TextAlign.right, style: TextStyle(color: palette.secondary, fontWeight: FontWeight.w900))),
+        ],
+      ),
+    );
+  }
+}
+
+class _HistorialProductoFacturaMobile extends ConsumerWidget {
+  const _HistorialProductoFacturaMobile({required this.producto, required this.last});
+  final _FacturaProductoAgrupado producto;
+  final bool last;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final palette = ref.watch(selectedAppPaletteProvider);
+    return Container(
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(border: last ? null : Border(bottom: BorderSide(color: palette.cardBorder))),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(producto.nombre, style: TextStyle(color: palette.textPrimary, fontWeight: FontWeight.w900)),
+          const SizedBox(height: 8),
+          Row(
+            children: [
+              Expanded(child: _HistorialMiniDato(label: 'Cantidad', value: _formatCantidadGeneral(producto.cantidad))),
+              Expanded(child: _HistorialMiniDato(label: 'Unitario', value: CurrencyUtils.format(producto.precioUnitario), alignEnd: true)),
+              Expanded(child: _HistorialMiniDato(label: 'Total', value: CurrencyUtils.format(producto.total), alignEnd: true, highlight: true)),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _HistorialMiniDato extends ConsumerWidget {
+  const _HistorialMiniDato({required this.label, required this.value, this.alignEnd = false, this.highlight = false});
+  final String label;
+  final String value;
+  final bool alignEnd;
+  final bool highlight;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final palette = ref.watch(selectedAppPaletteProvider);
+    return Column(
+      crossAxisAlignment: alignEnd ? CrossAxisAlignment.end : CrossAxisAlignment.start,
+      children: [
+        Text(label, style: TextStyle(color: palette.textSecondary, fontSize: 10, fontWeight: FontWeight.w700)),
+        const SizedBox(height: 2),
+        Text(value, style: TextStyle(color: highlight ? palette.secondary : palette.textPrimary, fontSize: 12, fontWeight: FontWeight.w900)),
+      ],
+    );
+  }
+}
+
+class _HistorialCobroResumen extends ConsumerWidget {
+  const _HistorialCobroResumen({required this.venta, required this.totalProductos, required this.totalPropina, required this.totalCambio});
+  final MeseroVentaModel venta;
+  final double totalProductos;
+  final double totalPropina;
+  final double totalCambio;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final palette = ref.watch(selectedAppPaletteProvider);
+    final saldo = venta.saldoPendiente ?? 0;
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(17),
+      decoration: BoxDecoration(
+        color: palette.surface.withOpacity(palette.darkBackground ? 0.92 : 0.98),
+        borderRadius: BorderRadius.circular(22),
+        border: Border.all(color: palette.secondary.withOpacity(0.18)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(children: [Icon(Icons.calculate_rounded, color: palette.secondary), const SizedBox(width: 9), Text('Resumen de cobro', style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w900, color: palette.textPrimary))]),
+          const SizedBox(height: 14),
+          _detalleLinea(palette, 'Productos', CurrencyUtils.format(totalProductos)),
+          _detalleLinea(palette, 'Propina', CurrencyUtils.format(totalPropina)),
+          Divider(height: 20, color: palette.cardBorder),
+          _detalleLinea(palette, 'Total venta', CurrencyUtils.format(venta.total), destacado: true),
+          _detalleLinea(palette, 'Total pagado', CurrencyUtils.format(venta.totalPagado ?? (venta.pagada == true ? venta.total : 0))),
+          if (totalCambio > 0) _detalleLinea(palette, 'Vueltas entregadas', CurrencyUtils.format(totalCambio)),
+          Divider(height: 20, color: palette.cardBorder),
+          _detalleLinea(palette, 'Saldo pendiente', CurrencyUtils.format(saldo), destacado: true, danger: saldo > 0.009),
+        ],
+      ),
+    );
+  }
+}
+
+class _HistorialPagosPanel extends ConsumerWidget {
+  const _HistorialPagosPanel({
+    required this.pagos,
+    this.onCambiarMedioPago,
+    this.actualizandoPagoId,
+  });
+  final List<({MeseroCuentaModel cuenta, MeseroPagoModel pago})> pagos;
+  final Future<void> Function(MeseroCuentaModel cuenta, MeseroPagoModel pago)? onCambiarMedioPago;
+  final int? actualizandoPagoId;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final palette = ref.watch(selectedAppPaletteProvider);
+    final totals = <String, double>{};
+    for (final item in pagos) {
+      final name = (item.pago.medioPagoNombre ?? 'Medio ${item.pago.medioPagoId ?? '-'}').trim();
+      totals[name] = (totals[name] ?? 0) + (item.pago.valor ?? 0);
+    }
+
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(17),
+      decoration: BoxDecoration(
+        color: palette.surface.withOpacity(palette.darkBackground ? 0.90 : 0.98),
+        borderRadius: BorderRadius.circular(22),
+        border: Border.all(color: palette.cardBorder),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(children: [Icon(Icons.payments_rounded, color: palette.secondary), const SizedBox(width: 9), Expanded(child: Text('Pagos registrados', style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w900, color: palette.textPrimary))), Text('${pagos.length}', style: TextStyle(color: palette.secondary, fontWeight: FontWeight.w900))]),
+          if (totals.isNotEmpty && (totals.length > 1 || pagos.length > 1)) ...[
+            const SizedBox(height: 12),
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: totals.entries.map((entry) => _SmallInfoPill(icon: Icons.account_balance_wallet_rounded, text: '${entry.key}: ${CurrencyUtils.format(entry.value)}')).toList(growable: false),
+            ),
+          ],
+          const SizedBox(height: 12),
+          if (pagos.isEmpty)
+            Text('No hay pagos registrados para esta venta.', style: TextStyle(color: palette.textSecondary, fontWeight: FontWeight.w700))
+          else
+            for (var i = 0; i < pagos.length; i++)
+              _HistorialPagoCompacto(
+                item: pagos[i],
+                last: i == pagos.length - 1,
+                onCambiarMedioPago: onCambiarMedioPago,
+                actualizando: actualizandoPagoId == pagos[i].pago.pagoId,
+              ),
+        ],
+      ),
+    );
+  }
+}
+
+class _HistorialPagoCompacto extends ConsumerWidget {
+  const _HistorialPagoCompacto({
+    required this.item,
+    required this.last,
+    this.onCambiarMedioPago,
+    this.actualizando = false,
+  });
+  final ({MeseroCuentaModel cuenta, MeseroPagoModel pago}) item;
+  final bool last;
+  final Future<void> Function(MeseroCuentaModel cuenta, MeseroPagoModel pago)? onCambiarMedioPago;
+  final bool actualizando;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final palette = ref.watch(selectedAppPaletteProvider);
+    final pago = item.pago;
+    return Container(
+      padding: const EdgeInsets.symmetric(vertical: 10),
+      decoration: BoxDecoration(border: last ? null : Border(bottom: BorderSide(color: palette.cardBorder))),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(Icons.account_balance_wallet_rounded, size: 18, color: palette.secondary),
+              const SizedBox(width: 8),
+              Expanded(child: Text(pago.medioPagoNombre ?? 'Medio ${pago.medioPagoId ?? '-'}', style: TextStyle(color: palette.textPrimary, fontWeight: FontWeight.w900))),
+              Text(CurrencyUtils.format(pago.valor), style: TextStyle(color: palette.secondary, fontWeight: FontWeight.w900)),
+              if (onCambiarMedioPago != null && pago.pagoId != null) ...[
+                const SizedBox(width: 6),
+                actualizando
+                    ? const SizedBox(width: 28, height: 28, child: Padding(padding: EdgeInsets.all(5), child: CircularProgressIndicator(strokeWidth: 2)))
+                    : Tooltip(
+                        message: 'Corregir medio de pago',
+                        child: IconButton(
+                          visualDensity: VisualDensity.compact,
+                          iconSize: 19,
+                          onPressed: () => onCambiarMedioPago?.call(item.cuenta, pago),
+                          icon: Icon(Icons.edit_rounded, color: palette.secondary),
+                        ),
+                      ),
+              ],
+            ],
+          ),
+          const SizedBox(height: 5),
+          Text(
+            [
+              _cuentaNombreVisible(item.cuenta),
+              if ((pago.valorRecibido ?? 0) > 0) 'Recibido ${CurrencyUtils.format(pago.valorRecibido)}',
+              if ((pago.cambio ?? 0) > 0) 'Vueltas ${CurrencyUtils.format(pago.cambio)}',
+            ].join(' · '),
+            style: TextStyle(color: palette.textSecondary, fontWeight: FontWeight.w700, fontSize: 11),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _HistorialCuentasPanel extends ConsumerWidget {
+  const _HistorialCuentasPanel({required this.venta});
+  final MeseroVentaModel venta;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final palette = ref.watch(selectedAppPaletteProvider);
+    return Container(
+      width: double.infinity,
+      decoration: BoxDecoration(
+        color: palette.surface.withOpacity(palette.darkBackground ? 0.90 : 0.98),
+        borderRadius: BorderRadius.circular(22),
+        border: Border.all(color: palette.cardBorder),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 15, 16, 12),
+            child: Row(children: [Icon(Icons.call_split_rounded, color: palette.secondary), const SizedBox(width: 9), Expanded(child: Text('Distribución por cuentas', style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w900, color: palette.textPrimary))), Text('${venta.cuentas.length}', style: TextStyle(color: palette.secondary, fontWeight: FontWeight.w900))]),
+          ),
+          Divider(height: 1, color: palette.cardBorder),
+          if (venta.cuentas.isEmpty)
+            Padding(padding: const EdgeInsets.all(16), child: Text('La venta no tiene cuentas registradas.', style: TextStyle(color: palette.textSecondary, fontWeight: FontWeight.w700)))
+          else
+            for (var i = 0; i < venta.cuentas.length; i++)
+              _HistorialCuentaExpansion(
+                cuenta: venta.cuentas[i],
+                last: i == venta.cuentas.length - 1,
+                initiallyExpanded: venta.cuentas.length == 1,
+              ),
+        ],
+      ),
+    );
+  }
+}
+
+class _HistorialCuentaExpansion extends ConsumerWidget {
+  const _HistorialCuentaExpansion({required this.cuenta, required this.last, this.initiallyExpanded = false});
+  final MeseroCuentaModel cuenta;
+  final bool last;
+  final bool initiallyExpanded;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final palette = ref.watch(selectedAppPaletteProvider);
+    final pagada = cuenta.pagada == true || (cuenta.saldoPendiente ?? 0) <= 0.009;
+    final productosLabel = cuenta.productos.length == 1 ? '1 producto' : '${cuenta.productos.length} productos';
+    final pagosLabel = cuenta.pagos.length == 1 ? '1 pago' : '${cuenta.pagos.length} pagos';
+    return Container(
+      decoration: BoxDecoration(border: last ? null : Border(bottom: BorderSide(color: palette.cardBorder))),
+      child: ExpansionTile(
+        key: PageStorageKey<String>('historial-cuenta-${cuenta.cuentaId ?? _cuentaNombreVisible(cuenta)}'),
+        initiallyExpanded: initiallyExpanded,
+        tilePadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+        childrenPadding: const EdgeInsets.fromLTRB(16, 0, 16, 14),
+        leading: CircleAvatar(
+          backgroundColor: palette.secondary.withOpacity(0.14),
+          foregroundColor: palette.secondary,
+          child: const Icon(Icons.receipt_long_rounded, size: 20),
+        ),
+        title: Text(_cuentaNombreVisible(cuenta), style: TextStyle(color: palette.textPrimary, fontWeight: FontWeight.w900)),
+        subtitle: Text('$productosLabel · $pagosLabel', style: TextStyle(color: palette.textSecondary, fontWeight: FontWeight.w700, fontSize: 11)),
+        trailing: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              crossAxisAlignment: CrossAxisAlignment.end,
+              children: [
+                Text(CurrencyUtils.format(cuenta.total), style: TextStyle(color: palette.secondary, fontWeight: FontWeight.w900)),
+                Text(pagada ? 'Pagada' : 'Saldo ${CurrencyUtils.format(cuenta.saldoPendiente)}', style: TextStyle(color: pagada ? AppColors.success : AppColors.danger, fontSize: 10, fontWeight: FontWeight.w800)),
+              ],
+            ),
+            const SizedBox(width: 8),
+            Icon(Icons.expand_more_rounded, color: palette.textSecondary, size: 21),
+          ],
+        ),
+        children: [
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(color: palette.background.withOpacity(palette.darkBackground ? 0.38 : 0.68), borderRadius: BorderRadius.circular(14)),
+            child: Column(
+              children: [
+                _detalleLinea(palette, 'Subtotal productos', CurrencyUtils.format(cuenta.subtotalProductos)),
+                _detalleLinea(palette, 'Propina', CurrencyUtils.format(cuenta.propina)),
+                _detalleLinea(palette, 'Pagado', CurrencyUtils.format(cuenta.totalPagado)),
+                _detalleLinea(palette, 'Saldo', CurrencyUtils.format(cuenta.saldoPendiente), danger: (cuenta.saldoPendiente ?? 0) > 0.009),
+              ],
+            ),
+          ),
+          if (cuenta.productos.isNotEmpty) ...[
+            const SizedBox(height: 10),
+            Align(alignment: Alignment.centerLeft, child: Text('Productos', style: TextStyle(color: palette.textPrimary, fontWeight: FontWeight.w900, fontSize: 12))),
+            const SizedBox(height: 6),
+            for (final producto in cuenta.productos)
+              Padding(
+                padding: const EdgeInsets.only(bottom: 5),
+                child: Row(
+                  children: [
+                    Expanded(child: Text(producto.productoNombre ?? 'Producto ${producto.productoId ?? '-'}', style: TextStyle(color: palette.textSecondary, fontWeight: FontWeight.w700, fontSize: 12))),
+                    Text('${_formatCantidadGeneral(producto.cantidad)} × ${CurrencyUtils.format(producto.valorUnitario)}', style: TextStyle(color: palette.textPrimary, fontWeight: FontWeight.w800, fontSize: 12)),
+                  ],
+                ),
+              ),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
+class _HistorialCuentaDetallePage extends ConsumerWidget {
+  const _HistorialCuentaDetallePage({required this.venta, required this.cuenta});
+
+  final MeseroVentaModel venta;
+  final MeseroCuentaModel cuenta;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final palette = ref.watch(selectedAppPaletteProvider);
+    final descripcion = (cuenta.descripcion ?? '').trim();
+    final productos = _agruparProductosFactura(cuenta.productos);
+    final cambioTotal = cuenta.pagos.fold<double>(0, (sum, pago) => sum + (pago.cambio ?? 0));
+
+    return Scaffold(
+      backgroundColor: Colors.transparent,
+      appBar: AppBar(
+        title: Text(_cuentaNombreVisible(cuenta)),
+        centerTitle: false,
+        foregroundColor: palette.onTitle,
+        flexibleSpace: Container(decoration: BoxDecoration(gradient: palette.mainGradient)),
+      ),
+      body: Stack(
+        children: [
+          const Positioned.fill(child: AppPageBackground()),
+          SafeArea(
+            child: SingleChildScrollView(
+              padding: const EdgeInsets.all(20),
+              child: Center(
+                child: ConstrainedBox(
+                  constraints: const BoxConstraints(maxWidth: 980),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      TechGlassTitlePanel(
+                        title: 'Detalle de cuenta pagada',
+                        subtitle: descripcion.isEmpty ? 'Cuenta sin descripción.' : descripcion,
+                        icon: Icons.person_pin_circle_rounded,
+                        trailing: Wrap(
+                          spacing: 8,
+                          runSpacing: 8,
+                          children: [
+                            _SmallInfoPill(icon: _ventaEsDirecta(venta) ? Icons.point_of_sale_rounded : Icons.table_restaurant_rounded, text: _origenVentaVisible(venta)),
+                            _SmallInfoPill(icon: Icons.receipt_long_rounded, text: _cuentaNombreVisible(cuenta)),
+                            _SmallInfoPill(icon: cuenta.pagada == true ? Icons.check_circle_rounded : Icons.pending_actions_rounded, text: cuenta.pagada == true ? 'Pagada' : 'Saldo ${CurrencyUtils.format(cuenta.saldoPendiente)}'),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(height: 16),
+                      _historialSection(
+                        context,
+                        palette,
+                        icon: Icons.summarize_rounded,
+                        title: 'Resumen de la cuenta',
+                        child: Column(
+                          children: [
+                            _detalleLinea(palette, 'Subtotal productos', CurrencyUtils.format(cuenta.subtotalProductos)),
+                            _detalleLinea(palette, 'Propina', CurrencyUtils.format(cuenta.propina)),
+                            _detalleLinea(palette, 'Total cuenta', CurrencyUtils.format(cuenta.total), destacado: true),
+                            _detalleLinea(palette, 'Total pagado', CurrencyUtils.format(cuenta.totalPagado)),
+                            if (cambioTotal > 0) _detalleLinea(palette, 'Vueltas entregadas', CurrencyUtils.format(cambioTotal)),
+                            _detalleLinea(palette, 'Saldo pendiente', CurrencyUtils.format(cuenta.saldoPendiente), destacado: true, danger: (cuenta.saldoPendiente ?? 0) > 0.009),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(height: 16),
+                      _historialSection(
+                        context,
+                        palette,
+                        icon: Icons.shopping_cart_checkout_rounded,
+                        title: 'Productos de esta cuenta',
+                        child: productos.isEmpty
+                            ? Text('Esta cuenta no tiene productos registrados.', style: TextStyle(color: palette.textSecondary, fontWeight: FontWeight.w700))
+                            : Column(children: productos.map((producto) => _productoHistorialTile(palette, producto)).toList(growable: false)),
+                      ),
+                      const SizedBox(height: 16),
+                      _historialSection(
+                        context,
+                        palette,
+                        icon: Icons.payments_rounded,
+                        title: 'Pagos de esta cuenta',
+                        child: cuenta.pagos.isEmpty
+                            ? Text('No hay pagos registrados para esta cuenta.', style: TextStyle(color: palette.textSecondary, fontWeight: FontWeight.w700))
+                            : Column(children: cuenta.pagos.map((pago) => _pagoHistorialTile(palette, cuenta, pago)).toList(growable: false)),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+Widget _historialSection(BuildContext context, AppPalette palette, {required IconData icon, required String title, required Widget child}) {
+  return Container(
+    width: double.infinity,
+    padding: const EdgeInsets.all(16),
+    decoration: BoxDecoration(
+      color: palette.surface.withOpacity(palette.darkBackground ? 0.86 : 0.92),
+      borderRadius: BorderRadius.circular(22),
+      border: Border.all(color: palette.cardBorder),
+      boxShadow: [BoxShadow(color: palette.cardShadow, blurRadius: 20, offset: const Offset(0, 10))],
+    ),
+    child: Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            Icon(icon, color: palette.secondary),
+            const SizedBox(width: 10),
+            Expanded(child: Text(title, style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w900, color: palette.textPrimary))),
+          ],
+        ),
+        const SizedBox(height: 12),
+        child,
+      ],
+    ),
+  );
+}
+
+BoxDecoration _historialInnerDecoration(AppPalette palette) => BoxDecoration(
+      color: palette.background.withOpacity(palette.darkBackground ? 0.50 : 0.60),
+      borderRadius: BorderRadius.circular(16),
+      border: Border.all(color: palette.cardBorder),
+    );
+
+Widget _productoHistorialTile(AppPalette palette, _FacturaProductoAgrupado producto) {
+  return Container(
+    width: double.infinity,
+    margin: const EdgeInsets.only(bottom: 8),
+    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+    decoration: _historialInnerDecoration(palette),
+    child: LayoutBuilder(
+      builder: (context, constraints) {
+        final compact = constraints.maxWidth < 620;
+        final name = Text(producto.nombre, maxLines: 2, overflow: TextOverflow.ellipsis, style: TextStyle(fontWeight: FontWeight.w900, color: palette.textPrimary));
+        final data = Wrap(
+          spacing: 12,
+          runSpacing: 8,
+          children: [
+            _SmallInfoPill(icon: Icons.numbers_rounded, text: 'Cant. ${_formatCantidadGeneral(producto.cantidad)}'),
+            _SmallInfoPill(icon: Icons.sell_rounded, text: CurrencyUtils.format(producto.precioUnitario)),
+            _SmallInfoPill(icon: Icons.payments_rounded, text: CurrencyUtils.format(producto.total)),
+          ],
+        );
+        if (compact) return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [name, const SizedBox(height: 10), data]);
+        return Row(children: [Expanded(child: name), const SizedBox(width: 12), data]);
+      },
+    ),
+  );
+}
+
+Widget _pagoHistorialTile(AppPalette palette, MeseroCuentaModel cuenta, MeseroPagoModel pago) {
+  return Container(
+    width: double.infinity,
+    margin: const EdgeInsets.only(bottom: 8),
+    padding: const EdgeInsets.all(12),
+    decoration: _historialInnerDecoration(palette),
+    child: Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            Expanded(child: Text(pago.medioPagoNombre ?? 'Medio ${pago.medioPagoId ?? '-'}', style: TextStyle(fontWeight: FontWeight.w900, color: palette.textPrimary))),
+            Text(CurrencyUtils.format(pago.valor), style: TextStyle(fontWeight: FontWeight.w900, color: palette.secondary)),
+          ],
+        ),
+        const SizedBox(height: 8),
+        Wrap(
+          spacing: 8,
+          runSpacing: 8,
+          children: [
+            _SmallInfoPill(icon: Icons.receipt_long_rounded, text: _cuentaNombreVisible(cuenta)),
+            if ((pago.fecha ?? '').trim().isNotEmpty) _SmallInfoPill(icon: Icons.event_rounded, text: pago.fecha!),
+            if ((pago.valorRecibido ?? 0) > 0) _SmallInfoPill(icon: Icons.input_rounded, text: 'Recibido ${CurrencyUtils.format(pago.valorRecibido)}'),
+            if ((pago.cambio ?? 0) > 0) _SmallInfoPill(icon: Icons.reply_rounded, text: 'Vueltas ${CurrencyUtils.format(pago.cambio)}'),
+          ],
+        ),
+      ],
+    ),
+  );
+}
+
+Widget _detalleLinea(AppPalette palette, String label, String value, {bool destacado = false, bool danger = false}) {
+  final color = danger ? AppColors.danger : (destacado ? palette.secondary : palette.textPrimary);
+  return Padding(
+    padding: const EdgeInsets.symmetric(vertical: 4),
+    child: Row(
+      children: [
+        Expanded(child: Text(label, style: TextStyle(color: danger ? AppColors.danger : palette.textSecondary, fontWeight: destacado ? FontWeight.w900 : FontWeight.w700))),
+        Text(value, textAlign: TextAlign.right, style: TextStyle(color: color, fontWeight: destacado ? FontWeight.w900 : FontWeight.w800, fontSize: destacado ? 16 : 14)),
+      ],
+    ),
+  );
+}
+
+class _HistorialResumenOperacion extends ConsumerWidget {
+  const _HistorialResumenOperacion({
+    required this.ventas,
+    required this.totalVendido,
+    required this.totalPagado,
+    required this.saldoPendiente,
+    required this.propinas,
+    required this.ticketPromedio,
+  });
+
+  final int ventas;
+  final double totalVendido;
+  final double totalPagado;
+  final double saldoPendiente;
+  final double propinas;
+  final double ticketPromedio;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final palette = ref.watch(selectedAppPaletteProvider);
+    final items = <_HistorialResumenDato>[
+      _HistorialResumenDato(icon: Icons.receipt_long_rounded, label: 'Ventas', value: '$ventas'),
+      _HistorialResumenDato(icon: Icons.point_of_sale_rounded, label: 'Total vendido', value: CurrencyUtils.format(totalVendido), highlight: true),
+      _HistorialResumenDato(icon: Icons.payments_rounded, label: 'Total cobrado', value: CurrencyUtils.format(totalPagado)),
+      _HistorialResumenDato(icon: Icons.pending_actions_rounded, label: 'Saldo pendiente', value: CurrencyUtils.format(saldoPendiente), danger: saldoPendiente > 0.009),
+      _HistorialResumenDato(icon: Icons.volunteer_activism_rounded, label: 'Propinas', value: CurrencyUtils.format(propinas)),
+      _HistorialResumenDato(icon: Icons.analytics_rounded, label: 'Ticket promedio', value: CurrencyUtils.format(ticketPromedio)),
+    ];
+
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: palette.surface.withOpacity(palette.darkBackground ? 0.92 : 0.98),
+        borderRadius: BorderRadius.circular(24),
+        border: Border.all(color: palette.secondary.withOpacity(0.16)),
+      ),
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          final columns = constraints.maxWidth >= 1100 ? 6 : (constraints.maxWidth >= 720 ? 3 : 2);
+          final width = (constraints.maxWidth - ((columns - 1) * 10)) / columns;
+          return Wrap(
+            spacing: 10,
+            runSpacing: 10,
+            children: items.map((item) => SizedBox(width: width, child: _HistorialResumenMetrica(item: item))).toList(growable: false),
+          );
+        },
+      ),
+    );
+  }
+}
+
+class _HistorialResumenDato {
+  const _HistorialResumenDato({required this.icon, required this.label, required this.value, this.highlight = false, this.danger = false});
+  final IconData icon;
+  final String label;
+  final String value;
+  final bool highlight;
+  final bool danger;
+}
+
+class _HistorialResumenMetrica extends ConsumerWidget {
+  const _HistorialResumenMetrica({required this.item});
+  final _HistorialResumenDato item;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final palette = ref.watch(selectedAppPaletteProvider);
+    final color = item.danger ? AppColors.danger : (item.highlight ? palette.secondary : palette.textPrimary);
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+      decoration: BoxDecoration(
+        color: palette.background.withOpacity(palette.darkBackground ? 0.34 : 0.66),
+        borderRadius: BorderRadius.circular(16),
+      ),
+      child: Row(
+        children: [
+          Icon(item.icon, size: 20, color: item.danger ? AppColors.danger : palette.secondary),
+          const SizedBox(width: 9),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(item.label, maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(color: palette.textSecondary, fontWeight: FontWeight.w700, fontSize: 10.5)),
+                const SizedBox(height: 3),
+                Text(item.value, maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(color: color, fontWeight: FontWeight.w900, fontSize: 14)),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _HistorialDiaSection extends ConsumerWidget {
+  const _HistorialDiaSection({
+    required this.titulo,
+    required this.fecha,
+    required this.ventas,
+    required this.horaVenta,
+    required this.onVerDetalle,
+  });
+
+  final String titulo;
+  final String fecha;
+  final List<MeseroVentaModel> ventas;
+  final String Function(MeseroVentaModel) horaVenta;
+  final ValueChanged<MeseroVentaModel> onVerDetalle;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final palette = ref.watch(selectedAppPaletteProvider);
+    final total = ventas.fold<double>(0, (sum, venta) => sum + (venta.total ?? 0));
+    final pagadas = ventas.where((venta) => venta.pagada == true || (venta.saldoPendiente ?? 0) <= 0.009).length;
+
+    return Container(
+      width: double.infinity,
+      decoration: BoxDecoration(
+        color: palette.surface.withOpacity(palette.darkBackground ? 0.88 : 0.98),
+        borderRadius: BorderRadius.circular(24),
+        border: Border.all(color: palette.cardBorder),
+      ),
+      child: Column(
+        children: [
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 14, 16, 12),
+            child: Row(
+              children: [
+                Container(
+                  width: 42,
+                  height: 42,
+                  decoration: BoxDecoration(color: palette.secondary.withOpacity(0.13), borderRadius: BorderRadius.circular(14)),
+                  child: Icon(Icons.calendar_today_rounded, color: palette.secondary, size: 20),
+                ),
+                const SizedBox(width: 11),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(titulo, style: Theme.of(context).textTheme.titleMedium?.copyWith(color: palette.textPrimary, fontWeight: FontWeight.w900)),
+                      if (fecha.isNotEmpty) Text(fecha, style: TextStyle(color: palette.textSecondary, fontWeight: FontWeight.w700, fontSize: 11)),
+                    ],
+                  ),
+                ),
+                Wrap(
+                  spacing: 8,
+                  runSpacing: 6,
+                  crossAxisAlignment: WrapCrossAlignment.center,
+                  children: [
+                    _SmallInfoPill(icon: Icons.receipt_long_rounded, text: '${ventas.length} ventas'),
+                    _SmallInfoPill(icon: Icons.check_circle_rounded, text: '$pagadas pagadas'),
+                    _TotalPill(total: total),
+                  ],
+                ),
+              ],
+            ),
+          ),
+          Divider(height: 1, color: palette.cardBorder),
+          for (var i = 0; i < ventas.length; i++)
+            _HistorialVentaListadoRow(
+              venta: ventas[i],
+              hora: horaVenta(ventas[i]),
+              last: i == ventas.length - 1,
+              onTap: () => onVerDetalle(ventas[i]),
+            ),
+        ],
+      ),
+    );
+  }
+}
+
+class _HistorialVentaListadoRow extends ConsumerWidget {
+  const _HistorialVentaListadoRow({required this.venta, required this.hora, required this.last, required this.onTap});
+  final MeseroVentaModel venta;
+  final String hora;
+  final bool last;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final palette = ref.watch(selectedAppPaletteProvider);
+    final pagada = venta.pagada == true || (venta.saldoPendiente ?? 0) <= 0.009;
+    final descripcion = (venta.mesaDescripcion ?? '').trim();
+    final ventaDirecta = (venta.tipoVenta ?? '').trim().toUpperCase() == 'DIRECTA' || venta.mesaId == null;
+    final productos = venta.cuentas.fold<int>(0, (sum, cuenta) => sum + cuenta.productos.length);
+    final pagos = venta.cuentas.fold<int>(0, (sum, cuenta) => sum + cuenta.pagos.length);
+    final medios = venta.cuentas
+        .expand((cuenta) => cuenta.pagos)
+        .map((pago) => (pago.medioPagoNombre ?? '').trim())
+        .where((value) => value.isNotEmpty)
+        .toSet()
+        .take(2)
+        .join(', ');
+
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: onTap,
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+          decoration: BoxDecoration(border: last ? null : Border(bottom: BorderSide(color: palette.cardBorder))),
+          child: LayoutBuilder(
+            builder: (context, constraints) {
+              final compact = constraints.maxWidth < 760;
+              final identity = Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  ventaDirecta
+                      ? Container(
+                          width: 48,
+                          height: 48,
+                          decoration: BoxDecoration(color: palette.secondary.withOpacity(0.14), borderRadius: BorderRadius.circular(15)),
+                          child: Icon(Icons.point_of_sale_rounded, color: palette.secondary, size: 23),
+                        )
+                      : _MesaNumberPhotoBadge(
+                          mesaNumero: venta.mesaNumero,
+                          mesaFoto: venta.mesaFoto,
+                          size: 48,
+                          radius: 24,
+                          accentColor: palette.secondary,
+                          backgroundColor: palette.background.withOpacity(0.72),
+                          textColor: Colors.white,
+                          compact: true,
+                          veryTight: true,
+                        ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          children: [
+                            Expanded(child: Text('Venta #${venta.ventaId ?? '-'}', style: TextStyle(color: palette.textPrimary, fontWeight: FontWeight.w900, fontSize: 15))),
+                            _HistorialEstadoChip(pagada: pagada),
+                          ],
+                        ),
+                        const SizedBox(height: 3),
+                        Text(
+                          [if (hora.isNotEmpty) hora, ventaDirecta ? 'Venta directa' : (descripcion.isEmpty ? 'Mesa ${venta.mesaNumero ?? '-'}' : descripcion)].join(' · '),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: TextStyle(color: palette.textSecondary, fontWeight: FontWeight.w700, fontSize: 11.5),
+                        ),
+                        const SizedBox(height: 7),
+                        Wrap(
+                          spacing: 12,
+                          runSpacing: 5,
+                          children: [
+                            _HistorialDatoInline(icon: Icons.call_split_rounded, label: 'Cuentas', value: '${venta.cuentas.length}'),
+                            _HistorialDatoInline(icon: Icons.inventory_2_rounded, label: 'Productos', value: '$productos'),
+                            _HistorialDatoInline(icon: Icons.payments_rounded, label: 'Pagos', value: '$pagos'),
+                            if (medios.isNotEmpty) _HistorialDatoInline(icon: Icons.account_balance_wallet_rounded, label: 'Medios', value: medios),
+                          ],
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              );
+
+              final totals = Column(
+                crossAxisAlignment: compact ? CrossAxisAlignment.start : CrossAxisAlignment.end,
+                children: [
+                  Text(CurrencyUtils.format(venta.total), style: TextStyle(color: palette.secondary, fontWeight: FontWeight.w900, fontSize: 18)),
+                  const SizedBox(height: 3),
+                  Text(
+                    pagada ? 'Cobrado ${CurrencyUtils.format(venta.totalPagado ?? venta.total)}' : 'Saldo ${CurrencyUtils.format(venta.saldoPendiente)}',
+                    style: TextStyle(color: pagada ? palette.textSecondary : AppColors.danger, fontWeight: FontWeight.w800, fontSize: 11),
+                  ),
+                  const SizedBox(height: 7),
+                  Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text('Ver detalle', style: TextStyle(color: palette.secondary, fontWeight: FontWeight.w900, fontSize: 12)),
+                      const SizedBox(width: 3),
+                      Icon(Icons.chevron_right_rounded, color: palette.secondary, size: 20),
+                    ],
+                  ),
+                ],
+              );
+
+              if (compact) {
+                return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [identity, const SizedBox(height: 11), totals]);
+              }
+              return Row(children: [Expanded(child: identity), const SizedBox(width: 20), totals]);
+            },
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _HistorialMesaSection extends ConsumerWidget {
+  const _HistorialMesaSection({required this.mesa, required this.ventas, required this.onVerDetalle});
+
+  final String mesa;
+  final List<MeseroVentaModel> ventas;
+  final ValueChanged<MeseroVentaModel> onVerDetalle;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final palette = ref.watch(selectedAppPaletteProvider);
+    final total = ventas.fold<double>(0, (sum, venta) => sum + (venta.total ?? 0));
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(18),
+      decoration: BoxDecoration(
+        color: palette.surface.withOpacity(palette.darkBackground ? 0.86 : 0.92),
+        borderRadius: BorderRadius.circular(24),
+        border: Border.all(color: palette.cardBorder),
+        boxShadow: [BoxShadow(color: palette.cardShadow, blurRadius: 18, offset: const Offset(0, 8))],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Expanded(child: Text(mesa, style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w900, color: palette.textPrimary))),
+              _SmallInfoPill(icon: Icons.receipt_long_rounded, text: '${ventas.length} ventas'),
+              const SizedBox(width: 8),
+              _TotalPill(total: total),
+            ],
+          ),
+          const SizedBox(height: 12),
+          ...ventas.map(
+            (venta) => Container(
+              margin: const EdgeInsets.only(bottom: 10),
+              decoration: _historialInnerDecoration(palette),
+              child: LayoutBuilder(
+                builder: (context, constraints) {
+                  final compact = constraints.maxWidth < 700;
+                  final title = Row(
+                    children: [
+                      Icon(Icons.point_of_sale_rounded, color: palette.secondary),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text('Venta #${venta.ventaId ?? '-'}', style: TextStyle(fontWeight: FontWeight.w900, color: palette.textPrimary)),
+                            const SizedBox(height: 3),
+                            Text([
+                              if ((venta.fecha ?? '').trim().isNotEmpty) venta.fecha!,
+                              'Estado: ${venta.estado ?? '-'}',
+                              '${venta.cuentas.length} cuentas',
+                            ].join(' · '), maxLines: 2, overflow: TextOverflow.ellipsis, style: TextStyle(color: palette.textSecondary, fontWeight: FontWeight.w700)),
+                          ],
+                        ),
+                      ),
+                    ],
+                  );
+                  final actions = Wrap(
+                    spacing: 10,
+                    runSpacing: 8,
+                    crossAxisAlignment: WrapCrossAlignment.center,
+                    children: [
+                      Text(CurrencyUtils.format(venta.total), style: TextStyle(fontWeight: FontWeight.w900, color: palette.secondary)),
+                      OutlinedButton.icon(
+                        onPressed: () => onVerDetalle(venta),
+                        icon: const Icon(Icons.visibility_rounded),
+                        label: const Text('Ver detalle'),
+                      ),
+                    ],
+                  );
+                  return Padding(
+                    padding: const EdgeInsets.all(12),
+                    child: compact
+                        ? Column(crossAxisAlignment: CrossAxisAlignment.start, children: [title, const SizedBox(height: 12), actions])
+                        : Row(children: [Expanded(child: title), const SizedBox(width: 12), actions]),
+                  );
+                },
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+bool _esMedioPagoEfectivo(MeseroMedioPagoModel? medio) {
+  if (medio == null) return false;
+  String normalize(String? value) {
+    final text = (value ?? '').toLowerCase().trim();
+    return text
+        .replaceAll('á', 'a')
+        .replaceAll('é', 'e')
+        .replaceAll('í', 'i')
+        .replaceAll('ó', 'o')
+        .replaceAll('ú', 'u');
+  }
+
+  final nombre = normalize(medio.nombre);
+  final descripcion = normalize(medio.descripcion);
+  return nombre.contains('efectivo') || descripcion.contains('efectivo') || nombre.contains('cash') || descripcion.contains('cash');
+}
+
+MeseroMedioPagoModel? _medioPagoById(List<MeseroMedioPagoModel> mediosPago, int? medioPagoId) {
+  if (medioPagoId == null) return null;
+  for (final medio in mediosPago) {
+    if (medio.medioPagoId == medioPagoId) return medio;
+  }
+  return null;
+}
+
+int? _defaultMedioPagoId(List<MeseroMedioPagoModel> mediosPago) {
+  for (final medio in mediosPago) {
+    if (_esMedioPagoEfectivo(medio) && medio.medioPagoId != null) return medio.medioPagoId;
+  }
+  return mediosPago.isNotEmpty ? mediosPago.first.medioPagoId : null;
+}
+
+String _normalizarMedioPagoTexto(String? value) {
+  return (value ?? '')
+      .toLowerCase()
+      .trim()
+      .replaceAll('á', 'a')
+      .replaceAll('é', 'e')
+      .replaceAll('í', 'i')
+      .replaceAll('ó', 'o')
+      .replaceAll('ú', 'u');
+}
+
+String _textoMedioPago(MeseroMedioPagoModel medio) {
+  return '${_normalizarMedioPagoTexto(medio.nombre)} ${_normalizarMedioPagoTexto(medio.descripcion)}';
+}
+
+IconData _iconoMedioPago(MeseroMedioPagoModel medio) {
+  final texto = _textoMedioPago(medio);
+  if (texto.contains('efectivo') || texto.contains('cash')) return Icons.payments_rounded;
+  if (texto.contains('tarjeta') || texto.contains('credito') || texto.contains('debito') || texto.contains('datafono')) {
+    return Icons.credit_card_rounded;
+  }
+  if (texto.contains('transferencia') || texto.contains('banco') || texto.contains('pse')) {
+    return Icons.account_balance_rounded;
+  }
+  if (texto.contains('nequi') || texto.contains('daviplata') || texto.contains('billetera') || texto.contains('wallet')) {
+    return Icons.phone_android_rounded;
+  }
+  if (texto.contains('qr')) return Icons.qr_code_2_rounded;
+  if (texto.contains('bono') || texto.contains('vale')) return Icons.confirmation_number_rounded;
+  return Icons.account_balance_wallet_rounded;
+}
+
+int _prioridadMedioPago(MeseroMedioPagoModel medio) {
+  final texto = _textoMedioPago(medio);
+  if (texto.contains('efectivo') || texto.contains('cash')) return 0;
+  if (texto.contains('tarjeta') || texto.contains('credito') || texto.contains('debito') || texto.contains('datafono')) return 1;
+  if (texto.contains('transferencia') || texto.contains('banco') || texto.contains('pse')) return 2;
+  if (texto.contains('nequi')) return 3;
+  if (texto.contains('daviplata')) return 4;
+  if (texto.contains('billetera') || texto.contains('wallet') || texto.contains('qr')) return 5;
+  return 20;
+}
+
+String? _qrMedioPago(MeseroMedioPagoModel? medio) {
+  final qr = (medio?.qr ?? '').trim();
+  return qr.isEmpty ? null : qr;
+}
+
+String _nombreQrMedioPago(MeseroMedioPagoModel medio) {
+  final texto = _textoMedioPago(medio);
+  if (texto.contains('nequi')) return 'Nequi';
+  if (texto.contains('daviplata')) return 'Daviplata';
+  return medio.nombre ?? 'Billetera digital';
+}
+
+class _PagoFormRowData {
+  _PagoFormRowData({required this.mediosPago, int? medioPagoId, double? valor, double? valorRecibido})
+      : medioPagoId = medioPagoId ?? _defaultMedioPagoId(mediosPago),
+        valorController = TextEditingController(text: valor == null || valor <= 0 ? '' : _formatCurrencyInputAmount(valor)),
+        valorRecibidoController = TextEditingController(
+          text: valorRecibido == null || valorRecibido <= 0 ? '' : _formatCurrencyInputAmount(valorRecibido),
+        );
+
+  final List<MeseroMedioPagoModel> mediosPago;
+  int? medioPagoId;
+  final TextEditingController valorController;
+  final TextEditingController valorRecibidoController;
+  final Map<int, int> denominaciones = <int, int>{};
+  bool efectivoManual = false;
+
+  MeseroMedioPagoModel? get medioPago => _medioPagoById(mediosPago, medioPagoId);
+
+  bool get esEfectivo => _esMedioPagoEfectivo(medioPago);
+
+  double get efectivoSeleccionado => denominaciones.entries.fold<double>(
+        0,
+        (total, entry) => total + (entry.key * entry.value),
+      );
+
+  void sincronizarEfectivoSeleccionado() {
+    final total = efectivoSeleccionado;
+    valorRecibidoController.text = total <= 0 ? '' : _formatCurrencyInputAmount(total);
+  }
+
+  void limpiarDenominaciones({bool limpiarValorRecibido = true}) {
+    denominaciones.clear();
+    if (limpiarValorRecibido) valorRecibidoController.clear();
+  }
+
+  void dispose() {
+    valorController.dispose();
+    valorRecibidoController.dispose();
+  }
+}
+
+class _PagoCuentaFormResult {
+  const _PagoCuentaFormResult({
+    required this.medioPagoId,
+    required this.valor,
+    this.valorRecibido,
+    this.cambio,
+  });
+
+  final int medioPagoId;
+  final double valor;
+  final double? valorRecibido;
+  final double? cambio;
+}
+
+class _SeleccionCuentaPagoDialog extends ConsumerWidget {
+  const _SeleccionCuentaPagoDialog({required this.venta, required this.cuentas});
+
+  final MeseroVentaModel venta;
+  final List<MeseroCuentaModel> cuentas;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final palette = ref.watch(selectedAppPaletteProvider);
+    return Dialog(
+      backgroundColor: Colors.transparent,
+      insetPadding: const EdgeInsets.all(20),
+      child: TechGlassPanel(
+        maxWidth: 520,
+        padding: const EdgeInsets.all(22),
+        dark: true,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text('Selecciona la cuenta a cobrar', style: Theme.of(context).textTheme.titleLarge?.copyWith(color: palette.textPrimary, fontWeight: FontWeight.w900)),
+            const SizedBox(height: 6),
+            Text('${_origenVentaVisible(venta)} · Elige la cuenta pendiente que deseas pagar desde la tarjeta.', style: TextStyle(color: palette.textSecondary, fontWeight: FontWeight.w700)),
+            const SizedBox(height: 16),
+            ConstrainedBox(
+              constraints: const BoxConstraints(maxHeight: 360),
+              child: ListView.separated(
+                shrinkWrap: true,
+                itemCount: cuentas.length,
+                separatorBuilder: (_, __) => const SizedBox(height: 10),
+                itemBuilder: (context, index) => _CuentaPagoRapidoTile(
+                  cuenta: cuentas[index],
+                  onTap: () => Navigator.of(context).pop(cuentas[index]),
+                ),
+              ),
+            ),
+            const SizedBox(height: 14),
+            Align(
+              alignment: Alignment.centerRight,
+              child: TextButton(onPressed: () => Navigator.of(context).pop(), child: const Text('Cancelar')),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _SeleccionCuentaPagoSheet extends ConsumerWidget {
+  const _SeleccionCuentaPagoSheet({required this.venta, required this.cuentas});
+
+  final MeseroVentaModel venta;
+  final List<MeseroCuentaModel> cuentas;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final palette = ref.watch(selectedAppPaletteProvider);
+    return SafeArea(
+      top: false,
+      child: Container(
+        decoration: BoxDecoration(
+          color: palette.surface,
+          borderRadius: const BorderRadius.vertical(top: Radius.circular(28)),
+          border: Border.all(color: palette.translucentBorder),
+        ),
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(18, 16, 18, 22),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Center(
+                child: Container(width: 46, height: 5, decoration: BoxDecoration(color: palette.translucentBorder, borderRadius: BorderRadius.circular(999))),
+              ),
+              const SizedBox(height: 14),
+              Text('Selecciona la cuenta a cobrar', style: Theme.of(context).textTheme.titleMedium?.copyWith(color: palette.textPrimary, fontWeight: FontWeight.w900)),
+              const SizedBox(height: 4),
+              Text('${_origenVentaVisible(venta)} · Pago rápido desde la tarjeta.', style: TextStyle(color: palette.textSecondary, fontWeight: FontWeight.w700)),
+              const SizedBox(height: 14),
+              ConstrainedBox(
+                constraints: BoxConstraints(maxHeight: MediaQuery.sizeOf(context).height * 0.52),
+                child: ListView.separated(
+                  shrinkWrap: true,
+                  itemCount: cuentas.length,
+                  separatorBuilder: (_, __) => const SizedBox(height: 10),
+                  itemBuilder: (context, index) => _CuentaPagoRapidoTile(
+                    cuenta: cuentas[index],
+                    onTap: () => Navigator.of(context).pop(cuentas[index]),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _CuentaPagoRapidoTile extends ConsumerWidget {
+  const _CuentaPagoRapidoTile({required this.cuenta, required this.onTap});
+
+  final MeseroCuentaModel cuenta;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final palette = ref.watch(selectedAppPaletteProvider);
+    final pendiente = cuenta.saldoPendiente ?? cuenta.total ?? 0;
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        borderRadius: BorderRadius.circular(18),
+        onTap: onTap,
+        child: Ink(
+          padding: const EdgeInsets.all(14),
+          decoration: BoxDecoration(
+            color: palette.background.withOpacity(palette.darkBackground ? 0.36 : 0.90),
+            borderRadius: BorderRadius.circular(18),
+            border: Border.all(color: palette.translucentBorder),
+          ),
+          child: Row(
+            children: [
+              Container(
+                width: 42,
+                height: 42,
+                decoration: BoxDecoration(
+                  gradient: palette.mainGradient,
+                  borderRadius: BorderRadius.circular(14),
+                ),
+                child: const Icon(Icons.receipt_long_rounded, color: Colors.white),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(_cuentaNombreVisible(cuenta), style: TextStyle(color: palette.textPrimary, fontWeight: FontWeight.w900)),
+                    const SizedBox(height: 4),
+                    Text('Pendiente: ${CurrencyUtils.format(pendiente)}', style: TextStyle(color: palette.secondary, fontWeight: FontWeight.w800)),
+                  ],
+                ),
+              ),
+              const SizedBox(width: 8),
+              Icon(Icons.chevron_right_rounded, color: palette.textSecondary),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _PagarCuentaResult {
+  const _PagarCuentaResult({required this.propina, required this.pagos});
+  final double propina;
+  final List<_PagoCuentaFormResult> pagos;
+}
+
+class _FacturaProductoAgrupado {
+  const _FacturaProductoAgrupado({
+    required this.nombre,
+    required this.cantidad,
+    required this.precioUnitario,
+    required this.total,
+    this.productoId,
+  });
+
+  final int? productoId;
+  final String nombre;
+  final double cantidad;
+  final double precioUnitario;
+  final double total;
+
+  _FacturaProductoAgrupado copyWith({double? cantidad, double? total}) => _FacturaProductoAgrupado(
+        productoId: productoId,
+        nombre: nombre,
+        cantidad: cantidad ?? this.cantidad,
+        precioUnitario: precioUnitario,
+        total: total ?? this.total,
+      );
+}
+
+class _PagarCuentaDialog extends StatefulWidget {
+  const _PagarCuentaDialog({required this.venta, required this.cuenta, required this.mediosPago, this.mostrarComoPagina = false});
+
+  final MeseroVentaModel venta;
+  final MeseroCuentaModel cuenta;
+  final List<MeseroMedioPagoModel> mediosPago;
+  final bool mostrarComoPagina;
+
+  @override
+  State<_PagarCuentaDialog> createState() => _PagarCuentaDialogState();
+}
+
+class _PagarCuentaDialogState extends State<_PagarCuentaDialog> {
+  AppPalette get _palette => ProviderScope.containerOf(context).read(selectedAppPaletteProvider);
+  AppPalette get palette => _palette;
+
+  final _formKey = GlobalKey<FormState>();
+  final ScrollController _pagosScrollController = ScrollController();
+  late final TextEditingController _propinaController;
+  bool _servicioSugeridoSeleccionado = false;
+  late final List<_PagoFormRowData> _pagos;
+  late double _ultimaPropinaSincronizada;
+  bool _mostrarDetalleProductos = false;
+  int _cantidadPagosSeleccionada = 1;
+  int _pagoActivoIndex = 0;
+  final Set<int> _pagosListos = <int>{};
+
+  @override
+  void initState() {
+    super.initState();
+    _ultimaPropinaSincronizada = 0;
+    _propinaController = TextEditingController();
+    final saldoNuevo = _totalPendienteInicial();
+    _pagos = [
+      _PagoFormRowData(
+        mediosPago: widget.mediosPago,
+        valor: saldoNuevo > 0 ? saldoNuevo : null,
+      ),
+    ];
+  }
+
+  @override
+  void dispose() {
+    _pagosScrollController.dispose();
+    _propinaController.dispose();
+    for (final pago in _pagos) {
+      pago.dispose();
+    }
+    super.dispose();
+  }
+
+  double _parse(String value) => _parseCurrencyInput(value);
+
+  double get _propina => _parse(_propinaController.text);
+
+  // Servicio sugerido, voluntario y calculado únicamente sobre productos pendientes
+  // de esta cuenta: evita cobrar propina dos veces por productos ya pagados.
+  double get _servicioSugerido => (_subtotalProductos * 0.10).roundToDouble();
+
+  void _seleccionarServicioSugerido(bool selected) {
+    setState(() {
+      _servicioSugeridoSeleccionado = selected;
+      _propinaController.text = selected
+          ? _formatCurrencyInputAmount(_servicioSugerido)
+          : '';
+      _sincronizarPagosPorCambioPropina();
+    });
+  }
+
+  double get _propinaRegistrada => (widget.cuenta.propina ?? 0).toDouble();
+
+  double get _propinaTotal => _propinaRegistrada + _propina;
+
+  List<MeseroDetalleProductoModel> get _productosPendientes =>
+      widget.cuenta.productos.where((producto) => producto.pagado != true).toList(growable: false);
+
+  List<MeseroDetalleProductoModel> get _productosPagados =>
+      widget.cuenta.productos.where((producto) => producto.pagado == true).toList(growable: false);
+
+  double get _subtotalProductos =>
+      _productosPendientes.fold<double>(0, (sum, producto) => sum + _detalleSubtotal(producto));
+
+  double get _subtotalProductosPagados =>
+      _productosPagados.fold<double>(0, (sum, producto) => sum + _detalleSubtotal(producto));
+
+  double get _propinaPagadaEstimada {
+    final totalPagado = widget.cuenta.totalPagado ?? 0;
+    final pagadoSinProductos = (totalPagado - _subtotalProductosPagados).clamp(0, double.infinity).toDouble();
+    final propinaActual = widget.cuenta.propina ?? 0;
+    return pagadoSinProductos.clamp(0, propinaActual).toDouble();
+  }
+
+  double get _propinaPendienteExistente =>
+      (_propinaRegistrada - _propinaPagadaEstimada).clamp(0, double.infinity).toDouble();
+
+  double get _propinaPendiente => _propinaPendienteExistente + _propina;
+
+  double get _totalYaPagado => widget.cuenta.totalPagado ?? 0;
+
+  double get _totalPendienteOriginal => widget.cuenta.saldoPendiente ??
+      ((widget.cuenta.total ?? 0) - (widget.cuenta.totalPagado ?? 0)).clamp(0, double.infinity).toDouble();
+
+  List<_FacturaProductoAgrupado> get _productosAgrupadosFactura => _agruparProductosFactura(_productosPendientes);
+
+  double get _totalCuenta {
+    final nuevoSaldoCalculado = _subtotalProductos + _propinaPendiente;
+    if (nuevoSaldoCalculado > 0) return nuevoSaldoCalculado;
+    return _totalPendienteOriginal > 0 ? _totalPendienteOriginal : 0;
+  }
+
+  double get _totalPagos => _pagos.fold<double>(0, (sum, pago) => sum + _parse(pago.valorController.text));
+
+  double get _totalRecibido => _pagos.where((pago) => pago.esEfectivo).fold<double>(0, (sum, pago) => sum + _parse(pago.valorRecibidoController.text));
+
+  double get _totalCambio => _pagos.where((pago) => pago.esEfectivo).fold<double>(0, (sum, pago) => sum + _cambioPago(pago));
+
+  double get _saldo => (_totalCuenta - _totalPagos).clamp(0, double.infinity).toDouble();
+
+  double get _totalPagosConfirmadosEnFlujo {
+    var total = 0.0;
+    for (final index in _pagosListos) {
+      if (index < 0 || index >= _pagos.length) continue;
+      total += _parse(_pagos[index].valorController.text);
+    }
+    return total;
+  }
+
+  double get _saldoPorRegistrarEnFlujo =>
+      (_totalCuenta - _totalPagosConfirmadosEnFlujo).clamp(0, double.infinity).toDouble();
+
+  bool get _hayEfectivoConValorRecibidoInvalido => _pagos.any((pago) {
+        if (!pago.esEfectivo) return false;
+        return _parse(pago.valorRecibidoController.text) + 0.009 < _parse(pago.valorController.text);
+      });
+
+  double _totalPendienteInicial() => _totalCuenta;
+
+  double _detalleSubtotal(MeseroDetalleProductoModel producto) => _detalleProductoSubtotal(producto);
+
+  double _cambioPago(_PagoFormRowData pago) {
+    if (!pago.esEfectivo) return 0;
+    final recibido = _parse(pago.valorRecibidoController.text);
+    final valor = _parse(pago.valorController.text);
+    return (recibido - valor).clamp(0, double.infinity).toDouble();
+  }
+
+  double _totalPagosExcluyendo(_PagoFormRowData pagoActual) {
+    return _pagos.where((pago) => !identical(pago, pagoActual)).fold<double>(0, (sum, pago) => sum + _parse(pago.valorController.text));
+  }
+
+  double _saldoPendienteParaPago(_PagoFormRowData pago) {
+    return (_totalCuenta - _totalPagosExcluyendo(pago)).clamp(0, double.infinity).toDouble();
+  }
+
+  String _formatInputAmount(double value) => _formatCurrencyInputAmount(value);
+
+  bool _sameAmount(double a, double b) => (a - b).abs() <= 0.009;
+
+  bool get _esVentaDirecta => _ventaEsDirecta(widget.venta);
+
+  bool get _modoRapidoVentaDirecta => _esVentaDirecta && _pagos.length == 1;
+
+  void _sincronizarPagosPorCambioPropina() {
+    _pagosListos.clear();
+    final nuevaPropina = _propina;
+    final diferencia = nuevaPropina - _ultimaPropinaSincronizada;
+    if (_sameAmount(diferencia, 0)) {
+      _ultimaPropinaSincronizada = nuevaPropina;
+      return;
+    }
+
+    _ultimaPropinaSincronizada = nuevaPropina;
+    if (_pagos.isEmpty) return;
+
+    if (diferencia > 0) {
+      _incrementarUltimoPago(diferencia);
+    } else {
+      _disminuirPagosDesdeElUltimo(diferencia.abs());
+    }
+  }
+
+  void _incrementarUltimoPago(double diferencia) {
+    final pago = _pagos.lastWhere(
+      (item) => _parse(item.valorController.text) > 0,
+      orElse: () => _pagos.last,
+    );
+    final valorActual = _parse(pago.valorController.text);
+    pago.valorController.text = _formatInputAmount(valorActual + diferencia);
+  }
+
+  void _disminuirPagosDesdeElUltimo(double diferencia) {
+    var pendientePorDescontar = diferencia;
+
+    for (final pago in _pagos.reversed) {
+      if (pendientePorDescontar <= 0.009) break;
+
+      final valorActual = _parse(pago.valorController.text);
+      if (valorActual <= 0) continue;
+
+      final descuento = valorActual < pendientePorDescontar ? valorActual : pendientePorDescontar;
+      final nuevoValor = valorActual - descuento;
+      pago.valorController.text = nuevoValor <= 0 ? '' : _formatInputAmount(nuevoValor);
+      pendientePorDescontar -= descuento;
+    }
+  }
+
+  void _completarValorPagoConSaldoPendiente(_PagoFormRowData pago, {bool sobrescribir = false}) {
+    final valorActual = _parse(pago.valorController.text);
+    if (!sobrescribir && valorActual > 0) return;
+
+    final saldoPendiente = _saldoPendienteParaPago(pago);
+    if (saldoPendiente <= 0) return;
+
+    pago.valorController.text = _formatInputAmount(saldoPendiente);
+  }
+
+  void _completarEfectivoConSaldoPendiente(_PagoFormRowData pago, {bool sobrescribirValor = false}) {
+    if (!pago.esEfectivo) return;
+    _completarValorPagoConSaldoPendiente(pago, sobrescribir: sobrescribirValor);
+  }
+
+  void _completarPagosEfectivoPendientes() {
+    for (final pago in _pagos) {
+      _completarEfectivoConSaldoPendiente(pago);
+    }
+  }
+
+  String _formatCantidad(num? value) => _formatCantidadGeneral(value);
+
+  double _valorPagoRepartido(int index, int cantidadPagos) {
+    if (cantidadPagos <= 0) return 0;
+    final centavos = (_totalCuenta * 100).round();
+    final base = centavos ~/ cantidadPagos;
+    final asignadosAntes = base * (cantidadPagos - 1);
+    final valorCentavos = index == cantidadPagos - 1 ? centavos - asignadosAntes : base;
+    return valorCentavos / 100.0;
+  }
+
+  void _configurarCantidadPagos(int cantidad) {
+    if (cantidad < 1 || cantidad > 5 || cantidad == _cantidadPagosSeleccionada) return;
+    setState(() {
+      for (final pago in _pagos) {
+        pago.dispose();
+      }
+      _pagos
+        ..clear()
+        ..addAll(List.generate(
+          cantidad,
+          (index) => _PagoFormRowData(
+            mediosPago: widget.mediosPago,
+            valor: _valorPagoRepartido(index, cantidad),
+          ),
+        ));
+      _cantidadPagosSeleccionada = cantidad;
+      _pagoActivoIndex = 0;
+      _pagosListos.clear();
+    });
+  }
+
+  void _repartirPagosPorIgual() {
+    setState(() {
+      _pagosListos.clear();
+      for (var index = 0; index < _pagos.length; index++) {
+        _pagos[index].valorController.text = _formatInputAmount(_valorPagoRepartido(index, _pagos.length));
+      }
+    });
+  }
+
+  void _eliminarPagoEnPreparacion(int index) {
+    if (_pagos.length <= 1 || index < 0 || index >= _pagos.length) return;
+    setState(() {
+      final eliminado = _pagos.removeAt(index);
+      eliminado.dispose();
+      _cantidadPagosSeleccionada = _pagos.length;
+      _pagosListos.clear();
+
+      final totalActual = _pagos.fold<double>(0, (sum, pago) => sum + _parse(pago.valorController.text));
+      final diferencia = _totalCuenta - totalActual;
+      if (_pagos.isNotEmpty && diferencia.abs() > 0.009) {
+        final compensador = _pagos.last;
+        final nuevoValor = (_parse(compensador.valorController.text) + diferencia).clamp(0, double.infinity).toDouble();
+        compensador.valorController.text = nuevoValor <= 0.009 ? '' : _formatInputAmount(nuevoValor);
+      }
+
+      if (_pagos.isEmpty) {
+        _pagoActivoIndex = 0;
+      } else {
+        _pagoActivoIndex = index.clamp(0, _pagos.length - 1).toInt();
+      }
+    });
+  }
+
+  void _sincronizarPagoRestante(int indexEditado) {
+    if (_pagos.length <= 1 || indexEditado < 0 || indexEditado >= _pagos.length) return;
+
+    final indexCompensador = indexEditado == _pagos.length - 1 ? _pagos.length - 2 : _pagos.length - 1;
+    var totalFijo = 0.0;
+    for (var index = 0; index < _pagos.length; index++) {
+      if (index == indexEditado || index == indexCompensador) continue;
+      totalFijo += _parse(_pagos[index].valorController.text);
+    }
+
+    final maximoEditable = (_totalCuenta - totalFijo).clamp(0.0, double.infinity).toDouble();
+    var valorEditado = _parse(_pagos[indexEditado].valorController.text);
+    if (valorEditado > maximoEditable) {
+      valorEditado = maximoEditable;
+      _pagos[indexEditado].valorController.text = _formatInputAmount(valorEditado);
+      _pagos[indexEditado].valorController.selection = TextSelection.collapsed(
+        offset: _pagos[indexEditado].valorController.text.length,
+      );
+    }
+
+    final restante = (maximoEditable - valorEditado).clamp(0.0, double.infinity).toDouble();
+    _pagos[indexCompensador].valorController.text = restante <= 0.009 ? '' : _formatInputAmount(restante);
+  }
+
+  int get _primerPagoPendienteIndex {
+    for (var index = 0; index < _pagos.length; index++) {
+      if (!_pagosListos.contains(index)) return index;
+    }
+    return _pagos.isEmpty ? 0 : _pagos.length - 1;
+  }
+
+  void _invalidarPagoDesde(int index) {
+    _pagosListos.removeWhere((item) => item >= index);
+  }
+
+  void _invalidarPago(_PagoFormRowData pago) {
+    final index = _pagos.indexOf(pago);
+    if (index >= 0) _invalidarPagoDesde(index);
+  }
+
+  String? _errorPagoIndividual(int index) {
+    if (index < 0 || index >= _pagos.length) return 'No se encontró el pago seleccionado.';
+    final pago = _pagos[index];
+    final valor = _parse(pago.valorController.text);
+    if (pago.medioPagoId == null) return 'Selecciona el medio de pago del Pago ${index + 1}.';
+    if (valor <= 0) return 'Ingresa un valor válido para el Pago ${index + 1}.';
+    if (pago.esEfectivo) {
+      final recibido = pago.efectivoManual
+          ? _parse(pago.valorRecibidoController.text)
+          : pago.efectivoSeleccionado;
+      if (recibido <= 0) return 'Registra el efectivo recibido del Pago ${index + 1}.';
+      if (recibido + 0.009 < valor) return 'El efectivo del Pago ${index + 1} no alcanza para cubrir su valor.';
+    }
+    return null;
+  }
+
+  void _subirAlInicioPagos() {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted || !_pagosScrollController.hasClients) return;
+      _pagosScrollController.animateTo(
+        0,
+        duration: const Duration(milliseconds: 320),
+        curve: Curves.easeOutCubic,
+      );
+    });
+  }
+
+  void _registrarPagoActualYContinuar() {
+    if (_pagos.isEmpty) return;
+    final index = _pagoActivoIndex.clamp(0, _pagos.length - 1).toInt();
+    final error = _errorPagoIndividual(index);
+    if (error != null) {
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(error)));
+      return;
+    }
+
+    final esUltimo = index == _pagos.length - 1;
+    setState(() {
+      _pagosListos.add(index);
+      if (!esUltimo) {
+        var siguiente = index + 1;
+        while (siguiente < _pagos.length && _pagosListos.contains(siguiente)) {
+          siguiente++;
+        }
+        _pagoActivoIndex = siguiente < _pagos.length ? siguiente : _pagos.length - 1;
+      }
+    });
+
+    if (esUltimo) {
+      _guardarPago();
+    } else {
+      _subirAlInicioPagos();
+    }
+  }
+
+  void _seleccionarPago(int index) {
+    if (index < 0 || index >= _pagos.length) return;
+    final primerPendiente = _primerPagoPendienteIndex;
+    if (!_pagosListos.contains(index) && index > primerPendiente) return;
+    setState(() => _pagoActivoIndex = index);
+  }
+
+  static const List<int> _billetesColombia = <int>[100000, 50000, 20000, 10000, 5000, 2000];
+  static const List<int> _monedasColombia = <int>[1000, 500, 200, 100, 50];
+
+  Map<int, int>? _descomposicionDenominacion(int valor) {
+    switch (valor) {
+      case 100000:
+        return const <int, int>{50000: 2};
+      case 50000:
+        return const <int, int>{20000: 2, 10000: 1};
+      case 20000:
+        return const <int, int>{10000: 2};
+      case 10000:
+        return const <int, int>{5000: 2};
+      case 5000:
+        return const <int, int>{2000: 2, 1000: 1};
+      case 2000:
+        return const <int, int>{1000: 2};
+      case 1000:
+        return const <int, int>{500: 2};
+      case 500:
+        return const <int, int>{200: 2, 100: 1};
+      case 200:
+        return const <int, int>{100: 2};
+      case 100:
+        return const <int, int>{50: 2};
+      default:
+        return null;
+    }
+  }
+
+  void _sumarDenominacion(_PagoFormRowData pago, int valor, {FormFieldState<double>? field}) {
+    setState(() {
+      _invalidarPago(pago);
+      pago.denominaciones[valor] = (pago.denominaciones[valor] ?? 0) + 1;
+      pago.sincronizarEfectivoSeleccionado();
+      field?.didChange(pago.efectivoSeleccionado);
+    });
+  }
+
+  void _restarDenominacion(_PagoFormRowData pago, int valor, {FormFieldState<double>? field}) {
+    final actual = pago.denominaciones[valor] ?? 0;
+    if (actual <= 0) return;
+    setState(() {
+      _invalidarPago(pago);
+      if (actual == 1) {
+        pago.denominaciones.remove(valor);
+      } else {
+        pago.denominaciones[valor] = actual - 1;
+      }
+      pago.sincronizarEfectivoSeleccionado();
+      field?.didChange(pago.efectivoSeleccionado);
+    });
+  }
+
+  void _desagregarDenominacion(_PagoFormRowData pago, int valor, {FormFieldState<double>? field}) {
+    final actual = pago.denominaciones[valor] ?? 0;
+    final desglose = _descomposicionDenominacion(valor);
+    if (actual <= 0 || desglose == null) return;
+    setState(() {
+      _invalidarPago(pago);
+      if (actual == 1) {
+        pago.denominaciones.remove(valor);
+      } else {
+        pago.denominaciones[valor] = actual - 1;
+      }
+      for (final entry in desglose.entries) {
+        pago.denominaciones[entry.key] = (pago.denominaciones[entry.key] ?? 0) + entry.value;
+      }
+      pago.sincronizarEfectivoSeleccionado();
+      field?.didChange(pago.efectivoSeleccionado);
+    });
+  }
+
+  void _cambiarModoEfectivo(_PagoFormRowData pago, bool manual) {
+    if (pago.efectivoManual == manual) return;
+    setState(() {
+      _invalidarPago(pago);
+      if (manual) {
+        final seleccionado = pago.efectivoSeleccionado;
+        pago.efectivoManual = true;
+        pago.limpiarDenominaciones(limpiarValorRecibido: false);
+        if (seleccionado > 0) {
+          pago.valorRecibidoController.text = _formatInputAmount(seleccionado);
+        }
+      } else {
+        pago.efectivoManual = false;
+        pago.limpiarDenominaciones();
+      }
+    });
+  }
+
+  void _marcarPagoExacto(_PagoFormRowData pago) {
+    final aplicado = _parse(pago.valorController.text);
+    if (!pago.esEfectivo || aplicado <= 0) return;
+    setState(() {
+      _invalidarPago(pago);
+      pago.efectivoManual = true;
+      pago.denominaciones.clear();
+      pago.valorRecibidoController.text = _formatInputAmount(aplicado);
+    });
+  }
+
+  void _limpiarDenominaciones(_PagoFormRowData pago, {FormFieldState<double>? field}) {
+    setState(() {
+      _invalidarPago(pago);
+      pago.limpiarDenominaciones();
+      field?.didChange(0);
+    });
+  }
+
+  _PagarCuentaResult _crearResultadoPago() {
+    return _PagarCuentaResult(
+      propina: _propinaTotal,
+      pagos: _pagos
+          .where((pago) => pago.medioPagoId != null && _parse(pago.valorController.text) > 0)
+          .map((pago) {
+            final valor = _parse(pago.valorController.text);
+            final recibido = pago.esEfectivo ? _parse(pago.valorRecibidoController.text) : null;
+            return _PagoCuentaFormResult(
+              medioPagoId: pago.medioPagoId!,
+              valor: valor,
+              valorRecibido: recibido,
+              cambio: recibido == null ? null : (recibido - valor).clamp(0, double.infinity).toDouble(),
+            );
+          })
+          .toList(growable: false),
+    );
+  }
+
+  int? _primerPagoInvalido() {
+    for (var index = 0; index < _pagos.length; index++) {
+      final pago = _pagos[index];
+      final valor = _parse(pago.valorController.text);
+      if (pago.medioPagoId == null || valor <= 0) return index;
+      if (pago.esEfectivo) {
+        final recibido = pago.efectivoManual
+            ? _parse(pago.valorRecibidoController.text)
+            : pago.efectivoSeleccionado;
+        if (recibido + 0.009 < valor) return index;
+      }
+    }
+    return null;
+  }
+
+  void _guardarPago() {
+    _completarPagosEfectivoPendientes();
+    final pagoInvalido = _primerPagoInvalido();
+    if (pagoInvalido != null) {
+      setState(() => _pagoActivoIndex = pagoInvalido);
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            _modoRapidoVentaDirecta
+                ? 'Completa la información del cobro.'
+                : 'Completa la información del Pago ${pagoInvalido + 1}.',
+          ),
+        ),
+      );
+      return;
+    }
+    if (!(_formKey.currentState?.validate() ?? false)) return;
+    if (_totalPagos > _totalCuenta + 0.009) return;
+    if (_hayEfectivoConValorRecibidoInvalido) return;
+    Navigator.of(context).pop(_crearResultadoPago());
+  }
+
+  Widget _buildFormularioPago(
+    BuildContext context, {
+    EdgeInsetsGeometry padding = EdgeInsets.zero,
+  }) {
+    return Form(
+      key: _formKey,
+      autovalidateMode: AutovalidateMode.onUserInteraction,
+      child: SingleChildScrollView(
+        controller: _pagosScrollController,
+        padding: padding,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            if (_modoRapidoVentaDirecta) ...[
+              _buildMediosPagoFactura(context),
+              const SizedBox(height: 14),
+              _buildPropinaFactura(),
+            ] else ...[
+              _buildPropinaFactura(),
+              const SizedBox(height: 14),
+              _buildMediosPagoFactura(context),
+            ],
+            const SizedBox(height: 14),
+            _buildProductosFactura(context),
+            if (_totalPagos > _totalCuenta + 0.009)
+              const Padding(
+                padding: EdgeInsets.only(top: 12),
+                child: _MensajeCobroError(
+                  text: 'El valor aplicado no puede superar el total por cobrar.',
+                ),
+              ),
+            if (_hayEfectivoConValorRecibidoInvalido)
+              const Padding(
+                padding: EdgeInsets.only(top: 12),
+                child: _MensajeCobroError(
+                  text: 'En efectivo, el valor recibido no puede ser menor al valor aplicado.',
+                ),
+              ),
+            const SizedBox(height: 8),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildBarraAccionesPantalla() {
+    final palette = _palette;
+    final pagoCompleto = _saldo <= 0.009 && _totalPagos > 0;
+    final flujoPorPasos = _pagos.length > 1;
+    final cobroRapido = _modoRapidoVentaDirecta;
+    final pagoActivoSeguro = _pagos.isEmpty ? 0 : _pagoActivoIndex.clamp(0, _pagos.length - 1).toInt();
+    final pagoActivoListo = flujoPorPasos && _pagosListos.contains(pagoActivoSeguro);
+    final ultimoPaso = !flujoPorPasos || pagoActivoSeguro == _pagos.length - 1;
+    final saldoDespues = flujoPorPasos
+        ? _saldoPorRegistrarEnFlujo
+        : _totalCuenta.clamp(0, double.infinity).toDouble();
+
+    final actionLabel = flujoPorPasos
+        ? (pagoActivoListo
+            ? (ultimoPaso ? 'Finalizar cobro' : 'Continuar al Pago ${pagoActivoSeguro + 2}')
+            : (ultimoPaso
+                ? 'Registrar Pago ${pagoActivoSeguro + 1} y finalizar'
+                : 'Registrar Pago ${pagoActivoSeguro + 1} y continuar'))
+        : (cobroRapido
+            ? 'Cobrar y finalizar'
+            : (pagoCompleto ? 'Confirmar pago' : 'Registrar pago'));
+
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.fromLTRB(18, 12, 18, 14),
+      decoration: BoxDecoration(
+        color: palette.surface.withOpacity(palette.darkBackground ? 0.985 : 0.998),
+        border: Border(top: BorderSide(color: palette.secondary.withOpacity(0.14))),
+        boxShadow: [BoxShadow(color: palette.cardShadow, blurRadius: 24, offset: const Offset(0, -8))],
+      ),
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          final compact = constraints.maxWidth < 650;
+
+          final saldo = Row(
+            children: [
+              Container(
+                width: 38,
+                height: 38,
+                decoration: BoxDecoration(
+                  color: (saldoDespues > 0.009 ? palette.primary : AppColors.success).withOpacity(0.11),
+                  borderRadius: BorderRadius.circular(13),
+                ),
+                child: Icon(
+                  saldoDespues > 0.009 ? Icons.account_balance_wallet_outlined : Icons.task_alt_rounded,
+                  color: saldoDespues > 0.009 ? palette.primary : AppColors.success,
+                  size: 20,
+                ),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      flujoPorPasos
+                          ? (pagoActivoListo ? 'Pago ${pagoActivoSeguro + 1} listo' : 'Pago ${pagoActivoSeguro + 1} de ${_pagos.length}')
+                          : (cobroRapido ? 'Venta directa · Total' : 'Total por registrar'),
+                      style: TextStyle(color: palette.textSecondary, fontWeight: FontWeight.w800, fontSize: 11.5),
+                    ),
+                    const SizedBox(height: 1),
+                    Text(
+                      saldoDespues > 0.009 ? CurrencyUtils.format(saldoDespues) : 'Listo para finalizar',
+                      style: TextStyle(
+                        color: saldoDespues > 0.009 ? palette.textPrimary : AppColors.success,
+                        fontWeight: FontWeight.w900,
+                        fontSize: compact ? 20 : 22,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              if (_totalCambio > 0.009) ...[
+                const SizedBox(width: 10),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                  decoration: BoxDecoration(
+                    color: AppColors.success.withOpacity(0.10),
+                    borderRadius: BorderRadius.circular(14),
+                    border: Border.all(color: AppColors.success.withOpacity(0.22)),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.end,
+                    children: [
+                      Text('Vuelta', style: TextStyle(color: palette.textSecondary, fontWeight: FontWeight.w700, fontSize: 10.5)),
+                      Text(CurrencyUtils.format(_totalCambio), style: const TextStyle(color: AppColors.success, fontWeight: FontWeight.w900, fontSize: 16)),
+                    ],
+                  ),
+                ),
+              ],
+            ],
+          );
+
+          final actions = Row(
+            children: [
+              TextButton(
+                onPressed: () => Navigator.of(context).pop(),
+                child: const Text('Cancelar'),
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: FilledButton.icon(
+                  onPressed: flujoPorPasos ? _registrarPagoActualYContinuar : _guardarPago,
+                  icon: Icon(
+                    flujoPorPasos
+                        ? (ultimoPaso ? Icons.check_circle_rounded : Icons.arrow_forward_rounded)
+                        : Icons.point_of_sale_rounded,
+                  ),
+                  label: Text(actionLabel, textAlign: TextAlign.center),
+                  style: FilledButton.styleFrom(minimumSize: const Size(0, 52)),
+                ),
+              ),
+            ],
+          );
+
+          if (compact) {
+            return Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                saldo,
+                const SizedBox(height: 10),
+                actions,
+              ],
+            );
+          }
+
+          return Row(
+            children: [
+              Expanded(child: saldo),
+              const SizedBox(width: 16),
+              SizedBox(width: 390, child: actions),
+            ],
+          );
+        },
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final descripcion = (widget.cuenta.descripcion ?? '').trim();
+    final palette = _palette;
+
+    final content = Column(
+      children: [
+        _buildDialogHeader(descripcion),
+        Expanded(
+          child: _buildFormularioPago(
+            context,
+            padding: const EdgeInsets.fromLTRB(18, 16, 18, 20),
+          ),
+        ),
+        _buildBarraAccionesPantalla(),
+      ],
+    );
+
+    if (widget.mostrarComoPagina) {
+      return Scaffold(
+        backgroundColor: palette.background,
+        body: SafeArea(child: content),
+      );
+    }
+
+    return Material(
+      color: palette.background,
+      elevation: 28,
+      clipBehavior: Clip.antiAlias,
+      shape: RoundedRectangleBorder(
+        borderRadius: const BorderRadius.horizontal(left: Radius.circular(30)),
+        side: BorderSide(color: palette.secondary.withOpacity(0.18)),
+      ),
+      child: content,
+    );
+  }
+
+  Widget _buildDialogHeader(String descripcion) {
+    final palette = _palette;
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.fromLTRB(20, 18, 16, 18),
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          colors: [
+            palette.primary.withOpacity(0.20),
+            palette.secondary.withOpacity(0.10),
+            palette.surface.withOpacity(0.96),
+          ],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+        border: Border(bottom: BorderSide(color: palette.secondary.withOpacity(0.16))),
+      ),
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          final compact = constraints.maxWidth < 620;
+          final identity = Row(
+            crossAxisAlignment: CrossAxisAlignment.center,
+            children: [
+              Container(
+                width: 48,
+                height: 48,
+                decoration: BoxDecoration(
+                  color: palette.background.withOpacity(palette.darkBackground ? 0.56 : 0.82),
+                  borderRadius: BorderRadius.circular(17),
+                  border: Border.all(color: palette.secondary.withOpacity(0.20)),
+                ),
+                child: Icon(Icons.point_of_sale_rounded, color: palette.secondary, size: 25),
+              ),
+              const SizedBox(width: 13),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      _modoRapidoVentaDirecta
+                          ? 'Cobro rápido'
+                          : (_esVentaDirecta ? 'Cobrar venta directa' : 'Cobrar cuenta'),
+                      style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                            fontWeight: FontWeight.w900,
+                            color: palette.textPrimary,
+                          ),
+                    ),
+                    const SizedBox(height: 3),
+                    Text(
+                      _modoRapidoVentaDirecta
+                          ? '${_origenVentaVisible(widget.venta)} · Mostrador'
+                          : '${_origenVentaVisible(widget.venta)} · ${_cuentaEtiquetaVisible(widget.cuenta)}',
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(color: palette.textSecondary, fontWeight: FontWeight.w800),
+                    ),
+                    if (descripcion.isNotEmpty) ...[
+                      const SizedBox(height: 2),
+                      Text(
+                        descripcion,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(color: palette.textSecondary.withOpacity(0.84), fontWeight: FontWeight.w600, fontSize: 12),
+                      ),
+                    ],
+                  ],
+                ),
+              ),
+            ],
+          );
+
+          final total = Container(
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+            decoration: BoxDecoration(
+              color: palette.background.withOpacity(palette.darkBackground ? 0.58 : 0.84),
+              borderRadius: BorderRadius.circular(18),
+              border: Border.all(color: palette.secondary.withOpacity(0.22)),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.end,
+              children: [
+                Text('Total por cobrar', style: TextStyle(color: palette.textSecondary, fontSize: 11, fontWeight: FontWeight.w800)),
+                const SizedBox(height: 2),
+                Text(CurrencyUtils.format(_totalCuenta), style: TextStyle(color: palette.secondary, fontSize: 30, fontWeight: FontWeight.w900, height: 1.0)),
+                const SizedBox(height: 2),
+                Text('Venta #${widget.venta.ventaId ?? '-'}', style: TextStyle(color: palette.textSecondary, fontSize: 11, fontWeight: FontWeight.w700)),
+              ],
+            ),
+          );
+
+          final close = IconButton(
+            tooltip: 'Cerrar cobro',
+            onPressed: () => Navigator.of(context).pop(),
+            icon: const Icon(Icons.close_rounded),
+          );
+
+          if (compact) {
+            return Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Row(children: [Expanded(child: identity), close]),
+                const SizedBox(height: 12),
+                total,
+              ],
+            );
+          }
+
+          return Row(
+            children: [
+              Expanded(child: identity),
+              const SizedBox(width: 14),
+              total,
+              const SizedBox(width: 4),
+              close,
+            ],
+          );
+        },
+      ),
+    );
+  }
+
+  Widget _buildProductosFactura(BuildContext context) {
+    final palette = _palette;
+    final productos = _productosAgrupadosFactura;
+    return Container(
+      width: double.infinity,
+      decoration: BoxDecoration(
+        color: palette.surface.withOpacity(palette.darkBackground ? 0.92 : 0.98),
+        borderRadius: BorderRadius.circular(22),
+        border: Border.all(color: palette.cardBorder),
+      ),
+      child: Column(
+        children: [
+          Material(
+            color: Colors.transparent,
+            borderRadius: BorderRadius.circular(22),
+            child: InkWell(
+              borderRadius: BorderRadius.circular(22),
+              onTap: productos.isEmpty ? null : () => setState(() => _mostrarDetalleProductos = !_mostrarDetalleProductos),
+              child: Padding(
+                padding: const EdgeInsets.all(16),
+                child: Row(
+                  children: [
+                    Container(
+                      width: 38,
+                      height: 38,
+                      decoration: BoxDecoration(color: palette.secondary.withOpacity(0.12), borderRadius: BorderRadius.circular(13)),
+                      child: Icon(Icons.receipt_long_rounded, color: palette.secondary, size: 20),
+                    ),
+                    const SizedBox(width: 11),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text('Detalle de productos', style: TextStyle(color: palette.textPrimary, fontWeight: FontWeight.w900)),
+                          const SizedBox(height: 2),
+                          Text(
+                            productos.isEmpty ? 'No hay productos pendientes.' : '${productos.length} producto${productos.length == 1 ? '' : 's'} por cobrar',
+                            style: TextStyle(color: palette.textSecondary, fontWeight: FontWeight.w600, fontSize: 12),
+                          ),
+                        ],
+                      ),
+                    ),
+                    Text(CurrencyUtils.format(_subtotalProductos), style: TextStyle(color: palette.secondary, fontWeight: FontWeight.w900)),
+                    if (productos.isNotEmpty) ...[
+                      const SizedBox(width: 8),
+                      Icon(_mostrarDetalleProductos ? Icons.expand_less_rounded : Icons.expand_more_rounded, color: palette.textSecondary),
+                    ],
+                  ],
+                ),
+              ),
+            ),
+          ),
+          if (_mostrarDetalleProductos && productos.isNotEmpty) ...[
+            Divider(height: 1, color: palette.cardBorder),
+            Padding(
+              padding: const EdgeInsets.all(14),
+              child: MediaQuery.sizeOf(context).width < 760 ? _buildProductosMovil(productos) : _buildProductosTabla(productos),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+
+  Widget _buildProductosTabla(List<_FacturaProductoAgrupado> productos) {
+    final palette = _palette;
+    return Column(
+      children: [
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 9),
+          decoration: BoxDecoration(
+            color: palette.background.withOpacity(palette.darkBackground ? 0.52 : 0.72),
+            borderRadius: BorderRadius.circular(13),
+            border: Border.all(color: palette.cardBorder),
+          ),
+          child: Row(
+            children: [
+              SizedBox(width: 70, child: Text('Cant.', style: TextStyle(fontWeight: FontWeight.w900, color: palette.textSecondary))),
+              Expanded(flex: 4, child: Text('Producto', style: TextStyle(fontWeight: FontWeight.w900, color: palette.textSecondary))),
+              Expanded(flex: 2, child: Text('Precio', textAlign: TextAlign.right, style: TextStyle(fontWeight: FontWeight.w900, color: palette.textSecondary))),
+              const SizedBox(width: 14),
+              Expanded(flex: 2, child: Text('Total', textAlign: TextAlign.right, style: TextStyle(fontWeight: FontWeight.w900, color: palette.textSecondary))),
+            ],
+          ),
+        ),
+        const SizedBox(height: 6),
+        ...productos.map((producto) => Container(
+              margin: const EdgeInsets.only(bottom: 6),
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 11),
+              decoration: BoxDecoration(
+                color: palette.background.withOpacity(palette.darkBackground ? 0.36 : 0.58),
+                borderRadius: BorderRadius.circular(13),
+                border: Border.all(color: palette.cardBorder),
+              ),
+              child: Row(
+                children: [
+                  SizedBox(width: 70, child: Text(_formatCantidad(producto.cantidad), style: TextStyle(fontWeight: FontWeight.w900, color: palette.textPrimary))),
+                  Expanded(flex: 4, child: Text(producto.nombre, style: TextStyle(fontWeight: FontWeight.w800, color: palette.textPrimary))),
+                  Expanded(flex: 2, child: Text(CurrencyUtils.format(producto.precioUnitario), textAlign: TextAlign.right, style: TextStyle(fontWeight: FontWeight.w700, color: palette.textSecondary))),
+                  const SizedBox(width: 14),
+                  Expanded(flex: 2, child: Text(CurrencyUtils.format(producto.total), textAlign: TextAlign.right, style: TextStyle(fontWeight: FontWeight.w900, color: palette.secondary))),
+                ],
+              ),
+            )),
+      ],
+    );
+  }
+
+  Widget _buildProductosMovil(List<_FacturaProductoAgrupado> productos) {
+    final palette = _palette;
+    return Column(
+      children: productos.map((producto) => Container(
+            width: double.infinity,
+            margin: const EdgeInsets.only(bottom: 8),
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: palette.background.withOpacity(palette.darkBackground ? 0.42 : 0.66),
+              borderRadius: BorderRadius.circular(15),
+              border: Border.all(color: palette.cardBorder),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(producto.nombre, style: TextStyle(fontWeight: FontWeight.w900, color: palette.textPrimary)),
+                const SizedBox(height: 8),
+                Row(
+                  children: [
+                    Expanded(child: _miniDatoFactura('Cantidad', _formatCantidad(producto.cantidad))),
+                    Expanded(child: _miniDatoFactura('Precio', CurrencyUtils.format(producto.precioUnitario))),
+                    Expanded(child: _miniDatoFactura('Total', CurrencyUtils.format(producto.total), alignEnd: true)),
+                  ],
+                ),
+              ],
+            ),
+          )).toList(growable: false),
+    );
+  }
+
+  Widget _miniDatoFactura(String label, String value, {bool alignEnd = false}) {
+    final palette = _palette;
+    return Column(
+      crossAxisAlignment: alignEnd ? CrossAxisAlignment.end : CrossAxisAlignment.start,
+      children: [
+        Text(label, style: TextStyle(color: palette.textSecondary, fontWeight: FontWeight.w700, fontSize: 11)),
+        const SizedBox(height: 2),
+        Text(value, textAlign: alignEnd ? TextAlign.right : TextAlign.left, style: TextStyle(fontWeight: FontWeight.w900, color: palette.textPrimary)),
+      ],
+    );
+  }
+
+  Widget _buildPropinaFactura() {
+    final palette = _palette;
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(15),
+      decoration: BoxDecoration(
+        color: palette.surface.withOpacity(palette.darkBackground ? 0.92 : 0.98),
+        borderRadius: BorderRadius.circular(22),
+        border: Border.all(color: palette.cardBorder),
+      ),
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          final compact = constraints.maxWidth < 560;
+          final info = Row(
+            children: [
+              Container(
+                width: 38,
+                height: 38,
+                decoration: BoxDecoration(color: palette.secondary.withOpacity(0.12), borderRadius: BorderRadius.circular(13)),
+                child: Icon(Icons.volunteer_activism_rounded, color: palette.secondary, size: 20),
+              ),
+              const SizedBox(width: 11),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text('Propina', style: TextStyle(color: palette.textPrimary, fontWeight: FontWeight.w900)),
+                    const SizedBox(height: 2),
+                    Text(
+                      _propinaRegistrada > 0
+                          ? 'Registrada ${CurrencyUtils.format(_propinaRegistrada)} · agrega solo una propina nueva si aplica.'
+                          : 'El servicio del 10 % es sugerido y solo se agrega si el cliente lo acepta.',
+                      style: TextStyle(color: palette.textSecondary, fontWeight: FontWeight.w600, fontSize: 12),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          );
+
+          final controls = Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text('Servicio sugerido (10 %)', style: TextStyle(
+                fontWeight: FontWeight.w800, color: palette.textPrimary)),
+              const SizedBox(height: 4),
+              Text(
+                'Opcional y sujeto a la aceptación del cliente. Calculado sobre productos pendientes: ${CurrencyUtils.format(_subtotalProductos)}.',
+                style: TextStyle(color: palette.textSecondary, fontSize: 11.5),
+              ),
+              const SizedBox(height: 8),
+              Wrap(spacing: 8, runSpacing: 8, children: [
+                ChoiceChip(
+                  label: Text('Agregar 10 % · ${CurrencyUtils.format(_servicioSugerido)}'),
+                  selected: _servicioSugeridoSeleccionado,
+                  onSelected: (_) => _seleccionarServicioSugerido(!_servicioSugeridoSeleccionado),
+                ),
+                ChoiceChip(
+                  label: const Text('Sin servicio'),
+                  selected: !_servicioSugeridoSeleccionado && _propina == 0,
+                  onSelected: (_) => _seleccionarServicioSugerido(false),
+                ),
+              ]),
+            ],
+          );
+
+          final field = TextFormField(
+            controller: _propinaController,
+            keyboardType: const TextInputType.numberWithOptions(decimal: true),
+            inputFormatters: _tipCurrencyInputFormatters,
+            decoration: const InputDecoration(
+              labelText: 'Agregar propina adicional',
+              hintText: '0',
+              prefixIcon: Icon(Icons.attach_money_rounded),
+            ),
+            onChanged: (_) => setState(() {
+              _servicioSugeridoSeleccionado = false;
+              _sincronizarPagosPorCambioPropina();
+            }),
+            validator: (value) => _parse(value ?? '') < 0 ? 'La propina no puede ser negativa' : null,
+          );
+
+          if (compact) {
+            return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [info, const SizedBox(height: 12), controls, const SizedBox(height: 12), field]);
+          }
+          return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [info, const SizedBox(height: 12), controls, const SizedBox(height: 12), field]);
+        },
+      ),
+    );
+  }
+
+  Widget _buildMediosPagoFactura(BuildContext context) {
+    final palette = _palette;
+    final multipago = _pagos.length > 1;
+    final cobroRapido = _modoRapidoVentaDirecta;
+    final pagoActivoSeguro = _pagos.isEmpty ? 0 : _pagoActivoIndex.clamp(0, _pagos.length - 1).toInt();
+
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: palette.surface.withOpacity(palette.darkBackground ? 0.95 : 0.995),
+        borderRadius: BorderRadius.circular(24),
+        border: Border.all(color: palette.secondary.withOpacity(0.15)),
+        boxShadow: [BoxShadow(color: palette.cardShadow.withOpacity(0.14), blurRadius: 18, offset: const Offset(0, 8))],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      cobroRapido ? 'Forma de pago' : 'Forma de cobro',
+                      style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w900, color: palette.textPrimary),
+                    ),
+                    const SizedBox(height: 3),
+                    Text(
+                      cobroRapido
+                          ? 'Elige cómo pagó el cliente. Usa varios medios solo cuando realmente lo necesites.'
+                          : (multipago ? 'Configura cada pago por pasos.' : 'Selecciona el medio y registra el valor recibido.'),
+                      style: TextStyle(color: palette.textSecondary, fontWeight: FontWeight.w600, fontSize: 12),
+                    ),
+                  ],
+                ),
+              ),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                decoration: BoxDecoration(
+                  color: palette.secondary.withOpacity(0.10),
+                  borderRadius: BorderRadius.circular(999),
+                ),
+                child: Text(
+                  cobroRapido ? 'VENTA DIRECTA' : '${_pagos.length} pago${_pagos.length == 1 ? '' : 's'}',
+                  style: TextStyle(color: palette.secondary, fontWeight: FontWeight.w900, fontSize: 11),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          if (cobroRapido)
+            Align(
+              alignment: Alignment.centerLeft,
+              child: OutlinedButton.icon(
+                onPressed: () => _configurarCantidadPagos(2),
+                icon: const Icon(Icons.call_split_rounded, size: 18),
+                label: const Text('Varios medios'),
+              ),
+            )
+          else
+            Wrap(
+              spacing: 7,
+              runSpacing: 7,
+              crossAxisAlignment: WrapCrossAlignment.center,
+              children: [
+                Text('Cantidad:', style: TextStyle(color: palette.textSecondary, fontWeight: FontWeight.w800, fontSize: 11)),
+                for (var cantidad = 1; cantidad <= 5; cantidad++)
+                  ChoiceChip(
+                    label: Text('$cantidad'),
+                    selected: _cantidadPagosSeleccionada == cantidad,
+                    onSelected: (_) => _configurarCantidadPagos(cantidad),
+                    visualDensity: VisualDensity.compact,
+                  ),
+                if (multipago)
+                  ActionChip(
+                    avatar: const Icon(Icons.balance_rounded, size: 16),
+                    label: const Text('Repartir por igual'),
+                    onPressed: _repartirPagosPorIgual,
+                    visualDensity: VisualDensity.compact,
+                  ),
+              ],
+            ),
+          if (multipago) ...[
+            const SizedBox(height: 16),
+            _buildStepperPagos(),
+            const SizedBox(height: 14),
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.symmetric(horizontal: 13, vertical: 10),
+              decoration: BoxDecoration(
+                color: palette.background.withOpacity(palette.darkBackground ? 0.46 : 0.68),
+                borderRadius: BorderRadius.circular(16),
+                border: Border.all(color: palette.cardBorder),
+              ),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: Text(
+                      _pagosListos.contains(pagoActivoSeguro)
+                          ? 'Pago ${pagoActivoSeguro + 1} listo para continuar'
+                          : 'Estás registrando Pago ${pagoActivoSeguro + 1} de ${_pagos.length}',
+                      style: TextStyle(
+                        color: _pagosListos.contains(pagoActivoSeguro) ? AppColors.success : palette.textPrimary,
+                        fontWeight: FontWeight.w900,
+                        fontSize: 13,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 10),
+                  Text(
+                    'Por registrar ${CurrencyUtils.format(_saldoPorRegistrarEnFlujo)}',
+                    style: TextStyle(
+                      color: _saldoPorRegistrarEnFlujo > 0.009 ? palette.primary : AppColors.success,
+                      fontWeight: FontWeight.w900,
+                      fontSize: 12,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+          const SizedBox(height: 14),
+          if (_pagos.isNotEmpty) _buildMedioPagoCard(pagoActivoSeguro),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildStepperPagos() {
+    final palette = _palette;
+    if (_pagos.length <= 1) return const SizedBox.shrink();
+
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        return Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            for (var index = 0; index < _pagos.length; index++) ...[
+              Expanded(
+                child: InkWell(
+                  onTap: (_pagosListos.contains(index) || index <= _primerPagoPendienteIndex) ? () => _seleccionarPago(index) : null,
+                  borderRadius: BorderRadius.circular(14),
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 3),
+                    child: Column(
+                      children: [
+                        AnimatedContainer(
+                          duration: const Duration(milliseconds: 160),
+                          width: 34,
+                          height: 34,
+                          alignment: Alignment.center,
+                          decoration: BoxDecoration(
+                            shape: BoxShape.circle,
+                            color: _pagosListos.contains(index)
+                                ? AppColors.success
+                                : (index == _pagoActivoIndex ? palette.secondary : palette.background),
+                            border: Border.all(
+                              color: _pagosListos.contains(index)
+                                  ? AppColors.success
+                                  : (index == _pagoActivoIndex ? palette.secondary : palette.cardBorder),
+                              width: 1.5,
+                            ),
+                          ),
+                          child: _pagosListos.contains(index)
+                              ? Icon(Icons.check_rounded, size: 19, color: Theme.of(context).colorScheme.onPrimary)
+                              : Text(
+                                  '${index + 1}',
+                                  style: TextStyle(
+                                    color: index == _pagoActivoIndex ? Theme.of(context).colorScheme.onSecondary : palette.textSecondary,
+                                    fontWeight: FontWeight.w900,
+                                    fontSize: 12,
+                                  ),
+                                ),
+                        ),
+                        const SizedBox(height: 6),
+                        Text(
+                          'Pago ${index + 1}',
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: TextStyle(
+                            color: _pagosListos.contains(index)
+                                ? AppColors.success
+                                : (index == _pagoActivoIndex ? palette.secondary : palette.textSecondary),
+                            fontWeight: FontWeight.w900,
+                            fontSize: 10.5,
+                          ),
+                        ),
+                        Text(
+                          _pagosListos.contains(index) ? 'Listo' : (index == _pagoActivoIndex ? 'En curso' : 'Pendiente'),
+                          style: TextStyle(color: palette.textSecondary, fontWeight: FontWeight.w600, fontSize: 9.5),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+              if (index < _pagos.length - 1)
+                Padding(
+                  padding: const EdgeInsets.only(top: 19),
+                  child: Container(
+                    width: constraints.maxWidth < 430 ? 8 : 18,
+                    height: 2,
+                    color: _pagosListos.contains(index) ? AppColors.success.withOpacity(0.65) : palette.cardBorder,
+                  ),
+                ),
+            ],
+          ],
+        );
+      },
+    );
+  }
+
+  void _seleccionarMedioPago(_PagoFormRowData pago, int? medioPagoId) {
+    setState(() {
+      _invalidarPago(pago);
+      final eraEfectivo = pago.esEfectivo;
+      pago.medioPagoId = medioPagoId;
+      if (pago.esEfectivo) {
+        _completarEfectivoConSaldoPendiente(pago);
+        if (!eraEfectivo) {
+          pago.efectivoManual = false;
+          pago.limpiarDenominaciones();
+        }
+      } else {
+        pago.efectivoManual = false;
+        pago.limpiarDenominaciones();
+      }
+    });
+  }
+
+  Future<void> _mostrarOtrosMediosPago(_PagoFormRowData pago, List<MeseroMedioPagoModel> otros) async {
+    final seleccionado = await showModalBottomSheet<int>(
+      context: context,
+      useSafeArea: true,
+      backgroundColor: Colors.transparent,
+      builder: (sheetContext) {
+        final palette = _palette;
+        return Container(
+          decoration: BoxDecoration(
+            color: palette.surface,
+            borderRadius: const BorderRadius.vertical(top: Radius.circular(28)),
+            border: Border.all(color: palette.secondary.withOpacity(0.16)),
+          ),
+          padding: const EdgeInsets.fromLTRB(18, 14, 18, 22),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Center(
+                child: Container(
+                  width: 46,
+                  height: 5,
+                  decoration: BoxDecoration(color: palette.cardBorder, borderRadius: BorderRadius.circular(999)),
+                ),
+              ),
+              const SizedBox(height: 16),
+              Text('Otros medios de pago', style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w900, color: palette.textPrimary)),
+              const SizedBox(height: 4),
+              Text('Selecciona una opción para este pago.', style: TextStyle(color: palette.textSecondary, fontWeight: FontWeight.w600)),
+              const SizedBox(height: 14),
+              ConstrainedBox(
+                constraints: BoxConstraints(maxHeight: MediaQuery.sizeOf(sheetContext).height * 0.56),
+                child: ListView.separated(
+                  shrinkWrap: true,
+                  itemCount: otros.length,
+                  separatorBuilder: (_, __) => Divider(height: 1, color: palette.cardBorder),
+                  itemBuilder: (context, index) {
+                    final medio = otros[index];
+                    final selected = medio.medioPagoId == pago.medioPagoId;
+                    return ListTile(
+                      contentPadding: const EdgeInsets.symmetric(horizontal: 4, vertical: 4),
+                      leading: Container(
+                        width: 42,
+                        height: 42,
+                        decoration: BoxDecoration(
+                          color: palette.secondary.withOpacity(selected ? 0.18 : 0.10),
+                          borderRadius: BorderRadius.circular(14),
+                        ),
+                        child: Icon(_iconoMedioPago(medio), color: palette.secondary),
+                      ),
+                      title: Text(medio.nombre ?? 'Medio ${medio.medioPagoId ?? '-'}', style: TextStyle(color: palette.textPrimary, fontWeight: FontWeight.w900)),
+                      subtitle: (medio.descripcion ?? '').trim().isEmpty
+                          ? null
+                          : Text(medio.descripcion!, maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(color: palette.textSecondary)),
+                      trailing: selected ? Icon(Icons.check_circle_rounded, color: palette.secondary) : Icon(Icons.chevron_right_rounded, color: palette.textSecondary),
+                      onTap: medio.medioPagoId == null ? null : () => Navigator.of(sheetContext).pop(medio.medioPagoId),
+                    );
+                  },
+                ),
+              ),
+            ],
+          ),
+        );
+      },
+    );
+
+    if (!mounted || seleccionado == null) return;
+    _seleccionarMedioPago(pago, seleccionado);
+  }
+
+  Widget _buildSelectorVisualMedioPago(_PagoFormRowData pago) {
+    final palette = _palette;
+    final disponibles = widget.mediosPago.where((medio) => medio.medioPagoId != null).toList(growable: false)
+      ..sort((a, b) {
+        final prioridad = _prioridadMedioPago(a).compareTo(_prioridadMedioPago(b));
+        if (prioridad != 0) return prioridad;
+        return (a.nombre ?? '').toLowerCase().compareTo((b.nombre ?? '').toLowerCase());
+      });
+
+    final destacados = <MeseroMedioPagoModel>[];
+    final otros = <MeseroMedioPagoModel>[];
+    for (final medio in disponibles) {
+      if (destacados.length < 5 && _prioridadMedioPago(medio) < 20) {
+        destacados.add(medio);
+      } else {
+        otros.add(medio);
+      }
+    }
+    if (destacados.isEmpty) {
+      for (final medio in disponibles.take(4)) {
+        destacados.add(medio);
+      }
+      otros.removeWhere((medio) => destacados.any((item) => item.medioPagoId == medio.medioPagoId));
+      if (otros.isEmpty && disponibles.length > destacados.length) {
+        otros.addAll(disponibles.skip(destacados.length));
+      }
+    }
+
+    final seleccionadoEnOtros = otros.any((medio) => medio.medioPagoId == pago.medioPagoId);
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final compact = constraints.maxWidth < 520;
+        final columns = compact ? 2 : (constraints.maxWidth < 760 ? 3 : 5);
+        final spacing = 8.0;
+        final itemWidth = (constraints.maxWidth - (spacing * (columns - 1))) / columns;
+
+        final items = <Widget>[
+          for (final medio in destacados)
+            _MedioPagoVisualButton(
+              width: itemWidth,
+              icon: _iconoMedioPago(medio),
+              label: medio.nombre ?? 'Medio',
+              selected: medio.medioPagoId == pago.medioPagoId,
+              onTap: () => _seleccionarMedioPago(pago, medio.medioPagoId),
+            ),
+          if (otros.isNotEmpty)
+            _MedioPagoVisualButton(
+              width: itemWidth,
+              icon: seleccionadoEnOtros ? _iconoMedioPago(_medioPagoById(widget.mediosPago, pago.medioPagoId) ?? otros.first) : Icons.more_horiz_rounded,
+              label: seleccionadoEnOtros
+                  ? (_medioPagoById(widget.mediosPago, pago.medioPagoId)?.nombre ?? 'Otro')
+                  : 'Otro',
+              selected: seleccionadoEnOtros,
+              onTap: () => _mostrarOtrosMediosPago(pago, otros),
+            ),
+        ];
+
+        return Wrap(spacing: spacing, runSpacing: spacing, children: items);
+      },
+    );
+  }
+
+  Widget _buildQrMedioPago(MeseroMedioPagoModel medio) {
+    final palette = _palette;
+    final qrValue = _qrMedioPago(medio);
+    if (qrValue == null) return const SizedBox.shrink();
+    final nombre = _nombreQrMedioPago(medio);
+
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: palette.secondary.withOpacity(palette.darkBackground ? 0.08 : 0.06),
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: palette.secondary.withOpacity(0.20)),
+      ),
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          final compact = constraints.maxWidth < 520;
+          final qrSize = compact
+              ? (constraints.maxWidth - 28).clamp(230.0, 310.0).toDouble()
+              : 270.0;
+          final qr = Container(
+            width: qrSize,
+            height: qrSize,
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(18),
+              border: Border.all(color: palette.secondary.withOpacity(0.24)),
+            ),
+            child: ClipRRect(
+              borderRadius: BorderRadius.circular(10),
+              child: _BarlyticsImage(
+                value: qrValue,
+                width: qrSize - 24,
+                height: qrSize - 24,
+                radius: 10,
+                fit: BoxFit.contain,
+              ),
+            ),
+          );
+
+          final info = Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  Container(
+                    width: 40,
+                    height: 40,
+                    decoration: BoxDecoration(
+                      color: palette.secondary.withOpacity(0.14),
+                      borderRadius: BorderRadius.circular(14),
+                    ),
+                    child: Icon(Icons.qr_code_scanner_rounded, color: palette.secondary),
+                  ),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'Pagar con $nombre',
+                          style: TextStyle(color: palette.textPrimary, fontWeight: FontWeight.w900, fontSize: 16),
+                        ),
+                        const SizedBox(height: 2),
+                        Text(
+                          'El cliente puede escanear el código sin salir del cobro.',
+                          style: TextStyle(color: palette.textSecondary, fontWeight: FontWeight.w600, fontSize: 12),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 12),
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                decoration: BoxDecoration(
+                  color: palette.background.withOpacity(palette.darkBackground ? 0.44 : 0.72),
+                  borderRadius: BorderRadius.circular(14),
+                  border: Border.all(color: palette.cardBorder),
+                ),
+                child: Row(
+                  children: [
+                    Icon(Icons.verified_user_outlined, size: 18, color: palette.secondary),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        'Confirma la recepción del dinero antes de registrar el pago.',
+                        style: TextStyle(color: palette.textSecondary, fontWeight: FontWeight.w700, fontSize: 12),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          );
+
+          if (compact) {
+            return Column(
+              children: [
+                info,
+                const SizedBox(height: 14),
+                Center(child: qr),
+              ],
+            );
+          }
+
+          return Row(
+            crossAxisAlignment: CrossAxisAlignment.center,
+            children: [
+              Expanded(child: info),
+              const SizedBox(width: 18),
+              qr,
+            ],
+          );
+        },
+      ),
+    );
+  }
+
+  Widget _buildMedioPagoCard(int index) {
+    final palette = _palette;
+    final pago = _pagos[index];
+    MeseroMedioPagoModel? medioSeleccionado;
+    for (final medio in widget.mediosPago) {
+      if (medio.medioPagoId == pago.medioPagoId) {
+        medioSeleccionado = medio;
+        break;
+      }
+    }
+    final listo = _pagosListos.contains(index);
+    final cobroRapido = _modoRapidoVentaDirecta;
+
+    final valueField = TextFormField(
+      controller: pago.valorController,
+      keyboardType: const TextInputType.numberWithOptions(decimal: true),
+      inputFormatters: _wholeCurrencyInputFormatters,
+      textAlign: TextAlign.center,
+      style: TextStyle(color: palette.textPrimary, fontWeight: FontWeight.w900, fontSize: 28),
+      decoration: InputDecoration(
+        labelText: 'Monto de este pago',
+        hintText: '25.000',
+        prefixIcon: const Icon(Icons.attach_money_rounded),
+        suffixIcon: IconButton(
+          tooltip: 'Completar con saldo pendiente',
+          onPressed: () => setState(() {
+            _invalidarPagoDesde(index == _pagos.length - 1 && index > 0 ? index - 1 : index);
+            _completarValorPagoConSaldoPendiente(pago, sobrescribir: true);
+            _sincronizarPagoRestante(index);
+          }),
+          icon: const Icon(Icons.auto_fix_high_rounded),
+        ),
+        contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 18),
+      ),
+      onChanged: (_) {
+        setState(() {
+          _invalidarPagoDesde(index == _pagos.length - 1 && index > 0 ? index - 1 : index);
+          _sincronizarPagoRestante(index);
+        });
+      },
+      validator: (value) {
+        if (pago.medioPagoId == null) return 'Selecciona un medio de pago';
+        return _parse(value ?? '') <= 0 ? 'Ingresa un valor mayor a cero' : null;
+      },
+    );
+
+    return AnimatedContainer(
+      duration: const Duration(milliseconds: 180),
+      width: double.infinity,
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: palette.background.withOpacity(palette.darkBackground ? 0.48 : 0.76),
+        borderRadius: BorderRadius.circular(22),
+        border: Border.all(
+          color: listo ? AppColors.success.withOpacity(0.50) : palette.secondary.withOpacity(0.34),
+          width: 1.4,
+        ),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          if (cobroRapido) ...[
+            Row(
+              children: [
+                Container(
+                  width: 44,
+                  height: 44,
+                  decoration: BoxDecoration(
+                    color: palette.secondary.withOpacity(0.12),
+                    borderRadius: BorderRadius.circular(14),
+                  ),
+                  child: Icon(
+                    medioSeleccionado == null ? Icons.payments_outlined : _iconoMedioPago(medioSeleccionado),
+                    color: palette.secondary,
+                    size: 23,
+                  ),
+                ),
+                const SizedBox(width: 11),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        '¿Cómo pagó el cliente?',
+                        style: TextStyle(color: palette.textPrimary, fontWeight: FontWeight.w900, fontSize: 16),
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        medioSeleccionado?.nombre ?? 'Selecciona un medio de pago',
+                        style: TextStyle(color: palette.textSecondary, fontWeight: FontWeight.w700, fontSize: 12),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 14),
+          ] else ...[
+            Row(
+              children: [
+                Container(
+                  width: 44,
+                  height: 44,
+                  decoration: BoxDecoration(
+                    color: (listo ? AppColors.success : palette.secondary).withOpacity(0.12),
+                    borderRadius: BorderRadius.circular(14),
+                  ),
+                  child: Icon(
+                    listo ? Icons.check_circle_rounded : (medioSeleccionado == null ? Icons.payments_outlined : _iconoMedioPago(medioSeleccionado)),
+                    color: listo ? AppColors.success : palette.secondary,
+                    size: 23,
+                  ),
+                ),
+                const SizedBox(width: 11),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        _pagos.length > 1 ? 'PAGO ${index + 1} DE ${_pagos.length}' : 'PAGO',
+                        style: TextStyle(color: palette.textSecondary, fontWeight: FontWeight.w900, fontSize: 11, letterSpacing: 0.5),
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        listo ? 'Pago listo' : (medioSeleccionado?.nombre ?? 'Selecciona cómo pagará'),
+                        style: TextStyle(color: listo ? AppColors.success : palette.textPrimary, fontWeight: FontWeight.w900, fontSize: 16),
+                      ),
+                    ],
+                  ),
+                ),
+                if (_pagos.length > 1) ...[
+                  IconButton(
+                    tooltip: 'Eliminar este pago',
+                    onPressed: () => _eliminarPagoEnPreparacion(index),
+                    icon: const Icon(Icons.delete_outline_rounded, color: AppColors.danger, size: 20),
+                    visualDensity: VisualDensity.compact,
+                  ),
+                  const SizedBox(width: 2),
+                ],
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                  decoration: BoxDecoration(
+                    color: (listo ? AppColors.success : palette.secondary).withOpacity(0.10),
+                    borderRadius: BorderRadius.circular(999),
+                  ),
+                  child: Text(
+                    listo ? 'LISTO ✓' : 'EN CURSO',
+                    style: TextStyle(color: listo ? AppColors.success : palette.secondary, fontWeight: FontWeight.w900, fontSize: 10),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 15),
+            valueField,
+            const SizedBox(height: 16),
+            Text('Medio de pago', style: TextStyle(color: palette.textPrimary, fontWeight: FontWeight.w900, fontSize: 12)),
+            const SizedBox(height: 8),
+          ],
+          if (cobroRapido) const SizedBox(height: 8),
+          _buildSelectorVisualMedioPago(pago),
+          if (medioSeleccionado != null && _qrMedioPago(medioSeleccionado) != null) ...[
+            const SizedBox(height: 12),
+            _buildQrMedioPago(medioSeleccionado),
+          ],
+          if (pago.esEfectivo) ...[
+            const SizedBox(height: 14),
+            _buildRegistroEfectivo(pago),
+          ],
+        ],
+      ),
+    );
+  }
+
+  Widget _buildRegistroEfectivo(_PagoFormRowData pago) {
+    final palette = _palette;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        if (_modoRapidoVentaDirecta) ...[
+          SizedBox(
+            width: double.infinity,
+            child: FilledButton.tonalIcon(
+              onPressed: () => _marcarPagoExacto(pago),
+              icon: const Icon(Icons.price_check_rounded),
+              label: Text('Pago exacto ${CurrencyUtils.format(_parse(pago.valorController.text))}'),
+              style: FilledButton.styleFrom(minimumSize: const Size(0, 48)),
+            ),
+          ),
+          const SizedBox(height: 10),
+        ],
+        Container(
+          width: double.infinity,
+          padding: const EdgeInsets.all(4),
+          decoration: BoxDecoration(
+            color: palette.surface.withOpacity(palette.darkBackground ? 0.72 : 0.90),
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(color: palette.secondary.withOpacity(0.16)),
+          ),
+          child: Row(
+            children: [
+              Expanded(
+                child: _EfectivoModoButton(
+                  label: 'Ingresar total',
+                  icon: Icons.edit_rounded,
+                  selected: pago.efectivoManual,
+                  onTap: () => _cambiarModoEfectivo(pago, true),
+                ),
+              ),
+              const SizedBox(width: 4),
+              Expanded(
+                child: _EfectivoModoButton(
+                  label: 'Billetes y monedas',
+                  icon: Icons.payments_rounded,
+                  selected: !pago.efectivoManual,
+                  onTap: () => _cambiarModoEfectivo(pago, false),
+                ),
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(height: 10),
+        if (pago.efectivoManual) _buildEfectivoManual(pago) else _buildSelectorEfectivoVisual(pago),
+      ],
+    );
+  }
+
+  Widget _buildResumenEfectivoPos({
+    required double aplicado,
+    required double recibido,
+    required double faltante,
+    required double cambio,
+  }) {
+    final palette = _palette;
+    final tieneVuelta = cambio > 0.009;
+    final faltaDinero = faltante > 0.009;
+    final accent = tieneVuelta ? AppColors.success : (faltaDinero ? palette.primary : AppColors.success);
+
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: palette.background.withOpacity(palette.darkBackground ? 0.54 : 0.76),
+        borderRadius: BorderRadius.circular(17),
+        border: Border.all(color: accent.withOpacity(tieneVuelta ? 0.30 : 0.18)),
+      ),
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          final compact = constraints.maxWidth < 470;
+          final datos = Row(
+            children: [
+              Expanded(child: _CobroResumenDato(label: 'Debe recibir', value: CurrencyUtils.format(aplicado), color: palette.textPrimary)),
+              Container(width: 1, height: 34, color: palette.cardBorder),
+              Expanded(child: _CobroResumenDato(label: 'Recibido', value: CurrencyUtils.format(recibido), color: palette.textPrimary)),
+            ],
+          );
+          final resultado = Container(
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+            decoration: BoxDecoration(
+              color: accent.withOpacity(0.10),
+              borderRadius: BorderRadius.circular(14),
+              border: Border.all(color: accent.withOpacity(0.24)),
+            ),
+            child: Column(
+              crossAxisAlignment: compact ? CrossAxisAlignment.center : CrossAxisAlignment.end,
+              children: [
+                Text(
+                  tieneVuelta
+                      ? 'VUELTA'
+                      : (faltaDinero ? 'FALTANTE' : (_modoRapidoVentaDirecta ? 'LISTO PARA COBRAR' : 'PAGO CUBIERTO')),
+                  style: TextStyle(color: accent, fontWeight: FontWeight.w900, fontSize: 10.5, letterSpacing: 0.4),
+                ),
+                const SizedBox(height: 1),
+                Text(
+                  !tieneVuelta && !faltaDinero && _modoRapidoVentaDirecta
+                      ? '✓'
+                      : CurrencyUtils.format(tieneVuelta ? cambio : (faltaDinero ? faltante : 0)),
+                  style: TextStyle(color: accent, fontWeight: FontWeight.w900, fontSize: tieneVuelta ? 22 : 18),
+                ),
+              ],
+            ),
+          );
+          if (compact) {
+            return Column(children: [datos, const SizedBox(height: 10), SizedBox(width: double.infinity, child: resultado)]);
+          }
+          return Row(children: [Expanded(child: datos), const SizedBox(width: 12), resultado]);
+        },
+      ),
+    );
+  }
+
+  Widget _buildEfectivoManual(_PagoFormRowData pago) {
+    final palette = _palette;
+    final aplicado = _parse(pago.valorController.text);
+    final recibido = _parse(pago.valorRecibidoController.text);
+    final faltante = (aplicado - recibido).clamp(0, double.infinity).toDouble();
+    final cambio = (recibido - aplicado).clamp(0, double.infinity).toDouble();
+
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: palette.surface.withOpacity(palette.darkBackground ? 0.72 : 0.88),
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: palette.secondary.withOpacity(0.18)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text('¿Cuánto entregó el cliente?', style: TextStyle(color: palette.textPrimary, fontWeight: FontWeight.w900)),
+          const SizedBox(height: 4),
+          Text(
+            'Escribe únicamente el total recibido. No necesitas seleccionar billetes ni monedas.',
+            style: TextStyle(color: palette.textSecondary, fontWeight: FontWeight.w600, fontSize: 11.5),
+          ),
+          const SizedBox(height: 12),
+          TextFormField(
+            controller: pago.valorRecibidoController,
+            keyboardType: const TextInputType.numberWithOptions(decimal: true),
+            inputFormatters: _wholeCurrencyInputFormatters,
+            decoration: const InputDecoration(
+              labelText: 'Total recibido',
+              hintText: '50.000',
+              prefixIcon: Icon(Icons.payments_outlined),
+            ),
+            onChanged: (_) => setState(() {
+              _invalidarPago(pago);
+            }),
+            validator: (value) {
+              if (!pago.esEfectivo || !pago.efectivoManual) return null;
+              final total = _parse(value ?? '');
+              if (total <= 0) return 'Ingresa cuánto efectivo entregó el cliente.';
+              if (total + 0.009 < _parse(pago.valorController.text)) {
+                return 'El efectivo recibido no alcanza para cubrir este pago.';
+              }
+              return null;
+            },
+          ),
+          const SizedBox(height: 12),
+          _buildResumenEfectivoPos(
+            aplicado: aplicado,
+            recibido: recibido,
+            faltante: faltante,
+            cambio: cambio,
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildSelectorEfectivoVisual(_PagoFormRowData pago) {
+    final palette = _palette;
+    return FormField<double>(
+      initialValue: pago.efectivoSeleccionado,
+      validator: (_) {
+        if (!pago.esEfectivo || pago.efectivoManual) return null;
+        final recibido = pago.efectivoSeleccionado;
+        final aplicado = _parse(pago.valorController.text);
+        if (recibido <= 0) return 'Selecciona los billetes o monedas recibidos.';
+        if (recibido + 0.009 < aplicado) return 'El efectivo seleccionado no alcanza para cubrir este pago.';
+        return null;
+      },
+      builder: (field) {
+        final recibido = pago.efectivoSeleccionado;
+        final aplicado = _parse(pago.valorController.text);
+        final faltante = (aplicado - recibido).clamp(0, double.infinity).toDouble();
+        final cambio = (recibido - aplicado).clamp(0, double.infinity).toDouble();
+        final tieneSeleccion = pago.denominaciones.isNotEmpty;
+
+        return Container(
+          width: double.infinity,
+          padding: const EdgeInsets.all(14),
+          decoration: BoxDecoration(
+            color: palette.surface.withOpacity(palette.darkBackground ? 0.72 : 0.88),
+            borderRadius: BorderRadius.circular(20),
+            border: Border.all(color: field.hasError ? AppColors.danger.withOpacity(0.55) : palette.secondary.withOpacity(0.18)),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  Container(
+                    width: 38,
+                    height: 38,
+                    decoration: BoxDecoration(color: palette.secondary.withOpacity(0.12), borderRadius: BorderRadius.circular(13)),
+                    child: Icon(Icons.payments_rounded, color: palette.secondary, size: 20),
+                  ),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text('¿Con qué efectivo pagaron?', style: TextStyle(color: palette.textPrimary, fontWeight: FontWeight.w900)),
+                        const SizedBox(height: 2),
+                        Text('Toca cada billete o moneda recibido. No necesitas escribir el valor.', style: TextStyle(color: palette.textSecondary, fontWeight: FontWeight.w600, fontSize: 11.5)),
+                      ],
+                    ),
+                  ),
+                  TextButton.icon(
+                    onPressed: tieneSeleccion ? () => _limpiarDenominaciones(pago, field: field) : null,
+                    icon: const Icon(Icons.restart_alt_rounded, size: 17),
+                    label: const Text('Limpiar'),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 12),
+              _buildResumenEfectivoPos(
+                aplicado: aplicado,
+                recibido: recibido,
+                faltante: faltante,
+                cambio: cambio,
+              ),
+              const SizedBox(height: 14),
+              Text('Billetes', style: TextStyle(color: palette.textPrimary, fontWeight: FontWeight.w900, fontSize: 12)),
+              const SizedBox(height: 8),
+              _buildGrupoDenominaciones(pago, _billetesColombia, field: field, monedas: false),
+              const SizedBox(height: 14),
+              Text('Monedas', style: TextStyle(color: palette.textPrimary, fontWeight: FontWeight.w900, fontSize: 12)),
+              const SizedBox(height: 8),
+              _buildGrupoDenominaciones(pago, _monedasColombia, field: field, monedas: true),
+              if (field.hasError) ...[
+                const SizedBox(height: 9),
+                Text(field.errorText!, style: const TextStyle(color: AppColors.danger, fontWeight: FontWeight.w800, fontSize: 12)),
+              ],
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _buildGrupoDenominaciones(
+    _PagoFormRowData pago,
+    List<int> valores, {
+    required FormFieldState<double> field,
+    required bool monedas,
+  }) {
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final columns = constraints.maxWidth < 430 ? 2 : (constraints.maxWidth < 650 ? 3 : 4);
+        const spacing = 8.0;
+        final width = (constraints.maxWidth - spacing * (columns - 1)) / columns;
+        return Wrap(
+          spacing: spacing,
+          runSpacing: spacing,
+          children: [
+            for (final valor in valores)
+              _buildDenominacionEfectivo(
+                pago,
+                valor,
+                width: width,
+                monedas: monedas,
+                field: field,
+              ),
+          ],
+        );
+      },
+    );
+  }
+
+  Widget _buildDenominacionEfectivo(
+    _PagoFormRowData pago,
+    int valor, {
+    required double width,
+    required bool monedas,
+    required FormFieldState<double> field,
+  }) {
+    final palette = _palette;
+    final cantidad = pago.denominaciones[valor] ?? 0;
+    final selected = cantidad > 0;
+    final puedeDesagregar = selected && _descomposicionDenominacion(valor) != null;
+
+    return SizedBox(
+      width: width,
+      child: Material(
+        color: Colors.transparent,
+        borderRadius: BorderRadius.circular(16),
+        child: InkWell(
+          onTap: () => _sumarDenominacion(pago, valor, field: field),
+          borderRadius: BorderRadius.circular(16),
+          child: AnimatedContainer(
+            duration: const Duration(milliseconds: 140),
+            padding: const EdgeInsets.all(8),
+            decoration: BoxDecoration(
+              color: selected
+                  ? palette.secondary.withOpacity(palette.darkBackground ? 0.18 : 0.12)
+                  : palette.background.withOpacity(palette.darkBackground ? 0.42 : 0.70),
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(color: selected ? palette.secondary.withOpacity(0.70) : palette.cardBorder, width: selected ? 1.4 : 1),
+            ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Stack(
+                  clipBehavior: Clip.none,
+                  children: [
+                    Container(
+                      height: monedas ? 58 : 62,
+                      width: monedas ? 58 : double.infinity,
+                      alignment: Alignment.center,
+                      decoration: BoxDecoration(
+                        color: palette.secondary.withOpacity(selected ? 0.16 : 0.08),
+                        shape: monedas ? BoxShape.circle : BoxShape.rectangle,
+                        borderRadius: monedas ? null : BorderRadius.circular(10),
+                        border: Border.all(color: palette.secondary.withOpacity(0.24)),
+                      ),
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Icon(
+                            monedas ? Icons.monetization_on_rounded : Icons.local_atm_rounded,
+                            size: monedas ? 18 : 20,
+                            color: palette.secondary.withOpacity(selected ? 0.95 : 0.85),
+                          ),
+                          const SizedBox(height: 3),
+                          Padding(
+                            padding: const EdgeInsets.symmetric(horizontal: 4),
+                            child: Text(
+                              CurrencyUtils.format(valor.toDouble()),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              textAlign: TextAlign.center,
+                              style: TextStyle(color: palette.textPrimary, fontWeight: FontWeight.w900, fontSize: monedas ? 10 : 11),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    if (selected)
+                      Positioned(
+                        top: -5,
+                        right: -5,
+                        child: Container(
+                          constraints: const BoxConstraints(minWidth: 22, minHeight: 22),
+                          alignment: Alignment.center,
+                          padding: const EdgeInsets.symmetric(horizontal: 5),
+                          decoration: BoxDecoration(color: palette.secondary, borderRadius: BorderRadius.circular(999)),
+                          child: Text('$cantidad', style: TextStyle(color: Theme.of(context).colorScheme.onSecondary, fontWeight: FontWeight.w900, fontSize: 10)),
+                        ),
+                      ),
+                  ],
+                ),
+                const SizedBox(height: 7),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    SizedBox(
+                      width: 30,
+                      height: 30,
+                      child: IconButton(
+                        padding: EdgeInsets.zero,
+                        tooltip: 'Quitar una',
+                        onPressed: selected ? () => _restarDenominacion(pago, valor, field: field) : null,
+                        icon: const Icon(Icons.remove_rounded, size: 17),
+                      ),
+                    ),
+                    const SizedBox(width: 2),
+                    SizedBox(
+                      width: 30,
+                      height: 30,
+                      child: IconButton(
+                        padding: EdgeInsets.zero,
+                        tooltip: 'Agregar una',
+                        onPressed: () => _sumarDenominacion(pago, valor, field: field),
+                        icon: const Icon(Icons.add_rounded, size: 17),
+                      ),
+                    ),
+                    if (puedeDesagregar) ...[
+                      const SizedBox(width: 2),
+                      SizedBox(
+                        width: 30,
+                        height: 30,
+                        child: IconButton(
+                          padding: EdgeInsets.zero,
+                          tooltip: 'Desagregar una denominación',
+                          onPressed: () => _desagregarDenominacion(pago, valor, field: field),
+                          icon: const Icon(Icons.call_split_rounded, size: 16),
+                        ),
+                      ),
+                    ],
+                  ],
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+
+}
+
+class _EfectivoModoButton extends StatelessWidget {
+  const _EfectivoModoButton({
+    required this.label,
+    required this.icon,
+    required this.selected,
+    required this.onTap,
+  });
+
+  final String label;
+  final IconData icon;
+  final bool selected;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+    return Material(
+      color: selected ? colorScheme.secondary.withOpacity(0.14) : Colors.transparent,
+      borderRadius: BorderRadius.circular(12),
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(12),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 10),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(icon, size: 18, color: selected ? colorScheme.secondary : colorScheme.onSurfaceVariant),
+              const SizedBox(width: 7),
+              Flexible(
+                child: Text(
+                  label,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    color: selected ? colorScheme.secondary : colorScheme.onSurfaceVariant,
+                    fontWeight: FontWeight.w900,
+                    fontSize: 12,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _MedioPagoVisualButton extends ConsumerWidget {
+  const _MedioPagoVisualButton({
+    required this.width,
+    required this.icon,
+    required this.label,
+    required this.selected,
+    required this.onTap,
+  });
+
+  final double width;
+  final IconData icon;
+  final String label;
+  final bool selected;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final palette = ref.watch(selectedAppPaletteProvider);
+    return SizedBox(
+      width: width,
+      child: Material(
+        color: Colors.transparent,
+        borderRadius: BorderRadius.circular(16),
+        child: InkWell(
+          onTap: onTap,
+          borderRadius: BorderRadius.circular(16),
+          child: AnimatedContainer(
+            duration: const Duration(milliseconds: 160),
+            constraints: const BoxConstraints(minHeight: 74),
+            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 10),
+            decoration: BoxDecoration(
+              color: selected
+                  ? palette.secondary.withOpacity(palette.darkBackground ? 0.20 : 0.13)
+                  : palette.surface.withOpacity(palette.darkBackground ? 0.46 : 0.78),
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(
+                color: selected ? palette.secondary : palette.cardBorder,
+                width: selected ? 1.5 : 1,
+              ),
+            ),
+            child: Stack(
+              children: [
+                Align(
+                  alignment: Alignment.center,
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(icon, color: selected ? palette.secondary : palette.textSecondary, size: 25),
+                      const SizedBox(height: 7),
+                      Text(
+                        label,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        textAlign: TextAlign.center,
+                        style: TextStyle(
+                          color: selected ? palette.secondary : palette.textPrimary,
+                          fontWeight: FontWeight.w900,
+                          fontSize: 12,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                if (selected)
+                  Positioned(
+                    top: 0,
+                    right: 0,
+                    child: Icon(Icons.check_circle_rounded, color: palette.secondary, size: 17),
+                  ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _MensajeCobroError extends StatelessWidget {
+  const _MensajeCobroError({required this.text});
+
+  final String text;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+      decoration: BoxDecoration(
+        color: AppColors.danger.withOpacity(0.10),
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: AppColors.danger.withOpacity(0.24)),
+      ),
+      child: Row(
+        children: [
+          const Icon(Icons.error_outline_rounded, color: AppColors.danger, size: 18),
+          const SizedBox(width: 8),
+          Expanded(child: Text(text, style: const TextStyle(color: AppColors.danger, fontWeight: FontWeight.w800))),
+        ],
+      ),
+    );
+  }
+}
+
+class _CobroResumenDato extends StatelessWidget {
+  const _CobroResumenDato({required this.label, required this.value, required this.color});
+
+  final String label;
+  final String value;
+  final Color color;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 10),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Text(label, style: TextStyle(color: color.withOpacity(0.70), fontSize: 11, fontWeight: FontWeight.w800)),
+          const SizedBox(height: 2),
+          Text(value, maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(color: color, fontWeight: FontWeight.w900, fontSize: 15)),
+        ],
+      ),
+    );
+  }
+}
+
+class _MoverProductoCuentaResult {
+  const _MoverProductoCuentaResult._({this.cuentaDestinoId, this.descripcionNuevaCuenta, required this.crearNuevaCuenta});
+
+  const _MoverProductoCuentaResult.existente(int cuentaDestinoId)
+      : this._(cuentaDestinoId: cuentaDestinoId, crearNuevaCuenta: false);
+
+  const _MoverProductoCuentaResult.nueva({String? descripcion})
+      : this._(descripcionNuevaCuenta: descripcion, crearNuevaCuenta: true);
+
+  final int? cuentaDestinoId;
+  final String? descripcionNuevaCuenta;
+  final bool crearNuevaCuenta;
+}
+
+class _MoverProductoCuentaDialog extends StatefulWidget {
+  const _MoverProductoCuentaDialog({
+    required this.venta,
+    required this.cuentaOrigen,
+    required this.producto,
+  });
+
+  final MeseroVentaModel venta;
+  final MeseroCuentaModel cuentaOrigen;
+  final MeseroDetalleProductoModel producto;
+
+  @override
+  State<_MoverProductoCuentaDialog> createState() => _MoverProductoCuentaDialogState();
+}
+
+class _MoverProductoCuentaDialogState extends State<_MoverProductoCuentaDialog> {
+  final TextEditingController _descripcionNuevaCuentaController = TextEditingController();
+  int? _cuentaDestinoId;
+  bool _crearNuevaCuenta = false;
+
+  List<MeseroCuentaModel> get _cuentasDestino => widget.venta.cuentas
+      .where((cuenta) => cuenta.cuentaId != null && cuenta.cuentaId != widget.cuentaOrigen.cuentaId)
+      .toList(growable: false);
+
+  @override
+  void initState() {
+    super.initState();
+    final cuentasDestino = _cuentasDestino;
+    if (cuentasDestino.isEmpty) {
+      _crearNuevaCuenta = true;
+    } else {
+      _cuentaDestinoId = cuentasDestino.first.cuentaId;
+    }
+  }
+
+  @override
+  void dispose() {
+    _descripcionNuevaCuentaController.dispose();
+    super.dispose();
+  }
+
+  void _confirmar() {
+    if (_crearNuevaCuenta) {
+      Navigator.of(context).pop(_MoverProductoCuentaResult.nueva(
+        descripcion: _descripcionNuevaCuentaController.text.trim(),
+      ));
+      return;
+    }
+
+    final destinoId = _cuentaDestinoId;
+    if (destinoId == null) return;
+    Navigator.of(context).pop(_MoverProductoCuentaResult.existente(destinoId));
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final cuentasDestino = _cuentasDestino;
+    final producto = widget.producto;
+    final nombreProducto = producto.productoNombre ?? 'Producto ${producto.productoId ?? '-'}';
+    final nuevaCuentaNumero = widget.venta.cuentas.fold<int>(0, (max, cuenta) {
+          final numero = cuenta.numero ?? 0;
+          return numero > max ? numero : max;
+        }) +
+        1;
+
+    return AlertDialog(
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+      title: const Text('Pasar producto a otra cuenta'),
+      content: SizedBox(
+        width: 540,
+        child: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.all(14),
+                decoration: BoxDecoration(
+                  color: AppColors.surfaceAlt,
+                  borderRadius: BorderRadius.circular(18),
+                  border: Border.all(color: AppColors.border),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(nombreProducto, style: const TextStyle(fontWeight: FontWeight.w900)),
+                    const SizedBox(height: 8),
+                    Wrap(
+                      spacing: 8,
+                      runSpacing: 8,
+                      children: [
+                        _SmallInfoPill(icon: Icons.receipt_long_rounded, text: 'Cuenta origen ${widget.cuentaOrigen.numero ?? '-'}'),
+                        _SmallInfoPill(icon: Icons.shopping_bag_rounded, text: 'Cant. ${_formatCantidadGeneral(producto.cantidad)}'),
+                        _SmallInfoPill(icon: Icons.payments_rounded, text: CurrencyUtils.format(producto.subtotal)),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 16),
+              Text(
+                'Selecciona la cuenta destino. Solo se pueden mover productos que todavía no están pagados.',
+                style: Theme.of(context).textTheme.bodyMedium?.copyWith(color: AppColors.textSecondary, fontWeight: FontWeight.w700),
+              ),
+              const SizedBox(height: 12),
+              if (cuentasDestino.isNotEmpty) ...[
+                ...cuentasDestino.map((cuenta) {
+                  final descripcion = (cuenta.descripcion ?? '').trim();
+                  return RadioListTile<int>(
+                    contentPadding: EdgeInsets.zero,
+                    value: cuenta.cuentaId!,
+                    groupValue: _crearNuevaCuenta ? null : _cuentaDestinoId,
+                    onChanged: (value) => setState(() {
+                      _crearNuevaCuenta = false;
+                      _cuentaDestinoId = value;
+                    }),
+                    title: Text(_cuentaEtiquetaVisible(cuenta)),
+                    subtitle: Text('Total ${CurrencyUtils.format(cuenta.total)} · Saldo ${CurrencyUtils.format(cuenta.saldoPendiente)}'),
+                  );
+                }),
+                const Divider(height: 18),
+              ] else
+                Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: AppColors.warning.withOpacity(0.10),
+                    borderRadius: BorderRadius.circular(16),
+                    border: Border.all(color: AppColors.warning.withOpacity(0.30)),
+                  ),
+                  child: const Text(
+                    'No hay otra cuenta disponible en esta mesa. Crea una cuenta nueva para poder pasar el producto.',
+                    style: TextStyle(color: AppColors.textSecondary, fontWeight: FontWeight.w700),
+                  ),
+                ),
+              RadioListTile<bool>(
+                contentPadding: EdgeInsets.zero,
+                value: true,
+                groupValue: _crearNuevaCuenta,
+                onChanged: (_) => setState(() => _crearNuevaCuenta = true),
+                title: Text('Crear cuenta $nuevaCuentaNumero y pasar el producto'),
+                subtitle: const Text('La cuenta se crea en la misma mesa y luego se mueve el producto.'),
+              ),
+              if (_crearNuevaCuenta) ...[
+                const SizedBox(height: 8),
+                TextField(
+                  controller: _descripcionNuevaCuentaController,
+                  maxLength: 300,
+                  decoration: InputDecoration(
+                    labelText: 'Descripción de la nueva cuenta',
+                    hintText: 'Ejemplo: Juan, mesa 4 invitado, cuenta adicional...',
+                    counterText: '',
+                    prefixIcon: const Icon(Icons.groups_2_rounded),
+                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(16)),
+                  ),
+                ),
+              ],
+            ],
+          ),
+        ),
+      ),
+      actions: [
+        TextButton(onPressed: () => Navigator.of(context).pop(), child: const Text('Cancelar')),
+        FilledButton.icon(
+          onPressed: _crearNuevaCuenta || _cuentaDestinoId != null ? _confirmar : null,
+          icon: const Icon(Icons.swap_horiz_rounded),
+          label: const Text('Pasar producto'),
+        ),
+      ],
+    );
+  }
+}
+
+class _SumarCantidadProductoDialog extends ConsumerStatefulWidget {
+  const _SumarCantidadProductoDialog({required this.producto});
+
+  final MeseroDetalleProductoModel producto;
+
+  @override
+  ConsumerState<_SumarCantidadProductoDialog> createState() => _SumarCantidadProductoDialogState();
+}
+
+class _SumarCantidadProductoDialogState extends ConsumerState<_SumarCantidadProductoDialog> {
+  final _formKey = GlobalKey<FormState>();
+  late final TextEditingController _cantidadController;
+
+  @override
+  void initState() {
+    super.initState();
+    _cantidadController = TextEditingController(text: '1');
+  }
+
+  @override
+  void dispose() {
+    _cantidadController.dispose();
+    super.dispose();
+  }
+
+  double _parseCantidad(String value) {
+    final normalized = value.trim().replaceAll(',', '.');
+    return double.tryParse(normalized) ?? 0;
+  }
+
+  void _establecerCantidad(double value) {
+    _cantidadController.text = _formatCantidadGeneral(value);
+    _cantidadController.selection = TextSelection.collapsed(offset: _cantidadController.text.length);
+    setState(() {});
+  }
+
+  void _sumarUno(double diferencia) {
+    final actual = _parseCantidad(_cantidadController.text);
+    final nuevoValor = (actual + diferencia).clamp(1.0, 999999.0).toDouble();
+    _establecerCantidad(nuevoValor);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final palette = ref.watch(selectedAppPaletteProvider);
+    final producto = widget.producto;
+    final cantidadActual = (producto.cantidad ?? 0).toDouble();
+    final cantidadASumar = _parseCantidad(_cantidadController.text);
+    final cantidadFinal = cantidadActual + cantidadASumar;
+    final valorUnitario = producto.valorUnitario ?? 0;
+
+    return AlertDialog(
+      backgroundColor: palette.surface.withOpacity(palette.darkBackground ? 0.97 : 0.995),
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(24),
+        side: BorderSide(color: palette.secondary.withOpacity(0.20)),
+      ),
+      title: Text('Sumar cantidad', style: TextStyle(color: palette.textPrimary, fontWeight: FontWeight.w900)),
+      content: SizedBox(
+        width: 430,
+        child: Form(
+          key: _formKey,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  _ProductImageThumb(value: producto.productoFoto, size: 68),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          producto.productoNombre ?? 'Producto ${producto.productoId ?? '-'}',
+                          style: TextStyle(color: palette.textPrimary, fontWeight: FontWeight.w900, fontSize: 17),
+                        ),
+                        const SizedBox(height: 5),
+                        Text(
+                          'Cantidad actual: ${_formatCantidadGeneral(cantidadActual)}',
+                          style: TextStyle(color: palette.textSecondary, fontWeight: FontWeight.w700),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 16),
+              Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                children: [
+                  for (final value in const <double>[1, 2, 5, 10])
+                    ActionChip(
+                      avatar: const Icon(Icons.add_rounded, size: 16),
+                      label: Text(_formatCantidadGeneral(value)),
+                      onPressed: () => _establecerCantidad(value),
+                    ),
+                ],
+              ),
+              const SizedBox(height: 14),
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  IconButton.filledTonal(
+                    onPressed: cantidadASumar <= 1 ? null : () => _sumarUno(-1),
+                    icon: const Icon(Icons.remove_rounded),
+                  ),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: TextFormField(
+                      controller: _cantidadController,
+                      autofocus: true,
+                      textAlign: TextAlign.center,
+                      keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                      inputFormatters: InputConstraints.decimalFormatters(integerDigits: 10, fractionDigits: 0),
+                      decoration: const InputDecoration(
+                        labelText: 'Cantidad a sumar',
+                        hintText: 'Ejemplo: 5',
+                      ),
+                      onChanged: (_) => setState(() {}),
+                      validator: (value) {
+                        final parsed = _parseCantidad(value ?? '');
+                        if (parsed <= 0) return 'Ingresa una cantidad mayor a cero';
+                        return null;
+                      },
+                    ),
+                  ),
+                  const SizedBox(width: 10),
+                  IconButton.filledTonal(
+                    onPressed: () => _sumarUno(1),
+                    icon: const Icon(Icons.add_rounded),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 14),
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: palette.background.withOpacity(palette.darkBackground ? 0.48 : 0.70),
+                  borderRadius: BorderRadius.circular(16),
+                  border: Border.all(color: palette.cardBorder),
+                ),
+                child: Row(
+                  children: [
+                    Expanded(child: _dato('Quedará en', _formatCantidadGeneral(cantidadFinal))),
+                    Expanded(
+                      child: _dato(
+                        'Valor agregado',
+                        CurrencyUtils.format(cantidadASumar * valorUnitario),
+                        alignEnd: true,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 8),
+              Text(
+                'La cantidad se registra en una sola operación; no es necesario pulsar + varias veces.',
+                style: TextStyle(color: palette.textSecondary, fontWeight: FontWeight.w600),
+              ),
+            ],
+          ),
+        ),
+      ),
+      actions: [
+        TextButton(onPressed: () => Navigator.of(context).pop(), child: const Text('Cancelar')),
+        FilledButton.icon(
+          onPressed: () {
+            if (!(_formKey.currentState?.validate() ?? false)) return;
+            Navigator.of(context).pop(_parseCantidad(_cantidadController.text));
+          },
+          icon: const Icon(Icons.add_rounded),
+          label: const Text('Sumar'),
+        ),
+      ],
+    );
+  }
+
+  Widget _dato(String label, String value, {bool alignEnd = false}) {
+    final palette = ref.watch(selectedAppPaletteProvider);
+    return Column(
+      crossAxisAlignment: alignEnd ? CrossAxisAlignment.end : CrossAxisAlignment.start,
+      children: [
+        Text(label, style: TextStyle(color: palette.textSecondary, fontWeight: FontWeight.w700, fontSize: 12)),
+        const SizedBox(height: 3),
+        Text(value, style: TextStyle(color: palette.textPrimary, fontWeight: FontWeight.w900, fontSize: 15)),
+      ],
+    );
+  }
+}
+
+class _AgregarProductosOverlayPanel extends ConsumerStatefulWidget {
+  const _AgregarProductosOverlayPanel({
+    required this.cuenta,
+    required this.productos,
+    required this.cantidadesPedidasHoy,
+    required this.onConfirmar,
+    this.ventaDirectaRapida = false,
+    this.ventaId,
+    this.onConfirmarRapido,
+    this.onActualizarProductoExistente,
+    this.onEliminarProductoExistente,
+  });
+
+  final MeseroCuentaModel cuenta;
+  final List<MeseroProductoModel> productos;
+  final Map<int, double> cantidadesPedidasHoy;
+  final Future<bool> Function(Map<int, double> cantidades) onConfirmar;
+  final bool ventaDirectaRapida;
+  final int? ventaId;
+  final Future<bool> Function(Map<int, double> cantidades, bool cobrar)? onConfirmarRapido;
+  final Future<MeseroVentaModel?> Function(MeseroDetalleProductoModel producto, double cantidad)? onActualizarProductoExistente;
+  final Future<MeseroVentaModel?> Function(MeseroDetalleProductoModel producto)? onEliminarProductoExistente;
+
+  @override
+  ConsumerState<_AgregarProductosOverlayPanel> createState() => _AgregarProductosOverlayPanelState();
+}
+
+class _AgregarProductosOverlayPanelState extends ConsumerState<_AgregarProductosOverlayPanel> {
+  final TextEditingController _busquedaController = TextEditingController();
+  final Map<int, double> _cantidades = <int, double>{};
+  String? _tipoSeleccionado;
+  bool _guardando = false;
+  late MeseroCuentaModel _cuentaActual;
+
+  @override
+  void initState() {
+    super.initState();
+    _cuentaActual = widget.cuenta;
+  }
+
+  @override
+  void dispose() {
+    _busquedaController.dispose();
+    super.dispose();
+  }
+
+  List<String> get _tipos {
+    final idsAdiciones = _idsAdiciones(widget.productos);
+    final values = widget.productos
+        .where((producto) => _visibleEnCatalogoMesa(producto, idsAdiciones))
+        .map((producto) => (producto.tipoProductoNombre ?? '').trim())
+        .where((value) => value.isNotEmpty)
+        .toSet()
+        .toList(growable: false)
+      ..sort((a, b) => a.toLowerCase().compareTo(b.toLowerCase()));
+    return values;
+  }
+
+  List<MeseroProductoModel> get _productosFiltrados {
+    final query = _busquedaController.text.trim().toLowerCase();
+    final idsAdiciones = _idsAdiciones(widget.productos);
+    final productos = widget.productos.where((producto) {
+      if (!_visibleEnCatalogoMesa(producto, idsAdiciones)) return false;
+      final tipo = (producto.tipoProductoNombre ?? '').trim();
+      if (_tipoSeleccionado != null && tipo != _tipoSeleccionado) return false;
+      if (query.isEmpty) return true;
+      final nombre = (producto.nombre ?? '').toLowerCase();
+      final descripcion = (producto.descripcion ?? '').toLowerCase();
+      final marca = (producto.marcaNombre ?? '').toLowerCase();
+      final categoria = tipo.toLowerCase();
+      final codigo = producto.prodId?.toString() ?? '';
+      return nombre.contains(query) ||
+          descripcion.contains(query) ||
+          marca.contains(query) ||
+          categoria.contains(query) ||
+          codigo.contains(query);
+    }).toList(growable: false);
+
+    // El catálogo ya llega ordenado por la cantidad pedida hoy. Los controles
+    // + y - no cambian ese orden mientras el usuario arma el pedido.
+    return productos;
+  }
+
+  double _cantidadActualEnCuenta(MeseroProductoModel producto) {
+    final productoId = producto.prodId;
+    if (productoId == null) return 0;
+    return _cuentaActual.productos.fold<double>(0, (total, detalle) {
+      return detalle.productoId == productoId ? total + (detalle.cantidad ?? 0) : total;
+    });
+  }
+
+  double get _totalUnidades => _cantidades.values.fold<double>(0, (sum, value) => sum + value);
+
+  int get _totalProductos => _cantidades.values.where((value) => value > 0).length;
+
+  double get _totalValor {
+    var total = 0.0;
+    for (final producto in widget.productos) {
+      final productoId = producto.prodId;
+      if (productoId == null) continue;
+      total += (_cantidades[productoId] ?? 0) * (producto.precioVenta ?? 0);
+    }
+    return total;
+  }
+
+  void _cambiarCantidad(MeseroProductoModel producto, double diferencia) {
+    final productoId = producto.prodId;
+    if (productoId == null || _guardando) return;
+    final actual = _cantidades[productoId] ?? 0;
+    final nueva = (actual + diferencia).clamp(0, 9999).toDouble();
+    setState(() {
+      if (nueva <= 0) {
+        _cantidades.remove(productoId);
+      } else {
+        _cantidades[productoId] = nueva;
+      }
+    });
+  }
+
+  Future<void> _editarCantidad(MeseroProductoModel producto) async {
+    final productoId = producto.prodId;
+    if (productoId == null || _guardando) return;
+    final actual = _cantidades[productoId] ?? 0;
+    final cantidad = await showDialog<double>(
+      context: context,
+      builder: (dialogContext) => _CantidadAgregarDesdePanelDialog(
+        producto: producto,
+        cantidadInicial: actual,
+      ),
+    );
+    if (cantidad == null || !mounted) return;
+    setState(() {
+      if (cantidad <= 0) {
+        _cantidades.remove(productoId);
+      } else {
+        _cantidades[productoId] = cantidad;
+      }
+    });
+  }
+
+  MeseroCuentaModel? _cuentaDesdeVenta(MeseroVentaModel venta) {
+    final cuentaId = _cuentaActual.cuentaId;
+    for (final cuenta in venta.cuentas) {
+      if (cuenta.cuentaId == cuentaId) return cuenta;
+    }
+    return venta.cuentas.isNotEmpty ? venta.cuentas.first : null;
+  }
+
+  Future<void> _actualizarProductoExistente(MeseroDetalleProductoModel producto, double cantidad) async {
+    if (_guardando || producto.pagado == true || widget.onActualizarProductoExistente == null) return;
+    setState(() => _guardando = true);
+    final venta = await widget.onActualizarProductoExistente!(producto, cantidad.clamp(0, 9999).toDouble());
+    if (!mounted) return;
+    setState(() {
+      final cuenta = venta == null ? null : _cuentaDesdeVenta(venta);
+      if (cuenta != null) _cuentaActual = cuenta;
+      _guardando = false;
+    });
+  }
+
+  Future<void> _editarProductoExistente(MeseroDetalleProductoModel producto) async {
+    if (_guardando || producto.pagado == true) return;
+    final cantidad = await showDialog<double>(
+      context: context,
+      builder: (dialogContext) => _CantidadProductoExistenteDialog(producto: producto),
+    );
+    if (cantidad == null || !mounted) return;
+    if (cantidad <= 0) {
+      await _eliminarProductoExistente(producto);
+      return;
+    }
+    await _actualizarProductoExistente(producto, cantidad);
+  }
+
+  Future<void> _eliminarProductoExistente(MeseroDetalleProductoModel producto) async {
+    if (_guardando || producto.pagado == true || widget.onEliminarProductoExistente == null) return;
+    final nombre = producto.productoNombre ?? 'Producto ${producto.productoId ?? '-'}';
+    final confirmar = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Quitar producto de la venta'),
+        content: Text('¿Quieres eliminar $nombre de esta venta directa?'),
+        actions: [
+          TextButton(onPressed: () => Navigator.of(dialogContext).pop(false), child: const Text('Cancelar')),
+          FilledButton.icon(
+            onPressed: () => Navigator.of(dialogContext).pop(true),
+            icon: const Icon(Icons.delete_outline_rounded),
+            label: const Text('Eliminar'),
+          ),
+        ],
+      ),
+    );
+    if (confirmar != true || !mounted) return;
+
+    setState(() => _guardando = true);
+    final venta = await widget.onEliminarProductoExistente!(producto);
+    if (!mounted) return;
+    setState(() {
+      final cuenta = venta == null ? null : _cuentaDesdeVenta(venta);
+      if (cuenta != null) _cuentaActual = cuenta;
+      _guardando = false;
+    });
+  }
+
+  Future<void> _confirmar({bool cobrar = false}) async {
+    final tieneProductosActuales = _cuentaActual.productos.isNotEmpty;
+    if (_guardando || (!cobrar && _cantidades.isEmpty) || (cobrar && _cantidades.isEmpty && !tieneProductosActuales)) return;
+    setState(() => _guardando = true);
+    final cantidades = Map<int, double>.from(_cantidades);
+    final success = widget.ventaDirectaRapida && widget.onConfirmarRapido != null
+        ? await widget.onConfirmarRapido!(cantidades, cobrar)
+        : await widget.onConfirmar(cantidades);
+    if (!mounted) return;
+    setState(() => _guardando = false);
+    if (success) Navigator.of(context).pop();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final palette = ref.watch(selectedAppPaletteProvider);
+    final mobile = MediaQuery.sizeOf(context).width < 760;
+    final productos = _productosFiltrados;
+    final nombreCuenta = _cuentaNombreVisible(_cuentaActual);
+
+    return Material(
+      color: Colors.transparent,
+      child: Container(
+        decoration: BoxDecoration(
+          color: palette.surface.withOpacity(0.985),
+          borderRadius: mobile
+              ? const BorderRadius.vertical(top: Radius.circular(30))
+              : const BorderRadius.horizontal(left: Radius.circular(30)),
+          border: mobile ? null : Border.all(color: palette.secondary.withOpacity(0.18)),
+          boxShadow: mobile
+              ? [
+                  BoxShadow(
+                    color: Colors.black.withOpacity(0.24),
+                    blurRadius: 28,
+                    offset: const Offset(0, -8),
+                  ),
+                ]
+              : [
+                  BoxShadow(
+                    color: Colors.black.withOpacity(0.30),
+                    blurRadius: 36,
+                    offset: const Offset(-12, 0),
+                  ),
+                ],
+        ),
+        clipBehavior: Clip.antiAlias,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            if (mobile)
+              Center(
+                child: Container(
+                  width: 48,
+                  height: 5,
+                  margin: const EdgeInsets.only(top: 10),
+                  decoration: BoxDecoration(
+                    color: palette.textSecondary.withOpacity(0.30),
+                    borderRadius: BorderRadius.circular(999),
+                  ),
+                ),
+              ),
+            _buildHeader(context, palette, nombreCuenta),
+            if (widget.ventaDirectaRapida) _buildVentaDirectaSelectionTray(palette),
+            _buildSearchAndFilters(palette),
+            Divider(height: 1, color: palette.cardBorder),
+            Expanded(child: _buildContenidoProductos(palette, productos)),
+            _buildFooter(palette, nombreCuenta),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildVentaDirectaSelectionTray(AppPalette palette) {
+    final seleccionados = widget.productos.where((producto) {
+      final productoId = producto.prodId;
+      return productoId != null && (_cantidades[productoId] ?? 0) > 0;
+    }).toList(growable: false);
+    final existentes = _cuentaActual.productos;
+    final totalActual = _cuentaActual.total ?? _cuentaActual.subtotalProductos ?? 0;
+    final totalProyectado = totalActual + _totalValor;
+    final tieneItems = seleccionados.isNotEmpty || existentes.isNotEmpty;
+
+    return Container(
+      margin: const EdgeInsets.fromLTRB(14, 0, 14, 12),
+      padding: const EdgeInsets.fromLTRB(12, 11, 12, 12),
+      decoration: BoxDecoration(
+        color: palette.primary.withOpacity(palette.darkBackground ? 0.10 : 0.055),
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: palette.primary.withOpacity(0.20)),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(palette.darkBackground ? 0.10 : 0.045),
+            blurRadius: 14,
+            offset: const Offset(0, 5),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Row(
+            children: [
+              Container(
+                width: 38,
+                height: 38,
+                decoration: BoxDecoration(
+                  color: palette.primary.withOpacity(0.13),
+                  borderRadius: BorderRadius.circular(13),
+                ),
+                child: Icon(Icons.shopping_bag_rounded, color: palette.primary, size: 20),
+              ),
+              const SizedBox(width: 9),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Tu venta',
+                      style: TextStyle(color: palette.textPrimary, fontWeight: FontWeight.w900, fontSize: 14.5),
+                    ),
+                    const SizedBox(height: 1),
+                    Text(
+                      tieneItems
+                          ? '${existentes.length + seleccionados.length} productos visibles en la selección'
+                          : 'Toca + en un producto y aparecerá aquí inmediatamente.',
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(color: palette.textSecondary, fontWeight: FontWeight.w700, fontSize: 10.5),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(width: 8),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 7),
+                decoration: BoxDecoration(
+                  color: palette.secondary.withOpacity(0.13),
+                  borderRadius: BorderRadius.circular(14),
+                  border: Border.all(color: palette.secondary.withOpacity(0.22)),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.end,
+                  children: [
+                    Text('A cobrar', style: TextStyle(color: palette.textSecondary, fontWeight: FontWeight.w800, fontSize: 9)),
+                    const SizedBox(height: 1),
+                    Text(
+                      CurrencyUtils.format(totalProyectado),
+                      style: TextStyle(color: palette.secondary, fontWeight: FontWeight.w900, fontSize: 14),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          if (tieneItems) ...[
+            const SizedBox(height: 10),
+            SizedBox(
+              height: 86,
+              child: ListView(
+                scrollDirection: Axis.horizontal,
+                children: [
+                  ...existentes.map((producto) => Padding(
+                        padding: const EdgeInsets.only(right: 8),
+                        child: _buildVentaDirectaExistingSelectionCard(palette, producto),
+                      )),
+                  ...seleccionados.map((producto) => Padding(
+                        padding: const EdgeInsets.only(right: 8),
+                        child: _buildVentaDirectaPendingSelectionCard(palette, producto),
+                      )),
+                ],
+              ),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+
+  Widget _buildVentaDirectaExistingSelectionCard(
+    AppPalette palette,
+    MeseroDetalleProductoModel producto,
+  ) {
+    final cantidad = (producto.cantidad ?? 0).toDouble();
+    final pagado = producto.pagado == true;
+    final subtotal = producto.subtotal ?? cantidad * (producto.valorUnitario ?? 0);
+    final nombre = producto.productoNombre ?? 'Producto ${producto.productoId ?? '-'}';
+
+    return Container(
+      width: 230,
+      padding: const EdgeInsets.fromLTRB(10, 8, 8, 8),
+      decoration: BoxDecoration(
+        color: palette.surface.withOpacity(0.92),
+        borderRadius: BorderRadius.circular(15),
+        border: Border.all(color: pagado ? palette.cardBorder : palette.primary.withOpacity(0.20)),
+      ),
+      child: Row(
+        children: [
+          _ProductImageThumb(value: producto.productoFoto, size: 42),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Text(nombre, maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(color: palette.textPrimary, fontWeight: FontWeight.w900, fontSize: 11.5)),
+                const SizedBox(height: 3),
+                Text(
+                  '${_formatCantidadGeneral(cantidad)} × ${CurrencyUtils.format(producto.valorUnitario)}',
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(color: palette.textSecondary, fontWeight: FontWeight.w700, fontSize: 9.5),
+                ),
+                const SizedBox(height: 2),
+                Text(CurrencyUtils.format(subtotal), style: TextStyle(color: palette.secondary, fontWeight: FontWeight.w900, fontSize: 10.5)),
+              ],
+            ),
+          ),
+          if (!pagado) ...[
+            const SizedBox(width: 5),
+            Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                SizedBox(
+                  width: 27,
+                  height: 27,
+                  child: IconButton.filledTonal(
+                    padding: EdgeInsets.zero,
+                    visualDensity: VisualDensity.compact,
+                    onPressed: _guardando || cantidad <= 1 ? null : () => _actualizarProductoExistente(producto, cantidad - 1),
+                    icon: const Icon(Icons.remove_rounded, size: 15),
+                  ),
+                ),
+                const SizedBox(height: 4),
+                SizedBox(
+                  width: 27,
+                  height: 27,
+                  child: IconButton.filledTonal(
+                    padding: EdgeInsets.zero,
+                    visualDensity: VisualDensity.compact,
+                    onPressed: _guardando ? null : () => _actualizarProductoExistente(producto, cantidad + 1),
+                    icon: const Icon(Icons.add_rounded, size: 15),
+                  ),
+                ),
+              ],
+            ),
+          ] else
+            Padding(
+              padding: const EdgeInsets.only(left: 5),
+              child: Icon(Icons.check_circle_rounded, color: AppColors.success, size: 19),
+            ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildVentaDirectaPendingSelectionCard(
+    AppPalette palette,
+    MeseroProductoModel producto,
+  ) {
+    final productoId = producto.prodId;
+    final cantidad = productoId == null ? 0.0 : (_cantidades[productoId] ?? 0);
+    final subtotal = cantidad * (producto.precioVenta ?? 0);
+    final nombre = producto.nombre ?? 'Producto ${productoId ?? '-'}';
+
+    return Container(
+      width: 230,
+      padding: const EdgeInsets.fromLTRB(10, 8, 8, 8),
+      decoration: BoxDecoration(
+        color: palette.secondary.withOpacity(palette.darkBackground ? 0.10 : 0.065),
+        borderRadius: BorderRadius.circular(15),
+        border: Border.all(color: palette.secondary.withOpacity(0.24)),
+      ),
+      child: Row(
+        children: [
+          _ProductImageThumb(value: producto.foto, size: 42),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Row(
+                  children: [
+                    Expanded(child: Text(nombre, maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(color: palette.textPrimary, fontWeight: FontWeight.w900, fontSize: 11.5))),
+                  ],
+                ),
+                const SizedBox(height: 3),
+                Text(
+                  '${_formatCantidadGeneral(cantidad)} × ${CurrencyUtils.format(producto.precioVenta)}',
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(color: palette.textSecondary, fontWeight: FontWeight.w700, fontSize: 9.5),
+                ),
+                const SizedBox(height: 2),
+                Text(CurrencyUtils.format(subtotal), style: TextStyle(color: palette.secondary, fontWeight: FontWeight.w900, fontSize: 10.5)),
+              ],
+            ),
+          ),
+          const SizedBox(width: 5),
+          Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              SizedBox(
+                width: 27,
+                height: 27,
+                child: IconButton.filledTonal(
+                  padding: EdgeInsets.zero,
+                  visualDensity: VisualDensity.compact,
+                  onPressed: _guardando ? null : () => _cambiarCantidad(producto, -1),
+                  icon: Icon(cantidad <= 1 ? Icons.delete_outline_rounded : Icons.remove_rounded, size: 15),
+                ),
+              ),
+              const SizedBox(height: 4),
+              SizedBox(
+                width: 27,
+                height: 27,
+                child: IconButton.filledTonal(
+                  padding: EdgeInsets.zero,
+                  visualDensity: VisualDensity.compact,
+                  onPressed: _guardando ? null : () => _cambiarCantidad(producto, 1),
+                  icon: const Icon(Icons.add_rounded, size: 15),
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildContenidoProductos(AppPalette palette, List<MeseroProductoModel> productos) {
+    final existentes = _cuentaActual.productos;
+    if (!widget.ventaDirectaRapida && productos.isEmpty) return _buildEmpty(palette);
+    if (widget.ventaDirectaRapida && productos.isEmpty && existentes.isEmpty) return _buildEmpty(palette);
+
+    return ListView(
+      padding: const EdgeInsets.fromLTRB(14, 14, 14, 22),
+      children: [
+        if (widget.ventaDirectaRapida && existentes.isNotEmpty) ...[
+          Row(
+            children: [
+              Container(
+                width: 38,
+                height: 38,
+                decoration: BoxDecoration(color: palette.primary.withOpacity(0.12), borderRadius: BorderRadius.circular(13)),
+                child: Icon(Icons.shopping_cart_checkout_rounded, color: palette.primary, size: 20),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text('Productos en la venta', style: TextStyle(color: palette.textPrimary, fontWeight: FontWeight.w900, fontSize: 15)),
+                    const SizedBox(height: 2),
+                    Text('Puedes cambiar cantidades o quitar productos antes de cobrar.', style: TextStyle(color: palette.textSecondary, fontWeight: FontWeight.w600, fontSize: 11.5)),
+                  ],
+                ),
+              ),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 5),
+                decoration: BoxDecoration(color: palette.primary.withOpacity(0.10), borderRadius: BorderRadius.circular(999)),
+                child: Text('${existentes.length}', style: TextStyle(color: palette.primary, fontWeight: FontWeight.w900, fontSize: 11)),
+              ),
+            ],
+          ),
+          const SizedBox(height: 10),
+          ...existentes.map((producto) => Padding(
+                padding: const EdgeInsets.only(bottom: 9),
+                child: _buildProductoExistenteRow(palette, producto),
+              )),
+          const SizedBox(height: 4),
+          Divider(height: 24, color: palette.cardBorder),
+        ],
+        if (productos.isNotEmpty) ...[
+          Row(
+            children: [
+              Icon(Icons.add_circle_outline_rounded, color: palette.secondary, size: 19),
+              const SizedBox(width: 7),
+              Text('Agregar productos', style: TextStyle(color: palette.textPrimary, fontWeight: FontWeight.w900, fontSize: 14)),
+            ],
+          ),
+          const SizedBox(height: 10),
+          ...List.generate(productos.length, (index) => Padding(
+                padding: EdgeInsets.only(bottom: index == productos.length - 1 ? 0 : 10),
+                child: _buildProductRow(context, palette, productos[index]),
+              )),
+        ] else if (widget.ventaDirectaRapida && existentes.isNotEmpty)
+          Padding(
+            padding: const EdgeInsets.symmetric(vertical: 18),
+            child: Text('No hay más productos disponibles con este filtro.', textAlign: TextAlign.center, style: TextStyle(color: palette.textSecondary, fontWeight: FontWeight.w700)),
+          ),
+      ],
+    );
+  }
+
+  Widget _buildProductoExistenteRow(AppPalette palette, MeseroDetalleProductoModel producto) {
+    final cantidad = (producto.cantidad ?? 0).toDouble();
+    final pagado = producto.pagado == true;
+    final nombre = producto.productoNombre ?? 'Producto ${producto.productoId ?? '-'}';
+    final unitario = (producto.valorUnitario ?? 0) + (producto.precioAdicionalUnitario ?? 0);
+    final total = producto.subtotal ?? cantidad * unitario;
+    final personalizacion = _personalizacionPedidoResumen(producto);
+
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(11),
+      decoration: BoxDecoration(
+        color: pagado
+            ? palette.background.withOpacity(palette.darkBackground ? 0.30 : 0.48)
+            : palette.primary.withOpacity(palette.darkBackground ? 0.09 : 0.06),
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: pagado ? palette.cardBorder : palette.primary.withOpacity(0.20)),
+      ),
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          final compact = constraints.maxWidth < 460;
+          final info = Row(
+            children: [
+              _ProductImageThumb(value: producto.productoFoto, size: 48),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        Expanded(child: Text(nombre, maxLines: 2, overflow: TextOverflow.ellipsis, style: TextStyle(color: palette.textPrimary, fontWeight: FontWeight.w900))),
+                        if (pagado)
+                          Container(
+                            margin: const EdgeInsets.only(left: 7),
+                            padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
+                            decoration: BoxDecoration(color: AppColors.success.withOpacity(0.10), borderRadius: BorderRadius.circular(999)),
+                            child: const Text('Pagado', style: TextStyle(color: AppColors.success, fontWeight: FontWeight.w900, fontSize: 9.5)),
+                          ),
+                      ],
+                    ),
+                    const SizedBox(height: 5),
+                    Wrap(
+                      spacing: 10,
+                      runSpacing: 4,
+                      children: [
+                        Text('Unidad ${CurrencyUtils.format(unitario)}', style: TextStyle(color: palette.textSecondary, fontWeight: FontWeight.w700, fontSize: 11)),
+                        Text('Subtotal ${CurrencyUtils.format(total)}', style: TextStyle(color: palette.secondary, fontWeight: FontWeight.w900, fontSize: 11)),
+                      ],
+                    ),
+                    if (personalizacion.isNotEmpty) ...[
+                      const SizedBox(height: 6),
+                      Wrap(
+                        spacing: 5,
+                        runSpacing: 5,
+                        children: personalizacion
+                            .map((text) => Container(
+                                  padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
+                                  decoration: BoxDecoration(
+                                    color: palette.secondary.withOpacity(.08),
+                                    borderRadius: BorderRadius.circular(999),
+                                  ),
+                                  child: Text(
+                                    text,
+                                    style: TextStyle(
+                                      color: palette.textSecondary,
+                                      fontWeight: FontWeight.w700,
+                                      fontSize: 9.5,
+                                    ),
+                                  ),
+                                ))
+                            .toList(),
+                      ),
+                    ],
+                  ],
+                ),
+              ),
+            ],
+          );
+
+          final controls = Container(
+            padding: const EdgeInsets.all(4),
+            decoration: BoxDecoration(color: palette.surface.withOpacity(0.88), borderRadius: BorderRadius.circular(14), border: Border.all(color: palette.cardBorder)),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                _PanelQuantityButton(
+                  icon: Icons.remove_rounded,
+                  enabled: !pagado && !_guardando && cantidad > 1,
+                  onTap: () => _actualizarProductoExistente(producto, cantidad - 1),
+                ),
+                const SizedBox(width: 3),
+                Material(
+                  color: palette.primary.withOpacity(0.10),
+                  borderRadius: BorderRadius.circular(11),
+                  child: InkWell(
+                    onTap: !pagado && !_guardando ? () => _editarProductoExistente(producto) : null,
+                    borderRadius: BorderRadius.circular(11),
+                    child: SizedBox(
+                      width: 62,
+                      height: 40,
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Text(_formatCantidadGeneral(cantidad), style: TextStyle(color: palette.primary, fontWeight: FontWeight.w900, fontSize: 14)),
+                          Text('cantidad', style: TextStyle(color: palette.textSecondary, fontWeight: FontWeight.w700, fontSize: 8.5)),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 3),
+                _PanelQuantityButton(
+                  icon: Icons.add_rounded,
+                  enabled: !pagado && !_guardando,
+                  primary: true,
+                  onTap: () => _actualizarProductoExistente(producto, cantidad + 1),
+                ),
+                const SizedBox(width: 3),
+                _PanelQuantityButton(
+                  icon: Icons.delete_outline_rounded,
+                  enabled: !pagado && !_guardando,
+                  onTap: () => _eliminarProductoExistente(producto),
+                ),
+              ],
+            ),
+          );
+
+          if (compact) {
+            return Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                info,
+                const SizedBox(height: 10),
+                Align(alignment: Alignment.centerRight, child: controls),
+              ],
+            );
+          }
+          return Row(children: [Expanded(child: info), const SizedBox(width: 10), controls]);
+        },
+      ),
+    );
+  }
+
+  Widget _buildHeader(BuildContext context, AppPalette palette, String nombreCuenta) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(18, 16, 14, 14),
+      child: Row(
+        children: [
+          Container(
+            width: 48,
+            height: 48,
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                colors: [palette.primary, palette.secondary],
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+              ),
+              borderRadius: BorderRadius.circular(16),
+            ),
+            child: Icon(Icons.add_shopping_cart_rounded, color: palette.onPrimary, size: 24),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  widget.ventaDirectaRapida
+                      ? 'Venta directa #${widget.ventaId ?? '-'}'
+                      : 'Agregar productos',
+                  style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                        color: palette.textPrimary,
+                        fontWeight: FontWeight.w900,
+                      ),
+                ),
+                const SizedBox(height: 3),
+                Text(
+                  widget.ventaDirectaRapida
+                      ? 'Selecciona los productos y cobra desde este mismo panel, sin salir de la vista de mesas.'
+                      : 'Primero aparecen los productos más pedidos de hoy. Selecciona cantidades para $nombreCuenta.',
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(color: palette.textSecondary, fontWeight: FontWeight.w700),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(width: 8),
+          Semantics(
+            button: true,
+            label: 'Cerrar productos',
+            child: IconButton.filledTonal(
+              onPressed: _guardando ? null : () => Navigator.of(context).pop(),
+              icon: const Icon(Icons.close_rounded),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildSearchAndFilters(AppPalette palette) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 0, 16, 14),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          TextField(
+            maxLength: 120,
+            buildCounter: (_, {required currentLength, required isFocused, maxLength}) => null,
+            controller: _busquedaController,
+            enabled: !_guardando,
+            onChanged: (_) => setState(() {}),
+            decoration: InputDecoration(
+              labelText: 'Buscar productos',
+              hintText: 'Nombre, marca, categoría o código',
+              prefixIcon: const Icon(Icons.search_rounded),
+              suffixIcon: _busquedaController.text.isEmpty
+                  ? null
+                  : IconButton(
+                      onPressed: () {
+                        _busquedaController.clear();
+                        setState(() {});
+                      },
+                      icon: const Icon(Icons.close_rounded),
+                    ),
+            ).compactFilter(),
+          ),
+          if (_tipos.isNotEmpty) ...[
+            const SizedBox(height: 12),
+            SizedBox(
+              height: 38,
+              child: ListView(
+                scrollDirection: Axis.horizontal,
+                children: [
+                  _PanelFilterChip(
+                    label: 'Todos',
+                    selected: _tipoSeleccionado == null,
+                    onTap: _guardando ? null : () => setState(() => _tipoSeleccionado = null),
+                  ),
+                  const SizedBox(width: 8),
+                  for (final tipo in _tipos) ...[
+                    _PanelFilterChip(
+                      label: tipo,
+                      selected: _tipoSeleccionado == tipo,
+                      onTap: _guardando ? null : () => setState(() => _tipoSeleccionado = tipo),
+                    ),
+                    const SizedBox(width: 8),
+                  ],
+                ],
+              ),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+
+  Widget _buildEmpty(AppPalette palette) {
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(28),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(Icons.search_off_rounded, color: palette.textSecondary, size: 44),
+            const SizedBox(height: 12),
+            Text(
+              'No encontramos productos',
+              style: TextStyle(color: palette.textPrimary, fontWeight: FontWeight.w900, fontSize: 16),
+            ),
+            const SizedBox(height: 5),
+            Text(
+              'Cambia la búsqueda o selecciona otra categoría.',
+              textAlign: TextAlign.center,
+              style: TextStyle(color: palette.textSecondary, fontWeight: FontWeight.w600),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildProductRow(
+    BuildContext context,
+    AppPalette palette,
+    MeseroProductoModel producto,
+  ) {
+    final productoId = producto.prodId;
+    final cantidad = productoId == null ? 0.0 : (_cantidades[productoId] ?? 0);
+    final cantidadActual = _cantidadActualEnCuenta(producto);
+    final cantidadPedidaHoy = productoId == null ? 0.0 : (widget.cantidadesPedidasHoy[productoId] ?? 0);
+    final selected = cantidad > 0;
+    final marca = (producto.marcaNombre ?? '').trim();
+    final tipo = (producto.tipoProductoNombre ?? '').trim();
+    final meta = [marca, tipo].where((value) => value.isNotEmpty).join(' · ');
+
+    return AnimatedContainer(
+      duration: const Duration(milliseconds: 160),
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: selected
+            ? palette.secondary.withOpacity(0.10)
+            : palette.background.withOpacity(palette.darkBackground ? 0.42 : 0.72),
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(
+          color: selected ? palette.secondary.withOpacity(0.34) : palette.cardBorder,
+          width: selected ? 1.3 : 1,
+        ),
+      ),
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          final compact = constraints.maxWidth < 430;
+          final info = Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              _ProductImageThumb(value: producto.foto, size: compact ? 52 : 58),
+              const SizedBox(width: 11),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      producto.nombre ?? 'Producto ${producto.prodId ?? '-'}',
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        color: palette.textPrimary,
+                        fontWeight: FontWeight.w900,
+                        fontSize: 14.5,
+                        height: 1.15,
+                      ),
+                    ),
+                    if (meta.isNotEmpty) ...[
+                      const SizedBox(height: 4),
+                      Text(
+                        meta,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(color: palette.textSecondary, fontWeight: FontWeight.w600, fontSize: 11.5),
+                      ),
+                    ],
+                    const SizedBox(height: 7),
+                    Wrap(
+                      spacing: 8,
+                      runSpacing: 6,
+                      crossAxisAlignment: WrapCrossAlignment.center,
+                      children: [
+                        Text(
+                          CurrencyUtils.format(producto.precioVenta),
+                          style: TextStyle(color: palette.secondary, fontWeight: FontWeight.w900, fontSize: 14),
+                        ),
+                        if (cantidadPedidaHoy > 0)
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                            decoration: BoxDecoration(
+                              color: palette.secondary.withOpacity(0.11),
+                              borderRadius: BorderRadius.circular(999),
+                              border: Border.all(color: palette.secondary.withOpacity(0.18)),
+                            ),
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Icon(Icons.trending_up_rounded, size: 12, color: palette.secondary),
+                                const SizedBox(width: 4),
+                                Text(
+                                  'Hoy: ${_formatCantidadGeneral(cantidadPedidaHoy)}',
+                                  style: TextStyle(color: palette.secondary, fontWeight: FontWeight.w900, fontSize: 10.5),
+                                ),
+                              ],
+                            ),
+                          ),
+                        if (cantidadActual > 0)
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                            decoration: BoxDecoration(
+                              color: palette.primary.withOpacity(0.10),
+                              borderRadius: BorderRadius.circular(999),
+                            ),
+                            child: Text(
+                              'En cuenta: ${_formatCantidadGeneral(cantidadActual)}',
+                              style: TextStyle(color: palette.primary, fontWeight: FontWeight.w800, fontSize: 10.5),
+                            ),
+                          ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          );
+          final controls = _buildQuantityControl(palette, producto, cantidad);
+
+          if (compact) {
+            return Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                info,
+                const SizedBox(height: 12),
+                Align(alignment: Alignment.centerRight, child: controls),
+              ],
+            );
+          }
+          return Row(
+            children: [
+              Expanded(child: info),
+              const SizedBox(width: 12),
+              controls,
+            ],
+          );
+        },
+      ),
+    );
+  }
+
+  Widget _buildQuantityControl(
+    AppPalette palette,
+    MeseroProductoModel producto,
+    double cantidad,
+  ) {
+    return Container(
+      padding: const EdgeInsets.all(4),
+      decoration: BoxDecoration(
+        color: palette.surface.withOpacity(0.88),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: palette.secondary.withOpacity(0.18)),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          _PanelQuantityButton(
+            icon: cantidad <= 1 ? Icons.delete_outline_rounded : Icons.remove_rounded,
+            enabled: cantidad > 0 && !_guardando,
+            onTap: () => _cambiarCantidad(producto, -1),
+          ),
+          const SizedBox(width: 4),
+          Material(
+            color: cantidad > 0 ? palette.secondary.withOpacity(0.12) : Colors.transparent,
+            borderRadius: BorderRadius.circular(12),
+            child: InkWell(
+              onTap: _guardando ? null : () => _editarCantidad(producto),
+              borderRadius: BorderRadius.circular(12),
+              child: SizedBox(
+                width: 64,
+                height: 42,
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Text(
+                      _formatCantidadGeneral(cantidad),
+                      style: TextStyle(
+                        color: cantidad > 0 ? palette.secondary : palette.textSecondary,
+                        fontWeight: FontWeight.w900,
+                        fontSize: 15,
+                      ),
+                    ),
+                    Text(
+                      'agregar',
+                      style: TextStyle(color: palette.textSecondary, fontWeight: FontWeight.w700, fontSize: 8.5),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+          const SizedBox(width: 4),
+          _PanelQuantityButton(
+            icon: Icons.add_rounded,
+            enabled: !_guardando,
+            primary: true,
+            onTap: () => _cambiarCantidad(producto, 1),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildFooter(AppPalette palette, String nombreCuenta) {
+    final hasSelection = _cantidades.isNotEmpty;
+    final tieneProductosActuales = _cuentaActual.productos.isNotEmpty;
+    final totalActual = _cuentaActual.total ?? _cuentaActual.subtotalProductos ?? 0;
+    final totalProyectado = totalActual + _totalValor;
+
+    return Container(
+      padding: const EdgeInsets.fromLTRB(16, 13, 16, 16),
+      decoration: BoxDecoration(
+        color: palette.surface.withOpacity(0.99),
+        border: Border(top: BorderSide(color: palette.cardBorder)),
+        boxShadow: [
+          BoxShadow(color: Colors.black.withOpacity(0.12), blurRadius: 18, offset: const Offset(0, -8)),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Row(
+            children: [
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      widget.ventaDirectaRapida
+                          ? (hasSelection
+                              ? '$_totalProductos productos seleccionados · Total ${CurrencyUtils.format(totalProyectado)}'
+                              : '${_cuentaActual.productos.length} productos en la venta')
+                          : (hasSelection
+                              ? '$_totalProductos ${_totalProductos == 1 ? 'producto' : 'productos'} · ${_formatCantidadGeneral(_totalUnidades)} unidades'
+                              : 'Selecciona los productos del pedido'),
+                      style: TextStyle(color: palette.textPrimary, fontWeight: FontWeight.w900),
+                    ),
+                    const SizedBox(height: 3),
+                    Text(
+                      widget.ventaDirectaRapida
+                          ? 'Total de la venta: ${CurrencyUtils.format(totalProyectado)}'
+                          : 'Valor a agregar: ${CurrencyUtils.format(_totalValor)}',
+                      style: TextStyle(color: palette.secondary, fontWeight: FontWeight.w900, fontSize: 13),
+                    ),
+                  ],
+                ),
+              ),
+              if (hasSelection)
+                TextButton(
+                  onPressed: _guardando ? null : () => setState(_cantidades.clear),
+                  child: const Text('Limpiar'),
+                ),
+            ],
+          ),
+          const SizedBox(height: 11),
+          if (widget.ventaDirectaRapida)
+            LayoutBuilder(
+              builder: (context, constraints) {
+                final compacto = constraints.maxWidth < 520;
+                final cerrar = OutlinedButton(
+                  onPressed: _guardando ? null : () => Navigator.of(context).pop(),
+                  child: const Text('Cerrar'),
+                );
+                final guardar = FilledButton.tonalIcon(
+                  onPressed: !hasSelection || _guardando ? null : () => _confirmar(),
+                  icon: const Icon(Icons.pause_circle_outline_rounded),
+                  label: const Text('Guardar abierta'),
+                );
+                final cobrar = FilledButton.icon(
+                  onPressed: (!hasSelection && !tieneProductosActuales) || _guardando
+                      ? null
+                      : () => _confirmar(cobrar: true),
+                  icon: _guardando
+                      ? const SizedBox(
+                          width: 18,
+                          height: 18,
+                          child: CircularProgressIndicator(strokeWidth: 2.2, color: Colors.white),
+                        )
+                      : const Icon(Icons.payments_rounded),
+                  label: Text(_guardando ? 'Procesando...' : (hasSelection ? 'Agregar y cobrar' : 'Cobrar ahora')),
+                  style: FilledButton.styleFrom(
+                    minimumSize: const Size.fromHeight(50),
+                    textStyle: const TextStyle(fontWeight: FontWeight.w900),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                  ),
+                );
+
+                if (compacto) {
+                  return Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      cobrar,
+                      const SizedBox(height: 9),
+                      Row(
+                        children: [
+                          Expanded(child: cerrar),
+                          const SizedBox(width: 9),
+                          Expanded(child: guardar),
+                        ],
+                      ),
+                    ],
+                  );
+                }
+
+                return Row(
+                  children: [
+                    Expanded(child: cerrar),
+                    const SizedBox(width: 9),
+                    Expanded(child: guardar),
+                    const SizedBox(width: 9),
+                    Expanded(flex: 2, child: cobrar),
+                  ],
+                );
+              },
+            )
+          else
+            Row(
+              children: [
+                Expanded(
+                  child: OutlinedButton(
+                    onPressed: _guardando ? null : () => Navigator.of(context).pop(),
+                    child: const Text('Cancelar'),
+                  ),
+                ),
+                const SizedBox(width: 10),
+                Expanded(
+                  flex: 2,
+                  child: FilledButton.icon(
+                    onPressed: !hasSelection || _guardando ? null : () => _confirmar(),
+                    icon: _guardando
+                        ? const SizedBox(
+                            width: 18,
+                            height: 18,
+                            child: CircularProgressIndicator(strokeWidth: 2.2, color: Colors.white),
+                          )
+                        : const Icon(Icons.add_shopping_cart_rounded),
+                    label: Text(_guardando ? 'Agregando...' : 'Agregar a $nombreCuenta'),
+                    style: FilledButton.styleFrom(
+                      minimumSize: const Size.fromHeight(52),
+                      textStyle: const TextStyle(fontWeight: FontWeight.w900),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+        ],
+      ),
+    );
+  }
+
+}
+
+class _CantidadProductoExistenteDialog extends ConsumerStatefulWidget {
+  const _CantidadProductoExistenteDialog({required this.producto});
+
+  final MeseroDetalleProductoModel producto;
+
+  @override
+  ConsumerState<_CantidadProductoExistenteDialog> createState() => _CantidadProductoExistenteDialogState();
+}
+
+class _CantidadProductoExistenteDialogState extends ConsumerState<_CantidadProductoExistenteDialog> {
+  late final TextEditingController _controller;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = TextEditingController(text: _formatCantidadGeneral(widget.producto.cantidad));
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  double _cantidad() => double.tryParse(_controller.text.trim().replaceAll(',', '.')) ?? 0;
+
+  void _ajustar(double diferencia) {
+    final nueva = (_cantidad() + diferencia).clamp(0, 9999).toDouble();
+    _controller.text = _formatCantidadGeneral(nueva);
+    _controller.selection = TextSelection.collapsed(offset: _controller.text.length);
+    setState(() {});
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final palette = ref.watch(selectedAppPaletteProvider);
+    final cantidad = _cantidad();
+    final total = cantidad *
+        ((widget.producto.valorUnitario ?? 0) +
+            (widget.producto.precioAdicionalUnitario ?? 0));
+    return AlertDialog(
+      backgroundColor: palette.surface.withOpacity(0.99),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24), side: BorderSide(color: palette.secondary.withOpacity(0.18))),
+      title: Text('Modificar cantidad', style: TextStyle(color: palette.textPrimary, fontWeight: FontWeight.w900)),
+      content: SizedBox(
+        width: 390,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Text(widget.producto.productoNombre ?? 'Producto', style: TextStyle(color: palette.textSecondary, fontWeight: FontWeight.w800)),
+            const SizedBox(height: 14),
+            Row(
+              children: [
+                IconButton.filledTonal(onPressed: cantidad > 0 ? () => _ajustar(-1) : null, icon: const Icon(Icons.remove_rounded)),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: TextField(
+                    controller: _controller,
+                    autofocus: true,
+                    textAlign: TextAlign.center,
+                    keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                    inputFormatters: InputConstraints.decimalFormatters(integerDigits: 10, fractionDigits: 0),
+                    onChanged: (_) => setState(() {}),
+                    decoration: const InputDecoration(labelText: 'Cantidad'),
+                  ),
+                ),
+                const SizedBox(width: 10),
+                IconButton.filled(onPressed: () => _ajustar(1), icon: const Icon(Icons.add_rounded)),
+              ],
+            ),
+            const SizedBox(height: 14),
+            Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(color: palette.secondary.withOpacity(0.09), borderRadius: BorderRadius.circular(15)),
+              child: Row(
+                children: [
+                  Expanded(child: Text('Nuevo subtotal', style: TextStyle(color: palette.textSecondary, fontWeight: FontWeight.w700))),
+                  Text(CurrencyUtils.format(total), style: TextStyle(color: palette.secondary, fontWeight: FontWeight.w900)),
+                ],
+              ),
+            ),
+            if (cantidad <= 0) ...[
+              const SizedBox(height: 8),
+              const Text('Cantidad 0 eliminará el producto de la venta.', style: TextStyle(color: AppColors.danger, fontWeight: FontWeight.w700, fontSize: 12)),
+            ],
+          ],
+        ),
+      ),
+      actions: [
+        TextButton(onPressed: () => Navigator.of(context).pop(), child: const Text('Cancelar')),
+        FilledButton(onPressed: cantidad < 0 ? null : () => Navigator.of(context).pop(cantidad), child: const Text('Guardar cantidad')),
+      ],
+    );
+  }
+}
+
+class _PanelFilterChip extends ConsumerWidget {
+  const _PanelFilterChip({
+    required this.label,
+    required this.selected,
+    required this.onTap,
+  });
+
+  final String label;
+  final bool selected;
+  final VoidCallback? onTap;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final palette = ref.watch(selectedAppPaletteProvider);
+    return Material(
+      color: selected ? palette.secondary.withOpacity(0.14) : palette.background.withOpacity(0.55),
+      borderRadius: BorderRadius.circular(999),
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(999),
+        child: Container(
+          alignment: Alignment.center,
+          padding: const EdgeInsets.symmetric(horizontal: 14),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(999),
+            border: Border.all(
+              color: selected ? palette.secondary.withOpacity(0.34) : palette.cardBorder,
+            ),
+          ),
+          child: Text(
+            label,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: TextStyle(
+              color: selected ? palette.secondary : palette.textSecondary,
+              fontWeight: FontWeight.w900,
+              fontSize: 12,
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _PanelQuantityButton extends ConsumerWidget {
+  const _PanelQuantityButton({
+    required this.icon,
+    required this.enabled,
+    required this.onTap,
+    this.primary = false,
+  });
+
+  final IconData icon;
+  final bool enabled;
+  final VoidCallback onTap;
+  final bool primary;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final palette = ref.watch(selectedAppPaletteProvider);
+    return Material(
+      color: primary && enabled
+          ? palette.primary
+          : palette.background.withOpacity(enabled ? 0.72 : 0.34),
+      borderRadius: BorderRadius.circular(12),
+      child: InkWell(
+        onTap: enabled ? onTap : null,
+        borderRadius: BorderRadius.circular(12),
+        child: SizedBox(
+          width: 42,
+          height: 42,
+          child: Icon(
+            icon,
+            color: enabled
+                ? (primary ? palette.onPrimary : palette.textPrimary)
+                : palette.textSecondary.withOpacity(0.42),
+            size: 20,
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _CantidadAgregarDesdePanelDialog extends ConsumerStatefulWidget {
+  const _CantidadAgregarDesdePanelDialog({
+    required this.producto,
+    required this.cantidadInicial,
+  });
+
+  final MeseroProductoModel producto;
+  final double cantidadInicial;
+
+  @override
+  ConsumerState<_CantidadAgregarDesdePanelDialog> createState() => _CantidadAgregarDesdePanelDialogState();
+}
+
+class _CantidadAgregarDesdePanelDialogState extends ConsumerState<_CantidadAgregarDesdePanelDialog> {
+  late final TextEditingController _controller;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = TextEditingController(
+      text: widget.cantidadInicial > 0 ? _formatCantidadGeneral(widget.cantidadInicial) : '',
+    );
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  double? _parse() {
+    final raw = _controller.text.trim().replaceAll(',', '.');
+    return double.tryParse(raw);
+  }
+
+  void _setQuick(double value) {
+    _controller.text = _formatCantidadGeneral(value);
+    _controller.selection = TextSelection.collapsed(offset: _controller.text.length);
+    setState(() {});
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final palette = ref.watch(selectedAppPaletteProvider);
+    final cantidad = _parse() ?? 0;
+    return AlertDialog(
+      backgroundColor: palette.surface.withOpacity(0.99),
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(26),
+        side: BorderSide(color: palette.secondary.withOpacity(0.18)),
+      ),
+      title: Text(
+        'Cantidad a agregar',
+        style: TextStyle(color: palette.textPrimary, fontWeight: FontWeight.w900),
+      ),
+      content: SizedBox(
+        width: 390,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Text(
+              widget.producto.nombre ?? 'Producto ${widget.producto.prodId ?? '-'}',
+              style: TextStyle(color: palette.textSecondary, fontWeight: FontWeight.w800),
+            ),
+            const SizedBox(height: 14),
+            TextField(
+              controller: _controller,
+              autofocus: true,
+              keyboardType: const TextInputType.numberWithOptions(decimal: true),
+              inputFormatters: InputConstraints.decimalFormatters(integerDigits: 10, fractionDigits: 0),
+              onChanged: (_) => setState(() {}),
+              decoration: const InputDecoration(
+                labelText: 'Cantidad',
+                hintText: 'Ejemplo: 5',
+                prefixIcon: Icon(Icons.numbers_rounded),
+              ),
+            ),
+            const SizedBox(height: 14),
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: [
+                for (final value in const [1.0, 2.0, 5.0, 10.0])
+                  ActionChip(
+                    label: Text('+${_formatCantidadGeneral(value)}'),
+                    onPressed: () => _setQuick(value),
+                  ),
+              ],
+            ),
+            const SizedBox(height: 14),
+            Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: palette.secondary.withOpacity(0.10),
+                borderRadius: BorderRadius.circular(16),
+              ),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: Text(
+                      'Valor aproximado',
+                      style: TextStyle(color: palette.textSecondary, fontWeight: FontWeight.w700),
+                    ),
+                  ),
+                  Text(
+                    CurrencyUtils.format(cantidad * (widget.producto.precioVenta ?? 0)),
+                    style: TextStyle(color: palette.secondary, fontWeight: FontWeight.w900),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+      actions: [
+        TextButton(onPressed: () => Navigator.of(context).pop(), child: const Text('Cancelar')),
+        FilledButton(
+          onPressed: cantidad < 0 ? null : () => Navigator.of(context).pop(cantidad),
+          child: const Text('Aplicar'),
+        ),
+      ],
+    );
+  }
+}
+
+class _PedidoProductoDecision {
+  const _PedidoProductoDecision({
+    required this.cantidad,
+    required this.ingredientesExcluidos,
+    required this.adiciones,
+    this.observacion,
+  });
+
+  final double cantidad;
+  final List<int> ingredientesExcluidos;
+  final List<int> adiciones;
+  final String? observacion;
+}
+
+class _PersonalizarProductoDialog extends ConsumerStatefulWidget {
+  const _PersonalizarProductoDialog({
+    required this.producto,
+    this.initialQuantity = 1,
+  });
+
+  final MeseroProductoModel producto;
+  final double initialQuantity;
+
+  @override
+  ConsumerState<_PersonalizarProductoDialog> createState() =>
+      _PersonalizarProductoDialogState();
+}
+
+class _PersonalizarProductoDialogState
+    extends ConsumerState<_PersonalizarProductoDialog> {
+  final _formKey = GlobalKey<FormState>();
+  late final TextEditingController _cantidadController;
+  final _observacionController = TextEditingController();
+  final Set<int> _excluded = <int>{};
+  final Set<int> _additions = <int>{};
+
+  @override
+  void initState() {
+    super.initState();
+    _cantidadController = TextEditingController(
+      text: _formatCantidadGeneral(widget.initialQuantity),
+    );
+  }
+
+  @override
+  void dispose() {
+    _cantidadController.dispose();
+    _observacionController.dispose();
+    super.dispose();
+  }
+
+  double get _cantidad =>
+      double.tryParse(_cantidadController.text.trim().replaceAll(',', '.')) ?? 0;
+
+  double get _adicionalUnitario {
+    return widget.producto.adiciones
+        .where((item) => item.id != null && _additions.contains(item.id))
+        .fold<double>(0, (sum, item) => sum + (item.precioAdicional ?? 0));
+  }
+
+  double get _total =>
+      _cantidad * ((widget.producto.precioVenta ?? 0) + _adicionalUnitario);
+
+  @override
+  Widget build(BuildContext context) {
+    final palette = ref.watch(selectedAppPaletteProvider);
+    final producto = widget.producto;
+    final removibles = producto.ingredientes
+        .where((item) => item.removible == true && item.id != null)
+        .toList(growable: false);
+    final obligatorios = producto.ingredientes
+        .where((item) => item.removible != true)
+        .toList(growable: false);
+
+    return AlertDialog(
+      backgroundColor:
+          palette.surface.withOpacity(palette.darkBackground ? .98 : 1),
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(24),
+        side: BorderSide(color: palette.cardBorder),
+      ),
+      title: Row(
+        children: [
+          _ProductImageThumb(value: producto.foto, size: 52),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  producto.nombre ?? 'Producto preparado',
+                  style: TextStyle(
+                    color: palette.textPrimary,
+                    fontWeight: FontWeight.w900,
+                    fontSize: 18,
+                  ),
+                ),
+                Text(
+                  'Personaliza el pedido',
+                  style: TextStyle(
+                    color: palette.textSecondary,
+                    fontWeight: FontWeight.w600,
+                    fontSize: 12,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+      content: SizedBox(
+        width: 600,
+        child: Form(
+          key: _formKey,
+          child: SingleChildScrollView(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Row(
+                  children: [
+                    Expanded(
+                      child: TextFormField(
+                        controller: _cantidadController,
+                        keyboardType: TextInputType.number,
+                        inputFormatters:
+                            InputConstraints.decimalFormatters(integerDigits: 10, fractionDigits: 0),
+                        decoration: const InputDecoration(
+                          labelText: 'Cantidad',
+                          prefixIcon: Icon(Icons.numbers_rounded),
+                        ),
+                        onChanged: (_) => setState(() {}),
+                        validator: (value) {
+                          final parsed = double.tryParse(
+                                  (value ?? '').trim().replaceAll(',', '.')) ??
+                              0;
+                          return parsed <= 0
+                              ? 'Ingresa una cantidad mayor a cero'
+                              : null;
+                        },
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 12, vertical: 11),
+                        decoration: BoxDecoration(
+                          color: palette.secondary.withOpacity(.08),
+                          borderRadius: BorderRadius.circular(14),
+                          border: Border.all(color: palette.cardBorder),
+                        ),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              'Total del pedido',
+                              style: TextStyle(
+                                color: palette.textSecondary,
+                                fontSize: 11,
+                                fontWeight: FontWeight.w700,
+                              ),
+                            ),
+                            Text(
+                              CurrencyUtils.format(_total),
+                              style: TextStyle(
+                                color: palette.secondary,
+                                fontSize: 18,
+                                fontWeight: FontWeight.w900,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+                if (removibles.isNotEmpty) ...[
+                  const SizedBox(height: 18),
+                  Text(
+                    'Quitar ingredientes',
+                    style: TextStyle(
+                      color: palette.textPrimary,
+                      fontWeight: FontWeight.w900,
+                    ),
+                  ),
+                  const SizedBox(height: 5),
+                  Text(
+                    'Marca lo que el cliente no quiere.',
+                    style: TextStyle(
+                      color: palette.textSecondary,
+                      fontSize: 12,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                  ...removibles.map((item) {
+                    final id = item.id!;
+                    return CheckboxListTile(
+                      value: _excluded.contains(id),
+                      contentPadding: EdgeInsets.zero,
+                      controlAffinity: ListTileControlAffinity.leading,
+                      title: Text(
+                        'Sin ${item.nombre ?? 'ingrediente'}',
+                        style: TextStyle(
+                          color: palette.textPrimary,
+                          fontWeight: FontWeight.w800,
+                        ),
+                      ),
+                      subtitle: Text(
+                        '${_formatCantidadGeneral(item.cantidad ?? 0)} ${item.unidad ?? ''}',
+                        style: TextStyle(color: palette.textSecondary),
+                      ),
+                      onChanged: (checked) => setState(() {
+                        if (checked == true) {
+                          _excluded.add(id);
+                        } else {
+                          _excluded.remove(id);
+                        }
+                      }),
+                    );
+                  }),
+                ],
+                if (obligatorios.isNotEmpty) ...[
+                  const SizedBox(height: 8),
+                  Text(
+                    'Ingredientes base no removibles: ${obligatorios.map((e) => e.nombre ?? 'Ingrediente').join(', ')}',
+                    style: TextStyle(
+                      color: palette.textSecondary,
+                      fontSize: 11.5,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ],
+                if (producto.adiciones.isNotEmpty) ...[
+                  const SizedBox(height: 18),
+                  Text(
+                    'Adiciones',
+                    style: TextStyle(
+                      color: palette.textPrimary,
+                      fontWeight: FontWeight.w900,
+                    ),
+                  ),
+                  const SizedBox(height: 5),
+                  ...producto.adiciones.where((item) => item.id != null).map((item) {
+                    final id = item.id!;
+                    return CheckboxListTile(
+                      value: _additions.contains(id),
+                      contentPadding: EdgeInsets.zero,
+                      controlAffinity: ListTileControlAffinity.leading,
+                      title: Text(
+                        item.nombre ?? 'Adición',
+                        style: TextStyle(
+                          color: palette.textPrimary,
+                          fontWeight: FontWeight.w800,
+                        ),
+                      ),
+                      subtitle: Text(
+                        '${_formatCantidadGeneral(item.cantidad ?? 0)} ${item.unidad ?? ''} · +${CurrencyUtils.format(item.precioAdicional ?? 0)}',
+                        style: TextStyle(color: palette.textSecondary),
+                      ),
+                      onChanged: (checked) => setState(() {
+                        if (checked == true) {
+                          _additions.add(id);
+                        } else {
+                          _additions.remove(id);
+                        }
+                      }),
+                    );
+                  }),
+                ],
+                const SizedBox(height: 16),
+                TextFormField(
+                  controller: _observacionController,
+                  maxLength: 500,
+                  minLines: 2,
+                  maxLines: 4,
+                  decoration: const InputDecoration(
+                    labelText: 'Preparación / observación',
+                    hintText:
+                        'Ejemplo: término medio, sin sal, salsa aparte...',
+                    prefixIcon: Icon(Icons.edit_note_rounded),
+                  ),
+                ),
+                if (_adicionalUnitario > 0) ...[
+                  const SizedBox(height: 8),
+                  Text(
+                    'Adiciones por unidad: +${CurrencyUtils.format(_adicionalUnitario)}',
+                    textAlign: TextAlign.right,
+                    style: TextStyle(
+                      color: palette.secondary,
+                      fontWeight: FontWeight.w800,
+                    ),
+                  ),
+                ],
+              ],
+            ),
+          ),
+        ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(context),
+          child: const Text('Cancelar'),
+        ),
+        FilledButton.icon(
+          onPressed: () {
+            if (!(_formKey.currentState?.validate() ?? false)) return;
+            Navigator.pop(
+              context,
+              _PedidoProductoDecision(
+                cantidad: _cantidad,
+                ingredientesExcluidos: _excluded.toList(growable: false),
+                adiciones: _additions.toList(growable: false),
+                observacion: _observacionController.text.trim().isEmpty
+                    ? null
+                    : _observacionController.text.trim(),
+              ),
+            );
+          },
+          icon: const Icon(Icons.add_shopping_cart_rounded),
+          label: Text('Agregar · ${CurrencyUtils.format(_total)}'),
+        ),
+      ],
+    );
+  }
+}
+
+class _CantidadProductoDialog extends ConsumerStatefulWidget {
+  const _CantidadProductoDialog({required this.producto});
+
+  final MeseroProductoModel producto;
+
+  @override
+  ConsumerState<_CantidadProductoDialog> createState() => _CantidadProductoDialogState();
+}
+
+class _CantidadProductoDialogState extends ConsumerState<_CantidadProductoDialog> {
+  final _formKey = GlobalKey<FormState>();
+  late final TextEditingController _cantidadController;
+
+  @override
+  void initState() {
+    super.initState();
+    _cantidadController = TextEditingController(text: '1');
+  }
+
+  @override
+  void dispose() {
+    _cantidadController.dispose();
+    super.dispose();
+  }
+
+  double _parseCantidad(String value) {
+    final normalized = value.trim().replaceAll(',', '.');
+    return double.tryParse(normalized) ?? 0;
+  }
+
+  void _sumar(double value) {
+    final actual = _parseCantidad(_cantidadController.text);
+    final nuevoValor = (actual <= 0 ? 0 : actual) + value;
+    _cantidadController.text = _formatCantidadGeneral(nuevoValor);
+    setState(() {});
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final palette = ref.watch(selectedAppPaletteProvider);
+    final producto = widget.producto;
+    final cantidad = _parseCantidad(_cantidadController.text);
+    final precio = producto.precioVenta ?? 0;
+    final total = cantidad * precio;
+
+    return AlertDialog(
+      backgroundColor: palette.surface.withOpacity(palette.darkBackground ? 0.96 : 0.99),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24), side: BorderSide(color: palette.cardBorder)),
+      title: Text('Cantidad del producto', style: TextStyle(color: palette.textPrimary, fontWeight: FontWeight.w900)),
+      content: SizedBox(
+        width: 420,
+        child: Form(
+          key: _formKey,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  _ProductImageThumb(value: producto.foto, size: 72),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(producto.nombre ?? 'Producto ${producto.prodId ?? '-'}', style: TextStyle(fontWeight: FontWeight.w900, fontSize: 17, color: palette.textPrimary)),
+                        const SizedBox(height: 6),
+                        Text(
+                          producto.descripcion ?? 'Sin descripción',
+                          style: TextStyle(color: palette.textSecondary, fontWeight: FontWeight.w600),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 14),
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(color: palette.background.withOpacity(palette.darkBackground ? 0.50 : 0.68), borderRadius: BorderRadius.circular(16), border: Border.all(color: palette.cardBorder)),
+                child: Row(
+                  children: [
+                    Expanded(child: _datoCantidadDialog('Precio unitario', CurrencyUtils.format(precio))),
+                    Expanded(child: _datoCantidadDialog('Total', CurrencyUtils.format(total), alignEnd: true)),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 16),
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  IconButton.filledTonal(
+                    tooltip: 'Restar uno',
+                    onPressed: cantidad <= 1 ? null : () => _sumar(-1),
+                    icon: const Icon(Icons.remove_rounded),
+                  ),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: TextFormField(
+                      controller: _cantidadController,
+                      autofocus: true,
+                      textAlign: TextAlign.center,
+                      keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                      inputFormatters: InputConstraints.decimalFormatters(integerDigits: 10, fractionDigits: 0),
+                      decoration: const InputDecoration(
+                        labelText: 'Cantidad',
+                        hintText: 'Ejemplo: 3',
+                      ),
+                      onChanged: (_) => setState(() {}),
+                      validator: (value) {
+                        final parsed = _parseCantidad(value ?? '');
+                        if (parsed <= 0) return 'Ingresa una cantidad mayor a cero';
+                        return null;
+                      },
+                    ),
+                  ),
+                  const SizedBox(width: 10),
+                  IconButton.filledTonal(
+                    tooltip: 'Sumar uno',
+                    onPressed: () => _sumar(1),
+                    icon: const Icon(Icons.add_rounded),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 8),
+              Text(
+                'Selecciona la cantidad completa para no tener que agregar el mismo producto uno por uno.',
+                style: TextStyle(color: palette.textSecondary, fontWeight: FontWeight.w600),
+              ),
+            ],
+          ),
+        ),
+      ),
+      actions: [
+        TextButton(onPressed: () => Navigator.of(context).pop(), child: const Text('Cancelar')),
+        FilledButton.icon(
+          onPressed: () {
+            if (!(_formKey.currentState?.validate() ?? false)) return;
+            Navigator.of(context).pop(_parseCantidad(_cantidadController.text));
+          },
+          icon: const Icon(Icons.add_shopping_cart_rounded),
+          label: const Text('Agregar'),
+        ),
+      ],
+    );
+  }
+
+  Widget _datoCantidadDialog(String label, String value, {bool alignEnd = false}) {
+    final palette = ref.watch(selectedAppPaletteProvider);
+    return Column(
+      crossAxisAlignment: alignEnd ? CrossAxisAlignment.end : CrossAxisAlignment.start,
+      children: [
+        Text(label, style: TextStyle(color: palette.textSecondary, fontWeight: FontWeight.w700, fontSize: 12)),
+        const SizedBox(height: 2),
+        Text(value, textAlign: alignEnd ? TextAlign.right : TextAlign.left, style: TextStyle(fontWeight: FontWeight.w900, color: palette.textPrimary)),
+      ],
+    );
+  }
+}
+
+class _MesaFormData {
+  const _MesaFormData({required this.mesaNumero, this.descripcion, this.foto});
+  final int mesaNumero;
+  final String? descripcion;
+  final String? foto;
+}
+
+class _MesaEditResult {
+  const _MesaEditResult.update({required this.data, this.estado}) : eliminar = false;
+  const _MesaEditResult.delete()
+      : eliminar = true,
+        data = null,
+        estado = null;
+
+  final bool eliminar;
+  final _MesaFormData? data;
+  final String? estado;
+}
+
+class _CrearMesaDialog extends StatefulWidget {
+  const _CrearMesaDialog();
+
+  @override
+  State<_CrearMesaDialog> createState() => _CrearMesaDialogState();
+}
+
+class _CrearMesaDialogState extends State<_CrearMesaDialog> {
+  final _formKey = GlobalKey<FormState>();
+  final _mesaNumero = TextEditingController();
+  final _descripcion = TextEditingController();
+  final _foto = TextEditingController();
+
+  @override
+  void dispose() {
+    _mesaNumero.dispose();
+    _descripcion.dispose();
+    _foto.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final mediaWidth = MediaQuery.sizeOf(context).width;
+    final dialogWidth = mediaWidth < 560 ? mediaWidth - 48 : 460.0;
+
+    return AlertDialog(
+      title: const Text('Agregar mesa'),
+      content: SizedBox(
+        width: dialogWidth > 280 ? dialogWidth : 280.0,
+        child: Form(
+          key: _formKey,
+          child: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                TextFormField(
+                  controller: _mesaNumero,
+                  keyboardType: TextInputType.number,
+                  maxLength: 10,
+                  inputFormatters: InputConstraints.integerFormatters(maxValue: 2147483647),
+                  decoration: const InputDecoration(
+                    labelText: 'Número de mesa',
+                    hintText: 'Ejemplo: 12',
+                    counterText: '',
+                  ),
+                  validator: (value) {
+                    final parsed = int.tryParse((value ?? '').trim());
+                    if (parsed == null || parsed <= 0) return 'Ingresa un número de mesa válido';
+                    return null;
+                  },
+                ),
+                const SizedBox(height: 12),
+                TextFormField(
+                  controller: _descripcion,
+                  maxLines: 3,
+                  decoration: const InputDecoration(
+                    labelText: 'Descripción o recordatorio',
+                    hintText: 'Ejemplo: mesa de cumpleaños, pareja de la ventana...',
+                  ),
+                  maxLength: 300,
+                ),
+                const SizedBox(height: 12),
+                _LocalImagePickerField(controller: _foto, label: 'Foto de la mesa'),
+              ],
+            ),
+          ),
+        ),
+      ),
+      actions: [
+        TextButton(onPressed: () => Navigator.of(context).pop(), child: const Text('Cancelar')),
+        FilledButton(
+          onPressed: () {
+            if (!(_formKey.currentState?.validate() ?? false)) return;
+            Navigator.of(context).pop(_MesaFormData(
+              mesaNumero: int.parse(_mesaNumero.text.trim()),
+              descripcion: _descripcion.text.trim(),
+              foto: _foto.text.trim(),
+            ));
+          },
+          child: const Text('Crear mesa'),
+        ),
+      ],
+    );
+  }
+}
+
+class _EditarMesaDialog extends StatefulWidget {
+  const _EditarMesaDialog({required this.mesa, required this.isCajero});
+
+  final MeseroMesaResumenModel mesa;
+  final bool isCajero;
+
+  @override
+  State<_EditarMesaDialog> createState() => _EditarMesaDialogState();
+}
+
+class _EditarMesaDialogState extends State<_EditarMesaDialog> {
+  final _formKey = GlobalKey<FormState>();
+  late final TextEditingController _mesaNumero;
+  late final TextEditingController _descripcion;
+  late final TextEditingController _foto;
+  late String _estado;
+
+  @override
+  void initState() {
+    super.initState();
+    _mesaNumero = TextEditingController(text: widget.mesa.mesaNumero?.toString() ?? '');
+    _descripcion = TextEditingController(text: widget.mesa.mesaDescripcion ?? '');
+    _foto = TextEditingController(text: widget.mesa.mesaFoto ?? '');
+    _estado = (widget.mesa.estadoMesa ?? 'DISPONIBLE').toUpperCase();
+  }
+
+  @override
+  void dispose() {
+    _mesaNumero.dispose();
+    _descripcion.dispose();
+    _foto.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final mediaWidth = MediaQuery.sizeOf(context).width;
+    final dialogWidth = mediaWidth < 560 ? mediaWidth - 48 : 460.0;
+
+    return AlertDialog(
+      title: Text('Editar mesa ${widget.mesa.mesaNumero ?? '-'}'),
+      content: SizedBox(
+        width: dialogWidth > 280 ? dialogWidth : 280.0,
+        child: Form(
+          key: _formKey,
+          child: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                TextFormField(
+                  controller: _mesaNumero,
+                  keyboardType: TextInputType.number,
+                  maxLength: 10,
+                  inputFormatters: InputConstraints.integerFormatters(maxValue: 2147483647),
+                  decoration: const InputDecoration(labelText: 'Número de mesa', counterText: ''),
+                  validator: (value) {
+                    final parsed = int.tryParse((value ?? '').trim());
+                    if (parsed == null || parsed <= 0) return 'Ingresa un número de mesa válido';
+                    return null;
+                  },
+                ),
+                const SizedBox(height: 12),
+                TextFormField(
+                  controller: _descripcion,
+                  maxLines: 3,
+                  maxLength: 300,
+                  decoration: const InputDecoration(
+                    labelText: 'Descripción o recordatorio',
+                    hintText: 'Agrega una nota que ayude al equipo operativo',
+                  ),
+                ),
+                const SizedBox(height: 12),
+                _LocalImagePickerField(controller: _foto, label: 'Foto de la mesa'),
+                if (widget.isCajero) ...[
+                  const SizedBox(height: 8),
+                  DropdownButtonFormField<String>(
+                    value: _estado,
+                    decoration: const InputDecoration(labelText: 'Estado de la mesa'),
+                    items: const [
+                      DropdownMenuItem(value: 'DISPONIBLE', child: Text('Disponible')),
+                      DropdownMenuItem(value: 'OCUPADA', child: Text('Ocupada')),
+                      DropdownMenuItem(value: 'INACTIVA', child: Text('Inactiva')),
+                    ],
+                    onChanged: (value) => setState(() => _estado = value ?? 'DISPONIBLE'),
+                  ),
+                ],
+              ],
+            ),
+          ),
+        ),
+      ),
+      actions: [
+        if (widget.isCajero)
+          TextButton.icon(
+            onPressed: () async {
+              final confirm = await showDialog<bool>(
+                context: context,
+                builder: (context) => AlertDialog(
+                  title: const Text('Eliminar o inactivar mesa'),
+                  content: const Text('Si la mesa no tiene datos relacionados se eliminará. Si tiene histórico se marcará como inactiva.'),
+                  actions: [
+                    TextButton(onPressed: () => Navigator.of(context).pop(false), child: const Text('Cancelar')),
+                    FilledButton(onPressed: () => Navigator.of(context).pop(true), child: const Text('Continuar')),
+                  ],
+                ),
+              );
+              if (confirm == true && context.mounted) Navigator.of(context).pop(const _MesaEditResult.delete());
+            },
+            icon: const Icon(Icons.delete_outline_rounded),
+            label: const Text('Eliminar'),
+          ),
+        TextButton(onPressed: () => Navigator.of(context).pop(), child: const Text('Cancelar')),
+        FilledButton(
+          onPressed: () {
+            if (!(_formKey.currentState?.validate() ?? false)) return;
+            Navigator.of(context).pop(_MesaEditResult.update(
+              data: _MesaFormData(
+                mesaNumero: int.parse(_mesaNumero.text.trim()),
+                descripcion: _descripcion.text.trim(),
+                foto: _foto.text.trim(),
+              ),
+              estado: widget.isCajero ? _estado : null,
+            ));
+          },
+          child: const Text('Guardar'),
+        ),
+      ],
+    );
+  }
+}
+
+
+class _LocalImagePickerField extends StatefulWidget {
+  const _LocalImagePickerField({required this.controller, required this.label});
+
+  final TextEditingController controller;
+  final String label;
+
+  @override
+  State<_LocalImagePickerField> createState() => _LocalImagePickerFieldState();
+}
+
+class _LocalImagePickerFieldState extends State<_LocalImagePickerField> {
+  Future<void> _pick() async {
+    FocusManager.instance.primaryFocus?.unfocus();
+    await Future<void>.delayed(const Duration(milliseconds: 80));
+
+    final result = await FilePicker.platform.pickFiles(type: FileType.image, allowMultiple: false, withData: true);
+    final file = result?.files.single;
+    final bytes = file?.bytes;
+    if (bytes == null || bytes.isEmpty) return;
+
+    if (bytes.length > InputConstraints.imageMaxBytes) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('La imagen es demasiado pesada. Usa una foto de máximo 2 MB.')),
+      );
+      return;
+    }
+
+    final ext = (file?.extension ?? 'png').toLowerCase();
+    final mime = ext == 'jpg' || ext == 'jpeg'
+        ? 'image/jpeg'
+        : ext == 'webp'
+            ? 'image/webp'
+            : 'image/png';
+    widget.controller.text = 'data:$mime;base64,${base64Encode(bytes)}';
+    if (mounted) setState(() {});
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final value = widget.controller.text.trim();
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: AppColors.surfaceAlt,
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: AppColors.border),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              const Icon(Icons.image_rounded, color: AppColors.secondaryDark),
+              const SizedBox(width: 8),
+              Expanded(child: Text(widget.label, style: const TextStyle(fontWeight: FontWeight.w900))),
+              OutlinedButton.icon(onPressed: _pick, icon: const Icon(Icons.upload_file_rounded), label: const Text('Cargar')),
+            ],
+          ),
+          const SizedBox(height: 10),
+          if (value.isEmpty)
+            const Text('Sin foto cargada', style: TextStyle(color: AppColors.textSecondary, fontWeight: FontWeight.w700))
+          else
+            LayoutBuilder(
+              builder: (context, constraints) {
+                final previewWidth = constraints.maxWidth.isFinite ? constraints.maxWidth : 420.0;
+                return ClipRRect(
+                  borderRadius: BorderRadius.circular(14),
+                  child: _BarlyticsImage(value: value, width: previewWidth, height: 116),
+                );
+              },
+            ),
+          if (value.isNotEmpty)
+            TextButton.icon(
+              onPressed: () {
+                widget.controller.clear();
+                setState(() {});
+              },
+              icon: const Icon(Icons.delete_outline_rounded),
+              label: const Text('Quitar foto'),
+            ),
+        ],
+      ),
+    );
+  }
+}
+
+class _BarlyticsImage extends StatelessWidget {
+  const _BarlyticsImage({
+    required this.value,
+    required this.width,
+    required this.height,
+    this.radius = 0,
+    this.fit = BoxFit.cover,
+  });
+
+  final String value;
+  final double width;
+  final double height;
+  final double radius;
+  final BoxFit fit;
+
+  @override
+  Widget build(BuildContext context) {
+    final imageValue = value.trim();
+    final fallback = Container(
+      width: width,
+      height: height,
+      alignment: Alignment.center,
+      decoration: BoxDecoration(color: AppColors.surfaceAlt, borderRadius: BorderRadius.circular(radius)),
+      child: const Icon(Icons.image_not_supported_outlined, color: AppColors.textSecondary),
+    );
+    if (imageValue.isEmpty) return fallback;
+    if (imageValue.startsWith('data:image')) {
+      final index = imageValue.indexOf(',');
+      if (index > -1) {
+        try {
+          return Image.memory(base64Decode(imageValue.substring(index + 1)), width: width, height: height, fit: fit);
+        } catch (_) {
+          return fallback;
+        }
+      }
+    }
+    return Image.network(imageValue, width: width, height: height, fit: fit, errorBuilder: (_, __, ___) => fallback);
+  }
+}
+
+class _ProductImageThumb extends StatelessWidget {
+  const _ProductImageThumb({required this.value, this.size = 44});
+
+  final String? value;
+  final double size;
+
+  @override
+  Widget build(BuildContext context) {
+    final image = (value ?? '').trim();
+    if (image.isEmpty) {
+      return Container(
+        width: size,
+        height: size,
+        decoration: BoxDecoration(color: AppColors.surfaceAlt, borderRadius: BorderRadius.circular(14), border: Border.all(color: AppColors.border)),
+        child: const Icon(Icons.local_bar_rounded, color: AppColors.textSecondary, size: 20),
+      );
+    }
+    return ClipRRect(borderRadius: BorderRadius.circular(14), child: _BarlyticsImage(value: image, width: size, height: size));
+  }
+}
+
+class _AjustarCuentasResult {
+  const _AjustarCuentasResult({required this.numeroCuentas, required this.descripcionesCuentas});
+
+  final int numeroCuentas;
+  final Map<int, String> descripcionesCuentas;
+}
+
+class _AjustarCuentasDialog extends StatefulWidget {
+  const _AjustarCuentasDialog({required this.cuentas});
+
+  final List<MeseroCuentaModel> cuentas;
+
+  @override
+  State<_AjustarCuentasDialog> createState() => _AjustarCuentasDialogState();
+}
+
+class _AjustarCuentasDialogState extends State<_AjustarCuentasDialog> {
+  final _formKey = GlobalKey<FormState>();
+  late final TextEditingController _numeroCuentasController;
+  final Map<int, TextEditingController> _descripcionControllers = <int, TextEditingController>{};
+
+  @override
+  void initState() {
+    super.initState();
+    final actual = widget.cuentas.isEmpty ? 1 : widget.cuentas.length;
+    _numeroCuentasController = TextEditingController(text: actual.toString());
+    _syncDescriptionControllers(actual);
+    for (final cuenta in widget.cuentas) {
+      final numero = cuenta.numero;
+      if (numero != null) {
+        _descripcionControllers[numero]?.text = cuenta.descripcion ?? '';
+      }
+    }
+  }
+
+  @override
+  void dispose() {
+    _numeroCuentasController.dispose();
+    for (final controller in _descripcionControllers.values) {
+      controller.dispose();
+    }
+    super.dispose();
+  }
+
+  int get _numeroCuentas => int.tryParse(_numeroCuentasController.text.trim()) ?? 1;
+
+  void _syncDescriptionControllers(int total) {
+    final safeTotal = total < 1 ? 1 : total;
+    final expected = List<int>.generate(safeTotal, (index) => index + 1).toSet();
+
+    final toRemove = _descripcionControllers.keys.where((key) => !expected.contains(key)).toList();
+    for (final key in toRemove) {
+      _descripcionControllers.remove(key)?.dispose();
+    }
+
+    for (final key in expected) {
+      _descripcionControllers.putIfAbsent(key, () => TextEditingController());
+    }
+  }
+
+  Map<int, String> _descripciones() {
+    return _descripcionControllers.map((key, controller) => MapEntry(key, controller.text.trim()));
+  }
+
+  @override
+  Widget build(BuildContext context) => AlertDialog(
+        title: const Text('Modificar cuentas'),
+        content: SizedBox(
+          width: 520,
+          child: Form(
+            key: _formKey,
+            child: SingleChildScrollView(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text('Indica en cuántas cuentas se dividirá la venta y agrega una descripción opcional para identificarlas.'),
+                  const SizedBox(height: 16),
+                  TextFormField(
+                    controller: _numeroCuentasController,
+                    keyboardType: TextInputType.number,
+                    maxLength: 10,
+                    inputFormatters: InputConstraints.integerFormatters(maxValue: 2147483647),
+                    decoration: const InputDecoration(
+                      labelText: 'Número de cuentas',
+                      hintText: 'Ejemplo: 6',
+                      helperText: 'Sin límite funcional; el valor debe ser un entero válido.',
+                      counterText: '',
+                    ),
+                    onChanged: (value) {
+                      final parsed = int.tryParse(value.trim());
+                      if (parsed != null && parsed > 0) {
+                        setState(() => _syncDescriptionControllers(parsed));
+                      }
+                    },
+                    validator: (value) {
+                      final parsed = int.tryParse((value ?? '').trim());
+                      if (parsed == null) return 'Ingresa un número de cuentas válido';
+                      if (parsed < 1) return 'Debe existir al menos una cuenta';
+                      return null;
+                    },
+                  ),
+                  const SizedBox(height: 18),
+                  Text('Descripción de cuentas', style: Theme.of(context).textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w900)),
+                  const SizedBox(height: 8),
+                  ...List<int>.generate(_numeroCuentas < 1 ? 1 : _numeroCuentas, (index) => index + 1).map(
+                    (numero) => Padding(
+                      padding: const EdgeInsets.only(bottom: 10),
+                      child: TextFormField(
+                        controller: _descripcionControllers[numero],
+                        maxLength: 300,
+                        decoration: InputDecoration(
+                          labelText: 'Cuenta $numero',
+                          hintText: 'Ejemplo: Juan, pareja ventana, grupo cumpleaños...',
+                          counterText: '',
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.of(context).pop(), child: const Text('Cancelar')),
+          FilledButton(
+            onPressed: () {
+              if (!(_formKey.currentState?.validate() ?? false)) return;
+              Navigator.of(context).pop(_AjustarCuentasResult(
+                numeroCuentas: int.parse(_numeroCuentasController.text.trim()),
+                descripcionesCuentas: _descripciones(),
+              ));
+            },
+            child: const Text('Actualizar'),
+          ),
+        ],
+      );
+}
+
+class _AbrirVentaDecision {
+  const _AbrirVentaDecision({
+    required this.dividir,
+    required this.numeroCuentas,
+    this.mesaDescripcion,
+    this.descripcionesCuentas = const <int, String>{},
+  });
+
+  final bool dividir;
+  final int numeroCuentas;
+  final String? mesaDescripcion;
+  final Map<int, String> descripcionesCuentas;
+}
+
+class _AbrirVentaDialog extends StatefulWidget {
+  const _AbrirVentaDialog({required this.mesa});
+  final MeseroMesaResumenModel mesa;
+
+  @override
+  State<_AbrirVentaDialog> createState() => _AbrirVentaDialogState();
+}
+
+class _AbrirVentaDialogState extends State<_AbrirVentaDialog> {
+  final _formKey = GlobalKey<FormState>();
+  final _numeroCuentasController = TextEditingController(text: '2');
+  late final TextEditingController _mesaDescripcionController;
+  final Map<int, TextEditingController> _descripcionControllers = <int, TextEditingController>{};
+  bool _dividir = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _mesaDescripcionController = TextEditingController(text: widget.mesa.mesaDescripcion ?? '');
+    _syncDescriptionControllers(1);
+  }
+
+  @override
+  void dispose() {
+    _numeroCuentasController.dispose();
+    _mesaDescripcionController.dispose();
+    for (final controller in _descripcionControllers.values) {
+      controller.dispose();
+    }
+    super.dispose();
+  }
+
+  int get _numeroCuentas => int.tryParse(_numeroCuentasController.text.trim()) ?? 2;
+
+  void _syncDescriptionControllers(int total) {
+    final safeTotal = total < 1 ? 1 : total;
+    final expected = List<int>.generate(safeTotal, (index) => index + 1).toSet();
+
+    final toRemove = _descripcionControllers.keys.where((key) => !expected.contains(key)).toList();
+    for (final key in toRemove) {
+      _descripcionControllers.remove(key)?.dispose();
+    }
+
+    for (final key in expected) {
+      _descripcionControllers.putIfAbsent(key, () => TextEditingController());
+    }
+  }
+
+  Map<int, String> _descripciones() {
+    return _descripcionControllers.map((key, controller) => MapEntry(key, controller.text.trim()));
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final totalCuentas = _dividir ? (_numeroCuentas < 1 ? 1 : _numeroCuentas) : 1;
+    _syncDescriptionControllers(totalCuentas);
+
+    return AlertDialog(
+      title: Text('Mesa ${widget.mesa.mesaNumero ?? '-'}'),
+      content: SizedBox(
+        width: 520,
+        child: Form(
+          key: _formKey,
+          child: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(widget.mesa.ventaId == null ? 'Se abrirá una nueva venta para esta mesa.' : 'La mesa ya tiene una venta abierta.'),
+                const SizedBox(height: 16),
+                TextFormField(
+                  controller: _mesaDescripcionController,
+                  maxLines: 3,
+                  maxLength: 300,
+                  decoration: const InputDecoration(
+                    labelText: 'Descripción de la mesa / venta',
+                    hintText: 'Ejemplo: cumpleaños, grupo de la ventana, mesa de Juan...',
+                    helperText: 'Esta descripción queda registrada en la mesa al abrir la venta.',
+                  ),
+                ),
+                const SizedBox(height: 10),
+                SwitchListTile.adaptive(
+                  contentPadding: EdgeInsets.zero,
+                  title: const Text('Dividir en cuentas'),
+                  subtitle: const Text('Indica cuántas cuentas se van a registrar para esta mesa.'),
+                  value: _dividir,
+                  onChanged: (value) => setState(() {
+                    _dividir = value;
+                    _syncDescriptionControllers(value ? _numeroCuentas : 1);
+                  }),
+                ),
+                if (_dividir)
+                  TextFormField(
+                    controller: _numeroCuentasController,
+                    keyboardType: TextInputType.number,
+                    maxLength: 10,
+                    inputFormatters: InputConstraints.integerFormatters(maxValue: 2147483647),
+                    decoration: const InputDecoration(
+                      labelText: 'Número de cuentas',
+                      hintText: 'Ejemplo: 3',
+                      helperText: 'Puedes registrar las cuentas que necesites.',
+                      counterText: '',
+                    ),
+                    onChanged: (value) {
+                      final parsed = int.tryParse(value.trim());
+                      if (parsed != null && parsed > 0) {
+                        setState(() => _syncDescriptionControllers(parsed));
+                      }
+                    },
+                    validator: (value) {
+                      final parsed = int.tryParse((value ?? '').trim());
+                      if (parsed == null) return 'Ingresa un número de cuentas válido';
+                      if (parsed < 1) return 'Debe existir al menos una cuenta';
+                      return null;
+                    },
+                  ),
+                const SizedBox(height: 18),
+                Text('Descripción de cuentas', style: Theme.of(context).textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w900)),
+                const SizedBox(height: 8),
+                ...List<int>.generate(totalCuentas, (index) => index + 1).map(
+                  (numero) => Padding(
+                    padding: const EdgeInsets.only(bottom: 10),
+                    child: TextFormField(
+                      controller: _descripcionControllers[numero],
+                      maxLength: 300,
+                      decoration: InputDecoration(
+                        labelText: 'Cuenta $numero',
+                        hintText: numero == 1 ? 'Ejemplo: Cuenta principal' : 'Ejemplo: persona o grupo que pagará esta cuenta',
+                        counterText: '',
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+      actions: [
+        TextButton(onPressed: () => Navigator.of(context).pop(), child: const Text('Cancelar')),
+        FilledButton(
+          onPressed: () {
+            if (_dividir && !(_formKey.currentState?.validate() ?? false)) return;
+            Navigator.of(context).pop(_AbrirVentaDecision(
+              dividir: _dividir,
+              numeroCuentas: _dividir ? _numeroCuentas : 1,
+              mesaDescripcion: _mesaDescripcionController.text.trim(),
+              descripcionesCuentas: _descripciones(),
+            ));
+          },
+          child: Text(widget.mesa.ventaId == null ? 'Abrir venta' : 'Continuar'),
+        ),
+      ],
+    );
+  }
+}
+).hasMatch(value)) {
+              Navigator.pop(dialogContext, value);
+            } else {
+              ScaffoldMessenger.of(dialogContext).showSnackBar(
+                const SnackBar(content: Text('Ingresa un correo válido.')),
+              );
+            }
+          }, child: const Text('Enviar')),
+        ],
+      ),
+    );
+    controller.dispose();
+    if (email == null || !mounted) return;
+    setState(() => _enviandoComprobante = true);
+    try {
+      await ref.read(apiClientProvider).post<void>(
+        '/api/v1/mesero/ventas/$ventaId/comprobante/email',
+        {'email': email},
+        (_) => null,
+      );
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Comprobante enviado a $email')),
+      );
+    } catch (error) {
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('No se pudo enviar el comprobante: $error')),
+      );
+    } finally {
+      if (mounted) setState(() => _enviandoComprobante = false);
+    }
+  }
+
   Future<void> _cambiarMedioPago(MeseroCuentaModel cuenta, MeseroPagoModel pago) async {
     final cuentaId = cuenta.cuentaId;
     final pagoId = pago.pagoId;
