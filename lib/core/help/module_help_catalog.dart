@@ -15,6 +15,43 @@ class ModuleHelp {
 
 /// Guía de opciones funcionales. Ordenar los prefijos de los más específicos a los generales.
 const _helps = <String, ModuleHelp>{
+  '/diagnostico_sistema': ModuleHelp('Diagnóstico del sistema', 'Revisa la salud de los servicios y la información de diagnóstico disponible para soporte autorizado.', [
+    ModuleHelpEntry('Estado de servicios', 'Identifica comprobaciones exitosas y fallidas antes de reportar una incidencia.'),
+    ModuleHelpEntry('Detalle técnico', 'Consulta información de diagnóstico únicamente con autorización.'),
+    ModuleHelpEntry('Reportar', 'Al solicitar soporte incluye el nombre de la operación y el error, sin compartir claves o tokens.'),
+  ]),
+  '/configurar-negocio': ModuleHelp('Puesta en marcha', 'Completa los pasos requeridos para dejar tu negocio listo para operar.', [
+    ModuleHelpEntry('Medios de pago', 'Habilita únicamente las formas de pago que recibe la sucursal.'),
+    ModuleHelpEntry('Sucursales', 'Registra tus establecimientos y revisa cuáles están activos.'),
+    ModuleHelpEntry('Productos y precios', 'Prepara el catálogo y verifica los precios de compra y venta.'),
+    ModuleHelpEntry('Usuarios', 'Asigna usuarios y roles adecuados a las tareas de cada persona.'),
+    ModuleHelpEntry('Guardar y continuar', 'Revisa cada paso antes de avanzar; la configuración podrá consultarse posteriormente si tu perfil lo permite.'),
+  ]),
+  '/activar-suscripcion': ModuleHelp('Activar suscripción', 'Revisa el plan seleccionado y completa su activación.', [
+    ModuleHelpEntry('Plan', 'Confirma límites y características antes de pagar.'),
+    ModuleHelpEntry('Pago', 'Comprueba el importe y el medio de pago antes de confirmar.'),
+    ModuleHelpEntry('Estado', 'Espera la confirmación y no repitas un cobro sin comprobar el resultado anterior.'),
+  ]),
+  '/registro': ModuleHelp('Crear cuenta', 'Registra tu empresa y tu cuenta de acceso a BarLytics.', [
+    ModuleHelpEntry('Datos', 'Introduce los datos solicitados y verifica el correo electrónico.'),
+    ModuleHelpEntry('Plan', 'Selecciona el plan adecuado antes de activar la suscripción.'),
+    ModuleHelpEntry('Activación', 'Sigue las instrucciones recibidas para verificar el correo y continuar.'),
+  ]),
+  '/forgot-password': ModuleHelp('Recuperar contraseña', 'Solicita instrucciones para recuperar el acceso a tu cuenta.', [
+    ModuleHelpEntry('Correo', 'Utiliza el correo vinculado a tu usuario.'),
+    ModuleHelpEntry('Instrucciones', 'Revisa el mensaje de recuperación y su vigencia.'),
+    ModuleHelpEntry('Seguridad', 'No compartas los enlaces o códigos de recuperación.'),
+  ]),
+  '/reset-password': ModuleHelp('Cambiar contraseña', 'Establece una nueva contraseña mediante un código válido de recuperación.', [
+    ModuleHelpEntry('Código', 'Comprueba que el enlace o código todavía esté vigente.'),
+    ModuleHelpEntry('Contraseña', 'Escribe una contraseña nueva y confírmala.'),
+    ModuleHelpEntry('Seguridad', 'Después de actualizar la clave, las sesiones anteriores pueden quedar revocadas.'),
+  ]),
+  '/login': ModuleHelp('Iniciar sesión', 'Accede a BarLytics con tus credenciales autorizadas.', [
+    ModuleHelpEntry('Ingresar', 'Escribe tu identificador y contraseña.'),
+    ModuleHelpEntry('Google o Apple', 'Utiliza el método disponible y vinculado a tu cuenta.'),
+    ModuleHelpEntry('Olvidé mi contraseña', 'Solicita recuperación si no puedes acceder.'),
+  ]),
   '/mesero/cierre-caja': ModuleHelp('Cierre de caja', 'Cuadra el efectivo y los ingresos al terminar el turno.', [
     ModuleHelpEntry('Base inicial', 'Registra el dinero físico recibido al empezar.'),
     ModuleHelpEntry('Medios de pago', 'Separa efectivo de pagos digitales; estos no suman dinero físico.'),
