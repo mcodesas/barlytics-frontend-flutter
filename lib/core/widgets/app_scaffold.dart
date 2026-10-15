@@ -7,6 +7,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../app/theme/app_colors.dart';
 import '../branch/branch_scope_provider.dart';
+import '../help/module_help_catalog.dart';
 import '../../app/theme/app_palette.dart';
 import '../../app/theme/module_visuals.dart';
 import '../../features/auth/presentation/providers/auth_provider.dart';
@@ -832,11 +833,12 @@ void _showContextHelp(BuildContext context, WidgetRef ref) {
   final path = GoRouterState.of(context).uri.path.toLowerCase();
   final roles = ref.read(authControllerProvider).roles;
   final branches = ref.read(branchScopeProvider).branches;
-  final title = _helpForPath(path);
+  final guide = helpForRoute(path);
+  final operation = helpForOperation(path);
   showDialog<void>(
     context: context,
     builder: (dialogContext) => AlertDialog(
-      title: Text(title.$1),
+      title: Text(guide.title),
       content: ConstrainedBox(
         constraints: const BoxConstraints(maxWidth: 440),
         child: SingleChildScrollView(
@@ -848,7 +850,15 @@ void _showContextHelp(BuildContext context, WidgetRef ref) {
                 contentPadding: EdgeInsets.zero,
                 leading: const Icon(Icons.tips_and_updates_outlined),
                 title: const Text('¿Qué puedo hacer aquí?'),
-                subtitle: Text(title.$2),
+                subtitle: Text(guide.description),
+              ),
+              for (final entry in [...operation, ...guide.entries])
+                ListTile(
+                  contentPadding: EdgeInsets.zero,
+                  dense: true,
+                  leading: const Icon(Icons.check_circle_outline_rounded),
+                  title: Text(entry.title),
+                  subtitle: Text(entry.description),
               ),
               if (roles.length > 1)
                 const ListTile(
@@ -876,44 +886,6 @@ void _showContextHelp(BuildContext context, WidgetRef ref) {
       ],
     ),
   );
-}
-
-/// Orientaciones breves por área, sin reemplazar los permisos reales del usuario.
-(String, String) _helpForPath(String path) {
-  if (path.contains('mesa') || path.contains('mesero')) {
-    return ('Ayuda · Mesas', 'Consulta las mesas de la sucursal activa, abre ventas, organiza cuentas y agrega productos. Las acciones disponibles dependen de tu rol.');
-  }
-  if (path.contains('venta')) {
-    return ('Ayuda · Ventas', 'Consulta ventas y sus detalles, utiliza los filtros disponibles y revisa los resultados de la sucursal seleccionada.');
-  }
-  if (path.contains('producto')) {
-    return ('Ayuda · Productos', 'Busca productos, revisa sus tipos y marcas y administra el catálogo según los permisos de tu rol.');
-  }
-  if (path.contains('precio')) {
-    return ('Ayuda · Precios', 'Consulta precios de compra y venta y realiza ajustes cuando tu rol tenga autorización.');
-  }
-  if (path.contains('inventario') || path.contains('movimiento')) {
-    return ('Ayuda · Inventario', 'Consulta existencias, revisa movimientos y registra ajustes o conteos según las opciones habilitadas.');
-  }
-  if (path.contains('pedido')) {
-    return ('Ayuda · Pedidos', 'Prepara pedidos de compra, consulta su historial y confirma su recepción cuando corresponda.');
-  }
-  if (path.contains('caja') || path.contains('cierre')) {
-    return ('Ayuda · Caja', 'Revisa ventas, medios de pago y valores de caja; realiza el cierre con los permisos correspondientes.');
-  }
-  if (path.contains('reporte') || path.contains('ganancia')) {
-    return ('Ayuda · Reportes', 'Consulta indicadores y reportes y ajusta los filtros para analizar la información de tu sucursal.');
-  }
-  if (path.contains('usuario') || path.contains('rol')) {
-    return ('Ayuda · Usuarios y roles', 'Consulta usuarios, asignaciones y permisos, según tu perfil de acceso.');
-  }
-  if (path.contains('sucursal') || path.contains('empresa')) {
-    return ('Ayuda · Empresas y sucursales', 'Administra la información de las empresas y sucursales que tienes autorizadas.');
-  }
-  if (path.contains('suscrip') || path.contains('plan')) {
-    return ('Ayuda · Suscripción', 'Consulta tu plan y las opciones de suscripción disponibles para tu cuenta.');
-  }
-  return ('Ayuda · BarLytics', 'Usa el menú para navegar entre las funciones disponibles. Los módulos y operaciones que ves dependen de tus permisos.');
 }
 
 /// Selector en el encabezado, sin añadir otra franja vertical.
