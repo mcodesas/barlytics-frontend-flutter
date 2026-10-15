@@ -1171,7 +1171,7 @@ class _ProductosFormPageState extends ConsumerState<ProductosFormPage> {
     }
     final nameController = TextEditingController();
     final descriptionController = TextEditingController();
-    final purchaseController = TextEditingController(text: '0');
+    final purchaseController = TextEditingController();
     final quantityController = TextEditingController(text: '1');
     final formKey = GlobalKey<FormState>();
     String unit = 'UND';
@@ -1222,10 +1222,10 @@ class _ProductosFormPageState extends ConsumerState<ProductosFormPage> {
                       controller: purchaseController,
                       keyboardType: const TextInputType.numberWithOptions(decimal: true),
                       inputFormatters: InputConstraints.decimalFormatters(integerDigits: 13, fractionDigits: 2),
-                      decoration: const InputDecoration(labelText: 'Costo de compra por unidad', floatingLabelBehavior: FloatingLabelBehavior.auto),
+                      decoration: const InputDecoration(labelText: 'Costo de compra por unidad', hintText: 'Obligatorio', floatingLabelBehavior: FloatingLabelBehavior.auto),
                       validator: (value) {
                         final amount = _parseDouble(value ?? '');
-                        return amount == null || amount < 0 ? 'Indica un costo válido' : null;
+                        return amount == null || amount <= 0 ? 'Ingresa el costo de compra mayor que cero' : null;
                       },
                     ),
                     const SizedBox(height: 20),
@@ -1236,9 +1236,7 @@ class _ProductosFormPageState extends ConsumerState<ProductosFormPage> {
                       decoration: const InputDecoration(labelText: 'Cantidad por preparación'),
                       validator: _requiredPositive,
                     ),
-                    const SizedBox(height: 12),
-                    Text('El costo de compra se puede actualizar después.', style: TextStyle(fontSize: 12, color: Theme.of(ctx).colorScheme.onSurfaceVariant)),
-                    const SizedBox(height: 12),
+                    const SizedBox(height: 14),
                     SwitchListTile.adaptive(
                       contentPadding: EdgeInsets.zero,
                       title: const Text('Se puede quitar del pedido'),
@@ -1290,8 +1288,7 @@ class _ProductosFormPageState extends ConsumerState<ProductosFormPage> {
       final id = product?.prodId;
       if (id == null) throw StateError('No se obtuvo el identificador del ingrediente');
       final cost = values['cost'] as double;
-      if (cost > 0) {
-        await client.post<PreciosResponseModel>(
+      await client.post<PreciosResponseModel>(
           '/api/v1/precios',
           <String, dynamic>{
             'prodId': id,
@@ -1306,7 +1303,6 @@ class _ProductosFormPageState extends ConsumerState<ProductosFormPage> {
           },
           (json) => PreciosResponseModel.fromJson(Map<String, dynamic>.from(json as Map)),
         );
-      }
       if (!mounted) return;
       setState(() {
         _gastroIngredientes.removeWhere((item) => item.prodId == id);
