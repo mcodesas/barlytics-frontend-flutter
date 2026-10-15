@@ -539,11 +539,10 @@ class _ProductosListPageState extends ConsumerState<ProductosListPage> {
       if (priceChanged) {
         if (salePrice == null ||
             purchasePrice == null ||
-            (productBody['prodTipoControl'] != 'INSUMO' && salePrice <= 0) ||
             salePrice < 0 ||
             purchasePrice <= 0) {
           throw StateError(
-            'Los precios de venta y compra deben ser mayores que cero.',
+            'El precio de venta no puede ser negativo y el costo de compra debe ser mayor que cero.',
           );
         }
         final purchaseByQuantity = switch (productBody['prodCompraPorCantidad']) {
@@ -563,7 +562,7 @@ class _ProductosListPageState extends ConsumerState<ProductosListPage> {
         final unitPurchasePrice = purchaseByQuantity
             ? purchasePrice / purchaseQuantity!
             : purchasePrice;
-        if (productBody['prodTipoControl'] != 'INSUMO' && salePrice < unitPurchasePrice) {
+        if (productBody['prodTipoControl'] != 'INSUMO' && salePrice > 0 && salePrice < unitPurchasePrice) {
           throw StateError(
             'El precio de venta no puede ser menor que el costo unitario de compra.',
           );
@@ -5589,7 +5588,7 @@ class _ProductEditBottomSheetState extends State<_ProductEditBottomSheet> {
     }
 
     if (!noPriceRequested) {
-      if (salePrice == null || (_controlType != 'INSUMO' && salePrice <= 0) || salePrice < 0) {
+      if (salePrice == null || salePrice < 0) {
         _showMessage(_controlType == 'INSUMO'
             ? 'El precio de venta del insumo no puede ser negativo.'
             : 'Ingresa un precio de venta mayor que cero.');
@@ -5602,7 +5601,7 @@ class _ProductEditBottomSheetState extends State<_ProductEditBottomSheet> {
       final unitPurchasePrice = _purchaseByQuantity
           ? purchasePrice / purchaseQuantity!
           : purchasePrice;
-      if (_controlType != 'INSUMO' && salePrice < unitPurchasePrice) {
+      if (_controlType != 'INSUMO' && salePrice > 0 && salePrice < unitPurchasePrice) {
         _showMessage(
           'El precio de venta no puede ser menor que el costo unitario de compra.',
         );
@@ -5976,7 +5975,7 @@ class _ProductEditBottomSheetState extends State<_ProductEditBottomSheet> {
                               final raw = (value ?? '').trim();
                               if (raw.isEmpty) return null;
                               final parsed = _parseNullable(raw);
-                              if (parsed == null || (label.contains('venta') && _controlType == 'INSUMO' ? parsed < 0 : parsed <= 0)) {
+                              if (parsed == null || (label.contains('venta') ? parsed < 0 : parsed <= 0)) {
                                 return 'Ingresa $label.';
                               }
                               return null;
