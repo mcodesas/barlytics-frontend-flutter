@@ -1,10 +1,10 @@
 name: Frontend CI
 
 on:
-  pull_request:
-    branches: [main, stagen, develop]
+  # Los PR no deben consumir GitHub Actions; se valida en los workflows de merge.
   push:
     branches: [develop]
+  workflow_dispatch:
 
 permissions:
   contents: read
