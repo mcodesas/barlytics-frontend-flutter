@@ -27,9 +27,9 @@ En cada caso anotar: fecha, ID, ronda, plataforma/dispositivo, versión, rol, su
 | 2026-10-15 | QA-002 | Web | 1 — Funcional | **APROBADO** | Ninguna (resultado informado por el usuario) |
 | 2026-10-15 | QA-003 | Web | 1 — Funcional | **APROBADO** | Ninguna (resultado informado por el usuario) |
 | 2026-10-15 | QA-004 | Web | 1 — Funcional | **APROBADO EN REPRUEBA (persistencia)** | Usuario confirma que conserva la sesión al cerrar y reabrir navegador. Incidencia previa corregida con backend 7e544e7f y frontend 2f2ff95d. Expiración y revocación pendientes de verificación específica. |
-| 2026-10-15 | QA-005 | Web | 1 — Funcional | **APROBADO** | Ninguna (resultado informado por el usuario) |
+| 2026-10-15 | QA-005 | Web | 1 — Funcional | **APROBADO PARCIAL — REPRUEBA PENDIENTE** | Roles y menús iniciales correctos; incidencia posterior: al editar roles desde otra sesión no se actualizan hasta relogin. Corrección propuesta: consulta de roles vigentes, actualización de menús cada 20 s y autorización backend por roles actuales. |
 
-**Avance verificable:** QA-001, QA-002, QA-003 y QA-005 aprobadas en Web / Ronda 1; QA-004 aprobada en reprueba de persistencia (restan escenarios de expiración y revocación). Los demás entornos y rondas permanecen pendientes; cada caso maestro se completa cuando se cubren las combinaciones aplicables.
+**Avance verificable:** QA-001, QA-002 y QA-003 aprobadas en Web / Ronda 1; QA-005 requiere reprueba de actualización dinámica de roles; QA-004 aprobada en reprueba de persistencia (restan escenarios de expiración y revocación). Los demás entornos y rondas permanecen pendientes; cada caso maestro se completa cuando se cubren las combinaciones aplicables.
 
 ## Catálogo de casos
 
@@ -40,6 +40,7 @@ En cada caso anotar: fecha, ID, ronda, plataforma/dispositivo, versión, rol, su
 - [ ] **QA-004** Expiración, persistencia y cierre de sesión
   - **Criterio Web:** al cerrar y volver a abrir el navegador debe restaurar la sesión, conservando rol y sucursal, sin nuevo login siempre que sea válida; al vencer el JWT deberá renovarse de forma segura. Logout explícito, revocación y cambio de contraseña deben impedir la restauración. **PENDIENTE DE VERIFICACIÓN / AJUSTE**: el frontend Web persiste JWT, pero actualmente la renovación automática del token está restringida a clientes nativos.
 - [ ] **QA-005** Selección de uno o varios roles y permisos por menú
+  - **Caso adicional obligatorio:** administrador agrega y revoca roles a un usuario actualmente autenticado desde una segunda sesión; sus menús deben actualizarse en máximo 20-30 segundos, sin logout ni F5; los endpoints restringidos deben rechazar roles revocados de inmediato. Estado: **REPRUEBA PENDIENTE**.
 - [ ] **QA-006** Aislamiento entre empresas y sucursales
 
 ### Registro, planes y onboarding
