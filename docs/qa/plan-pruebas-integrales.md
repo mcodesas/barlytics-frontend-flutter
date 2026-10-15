@@ -26,9 +26,9 @@ En cada caso anotar: fecha, ID, ronda, plataforma/dispositivo, versión, rol, su
 | 2026-10-15 | QA-001 | Web | 1 — Funcional | **APROBADO** | Ninguna (resultado informado por el usuario) |
 | 2026-10-15 | QA-002 | Web | 1 — Funcional | **APROBADO** | Ninguna (resultado informado por el usuario) |
 | 2026-10-15 | QA-003 | Web | 1 — Funcional | **APROBADO** | Ninguna (resultado informado por el usuario) |
-| 2026-10-15 | QA-004 | Web | 1 — Funcional | **FALLÓ — REPRUEBA PENDIENTE** | Al cerrar y reabrir el navegador no se conserva la sesión. Cambios propuestos: backend 7e544e7f; frontend 2f2ff95d. |
+| 2026-10-15 | QA-004 | Web | 1 — Funcional | **APROBADO EN REPRUEBA (persistencia)** | Usuario confirma que conserva la sesión al cerrar y reabrir navegador. Incidencia previa corregida con backend 7e544e7f y frontend 2f2ff95d. Expiración y revocación pendientes de verificación específica. |
 
-**Avance verificable:** QA-001, QA-002 y QA-003 aprobadas en Web / Ronda 1. Los demás entornos y rondas permanecen pendientes; cada caso maestro se completa cuando se cubren las combinaciones aplicables.
+**Avance verificable:** QA-001, QA-002 y QA-003 aprobadas en Web / Ronda 1; QA-004 aprobada en reprueba de persistencia (restan escenarios de expiración y revocación). Los demás entornos y rondas permanecen pendientes; cada caso maestro se completa cuando se cubren las combinaciones aplicables.
 
 ## Catálogo de casos
 
