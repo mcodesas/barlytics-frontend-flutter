@@ -1190,18 +1190,22 @@ class _ProductosFormPageState extends ConsumerState<ProductosFormPage> {
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
                   children: [
+                    const SizedBox(height: 6),
                     TextFormField(
                       controller: nameController,
                       maxLength: 120,
-                      decoration: const InputDecoration(labelText: 'Nombre del ingrediente'),
+                      buildCounter: (_, {required currentLength, required isFocused, maxLength}) => null,
+                      decoration: const InputDecoration(labelText: 'Nombre del ingrediente', floatingLabelBehavior: FloatingLabelBehavior.auto),
                       validator: _required,
                     ),
                     TextFormField(
                       controller: descriptionController,
                       maxLength: 400,
-                      decoration: const InputDecoration(labelText: 'Descripción'),
+                      buildCounter: (_, {required currentLength, required isFocused, maxLength}) => null,
+                      decoration: const InputDecoration(labelText: 'Descripción', floatingLabelBehavior: FloatingLabelBehavior.auto),
                       validator: _required,
                     ),
+                    const SizedBox(height: 18),
                     DropdownButtonFormField<String>(
                       value: unit,
                       decoration: const InputDecoration(labelText: 'Unidad base'),
@@ -1212,16 +1216,18 @@ class _ProductosFormPageState extends ConsumerState<ProductosFormPage> {
                         if (value != null) update(() => unit = value);
                       },
                     ),
+                    const SizedBox(height: 20),
                     TextFormField(
                       controller: purchaseController,
                       keyboardType: const TextInputType.numberWithOptions(decimal: true),
                       inputFormatters: InputConstraints.decimalFormatters(integerDigits: 13, fractionDigits: 2),
-                      decoration: const InputDecoration(labelText: 'Costo de compra por unidad', helperText: 'Puedes actualizarlo después'),
+                      decoration: const InputDecoration(labelText: 'Costo de compra por unidad', floatingLabelBehavior: FloatingLabelBehavior.auto),
                       validator: (value) {
                         final amount = _parseDouble(value ?? '');
                         return amount == null || amount < 0 ? 'Indica un costo válido' : null;
                       },
                     ),
+                    const SizedBox(height: 20),
                     TextFormField(
                       controller: quantityController,
                       keyboardType: const TextInputType.numberWithOptions(decimal: true),
@@ -1229,12 +1235,16 @@ class _ProductosFormPageState extends ConsumerState<ProductosFormPage> {
                       decoration: const InputDecoration(labelText: 'Cantidad por preparación'),
                       validator: _requiredPositive,
                     ),
+                    const SizedBox(height: 12),
+                    Text('El costo de compra se puede actualizar después.', style: TextStyle(fontSize: 12, color: Theme.of(ctx).colorScheme.onSurfaceVariant)),
+                    const SizedBox(height: 12),
                     SwitchListTile.adaptive(
                       contentPadding: EdgeInsets.zero,
                       title: const Text('Se puede quitar del pedido'),
                       value: removable,
                       onChanged: (value) => update(() => removable = value),
                     ),
+                    const SizedBox(height: 8),
                   ],
                 ),
               ),
