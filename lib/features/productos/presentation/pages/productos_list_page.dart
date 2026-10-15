@@ -5853,7 +5853,7 @@ class _ProductEditBottomSheetState extends State<_ProductEditBottomSheet> {
                               validator: (value) => value == null ? 'Selecciona el tipo.' : null,
                             );
                             final brandField = DropdownButtonFormField<int>(
-                              value: brandItems.any((entry) => entry.value == _brandId) ? _brandId : null,
+                              value: brandItems.any((entry) => entry.value == _brandId) ? _brandId : -1,
                               isExpanded: true,
                               decoration: const InputDecoration(
                                 labelText: 'Marca',
@@ -5861,12 +5861,12 @@ class _ProductEditBottomSheetState extends State<_ProductEditBottomSheet> {
                               ),
                               items: [
                                 const DropdownMenuItem<int>(
-                                  value: null,
+                                  value: -1,
                                   child: Text('Ninguna'),
                                 ),
                                 ...brandItems,
                               ],
-                              onChanged: _saving ? null : (value) => setState(() => _brandId = value),
+                              onChanged: _saving ? null : (value) => setState(() => _brandId = value == -1 ? null : value),
                             );
                             if (constraints.maxWidth < 560) {
                               return Column(
