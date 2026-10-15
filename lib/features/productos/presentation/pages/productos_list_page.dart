@@ -485,6 +485,8 @@ class _ProductosListPageState extends ConsumerState<ProductosListPage> {
     final purchasePrice =
         (productBody.remove('_uiPrecioCompra') as num?)?.toDouble();
     final priceChanged = productBody.remove('_uiPrecioCambio') == true;
+    final controlChanged = productBody['prodTipoControl'] != null &&
+        productBody['prodTipoControl'] != (item.prodTipoControl ?? 'NORMAL').toUpperCase();
 
     setState(() => _productSavingIds.add(productId));
     try {
@@ -497,10 +499,29 @@ class _ProductosListPageState extends ConsumerState<ProductosListPage> {
         ),
       );
 
+      if (controlChanged) {
+        // Actualizar también la configuración gastrobar y limpiar recetas/adiciones
+        // cuando el producto deja de ser preparado.
+        final newType = productBody['prodTipoControl'] as String;
+        if (newType != 'PREPARADO') {
+          await client.put<Map<String, dynamic>>(
+            '/api/v1/productos/$productId/gastro?sucursalId=$branchId',
+            <String, dynamic>{
+              'tipoControl': newType,
+              'unidadBase': productBody['prodUnidadBase'],
+              'ingredientes': <Map<String, dynamic>>[],
+              'adiciones': <Map<String, dynamic>>[],
+            },
+            (json) => Map<String, dynamic>.from(json as Map),
+          );
+        }
+      }
+
       if (priceChanged) {
         if (salePrice == null ||
             purchasePrice == null ||
-            salePrice <= 0 ||
+            (productBody['prodTipoControl'] != 'INSUMO' && salePrice <= 0) ||
+            salePrice < 0 ||
             purchasePrice <= 0) {
           throw StateError(
             'Los precios de venta y compra deben ser mayores que cero.',
@@ -523,7 +544,7 @@ class _ProductosListPageState extends ConsumerState<ProductosListPage> {
         final unitPurchasePrice = purchaseByQuantity
             ? purchasePrice / purchaseQuantity!
             : purchasePrice;
-        if (salePrice < unitPurchasePrice) {
+        if (productBody['prodTipoControl'] != 'INSUMO' && salePrice < unitPurchasePrice) {
           throw StateError(
             'El precio de venta no puede ser menor que el costo unitario de compra.',
           );
@@ -5411,6 +5432,8 @@ class _ProductEditBottomSheetState extends State<_ProductEditBottomSheet> {
   late final TextEditingController _purchasePriceController;
   int? _typeId;
   int? _brandId;
+  late String _controlType;
+  late String _baseUnit;
   bool _purchaseByQuantity = false;
   bool _saving = false;
   bool _pickingImage = false;
@@ -5447,6 +5470,12 @@ class _ProductEditBottomSheetState extends State<_ProductEditBottomSheet> {
     );
     _typeId = item.tpprId;
     _brandId = item.mrcaId;
+    _controlType = const {'NORMAL', 'INSUMO', 'PREPARADO'}.contains((item.prodTipoControl ?? '').toUpperCase())
+        ? item.prodTipoControl!.toUpperCase()
+        : 'NORMAL';
+    _baseUnit = const {'UND', 'G', 'KG', 'ML', 'L'}.contains((item.prodUnidadBase ?? '').toUpperCase())
+        ? item.prodUnidadBase!.toUpperCase()
+        : 'UND';
     _purchaseByQuantity = item.prodCompraPorCantidad == 1;
   }
 
@@ -5541,8 +5570,10 @@ class _ProductEditBottomSheetState extends State<_ProductEditBottomSheet> {
     }
 
     if (!noPriceRequested) {
-      if (salePrice == null || salePrice <= 0) {
-        _showMessage('Ingresa un precio de venta mayor que cero.');
+      if (salePrice == null || (_controlType != 'INSUMO' && salePrice <= 0) || salePrice < 0) {
+        _showMessage(_controlType == 'INSUMO'
+            ? 'El precio de venta del insumo no puede ser negativo.'
+            : 'Ingresa un precio de venta mayor que cero.');
         return;
       }
       if (purchasePrice == null || purchasePrice <= 0) {
@@ -5552,7 +5583,7 @@ class _ProductEditBottomSheetState extends State<_ProductEditBottomSheet> {
       final unitPurchasePrice = _purchaseByQuantity
           ? purchasePrice / purchaseQuantity!
           : purchasePrice;
-      if (salePrice < unitPurchasePrice) {
+      if (_controlType != 'INSUMO' && salePrice < unitPurchasePrice) {
         _showMessage(
           'El precio de venta no puede ser menor que el costo unitario de compra.',
         );
@@ -5576,6 +5607,8 @@ class _ProductEditBottomSheetState extends State<_ProductEditBottomSheet> {
         'sucuId': item.sucuId,
         'tpprId': _typeId,
         'mrcaId': _brandId,
+        'prodTipoControl': _controlType,
+        'prodUnidadBase': _baseUnit,
         'prodNombre': _nameController.text.trim(),
         'prodDescripcion': _descriptionController.text.trim(),
         'prodFoto': _imageController.text.trim(),
@@ -5827,6 +5860,46 @@ class _ProductEditBottomSheetState extends State<_ProductEditBottomSheet> {
                             );
                           },
                         ),
+                        const SizedBox(height: 14),
+                        _EditSectionTitle(
+                          icon: Icons.restaurant_menu_rounded,
+                          title: 'Control del producto',
+                          palette: palette,
+                        ),
+                        const SizedBox(height: 10),
+                        DropdownButtonFormField<String>(
+                          key: ValueKey('edit-control-$_controlType'),
+                          value: _controlType,
+                          isExpanded: true,
+                          decoration: const InputDecoration(
+                            labelText: 'Clasificación para gastrobar',
+                            prefixIcon: Icon(Icons.restaurant_outlined),
+                          ),
+                          items: const [
+                            DropdownMenuItem(value: 'NORMAL', child: Text('Producto normal')),
+                            DropdownMenuItem(value: 'INSUMO', child: Text('Ingrediente / insumo')),
+                            DropdownMenuItem(value: 'PREPARADO', child: Text('Producto preparado / receta')),
+                          ],
+                          onChanged: _saving ? null : (value) {
+                            if (value != null) setState(() => _controlType = value);
+                          },
+                        ),
+                        const SizedBox(height: 10),
+                        DropdownButtonFormField<String>(
+                          key: ValueKey('edit-unit-$_baseUnit'),
+                          value: _baseUnit,
+                          isExpanded: true,
+                          decoration: const InputDecoration(
+                            labelText: 'Unidad base de inventario',
+                            prefixIcon: Icon(Icons.straighten_rounded),
+                          ),
+                          items: const ['UND', 'G', 'KG', 'ML', 'L'].map(
+                            (unit) => DropdownMenuItem(value: unit, child: Text(unit)),
+                          ).toList(),
+                          onChanged: _saving ? null : (value) {
+                            if (value != null) setState(() => _baseUnit = value);
+                          },
+                        ),
                         const SizedBox(height: 10),
                         TextFormField(
                           controller: _expirationController,
@@ -5871,7 +5944,7 @@ class _ProductEditBottomSheetState extends State<_ProductEditBottomSheet> {
                               final raw = (value ?? '').trim();
                               if (raw.isEmpty) return null;
                               final parsed = _parseNullable(raw);
-                              if (parsed == null || parsed <= 0) {
+                              if (parsed == null || (label.contains('venta') && _controlType == 'INSUMO' ? parsed < 0 : parsed <= 0)) {
                                 return 'Ingresa $label.';
                               }
                               return null;
