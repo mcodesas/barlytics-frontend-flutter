@@ -445,6 +445,7 @@ class _ProductosFormPageState extends ConsumerState<ProductosFormPage> {
                 itemLabel: (item) => item.mrcaNombre ?? 'Marca ${item.mrcaId ?? '-'}',
                 onChanged: (value) => setState(() => _marcaId = value),
                 onCreate: () => _createMarca(palette),
+                allowNone: true,
               ),
               const SizedBox(height: 18),
               _GastroControlSection(
@@ -1159,7 +1160,7 @@ class _ProductosFormPageState extends ConsumerState<ProductosFormPage> {
 
 
   Future<void> _createGastroIngredientInline() async {
-    if (_sucursalId == null || _tipoId == null || _marcaId == null) {
+    if (_sucursalId == null || _tipoId == null) {
       _showError('Selecciona primero el tipo de producto y la marca del producto preparado.');
       return;
     }
@@ -1260,7 +1261,7 @@ class _ProductosFormPageState extends ConsumerState<ProductosFormPage> {
         <String, dynamic>{
           'sucuId': _sucursalId,
           'tpprId': _tipoId,
-          'mrcaId': _marcaId,
+          'mrcaId': await _resolveMarcaId(),
           'prodNombre': values['name'],
           'prodDescripcion': values['description'],
           'prodTipoControl': 'INSUMO',
@@ -1484,10 +1485,6 @@ class _ProductosFormPageState extends ConsumerState<ProductosFormPage> {
       _showError('Selecciona un tipo de producto.');
       return false;
     }
-    if (_marcaId == null) {
-      _showError('Selecciona una marca.');
-      return false;
-    }
     return true;
   }
 
@@ -1552,11 +1549,12 @@ class _ProductosFormPageState extends ConsumerState<ProductosFormPage> {
       final venta = _parseDouble(_valorVentaController.text)!;
       final porcentaje = _aplicaImpuesto ? (_parseDouble(_porcentajeImpuestoController.text) ?? 0.0) : 0.0;
       final impuesto = _aplicaImpuesto ? (venta * porcentaje / 100) : 0.0;
+      final marcaId = await _resolveMarcaId();
       final productBody = <String, dynamic>{
         if (_editingId != null) 'prodId': _editingId,
         'sucuId': _sucursalId,
         'tpprId': _tipoId,
-        'mrcaId': _marcaId,
+        'mrcaId': marcaId,
         'prodNombre': _nombreController.text.trim(),
         'prodDescripcion': _descripcionController.text.trim(),
         'prodFoto': _fotoController.text.trim(),
@@ -1724,6 +1722,23 @@ class _ProductosFormPageState extends ConsumerState<ProductosFormPage> {
     } catch (error) {
       _showError('No fue posible crear el tipo de producto: $error');
     }
+  }
+
+  Future<int> _resolveMarcaId() async {
+    if (_marcaId != null) return _marcaId!;
+    final existing = _firstOrNull(ref.read(marcasProvider).items.where(
+      (brand) => (brand.mrcaNombre ?? '').trim().toLowerCase() == 'ninguna' && brand.mrcaId != null,
+    ));
+    if (existing?.mrcaId != null) return existing!.mrcaId!;
+    final result = await ref.read(apiClientProvider).post<MarcasResponseModel>(
+      '/api/v1/marcas',
+      <String, dynamic>{'mrcaNombre': 'Ninguna', 'mrcaIdentificacion': 'SIN_MARCA'},
+      (json) => MarcasResponseModel.fromJson(Map<String, dynamic>.from(json as Map)),
+    );
+    final id = result.data?.mrcaId;
+    if (id == null) throw StateError('No se pudo registrar la marca Ninguna.');
+    await ref.read(marcasProvider.notifier).load();
+    return id;
   }
 
   Future<void> _createMarca(AppPalette palette) async {
@@ -2474,6 +2489,7 @@ class _LookupRow<T> extends StatelessWidget {
     required this.itemLabel,
     required this.onChanged,
     required this.onCreate,
+    this.allowNone = false,
   });
 
   final AppPalette palette;
@@ -2484,6 +2500,7 @@ class _LookupRow<T> extends StatelessWidget {
   final String Function(T item) itemLabel;
   final ValueChanged<int?> onChanged;
   final VoidCallback onCreate;
+  final bool allowNone;
 
   @override
   Widget build(BuildContext context) {
@@ -2503,7 +2520,8 @@ class _LookupRow<T> extends StatelessWidget {
               border: OutlineInputBorder(borderRadius: BorderRadius.circular(14), borderSide: BorderSide(color: palette.cardBorder)),
             ),
             items: [
-              for (final item in items)
+              if (allowNone) const DropdownMenuItem<int>(value: null, child: Text('Ninguna')),
+              for (final item in items.where((item) => !allowNone || itemLabel(item).trim().toLowerCase() != 'ninguna'))
                 DropdownMenuItem<int>(value: itemId(item), child: Text(itemLabel(item), overflow: TextOverflow.ellipsis)),
             ],
             onChanged: onChanged,
