@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -106,6 +107,26 @@ class AppScaffold extends ConsumerStatefulWidget {
 class _AppScaffoldState extends ConsumerState<AppScaffold> {
   bool _mainMenuCollapsed = true;
   bool _guideScheduled = false;
+  Timer? _rolesRefreshTimer;
+
+  @override
+  void initState() {
+    super.initState();
+    // El administrador puede modificar los roles en otra sesión.
+    // Actualizamos los menús del usuario sin pedirle que vuelva a iniciar sesión.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) ref.read(authControllerProvider.notifier).refreshAssignedRoles();
+    });
+    _rolesRefreshTimer = Timer.periodic(const Duration(seconds: 20), (_) {
+      if (mounted) ref.read(authControllerProvider.notifier).refreshAssignedRoles();
+    });
+  }
+
+  @override
+  void dispose() {
+    _rolesRefreshTimer?.cancel();
+    super.dispose();
+  }
 
   void _scheduleHeaderGuide({required bool hasRoles, required bool hasBranches}) {
     if (_guideScheduled || (!hasRoles && !hasBranches)) return;
