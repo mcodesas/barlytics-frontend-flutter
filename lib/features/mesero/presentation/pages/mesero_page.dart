@@ -2672,7 +2672,7 @@ class _MeseroPageState extends ConsumerState<MeseroPage> {
                 Align(
                   alignment: Alignment.centerRight,
                   child: FilledButton.icon(
-                    onPressed: _processing ? null : () => _enviarComandaCocina(venta, cuentaSeleccionada),
+                    onPressed: _processing ? null : () => _enviarComandaCocina(venta, cuentaSeleccionada!),
                     icon: const Icon(Icons.soup_kitchen_rounded),
                     label: const Text('Enviar comanda a cocina'),
                   ),
@@ -2681,7 +2681,7 @@ class _MeseroPageState extends ConsumerState<MeseroPage> {
                 Align(
                   alignment: Alignment.centerRight,
                   child: TextButton.icon(
-                    onPressed: _processing ? null : () => _reimprimirComandaCocina(venta, cuentaSeleccionada),
+                    onPressed: _processing ? null : () => _reimprimirComandaCocina(venta, cuentaSeleccionada!),
                     icon: const Icon(Icons.print_outlined),
                     label: const Text('Reimprimir comanda'),
                   ),
