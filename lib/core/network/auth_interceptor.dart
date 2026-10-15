@@ -1,4 +1,7 @@
 import 'package:dio/dio.dart';
+import 'package:flutter/foundation.dart';
+
+import '../config/app_config.dart';
 
 import '../constants/api_paths.dart';
 import '../constants/storage_keys.dart';
@@ -14,15 +17,30 @@ import 'session_expiration_notifier.dart';
 /// públicas, como el login, no disparan este comportamiento porque no llevan
 /// cabecera Authorization.
 class AuthInterceptor extends Interceptor {
-  AuthInterceptor(this._storage, this._sessionExpirationNotifier);
+  AuthInterceptor(this._storage, this._sessionExpirationNotifier, this._dio);
 
   final SecureStorageService _storage;
   final SessionExpirationNotifier _sessionExpirationNotifier;
+  final Dio _dio;
+  Future<bool>? _refreshInFlight;
+
+  bool get _native => !kIsWeb && <TargetPlatform>{TargetPlatform.android, TargetPlatform.iOS, TargetPlatform.windows, TargetPlatform.macOS, TargetPlatform.linux}.contains(defaultTargetPlatform);
+
+  String get _platform => switch (defaultTargetPlatform) {
+    TargetPlatform.android => 'android',
+    TargetPlatform.iOS => 'ios',
+    TargetPlatform.windows => 'windows',
+    TargetPlatform.macOS => 'macos',
+    TargetPlatform.linux => 'linux',
+    _ => 'web',
+  };
 
   bool _invalidatingSession = false;
 
   static const Set<String> _publicPaths = <String>{
     ApiPaths.authLogin,
+    '/api/v1/auth/refresh',
+    '/api/v1/auth/device/revoke',
     ApiPaths.authGoogleConfig,
     ApiPaths.authGoogleIdentity,
     ApiPaths.authGoogleLogin,
@@ -42,6 +60,7 @@ class AuthInterceptor extends Interceptor {
     // evita que /auth/google/config falle con 401 al volver al login después
     // de que una sesión haya expirado y desaparezca el botón de Google.
     final isPublicRequest = _publicPaths.contains(options.path);
+    if (_native) options.headers['X-BarLytics-Platform'] = _platform;
     final explicitAuthorization =
         options.headers['Authorization']?.toString().trim();
 
@@ -81,11 +100,57 @@ class AuthInterceptor extends Interceptor {
     // mostrar el error funcional sin expulsar al usuario.
     final mustInvalidateSession = hadAuthenticatedRequest && statusCode == 401;
 
+    if (mustInvalidateSession && _native && err.requestOptions.extra['sessionRetried'] != true) {
+      final refreshed = await (_refreshInFlight ??= _refreshDeviceSession());
+      _refreshInFlight = null;
+      if (refreshed) {
+        try {
+          final token = await _storage.read(StorageKeys.authToken);
+          final original = err.requestOptions;
+          original.headers['Authorization'] = 'Bearer $token';
+          original.extra['sessionRetried'] = true;
+          final response = await _dio.fetch<dynamic>(original);
+          handler.resolve(response);
+          return;
+        } on DioException catch (retryError) {
+          handler.next(retryError);
+          return;
+        }
+      }
+    }
     if (mustInvalidateSession) {
       await _invalidateSessionOnce();
     }
 
     super.onError(err, handler);
+  }
+
+  Future<bool> _refreshDeviceSession() async {
+    final refreshToken = await _storage.read(StorageKeys.refreshToken);
+    if (refreshToken == null || refreshToken.isEmpty) return false;
+    try {
+      // Cliente aislado para no recursar por el interceptor de autenticación.
+      final client = Dio(BaseOptions(
+        baseUrl: AppConfig.apiBaseUrl,
+        connectTimeout: AppConfig.connectTimeout,
+        receiveTimeout: AppConfig.receiveTimeout,
+      ));
+      final response = await client.post<Map<String, dynamic>>(
+        '/api/v1/auth/refresh',
+        data: {'refreshToken': refreshToken},
+      );
+      final body = response.data;
+      final data = body?['data'];
+      if (body?['success'] != true || data is! Map) return false;
+      final token = data['token']?.toString();
+      final nextRefresh = data['refreshToken']?.toString();
+      if (token == null || token.isEmpty || nextRefresh == null || nextRefresh.isEmpty) return false;
+      await _storage.write(StorageKeys.authToken, token);
+      await _storage.write(StorageKeys.refreshToken, nextRefresh);
+      return true;
+    } catch (_) {
+      return false;
+    }
   }
 
   Future<void> _invalidateSessionOnce() async {
