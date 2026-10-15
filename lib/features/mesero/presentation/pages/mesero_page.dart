@@ -1645,18 +1645,21 @@ class _MeseroPageState extends ConsumerState<MeseroPage> {
     setState(() {
       _historialDiaFiltro = _soloFecha(picked);
     });
+    unawaited(_reloadHistorialVentas());
   }
 
   void _filtrarHistorialHoy() {
     setState(() {
       _historialDiaFiltro = _soloFecha(DateTime.now());
     });
+    unawaited(_reloadHistorialVentas());
   }
 
   void _limpiarFiltroHistorial() {
     setState(() {
       _historialDiaFiltro = null;
     });
+    unawaited(_reloadHistorialVentas());
   }
 
   DateTime? _parseFechaHoraVentaHistorial(String? value) {
@@ -1912,7 +1915,7 @@ class _MeseroPageState extends ConsumerState<MeseroPage> {
 
         final ventas = snapshot.data ?? _historialVentas;
         if (ventas.isEmpty) {
-          return const AppEmptyView(message: 'Todavía no hay ventas registradas para las mesas de tu sucursal.');
+          return const AppEmptyView(message: 'No hay ventas registradas para la fecha seleccionada. Prueba con otra fecha o selecciona «Todos los días».');
         }
 
         final ventasFiltradas = _filtrarYOrdenarHistorial(ventas);
