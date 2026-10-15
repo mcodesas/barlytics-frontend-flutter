@@ -29,6 +29,7 @@ En cada caso anotar: fecha, ID, ronda, plataforma/dispositivo, versión, rol, su
 | 2026-10-15 | QA-004 | Web | 1 — Funcional | **APROBADO EN REPRUEBA (persistencia)** | Usuario confirma que conserva la sesión al cerrar y reabrir navegador. Incidencia previa corregida con backend 7e544e7f y frontend 2f2ff95d. Expiración y revocación pendientes de verificación específica. |
 | 2026-10-15 | QA-005 | Web | 1 — Funcional | **APROBADO EN TERCERA REPRUEBA** | Usuario confirmó que los roles y las sucursales asignadas se actualizan correctamente sin reiniciar sesión. Se conservan dos repruebas fallidas previas en historial de incidencias. |
 | 2026-10-15 | QA-006 | Web | 1 — Funcional | **APROBADO** | Ninguna (resultado informado por el usuario). |
+| 2026-10-15 | QA-007 | Web | 1 — Funcional | **APROBADO** | Ninguna (resultado informado por el usuario). |
 
 **Avance verificable:** QA-001, QA-002, QA-003 y QA-006 aprobadas en Web / Ronda 1; QA-005 aprobada en tercera reprueba con actualización dinámica de roles y sucursales; QA-004 aprobada en reprueba de persistencia (restan escenarios de expiración y revocación). Los demás entornos y rondas permanecen pendientes; cada caso maestro se completa cuando se cubren las combinaciones aplicables.
 
