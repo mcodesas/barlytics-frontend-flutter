@@ -16,11 +16,41 @@ Future<bool> printTicketOverLan(BuildContext context, int branchId, String ticke
       context: context,
       builder: (dialogContext) => AlertDialog(
         title: const Text('Imprimir por Wi-Fi / LAN'),
-        content: Column(mainAxisSize: MainAxisSize.min, children: [
-          const Text('La impresora y el celular o tableta deben estar conectados a la misma red.'),
-          TextField(controller: ip, decoration: const InputDecoration(labelText: 'Dirección IP', hintText: '192.168.1.100')),
-          TextField(controller: port, keyboardType: TextInputType.number, decoration: const InputDecoration(labelText: 'Puerto TCP (habitual: 9100)')),
-        ]),
+        content: SizedBox(
+          width: 420,
+          child: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text('La impresora y el dispositivo deben estar conectados a la misma red.'),
+                const SizedBox(height: 24),
+                TextField(
+                  controller: ip,
+                  keyboardType: TextInputType.url,
+                  decoration: const InputDecoration(
+                    labelText: 'Dirección IP',
+                    hintText: '192.168.1.100',
+                    helperText: 'IP local asignada a la impresora',
+                    border: OutlineInputBorder(),
+                  ),
+                ),
+                const SizedBox(height: 22),
+                TextField(
+                  controller: port,
+                  keyboardType: TextInputType.number,
+                  decoration: const InputDecoration(
+                    labelText: 'Puerto TCP',
+                    hintText: '9100',
+                    helperText: 'Habitualmente 9100',
+                    border: OutlineInputBorder(),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+        actionsPadding: const EdgeInsets.fromLTRB(20, 8, 20, 16),
         actions: [
           TextButton(onPressed: () => Navigator.pop(dialogContext), child: const Text('Cancelar')),
           FilledButton(onPressed: () {
