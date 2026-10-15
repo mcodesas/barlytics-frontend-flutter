@@ -2386,6 +2386,67 @@ class _MeseroPageState extends ConsumerState<MeseroPage> {
     );
   }
 
+  Future<void> _enviarComandaCocina(MeseroVentaModel venta, MeseroCuentaModel cuenta) async {
+    final sucursalId = venta.sucursalId;
+    final cuentaId = cuenta.cuentaId;
+    if (sucursalId == null || cuentaId == null || _processing) return;
+    setState(() => _processing = true);
+    try {
+      final response = await ref.read(apiClientProvider).post<List<dynamic>>(
+        '/api/v1/comandas/cuenta/$cuentaId/enviar',
+        null,
+        (json) => json is List ? json : <dynamic>[],
+        queryParameters: {'sucursalId': sucursalId},
+      );
+      final detalles = (response.data ?? <dynamic>[])
+          .whereType<Map>()
+          .map((item) => Map<String, dynamic>.from(item))
+          .toList();
+      if (!mounted) return;
+      if (detalles.isEmpty) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('No hay productos nuevos pendientes de enviar a cocina.')),
+        );
+        return;
+      }
+      final ticket = StringBuffer()
+        ..writeln('COMANDA - COCINA')
+        ..writeln('--------------------------------')
+        ..writeln(_ventaEsDirecta(venta) ? 'VENTA DIRECTA' : 'MESA ${venta.mesaNumero ?? "-"}')
+        ..writeln(_cuentaNombreVisible(cuenta))
+        ..writeln('Venta #${venta.ventaId ?? "-"}')
+        ..writeln('Hora: ${DateFormat('dd/MM/yyyy HH:mm').format(DateTime.now())}')
+        ..writeln('--------------------------------');
+      for (final detalle in detalles) {
+        ticket.writeln('${detalle['cantidad'] ?? 0} x ${detalle['productoNombre'] ?? 'Producto'}');
+        final observacion = (detalle['personalizacion'] ?? '').toString().trim();
+        if (observacion.isNotEmpty) ticket.writeln('  ${observacion.replaceAll(RegExp(r'[\\r\\n]+'), ' ')}');
+      }
+      ticket
+        ..writeln('--------------------------------')
+        ..writeln('PEDIDO NUEVO');
+      final enviadoImpresora = await printTicketOverLan(
+        context,
+        sucursalId,
+        ticket.toString(),
+        autoPrintIfConfigured: true,
+      );
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(enviadoImpresora
+            ? 'Comanda enviada e impresa correctamente.'
+            : 'Comanda registrada. Pendiente de imprimir: utiliza la opción de reimpresión.')),
+      );
+    } catch (error) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('No fue posible enviar la comanda: $error')),
+      );
+    } finally {
+      if (mounted) setState(() => _processing = false);
+    }
+  }
+
   Widget _buildVentaActiva(MeseroVentaModel venta) {
     final cuentas = venta.cuentas;
     MeseroCuentaModel? cuentaSeleccionada;
@@ -2548,6 +2609,17 @@ class _MeseroPageState extends ConsumerState<MeseroPage> {
                   onDeleteEmptyAccount: (cuenta) => _eliminarCuentaVacia(venta, cuenta),
                 ),
               const SizedBox(height: 20),
+              if (cuentaSeleccionada != null && cuentaSeleccionada.cuentaId != null && cuentaSeleccionada.productos.isNotEmpty) ...[
+                Align(
+                  alignment: Alignment.centerRight,
+                  child: FilledButton.icon(
+                    onPressed: _processing ? null : () => _enviarComandaCocina(venta, cuentaSeleccionada),
+                    icon: const Icon(Icons.soup_kitchen_rounded),
+                    label: const Text('Enviar comanda a cocina'),
+                  ),
+                ),
+                const SizedBox(height: 12),
+              ],
               if (cuentaSeleccionada != null)
                 _CuentaDetalle(
                   cuenta: cuentaSeleccionada,
