@@ -129,59 +129,9 @@ class _AppScaffoldState extends ConsumerState<AppScaffold> {
         return ReadyOrderNotificationHost(child: scaffold);
       }
       return ReadyOrderNotificationHost(
-        child: Column(
-          children: [
-            Material(
-              color: palette.surface,
-              child: SafeArea(
-                bottom: false,
-                child: Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 5),
-                  child: Row(
-                    children: [
-                      Icon(Icons.storefront_outlined, size: 18, color: palette.secondary),
-                      const SizedBox(width: 8),
-                      const Text('Sucursal:', style: TextStyle(fontSize: 12)),
-                      const SizedBox(width: 10),
-                      Expanded(
-                        child: DropdownButtonHideUnderline(
-                          child: DropdownButton<int>(
-                            isExpanded: true,
-                            isDense: true,
-                            value: branches.any((b) => b.sucuId == branchScope.activeBranchId)
-                                ? branchScope.activeBranchId
-                                : null,
-                            hint: const Text('Selecciona sucursal'),
-                            items: branches
-                                .map((branch) => DropdownMenuItem<int>(
-                                      value: branch.sucuId,
-                                      child: Text(
-                                        branch.sucuNombre ?? 'Sucursal ${branch.sucuId}',
-                                        overflow: TextOverflow.ellipsis,
-                                      ),
-                                    ))
-                                .toList(),
-                            onChanged: branchScope.loading
-                                ? null
-                                : (id) async {
-                                    if (id == null || id == branchScope.activeBranchId) return;
-                                    await ref.read(branchScopeProvider.notifier).select(id);
-                                  },
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-            ),
-            Expanded(
-              child: KeyedSubtree(
-                key: ValueKey('sucursal-${branchScope.activeBranchId}'),
-                child: scaffold,
-              ),
-            ),
-          ],
+        child: KeyedSubtree(
+          key: ValueKey('sucursal-${branchScope.activeBranchId}'),
+          child: scaffold,
         ),
       );
     }
@@ -811,6 +761,8 @@ class _PageTopBar extends ConsumerWidget {
                   ),
                   const SizedBox(width: 10),
                   _RoleScopeSelector(palette: palette, compact: compact),
+                  const SizedBox(width: 8),
+                  _CompactBranchSelector(palette: palette, compact: compact),
                   if ((statusText ?? '').trim().isNotEmpty && !compact) ...[
                     SizedBox(width: dense ? 10 : 12),
                     Container(
@@ -835,6 +787,64 @@ class _PageTopBar extends ConsumerWidget {
             ),
           ),
         ],
+      ),
+    );
+  }
+}
+
+/// Selector en el encabezado, sin añadir otra franja vertical.
+class _CompactBranchSelector extends ConsumerWidget {
+  const _CompactBranchSelector({required this.palette, required this.compact});
+  final AppPalette palette;
+  final bool compact;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final scope = ref.watch(branchScopeProvider);
+    if (scope.branches.length <= 1) return const SizedBox.shrink();
+    final selected = scope.activeBranch;
+    final name = (selected?.sucuNombre ?? 'Seleccionar sucursal').trim();
+    return PopupMenuButton<int>(
+      tooltip: 'Cambiar sucursal',
+      enabled: !scope.loading,
+      onSelected: (id) async {
+        if (id == scope.activeBranchId) return;
+        await ref.read(branchScopeProvider.notifier).select(id);
+      },
+      itemBuilder: (_) => scope.branches.map((branch) {
+        final active = branch.sucuId == scope.activeBranchId;
+        return PopupMenuItem<int>(
+          value: branch.sucuId,
+          child: Row(children: [
+            Icon(active ? Icons.check_circle_rounded : Icons.storefront_outlined,
+              size: 19, color: active ? palette.secondary : palette.textSecondary),
+            const SizedBox(width: 10),
+            Expanded(child: Text(branch.sucuNombre ?? 'Sucursal ${branch.sucuId}',
+              maxLines: 2, overflow: TextOverflow.ellipsis)),
+          ]),
+        );
+      }).toList(),
+      child: Container(
+        constraints: BoxConstraints(maxWidth: compact ? 44 : 190),
+        height: 38,
+        padding: EdgeInsets.symmetric(horizontal: compact ? 10 : 12),
+        decoration: BoxDecoration(
+          color: palette.secondary.withOpacity(0.09),
+          borderRadius: BorderRadius.circular(palette.radius(12)),
+          border: Border.all(color: palette.secondary.withOpacity(0.24)),
+        ),
+        child: Row(mainAxisSize: MainAxisSize.min, children: [
+          Icon(Icons.storefront_outlined, size: 18, color: palette.secondary),
+          if (!compact) ...[
+            const SizedBox(width: 7),
+            Flexible(child: Text(name.isEmpty ? 'Sucursal' : name,
+              maxLines: 1, overflow: TextOverflow.ellipsis,
+              style: TextStyle(color: palette.textPrimary, fontSize: 12,
+                fontWeight: FontWeight.w700))),
+            const SizedBox(width: 4),
+            Icon(Icons.keyboard_arrow_down_rounded, size: 18, color: palette.textSecondary),
+          ],
+        ]),
       ),
     );
   }
