@@ -36,6 +36,7 @@ En cada caso anotar: fecha, ID, ronda, plataforma/dispositivo, versión, rol, su
 - [ ] **QA-002** Recuperación de contraseña y correo
 - [ ] **QA-003** Google Sign-In y Apple Sign-In donde aplique
 - [ ] **QA-004** Expiración, persistencia y cierre de sesión
+  - **Criterio Web:** al cerrar y volver a abrir el navegador debe restaurar la sesión, conservando rol y sucursal, sin nuevo login siempre que sea válida; al vencer el JWT deberá renovarse de forma segura. Logout explícito, revocación y cambio de contraseña deben impedir la restauración. **PENDIENTE DE VERIFICACIÓN / AJUSTE**: el frontend Web persiste JWT, pero actualmente la renovación automática del token está restringida a clientes nativos.
 - [ ] **QA-005** Selección de uno o varios roles y permisos por menú
 - [ ] **QA-006** Aislamiento entre empresas y sucursales
 
