@@ -4,6 +4,8 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../../core/branch/branch_scope_provider.dart';
+import '../../../navigation/presentation/providers/active_role_provider.dart';
+import '../../../navigation/presentation/providers/user_menu_provider.dart';
 import '../../../../core/errors/error_mapper.dart';
 import '../../../../core/errors/failure.dart';
 import '../../../../core/providers/core_providers.dart';
@@ -381,6 +383,31 @@ class AuthController extends StateNotifier<AuthState> {
     } catch (error) {
       state = state.copyWith(loading: false, failure: ErrorMapper.map(error));
       return false;
+    }
+  }
+
+  bool _refreshingRoles = false;
+
+  /// Refresca los permisos sin tocar el JWT ni expulsar al usuario.
+  Future<void> refreshAssignedRoles() async {
+    if (!state.authenticated || _refreshingRoles) return;
+    _refreshingRoles = true;
+    try {
+      final latest = await _repository.fetchCurrentRoles();
+      if (!mounted || !state.authenticated) return;
+      final previous = state.roles.map((r) => r.trim().toUpperCase()).toSet();
+      final current = latest.map((r) => r.trim().toUpperCase()).toSet();
+      if (previous.length == current.length && previous.containsAll(current)) return;
+      await _repository.storeCurrentRoles(latest);
+      if (!mounted || !state.authenticated) return;
+      state = state.copyWith(roles: latest);
+      // Se invalida el menú en caché y la selección de roles obsoletos.
+      _ref.invalidate(selectedRolesProvider);
+      _ref.invalidate(userMenuProvider);
+    } catch (_) {
+      // Errores de red no deben invalidar una sesión operativa.
+    } finally {
+      _refreshingRoles = false;
     }
   }
 
