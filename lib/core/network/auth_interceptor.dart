@@ -44,6 +44,7 @@ class AuthInterceptor extends Interceptor {
     ApiPaths.authGoogleConfig,
     ApiPaths.authGoogleIdentity,
     ApiPaths.authGoogleLogin,
+    ApiPaths.authAppleLogin,
     ApiPaths.authForgotPassword,
     ApiPaths.authPasswordRecoveryValidate,
     ApiPaths.authResetPassword,
