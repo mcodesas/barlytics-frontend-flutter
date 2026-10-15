@@ -1198,6 +1198,7 @@ class _ProductosFormPageState extends ConsumerState<ProductosFormPage> {
                       decoration: const InputDecoration(labelText: 'Nombre del ingrediente', floatingLabelBehavior: FloatingLabelBehavior.auto),
                       validator: _required,
                     ),
+                    const SizedBox(height: 16),
                     TextFormField(
                       controller: descriptionController,
                       maxLength: 400,
