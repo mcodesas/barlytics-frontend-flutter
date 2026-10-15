@@ -42,6 +42,13 @@ class AuthRepositoryImpl implements AuthRepository {
   }
 
   @override
+  Future<List<String>> fetchCurrentRoles() => _remote.currentRoles();
+
+  @override
+  Future<void> storeCurrentRoles(List<String> roles) =>
+      _storage.write(StorageKeys.roles, roles.join(','));
+
+  @override
   Future<void> saveSession(LoginResponseModel response) async {
     await _storage.write(StorageKeys.authToken, response.token);
     if (response.refreshToken != null && response.refreshToken!.isNotEmpty) {
