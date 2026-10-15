@@ -14852,7 +14852,7 @@ class _DetalleHistorialVentaPageState extends ConsumerState<_DetalleHistorialVen
         final subtotal = items.fold<double>(0, (sum, item) => sum + _detalleProductoSubtotal(item));
         final propina = venta.propina ?? venta.cuentas.fold<double>(0, (sum, cuenta) => sum + (cuenta.propina ?? 0));
         final ticket = StringBuffer()
-          ..writeln('BARLYTICS')
+          ..writeln(_nombreSucursalTicket(venta.sucursalId).toUpperCase())
           ..writeln('COMPROBANTE DE VENTA')
           ..writeln('Venta #${venta.ventaId ?? "-"}')
           ..writeln(_nombreSucursalTicket(venta.sucursalId))
@@ -14905,7 +14905,7 @@ class _DetalleHistorialVentaPageState extends ConsumerState<_DetalleHistorialVen
         build: (context) => pw.Column(
           crossAxisAlignment: pw.CrossAxisAlignment.start,
           children: [
-            pw.Center(child: pw.Text('BARLYTICS', style: pw.TextStyle(fontSize: 15, fontWeight: pw.FontWeight.bold))),
+            pw.Center(child: pw.Text(_nombreSucursalTicket(venta.sucursalId).toUpperCase(), textAlign: pw.TextAlign.center, style: pw.TextStyle(fontSize: 15, fontWeight: pw.FontWeight.bold))),
             pw.Center(child: pw.Text('Comprobante de venta', style: const pw.TextStyle(fontSize: 10))),
             pw.SizedBox(height: 8),
             pw.Text('Venta #${venta.ventaId ?? "-"}', style: pw.TextStyle(fontWeight: pw.FontWeight.bold)),
