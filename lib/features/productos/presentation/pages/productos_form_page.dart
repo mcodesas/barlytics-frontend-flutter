@@ -429,7 +429,12 @@ class _ProductosFormPageState extends ConsumerState<ProductosFormPage> {
                 palette: palette,
                 value: _tipoId,
                 label: 'Tipo de producto',
-                items: tipos,
+                items: [...tipos]..sort((a, b) {
+                  final first = (a.tpprNombre ?? '').trim().toLowerCase() == 'otro';
+                  final second = (b.tpprNombre ?? '').trim().toLowerCase() == 'otro';
+                  if (first != second) return first ? -1 : 1;
+                  return (a.tpprNombre ?? '').toLowerCase().compareTo((b.tpprNombre ?? '').toLowerCase());
+                }),
                 itemId: (item) => item.tpprId,
                 itemLabel: (item) => item.tpprNombre ?? 'Tipo ${item.tpprId ?? '-'}',
                 onChanged: (value) => setState(() => _tipoId = value),
