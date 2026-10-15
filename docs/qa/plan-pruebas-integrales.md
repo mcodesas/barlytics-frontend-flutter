@@ -27,7 +27,7 @@ En cada caso anotar: fecha, ID, ronda, plataforma/dispositivo, versión, rol, su
 | 2026-10-15 | QA-002 | Web | 1 — Funcional | **APROBADO** | Ninguna (resultado informado por el usuario) |
 | 2026-10-15 | QA-003 | Web | 1 — Funcional | **APROBADO** | Ninguna (resultado informado por el usuario) |
 | 2026-10-15 | QA-004 | Web | 1 — Funcional | **APROBADO EN REPRUEBA (persistencia)** | Usuario confirma que conserva la sesión al cerrar y reabrir navegador. Incidencia previa corregida con backend 7e544e7f y frontend 2f2ff95d. Expiración y revocación pendientes de verificación específica. |
-| 2026-10-15 | QA-005 | Web | 1 — Funcional | **APROBADO PARCIAL — REPRUEBA PENDIENTE** | Roles y menús iniciales correctos; incidencia posterior: al editar roles desde otra sesión no se actualizan hasta relogin. Corrección propuesta: consulta de roles vigentes, actualización de menús cada 20 s y autorización backend por roles actuales. |
+| 2026-10-15 | QA-005 | Web | 1 — Funcional | **FALLÓ — REPRUEBA PENDIENTE** | Los roles se actualizan sin relogin, pero el selector muestra sucursales no asignadas. Ajustado backend para limitar alcance según asignaciones y frontend para recargar sucursales tras cambio de rol. Pendiente verificar con dos usuarios y dos sucursales. |
 
 **Avance verificable:** QA-001, QA-002 y QA-003 aprobadas en Web / Ronda 1; QA-005 requiere reprueba de actualización dinámica de roles; QA-004 aprobada en reprueba de persistencia (restan escenarios de expiración y revocación). Los demás entornos y rondas permanecen pendientes; cada caso maestro se completa cuando se cubren las combinaciones aplicables.
 
