@@ -429,7 +429,12 @@ class _ProductosFormPageState extends ConsumerState<ProductosFormPage> {
                 palette: palette,
                 value: _tipoId,
                 label: 'Tipo de producto',
-                items: tipos,
+                items: [...tipos]..sort((a, b) {
+                  final first = (a.tpprNombre ?? '').trim().toLowerCase() == 'otro';
+                  final second = (b.tpprNombre ?? '').trim().toLowerCase() == 'otro';
+                  if (first != second) return first ? -1 : 1;
+                  return (a.tpprNombre ?? '').toLowerCase().compareTo((b.tpprNombre ?? '').toLowerCase());
+                }),
                 itemId: (item) => item.tpprId,
                 itemLabel: (item) => item.tpprNombre ?? 'Tipo ${item.tpprId ?? '-'}',
                 onChanged: (value) => setState(() => _tipoId = value),
@@ -445,6 +450,7 @@ class _ProductosFormPageState extends ConsumerState<ProductosFormPage> {
                 itemLabel: (item) => item.mrcaNombre ?? 'Marca ${item.mrcaId ?? '-'}',
                 onChanged: (value) => setState(() => _marcaId = value),
                 onCreate: () => _createMarca(palette),
+                allowNone: true,
               ),
               const SizedBox(height: 18),
               _GastroControlSection(
@@ -538,9 +544,7 @@ class _ProductosFormPageState extends ConsumerState<ProductosFormPage> {
                       inputFormatters: InputConstraints.decimalFormatters(integerDigits: 15, fractionDigits: 0),
                       icon: Icons.payments_rounded,
                       keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                      validator: _tipoControl == 'INSUMO'
-                          ? _requiredPositiveOrZero
-                          : _requiredPositive,
+                      validator: _requiredPositiveOrZero,
                       onChanged: (_) => setState(() {}),
                     ),
                   ),
@@ -1027,14 +1031,6 @@ class _ProductosFormPageState extends ConsumerState<ProductosFormPage> {
         .toList()
       ..sort((a, b) => (a.prodNombre ?? '').toLowerCase().compareTo((b.prodNombre ?? '').toLowerCase()));
 
-    if (candidates.isEmpty) {
-      _showError(
-        'No hay productos configurados como Ingrediente / insumo en esta sucursal. '
-        'Crea primero el ingrediente con Control del producto = Ingrediente / insumo.',
-      );
-      return;
-    }
-
     final formKey = GlobalKey<FormState>();
     int? selectedId;
     String unit = 'UND';
@@ -1053,6 +1049,18 @@ class _ProductosFormPageState extends ConsumerState<ProductosFormPage> {
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
                   children: [
+                    Align(
+                      alignment: Alignment.centerRight,
+                      child: TextButton.icon(
+                        onPressed: () async {
+                          Navigator.pop(dialogContext);
+                          await _createGastroIngredientInline();
+                        },
+                        icon: const Icon(Icons.add_circle_outline_rounded),
+                        label: const Text('Crear ingrediente nuevo'),
+                      ),
+                    ),
+                    if (candidates.isNotEmpty)
                     DropdownButtonFormField<int>(
                       value: selectedId,
                       isExpanded: true,
@@ -1072,6 +1080,11 @@ class _ProductosFormPageState extends ConsumerState<ProductosFormPage> {
                       onChanged: (value) => setDialogState(() => selectedId = value),
                       validator: (value) => value == null ? 'Selecciona un ingrediente' : null,
                     ),
+                    if (candidates.isEmpty)
+                      const Padding(
+                        padding: EdgeInsets.only(bottom: 8),
+                        child: Text('Todavía no hay ingredientes. Puedes crear uno aquí mismo.'),
+                      ),
                     const SizedBox(height: 12),
                     Row(
                       children: [
@@ -1119,7 +1132,7 @@ class _ProductosFormPageState extends ConsumerState<ProductosFormPage> {
             actions: [
               TextButton(onPressed: () => Navigator.pop(dialogContext), child: const Text('Cancelar')),
               FilledButton(
-                onPressed: () {
+                onPressed: candidates.isEmpty ? null : () {
                   if (!(formKey.currentState?.validate() ?? false)) return;
                   final product = candidates.firstWhere((item) => item.prodId == selectedId);
                   Navigator.pop(
@@ -1148,6 +1161,169 @@ class _ProductosFormPageState extends ConsumerState<ProductosFormPage> {
     });
   }
 
+
+  Future<void> _createGastroIngredientInline() async {
+    if (_sucursalId == null || _tipoId == null) {
+      _showError('Selecciona primero el tipo de producto y la marca del producto preparado.');
+      return;
+    }
+    final nameController = TextEditingController();
+    final descriptionController = TextEditingController();
+    final purchaseController = TextEditingController();
+    final quantityController = TextEditingController(text: '1');
+    final formKey = GlobalKey<FormState>();
+    String unit = 'UND';
+    bool removable = true;
+    try {
+      final values = await showDialog<Map<String, dynamic>>(
+        context: context,
+        builder: (ctx) => StatefulBuilder(
+          builder: (ctx, update) => AlertDialog(
+            scrollable: true,
+            title: const Text('Crear ingrediente / insumo'),
+            content: SizedBox(
+              width: 460,
+              child: Form(
+                key: formKey,
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const SizedBox(height: 6),
+                    TextFormField(
+                      controller: nameController,
+                      maxLength: 120,
+                      buildCounter: (_, {required currentLength, required isFocused, maxLength}) => null,
+                      decoration: const InputDecoration(labelText: 'Nombre del ingrediente', floatingLabelBehavior: FloatingLabelBehavior.auto),
+                      validator: _required,
+                    ),
+                    const SizedBox(height: 16),
+                    TextFormField(
+                      controller: descriptionController,
+                      maxLength: 400,
+                      buildCounter: (_, {required currentLength, required isFocused, maxLength}) => null,
+                      decoration: const InputDecoration(labelText: 'Descripción', floatingLabelBehavior: FloatingLabelBehavior.auto),
+                      validator: _required,
+                    ),
+                    const SizedBox(height: 18),
+                    DropdownButtonFormField<String>(
+                      value: unit,
+                      decoration: const InputDecoration(labelText: 'Unidad base'),
+                      items: const ['UND', 'G', 'KG', 'ML', 'L']
+                          .map((value) => DropdownMenuItem(value: value, child: Text(value)))
+                          .toList(),
+                      onChanged: (value) {
+                        if (value != null) update(() => unit = value);
+                      },
+                    ),
+                    const SizedBox(height: 20),
+                    TextFormField(
+                      controller: purchaseController,
+                      keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                      inputFormatters: InputConstraints.decimalFormatters(integerDigits: 13, fractionDigits: 2),
+                      decoration: const InputDecoration(labelText: 'Costo de compra por unidad', hintText: 'Obligatorio', floatingLabelBehavior: FloatingLabelBehavior.auto),
+                      validator: (value) {
+                        final amount = _parseDouble(value ?? '');
+                        return amount == null || amount <= 0 ? 'Ingresa el costo de compra mayor que cero' : null;
+                      },
+                    ),
+                    const SizedBox(height: 20),
+                    TextFormField(
+                      controller: quantityController,
+                      keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                      inputFormatters: InputConstraints.decimalFormatters(integerDigits: 13, fractionDigits: 4),
+                      decoration: const InputDecoration(labelText: 'Cantidad por preparación'),
+                      validator: _requiredPositive,
+                    ),
+                    const SizedBox(height: 14),
+                    SwitchListTile.adaptive(
+                      contentPadding: EdgeInsets.zero,
+                      title: const Text('Se puede quitar del pedido'),
+                      value: removable,
+                      onChanged: (value) => update(() => removable = value),
+                    ),
+                    const SizedBox(height: 8),
+                  ],
+                ),
+              ),
+            ),
+            actions: [
+              TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Cancelar')),
+              FilledButton(
+                onPressed: () {
+                  if (!(formKey.currentState?.validate() ?? false)) return;
+                  Navigator.pop(ctx, <String, dynamic>{
+                    'name': nameController.text.trim(),
+                    'description': descriptionController.text.trim(),
+                    'unit': unit,
+                    'cost': _parseDouble(purchaseController.text) ?? 0.0,
+                    'quantity': _parseDouble(quantityController.text) ?? 1.0,
+                    'removable': removable,
+                  });
+                },
+                child: const Text('Crear y agregar'),
+              ),
+            ],
+          ),
+        ),
+      );
+      if (values == null || !mounted) return;
+      final client = ref.read(apiClientProvider);
+      final response = await client.post<ProductosResponseModel>(
+        '/api/v1/productos',
+        <String, dynamic>{
+          'sucuId': _sucursalId,
+          'tpprId': _tipoId,
+          'mrcaId': await _resolveMarcaId(),
+          'prodNombre': values['name'],
+          'prodDescripcion': values['description'],
+          'prodTipoControl': 'INSUMO',
+          'prodUnidadBase': values['unit'],
+          'prodStockMinimo': 0,
+        },
+        (json) => ProductosResponseModel.fromJson(Map<String, dynamic>.from(json as Map)),
+      );
+      final product = response.data;
+      final id = product?.prodId;
+      if (id == null) throw StateError('No se obtuvo el identificador del ingrediente');
+      final cost = values['cost'] as double;
+      await client.post<PreciosResponseModel>(
+          '/api/v1/precios',
+          <String, dynamic>{
+            'prodId': id,
+            'sucuId': _sucursalId,
+            'precEstado': 1,
+            'precValorCompra': cost,
+            'precValorVenta': 0,
+            'precFechaInicia': DateTime.now().toIso8601String(),
+            'precAplicaImpuesto': 0,
+            'precPorcentajeImpuesto': 0,
+            'precValorImpuesto': 0,
+          },
+          (json) => PreciosResponseModel.fromJson(Map<String, dynamic>.from(json as Map)),
+        );
+      if (!mounted) return;
+      setState(() {
+        _gastroIngredientes.removeWhere((item) => item.prodId == id);
+        _gastroIngredientes.add(_GastroIngredientDraft(
+          prodId: id,
+          nombre: values['name'] as String,
+          cantidad: values['quantity'] as double,
+          unidad: values['unit'] as String,
+          removible: values['removable'] as bool,
+          precioCompra: cost,
+        ));
+      });
+      await ref.read(productosProvider.notifier).load();
+    } catch (error) {
+      if (mounted) _showError('No fue posible crear el ingrediente: $error');
+    } finally {
+      nameController.dispose();
+      descriptionController.dispose();
+      purchaseController.dispose();
+      quantityController.dispose();
+    }
+  }
+
   Future<void> _addGastroAddition(List<ProductosResponseModel> productos) async {
     final candidates = productos
         .where((item) {
@@ -1160,13 +1336,6 @@ class _ProductosFormPageState extends ConsumerState<ProductosFormPage> {
         })
         .toList()
       ..sort((a, b) => (a.prodNombre ?? '').toLowerCase().compareTo((b.prodNombre ?? '').toLowerCase()));
-
-    if (candidates.isEmpty) {
-      _showError(
-        'No hay insumos ni productos preparados con receta disponibles en esta sucursal para usar como adición.',
-      );
-      return;
-    }
 
     final formKey = GlobalKey<FormState>();
     int? selectedId;
@@ -1186,6 +1355,18 @@ class _ProductosFormPageState extends ConsumerState<ProductosFormPage> {
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
                   children: [
+                    Align(
+                      alignment: Alignment.centerRight,
+                      child: TextButton.icon(
+                        onPressed: () async {
+                          Navigator.pop(dialogContext);
+                          await _createGastroAdditionInline();
+                        },
+                        icon: const Icon(Icons.add_circle_outline_rounded),
+                        label: const Text('Crear adición nueva'),
+                      ),
+                    ),
+                    if (candidates.isNotEmpty)
                     DropdownButtonFormField<int>(
                       value: selectedId,
                       isExpanded: true,
@@ -1205,6 +1386,8 @@ class _ProductosFormPageState extends ConsumerState<ProductosFormPage> {
                       onChanged: (value) => setDialogState(() => selectedId = value),
                       validator: (value) => value == null ? 'Selecciona una adición' : null,
                     ),
+                    if (candidates.isEmpty)
+                      const Text('Aún no hay adiciones registradas. Crea una aquí mismo.'),
                     const SizedBox(height: 12),
                     Row(
                       children: [
@@ -1254,7 +1437,7 @@ class _ProductosFormPageState extends ConsumerState<ProductosFormPage> {
             actions: [
               TextButton(onPressed: () => Navigator.pop(dialogContext), child: const Text('Cancelar')),
               FilledButton(
-                onPressed: () {
+                onPressed: candidates.isEmpty ? null : () {
                   if (!(formKey.currentState?.validate() ?? false)) return;
                   final product = candidates.firstWhere((item) => item.prodId == selectedId);
                   Navigator.pop(
@@ -1281,6 +1464,162 @@ class _ProductosFormPageState extends ConsumerState<ProductosFormPage> {
       _gastroAdiciones.removeWhere((item) => item.prodId == result.prodId);
       _gastroAdiciones.add(result);
     });
+  }
+
+
+  Future<void> _createGastroAdditionInline() async {
+    if (_sucursalId == null || _tipoId == null) {
+      _showError('Selecciona primero el tipo de producto.');
+      return;
+    }
+    final name = TextEditingController();
+    final description = TextEditingController();
+    final purchase = TextEditingController();
+    final extraPrice = TextEditingController(text: '0');
+    final quantity = TextEditingController(text: '1');
+    final formKey = GlobalKey<FormState>();
+    String unit = 'UND';
+    try {
+      final values = await showDialog<Map<String, dynamic>>(
+        context: context,
+        builder: (ctx) => StatefulBuilder(
+          builder: (ctx, update) => AlertDialog(
+            scrollable: true,
+            title: const Text('Crear adición nueva'),
+            content: SizedBox(
+              width: 460,
+              child: Form(
+                key: formKey,
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    TextFormField(
+                      controller: name,
+                      maxLength: 120,
+                      decoration: const InputDecoration(labelText: 'Nombre de la adición'),
+                      validator: _required,
+                    ),
+                    const SizedBox(height: 16),
+                    TextFormField(
+                      controller: description,
+                      maxLength: 400,
+                      decoration: const InputDecoration(labelText: 'Descripción'),
+                      validator: _required,
+                    ),
+                    const SizedBox(height: 16),
+                    DropdownButtonFormField<String>(
+                      value: unit,
+                      decoration: const InputDecoration(labelText: 'Unidad base'),
+                      items: const ['UND', 'G', 'KG', 'ML', 'L']
+                          .map((value) => DropdownMenuItem(value: value, child: Text(value)))
+                          .toList(),
+                      onChanged: (value) {
+                        if (value != null) update(() => unit = value);
+                      },
+                    ),
+                    const SizedBox(height: 16),
+                    TextFormField(
+                      controller: purchase,
+                      keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                      inputFormatters: InputConstraints.decimalFormatters(integerDigits: 13, fractionDigits: 2),
+                      decoration: const InputDecoration(labelText: 'Costo de compra'),
+                      validator: _requiredPositive,
+                    ),
+                    const SizedBox(height: 16),
+                    TextFormField(
+                      controller: extraPrice,
+                      keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                      inputFormatters: InputConstraints.decimalFormatters(integerDigits: 13, fractionDigits: 2),
+                      decoration: const InputDecoration(labelText: 'Precio adicional al cliente'),
+                      validator: _requiredPositiveOrZero,
+                    ),
+                    const SizedBox(height: 16),
+                    TextFormField(
+                      controller: quantity,
+                      keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                      inputFormatters: InputConstraints.decimalFormatters(integerDigits: 13, fractionDigits: 4),
+                      decoration: const InputDecoration(labelText: 'Cantidad por pedido'),
+                      validator: _requiredPositive,
+                    ),
+                  ],
+                ),
+              ),
+            ),
+            actions: [
+              TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Cancelar')),
+              FilledButton(
+                onPressed: () {
+                  if (!(formKey.currentState?.validate() ?? false)) return;
+                  Navigator.pop(ctx, <String, dynamic>{
+                    'name': name.text.trim(),
+                    'description': description.text.trim(),
+                    'unit': unit,
+                    'cost': _parseDouble(purchase.text)!,
+                    'price': _parseDouble(extraPrice.text)!,
+                    'quantity': _parseDouble(quantity.text)!,
+                  });
+                },
+                child: const Text('Crear y agregar'),
+              ),
+            ],
+          ),
+        ),
+      );
+      if (values == null || !mounted) return;
+      final client = ref.read(apiClientProvider);
+      final product = await client.post<ProductosResponseModel>(
+        '/api/v1/productos',
+        <String, dynamic>{
+          'sucuId': _sucursalId,
+          'tpprId': _tipoId,
+          'mrcaId': await _resolveMarcaId(),
+          'prodNombre': values['name'],
+          'prodDescripcion': values['description'],
+          'prodTipoControl': 'INSUMO',
+          'prodUnidadBase': values['unit'],
+          'prodStockMinimo': 0,
+        },
+        (json) => ProductosResponseModel.fromJson(Map<String, dynamic>.from(json as Map)),
+      );
+      final id = product.data?.prodId;
+      if (id == null) throw StateError('No se obtuvo el identificador de la adición.');
+      await client.post<PreciosResponseModel>(
+        '/api/v1/precios',
+        <String, dynamic>{
+          'prodId': id,
+          'sucuId': _sucursalId,
+          'precEstado': 1,
+          'precValorCompra': values['cost'],
+          'precValorVenta': values['price'],
+          'precFechaInicia': DateTime.now().toIso8601String(),
+          'precAplicaImpuesto': 0,
+          'precPorcentajeImpuesto': 0,
+          'precValorImpuesto': 0,
+        },
+        (json) => PreciosResponseModel.fromJson(Map<String, dynamic>.from(json as Map)),
+      );
+      if (!mounted) return;
+      setState(() {
+        _gastroAdiciones.removeWhere((item) => item.prodId == id);
+        _gastroAdiciones.add(_GastroAdditionDraft(
+          prodId: id,
+          nombre: values['name'] as String,
+          cantidad: values['quantity'] as double,
+          unidad: values['unit'] as String,
+          precioAdicional: values['price'] as double,
+          precioCompra: values['cost'] as double,
+        ));
+      });
+      await ref.read(productosProvider.notifier).load();
+    } catch (error) {
+      if (mounted) _showError('No fue posible crear la adición: $error');
+    } finally {
+      name.dispose();
+      description.dispose();
+      purchase.dispose();
+      extraPrice.dispose();
+      quantity.dispose();
+    }
   }
 
   Future<void> _pickExpirationDate() async {
@@ -1319,10 +1658,6 @@ class _ProductosFormPageState extends ConsumerState<ProductosFormPage> {
       _showError('Selecciona un tipo de producto.');
       return false;
     }
-    if (_marcaId == null) {
-      _showError('Selecciona una marca.');
-      return false;
-    }
     return true;
   }
 
@@ -1344,15 +1679,11 @@ class _ProductosFormPageState extends ConsumerState<ProductosFormPage> {
         ? purchasePrice / purchaseQuantity!
         : purchasePrice;
 
-    if (_tipoControl == 'INSUMO') {
-      if (salePrice < 0) {
-        _showError('El precio de venta del insumo no puede ser negativo.');
-        return false;
-      }
-      return true;
+    if (salePrice < 0) {
+      _showError('El precio de venta no puede ser negativo.');
+      return false;
     }
-
-    if (salePrice < unitPurchasePrice) {
+    if (salePrice > 0 && _tipoControl != 'INSUMO' && salePrice < unitPurchasePrice) {
       _showError(
         'El precio de venta no puede ser menor que el costo unitario de compra.',
       );
@@ -1387,11 +1718,12 @@ class _ProductosFormPageState extends ConsumerState<ProductosFormPage> {
       final venta = _parseDouble(_valorVentaController.text)!;
       final porcentaje = _aplicaImpuesto ? (_parseDouble(_porcentajeImpuestoController.text) ?? 0.0) : 0.0;
       final impuesto = _aplicaImpuesto ? (venta * porcentaje / 100) : 0.0;
+      final marcaId = await _resolveMarcaId();
       final productBody = <String, dynamic>{
         if (_editingId != null) 'prodId': _editingId,
         'sucuId': _sucursalId,
         'tpprId': _tipoId,
-        'mrcaId': _marcaId,
+        'mrcaId': marcaId,
         'prodNombre': _nombreController.text.trim(),
         'prodDescripcion': _descripcionController.text.trim(),
         'prodFoto': _fotoController.text.trim(),
@@ -1559,6 +1891,23 @@ class _ProductosFormPageState extends ConsumerState<ProductosFormPage> {
     } catch (error) {
       _showError('No fue posible crear el tipo de producto: $error');
     }
+  }
+
+  Future<int> _resolveMarcaId() async {
+    if (_marcaId != null) return _marcaId!;
+    final existing = _firstOrNull(ref.read(marcasProvider).items.where(
+      (brand) => (brand.mrcaNombre ?? '').trim().toLowerCase() == 'ninguna' && brand.mrcaId != null,
+    ));
+    if (existing?.mrcaId != null) return existing!.mrcaId!;
+    final result = await ref.read(apiClientProvider).post<MarcasResponseModel>(
+      '/api/v1/marcas',
+      <String, dynamic>{'mrcaNombre': 'Ninguna', 'mrcaIdentificacion': 'SIN_MARCA'},
+      (json) => MarcasResponseModel.fromJson(Map<String, dynamic>.from(json as Map)),
+    );
+    final id = result.data?.mrcaId;
+    if (id == null) throw StateError('No se pudo registrar la marca Ninguna.');
+    await ref.read(marcasProvider.notifier).load();
+    return id;
   }
 
   Future<void> _createMarca(AppPalette palette) async {
@@ -2309,6 +2658,7 @@ class _LookupRow<T> extends StatelessWidget {
     required this.itemLabel,
     required this.onChanged,
     required this.onCreate,
+    this.allowNone = false,
   });
 
   final AppPalette palette;
@@ -2319,6 +2669,7 @@ class _LookupRow<T> extends StatelessWidget {
   final String Function(T item) itemLabel;
   final ValueChanged<int?> onChanged;
   final VoidCallback onCreate;
+  final bool allowNone;
 
   @override
   Widget build(BuildContext context) {
@@ -2326,7 +2677,7 @@ class _LookupRow<T> extends StatelessWidget {
       children: [
         Expanded(
           child: DropdownButtonFormField<int>(
-            value: items.any((item) => itemId(item) == value) ? value : null,
+            value: allowNone && (value == null || !items.any((item) => itemId(item) == value)) ? -1 : (items.any((item) => itemId(item) == value) ? value : null),
             isExpanded: true,
             decoration: InputDecoration(
               labelText: label,
@@ -2338,10 +2689,11 @@ class _LookupRow<T> extends StatelessWidget {
               border: OutlineInputBorder(borderRadius: BorderRadius.circular(14), borderSide: BorderSide(color: palette.cardBorder)),
             ),
             items: [
-              for (final item in items)
+              if (allowNone) const DropdownMenuItem<int>(value: -1, child: Text('Ninguna')),
+              for (final item in items.where((item) => !allowNone || itemLabel(item).trim().toLowerCase() != 'ninguna'))
                 DropdownMenuItem<int>(value: itemId(item), child: Text(itemLabel(item), overflow: TextOverflow.ellipsis)),
             ],
-            onChanged: onChanged,
+            onChanged: allowNone ? (value) => onChanged(value == -1 ? null : value) : onChanged,
           ),
         ),
         const SizedBox(width: 10),
@@ -2824,6 +3176,9 @@ class _GastroControlSection extends StatelessWidget {
             builder: (context, constraints) {
               final horizontal = constraints.maxWidth >= 560;
               final typeField = DropdownButtonFormField<String>(
+                // Flutter conserva el estado interno del FormField al reconstruir;
+                // la clave permite reflejar la clasificación cargada al editar.
+                key: ValueKey('tipo-control-$tipoControl'),
                 value: tipoControl,
                 isExpanded: true,
                 decoration: const InputDecoration(
@@ -2840,6 +3195,7 @@ class _GastroControlSection extends StatelessWidget {
                 },
               );
               final unitField = DropdownButtonFormField<String>(
+                key: ValueKey('unidad-base-$unidadBase'),
                 value: unidadBase,
                 isExpanded: true,
                 decoration: const InputDecoration(
