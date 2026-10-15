@@ -404,6 +404,9 @@ class AuthController extends StateNotifier<AuthState> {
       // Se invalida el menú en caché y la selección de roles obsoletos.
       _ref.invalidate(selectedRolesProvider);
       _ref.invalidate(userMenuProvider);
+      // Los roles pueden modificar el alcance de sucursales. Volver a cargar
+      // el catálogo permitido descarta la sede activa que haya sido revocada.
+      await _ref.read(branchScopeProvider.notifier).load();
     } catch (_) {
       // Errores de red no deben invalidar una sesión operativa.
     } finally {
