@@ -790,50 +790,14 @@ class _PageTopBar extends ConsumerWidget {
                   _RoleScopeSelector(palette: palette, compact: compact),
                   const SizedBox(width: 8),
                   _CompactBranchSelector(palette: palette, compact: compact),
-                  if (ref.watch(branchScopeProvider).branches.length > 1 ||
-                      ref.watch(authControllerProvider).roles.length > 1) ...[
-                    const SizedBox(width: 4),
-                    IconButton(
-                      tooltip: '¿Cómo cambiar la vista o sucursal?',
-                      visualDensity: VisualDensity.compact,
-                      constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
-                      icon: Icon(Icons.help_outline_rounded, size: 19, color: palette.textSecondary),
-                      onPressed: () {
-                        final hasRoles = ref.read(authControllerProvider).roles.length > 1;
-                        final hasBranches = ref.read(branchScopeProvider).branches.length > 1;
-                        showDialog<void>(
-                          context: context,
-                          builder: (dialogContext) => AlertDialog(
-                            title: const Text('Personaliza lo que ves'),
-                            content: Column(
-                              mainAxisSize: MainAxisSize.min,
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                if (hasRoles) const ListTile(
-                                  dense: true,
-                                  leading: Icon(Icons.manage_accounts_rounded),
-                                  title: Text('Vista por rol'),
-                                  subtitle: Text('Toca Vista por rol para mostrar las funciones de uno, varios o todos tus roles.'),
-                                ),
-                                if (hasBranches) const ListTile(
-                                  dense: true,
-                                  leading: Icon(Icons.storefront_outlined),
-                                  title: Text('Elegir sucursal'),
-                                  subtitle: Text('Toca el icono de tienda para consultar mesas, productos y ventas de otra sucursal autorizada.'),
-                                ),
-                              ],
-                            ),
-                            actions: [
-                              TextButton(
-                                onPressed: () => Navigator.of(dialogContext).pop(),
-                                child: const Text('Entendido'),
-                              ),
-                            ],
-                          ),
-                        );
-                      },
-                    ),
-                  ],
+                  const SizedBox(width: 4),
+                  IconButton(
+                    tooltip: 'Ayuda de esta pantalla',
+                    visualDensity: VisualDensity.compact,
+                    constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
+                    icon: Icon(Icons.help_outline_rounded, size: 19, color: palette.textSecondary),
+                    onPressed: () => _showContextHelp(context, ref),
+                  ),
                   if ((statusText ?? '').trim().isNotEmpty && !compact) ...[
                     SizedBox(width: dense ? 10 : 12),
                     Container(
@@ -861,6 +825,95 @@ class _PageTopBar extends ConsumerWidget {
       ),
     );
   }
+}
+
+/// Ayuda contextual reutilizable del encabezado de todos los módulos.
+void _showContextHelp(BuildContext context, WidgetRef ref) {
+  final path = GoRouterState.of(context).uri.path.toLowerCase();
+  final roles = ref.read(authControllerProvider).roles;
+  final branches = ref.read(branchScopeProvider).branches;
+  final title = _helpForPath(path);
+  showDialog<void>(
+    context: context,
+    builder: (dialogContext) => AlertDialog(
+      title: Text(title.$1),
+      content: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: 440),
+        child: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              ListTile(
+                contentPadding: EdgeInsets.zero,
+                leading: const Icon(Icons.tips_and_updates_outlined),
+                title: const Text('¿Qué puedo hacer aquí?'),
+                subtitle: Text(title.$2),
+              ),
+              if (roles.length > 1)
+                const ListTile(
+                  contentPadding: EdgeInsets.zero,
+                  leading: Icon(Icons.manage_accounts_outlined),
+                  title: Text('Cambiar vista por rol'),
+                  subtitle: Text('Desde el encabezado puedes elegir uno, varios o todos tus roles y ver sus opciones.'),
+                ),
+              if (branches.length > 1)
+                const ListTile(
+                  contentPadding: EdgeInsets.zero,
+                  leading: Icon(Icons.storefront_outlined),
+                  title: Text('Cambiar sucursal'),
+                  subtitle: Text('Selecciona el icono de tienda para consultar la información de otra sucursal autorizada.'),
+                ),
+            ],
+          ),
+        ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.of(dialogContext).pop(),
+          child: const Text('Entendido'),
+        ),
+      ],
+    ),
+  );
+}
+
+/// Orientaciones breves por área, sin reemplazar los permisos reales del usuario.
+(String, String) _helpForPath(String path) {
+  if (path.contains('mesa') || path.contains('mesero')) {
+    return ('Ayuda · Mesas', 'Consulta las mesas de la sucursal activa, abre ventas, organiza cuentas y agrega productos. Las acciones disponibles dependen de tu rol.');
+  }
+  if (path.contains('venta')) {
+    return ('Ayuda · Ventas', 'Consulta ventas y sus detalles, utiliza los filtros disponibles y revisa los resultados de la sucursal seleccionada.');
+  }
+  if (path.contains('producto')) {
+    return ('Ayuda · Productos', 'Busca productos, revisa sus tipos y marcas y administra el catálogo según los permisos de tu rol.');
+  }
+  if (path.contains('precio')) {
+    return ('Ayuda · Precios', 'Consulta precios de compra y venta y realiza ajustes cuando tu rol tenga autorización.');
+  }
+  if (path.contains('inventario') || path.contains('movimiento')) {
+    return ('Ayuda · Inventario', 'Consulta existencias, revisa movimientos y registra ajustes o conteos según las opciones habilitadas.');
+  }
+  if (path.contains('pedido')) {
+    return ('Ayuda · Pedidos', 'Prepara pedidos de compra, consulta su historial y confirma su recepción cuando corresponda.');
+  }
+  if (path.contains('caja') || path.contains('cierre')) {
+    return ('Ayuda · Caja', 'Revisa ventas, medios de pago y valores de caja; realiza el cierre con los permisos correspondientes.');
+  }
+  if (path.contains('reporte') || path.contains('ganancia')) {
+    return ('Ayuda · Reportes', 'Consulta indicadores y reportes y ajusta los filtros para analizar la información de tu sucursal.');
+  }
+  if (path.contains('usuario') || path.contains('rol')) {
+    return ('Ayuda · Usuarios y roles', 'Consulta usuarios, asignaciones y permisos, según tu perfil de acceso.');
+  }
+  if (path.contains('sucursal') || path.contains('empresa')) {
+    return ('Ayuda · Empresas y sucursales', 'Administra la información de las empresas y sucursales que tienes autorizadas.');
+  }
+  if (path.contains('suscrip') || path.contains('plan')) {
+    return ('Ayuda · Suscripción', 'Consulta tu plan y las opciones de suscripción disponibles para tu cuenta.');
+  }
+  return ('Ayuda · BarLytics', 'Usa el menú para navegar entre las funciones disponibles. Los módulos y operaciones que ves dependen de tus permisos.');
 }
 
 /// Selector en el encabezado, sin añadir otra franja vertical.
