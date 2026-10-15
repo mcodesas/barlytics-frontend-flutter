@@ -1,6 +1,7 @@
 class LoginResponseModel {
   const LoginResponseModel({
     required this.token,
+    this.refreshToken,
     this.userId,
     this.empresaId,
     this.sucursalId,
@@ -11,6 +12,7 @@ class LoginResponseModel {
   });
 
   final String token;
+  final String? refreshToken;
   final int? userId;
   final int? empresaId;
   final int? sucursalId;
@@ -21,6 +23,7 @@ class LoginResponseModel {
 
   factory LoginResponseModel.fromJson(Map<String, dynamic> json) => LoginResponseModel(
         token: json['token']?.toString() ?? '',
+        refreshToken: json['refreshToken']?.toString(),
         userId: (json['userId'] as num?)?.toInt(),
         empresaId: (json['empresaId'] as num?)?.toInt(),
         sucursalId: (json['sucursalId'] as num?)?.toInt(),
