@@ -8,6 +8,14 @@ class AuthRemoteDataSource {
   AuthRemoteDataSource(this._apiClient);
   final ApiClient _apiClient;
 
+  Future<List<String>> currentRoles() async {
+    final response = await _apiClient.get<List<String>>(
+      '/api/v1/me/roles',
+      (json) => (json as List).map((item) => item.toString()).toList(growable: false),
+    );
+    return response.data ?? const <String>[];
+  }
+
   Future<void> revokeDevice(String refreshToken) async {
     try {
       await _apiClient.post<void>(
