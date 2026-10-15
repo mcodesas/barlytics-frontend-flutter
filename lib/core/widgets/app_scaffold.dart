@@ -118,7 +118,11 @@ class _AppScaffoldState extends ConsumerState<AppScaffold> {
       if (mounted) ref.read(authControllerProvider.notifier).refreshAssignedRoles();
     });
     _rolesRefreshTimer = Timer.periodic(const Duration(seconds: 20), (_) {
-      if (mounted) ref.read(authControllerProvider.notifier).refreshAssignedRoles();
+      if (!mounted || !ref.read(authControllerProvider).authenticated) return;
+      ref.read(authControllerProvider.notifier).refreshAssignedRoles();
+      // Las asignaciones de sucursales también cambian independientemente
+      // de los roles. Nunca reutilizar una lista que quedó obsoleta.
+      ref.read(branchScopeProvider.notifier).load();
     });
   }
 
