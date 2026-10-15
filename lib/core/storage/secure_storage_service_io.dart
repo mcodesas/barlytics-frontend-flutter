@@ -3,6 +3,10 @@ import 'dart:io';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+class StorageKeysForMigration {
+  static const keys = ['auth_token', 'refresh_token', 'user_id', 'empresa_id', 'sucursal_id', 'email', 'roles', 'subscription_status', 'subscription_active', 'business_setup_complete'];
+}
+
 /// Almacenamiento de sesión para plataformas dart:io.
 ///
 /// En macOS local se usa SharedPreferences para evitar errores del Keychain
@@ -24,8 +28,16 @@ class SecureStorageService {
 
     String? value;
     if (Platform.isMacOS) {
-      final preferences = await SharedPreferences.getInstance();
-      value = preferences.getString(key);
+      // Migrar credenciales antiguas de preferencias al Keychain.
+      value = await _storage.read(key: key);
+      if (value == null) {
+        final preferences = await SharedPreferences.getInstance();
+        value = preferences.getString(key);
+        if (value != null) {
+          await _storage.write(key: key, value: value);
+          await preferences.remove(key);
+        }
+      }
     } else {
       value = await _storage.read(key: key);
     }
