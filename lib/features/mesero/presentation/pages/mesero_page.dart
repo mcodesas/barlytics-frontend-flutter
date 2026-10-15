@@ -16437,6 +16437,7 @@ class _PagarCuentaDialogState extends State<_PagarCuentaDialog> {
   final _formKey = GlobalKey<FormState>();
   final ScrollController _pagosScrollController = ScrollController();
   late final TextEditingController _propinaController;
+  bool _servicioSugeridoSeleccionado = false;
   late final List<_PagoFormRowData> _pagos;
   late double _ultimaPropinaSincronizada;
   bool _mostrarDetalleProductos = false;
@@ -16471,6 +16472,20 @@ class _PagarCuentaDialogState extends State<_PagarCuentaDialog> {
   double _parse(String value) => _parseCurrencyInput(value);
 
   double get _propina => _parse(_propinaController.text);
+
+  // Servicio sugerido, voluntario y calculado únicamente sobre productos pendientes
+  // de esta cuenta: evita cobrar propina dos veces por productos ya pagados.
+  double get _servicioSugerido => (_subtotalProductos * 0.10).roundToDouble();
+
+  void _seleccionarServicioSugerido(bool selected) {
+    setState(() {
+      _servicioSugeridoSeleccionado = selected;
+      _propinaController.text = selected
+          ? _formatCurrencyInputAmount(_servicioSugerido)
+          : '';
+      _sincronizarPagosPorCambioPropina();
+    });
+  }
 
   double get _propinaRegistrada => (widget.cuenta.propina ?? 0).toDouble();
 
@@ -17485,12 +17500,38 @@ class _PagarCuentaDialogState extends State<_PagarCuentaDialog> {
                     Text(
                       _propinaRegistrada > 0
                           ? 'Registrada ${CurrencyUtils.format(_propinaRegistrada)} · agrega solo una propina nueva si aplica.'
-                          : 'Agrega una propina si el cliente desea dejarla.',
+                          : 'El servicio del 10 % es sugerido y solo se agrega si el cliente lo acepta.',
                       style: TextStyle(color: palette.textSecondary, fontWeight: FontWeight.w600, fontSize: 12),
                     ),
                   ],
                 ),
               ),
+            ],
+          );
+
+          final controls = Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text('Servicio sugerido (10 %)', style: TextStyle(
+                fontWeight: FontWeight.w800, color: palette.textPrimary)),
+              const SizedBox(height: 4),
+              Text(
+                'Opcional y sujeto a la aceptación del cliente. Calculado sobre productos pendientes: ${CurrencyUtils.format(_subtotalProductos)}.',
+                style: TextStyle(color: palette.textSecondary, fontSize: 11.5),
+              ),
+              const SizedBox(height: 8),
+              Wrap(spacing: 8, runSpacing: 8, children: [
+                ChoiceChip(
+                  label: Text('Agregar 10 % · ${CurrencyUtils.format(_servicioSugerido)}'),
+                  selected: _servicioSugeridoSeleccionado,
+                  onSelected: (_) => _seleccionarServicioSugerido(!_servicioSugeridoSeleccionado),
+                ),
+                ChoiceChip(
+                  label: const Text('Sin servicio'),
+                  selected: !_servicioSugeridoSeleccionado && _propina == 0,
+                  onSelected: (_) => _seleccionarServicioSugerido(false),
+                ),
+              ]),
             ],
           );
 
@@ -17503,14 +17544,17 @@ class _PagarCuentaDialogState extends State<_PagarCuentaDialog> {
               hintText: '0',
               prefixIcon: Icon(Icons.attach_money_rounded),
             ),
-            onChanged: (_) => setState(_sincronizarPagosPorCambioPropina),
+            onChanged: (_) => setState(() {
+              _servicioSugeridoSeleccionado = false;
+              _sincronizarPagosPorCambioPropina();
+            }),
             validator: (value) => _parse(value ?? '') < 0 ? 'La propina no puede ser negativa' : null,
           );
 
           if (compact) {
-            return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [info, const SizedBox(height: 12), field]);
+            return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [info, const SizedBox(height: 12), controls, const SizedBox(height: 12), field]);
           }
-          return Row(children: [Expanded(child: info), const SizedBox(width: 14), SizedBox(width: 230, child: field)]);
+          return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [info, const SizedBox(height: 12), controls, const SizedBox(height: 12), field]);
         },
       ),
     );
