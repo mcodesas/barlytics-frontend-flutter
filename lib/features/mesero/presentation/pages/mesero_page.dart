@@ -151,6 +151,21 @@ String _formatIntegerWithThousands(String digits) {
   return buffer.toString();
 }
 
+bool _visibleEnCatalogoMesa(
+  MeseroProductoModel producto,
+  Set<int> idsAdiciones,
+) {
+  final control = (producto.tipoControl ?? '').trim().toUpperCase();
+  return control != 'INSUMO' ||
+      (producto.prodId != null && idsAdiciones.contains(producto.prodId));
+}
+
+Set<int> _idsAdiciones(List<MeseroProductoModel> productos) =>
+    productos.expand((producto) => producto.adiciones)
+        .map((adicion) => adicion.prodId)
+        .whereType<int>()
+        .toSet();
+
 class _CurrencyThousandsInputFormatter extends TextInputFormatter {
   const _CurrencyThousandsInputFormatter({
     required this.maxIntegerDigits,
@@ -473,21 +488,6 @@ class _MeseroPageState extends ConsumerState<MeseroPage> {
     resultado.sort((a, b) => (a.mesaNumero ?? 0).compareTo(b.mesaNumero ?? 0));
     return resultado;
   }
-
-bool _visibleEnCatalogoMesa(
-  MeseroProductoModel producto,
-  Set<int> idsAdiciones,
-) {
-  final control = (producto.tipoControl ?? '').trim().toUpperCase();
-  return control != 'INSUMO' ||
-      (producto.prodId != null && idsAdiciones.contains(producto.prodId));
-}
-
-Set<int> _idsAdiciones(List<MeseroProductoModel> productos) =>
-    productos.expand((producto) => producto.adiciones)
-        .map((adicion) => adicion.prodId)
-        .whereType<int>()
-        .toSet();
 
   List<MeseroProductoModel> get _productosFiltrados {
     final idsAdiciones = _idsAdiciones(_productos);
