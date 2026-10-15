@@ -1986,11 +1986,11 @@ class _MeseroPageState extends ConsumerState<MeseroPage> {
     );
   }
 
-  Future<void> _mostrarDetalleHistorialVenta(MeseroVentaModel venta) async {
+  Future<void> _mostrarDetalleHistorialVenta(MeseroVentaModel venta, {String? comprobanteInicial}) async {
     await Navigator.of(context, rootNavigator: true).push<void>(
       MaterialPageRoute(
         fullscreenDialog: false,
-        builder: (_) => _DetalleHistorialVentaPage(venta: venta),
+        builder: (_) => _DetalleHistorialVentaPage(venta: venta, imprimirAlAbrir: comprobanteInicial == 'imprimir', enviarCorreoAlAbrir: comprobanteInicial == 'correo'),
       ),
     );
     if (mounted) {
@@ -2412,6 +2412,25 @@ class _MeseroPageState extends ConsumerState<MeseroPage> {
               ? null
               : () => _limpiarVentaSinConsumos(venta),
         ),
+        if (venta.ventaId != null && (venta.totalPagado ?? 0) > 0.009) ...[
+          const SizedBox(height: 10),
+          Wrap(
+            spacing: 10,
+            runSpacing: 8,
+            children: [
+              OutlinedButton.icon(
+                onPressed: _processing ? null : () => _mostrarDetalleHistorialVenta(venta, comprobanteInicial: 'imprimir'),
+                icon: const Icon(Icons.print_outlined),
+                label: const Text('Imprimir ticket'),
+              ),
+              OutlinedButton.icon(
+                onPressed: _processing ? null : () => _mostrarDetalleHistorialVenta(venta, comprobanteInicial: 'correo'),
+                icon: const Icon(Icons.email_outlined),
+                label: const Text('Enviar por correo'),
+              ),
+            ],
+          ),
+        ],
         const SizedBox(height: 18),
         Container(
           decoration: BoxDecoration(
@@ -14733,10 +14752,11 @@ List<_FacturaProductoAgrupado> _agruparProductosFactura(Iterable<MeseroDetallePr
 }
 
 class _DetalleHistorialVentaPage extends ConsumerStatefulWidget {
-  const _DetalleHistorialVentaPage({required this.venta, this.imprimirAlAbrir = false});
+  const _DetalleHistorialVentaPage({required this.venta, this.imprimirAlAbrir = false, this.enviarCorreoAlAbrir = false});
 
   final MeseroVentaModel venta;
   final bool imprimirAlAbrir;
+  final bool enviarCorreoAlAbrir;
 
   @override
   ConsumerState<_DetalleHistorialVentaPage> createState() => _DetalleHistorialVentaPageState();
@@ -14752,9 +14772,14 @@ class _DetalleHistorialVentaPageState extends ConsumerState<_DetalleHistorialVen
     super.initState();
     _venta = widget.venta;
     _dataSource = MeseroRemoteDataSource(ref.read(apiClientProvider));
-    if (widget.imprimirAlAbrir) {
+    if (widget.imprimirAlAbrir || widget.enviarCorreoAlAbrir) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (mounted) _imprimirTicketTermico();
+        if (!mounted) return;
+        if (widget.imprimirAlAbrir) {
+          _imprimirTicketTermico();
+        } else {
+          _enviarComprobanteCorreo();
+        }
       });
     }
   }
