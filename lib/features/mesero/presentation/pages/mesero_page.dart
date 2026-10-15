@@ -3883,6 +3883,9 @@ class _MeseroPageState extends ConsumerState<MeseroPage> {
           ),
         ),
       );
+      if ((updated.saldoPendiente ?? 0) <= 0.009 && updated.ventaId != null) {
+        await _ofrecerComprobantePorCorreo(updated.ventaId!);
+      }
       return true;
     } catch (error) {
       if (!mounted) return false;
@@ -3890,6 +3893,58 @@ class _MeseroPageState extends ConsumerState<MeseroPage> {
       return false;
     } finally {
       if (mounted) setState(() => _processing = false);
+    }
+  }
+
+  Future<void> _ofrecerComprobantePorCorreo(int ventaId) async {
+    if (!mounted) return;
+    final correoController = TextEditingController();
+    final email = await showDialog<String>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('¿Enviar comprobante al cliente?'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Text('Es opcional. El cliente debe proporcionar su correo para recibir el resumen de la venta.'),
+            const SizedBox(height: 12),
+            TextField(
+              controller: correoController,
+              keyboardType: TextInputType.emailAddress,
+              decoration: const InputDecoration(labelText: 'Correo del cliente'),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Ahora no')),
+          FilledButton(onPressed: () {
+            final value = correoController.text.trim();
+            if (value.contains('@') && value.split('@').length == 2 && value.split('@').last.contains('.')) {
+              Navigator.pop(ctx, value);
+            } else {
+              ScaffoldMessenger.of(ctx).showSnackBar(
+                const SnackBar(content: Text('Ingresa un correo válido')),
+              );
+            }
+          }, child: const Text('Enviar')),
+        ],
+      ),
+    );
+    correoController.dispose();
+    if (email == null || !mounted) return;
+    try {
+      await ref.read(apiClientProvider).post<void>(
+        '/api/v1/mesero/ventas/$ventaId/comprobante/email',
+        {'email': email},
+        (_) => null,
+      );
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Comprobante enviado por correo')),
+      );
+    } catch (error) {
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('No se pudo enviar el correo: $error')),
+      );
     }
   }
 
