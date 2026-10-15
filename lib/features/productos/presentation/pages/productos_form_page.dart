@@ -1218,7 +1218,6 @@ class _ProductosFormPageState extends ConsumerState<ProductosFormPage> {
                     ),
                     TextFormField(
                       controller: quantityController,
-                      initialValue: null,
                       keyboardType: const TextInputType.numberWithOptions(decimal: true),
                       inputFormatters: InputConstraints.decimalFormatters(integerDigits: 13, fractionDigits: 4),
                       decoration: const InputDecoration(labelText: 'Cantidad por preparación'),
