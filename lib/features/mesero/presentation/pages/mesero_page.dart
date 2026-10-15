@@ -1915,10 +1915,8 @@ class _MeseroPageState extends ConsumerState<MeseroPage> {
         }
 
         final ventas = snapshot.data ?? _historialVentas;
-        if (ventas.isEmpty) {
-          return const AppEmptyView(message: 'No hay ventas registradas para la fecha seleccionada. Prueba con otra fecha o selecciona «Todos los días».');
-        }
-
+        // Mantener visibles los controles de fecha incluso si el día no tiene ventas.
+        // Así se puede salir del estado vacío seleccionando otro día.
         final ventasFiltradas = _filtrarYOrdenarHistorial(ventas);
         final totalVendido = ventasFiltradas.fold<double>(0, (sum, venta) => sum + (venta.total ?? 0));
         final totalPagado = ventasFiltradas.fold<double>(0, (sum, venta) => sum + (venta.totalPagado ?? (venta.pagada == true ? (venta.total ?? 0) : 0)));
