@@ -2413,22 +2413,45 @@ class _MeseroPageState extends ConsumerState<MeseroPage> {
               : () => _limpiarVentaSinConsumos(venta),
         ),
         if (venta.ventaId != null && (venta.totalPagado ?? 0) > 0.009) ...[
-          const SizedBox(height: 10),
-          Wrap(
-            spacing: 10,
-            runSpacing: 8,
-            children: [
-              OutlinedButton.icon(
-                onPressed: _processing ? null : () => _mostrarDetalleHistorialVenta(venta, comprobanteInicial: 'imprimir'),
-                icon: const Icon(Icons.print_outlined),
-                label: const Text('Imprimir ticket'),
+          const SizedBox(height: 12),
+          Align(
+            alignment: Alignment.centerRight,
+            child: PopupMenuButton<String>(
+              tooltip: 'Opciones de comprobante',
+              enabled: !_processing,
+              onSelected: (opcion) => _mostrarDetalleHistorialVenta(venta, comprobanteInicial: opcion),
+              itemBuilder: (context) => const [
+                PopupMenuItem(
+                  value: 'imprimir',
+                  child: ListTile(
+                    contentPadding: EdgeInsets.zero,
+                    leading: Icon(Icons.print_outlined),
+                    title: Text('Imprimir ticket'),
+                  ),
+                ),
+                PopupMenuItem(
+                  value: 'correo',
+                  child: ListTile(
+                    contentPadding: EdgeInsets.zero,
+                    leading: Icon(Icons.email_outlined),
+                    title: Text('Enviar por correo'),
+                  ),
+                ),
+              ],
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(Icons.receipt_long_outlined, size: 18, color: palette.secondary),
+                    const SizedBox(width: 7),
+                    Text('Comprobante', style: TextStyle(color: palette.secondary, fontWeight: FontWeight.w800)),
+                    const SizedBox(width: 3),
+                    Icon(Icons.keyboard_arrow_down_rounded, size: 20, color: palette.secondary),
+                  ],
+                ),
               ),
-              OutlinedButton.icon(
-                onPressed: _processing ? null : () => _mostrarDetalleHistorialVenta(venta, comprobanteInicial: 'correo'),
-                icon: const Icon(Icons.email_outlined),
-                label: const Text('Enviar por correo'),
-              ),
-            ],
+            ),
           ),
         ],
         const SizedBox(height: 18),
