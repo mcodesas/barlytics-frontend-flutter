@@ -2508,7 +2508,7 @@ class _LookupRow<T> extends StatelessWidget {
       children: [
         Expanded(
           child: DropdownButtonFormField<int>(
-            value: items.any((item) => itemId(item) == value) ? value : null,
+            value: allowNone && (value == null || !items.any((item) => itemId(item) == value)) ? -1 : (items.any((item) => itemId(item) == value) ? value : null),
             isExpanded: true,
             decoration: InputDecoration(
               labelText: label,
@@ -2520,11 +2520,11 @@ class _LookupRow<T> extends StatelessWidget {
               border: OutlineInputBorder(borderRadius: BorderRadius.circular(14), borderSide: BorderSide(color: palette.cardBorder)),
             ),
             items: [
-              if (allowNone) const DropdownMenuItem<int>(value: null, child: Text('Ninguna')),
+              if (allowNone) const DropdownMenuItem<int>(value: -1, child: Text('Ninguna')),
               for (final item in items.where((item) => !allowNone || itemLabel(item).trim().toLowerCase() != 'ninguna'))
                 DropdownMenuItem<int>(value: itemId(item), child: Text(itemLabel(item), overflow: TextOverflow.ellipsis)),
             ],
-            onChanged: onChanged,
+            onChanged: allowNone ? (value) => onChanged(value == -1 ? null : value) : onChanged,
           ),
         ),
         const SizedBox(width: 10),
