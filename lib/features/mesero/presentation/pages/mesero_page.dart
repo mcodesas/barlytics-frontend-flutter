@@ -2386,6 +2386,64 @@ class _MeseroPageState extends ConsumerState<MeseroPage> {
     );
   }
 
+  Future<void> _reimprimirComandaCocina(MeseroVentaModel venta, MeseroCuentaModel cuenta) async {
+    final sucursalId = venta.sucursalId;
+    final cuentaId = cuenta.cuentaId;
+    if (sucursalId == null || cuentaId == null || _processing) return;
+    setState(() => _processing = true);
+    try {
+      final response = await ref.read(apiClientProvider).get<List<dynamic>>(
+        '/api/v1/comandas',
+        (json) => json is List ? json : <dynamic>[],
+        queryParameters: {'sucursalId': sucursalId},
+      );
+      final detalles = (response.data ?? <dynamic>[])
+          .whereType<Map>()
+          .map((item) => Map<String, dynamic>.from(item))
+          .where((item) => item['cuentaId'] == cuentaId && item['fechaEnvio'] != null)
+          .toList();
+      if (!mounted) return;
+      if (detalles.isEmpty) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Esta cuenta todavía no tiene comandas enviadas.')),
+        );
+        return;
+      }
+      final ticket = StringBuffer()
+        ..writeln('REIMPRESION COMANDA')
+        ..writeln('--------------------------------')
+        ..writeln(_ventaEsDirecta(venta) ? 'VENTA DIRECTA' : 'MESA ${venta.mesaNumero ?? "-"}')
+        ..writeln(_cuentaNombreVisible(cuenta))
+        ..writeln('Venta #${venta.ventaId ?? "-"}')
+        ..writeln('--------------------------------');
+      for (final item in detalles) {
+        ticket.writeln('${item['cantidad'] ?? 0} x ${item['productoNombre'] ?? 'Producto'}');
+        final nota = (item['personalizacion'] ?? '').toString().trim();
+        if (nota.isNotEmpty) ticket.writeln('  ${nota.replaceAll(RegExp(r'[\\r\\n]+'), ' ')}');
+      }
+      final printed = await printTicketOverLan(
+        context,
+        sucursalId,
+        ticket.toString(),
+        autoPrintIfConfigured: true,
+        station: 'cocina',
+      );
+      if (mounted && printed) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Comanda reimpresa correctamente.')),
+        );
+      }
+    } catch (error) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('No fue posible reimprimir la comanda: $error')),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _processing = false);
+    }
+  }
+
   Future<void> _enviarComandaCocina(MeseroVentaModel venta, MeseroCuentaModel cuenta) async {
     final sucursalId = venta.sucursalId;
     final cuentaId = cuenta.cuentaId;
@@ -2430,6 +2488,7 @@ class _MeseroPageState extends ConsumerState<MeseroPage> {
         sucursalId,
         ticket.toString(),
         autoPrintIfConfigured: true,
+        station: 'cocina',
       );
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
@@ -2616,6 +2675,15 @@ class _MeseroPageState extends ConsumerState<MeseroPage> {
                     onPressed: _processing ? null : () => _enviarComandaCocina(venta, cuentaSeleccionada),
                     icon: const Icon(Icons.soup_kitchen_rounded),
                     label: const Text('Enviar comanda a cocina'),
+                  ),
+                ),
+                const SizedBox(height: 8),
+                Align(
+                  alignment: Alignment.centerRight,
+                  child: TextButton.icon(
+                    onPressed: _processing ? null : () => _reimprimirComandaCocina(venta, cuentaSeleccionada),
+                    icon: const Icon(Icons.print_outlined),
+                    label: const Text('Reimprimir comanda'),
                   ),
                 ),
                 const SizedBox(height: 12),
