@@ -8,6 +8,7 @@ import 'package:flutter/services.dart';
 import 'package:intl/intl.dart';
 import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
+import 'package:printing/printing.dart';
 
 import '../../../../app/theme/app_control_metrics.dart';
 import '../../../../app/theme/app_colors.dart';
@@ -14711,6 +14712,65 @@ class _DetalleHistorialVentaPageState extends ConsumerState<_DetalleHistorialVen
     _dataSource = MeseroRemoteDataSource(ref.read(apiClientProvider));
   }
 
+  bool _imprimiendoTicket = false;
+
+  Future<void> _imprimirTicketTermico() async {
+    if (_imprimiendoTicket) return;
+    setState(() => _imprimiendoTicket = true);
+    try {
+      final venta = _venta;
+      final pdf = pw.Document();
+      final items = venta.cuentas.expand((cuenta) => cuenta.productos).toList();
+      final subtotal = items.fold<double>(0, (sum, producto) => sum + _detalleProductoSubtotal(producto));
+      final propina = venta.propina ?? venta.cuentas.fold<double>(0, (sum, cuenta) => sum + (cuenta.propina ?? 0));
+      final total = venta.total ?? (subtotal + propina);
+      final pagado = venta.totalPagado ?? 0;
+      final pagos = venta.cuentas.expand((cuenta) => cuenta.pagos).toList();
+      final pageHeight = (145.0 + items.length * 15 + pagos.length * 13).clamp(200.0, 2000.0);
+      pdf.addPage(pw.Page(
+        pageFormat: PdfPageFormat(80 * PdfPageFormat.mm, pageHeight * PdfPageFormat.mm, marginAll: 5 * PdfPageFormat.mm),
+        build: (context) => pw.Column(
+          crossAxisAlignment: pw.CrossAxisAlignment.start,
+          children: [
+            pw.Center(child: pw.Text('BARLYTICS', style: pw.TextStyle(fontSize: 15, fontWeight: pw.FontWeight.bold))),
+            pw.Center(child: pw.Text('Comprobante de venta', style: const pw.TextStyle(fontSize: 10))),
+            pw.SizedBox(height: 8),
+            pw.Text('Venta #${venta.ventaId ?? "-"}', style: pw.TextStyle(fontWeight: pw.FontWeight.bold)),
+            pw.Text('Fecha: ${venta.fecha ?? ""}', style: const pw.TextStyle(fontSize: 8)),
+            pw.Text('Sucursal #${venta.sucursalId ?? "-"}', style: const pw.TextStyle(fontSize: 8)),
+            pw.Divider(),
+            ...items.map((item) => pw.Padding(
+              padding: const pw.EdgeInsets.only(bottom: 4),
+              child: pw.Row(children: [
+                pw.Expanded(child: pw.Text('${item.productoNombre ?? "Producto"} x${item.cantidad ?? 0}', style: const pw.TextStyle(fontSize: 8))),
+                pw.Text(CurrencyUtils.format(_detalleProductoSubtotal(item)), style: const pw.TextStyle(fontSize: 8)),
+              ]),
+            )),
+            pw.Divider(),
+            pw.Text('Productos: ${CurrencyUtils.format(subtotal)}', style: const pw.TextStyle(fontSize: 9)),
+            pw.Text('Servicio / propina: ${CurrencyUtils.format(propina)}', style: const pw.TextStyle(fontSize: 9)),
+            pw.Text('TOTAL: ${CurrencyUtils.format(total)}', style: pw.TextStyle(fontSize: 12, fontWeight: pw.FontWeight.bold)),
+            pw.Text('Pagado: ${CurrencyUtils.format(pagado)}', style: const pw.TextStyle(fontSize: 9)),
+            pw.SizedBox(height: 6),
+            pw.Center(child: pw.Text('Gracias por tu compra', style: const pw.TextStyle(fontSize: 9))),
+            pw.Center(child: pw.Text('Comprobante informativo. No equivale a factura electrónica DIAN.', textAlign: pw.TextAlign.center, style: const pw.TextStyle(fontSize: 7))),
+          ],
+        ),
+      ));
+      await Printing.layoutPdf(
+        onLayout: (_) => pdf.save(),
+        name: 'ticket_venta_${venta.ventaId ?? 0}',
+        format: PdfPageFormat(80 * PdfPageFormat.mm, pageHeight * PdfPageFormat.mm),
+      );
+    } catch (error) {
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('No fue posible imprimir el ticket: $error')),
+      );
+    } finally {
+      if (mounted) setState(() => _imprimiendoTicket = false);
+    }
+  }
+
   bool _enviandoComprobante = false;
 
   Future<void> _enviarComprobanteCorreo() async {
@@ -14898,6 +14958,11 @@ class _DetalleHistorialVentaPageState extends ConsumerState<_DetalleHistorialVen
         iconTheme: IconThemeData(color: palette.onTitle),
         titleSpacing: 0,
         actions: [
+          IconButton(
+            tooltip: 'Imprimir ticket de 80 mm',
+            onPressed: _imprimiendoTicket ? null : _imprimirTicketTermico,
+            icon: const Icon(Icons.print_outlined),
+          ),
           IconButton(
             tooltip: 'Enviar comprobante por correo',
             onPressed: _enviandoComprobante ? null : _enviarComprobanteCorreo,
