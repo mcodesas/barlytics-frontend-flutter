@@ -544,9 +544,7 @@ class _ProductosFormPageState extends ConsumerState<ProductosFormPage> {
                       inputFormatters: InputConstraints.decimalFormatters(integerDigits: 15, fractionDigits: 0),
                       icon: Icons.payments_rounded,
                       keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                      validator: _tipoControl == 'INSUMO'
-                          ? _requiredPositiveOrZero
-                          : _requiredPositive,
+                      validator: _requiredPositiveOrZero,
                       onChanged: (_) => setState(() {}),
                     ),
                   ),
@@ -1518,15 +1516,11 @@ class _ProductosFormPageState extends ConsumerState<ProductosFormPage> {
         ? purchasePrice / purchaseQuantity!
         : purchasePrice;
 
-    if (_tipoControl == 'INSUMO') {
-      if (salePrice < 0) {
-        _showError('El precio de venta del insumo no puede ser negativo.');
-        return false;
-      }
-      return true;
+    if (salePrice < 0) {
+      _showError('El precio de venta no puede ser negativo.');
+      return false;
     }
-
-    if (salePrice < unitPurchasePrice) {
+    if (salePrice > 0 && _tipoControl != 'INSUMO' && salePrice < unitPurchasePrice) {
       _showError(
         'El precio de venta no puede ser menor que el costo unitario de compra.',
       );
