@@ -5532,9 +5532,10 @@ class _SalidaCajaDialogState extends State<_SalidaCajaDialog> {
     }
     if (_tipo == 'PAGO_PEDIDO') {
       final pedido = _pedido;
-      return pedido != null &&
-          _medioPagoId != null &&
-          _valor <= pedido.saldoPendiente + .01;
+      return _medioPagoId != null &&
+          (pedido != null
+              ? _valor <= pedido.saldoPendiente + .01
+              : _descripcionController.text.trim().isNotEmpty);
     }
     return _descripcionController.text.trim().isNotEmpty;
   }
@@ -5718,7 +5719,8 @@ class _SalidaCajaDialogState extends State<_SalidaCajaDialog> {
             value: _pedidoId,
             isExpanded: true,
             decoration: const InputDecoration(
-              labelText: 'Pedido a pagar',
+              labelText: 'Pedido registrado (opcional)',
+              helperText: 'Si la compra fue fuera de BarLytics, deja el pedido sin seleccionar.',
               prefixIcon: Icon(Icons.inventory_2_outlined),
             ),
             items: widget.opciones.pedidosPendientes
@@ -5749,6 +5751,13 @@ class _SalidaCajaDialogState extends State<_SalidaCajaDialog> {
           if (_pedido != null) ...[
             const SizedBox(height: 10),
             _SalidaPedidoResumen(pedido: _pedido!, palette: palette),
+          ],
+          if (_pedidoId == null) ...[
+            const SizedBox(height: 12),
+            Text(
+              'Pedido externo: registra el valor, el medio de pago y una descripción. No se modificará el inventario ni se asociará a un pedido del sistema.',
+              style: TextStyle(color: palette.textSecondary, fontSize: 12),
+            ),
           ],
           const SizedBox(height: 12),
           DropdownButtonFormField<int>(
@@ -5799,9 +5808,10 @@ class _SalidaCajaDialogState extends State<_SalidaCajaDialog> {
           TextField(
             controller: _descripcionController,
             maxLength: 300,
-            decoration: const InputDecoration(
-              labelText: 'Nota opcional',
-              hintText: 'Ej. Abono factura proveedor',
+            onChanged: (_) => setState(() {}),
+            decoration: InputDecoration(
+              labelText: _pedidoId == null ? 'Descripción del pedido externo *' : 'Nota opcional',
+              hintText: 'Ej. Compra de bebidas al proveedor',
               counterText: '',
               prefixIcon: Icon(Icons.notes_rounded),
             ),
@@ -6819,7 +6829,9 @@ class _SalidaCajaRow extends StatelessWidget {
       _ => Icons.shopping_bag_outlined,
     };
     final label = switch (type) {
-      'PAGO_PEDIDO' => 'Pago pedido #' + (salida.pedidoId?.toString() ?? '-'),
+      'PAGO_PEDIDO' => salida.pedidoId == null
+          ? 'Pago de pedido externo'
+          : 'Pago pedido #${salida.pedidoId}',
       'PAGO_GASTO' => 'Pago de factura/gasto',
       _ => 'Gasto del turno',
     };
