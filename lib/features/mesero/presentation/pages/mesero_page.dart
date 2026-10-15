@@ -10,6 +10,7 @@ import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
 import 'package:printing/printing.dart';
 import '../../../../core/printing/network_ticket_dialog.dart';
+import '../../../../core/branch/branch_scope_provider.dart';
 
 import '../../../../app/theme/app_control_metrics.dart';
 import '../../../../app/theme/app_colors.dart';
@@ -14812,6 +14813,17 @@ class _DetalleHistorialVentaPageState extends ConsumerState<_DetalleHistorialVen
 
   bool _imprimiendoTicket = false;
 
+  String _nombreSucursalTicket(int? sucursalId) {
+    final sucursales = ref.read(branchScopeProvider).branches;
+    for (final sucursal in sucursales) {
+      if (sucursal.sucuId == sucursalId) {
+        final nombre = (sucursal.sucuNombre ?? '').trim();
+        if (nombre.isNotEmpty) return nombre;
+      }
+    }
+    return sucursalId == null ? 'Sucursal' : 'Sucursal #$sucursalId';
+  }
+
   Future<void> _imprimirTicketTermico() async {
     if (_imprimiendoTicket) return;
     final method = await showModalBottomSheet<String>(
@@ -14843,7 +14855,7 @@ class _DetalleHistorialVentaPageState extends ConsumerState<_DetalleHistorialVen
           ..writeln('BARLYTICS')
           ..writeln('COMPROBANTE DE VENTA')
           ..writeln('Venta #${venta.ventaId ?? "-"}')
-          ..writeln('Sucursal #${venta.sucursalId ?? "-"}')
+          ..writeln(_nombreSucursalTicket(venta.sucursalId))
           ..writeln('Fecha: ${venta.fecha ?? "-"}')
           ..writeln('--------------------------------');
         for (final item in items) {
@@ -14898,7 +14910,7 @@ class _DetalleHistorialVentaPageState extends ConsumerState<_DetalleHistorialVen
             pw.SizedBox(height: 8),
             pw.Text('Venta #${venta.ventaId ?? "-"}', style: pw.TextStyle(fontWeight: pw.FontWeight.bold)),
             pw.Text('Fecha: ${venta.fecha ?? ""}', style: const pw.TextStyle(fontSize: 8)),
-            pw.Text('Sucursal #${venta.sucursalId ?? "-"}', style: const pw.TextStyle(fontSize: 8)),
+            pw.Text(_nombreSucursalTicket(venta.sucursalId), style: const pw.TextStyle(fontSize: 8)),
             pw.Divider(),
             ...items.map((item) => pw.Padding(
               padding: const pw.EdgeInsets.only(bottom: 4),
