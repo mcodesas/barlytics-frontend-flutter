@@ -19,6 +19,14 @@ Cada caso `QA-nnn` se prueba en **cuatro entornos independientes**, en **tres ro
 
 En cada caso anotar: fecha, ID, ronda, plataforma/dispositivo, versión, rol, sucursal de prueba, pasos, esperado, obtenido, evidencia, incidencia y commit de corrección. Estado: `PENDIENTE`, `EN PRUEBA`, `APROBADO`, `FALLÓ`, `BLOQUEADO` o `NO APLICA`.
 
+## Registro de ejecuciones
+
+| Fecha | Caso | Entorno | Ronda | Estado | Observaciones |
+| --- | --- | --- | --- | --- | --- |
+| 2026-10-15 | QA-001 | Web | 1 — Funcional | **APROBADO** | Ninguna (resultado informado por el usuario) |
+
+**Avance verificable:** 1 de 12 combinaciones de ronda/entorno de QA-001; los demás entornos y rondas permanecen pendientes. El caso maestro QA-001 no se marca completo hasta cubrir las combinaciones aplicables.
+
 ## Catálogo de casos
 
 ### Acceso y seguridad
