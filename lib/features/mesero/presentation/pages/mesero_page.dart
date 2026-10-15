@@ -9,6 +9,7 @@ import 'package:intl/intl.dart';
 import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
 import 'package:printing/printing.dart';
+import '../../../../core/printing/network_ticket_dialog.dart';
 
 import '../../../../app/theme/app_control_metrics.dart';
 import '../../../../app/theme/app_colors.dart';
@@ -14716,8 +14717,58 @@ class _DetalleHistorialVentaPageState extends ConsumerState<_DetalleHistorialVen
 
   Future<void> _imprimirTicketTermico() async {
     if (_imprimiendoTicket) return;
+    final method = await showModalBottomSheet<String>(
+      context: context,
+      builder: (sheet) => SafeArea(child: Column(mainAxisSize: MainAxisSize.min, children: [
+        ListTile(
+          leading: const Icon(Icons.wifi_rounded),
+          title: const Text('Imprimir por Wi-Fi / LAN'),
+          subtitle: const Text('Impresora térmica ESC/POS por IP'),
+          onTap: () => Navigator.pop(sheet, 'lan'),
+        ),
+        ListTile(
+          leading: const Icon(Icons.print_outlined),
+          title: const Text('Imprimir con el sistema'),
+          subtitle: const Text('Impresora instalada o servicio de impresión'),
+          onTap: () => Navigator.pop(sheet, 'system'),
+        ),
+      ])),
+    );
+    if (method == null || !mounted) return;
     setState(() => _imprimiendoTicket = true);
     try {
+      if (method == 'lan') {
+        final venta = _venta;
+        final items = venta.cuentas.expand((cuenta) => cuenta.productos).toList();
+        final subtotal = items.fold<double>(0, (sum, item) => sum + _detalleProductoSubtotal(item));
+        final propina = venta.propina ?? venta.cuentas.fold<double>(0, (sum, cuenta) => sum + (cuenta.propina ?? 0));
+        final ticket = StringBuffer()
+          ..writeln('BARLYTICS')
+          ..writeln('COMPROBANTE DE VENTA')
+          ..writeln('Venta #${venta.ventaId ?? "-"}')
+          ..writeln('Sucursal #${venta.sucursalId ?? "-"}')
+          ..writeln('Fecha: ${venta.fecha ?? "-"}')
+          ..writeln('--------------------------------');
+        for (final item in items) {
+          ticket.writeln('${item.cantidad ?? 0} x ${item.productoNombre ?? "Producto"}');
+          ticket.writeln('  ${CurrencyUtils.format(_detalleProductoSubtotal(item))}');
+        }
+        ticket
+          ..writeln('--------------------------------')
+          ..writeln('Subtotal: ${CurrencyUtils.format(subtotal)}')
+          ..writeln('Servicio/propina: ${CurrencyUtils.format(propina)}')
+          ..writeln('TOTAL: ${CurrencyUtils.format(venta.total ?? subtotal + propina)}')
+          ..writeln('Pagado: ${CurrencyUtils.format(venta.totalPagado ?? 0)}')
+          ..writeln()
+          ..writeln('Gracias por tu compra')
+          ..writeln('Comprobante informativo. No es')
+          ..writeln('factura electronica DIAN.');
+        final printed = await printTicketOverLan(context, venta.sucursalId ?? 0, ticket.toString());
+        if (printed && mounted) ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Ticket enviado a la impresora de red')),
+        );
+        return;
+      }
       final venta = _venta;
       final pdf = pw.Document();
       final items = venta.cuentas.expand((cuenta) => cuenta.productos).toList();
