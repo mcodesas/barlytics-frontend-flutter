@@ -5675,7 +5675,13 @@ class _ProductEditBottomSheetState extends State<_ProductEditBottomSheet> {
   @override
   Widget build(BuildContext context) {
     final palette = widget.palette;
-    final typeItems = widget.tipos
+    final orderedTypes = [...widget.tipos]..sort((a, b) {
+      final first = (a.tpprNombre ?? '').trim().toLowerCase() == 'otro';
+      final second = (b.tpprNombre ?? '').trim().toLowerCase() == 'otro';
+      if (first != second) return first ? -1 : 1;
+      return (a.tpprNombre ?? '').toLowerCase().compareTo((b.tpprNombre ?? '').toLowerCase());
+    });
+    final typeItems = orderedTypes
         .where((item) => item.tpprId != null)
         .map(
           (item) => DropdownMenuItem<int>(
