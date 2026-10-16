@@ -61,7 +61,8 @@ class AuthInterceptor extends Interceptor {
     // evita que /auth/google/config falle con 401 al volver al login después
     // de que una sesión haya expirado y desaparezca el botón de Google.
     final isPublicRequest = _publicPaths.contains(options.path);
-    if (_native) options.headers['X-BarLytics-Platform'] = _platform;
+    // Web también recibe una sesión renovable para persistir al cerrar el navegador.
+    options.headers['X-BarLytics-Platform'] = kIsWeb ? 'web' : _platform;
     final explicitAuthorization =
         options.headers['Authorization']?.toString().trim();
 
@@ -101,9 +102,14 @@ class AuthInterceptor extends Interceptor {
     // mostrar el error funcional sin expulsar al usuario.
     final mustInvalidateSession = hadAuthenticatedRequest && statusCode == 401;
 
-    if (mustInvalidateSession && _native && err.requestOptions.extra['sessionRetried'] != true) {
-      final refreshed = await (_refreshInFlight ??= _refreshDeviceSession());
-      _refreshInFlight = null;
+    if (mustInvalidateSession && err.requestOptions.extra['sessionRetried'] != true) {
+      final pendingRefresh = _refreshInFlight ??= _refreshDeviceSession();
+      bool refreshed;
+      try {
+        refreshed = await pendingRefresh;
+      } finally {
+        if (identical(_refreshInFlight, pendingRefresh)) _refreshInFlight = null;
+      }
       if (refreshed) {
         try {
           final token = await _storage.read(StorageKeys.authToken);

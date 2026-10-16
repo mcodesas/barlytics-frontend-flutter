@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -106,6 +107,30 @@ class AppScaffold extends ConsumerStatefulWidget {
 class _AppScaffoldState extends ConsumerState<AppScaffold> {
   bool _mainMenuCollapsed = true;
   bool _guideScheduled = false;
+  Timer? _rolesRefreshTimer;
+
+  @override
+  void initState() {
+    super.initState();
+    // El administrador puede modificar los roles en otra sesión.
+    // Actualizamos los menús del usuario sin pedirle que vuelva a iniciar sesión.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) ref.read(authControllerProvider.notifier).refreshAssignedRoles();
+    });
+    _rolesRefreshTimer = Timer.periodic(const Duration(seconds: 20), (_) {
+      if (!mounted || !ref.read(authControllerProvider).authenticated) return;
+      ref.read(authControllerProvider.notifier).refreshAssignedRoles();
+      // Las asignaciones de sucursales también cambian independientemente
+      // de los roles. Nunca reutilizar una lista que quedó obsoleta.
+      ref.read(branchScopeProvider.notifier).load();
+    });
+  }
+
+  @override
+  void dispose() {
+    _rolesRefreshTimer?.cancel();
+    super.dispose();
+  }
 
   void _scheduleHeaderGuide({required bool hasRoles, required bool hasBranches}) {
     if (_guideScheduled || (!hasRoles && !hasBranches)) return;
@@ -420,6 +445,7 @@ String _resolveCurrentPageTitle(
     '/roles_personalizados': 'Roles personalizados',
     '/empresas': 'Empresas',
     '/sucursales': 'Sucursales',
+    '/catalogo_maestro': 'Catálogo maestro de productos',
     '/ventas': 'Ventas',
     '/regiones': 'Regiones',
     '/zonas_horarias': 'Zonas horarias',
@@ -650,6 +676,8 @@ class _PageTopBar extends ConsumerWidget {
     final compact = MediaQuery.sizeOf(context).width < 780;
     final showRichHeader = subtitle != null || eyebrow != null || statusText != null || leadingContentIcon != null;
     final barHeight = heightFor(dense);
+    final displayTitle = compact && title == 'Historial de ventas' ? 'Historial' : title;
+    final showLeadingIcon = leadingContentIcon != null && !(compact && title == 'Historial de ventas');
 
     return Container(
       height: barHeight,
@@ -691,7 +719,7 @@ class _PageTopBar extends ConsumerWidget {
               ),
               child: Row(
                 children: [
-                  if (leadingContentIcon != null) ...[
+                  if (showLeadingIcon) ...[
                     Container(
                       width: dense ? (compact ? 38 : 42) : (compact ? 40 : 46),
                       height: dense ? (compact ? 38 : 42) : (compact ? 40 : 46),
@@ -741,7 +769,7 @@ class _PageTopBar extends ConsumerWidget {
                                   ],
                                   Expanded(
                                     child: Text(
-                                      title,
+                                      displayTitle,
                                       maxLines: 1,
                                       overflow: TextOverflow.ellipsis,
                                       textAlign: TextAlign.left,
@@ -774,7 +802,7 @@ class _PageTopBar extends ConsumerWidget {
                             ],
                           )
                         : Text(
-                            title,
+                            displayTitle,
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
                             textAlign: TextAlign.left,
@@ -2018,13 +2046,23 @@ class _OperationalBottomNavigation extends ConsumerWidget {
     ];
 
     final currentPath = GoRouterState.of(context).uri.path;
-    var selectedIndex = navigationEntries.indexWhere(
-      (entry) =>
-          entry.path != '__more__' &&
-          (currentPath == entry.path ||
-              (entry.path != '/home' &&
-                  currentPath.startsWith('${entry.path}/'))),
-    );
+    // Mesas, Productos e Historial pueden compartir la ruta /mesero
+    // mientras su contenido cambia mediante el provider de pestaña.
+    // La barra debe reflejar la pantalla realmente visible, no la ruta base.
+    var selectedIndex = currentPath.startsWith('/mesero')
+        ? navigationEntries.indexWhere((entry) => entry.mode == selectedMode)
+        : -1;
+    if (selectedIndex < 0) {
+      selectedIndex = navigationEntries.indexWhere(
+        (entry) => entry.path != '__more__' && currentPath == entry.path,
+      );
+    }
+    if (selectedIndex < 0) {
+      selectedIndex = navigationEntries.indexWhere(
+        (entry) => entry.path != '__more__' && entry.path != '/home' &&
+            currentPath.startsWith('${entry.path}/'),
+      );
+    }
     if (selectedIndex < 0 && currentPath.startsWith('/mesero')) {
       selectedIndex =
           navigationEntries.indexWhere((entry) => entry.mode == selectedMode);
@@ -3123,7 +3161,8 @@ class _AdminBottomNavigation extends ConsumerWidget {
         path.startsWith('/explorador_datos') ||
         path.startsWith('/diagnostico_sistema') ||
         path.startsWith('/auditoria_soporte') ||
-        path.startsWith('/sincronizar_catalogo')) return 3;
+        path.startsWith('/sincronizar_catalogo') ||
+        path.startsWith('/catalogo_maestro')) return 3;
     return 4;
   }
 
@@ -3133,6 +3172,7 @@ class _AdminBottomNavigation extends ConsumerWidget {
           orElse: () => const <UserMenuItem>[],
         );
     final entries = <_AdminNavigationItem>[
+      const _AdminNavigationItem(label: 'Catálogo maestro', icon: Icons.category_outlined, path: '/catalogo_maestro'),
       const _AdminNavigationItem(label: 'Sincronizar catálogo', icon: Icons.sync_alt_rounded, path: '/sincronizar_catalogo'),
       const _AdminNavigationItem(label: 'Explorador de datos', icon: Icons.storage_rounded, path: '/explorador_datos'),
       const _AdminNavigationItem(label: 'Diagnóstico', icon: Icons.monitor_heart_rounded, path: '/diagnostico_sistema'),

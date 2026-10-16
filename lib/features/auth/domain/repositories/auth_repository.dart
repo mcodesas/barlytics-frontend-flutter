@@ -7,6 +7,8 @@ abstract class AuthRepository {
   Future<GoogleIdentityModel> googleIdentity(String idToken);
   Future<LoginResponseModel> googleLogin(String idToken);
   Future<LoginResponseModel> appleLogin(String idToken);
+  Future<List<String>> fetchCurrentRoles();
+  Future<void> storeCurrentRoles(List<String> roles);
   Future<void> saveSession(LoginResponseModel response);
   Future<void> logout();
   Future<bool> hasSession();

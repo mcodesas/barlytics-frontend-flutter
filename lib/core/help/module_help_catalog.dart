@@ -329,6 +329,14 @@ const _helps = <String, ModuleHelp>{
     ModuleHelpEntry('Consultar', 'Revisa entrada y salida por tipo.'),
     ModuleHelpEntry('Editar', 'Modifica solo las categorías autorizadas.'),
   ]),
+  '/catalogo_maestro': ModuleHelp('Catálogo maestro de productos',
+      'Configura las plantillas globales que los negocios nuevos pueden importar durante la puesta en marcha. Uso exclusivo de administración de plataforma.', [
+    ModuleHelpEntry('Nuevo producto', 'Crea una referencia con código, nombre, categoría, marca, costo y precio de venta sugeridos.'),
+    ModuleHelpEntry('Imagen', 'Sube PNG, JPG o WebP de hasta 2 MB o quita la fotografía anterior.'),
+    ModuleHelpEntry('Editar', 'Ajusta los precios, la presentación de compra, el tipo de control y los impuestos sugeridos.'),
+    ModuleHelpEntry('Inactivar', 'Oculta una referencia en nuevas selecciones; no elimina productos ya importados por empresas.'),
+    ModuleHelpEntry('Filtros', 'Encuentra referencias por nombre, marca, categoría, código o estado.'),
+  ]),
   '/sincronizar_catalogo': ModuleHelp('Sincronizar catálogo', 'Copia referencias permitidas al catálogo de una sucursal.', [
     ModuleHelpEntry('Seleccionar', 'Marca productos del catálogo maestro.'),
     ModuleHelpEntry('Precios', 'Comprueba importes de compra y venta.'),

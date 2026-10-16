@@ -23,6 +23,7 @@ import '../../features/admin_support/presentation/pages/admin_audit_page.dart';
 import '../../features/admin_support/presentation/pages/admin_diagnostics_page.dart';
 import '../../features/admin_support/presentation/pages/admin_support_workspace_page.dart';
 import '../../features/admin_support/presentation/pages/product_catalog_sync_page.dart';
+import '../../features/admin_support/presentation/pages/master_catalog_page.dart';
 import '../../features/profile/presentation/pages/profile_page.dart';
 import '../../features/reportes/presentation/pages/reportes_page.dart';
 import '../../features/pedidos_compra/presentation/pages/pedidos_compra_page.dart';
@@ -305,6 +306,7 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       GoRoute(path: '/soporte_configuracion', builder: (context, state) => AppScaffold(child: const AdminSupportWorkspacePage(type: AdminSupportWorkspaceType.configuration))),
       GoRoute(path: '/soporte_mantenimiento', builder: (context, state) => AppScaffold(child: const AdminSupportWorkspacePage(type: AdminSupportWorkspaceType.maintenance))),
       GoRoute(path: '/sincronizar_catalogo', builder: (context, state) => AppScaffold(child: const ProductCatalogSyncPage())),
+      GoRoute(path: '/catalogo_maestro', builder: (context, state) => AppScaffold(child: const MasterCatalogPage())),
       GoRoute(path: '/profile', builder: (context, state) => _setupAwareScaffold(ref, state, const ProfilePage())),
       GoRoute(path: '/dashboard', builder: (context, state) => const AppScaffold(child: DashboardPage())),
       GoRoute(path: '/reportes', builder: (context, state) => AppScaffold(child: const ReportesPage())),
@@ -718,6 +720,7 @@ bool _isGlobalAdminRole(String role) {
 
 bool _isPlatformAdminRoute(String path) {
   return path.startsWith('/planes_suscripcion') ||
+      path.startsWith('/catalogo_maestro') ||
       path.startsWith('/soporte_global') ||
       path.startsWith('/soporte_clientes') ||
       path.startsWith('/soporte_accesos') ||

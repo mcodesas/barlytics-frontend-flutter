@@ -306,6 +306,13 @@ class _GuidedSupportGrid extends StatelessWidget {
       '/soporte_mantenimiento',
     ),
     _GuidedSupportFlow(
+      'Catálogo maestro',
+      'Crear y actualizar la plantilla global de productos, fotos y precios del asistente.',
+      Icons.category_outlined,
+      Color(0xFF0891B2),
+      '/catalogo_maestro',
+    ),
+    _GuidedSupportFlow(
       'Catálogo entre clientes',
       'Copiar o sincronizar productos y costos sin inventario ni precio de venta.',
       Icons.compare_arrows_rounded,
@@ -403,6 +410,7 @@ class _QuickActionGrid extends StatelessWidget {
     _QuickAction('Crear sucursal', 'Configurar una nueva sede', Icons.store_mall_directory_rounded, '/sucursales/nuevo'),
     _QuickAction('Crear usuario', 'Acceso, rol y sucursales', Icons.person_add_alt_1_rounded, '/usuarios/nuevo'),
     _QuickAction('Crear producto', 'Catálogo comercial completo', Icons.add_box_rounded, '/productos/nuevo'),
+    _QuickAction('Catálogo maestro', 'Productos base de nuevas empresas', Icons.category_outlined, '/catalogo_maestro'),
     _QuickAction('Inicializar inventario', 'Existencia inicial por sede', Icons.inventory_rounded, '/inventario/nuevo'),
     _QuickAction('Registrar movimiento', 'Entrada, salida o ajuste', Icons.swap_horiz_rounded, '/movimientos'),
     _QuickAction('Registrar o consultar pagos', 'Recaudo y cuentas pendientes', Icons.payments_rounded, '/pagos'),

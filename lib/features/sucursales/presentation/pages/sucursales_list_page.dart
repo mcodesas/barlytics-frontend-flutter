@@ -61,7 +61,7 @@ class _SucursalesListPageState extends ConsumerState<SucursalesListPage> {
       barrierColor: Colors.black54,
       builder: (sheetContext) {
         final media = MediaQuery.of(sheetContext);
-        final height = math.max(420.0, media.size.height * 0.94 - media.viewInsets.bottom).toDouble();
+        final height = math.max(180.0, math.min(media.size.height * 0.94, media.size.height - media.viewInsets.bottom - media.padding.top - 12)).toDouble();
         return AnimatedPadding(
           duration: const Duration(milliseconds: 180),
           curve: Curves.easeOut,
@@ -111,7 +111,7 @@ class _SucursalesListPageState extends ConsumerState<SucursalesListPage> {
       barrierColor: Colors.black54,
       builder: (sheetContext) {
         final media = MediaQuery.of(sheetContext);
-        final height = math.max(420.0, media.size.height * 0.94 - media.viewInsets.bottom).toDouble();
+        final height = math.max(180.0, math.min(media.size.height * 0.94, media.size.height - media.viewInsets.bottom - media.padding.top - 12)).toDouble();
         return AnimatedPadding(
           duration: const Duration(milliseconds: 180),
           curve: Curves.easeOut,
