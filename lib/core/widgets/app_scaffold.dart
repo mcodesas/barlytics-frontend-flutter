@@ -675,6 +675,8 @@ class _PageTopBar extends ConsumerWidget {
     final compact = MediaQuery.sizeOf(context).width < 780;
     final showRichHeader = subtitle != null || eyebrow != null || statusText != null || leadingContentIcon != null;
     final barHeight = heightFor(dense);
+    final displayTitle = compact && title == 'Historial de ventas' ? 'Historial' : title;
+    final showLeadingIcon = leadingContentIcon != null && !(compact && title == 'Historial de ventas');
 
     return Container(
       height: barHeight,
@@ -716,7 +718,7 @@ class _PageTopBar extends ConsumerWidget {
               ),
               child: Row(
                 children: [
-                  if (leadingContentIcon != null) ...[
+                  if (showLeadingIcon) ...[
                     Container(
                       width: dense ? (compact ? 38 : 42) : (compact ? 40 : 46),
                       height: dense ? (compact ? 38 : 42) : (compact ? 40 : 46),
@@ -766,7 +768,7 @@ class _PageTopBar extends ConsumerWidget {
                                   ],
                                   Expanded(
                                     child: Text(
-                                      title,
+                                      displayTitle,
                                       maxLines: 1,
                                       overflow: TextOverflow.ellipsis,
                                       textAlign: TextAlign.left,
@@ -799,7 +801,7 @@ class _PageTopBar extends ConsumerWidget {
                             ],
                           )
                         : Text(
-                            title,
+                            displayTitle,
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
                             textAlign: TextAlign.left,
@@ -2043,11 +2045,17 @@ class _OperationalBottomNavigation extends ConsumerWidget {
     ];
 
     final currentPath = GoRouterState.of(context).uri.path;
-    // Priorizar la ruta exacta: /mesero coincide por prefijo con
-    // /mesero/historial y /mesero/productos, pero no es la pestaña activa.
-    var selectedIndex = navigationEntries.indexWhere(
-      (entry) => entry.path != '__more__' && currentPath == entry.path,
-    );
+    // Mesas, Productos e Historial pueden compartir la ruta /mesero
+    // mientras su contenido cambia mediante el provider de pestaña.
+    // La barra debe reflejar la pantalla realmente visible, no la ruta base.
+    var selectedIndex = currentPath.startsWith('/mesero')
+        ? navigationEntries.indexWhere((entry) => entry.mode == selectedMode)
+        : -1;
+    if (selectedIndex < 0) {
+      selectedIndex = navigationEntries.indexWhere(
+        (entry) => entry.path != '__more__' && currentPath == entry.path,
+      );
+    }
     if (selectedIndex < 0) {
       selectedIndex = navigationEntries.indexWhere(
         (entry) => entry.path != '__more__' && entry.path != '/home' &&
