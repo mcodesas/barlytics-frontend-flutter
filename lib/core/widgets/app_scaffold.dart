@@ -445,6 +445,7 @@ String _resolveCurrentPageTitle(
     '/roles_personalizados': 'Roles personalizados',
     '/empresas': 'Empresas',
     '/sucursales': 'Sucursales',
+    '/catalogo_maestro': 'Catálogo maestro de productos',
     '/ventas': 'Ventas',
     '/regiones': 'Regiones',
     '/zonas_horarias': 'Zonas horarias',
@@ -3160,7 +3161,8 @@ class _AdminBottomNavigation extends ConsumerWidget {
         path.startsWith('/explorador_datos') ||
         path.startsWith('/diagnostico_sistema') ||
         path.startsWith('/auditoria_soporte') ||
-        path.startsWith('/sincronizar_catalogo')) return 3;
+        path.startsWith('/sincronizar_catalogo') ||
+        path.startsWith('/catalogo_maestro')) return 3;
     return 4;
   }
 
@@ -3170,6 +3172,7 @@ class _AdminBottomNavigation extends ConsumerWidget {
           orElse: () => const <UserMenuItem>[],
         );
     final entries = <_AdminNavigationItem>[
+      const _AdminNavigationItem(label: 'Catálogo maestro', icon: Icons.category_outlined, path: '/catalogo_maestro'),
       const _AdminNavigationItem(label: 'Sincronizar catálogo', icon: Icons.sync_alt_rounded, path: '/sincronizar_catalogo'),
       const _AdminNavigationItem(label: 'Explorador de datos', icon: Icons.storage_rounded, path: '/explorador_datos'),
       const _AdminNavigationItem(label: 'Diagnóstico', icon: Icons.monitor_heart_rounded, path: '/diagnostico_sistema'),
