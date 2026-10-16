@@ -104,7 +104,8 @@ class _MasterCatalogPageState extends ConsumerState<MasterCatalogPage> {
               crossAxisAlignment: WrapCrossAlignment.center,
               children: [
                 SizedBox(
-                  width: MediaQuery.sizeOf(context).width < 580 ? 270 : 510,
+                  width: MediaQuery.sizeOf(context).width < 580
+                      ? MediaQuery.sizeOf(context).width - 70 : 510,
                   child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                     Text('Catálogo maestro de productos', style: TextStyle(
                       color: palette.textPrimary, fontWeight: FontWeight.w900, fontSize: 20)),
@@ -444,6 +445,8 @@ class _MasterCatalogEditorState extends ConsumerState<_MasterCatalogEditor> {
   @override
   Widget build(BuildContext context) {
     final palette = ref.watch(selectedAppPaletteProvider);
+    final fieldWidth = MediaQuery.sizeOf(context).width < 375
+        ? MediaQuery.sizeOf(context).width - 70 : 285.0;
     return Dialog(
       insetPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 16),
       child: ConstrainedBox(
@@ -480,16 +483,16 @@ class _MasterCatalogEditorState extends ConsumerState<_MasterCatalogEditor> {
                 _field('descripcion', 'Descripción', lines: 2, maxLength: 400),
                 const SizedBox(height: 10),
                 Wrap(spacing: 12, runSpacing: 12, children: [
-                  SizedBox(width: 285, child: _field('tipoProducto', 'Categoría', isRequired: true, maxLength: 30)),
-                  SizedBox(width: 285, child: _field('marca', 'Marca', isRequired: true, maxLength: 30)),
-                  SizedBox(width: 285, child: _select('tipoControl', 'Tipo de control',
+                  SizedBox(width: fieldWidth, child: _field('tipoProducto', 'Categoría', isRequired: true, maxLength: 30)),
+                  SizedBox(width: fieldWidth, child: _field('marca', 'Marca', isRequired: true, maxLength: 30)),
+                  SizedBox(width: fieldWidth, child: _select('tipoControl', 'Tipo de control',
                     const ['NORMAL','INSUMO','PREPARADO'])),
-                  SizedBox(width: 285, child: _select('unidadBase', 'Unidad base',
+                  SizedBox(width: fieldWidth, child: _select('unidadBase', 'Unidad base',
                     const ['UND','G','KG','ML','L'])),
-                  SizedBox(width: 285, child: _field('precioCompra', 'Precio de compra', numeric: true, isRequired: true)),
-                  SizedBox(width: 285, child: _field('precioVenta', 'Precio de venta', numeric: true, isRequired: true)),
-                  SizedBox(width: 285, child: _field('stockMinimo', 'Stock mínimo sugerido', numeric: true)),
-                  SizedBox(width: 285, child: _field('stockMaximo', 'Stock máximo sugerido', numeric: true)),
+                  SizedBox(width: fieldWidth, child: _field('precioCompra', 'Precio de compra', numeric: true, isRequired: true)),
+                  SizedBox(width: fieldWidth, child: _field('precioVenta', 'Precio de venta', numeric: true, isRequired: true)),
+                  SizedBox(width: fieldWidth, child: _field('stockMinimo', 'Stock mínimo sugerido', numeric: true)),
+                  SizedBox(width: fieldWidth, child: _field('stockMaximo', 'Stock máximo sugerido', numeric: true)),
                 ]),
                 SwitchListTile.adaptive(
                   title: const Text('Compra por caja, canasta o paquete'),
@@ -498,9 +501,9 @@ class _MasterCatalogEditorState extends ConsumerState<_MasterCatalogEditor> {
                 ),
                 if (_values['compraPorCantidad'] == true)
                   Wrap(spacing: 12, runSpacing: 12, children: [
-                    SizedBox(width: 285, child: _field('cantidadCompra', 'Unidades por compra',
+                    SizedBox(width: fieldWidth, child: _field('cantidadCompra', 'Unidades por compra',
                       numeric: true, isRequired: true)),
-                    SizedBox(width: 285, child: _field('presentacionCompra', 'Presentación')),
+                    SizedBox(width: fieldWidth, child: _field('presentacionCompra', 'Presentación')),
                   ]),
                 SwitchListTile.adaptive(
                   title: const Text('Aplica impuesto'),
