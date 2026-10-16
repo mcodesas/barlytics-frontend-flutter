@@ -283,6 +283,9 @@ class _ProductosFormPageState extends ConsumerState<ProductosFormPage> {
           const Positioned.fill(child: AppPageBackground()),
           SafeArea(
             child: CustomScrollView(
+              // Cambiar de paso reinicia el scroll para mostrar los campos
+              // desde arriba, sin reutilizar el desplazamiento del paso largo.
+              key: ValueKey<int>(_currentStep),
               slivers: [
                 SliverToBoxAdapter(
                   child: _WizardHeader(
