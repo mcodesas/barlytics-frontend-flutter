@@ -33,6 +33,10 @@ En cada caso anotar: fecha, ID, ronda, plataforma/dispositivo, versión, rol, su
 
 **Avance verificable:** QA-001, QA-002, QA-003 y QA-006 aprobadas en Web / Ronda 1; QA-005 aprobada en tercera reprueba con actualización dinámica de roles y sucursales; QA-004 aprobada en reprueba de persistencia (restan escenarios de expiración y revocación). Los demás entornos y rondas permanecen pendientes; cada caso maestro se completa cuando se cubren las combinaciones aplicables.
 
+### Incidencias responsive pendientes
+
+| 2026-10-15 | QA-026 | Celular (Web móvil/iPhone) | 2 — Interfaz / UX | **FALLÓ — REPRUEBA PENDIENTE** | Captura del usuario: fecha de sección en columna de letras, indicadores y total salen del ancho, barra inferior resalta Mesas durante Historial. Ajustes frontend 3dfbdfab y 3a3dd778. |
+
 ### Historial de QA-005
 
 - 2026-10-15: Primera incidencia: roles no se actualizaban sin reiniciar sesión.
@@ -77,6 +81,7 @@ En cada caso anotar: fecha, ID, ronda, plataforma/dispositivo, versión, rol, su
 - [ ] **QA-024** Propinas, cambio y edición de medios de pago
 - [ ] **QA-025** Finalizar, cancelar y reabrir venta según reglas
 - [ ] **QA-026** Historial con selección de fechas y búsqueda
+  - **Celular / Web móvil / Ronda 2:** captura del usuario muestra cabecera comprimida y navegación de Historial mal seleccionada. Corregido en rama de trabajo, pendiente confirmar visualmente en iPhone (no aprobado todavía).
 - [ ] **QA-027** Factura por sistema PDF y ticket LAN 80 mm con nombre de sucursal
 - [ ] **QA-028** Cierre de caja: base inicial, efectivo, otros medios, gastos y diferencias
 - [ ] **QA-029** Confirmación y exportación de cierre
