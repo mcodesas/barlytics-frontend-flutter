@@ -316,7 +316,7 @@ class _MasterCatalogEditorState extends ConsumerState<_MasterCatalogEditor> {
     _values.putIfAbsent('aplicaImpuesto', () => false);
   }
 
-  Widget _field(String key, String label, {bool required = false,
+  Widget _field(String key, String label, {bool isRequired = false,
       bool numeric = false, int lines = 1, int? maxLength}) {
     return TextFormField(
       initialValue: _values[key]?.toString() ?? '',
@@ -326,7 +326,7 @@ class _MasterCatalogEditorState extends ConsumerState<_MasterCatalogEditor> {
       decoration: InputDecoration(labelText: label, isDense: true),
       validator: (value) {
         final text = (value ?? '').trim();
-        if (required && text.isEmpty) return 'Obligatorio';
+        if (isRequired && text.isEmpty) return 'Obligatorio';
         if (numeric && text.isNotEmpty &&
             num.tryParse(text.replaceAll(',', '.')) == null) return 'Número inválido';
         return null;
@@ -473,21 +473,21 @@ class _MasterCatalogEditorState extends ConsumerState<_MasterCatalogEditor> {
                   Text(_error!, style: const TextStyle(color: Colors.red)),
                   const SizedBox(height: 10),
                 ],
-                _field('nombre', 'Nombre del producto', required: true, maxLength: 120),
+                _field('nombre', 'Nombre del producto', isRequired: true, maxLength: 120),
                 const SizedBox(height: 10),
                 _field('codigo', 'Código (automático si queda vacío)', maxLength: 60),
                 const SizedBox(height: 10),
                 _field('descripcion', 'Descripción', lines: 2, maxLength: 400),
                 const SizedBox(height: 10),
                 Wrap(spacing: 12, runSpacing: 12, children: [
-                  SizedBox(width: 285, child: _field('tipoProducto', 'Categoría', required: true, maxLength: 30)),
-                  SizedBox(width: 285, child: _field('marca', 'Marca', required: true, maxLength: 30)),
+                  SizedBox(width: 285, child: _field('tipoProducto', 'Categoría', isRequired: true, maxLength: 30)),
+                  SizedBox(width: 285, child: _field('marca', 'Marca', isRequired: true, maxLength: 30)),
                   SizedBox(width: 285, child: _select('tipoControl', 'Tipo de control',
                     const ['NORMAL','INSUMO','PREPARADO'])),
                   SizedBox(width: 285, child: _select('unidadBase', 'Unidad base',
                     const ['UND','G','KG','ML','L'])),
-                  SizedBox(width: 285, child: _field('precioCompra', 'Precio de compra', numeric: true, required: true)),
-                  SizedBox(width: 285, child: _field('precioVenta', 'Precio de venta', numeric: true, required: true)),
+                  SizedBox(width: 285, child: _field('precioCompra', 'Precio de compra', numeric: true, isRequired: true)),
+                  SizedBox(width: 285, child: _field('precioVenta', 'Precio de venta', numeric: true, isRequired: true)),
                   SizedBox(width: 285, child: _field('stockMinimo', 'Stock mínimo sugerido', numeric: true)),
                   SizedBox(width: 285, child: _field('stockMaximo', 'Stock máximo sugerido', numeric: true)),
                 ]),
@@ -499,7 +499,7 @@ class _MasterCatalogEditorState extends ConsumerState<_MasterCatalogEditor> {
                 if (_values['compraPorCantidad'] == true)
                   Wrap(spacing: 12, runSpacing: 12, children: [
                     SizedBox(width: 285, child: _field('cantidadCompra', 'Unidades por compra',
-                      numeric: true, required: true)),
+                      numeric: true, isRequired: true)),
                     SizedBox(width: 285, child: _field('presentacionCompra', 'Presentación')),
                   ]),
                 SwitchListTile.adaptive(
@@ -508,7 +508,7 @@ class _MasterCatalogEditorState extends ConsumerState<_MasterCatalogEditor> {
                   onChanged: (v) => setState(() => _values['aplicaImpuesto'] = v),
                 ),
                 if (_values['aplicaImpuesto'] == true)
-                  _field('porcentajeImpuesto', 'Porcentaje de impuesto', numeric: true, required: true),
+                  _field('porcentajeImpuesto', 'Porcentaje de impuesto', numeric: true, isRequired: true),
                 const SizedBox(height: 10),
                 Text('Fotografía del producto', style: TextStyle(
                   color: palette.textPrimary, fontWeight: FontWeight.w800)),
