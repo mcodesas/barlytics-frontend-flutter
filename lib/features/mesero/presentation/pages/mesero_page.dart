@@ -1044,7 +1044,8 @@ class _MeseroPageState extends ConsumerState<MeseroPage> {
           )
         else if (selectedMode == MeseroPageMode.historial)
           SliverPadding(
-            padding: const EdgeInsets.fromLTRB(24, 0, 24, 0),
+            padding: EdgeInsets.fromLTRB(MediaQuery.sizeOf(context).width < 600 ? 12 : 24, 0,
+                MediaQuery.sizeOf(context).width < 600 ? 12 : 24, 0),
             sliver: SliverToBoxAdapter(child: _buildHistorialVentas()),
           )
         else if (selectedMode == MeseroPageMode.cierreCaja)
@@ -16336,35 +16337,82 @@ class _HistorialDiaSection extends ConsumerWidget {
         children: [
           Padding(
             padding: const EdgeInsets.fromLTRB(16, 14, 16, 12),
-            child: Row(
-              children: [
-                Container(
-                  width: 42,
-                  height: 42,
-                  decoration: BoxDecoration(color: palette.secondary.withOpacity(0.13), borderRadius: BorderRadius.circular(14)),
-                  child: Icon(Icons.calendar_today_rounded, color: palette.secondary, size: 20),
-                ),
-                const SizedBox(width: 11),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(titulo, style: Theme.of(context).textTheme.titleMedium?.copyWith(color: palette.textPrimary, fontWeight: FontWeight.w900)),
-                      if (fecha.isNotEmpty) Text(fecha, style: TextStyle(color: palette.textSecondary, fontWeight: FontWeight.w700, fontSize: 11)),
-                    ],
-                  ),
-                ),
-                Wrap(
-                  spacing: 8,
-                  runSpacing: 6,
+            child: LayoutBuilder(
+              builder: (context, constraints) {
+                final heading = Row(
+                  children: [
+                    Container(
+                      width: 42,
+                      height: 42,
+                      decoration: BoxDecoration(
+                        color: palette.secondary.withOpacity(0.13),
+                        borderRadius: BorderRadius.circular(14),
+                      ),
+                      child: Icon(Icons.calendar_today_rounded, color: palette.secondary, size: 20),
+                    ),
+                    const SizedBox(width: 11),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            titulo,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                                  color: palette.textPrimary,
+                                  fontWeight: FontWeight.w900,
+                                ),
+                          ),
+                          if (fecha.isNotEmpty)
+                            Text(
+                              fecha,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: TextStyle(
+                                color: palette.textSecondary,
+                                fontWeight: FontWeight.w700,
+                                fontSize: 11,
+                              ),
+                            ),
+                        ],
+                      ),
+                    ),
+                  ],
+                );
+
+                final indicadores = Wrap(
+                  alignment: constraints.maxWidth >= 820 ? WrapAlignment.end : WrapAlignment.start,
                   crossAxisAlignment: WrapCrossAlignment.center,
+                  spacing: 8,
+                  runSpacing: 8,
                   children: [
                     _SmallInfoPill(icon: Icons.receipt_long_rounded, text: '${ventas.length} ventas'),
                     _SmallInfoPill(icon: Icons.check_circle_rounded, text: '$pagadas pagadas'),
                     _TotalPill(total: total),
                   ],
-                ),
-              ],
+                );
+
+                // Nunca poner Wrap junto a un Expanded mínimo en móviles:
+                // las métricas empujaban la fecha a una columna de letras.
+                if (constraints.maxWidth < 820) {
+                  return Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      heading,
+                      const SizedBox(height: 12),
+                      indicadores,
+                    ],
+                  );
+                }
+                return Row(
+                  children: [
+                    Expanded(flex: 2, child: heading),
+                    const SizedBox(width: 12),
+                    Expanded(flex: 5, child: indicadores),
+                  ],
+                );
+              },
             ),
           ),
           Divider(height: 1, color: palette.cardBorder),
