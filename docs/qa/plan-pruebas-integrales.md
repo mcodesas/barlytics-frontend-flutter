@@ -63,6 +63,9 @@ En cada caso anotar: fecha, ID, ronda, plataforma/dispositivo, versión, rol, su
 - [ ] **QA-010** Cancelar y renovar suscripción
 - [ ] **QA-011** Puesta en marcha obligatoria y reanudable
 - [ ] **QA-012** Catálogo de productos precargados con precios e imágenes
+  - **Prueba específica Señorazo (pendiente):** después de desplegar backend con V31, el asistente de nueva empresa debe listar los 58 productos activos del respaldo de la sucursal Señorazo; no deben aparecer los 12 ejemplos genéricos anteriores. Verificar 9 tipos, nombres y marcas, precios de compra/venta y compra por cantidad; los 51 productos que tienen foto en el respaldo deben mostrarla. Los otros 7 no tienen foto de origen (no inventar imágenes).
+  - **Seguridad y datos:** importar productos seleccionados en una empresa nueva de pruebas, sin transferir stock ni modificar productos/precios/ventas del Señorazo. Confirmar que las demás empresas no reciben productos sin seleccionarlos.
+  - **Archivos backend:** V31__catalogo_inicial_productos_senorazo.sql y ProductoCatalogoBaseBootstrap.java. Solo migración nueva: no editar checksum de V28.
 
 ### Empresas, sucursales y usuarios
 - [ ] **QA-013** CRUD empresas y permisos
