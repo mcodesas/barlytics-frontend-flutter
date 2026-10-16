@@ -253,6 +253,31 @@ class _ProductosFormPageState extends ConsumerState<ProductosFormPage> {
 
     return Scaffold(
       backgroundColor: Colors.transparent,
+      // La navegación permanece visible aunque el paso tenga muchos campos.
+      bottomNavigationBar: SafeArea(
+        top: false,
+        child: Container(
+          decoration: BoxDecoration(
+            color: palette.background.withOpacity(0.97),
+            border: Border(top: BorderSide(color: palette.cardBorder)),
+          ),
+          padding: const EdgeInsets.fromLTRB(12, 10, 12, 12),
+          child: Center(
+            heightFactor: 1,
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 1120),
+              child: _NavigationButtons(
+                palette: palette,
+                saving: _saving,
+                currentStep: _currentStep,
+                onPrevious: _currentStep == 0 ? null : () => setState(() => _currentStep--),
+                onNext: _goNext,
+                onSave: () => _confirmAndSave(context, palette),
+              ),
+            ),
+          ),
+        ),
+      ),
       body: Stack(
         children: [
           const Positioned.fill(child: AppPageBackground()),
@@ -268,7 +293,7 @@ class _ProductosFormPageState extends ConsumerState<ProductosFormPage> {
                   ),
                 ),
                 SliverPadding(
-                  padding: const EdgeInsets.fromLTRB(12, 12, 12, 90),
+                  padding: const EdgeInsets.fromLTRB(12, 12, 12, 20),
                   sliver: SliverToBoxAdapter(
                     child: Center(
                       child: ConstrainedBox(
@@ -341,15 +366,6 @@ class _ProductosFormPageState extends ConsumerState<ProductosFormPage> {
                                 // como protagonista y la confirmación mantiene el resumen.
                                 return form;
                               },
-                            ),
-                            const SizedBox(height: 10),
-                            _NavigationButtons(
-                              palette: palette,
-                              saving: _saving,
-                              currentStep: _currentStep,
-                              onPrevious: _currentStep == 0 ? null : () => setState(() => _currentStep--),
-                              onNext: _goNext,
-                              onSave: () => _confirmAndSave(context, palette),
                             ),
                           ],
                         ),
