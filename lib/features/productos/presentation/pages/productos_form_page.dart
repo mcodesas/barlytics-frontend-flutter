@@ -281,31 +281,32 @@ class _ProductosFormPageState extends ConsumerState<ProductosFormPage> {
                               palette: palette,
                               title: _titleForStep(_currentStep),
                               subtitle: _subtitleForStep(_currentStep),
-                              child: IndexedStack(
-                                index: _currentStep,
-                                children: [
-                                  _buildGeneralStep(
+                              // IndexedStack imponía la altura del paso más largo
+                              // incluso cuando el contenido visible era mínimo.
+                              // Solo construir el paso activo: los datos se conservan
+                              // en los controladores y el estado de esta pantalla.
+                              child: switch (_currentStep) {
+                                0 => _buildGeneralStep(
                                     palette,
                                     tiposState.items,
                                     marcasState.items,
                                     productosState.items,
                                     sucursalNombre,
                                   ),
-                                  _buildPriceStep(palette),
-                                  _buildInventoryStep(
+                                1 => _buildPriceStep(palette),
+                                2 => _buildInventoryStep(
                                     palette,
                                     sucursalNombre,
                                     inventarioState.items,
                                   ),
-                                  _buildConfirmationStep(
+                                _ => _buildConfirmationStep(
                                     palette,
                                     tiposState.items,
                                     marcasState.items,
                                     sucursalNombre,
                                     inventarioState.items,
                                   ),
-                                ],
-                              ),
+                              },
                             );
                             final overview = _ProductDraftOverview(
                               palette: palette,
