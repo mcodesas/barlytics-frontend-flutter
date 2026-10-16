@@ -136,6 +136,12 @@ En cada caso anotar: fecha, ID, ronda, plataforma/dispositivo, versión, rol, su
 - [ ] **QA-063** Tablas paramétricas y permisos globales
 - [ ] **QA-064** Auditoría, diagnósticos y explorador de datos
 - [ ] **QA-065** Ayuda contextual y navegación responsive
+- [ ] **QA-070** Catálogo maestro global: acceso exclusivo administrador, CRUD y puesta en marcha
+  - **Ronda funcional:** Administrador del aplicativo abre Soporte global > Catálogo maestro; crea un producto con nombre, código, categoría, marca, compra/venta e imagen; lo edita; filtra por estado/categoría; inactiva y reactiva. Debe verse o desaparecer de la selección de nueva empresa sin cambiar productos de empresas existentes.
+  - **Ronda interfaz:** Web, celular, tablet y escritorio: comprobar diseño responsive, scroll de formulario y teclado, previsualización de fotos, confirmación de inactivación.
+  - **Ronda integración y seguridad:** Gerente, Cajero, Inventario y Mesero no pueden abrir `/catalogo_maestro` ni consumir `/api/v1/admin/catalogo-maestro` (403). Verificar validaciones de código duplicado, imagen mayor de 2 MB, precio negativo y producto sin venta; no crear stock ni movimientos. El asistente importa únicamente seleccionados.
+  - **Implementado en rama, pendiente ejecución:** backend `CatalogoMaestroProductoController`, `CatalogoMaestroProductoService` y DTO; frontend `master_catalog_page.dart` y repositorio.
+
 
 ### Distribución
 - [ ] **QA-066** Sitio público, funciones y descargas
