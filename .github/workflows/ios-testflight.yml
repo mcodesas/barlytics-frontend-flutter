@@ -12,6 +12,12 @@ on:
       - main
     tags:
       - "ios-v*"
+    # Cambios exclusivos del instalador macOS no deben lanzar TestFlight.
+    paths-ignore:
+      - '.github/workflows/deploy-macos.yml'
+      - '.github/workflows/deploy-production.yml'
+      - '.github/workflows/ios-testflight.yml'
+      - 'deploy/macos/**'
 
 permissions:
   contents: read
