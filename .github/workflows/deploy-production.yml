@@ -3,6 +3,12 @@ name: Frontend Production
 on:
   push:
     branches: [main]
+    # Un cambio dedicado a macOS no vuelve a desplegar Android, Windows, Linux ni web.
+    paths-ignore:
+      - '.github/workflows/deploy-macos.yml'
+      - '.github/workflows/deploy-production.yml'
+      - '.github/workflows/ios-testflight.yml'
+      - 'deploy/macos/**'
   workflow_dispatch:
 
 concurrency:
@@ -193,6 +199,12 @@ jobs:
           LINUX_SHA="$(sha256sum web/downloads/barlytics-linux-amd64.deb | awk '{print $1}')"
           PUBLISHED_AT="$(date -u +'%Y-%m-%dT%H:%M:%SZ')"
 
+          MACOS_JSON='{"enabled":false}'
+          if [ -s web/downloads/BarLytics-macOS.dmg ]; then
+            MACOS_SHA="$(sha256sum web/downloads/BarLytics-macOS.dmg | awk '{print $1}')"
+            MACOS_JSON="{\"version\":\"$VERSION\",\"build\":$BUILD,\"url\":\"https://www.barlytics.com.co/downloads/BarLytics-macOS.dmg\",\"sha256\":\"$MACOS_SHA\",\"enabled\":true}"
+          fi
+
           cat > web/downloads/latest.json <<EOF
           {
             "version": "$VERSION",
@@ -215,9 +227,7 @@ jobs:
                 "sha256": "$LINUX_SHA",
                 "enabled": true
               },
-              "macos": {
-                "enabled": false
-              },
+              "macos": ${MACOS_JSON},
               "android": {
                 "enabled": false
               },
