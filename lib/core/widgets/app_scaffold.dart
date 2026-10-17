@@ -673,7 +673,16 @@ class _PageTopBar extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final compact = MediaQuery.sizeOf(context).width < 780;
+    final availableWidth = MediaQuery.sizeOf(context).width;
+    final compact = availableWidth < 780;
+    // En iPad horizontal/vertical la pantalla no es «móvil» (< 780),
+    // pero los controles de escritorio dejan sin espacio al título.
+    // El grupo de selectores se compacta antes de ese punto.
+    final compactSelectors = availableWidth < 1240;
+    final showEyebrow = !compactSelectors && (eyebrow ?? '').trim().isNotEmpty;
+    final showStatusChip = !compactSelectors && (statusText ?? '').trim().isNotEmpty;
+    final showInlineStatus = !compact && compactSelectors &&
+        (statusText ?? '').trim().isNotEmpty && (subtitle ?? '').trim().isEmpty;
     final showRichHeader = subtitle != null || eyebrow != null || statusText != null || leadingContentIcon != null;
     final barHeight = heightFor(dense);
     final displayTitle = compact && title == 'Historial de ventas' ? 'Historial' : title;
@@ -747,7 +756,7 @@ class _PageTopBar extends ConsumerWidget {
                             children: [
                               Row(
                                 children: [
-                                  if (!compact && (eyebrow ?? '').trim().isNotEmpty) ...[
+                                  if (showEyebrow) ...[
                                     Container(
                                       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
                                       decoration: BoxDecoration(
@@ -784,10 +793,10 @@ class _PageTopBar extends ConsumerWidget {
                                   ),
                                 ],
                               ),
-                              if ((subtitle ?? '').trim().isNotEmpty) ...[
+                              if ((subtitle ?? '').trim().isNotEmpty || showInlineStatus) ...[
                                 SizedBox(height: dense ? 4 : 6),
                                 Text(
-                                  subtitle!,
+                                  (subtitle ?? '').trim().isNotEmpty ? subtitle! : statusText!,
                                   maxLines: 1,
                                   overflow: TextOverflow.ellipsis,
                                   textAlign: TextAlign.left,
@@ -816,9 +825,9 @@ class _PageTopBar extends ConsumerWidget {
                           ),
                   ),
                   const SizedBox(width: 10),
-                  _RoleScopeSelector(palette: palette, compact: compact),
+                  _RoleScopeSelector(palette: palette, compact: compactSelectors),
                   const SizedBox(width: 8),
-                  _CompactBranchSelector(palette: palette, compact: compact),
+                  _CompactBranchSelector(palette: palette, compact: compactSelectors),
                   const SizedBox(width: 4),
                   IconButton(
                     tooltip: 'Ayuda de esta pantalla',
@@ -827,7 +836,7 @@ class _PageTopBar extends ConsumerWidget {
                     icon: Icon(Icons.help_outline_rounded, size: 19, color: palette.textSecondary),
                     onPressed: () => _showContextHelp(context, ref),
                   ),
-                  if ((statusText ?? '').trim().isNotEmpty && !compact) ...[
+                  if (showStatusChip) ...[
                     SizedBox(width: dense ? 10 : 12),
                     Container(
                       padding: EdgeInsets.symmetric(horizontal: dense ? 12 : 14, vertical: dense ? 8 : 10),
