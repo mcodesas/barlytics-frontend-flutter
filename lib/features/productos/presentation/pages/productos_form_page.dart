@@ -253,11 +253,39 @@ class _ProductosFormPageState extends ConsumerState<ProductosFormPage> {
 
     return Scaffold(
       backgroundColor: Colors.transparent,
+      // La navegación permanece visible aunque el paso tenga muchos campos.
+      bottomNavigationBar: SafeArea(
+        top: false,
+        child: Container(
+          decoration: BoxDecoration(
+            color: palette.background.withOpacity(0.97),
+            border: Border(top: BorderSide(color: palette.cardBorder)),
+          ),
+          padding: const EdgeInsets.fromLTRB(12, 10, 12, 12),
+          child: Center(
+            heightFactor: 1,
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 1120),
+              child: _NavigationButtons(
+                palette: palette,
+                saving: _saving,
+                currentStep: _currentStep,
+                onPrevious: _currentStep == 0 ? null : () => setState(() => _currentStep--),
+                onNext: _goNext,
+                onSave: () => _confirmAndSave(context, palette),
+              ),
+            ),
+          ),
+        ),
+      ),
       body: Stack(
         children: [
           const Positioned.fill(child: AppPageBackground()),
           SafeArea(
             child: CustomScrollView(
+              // Cambiar de paso reinicia el scroll para mostrar los campos
+              // desde arriba, sin reutilizar el desplazamiento del paso largo.
+              key: ValueKey<int>(_currentStep),
               slivers: [
                 SliverToBoxAdapter(
                   child: _WizardHeader(
@@ -268,7 +296,7 @@ class _ProductosFormPageState extends ConsumerState<ProductosFormPage> {
                   ),
                 ),
                 SliverPadding(
-                  padding: const EdgeInsets.fromLTRB(12, 12, 12, 90),
+                  padding: const EdgeInsets.fromLTRB(12, 12, 12, 20),
                   sliver: SliverToBoxAdapter(
                     child: Center(
                       child: ConstrainedBox(
@@ -281,31 +309,32 @@ class _ProductosFormPageState extends ConsumerState<ProductosFormPage> {
                               palette: palette,
                               title: _titleForStep(_currentStep),
                               subtitle: _subtitleForStep(_currentStep),
-                              child: IndexedStack(
-                                index: _currentStep,
-                                children: [
-                                  _buildGeneralStep(
+                              // IndexedStack imponía la altura del paso más largo
+                              // incluso cuando el contenido visible era mínimo.
+                              // Solo construir el paso activo: los datos se conservan
+                              // en los controladores y el estado de esta pantalla.
+                              child: switch (_currentStep) {
+                                0 => _buildGeneralStep(
                                     palette,
                                     tiposState.items,
                                     marcasState.items,
                                     productosState.items,
                                     sucursalNombre,
                                   ),
-                                  _buildPriceStep(palette),
-                                  _buildInventoryStep(
+                                1 => _buildPriceStep(palette),
+                                2 => _buildInventoryStep(
                                     palette,
                                     sucursalNombre,
                                     inventarioState.items,
                                   ),
-                                  _buildConfirmationStep(
+                                _ => _buildConfirmationStep(
                                     palette,
                                     tiposState.items,
                                     marcasState.items,
                                     sucursalNombre,
                                     inventarioState.items,
                                   ),
-                                ],
-                              ),
+                              },
                             );
                             final overview = _ProductDraftOverview(
                               palette: palette,
@@ -340,15 +369,6 @@ class _ProductosFormPageState extends ConsumerState<ProductosFormPage> {
                                 // como protagonista y la confirmación mantiene el resumen.
                                 return form;
                               },
-                            ),
-                            const SizedBox(height: 10),
-                            _NavigationButtons(
-                              palette: palette,
-                              saving: _saving,
-                              currentStep: _currentStep,
-                              onPrevious: _currentStep == 0 ? null : () => setState(() => _currentStep--),
-                              onNext: _goNext,
-                              onSave: () => _confirmAndSave(context, palette),
                             ),
                           ],
                         ),
