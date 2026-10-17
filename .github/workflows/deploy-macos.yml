@@ -1,0 +1,91 @@
+name: macOS Production
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+# No lanzar la distribución macOS en paralelo con otro despliegue web.
+concurrency:
+  group: barlytics-frontend-production
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  build-macos:
+    name: Compilar y empaquetar macOS DMG
+    runs-on: macos-latest
+    timeout-minutes: 65
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Configurar Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.41.9'
+          channel: stable
+          cache: true
+
+      - name: Compilar y generar DMG
+        shell: bash
+        run: |
+          set -euo pipefail
+          flutter config --enable-macos-desktop
+          flutter pub get
+          VERSION="$(sed -nE 's/^version:[[:space:]]*([^+[:space:]]+)\+([0-9]+).*/\1/p' pubspec.yaml | head -n1)"
+          BUILD="$(sed -nE 's/^version:[[:space:]]*([^+[:space:]]+)\+([0-9]+).*/\2/p' pubspec.yaml | head -n1)"
+          test -n "$VERSION"
+          test -n "$BUILD"
+          flutter build macos --release \
+            --dart-define=ENV=prod \
+            --dart-define=BARLYTICS_APP_VERSION="$VERSION" \
+            --dart-define=BARLYTICS_APP_BUILD="$BUILD"
+          bash deploy/macos/build-dmg.sh
+          test -s build/installers/macos/BarLytics-macOS.dmg
+          shasum -a 256 build/installers/macos/BarLytics-macOS.dmg
+
+      - name: Conservar DMG como artefacto
+        uses: actions/upload-artifact@v4
+        with:
+          name: barlytics-macos-dmg
+          path: build/installers/macos/BarLytics-macOS.dmg
+          if-no-files-found: error
+          retention-days: 7
+          compression-level: 0
+
+  publish-macos:
+    name: Publicar exclusivamente instalador macOS en VPS
+    needs: build-macos
+    runs-on: ubuntu-latest
+    environment: production
+    timeout-minutes: 20
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Descargar DMG compilado
+        uses: actions/download-artifact@v4
+        with:
+          name: barlytics-macos-dmg
+          path: build/installers/macos
+
+      - name: Configurar SSH
+        env:
+          SSH_PRIVATE_KEY: ${{ secrets.VPS_SSH_PRIVATE_KEY }}
+          KNOWN_HOSTS: ${{ secrets.VPS_KNOWN_HOSTS }}
+        run: |
+          set -euo pipefail
+          mkdir -p ~/.ssh
+          printf '%s\n' "$SSH_PRIVATE_KEY" > ~/.ssh/id_ed25519
+          printf '%s\n' "$KNOWN_HOSTS" > ~/.ssh/known_hosts
+          chmod 700 ~/.ssh
+          chmod 600 ~/.ssh/id_ed25519 ~/.ssh/known_hosts
+
+      - name: Publicar y validar exclusivamente DMG
+        env:
+          VPS_HOST: ${{ secrets.VPS_HOST }}
+          VPS_USER: ${{ secrets.VPS_USER }}
+        run: bash deploy/macos/deploy-dmg-vps.sh
