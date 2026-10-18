@@ -2104,7 +2104,7 @@ class _RolPersonalizadoFormSheetState extends ConsumerState<_RolPersonalizadoFor
                                                         children: [
                                                           Text(
                                                             menu.descripcion,
-                                                            maxLines: 2,
+                                                            maxLines: 4,
                                                             overflow: TextOverflow.ellipsis,
                                                             style: TextStyle(color: palette.textSecondary, fontWeight: FontWeight.w600),
                                                           ),
