@@ -252,11 +252,13 @@ _SetupSectionInfo _sectionFor(String location) {
     return const _SetupSectionInfo(stepNumber: 5, requiredStep: true);
   }
 
-  // Usuarios y roles quedan como configuración recomendada posterior.
-  if (_startsWithAny(location, const [
-    '/usuarios',
-    '/roles_personalizados',
-  ])) {
+  // Las funciones se definen antes de crear cuentas para el equipo.
+  if (location.startsWith('/roles_personalizados')) {
+    return const _SetupSectionInfo(stepNumber: 6, requiredStep: true);
+  }
+
+  // Los usuarios se crean después de definir sus permisos.
+  if (location.startsWith('/usuarios')) {
     return const _SetupSectionInfo(requiredStep: false);
   }
 
