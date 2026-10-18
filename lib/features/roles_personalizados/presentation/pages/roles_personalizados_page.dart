@@ -47,6 +47,14 @@ const _starterRoles = <_StarterRoleTemplate>[
     'Movimientos', Icons.swap_horiz_rounded,
     'Para auxiliares: limita el acceso a movimientos de inventario.'),
   _StarterRoleTemplate(
+    'Equipo de cocina', 'Recibe comandas de cocina y registra el avance de preparación.',
+    'Cocina', Icons.soup_kitchen_outlined,
+    'Para cocina: trabaja con Comandas, revisa los pedidos y actualiza su preparación.'),
+  _StarterRoleTemplate(
+    'Equipo de barra', 'Recibe comandas de bebidas y registra su preparación.',
+    'Barra', Icons.local_bar_outlined,
+    'Para barra: consulta las comandas de bebidas y actualiza su preparación.'),
+  _StarterRoleTemplate(
     'Supervisión operativa', 'Supervisa reportes y configuración del negocio.',
     'Gerente', Icons.space_dashboard_outlined,
     'Para supervisores: elige las consultas delegables.'),
@@ -54,8 +62,14 @@ const _starterRoles = <_StarterRoleTemplate>[
 
 bool _menuMatchesTemplate(MenuAsignableModel menu, _StarterRoleTemplate template) {
   if (!menu.asignable) return false;
+  final parameter = menu.parametro.trim().toLowerCase();
+  // Cocina y barra solo reciben Comandas como menú inicial. No se
+  // conceden módulos de ventas, caja, inventario ni administración.
+  if (template.type == 'Cocina' || template.type == 'Barra') {
+    return parameter == 'comandas';
+  }
   if (template.type == 'Movimientos') {
-    return menu.parametro.trim().toLowerCase() == 'movimientos';
+    return parameter == 'movimientos';
   }
   return menu.tipos.any((type) => type.toLowerCase() == template.type.toLowerCase());
 }
@@ -515,8 +529,8 @@ class _RolesSetupGuide extends StatelessWidget {
           style: TextStyle(color: palette.textPrimary, fontSize: 19, fontWeight: FontWeight.w900)),
         const SizedBox(height: 7),
         Text('Paso 6 · Antes de crear usuarios, configura un perfil por cada tipo de trabajo. '
-          'Selecciona una plantilla, ajusta lo que puede hacer y mira la vista previa '
-          'de su menú en celular o escritorio.',
+          'Selecciona una plantilla (incluye Cocina y Barra), ajusta sus permisos y mira '
+          'la vista previa del menú en celular o escritorio.',
           style: TextStyle(color: palette.textSecondary, height: 1.45)),
         const SizedBox(height: 10),
         Text('1. Elige un ejemplo    2. Revisa las funciones    3. Guarda el rol y asígnalo a los usuarios',
