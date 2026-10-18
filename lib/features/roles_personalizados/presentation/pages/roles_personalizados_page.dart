@@ -2,6 +2,7 @@ import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 
 import '../../../../app/theme/app_palette.dart';
 import '../../../../app/theme/module_visuals.dart';
@@ -12,10 +13,52 @@ import '../../../../core/widgets/app_loader.dart';
 import '../../../../core/widgets/confirmation_dialog.dart';
 import '../../../../core/widgets/tech_background.dart';
 import '../../../empresas/data/models/empresas_response_model.dart';
+import '../../../business_setup/presentation/providers/business_setup_provider.dart';
+import '../../../auth/presentation/providers/auth_provider.dart';
 import '../../../sucursales/data/models/sucursales_response_model.dart';
 import '../../data/models/rol_personalizado_model.dart';
 
 enum _RoleStatusFilter { todos, activos, inactivos }
+
+class _StarterRoleTemplate {
+  const _StarterRoleTemplate(this.name, this.description, this.type, this.icon, this.purpose);
+  final String name;
+  final String description;
+  final String type;
+  final IconData icon;
+  final String purpose;
+}
+
+const _starterRoles = <_StarterRoleTemplate>[
+  _StarterRoleTemplate(
+    'Atención de mesas', 'Registra pedidos, ventas y cuentas de las mesas.',
+    'Vendedor / Mesero', Icons.room_service_outlined,
+    'Para meseros: selecciona ventas, mesas y comandas.'),
+  _StarterRoleTemplate(
+    'Caja y cobros', 'Gestiona ventas, cobros y cierre de caja.',
+    'Cajero', Icons.point_of_sale_outlined,
+    'Para cajeros: decide si también administran mesas y pedidos.'),
+  _StarterRoleTemplate(
+    'Control de inventario', 'Gestiona existencias, conteos y movimientos.',
+    'Inventario', Icons.inventory_2_outlined,
+    'Para bodegueros: selecciona inventario, conteos y trazabilidad.'),
+  _StarterRoleTemplate(
+    'Movimientos de bodega', 'Registra entradas, salidas y ajustes de productos.',
+    'Movimientos', Icons.swap_horiz_rounded,
+    'Para auxiliares: limita el acceso a movimientos de inventario.'),
+  _StarterRoleTemplate(
+    'Supervisión operativa', 'Supervisa reportes y configuración del negocio.',
+    'Gerente', Icons.space_dashboard_outlined,
+    'Para supervisores: elige las consultas delegables.'),
+];
+
+bool _menuMatchesTemplate(MenuAsignableModel menu, _StarterRoleTemplate template) {
+  if (!menu.asignable) return false;
+  if (template.type == 'Movimientos') {
+    return menu.parametro.trim().toLowerCase() == 'movimientos';
+  }
+  return menu.tipos.any((type) => type.toLowerCase() == template.type.toLowerCase());
+}
 
 class RolesPersonalizadosPage extends ConsumerStatefulWidget {
   const RolesPersonalizadosPage({super.key});
@@ -146,7 +189,7 @@ class _RolesPersonalizadosPageState extends ConsumerState<RolesPersonalizadosPag
     return 'Sucursal #$id';
   }
 
-  Future<void> _openForm([RolPersonalizadoModel? role]) async {
+  Future<void> _openForm([RolPersonalizadoModel? role, _StarterRoleTemplate? template]) async {
     if (_companies.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('No hay una empresa disponible para crear el rol.')),
@@ -205,6 +248,7 @@ class _RolesPersonalizadosPageState extends ConsumerState<RolesPersonalizadosPag
                   ),
                   child: _RolPersonalizadoFormSheet(
                 role: role,
+                template: template,
                 menus: _menus,
                 companies: _companies,
                     branches: _branches,
@@ -253,6 +297,7 @@ class _RolesPersonalizadosPageState extends ConsumerState<RolesPersonalizadosPag
     final active = _roles.where((item) => item.active).length;
     final branchRoles = _roles.where((item) => !item.companyWide).length;
     final assigned = _roles.fold<int>(0, (sum, item) => sum + item.usuariosAsignados);
+    final guidedMode = ref.watch(businessSetupGuidedModeProvider);
 
     return Scaffold(
       backgroundColor: Colors.transparent,
@@ -666,8 +711,9 @@ class _MessageState extends StatelessWidget {
 }
 
 class _RolPersonalizadoFormSheet extends ConsumerStatefulWidget {
-  const _RolPersonalizadoFormSheet({required this.menus, required this.companies, required this.branches, this.role});
+  const _RolPersonalizadoFormSheet({required this.menus, required this.companies, required this.branches, this.role, this.template});
   final RolPersonalizadoModel? role;
+  final _StarterRoleTemplate? template;
   final List<MenuAsignableModel> menus;
   final List<EmpresasResponseModel> companies;
   final List<SucursalesResponseModel> branches;
@@ -697,10 +743,17 @@ class _RolPersonalizadoFormSheetState extends ConsumerState<_RolPersonalizadoFor
   void initState() {
     super.initState();
     final role = widget.role;
-    _name = TextEditingController(text: role?.roleNombre ?? '');
-    _description = TextEditingController(text: role?.roleDescripcion ?? '');
+    _name = TextEditingController(text: role?.roleNombre ?? widget.template?.name ?? '');
+    _description = TextEditingController(text: role?.roleDescripcion ?? widget.template?.description ?? '');
     _menuSearch = TextEditingController();
-    _menuOrder = [...?role?.menuIds];
+    _menuOrder = role != null
+        ? [...role.menuIds]
+        : widget.template == null
+            ? <int>[]
+            : widget.menus
+                .where((menu) => _menuMatchesTemplate(menu, widget.template!))
+                .map((menu) => menu.menuId)
+                .toList();
     _selectedMenus = _menuOrder.toSet();
     final companyIds = <int>{
       ...widget.companies.map((item) => item.emprId).whereType<int>(),
