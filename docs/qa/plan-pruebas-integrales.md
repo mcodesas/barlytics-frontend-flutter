@@ -2,6 +2,8 @@
 
 **Rama:** `fix/historial-navegacion-eliminar-pedidos` (frontend y backend). **Estado inicial:** pendiente de ejecución. Inventario derivado de la estructura de `lib/features/**/presentation/pages` y `modules/**/api`. Los casos no equivalen a pruebas ejecutadas.
 
+**Rama de continuación para incidencias iPad:** `fix/ios-header-role-selector-overlap-20261017`. Esta rama no equivale a una validación de nueva build, ni autoriza PR o merge.
+
 ## Matriz de ejecución por plataforma
 
 Cada caso `QA-nnn` se prueba en **cuatro entornos independientes**, en **tres rondas** por entorno:
@@ -30,6 +32,7 @@ En cada caso anotar: fecha, ID, ronda, plataforma/dispositivo, versión, rol, su
 | 2026-10-15 | QA-005 | Web | 1 — Funcional | **APROBADO EN TERCERA REPRUEBA** | Usuario confirmó que los roles y las sucursales asignadas se actualizan correctamente sin reiniciar sesión. Se conservan dos repruebas fallidas previas en historial de incidencias. |
 | 2026-10-15 | QA-006 | Web | 1 — Funcional | **APROBADO** | Ninguna (resultado informado por el usuario). |
 | 2026-10-15 | QA-007 | Web | 1 — Funcional | **APROBADO** | Ninguna (resultado informado por el usuario). |
+| 2026-10-17 | QA-008 (guía iPad: cambio de roles y sucursales) | iPad — TestFlight | 1 — Funcional | **APROBADO** | Usuario confirmó los 6 pasos sin observaciones: todos los roles; rol único; varios roles; cambiar de sucursal; volver a la anterior; cerrar/reabrir aplicación conservando sesión y contexto. **Registro independiente del QA-008 maestro (elección de plan antes de pagar), que sigue pendiente.** |
 
 **Avance verificable:** QA-001, QA-002, QA-003 y QA-006 aprobadas en Web / Ronda 1; QA-005 aprobada en tercera reprueba con actualización dinámica de roles y sucursales; QA-004 aprobada en reprueba de persistencia (restan escenarios de expiración y revocación). Los demás entornos y rondas permanecen pendientes; cada caso maestro se completa cuando se cubren las combinaciones aplicables.
 
@@ -43,6 +46,13 @@ En cada caso anotar: fecha, ID, ronda, plataforma/dispositivo, versión, rol, su
 - 2026-10-15: Reprueba fallida: los roles se actualizaban, pero aparecían sucursales no asignadas.
 - 2026-10-15: Segunda reprueba fallida: continuaban apareciendo todas las sucursales.
 - 2026-10-15: **Tercera reprueba aprobada**, según validación funcional del usuario en Web; los restantes entornos y rondas siguen pendientes.
+
+### Ronda guiada de iPad / TestFlight — cambio de roles y sucursales
+
+- **QA-008 (identificador de sesión guiada, no del catálogo maestro)** — 2026-10-17 — **APROBADO**, 6/6 pasos; entorno **iPad TestFlight**, ronda **funcional**, sin observaciones, confirmado por el usuario. Validó: todos los roles (menús sin duplicados), rol único (menús correspondientes), selección múltiple (consolidación de permisos), cambio A→B de sucursal (mesas/ventas/inventario/caja visibles según sede), regreso B→A (sin datos cruzados) y continuidad de sesión y contexto tras cerrar/reabrir la app.
+- **Trazabilidad del catálogo:** aporta evidencia parcial a **QA-004** (persistencia; no prueba expiración/revocación), **QA-005** (selección de roles; no prueba revocación en segunda sesión), **QA-016** (cambio de sucursal en la sesión, sin cobertura de todos los módulos en ronda 3) y **QA-018** (roles personalizados y menú; no reemplaza pruebas administrativas de configuración). Estas casillas maestras se mantienen pendientes de sus escenarios restantes.
+- **Sin incidencia que corregir:** no se requiere modificación funcional por este resultado. La corrección visual del encabezado para iPad permanece sin validar tras su integración en una nueva build de TestFlight.
+- **Próximo caso guiado (QA-009):** verificar aislamiento multisucursal en **cierre de caja**, sin finalizar cierres reales ni modificar operaciones de producción: cambiar sucursal A/B, contrastar resumen/base/ventas/pagos/gastos y regresar; registrar cualquier contaminación cruzada con evidencia. No confundir con **QA-009 del catálogo maestro** (pago de suscripción).
 
 ## Catálogo de casos
 
