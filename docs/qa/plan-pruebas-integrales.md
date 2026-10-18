@@ -84,6 +84,14 @@ En cada caso anotar: fecha, ID, ronda, plataforma/dispositivo, versión, rol, su
 - [ ] **QA-016** Cambio de sucursal en todos los módulos
 - [ ] **QA-017** Gestión de usuarios y cupos por plan
 - [ ] **QA-018** Roles personalizados, orden de menú y permisos
+- [ ] **QA-071** Roles y funciones configurables desde la puesta en marcha de empresas
+  - **Nueva empresa:** al completar datos, sucursales, medios, catálogo y pedidos aparece **Roles y funciones** como etapa obligatoria antes de crear usuarios; probar guardar varios perfiles por empresa y asignarlos desde Usuarios.
+  - **Plantillas editables:** Mesero, Caja, Inventario, Movimientos y Supervisión muestran solamente opciones delegables, cada opción ofrece descripción completa y la previsualización permite explorar su representación en móvil/escritorio. Los nombres de plantillas no coinciden con roles globales reservados.
+  - **Opciones alternativas:** confirmar expresamente roles predefinidos con el botón correspondiente; verificar que solo afecta el estado de puesta en marcha de esa empresa, sin cambiar privilegios del sistema ni de otros tenants.
+  - **Persistencia y seguridad:** tras guardar al menos un rol personalizado activo, la etapa se marca completa al actualizar el estado. Comprobar que usuarios sin permisos no administran roles ajenos, que roles inactivos no completan empresas nuevas, y que una empresa ya activada no se bloquea retroactivamente.
+  - **Interfaz iPad:** comprobar modal de rol con teclado y vista previa, orden de opciones, vertical/horizontal, regreso a la guía, y confirmación de roles predefinidos.
+  - **Pendiente de ejecución:** frontend rama `fix/ios-header-role-selector-overlap-20261017` y backend rama `feat/setup-roles-per-company-20261017`. Validar `flutter analyze` y `./gradlew test` antes de PR/merge.
+
 
 ### Mesas, ventas y caja
 - [ ] **QA-019** CRUD de mesas según rol y mesas inactivas
