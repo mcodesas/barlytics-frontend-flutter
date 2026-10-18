@@ -55,6 +55,7 @@ class _ComandasPageState extends ConsumerState<ComandasPage> {
   Timer? _timer;
   bool _loading = true;
   bool _refreshing = false;
+  bool _canManageWithAssignedRole = false;
   String _station = 'TODAS';
   String _statusFilter = 'TODAS';
   _ComandaViewMode _viewMode = _ComandaViewMode.kanban;
@@ -63,7 +64,10 @@ class _ComandasPageState extends ConsumerState<ComandasPage> {
   @override
   void initState() {
     super.initState();
-    WidgetsBinding.instance.addPostFrameCallback((_) => _load());
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _load();
+      _loadManagementPermission();
+    });
     _timer = Timer.periodic(const Duration(seconds: 8), (_) {
       if (mounted) _load(silent: true);
     });
@@ -74,6 +78,26 @@ class _ComandasPageState extends ConsumerState<ComandasPage> {
     _timer?.cancel();
     super.dispose();
   }
+
+  // Usar el permiso comprobado por el backend; los roles personalizados
+  // pueden gestionar Comandas aunque tengan un nombre distinto.
+  Future<void> _loadManagementPermission() async {
+    try {
+      final result = await ref.read(apiClientProvider).get<Map<String, dynamic>>(
+        '/api/v1/comandas/permisos',
+        (json) => Map<String, dynamic>.from(json as Map),
+      );
+      if (!mounted) return;
+      setState(() => _canManageWithAssignedRole =
+          result.data?['puedeGestionar'] == true);
+    } catch (_) {
+      if (mounted) setState(() => _canManageWithAssignedRole = false);
+    }
+  }
+
+  bool get _canManageOrders =>
+      _canManageWithAssignedRole ||
+      _canManageCommands(ref.read(authControllerProvider).roles);
 
   Future<void> _load({bool silent = false}) async {
     final branchId = ref.read(branchScopeProvider).activeBranchId;
@@ -127,8 +151,7 @@ class _ComandasPageState extends ConsumerState<ComandasPage> {
     final branchId = ref.read(branchScopeProvider).activeBranchId;
     if (branchId == null || _updating.contains(item.detalleId)) return;
 
-    final canManage =
-        _canManageCommands(ref.read(authControllerProvider).roles);
+    final canManage = _canManageOrders;
     final next = canManage
         ? switch (item.estado) {
             'NUEVA' => 'EN_PREPARACION',
@@ -208,6 +231,7 @@ class _ComandasPageState extends ConsumerState<ComandasPage> {
   Widget build(BuildContext context) {
     final palette = ref.watch(selectedAppPaletteProvider);
     final canManageCommands =
+        _canManageWithAssignedRole ||
         _canManageCommands(ref.watch(authControllerProvider).roles);
     final branch = ref.watch(branchScopeProvider);
     final branchId = branch.activeBranchId;
