@@ -871,6 +871,7 @@ class _RolPersonalizadoFormSheetState extends ConsumerState<_RolPersonalizadoFor
   bool _saving = false;
   bool _previewMobile = false;
   bool _previewMoreOpen = false;
+  int? _previewSelectedMenuId;
   String? _error;
 
   @override
@@ -1052,6 +1053,10 @@ class _RolPersonalizadoFormSheetState extends ConsumerState<_RolPersonalizadoFor
         ? 'Rol personalizado'
         : _name.text.trim();
     final mobile = _previewMobile;
+    final activeMenu = menus.isEmpty
+        ? null
+        : menus.firstWhere((item) => item.menuId == _previewSelectedMenuId,
+            orElse: () => menus.first);
     final maxSlots = mobile ? 4 : 7;
     final hasOverflow = menus.length > maxSlots;
     final visibleCount = hasOverflow ? maxSlots - 1 : menus.length;
@@ -1106,7 +1111,7 @@ class _RolPersonalizadoFormSheetState extends ConsumerState<_RolPersonalizadoFor
     }
 
     final previewWidth = mobile ? 390.0 : 900.0;
-    final currentTitle = menus.isEmpty ? 'Sin funciones' : menus.first.nombre;
+    final currentTitle = activeMenu?.nombre ?? 'Sin funciones';
     final summary = hasOverflow
         ? menus.length.toString() +
             ' funciones autorizadas · ' +
@@ -1176,6 +1181,26 @@ class _RolPersonalizadoFormSheetState extends ConsumerState<_RolPersonalizadoFor
               );
             },
           ),
+          if (activeMenu != null) ...[
+            const SizedBox(height: 12),
+            DropdownButtonFormField<int>(
+              value: activeMenu.menuId,
+              isExpanded: true,
+              decoration: const InputDecoration(
+                labelText: 'Explorar una función del rol',
+                prefixIcon: Icon(Icons.touch_app_outlined),
+                border: OutlineInputBorder(),
+              ),
+              items: [
+                for (final menu in menus)
+                  DropdownMenuItem<int>(
+                    value: menu.menuId,
+                    child: Text(menu.nombre, overflow: TextOverflow.ellipsis),
+                  ),
+              ],
+              onChanged: (id) => setState(() => _previewSelectedMenuId = id),
+            ),
+          ],
           const SizedBox(height: 12),
           Center(
             child: AnimatedContainer(
@@ -1256,7 +1281,7 @@ class _RolPersonalizadoFormSheetState extends ConsumerState<_RolPersonalizadoFor
                     ),
                   ),
                   Container(
-                    height: mobile ? 150 : 118,
+                    constraints: BoxConstraints(minHeight: mobile ? 170 : 140),
                     width: double.infinity,
                     padding: EdgeInsets.all(mobile ? 14 : 18),
                     alignment: Alignment.topLeft,
@@ -1275,25 +1300,30 @@ class _RolPersonalizadoFormSheetState extends ConsumerState<_RolPersonalizadoFor
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
                               Text(
-                                roleName,
+                                activeMenu!.nombre,
                                 style: TextStyle(
                                   color: palette.textPrimary,
                                   fontWeight: FontWeight.w900,
                                   fontSize: mobile ? 16 : 18,
                                 ),
                               ),
-                              const SizedBox(height: 4),
+                              const SizedBox(height: 5),
                               Text(
-                                menus.length.toString() +
-                                    (menus.length == 1
-                                        ? ' función autorizada'
-                                        : ' funciones autorizadas'),
+                                activeMenu.descripcion.trim().isEmpty
+                                    ? 'Pantalla disponible para el perfil.'
+                                    : activeMenu.descripcion,
+                                maxLines: 3,
+                                overflow: TextOverflow.ellipsis,
                                 style: TextStyle(
                                   color: palette.textSecondary,
                                   fontWeight: FontWeight.w700,
-                                  fontSize: 11,
+                                  fontSize: mobile ? 10.5 : 11.5,
                                 ),
                               ),
+                              const SizedBox(height: 8),
+                              Text('Ejemplo ilustrativo · sin datos reales',
+                                style: TextStyle(color: palette.secondary,
+                                  fontSize: 10, fontWeight: FontWeight.w800)),
                             ],
                           ),
                   ),
@@ -1320,7 +1350,7 @@ class _RolPersonalizadoFormSheetState extends ConsumerState<_RolPersonalizadoFor
                               index++)
                             navItem(
                               visible[index],
-                              active: index == 0,
+                              active: activeMenu?.menuId == visible[index].menuId,
                             ),
                           if (hasOverflow)
                             Expanded(
