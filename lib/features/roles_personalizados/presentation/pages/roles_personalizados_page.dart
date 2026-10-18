@@ -269,6 +269,41 @@ class _RolesPersonalizadosPageState extends ConsumerState<RolesPersonalizadosPag
     }
   }
 
+  Future<void> _confirmPredefinedRoles() async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialog) => AlertDialog(
+        title: const Text('Usar roles estándar'),
+        content: const Text(
+          'Puedes empezar con los permisos estándar de Cajero, Mesero, Inventario y Gerente. '
+          'No se modifican permisos globales ni los de otras empresas. '
+          'Podrás crear perfiles propios más adelante.'),
+        actions: [
+          TextButton(onPressed: () => Navigator.of(dialog).pop(false), child: const Text('Volver')),
+          FilledButton(onPressed: () => Navigator.of(dialog).pop(true), child: const Text('Confirmar')),
+        ],
+      ),
+    );
+    if (confirmed != true || !mounted) return;
+    try {
+      await ref.read(apiClientProvider).post<Object?>(
+        ApiPaths.businessSetupRolesDefaults,
+        <String, dynamic>{},
+        (json) => json,
+      );
+      ref.invalidate(businessSetupStatusProvider);
+      await ref.read(authControllerProvider.notifier).refreshBusinessSetup();
+      if (!mounted) return;
+      context.go('/configurar-negocio');
+    } catch (error) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('No fue posible confirmar los roles estándar: $error')),
+        );
+      }
+    }
+  }
+
   Future<void> _inactivate(RolPersonalizadoModel role) async {
     final confirmed = await showConfirmationDialog(
       context,
@@ -328,6 +363,24 @@ class _RolesPersonalizadosPageState extends ConsumerState<RolesPersonalizadosPag
                     ),
                   ),
                 ),
+                if (guidedMode)
+                  SliverPadding(
+                    padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
+                    sliver: SliverToBoxAdapter(
+                      child: Center(
+                        child: ConstrainedBox(
+                          constraints: const BoxConstraints(maxWidth: 1180),
+                          child: _RolesSetupGuide(
+                            palette: palette,
+                            currentRoles: _roles.where((role) => role.active).length,
+                            busy: _loading,
+                            onTemplate: (template) => _openForm(null, template),
+                            onDefaults: _confirmPredefinedRoles,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
                 SliverPadding(
                   padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
                   sliver: SliverToBoxAdapter(
@@ -433,6 +486,87 @@ class _RolesPersonalizadosPageState extends ConsumerState<RolesPersonalizadosPag
       ),
     );
   }
+}
+
+/// Guía inicial: cada perfil es propio de la empresa y nunca modifica roles globales.
+class _RolesSetupGuide extends StatelessWidget {
+  const _RolesSetupGuide({
+    required this.palette,
+    required this.currentRoles,
+    required this.busy,
+    required this.onTemplate,
+    required this.onDefaults,
+  });
+
+  final AppPalette palette;
+  final int currentRoles;
+  final bool busy;
+  final ValueChanged<_StarterRoleTemplate> onTemplate;
+  final VoidCallback onDefaults;
+
+  @override
+  Widget build(BuildContext context) => Container(
+    padding: const EdgeInsets.all(16),
+    decoration: palette.panelDecoration(baseRadius: 20, tint: palette.secondary),
+    child: Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text('Define las funciones de tu equipo desde el principio',
+          style: TextStyle(color: palette.textPrimary, fontSize: 19, fontWeight: FontWeight.w900)),
+        const SizedBox(height: 7),
+        Text('Paso 6 · Antes de crear usuarios, configura un perfil por cada tipo de trabajo. '
+          'Selecciona una plantilla, ajusta lo que puede hacer y mira la vista previa '
+          'de su menú en celular o escritorio.',
+          style: TextStyle(color: palette.textSecondary, height: 1.45)),
+        const SizedBox(height: 10),
+        Text('1. Elige un ejemplo    2. Revisa las funciones    3. Guarda el rol y asígnalo a los usuarios',
+          style: TextStyle(color: palette.secondary, fontWeight: FontWeight.w800)),
+        const SizedBox(height: 14),
+        Wrap(
+          spacing: 10,
+          runSpacing: 10,
+          children: [
+            for (final template in _starterRoles)
+              SizedBox(
+                width: 235,
+                child: OutlinedButton(
+                  onPressed: busy ? null : () => onTemplate(template),
+                  style: OutlinedButton.styleFrom(
+                    padding: const EdgeInsets.all(12),
+                    alignment: Alignment.centerLeft,
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Icon(template.icon, color: palette.secondary),
+                      const SizedBox(height: 7),
+                      Text(template.name,
+                        style: TextStyle(color: palette.textPrimary, fontWeight: FontWeight.w900)),
+                      const SizedBox(height: 5),
+                      Text(template.purpose,
+                        style: TextStyle(color: palette.textSecondary, fontSize: 12)),
+                      const SizedBox(height: 8),
+                      Text('Personalizar y ver ejemplo →',
+                        style: TextStyle(color: palette.secondary, fontWeight: FontWeight.w800, fontSize: 12)),
+                    ],
+                  ),
+                ),
+              ),
+          ],
+        ),
+        const SizedBox(height: 12),
+        Text('Perfiles personalizados activos: $currentRoles. Puedes crear varios. '
+          'La vista previa muestra un ejemplo del menú, no simula operaciones ni datos reales.',
+          style: TextStyle(color: palette.textSecondary, fontSize: 12)),
+        const SizedBox(height: 8),
+        TextButton.icon(
+          onPressed: busy ? null : onDefaults,
+          icon: const Icon(Icons.verified_user_outlined),
+          label: const Text('Prefiero utilizar los roles estándar sin personalizarlos'),
+        ),
+      ],
+    ),
+  );
 }
 
 class _Header extends StatelessWidget {
