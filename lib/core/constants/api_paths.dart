@@ -30,6 +30,7 @@ class ApiPaths {
   static const subscriptionPayments = '/api/v1/subscriptions/payments';
   static const profile = '/api/v1/profile';
   static const businessSetupStatus = '/api/v1/business-setup/status';
+  static const businessSetupRolesDefaults = '/api/v1/business-setup/roles/use-defaults';
   static const me = '/api/v1/me';
   static const ciudades = '/api/v1/ciudades';
   static const cuentasventa = '/api/v1/cuentasventa';
