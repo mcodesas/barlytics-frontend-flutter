@@ -440,53 +440,37 @@ class _GlassLoginCard extends ConsumerWidget {
                     ),
                   ),
                   if (kIsWeb) ...[
-                    SizedBox(height: dense ? 10 : 18),
-                    Container(
-                      padding: EdgeInsets.all(dense ? 13 : 17),
-                      decoration: BoxDecoration(
-                        borderRadius: BorderRadius.circular(18),
-                        color: palette.primary.withOpacity(0.10),
-                        border: Border.all(
-                          color: palette.primary.withOpacity(0.62),
-                          width: 1.3,
+                    SizedBox(height: dense ? 6 : 10),
+                    Wrap(
+                      alignment: WrapAlignment.center,
+                      crossAxisAlignment: WrapCrossAlignment.center,
+                      spacing: 4,
+                      runSpacing: 0,
+                      children: [
+                        Text(
+                          '¿Aún no tienes cuenta?',
+                          style: TextStyle(
+                            color: palette.textSecondary,
+                            fontSize: dense ? 11.5 : 12.5,
+                            fontWeight: FontWeight.w600,
+                          ),
                         ),
-                      ),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.stretch,
-                        children: [
-                          Text(
-                            '¿Aún no tienes una cuenta?',
-                            textAlign: TextAlign.center,
-                            style: TextStyle(
-                              color: palette.textPrimary,
-                              fontSize: dense ? 13 : 14,
+                        TextButton.icon(
+                          onPressed: loading ? null : () => context.go('/registro'),
+                          icon: const Icon(Icons.person_add_alt_1_rounded, size: 15),
+                          label: const Text('Crear mi cuenta'),
+                          style: TextButton.styleFrom(
+                            foregroundColor: palette.primary,
+                            minimumSize: const Size(0, 36),
+                            tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                            padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
+                            textStyle: const TextStyle(
+                              fontSize: 12.5,
                               fontWeight: FontWeight.w800,
                             ),
                           ),
-                          SizedBox(height: dense ? 9 : 12),
-                          SizedBox(
-                            height: dense ? 46 : 52,
-                            child: FilledButton.icon(
-                              onPressed: loading ? null : () => context.go('/registro'),
-                              icon: const Icon(Icons.person_add_alt_1_rounded, size: 20),
-                              label: const Text('Crear mi cuenta'),
-                              style: FilledButton.styleFrom(
-                                backgroundColor: palette.primary,
-                                foregroundColor: darkInk,
-                                disabledBackgroundColor: palette.primary.withOpacity(0.30),
-                                disabledForegroundColor: palette.textSecondary,
-                                shape: RoundedRectangleBorder(
-                                  borderRadius: BorderRadius.circular(14),
-                                ),
-                                textStyle: const TextStyle(
-                                  fontSize: 15,
-                                  fontWeight: FontWeight.w900,
-                                ),
-                              ),
-                            ),
-                          ),
-                        ],
-                      ),
+                        ),
+                      ],
                     ),
                   ] else ...[
                     SizedBox(height: dense ? 8 : 12),
