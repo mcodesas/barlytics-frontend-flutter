@@ -944,6 +944,12 @@ class _RolPersonalizadoFormSheetState extends ConsumerState<_RolPersonalizadoFor
     return values;
   }
 
+  // Alias visible solo al configurar permisos; no cambia la ruta ni el ID.
+  String _menuDisplayName(MenuAsignableModel menu) =>
+      menu.parametro.trim().toLowerCase() == 'productos'
+          ? 'Catálogo de productos'
+          : menu.nombre;
+
   List<MenuAsignableModel> get _filteredMenus {
     final query = _normalizeMenuText(_menuSearch.text);
     return widget.menus.where((menu) {
@@ -951,6 +957,7 @@ class _RolPersonalizadoFormSheetState extends ConsumerState<_RolPersonalizadoFor
       if (_menuType != 'Todos' && !types.contains(_menuType)) return false;
       if (query.isEmpty) return true;
       final searchable = _normalizeMenuText([
+        _menuDisplayName(menu),
         menu.nombre,
         menu.descripcion,
         menu.parametro,
@@ -2105,7 +2112,7 @@ class _RolPersonalizadoFormSheetState extends ConsumerState<_RolPersonalizadoFor
                                                             child: Icon(Icons.lock_outline_rounded, color: palette.textSecondary),
                                                           ),
                                                     title: Text(
-                                                      menu.nombre,
+                                                      _menuDisplayName(menu),
                                                       style: TextStyle(
                                                         color: menu.asignable ? palette.textPrimary : palette.textSecondary,
                                                         fontWeight: FontWeight.w900,
