@@ -4993,7 +4993,9 @@ class _MeseroPageState extends ConsumerState<MeseroPage> {
         content: Text(
           'Se anulará ${salida.descripcion ?? 'esta salida'} por '
           '${CurrencyUtils.format(salida.valor)}. '
-          'Si corresponde a un pedido, el saldo pendiente se restaurará.',
+          'Si corresponde a un pedido, el saldo pendiente se restaurará. '
+          'También se recalcularán los totales del cierre y las diferencias por medio de pago, '
+          'aunque el turno ya esté cerrado.',
         ),
         actions: [
           TextButton(
@@ -5013,6 +5015,13 @@ class _MeseroPageState extends ConsumerState<MeseroPage> {
       setState(() => _processing = true);
       await _dataSource.anularSalidaCaja(id);
       await _reloadCierreCaja();
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text(
+            'Salida anulada. Se recalcularon los totales y las diferencias de caja.',
+          )),
+        );
+      }
     } catch (error) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
