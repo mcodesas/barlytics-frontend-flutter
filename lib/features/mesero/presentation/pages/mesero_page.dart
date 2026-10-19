@@ -5842,12 +5842,18 @@ class _MeseroPageState extends ConsumerState<MeseroPage> {
               onEditarBase: cerrado
                   ? null
                   : () => _registrarBaseInicialCierreCaja(cierre),
-              onRegistrarSalida: cerrado || _processing
+              onRegistrarSalida: _processing
                   ? null
                   : () => _registrarSalidaCaja(cierre),
-              onAnularSalida: cerrado || _processing
+              onEditarSalida: _processing
+                  ? null
+                  : (salida) => _editarSalidaCaja(cierre, salida),
+              onAnularSalida: _processing
                   ? null
                   : (salida) => _anularSalidaCaja(cierre, salida),
+              onEditarGastos: _processing
+                  ? null
+                  : () => _registrarCierreCaja(cierre),
             ),
             const SizedBox(height: 14),
             _CierreCollapsibleSection(
@@ -7081,7 +7087,9 @@ class _CierrePosMovimientosPanel extends ConsumerWidget {
     required this.cerrado,
     this.onEditarBase,
     this.onRegistrarSalida,
+    this.onEditarSalida,
     this.onAnularSalida,
+    this.onEditarGastos,
   });
 
   final double valorBase;
@@ -7094,7 +7102,9 @@ class _CierrePosMovimientosPanel extends ConsumerWidget {
   final bool cerrado;
   final VoidCallback? onEditarBase;
   final VoidCallback? onRegistrarSalida;
+  final ValueChanged<SalidaCajaModel>? onEditarSalida;
   final ValueChanged<SalidaCajaModel>? onAnularSalida;
+  final VoidCallback? onEditarGastos;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -7112,7 +7122,7 @@ class _CierrePosMovimientosPanel extends ConsumerWidget {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
-                    'Movimientos de efectivo',
+                    'Gastos y movimientos de caja',
                     style: TextStyle(
                       color: palette.textPrimary,
                       fontWeight: FontWeight.w900,
@@ -7120,7 +7130,7 @@ class _CierrePosMovimientosPanel extends ConsumerWidget {
                     ),
                   ),
                   Text(
-                    'Todo lo que salió de caja durante el turno, clasificado sin duplicar costos.',
+                    'Puedes corregir gastos incluso después del cierre. El faltante o sobrante se recalcula.',
                     style: TextStyle(
                       color: palette.textSecondary,
                       fontWeight: FontWeight.w600,
@@ -7142,6 +7152,12 @@ class _CierrePosMovimientosPanel extends ConsumerWidget {
                 onPressed: onEditarBase,
                 icon: const Icon(Icons.savings_rounded, size: 18),
                 label: const Text('Base inicial'),
+              ),
+            if (gastosLegacy.isNotEmpty && onEditarGastos != null)
+              OutlinedButton.icon(
+                onPressed: onEditarGastos,
+                icon: const Icon(Icons.edit_note_rounded, size: 18),
+                label: const Text('Editar gastos del cierre'),
               ),
             if (onRegistrarSalida != null)
               FilledButton.icon(
@@ -7226,6 +7242,9 @@ class _CierrePosMovimientosPanel extends ConsumerWidget {
               _SalidaCajaRow(
                 salida: salida,
                 palette: palette,
+                onEditar: onEditarSalida == null
+                    ? null
+                    : () => onEditarSalida!(salida),
                 onAnular: onAnularSalida == null
                     ? null
                     : () => onAnularSalida!(salida),
@@ -7240,7 +7259,7 @@ class _CierrePosMovimientosPanel extends ConsumerWidget {
             const SizedBox(height: 12),
             Text(
               cerrado
-                  ? 'No se registraron pagos ni salidas en este turno.'
+                  ? 'No se registraron pagos ni salidas en este turno. Puedes agregarlos o corregirlos.'
                   : 'Aún no hay movimientos. Registra aquí pagos de pedidos, facturas o salidas del turno.',
               style: TextStyle(
                 color: palette.textSecondary,
@@ -7259,11 +7278,13 @@ class _SalidaCajaRow extends StatelessWidget {
   const _SalidaCajaRow({
     required this.salida,
     required this.palette,
+    this.onEditar,
     this.onAnular,
   });
 
   final SalidaCajaModel salida;
   final AppPalette palette;
+  final VoidCallback? onEditar;
   final VoidCallback? onAnular;
 
   @override
@@ -7394,6 +7415,13 @@ class _SalidaCajaRow extends StatelessWidget {
                   fontSize: 12,
                 ),
               ),
+              if (onEditar != null)
+                IconButton(
+                  tooltip: 'Editar gasto o pago',
+                  visualDensity: VisualDensity.compact,
+                  onPressed: onEditar,
+                  icon: const Icon(Icons.edit_outlined, size: 18),
+                ),
               if (onAnular != null)
                 IconButton(
                   tooltip: 'Anular salida',
