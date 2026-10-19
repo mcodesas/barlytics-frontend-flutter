@@ -84,6 +84,14 @@ En cada caso anotar: fecha, ID, ronda, plataforma/dispositivo, versión, rol, su
 - [ ] **QA-016** Cambio de sucursal en todos los módulos
 - [ ] **QA-017** Gestión de usuarios y cupos por plan
 - [ ] **QA-018** Roles personalizados, orden de menú y permisos
+- [ ] **QA-072** Ajustes de gastos y pedidos externos después del cierre de caja
+  - Configurar 2 sucursales A/B con distintos valores de ventas y caja, registrar gastos en A y cerrar el turno. Editar valor, descripción y categoría del gasto: el cierre sigue cerrado, se actualizan movimientos, total de gastos, cruce y **faltante/sobrante** de A sin modificar B ni ventas incluidas.
+  - Agregar y anular una salida después del cierre y comprobar que se recalculan totales persistidos y resumen/PDF; el registro anulado conserva referencia para auditoría y deja de afectar las sumas.
+  - Pagar pedido registrado con saldo parcial, después editar el pago: no debe exceder el saldo total disponible considerando su valor anterior; mantener vínculo de pago e inventario y no duplicar movimientos.
+  - Registrar **PAGO_PEDIDO sin pedido seleccionado** aportando descripción, valor y medio de pago: el campo `pedi_id` debe ser NULL, no se escribe a `pedido_compra_pago`, no se altera inventario, no falla restricción `ck_salida_caja_referencia`; comprobar que permite volver a elegir 'Sin pedido asociado'.
+  - Probar pagos externos en efectivo y Nequi/DaviPlata: los electrónicos deben aparecer en el registro pero no afectar la diferencia de efectivo.
+  - Rechazar edición de gasto de otra sucursal, de movimiento anulado, cambio de tipo o cambio de pedido asociado. Confirmar que el cierre histórico pertenece a su sucursal.
+  - Aplicar primero en PostgreSQL la migración **V32__permitir_pagos_pedido_externos_sin_pedido.sql** (Flyway o manual) antes de usar este cambio en producción. Pendientes `./gradlew test` y `flutter analyze`. No desplegar ni fusionar sin autorización.
 - [ ] **QA-071** Roles y funciones configurables desde la puesta en marcha de empresas
   - **Nueva empresa:** al completar datos, sucursales, medios, catálogo y pedidos aparece **Roles y funciones** como etapa obligatoria antes de crear usuarios; probar guardar varios perfiles por empresa y asignarlos desde Usuarios.
   - **Plantillas editables:** Mesero, Caja, Cocina, Barra, Inventario, Movimientos y Supervisión muestran solamente opciones delegables. Cocina y Barra reciben inicialmente solo el módulo Comandas; pueden seleccionar su estación desde el filtro de comandas. Cada opción ofrece explicación y vista previa móvil/escritorio. Los nombres de plantillas no coinciden con roles globales reservados.
