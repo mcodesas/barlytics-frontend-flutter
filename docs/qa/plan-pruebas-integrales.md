@@ -31,6 +31,8 @@
 
 - **Decisión de producto:** mostrar **únicamente el formulario de inicio de sesión**, centrado en el espacio disponible. Se eliminó el panel promocional izquierdo, el video, el texto comercial y los indicadores anteriores.
 - **Web escritorio:** comprobar en Chrome/Edge y Safari que el formulario mantiene logo, correo, contraseña, inicio de sesión social, recuperación, registro y enlaces; centrado horizontal/verticalmente con ancho máximo de 530 px.
+- **Contraste del registro (incidencia UX):** verificar que, bajo “Entrar a BarLytics”, aparece un recuadro destacado con el mensaje “¿Aún no tienes una cuenta?” y botón turquesa **“Crear mi cuenta”**; debe abrir `/registro`. La fila Caja/Mesas y la nota técnica JWT se ocultan solo en web para reducir ruido. “Personalizar colores” queda como enlace secundario, y los enlaces de recuperación se muestran juntos donde haya ancho suficiente.
+- **Regresión nativa:** comprobar que las aplicaciones Android, iOS, Windows, macOS y Linux conservan la opción “Registrarse” y los accesos originales. **Pendiente de validación visual/funcional**, no aprobado.
 - **Web angosta y ventana baja:** verificar que el formulario sigue visible, permite desplazarse con el teclado y el enlace "Volver" no tapa los campos.
 - **Apps nativas:** conservar diseño anterior en Android, iOS, Windows, macOS y Linux. Esta simplificación solo se aplica a Flutter web.
 - **Estado:** implementado en rama, pendiente de compilar y validar en navegador. No se ha publicado una nueva versión por esta corrección.
