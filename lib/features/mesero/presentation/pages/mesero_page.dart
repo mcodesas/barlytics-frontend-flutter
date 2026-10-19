@@ -4811,6 +4811,170 @@ class _MeseroPageState extends ConsumerState<MeseroPage> {
     }
   }
 
+  Future<void> _editarSalidaCaja(
+    CierreCajaResumenModel cierre,
+    SalidaCajaModel salida,
+  ) async {
+    final id = salida.salidaId;
+    if (id == null || _processing) return;
+    final descripcion = TextEditingController(text: salida.descripcion ?? '');
+    final valor = TextEditingController(
+      text: _formatCurrencyInputAmount(salida.valor ?? 0),
+    );
+    final categoria = TextEditingController(text: salida.categoria ?? 'OTROS');
+    final medios = _mediosPago
+        .where((medio) => medio.medioPagoId != null)
+        .toList(growable: false);
+    int? medioId;
+    for (final medio in medios) {
+      if ((medio.nombre ?? '').trim().toLowerCase() ==
+          (salida.medioPagoNombre ?? '').trim().toLowerCase()) {
+        medioId = medio.medioPagoId;
+        break;
+      }
+    }
+    final esTurno = salida.tipo == 'GASTO_TURNO';
+    try {
+      final decision = await showDialog<({double valor, String descripcion, String categoria, int? medioPagoId})>(
+        context: context,
+        builder: (dialogContext) => StatefulBuilder(
+          builder: (dialogContext, setDialogState) {
+            final total = _parseCurrencyInput(valor.text);
+            final permitido = total > 0 &&
+                descripcion.text.trim().isNotEmpty &&
+                (esTurno || medioId != null);
+            return AlertDialog(
+              title: const Text('Corregir gasto o pago'),
+              content: SizedBox(
+                width: 440,
+                child: SingleChildScrollView(
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      Text(
+                        'Puedes corregir este movimiento incluso después de cerrar caja. '
+                        'Se actualizarán los totales y la diferencia, sin modificar las ventas.',
+                        style: TextStyle(color: Theme.of(dialogContext).colorScheme.onSurfaceVariant),
+                      ),
+                      const SizedBox(height: 14),
+                      TextField(
+                        controller: descripcion,
+                        maxLength: 300,
+                        onChanged: (_) => setDialogState(() {}),
+                        decoration: const InputDecoration(
+                          labelText: 'Descripción',
+                          border: OutlineInputBorder(),
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      TextField(
+                        controller: valor,
+                        keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                        inputFormatters: _currencyInputFormatters,
+                        onChanged: (_) => setDialogState(() {}),
+                        decoration: const InputDecoration(
+                          labelText: 'Valor corregido',
+                          suffixText: 'COP',
+                          border: OutlineInputBorder(),
+                        ),
+                      ),
+                      if (esTurno) ...[
+                        const SizedBox(height: 12),
+                        TextField(
+                          controller: categoria,
+                          maxLength: 50,
+                          decoration: const InputDecoration(
+                            labelText: 'Categoría',
+                            border: OutlineInputBorder(),
+                          ),
+                        ),
+                      ] else ...[
+                        const SizedBox(height: 12),
+                        DropdownButtonFormField<int>(
+                          value: medios.any((m) => m.medioPagoId == medioId)
+                              ? medioId : null,
+                          isExpanded: true,
+                          decoration: const InputDecoration(
+                            labelText: 'Medio con el que se pagó',
+                            border: OutlineInputBorder(),
+                          ),
+                          items: medios.map((medio) => DropdownMenuItem<int>(
+                            value: medio.medioPagoId,
+                            child: Text(medio.nombre ?? 'Medio de pago',
+                                overflow: TextOverflow.ellipsis),
+                          )).toList(growable: false),
+                          onChanged: (v) => setDialogState(() => medioId = v),
+                        ),
+                        const SizedBox(height: 8),
+                        const Text(
+                          'El pedido o gasto asociado se conserva. Para cambiar la referencia, '
+                          'anula el movimiento y regístralo nuevamente.',
+                        ),
+                      ],
+                    ],
+                  ),
+                ),
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.pop(dialogContext),
+                  child: const Text('Cancelar'),
+                ),
+                FilledButton.icon(
+                  onPressed: permitido
+                      ? () => Navigator.pop(dialogContext, (
+                          valor: total,
+                          descripcion: descripcion.text.trim(),
+                          categoria: categoria.text.trim(),
+                          medioPagoId: medioId,
+                        ))
+                      : null,
+                  icon: const Icon(Icons.save_outlined),
+                  label: const Text('Guardar cambios'),
+                ),
+              ],
+            );
+          },
+        ),
+      );
+      if (decision == null || !mounted) return;
+      setState(() => _processing = true);
+      await _dataSource.actualizarSalidaCaja(
+        salidaId: id,
+        fecha: salida.fecha ?? cierre.fecha ?? _fechaIso(_fechaCierreActual),
+        tipo: salida.tipo ?? 'GASTO_TURNO',
+        valor: decision.valor,
+        descripcion: decision.descripcion,
+        categoria: decision.categoria,
+        medioPagoId: decision.medioPagoId,
+        gastoId: salida.gastoId,
+        pedidoId: salida.pedidoId,
+      );
+      await _reloadCierreCaja();
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text(
+            'Movimiento corregido. Total de gastos y diferencia de caja actualizados.',
+          )),
+        );
+      }
+    } catch (error) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('No fue posible modificar el movimiento: $error')),
+        );
+      }
+    } finally {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        descripcion.dispose();
+        valor.dispose();
+        categoria.dispose();
+      });
+      if (mounted) setState(() => _processing = false);
+    }
+  }
+
   Future<void> _anularSalidaCaja(
     CierreCajaResumenModel cierre,
     SalidaCajaModel salida,
