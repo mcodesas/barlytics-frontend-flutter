@@ -27,13 +27,13 @@
 
 **Seguimiento:** registrar resultados con fecha, entorno, SO/navegador, build, rol, sucursal, pasos, estado, evidencia/observaciones, issue/commit cuando haya corrección. Las celdas sin dispositivo ejecutado siguen PENDIENTE. Conservar la evidencia QA-001…QA-008 de 2026-10-15/17 únicamente en el registro histórico inferior.
 
-### Subcaso visual: presentación del login web — 2026-10-19
+### Subcaso visual: login web simplificado — 2026-10-19
 
-- **Cambio en rama:** `lib/features/auth/presentation/pages/login_page.dart`. Mensaje reemplazado por "Tu negocio, todo bajo control." y un único video real del panel principal (`web/demos/desktop/inicio.mp4`). Se eliminaron del panel web las filas decorativas de chips, círculos y métricas falsas.
-- **Web escritorio:** abrir `/login` en Chrome y Edge; verificar título, subtítulo, reproducción en bucle sin sonido, botón Pausar/Reproducir y que no estorbe el formulario.
-- **Web reducida y accesibilidad:** comprobar que en pantallas estrechas se prioriza el formulario (sin cargar video), que con preferencia de movimiento reducido no hay reproducción automática y que, si falla el video, queda un texto útil sin bloquear el inicio de sesión.
-- **Móvil/escritorio nativos:** confirmar que se mantiene la presentación existente (este ajuste se limita a Flutter web).
-- **Estado:** IMPLEMENTADO EN RAMA, **PENDIENTE DE QA EN NAVEGADOR**. No marcar aprobado por inspección de GitHub; no se ejecutó `flutter analyze` en este entorno.
+- **Decisión de producto:** mostrar **únicamente el formulario de inicio de sesión**, centrado en el espacio disponible. Se eliminó el panel promocional izquierdo, el video, el texto comercial y los indicadores anteriores.
+- **Web escritorio:** comprobar en Chrome/Edge y Safari que el formulario mantiene logo, correo, contraseña, inicio de sesión social, recuperación, registro y enlaces; centrado horizontal/verticalmente con ancho máximo de 530 px.
+- **Web angosta y ventana baja:** verificar que el formulario sigue visible, permite desplazarse con el teclado y el enlace "Volver" no tapa los campos.
+- **Apps nativas:** conservar diseño anterior en Android, iOS, Windows, macOS y Linux. Esta simplificación solo se aplica a Flutter web.
+- **Estado:** implementado en rama, pendiente de compilar y validar en navegador. No se ha publicado una nueva versión por esta corrección.
 
 ### QA-001 — Inicio de sesión, credenciales inválidas y bloqueo (nueva ejecución)
 
