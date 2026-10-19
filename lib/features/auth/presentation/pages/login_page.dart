@@ -5,7 +5,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:url_launcher/url_launcher.dart';
-import 'package:video_player/video_player.dart';
 
 import '../../../../app/theme/app_palette.dart';
 import '../../../../core/auth/google_sign_in_button.dart';
@@ -13,7 +12,6 @@ import '../../../../core/auth/apple_sign_in_button.dart';
 import '../../../../core/errors/failure.dart';
 import '../../../../core/utils/validators.dart';
 import '../../../../core/widgets/barlytics_brand.dart';
-import '../../../../core/config/public_site_config.dart';
 import '../../../../core/widgets/tech_background.dart';
 import '../providers/auth_provider.dart';
 
@@ -69,41 +67,50 @@ class _LoginPageState extends ConsumerState<LoginPage> {
                 child: ConstrainedBox(
                   constraints: const BoxConstraints(maxWidth: 1180),
                   child: SingleChildScrollView(
-                    padding: EdgeInsets.symmetric(
-                      vertical: compactHeight ? 4 : 10,
+                    padding: EdgeInsets.only(
+                      top: kIsWeb
+                          ? (screen.width < 620 ? 62 : 12)
+                          : (compactHeight ? 4 : 10),
+                      bottom: kIsWeb ? 14 : (compactHeight ? 4 : 10),
                     ),
-                    child: wide
-                        ? Row(
-                            crossAxisAlignment: CrossAxisAlignment.center,
-                            children: [
-                              Expanded(
-                                child: kIsWeb
-                                     ? _WebLoginHero(dense: compactHeight)
-                                     : _BarHero(dense: compactHeight),
-                              ),
-                              SizedBox(width: compactHeight ? 22 : 34),
-                              Expanded(
-                                child: _GlassLoginCard(
-                                  state: this,
-                                  loading: state.loading,
-                                  dense: compactHeight,
-                                ),
-                              ),
-                            ],
-                          )
-                        : Column(
-                            children: [
-                              if (kIsWeb)
-                                const _WebLoginHero(compact: true)
-                              else
-                                const _BarHero(compact: true),
-                              const SizedBox(height: 20),
-                              _GlassLoginCard(
+                    child: kIsWeb
+                        // Login web sin sección comercial, vídeo ni animaciones:
+                        // solo el formulario, centrado y legible en cualquier ancho.
+                        ? Center(
+                            child: ConstrainedBox(
+                              constraints: const BoxConstraints(maxWidth: 530),
+                              child: _GlassLoginCard(
                                 state: this,
                                 loading: state.loading,
+                                dense: compactHeight,
                               ),
-                            ],
-                          ),
+                            ),
+                          )
+                        : wide
+                            ? Row(
+                                crossAxisAlignment: CrossAxisAlignment.center,
+                                children: [
+                                  Expanded(child: _BarHero(dense: compactHeight)),
+                                  SizedBox(width: compactHeight ? 22 : 34),
+                                  Expanded(
+                                    child: _GlassLoginCard(
+                                      state: this,
+                                      loading: state.loading,
+                                      dense: compactHeight,
+                                    ),
+                                  ),
+                                ],
+                              )
+                            : Column(
+                                children: [
+                                  const _BarHero(compact: true),
+                                  const SizedBox(height: 20),
+                                  _GlassLoginCard(
+                                    state: this,
+                                    loading: state.loading,
+                                  ),
+                                ],
+                              ),
                   ),
                 ),
               ),
@@ -800,219 +807,6 @@ class _GlassTextField extends ConsumerWidget {
         errorStyle: TextStyle(
           fontSize: dense ? 10.5 : null,
           height: dense ? 1.05 : null,
-        ),
-      ),
-    );
-  }
-}
-
-/// Presentación breve del login web: copy claro y un video REAL ya
-/// distribuido con la landing. La app nativa mantiene su acceso habitual.
-class _WebLoginHero extends ConsumerWidget {
-  const _WebLoginHero({this.compact = false, this.dense = false});
-
-  final bool compact;
-  final bool dense;
-
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final palette = ref.watch(selectedAppPaletteProvider);
-    return Container(
-      width: double.infinity,
-      padding: EdgeInsets.all(compact ? 20 : (dense ? 24 : 30)),
-      decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(compact ? 24 : 30),
-        color: palette.surface.withOpacity(0.58),
-        border: Border.all(color: palette.primary.withOpacity(0.25)),
-        boxShadow: [
-          BoxShadow(
-            color: palette.primary.withOpacity(0.10),
-            blurRadius: dense ? 22 : 32,
-            offset: const Offset(0, 12),
-          ),
-        ],
-      ),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            'BARLYTICS · GESTIÓN INTELIGENTE',
-            style: TextStyle(
-              color: palette.primary,
-              fontWeight: FontWeight.w900,
-              fontSize: compact ? 10 : 11,
-              letterSpacing: 1.1,
-            ),
-          ),
-          SizedBox(height: dense ? 12 : 18),
-          Text(
-            'Tu negocio, todo bajo control.',
-            style: TextStyle(
-              color: palette.textPrimary,
-              fontSize: compact ? 25 : (dense ? 30 : 36),
-              fontWeight: FontWeight.w900,
-              height: 1.08,
-              letterSpacing: -0.7,
-            ),
-          ),
-          const SizedBox(height: 12),
-          Text(
-            'Mesas, ventas, caja e inventario en un solo lugar. '
-            'Toma mejores decisiones mientras tu equipo sigue en movimiento.',
-            style: TextStyle(
-              color: palette.textPrimary.withOpacity(0.82),
-              fontSize: compact ? 13 : (dense ? 14 : 15),
-              height: 1.48,
-            ),
-          ),
-          // En pantallas estrechas priorizamos el formulario de acceso:
-          // el video no obliga a desplazarse para iniciar sesión.
-          if (!compact) ...[
-            SizedBox(height: dense ? 18 : 24),
-            const _WebLoginDemoVideo(),
-            const SizedBox(height: 10),
-            Text(
-              'Así se ve BarLytics en acción · Panel principal',
-              style: TextStyle(
-                color: palette.textSecondary,
-                fontSize: dense ? 10.5 : 11.5,
-                fontWeight: FontWeight.w700,
-              ),
-            ),
-          ],
-        ],
-      ),
-    );
-  }
-}
-
-/// Reutiliza /web/demos/desktop/inicio.mp4, ya presente en la publicación web.
-/// No añade paquetes, Lottie ni archivos nuevos; reproducción muda y control
-/// accesible para pausar. Si el navegador bloquea el video, queda el texto.
-class _WebLoginDemoVideo extends StatefulWidget {
-  const _WebLoginDemoVideo();
-
-  @override
-  State<_WebLoginDemoVideo> createState() => _WebLoginDemoVideoState();
-}
-
-class _WebLoginDemoVideoState extends State<_WebLoginDemoVideo> {
-  VideoPlayerController? _controller;
-  bool _ready = false;
-  bool _failed = false;
-  bool _playing = false;
-
-  @override
-  void initState() {
-    super.initState();
-    _prepare();
-  }
-
-  Future<void> _prepare() async {
-    final base = PublicSiteConfig.demoMediaBaseUrl.trim();
-    if (base.isEmpty) {
-      if (mounted) setState(() => _failed = true);
-      return;
-    }
-    final root = base.endsWith('/') ? base.substring(0, base.length - 1) : base;
-    final path = '$root/desktop/inicio.mp4';
-    final url = root.startsWith('https://') || root.startsWith('http://')
-        ? path
-        : Uri.base.resolve(path).toString();
-    final controller = VideoPlayerController.networkUrl(
-      Uri.parse(url),
-      videoPlayerOptions: VideoPlayerOptions(mixWithOthers: true),
-    );
-    _controller = controller;
-    try {
-      await controller.initialize();
-      if (!mounted) return;
-      await controller.setLooping(true);
-      await controller.setVolume(0);
-      if (!MediaQuery.of(context).disableAnimations) {
-        await controller.play();
-      }
-      if (mounted) {
-        setState(() {
-          _ready = true;
-          _playing = controller.value.isPlaying;
-        });
-      }
-    } catch (_) {
-      if (mounted) setState(() => _failed = true);
-    }
-  }
-
-  Future<void> _togglePlayback() async {
-    final controller = _controller;
-    if (!_ready || controller == null) return;
-    try {
-      if (controller.value.isPlaying) {
-        await controller.pause();
-      } else {
-        await controller.setVolume(0);
-        await controller.play();
-      }
-      if (mounted) setState(() => _playing = controller.value.isPlaying);
-    } catch (_) {
-      if (mounted) setState(() => _failed = true);
-    }
-  }
-
-  @override
-  void dispose() {
-    _controller?.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return ClipRRect(
-      borderRadius: BorderRadius.circular(18),
-      child: AspectRatio(
-        aspectRatio: 16 / 9,
-        child: ColoredBox(
-          color: const Color(0xFF061723),
-          child: _ready && !_failed
-              ? Stack(
-                  fit: StackFit.expand,
-                  children: [
-                    Center(
-                      child: AspectRatio(
-                        aspectRatio: _controller!.value.aspectRatio,
-                        child: VideoPlayer(_controller!),
-                      ),
-                    ),
-                    Positioned(
-                      right: 8,
-                      bottom: 8,
-                      child: IconButton.filledTonal(
-                        tooltip: _playing ? 'Pausar demostración' : 'Reproducir demostración',
-                        onPressed: _togglePlayback,
-                        icon: Icon(_playing
-                            ? Icons.pause_rounded
-                            : Icons.play_arrow_rounded),
-                      ),
-                    ),
-                  ],
-                )
-              : Center(
-                  child: Padding(
-                    padding: const EdgeInsets.all(18),
-                    child: Text(
-                      _failed
-                          ? 'Descubre cómo funciona BarLytics desde el panel principal.'
-                          : 'Preparando una vista del sistema…',
-                      textAlign: TextAlign.center,
-                      style: const TextStyle(
-                        color: Colors.white70,
-                        fontSize: 12,
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                  ),
-                ),
         ),
       ),
     );
