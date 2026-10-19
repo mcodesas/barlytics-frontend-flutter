@@ -6175,8 +6175,12 @@ class _SalidaCajaDialogState extends State<_SalidaCajaDialog> {
               helperText: 'Si la compra fue fuera de BarLytics, deja el pedido sin seleccionar.',
               prefixIcon: Icon(Icons.inventory_2_outlined),
             ),
-            items: widget.opciones.pedidosPendientes
-                .map(
+            items: [
+              const DropdownMenuItem<int>(
+                value: null,
+                child: Text('Sin pedido asociado · compra externa'),
+              ),
+              ...widget.opciones.pedidosPendientes.map(
                   (item) => DropdownMenuItem<int>(
                     value: item.id,
                     child: Text(
@@ -6187,8 +6191,8 @@ class _SalidaCajaDialogState extends State<_SalidaCajaDialog> {
                       overflow: TextOverflow.ellipsis,
                     ),
                   ),
-                )
-                .toList(),
+                ),
+            ],
             onChanged: (value) {
               setState(() {
                 _pedidoId = value;
@@ -7025,7 +7029,14 @@ class _CierrePosResumenPanel extends ConsumerWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(cuadrado ? 'Caja cuadrada' : 'Diferencia de caja', style: TextStyle(color: statusColor, fontWeight: FontWeight.w900, fontSize: 12)),
+                Text(
+                  cuadrado
+                      ? 'Caja cuadrada'
+                      : diferencia < 0
+                          ? 'Faltante de caja'
+                          : 'Sobrante de caja',
+                  style: TextStyle(color: statusColor, fontWeight: FontWeight.w900, fontSize: 12),
+                ),
                 const SizedBox(height: 3),
                 Text(CurrencyUtils.format(diferencia), style: TextStyle(color: statusColor, fontWeight: FontWeight.w900, fontSize: 24)),
               ],
