@@ -304,8 +304,10 @@ class _GlassLoginCard extends ConsumerWidget {
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
                   _WelcomeHeader(dense: dense),
-                  SizedBox(height: dense ? 10 : 22),
-                  _AccessModeStrip(dense: dense),
+                  if (!kIsWeb) ...[
+                    SizedBox(height: dense ? 10 : 22),
+                    _AccessModeStrip(dense: dense),
+                  ],
                   SizedBox(height: dense ? 10 : 18),
                   _GoogleLoginSection(state: state, loading: loading),
                   if (BarLyticsAppleSignInButton.supported) ...[
@@ -437,26 +439,77 @@ class _GlassLoginCard extends ConsumerWidget {
                       ),
                     ),
                   ),
-                  SizedBox(height: dense ? 8 : 12),
-                  OutlinedButton.icon(
-                    onPressed: loading ? null : () => context.go('/registro'),
-                    icon: const Icon(Icons.person_add_alt_1_rounded),
-                    label: const Text('Registrarse'),
-                    style: OutlinedButton.styleFrom(
-                      foregroundColor: palette.textPrimary,
-                      side: BorderSide(color: palette.primary.withOpacity(0.42)),
-                      backgroundColor: palette.primary.withOpacity(0.07),
-                      padding: EdgeInsets.symmetric(vertical: dense ? 10 : 15),
-                      minimumSize: Size.fromHeight(dense ? 40 : 48),
-                      tapTargetSize: dense
-                          ? MaterialTapTargetSize.shrinkWrap
-                          : MaterialTapTargetSize.padded,
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(dense ? 14 : 16),
+                  if (kIsWeb) ...[
+                    SizedBox(height: dense ? 10 : 18),
+                    Container(
+                      padding: EdgeInsets.all(dense ? 13 : 17),
+                      decoration: BoxDecoration(
+                        borderRadius: BorderRadius.circular(18),
+                        color: palette.primary.withOpacity(0.10),
+                        border: Border.all(
+                          color: palette.primary.withOpacity(0.62),
+                          width: 1.3,
+                        ),
                       ),
-                      textStyle: const TextStyle(fontWeight: FontWeight.w800),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          Text(
+                            '¿Aún no tienes una cuenta?',
+                            textAlign: TextAlign.center,
+                            style: TextStyle(
+                              color: palette.textPrimary,
+                              fontSize: dense ? 13 : 14,
+                              fontWeight: FontWeight.w800,
+                            ),
+                          ),
+                          SizedBox(height: dense ? 9 : 12),
+                          SizedBox(
+                            height: dense ? 46 : 52,
+                            child: FilledButton.icon(
+                              onPressed: loading ? null : () => context.go('/registro'),
+                              icon: const Icon(Icons.person_add_alt_1_rounded, size: 20),
+                              label: const Text('Crear mi cuenta'),
+                              style: FilledButton.styleFrom(
+                                backgroundColor: palette.primary,
+                                foregroundColor: darkInk,
+                                disabledBackgroundColor: palette.primary.withOpacity(0.30),
+                                disabledForegroundColor: palette.textSecondary,
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(14),
+                                ),
+                                textStyle: const TextStyle(
+                                  fontSize: 15,
+                                  fontWeight: FontWeight.w900,
+                                ),
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
                     ),
-                  ),
+                  ] else ...[
+                    SizedBox(height: dense ? 8 : 12),
+                    OutlinedButton.icon(
+                      onPressed: loading ? null : () => context.go('/registro'),
+                      icon: const Icon(Icons.person_add_alt_1_rounded),
+                      label: const Text('Registrarse'),
+                      style: OutlinedButton.styleFrom(
+                        foregroundColor: palette.textPrimary,
+                        side: BorderSide(color: palette.primary.withOpacity(0.42)),
+                        backgroundColor: palette.primary.withOpacity(0.07),
+                        padding: EdgeInsets.symmetric(vertical: dense ? 10 : 15),
+                        minimumSize: Size.fromHeight(dense ? 40 : 48),
+                        tapTargetSize: dense
+                            ? MaterialTapTargetSize.shrinkWrap
+                            : MaterialTapTargetSize.padded,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(dense ? 14 : 16),
+                        ),
+                        textStyle: const TextStyle(fontWeight: FontWeight.w800),
+                      ),
+                    ),
+                  ],
                   if (dense) ...[
                     const SizedBox(height: 2),
                     Row(
@@ -510,8 +563,25 @@ class _GlassLoginCard extends ConsumerWidget {
                     ),
                   ],
                   SizedBox(height: dense ? 2 : 4),
-                  OutlinedButton.icon(
-                    onPressed: () => showPaletteSettingsDialog(context),
+                  if (kIsWeb)
+                    Center(
+                      child: TextButton.icon(
+                        onPressed: () => showPaletteSettingsDialog(context),
+                        icon: const Icon(Icons.palette_outlined, size: 17),
+                        label: const Text('Personalizar colores'),
+                        style: TextButton.styleFrom(
+                          foregroundColor: palette.textSecondary,
+                          textStyle: const TextStyle(fontSize: 12),
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 10,
+                            vertical: 5,
+                          ),
+                        ),
+                      ),
+                    )
+                  else
+                    OutlinedButton.icon(
+                      onPressed: () => showPaletteSettingsDialog(context),
                     icon: Icon(Icons.palette_outlined, size: dense ? 17 : 20),
                     label: const Text('Personalizar colores'),
                     style: OutlinedButton.styleFrom(
@@ -525,8 +595,10 @@ class _GlassLoginCard extends ConsumerWidget {
                           : MaterialTapTargetSize.padded,
                     ),
                   ),
-                  SizedBox(height: dense ? 8 : 16),
-                  _SecurityNote(dense: dense),
+                  if (!kIsWeb) ...[
+                    SizedBox(height: dense ? 8 : 16),
+                    _SecurityNote(dense: dense),
+                  ],
                   SizedBox(height: dense ? 5 : 14),
                   _LoginLegalFooter(dense: dense),
                 ],
