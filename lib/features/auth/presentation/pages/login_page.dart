@@ -56,6 +56,13 @@ class _LoginPageState extends ConsumerState<LoginPage> {
     final screen = MediaQuery.sizeOf(context);
     final wide = screen.width >= 920;
     final compactHeight = wide && screen.height <= 760;
+    // En web y escritorio nativo no mostrar el panel publicitario del login.
+    // Se conserva el diseño anterior exclusivamente en móviles y tablets nativos.
+    final isNativeDesktop = !kIsWeb &&
+        (defaultTargetPlatform == TargetPlatform.windows ||
+            defaultTargetPlatform == TargetPlatform.macOS ||
+            defaultTargetPlatform == TargetPlatform.linux);
+    final simpleLogin = kIsWeb || isNativeDesktop;
 
     return Scaffold(
       body: Stack(
@@ -68,14 +75,14 @@ class _LoginPageState extends ConsumerState<LoginPage> {
                   constraints: const BoxConstraints(maxWidth: 1180),
                   child: SingleChildScrollView(
                     padding: EdgeInsets.only(
-                      top: kIsWeb
-                          ? (screen.width < 620 ? 62 : 12)
+                      top: simpleLogin
+                          ? (kIsWeb && screen.width < 620 ? 62 : 12)
                           : (compactHeight ? 4 : 10),
-                      bottom: kIsWeb ? 14 : (compactHeight ? 4 : 10),
+                      bottom: simpleLogin ? 14 : (compactHeight ? 4 : 10),
                     ),
-                    child: kIsWeb
-                        // Login web sin sección comercial, vídeo ni animaciones:
-                        // solo el formulario, centrado y legible en cualquier ancho.
+                    child: simpleLogin
+                        // Login web y nativo de escritorio sin sección comercial:
+                        // solo el formulario, centrado y adaptable a cada ancho.
                         ? Center(
                             child: ConstrainedBox(
                               constraints: const BoxConstraints(maxWidth: 530),
