@@ -1825,24 +1825,28 @@ class _MeseroPageState extends ConsumerState<MeseroPage> {
           );
 
           final status = DropdownButtonFormField<String>(
+            // El selector comparte fila con otros filtros en escritorio.
+            // Sin isExpanded, el texto completo fuerza un RenderFlex overflow.
+            isExpanded: true,
             value: _historialEstado,
             decoration: const InputDecoration(labelText: 'Estado', prefixIcon: Icon(Icons.verified_rounded)).compactFilter(),
             items: const [
-              DropdownMenuItem(value: 'todos', child: Text('Todos los estados')),
-              DropdownMenuItem(value: 'pagadas', child: Text('Pagadas')),
-              DropdownMenuItem(value: 'pendientes', child: Text('Con saldo pendiente')),
+              DropdownMenuItem(value: 'todos', child: Text('Todos los estados', maxLines: 1, overflow: TextOverflow.ellipsis)),
+              DropdownMenuItem(value: 'pagadas', child: Text('Pagadas', maxLines: 1, overflow: TextOverflow.ellipsis)),
+              DropdownMenuItem(value: 'pendientes', child: Text('Con saldo pendiente', maxLines: 1, overflow: TextOverflow.ellipsis)),
             ],
             onChanged: (value) => setState(() => _historialEstado = value ?? 'todos'),
           );
 
           final order = DropdownButtonFormField<String>(
+            isExpanded: true,
             value: _historialOrden,
             decoration: const InputDecoration(labelText: 'Ordenar', prefixIcon: Icon(Icons.swap_vert_rounded)).compactFilter(),
             items: const [
-              DropdownMenuItem(value: 'recientes', child: Text('Más recientes')),
-              DropdownMenuItem(value: 'antiguas', child: Text('Más antiguas')),
-              DropdownMenuItem(value: 'mayor', child: Text('Mayor total')),
-              DropdownMenuItem(value: 'menor', child: Text('Menor total')),
+              DropdownMenuItem(value: 'recientes', child: Text('Más recientes', maxLines: 1, overflow: TextOverflow.ellipsis)),
+              DropdownMenuItem(value: 'antiguas', child: Text('Más antiguas', maxLines: 1, overflow: TextOverflow.ellipsis)),
+              DropdownMenuItem(value: 'mayor', child: Text('Mayor total', maxLines: 1, overflow: TextOverflow.ellipsis)),
+              DropdownMenuItem(value: 'menor', child: Text('Menor total', maxLines: 1, overflow: TextOverflow.ellipsis)),
             ],
             onChanged: (value) => setState(() => _historialOrden = value ?? 'recientes'),
           );
