@@ -510,8 +510,8 @@ class _GlassLoginCard extends ConsumerWidget {
                       ),
                     ),
                   ],
-                  if (dense) ...[
-                    const SizedBox(height: 2),
+                  if (dense || (kIsWeb && MediaQuery.sizeOf(context).width >= 440)) ...[
+                    const SizedBox(height: 6),
                     Row(
                       children: [
                         Expanded(
@@ -582,19 +582,19 @@ class _GlassLoginCard extends ConsumerWidget {
                   else
                     OutlinedButton.icon(
                       onPressed: () => showPaletteSettingsDialog(context),
-                    icon: Icon(Icons.palette_outlined, size: dense ? 17 : 20),
-                    label: const Text('Personalizar colores'),
-                    style: OutlinedButton.styleFrom(
-                      foregroundColor: palette.textPrimary,
-                      side: BorderSide(color: palette.primary.withOpacity(0.30)),
-                      backgroundColor: palette.textPrimary.withOpacity(0.055),
-                      padding: EdgeInsets.symmetric(vertical: dense ? 9 : 15),
-                      minimumSize: Size.fromHeight(dense ? 38 : 48),
-                      tapTargetSize: dense
-                          ? MaterialTapTargetSize.shrinkWrap
-                          : MaterialTapTargetSize.padded,
+                      icon: Icon(Icons.palette_outlined, size: dense ? 17 : 20),
+                      label: const Text('Personalizar colores'),
+                      style: OutlinedButton.styleFrom(
+                        foregroundColor: palette.textPrimary,
+                        side: BorderSide(color: palette.primary.withOpacity(0.30)),
+                        backgroundColor: palette.textPrimary.withOpacity(0.055),
+                        padding: EdgeInsets.symmetric(vertical: dense ? 9 : 15),
+                        minimumSize: Size.fromHeight(dense ? 38 : 48),
+                        tapTargetSize: dense
+                            ? MaterialTapTargetSize.shrinkWrap
+                            : MaterialTapTargetSize.padded,
+                      ),
                     ),
-                  ),
                   if (!kIsWeb) ...[
                     SizedBox(height: dense ? 8 : 16),
                     _SecurityNote(dense: dense),
