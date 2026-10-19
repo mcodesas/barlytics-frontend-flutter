@@ -492,6 +492,34 @@ class MeseroRemoteDataSource {
     return response.data!;
   }
 
+  Future<SalidaCajaModel> actualizarSalidaCaja({
+    required int salidaId,
+    required String fecha,
+    required String tipo,
+    required double valor,
+    String? categoria,
+    String? descripcion,
+    int? gastoId,
+    int? pedidoId,
+    int? medioPagoId,
+  }) async {
+    final response = await _apiClient.put<SalidaCajaModel>(
+      ApiPaths.meseroCierreCajaSalidaById(salidaId),
+      {
+        'fecha': fecha,
+        'tipo': tipo,
+        'valor': valor,
+        if ((categoria ?? '').trim().isNotEmpty) 'categoria': categoria!.trim(),
+        if ((descripcion ?? '').trim().isNotEmpty) 'descripcion': descripcion!.trim(),
+        if (gastoId != null) 'gastoId': gastoId,
+        if (pedidoId != null) 'pedidoId': pedidoId,
+        if (medioPagoId != null) 'medioPagoId': medioPagoId,
+      },
+      (json) => SalidaCajaModel.fromJson(Map<String, dynamic>.from(json as Map)),
+    );
+    return response.data!;
+  }
+
   Future<void> anularSalidaCaja(int salidaId) async {
     await _apiClient.delete<void>(
       ApiPaths.meseroCierreCajaSalidaById(salidaId),
