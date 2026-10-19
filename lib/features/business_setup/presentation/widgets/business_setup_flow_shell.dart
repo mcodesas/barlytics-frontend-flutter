@@ -83,7 +83,7 @@ class _MinimalSetupHeader extends ConsumerWidget {
                 ),
                 const SizedBox(width: 5),
                 Text(
-                  'de 5',
+                  'de 6',
                   style: TextStyle(
                     color: palette.textSecondary,
                     fontSize: compact ? 13 : 14,
@@ -178,13 +178,13 @@ class _MiniStepProgress extends ConsumerWidget {
 
     return Row(
       mainAxisSize: MainAxisSize.min,
-      children: List.generate(5, (index) {
+      children: List.generate(6, (index) {
         final step = index + 1;
         final active = step <= currentStep;
         return Container(
           width: step == currentStep ? 14 : 6,
           height: 6,
-          margin: EdgeInsets.only(right: index == 4 ? 0 : 4),
+          margin: EdgeInsets.only(right: index == 5 ? 0 : 4),
           decoration: BoxDecoration(
             color: active
                 ? palette.secondary.withOpacity(step == currentStep ? .95 : .48)
@@ -252,11 +252,13 @@ _SetupSectionInfo _sectionFor(String location) {
     return const _SetupSectionInfo(stepNumber: 5, requiredStep: true);
   }
 
-  // Usuarios y roles quedan como configuración recomendada posterior.
-  if (_startsWithAny(location, const [
-    '/usuarios',
-    '/roles_personalizados',
-  ])) {
+  // Las funciones se definen antes de crear cuentas para el equipo.
+  if (location.startsWith('/roles_personalizados')) {
+    return const _SetupSectionInfo(stepNumber: 6, requiredStep: true);
+  }
+
+  // Los usuarios se crean después de definir sus permisos.
+  if (location.startsWith('/usuarios')) {
     return const _SetupSectionInfo(requiredStep: false);
   }
 

@@ -1825,24 +1825,28 @@ class _MeseroPageState extends ConsumerState<MeseroPage> {
           );
 
           final status = DropdownButtonFormField<String>(
+            // El selector comparte fila con otros filtros en escritorio.
+            // Sin isExpanded, el texto completo fuerza un RenderFlex overflow.
+            isExpanded: true,
             value: _historialEstado,
             decoration: const InputDecoration(labelText: 'Estado', prefixIcon: Icon(Icons.verified_rounded)).compactFilter(),
             items: const [
-              DropdownMenuItem(value: 'todos', child: Text('Todos los estados')),
-              DropdownMenuItem(value: 'pagadas', child: Text('Pagadas')),
-              DropdownMenuItem(value: 'pendientes', child: Text('Con saldo pendiente')),
+              DropdownMenuItem(value: 'todos', child: Text('Todos los estados', maxLines: 1, overflow: TextOverflow.ellipsis)),
+              DropdownMenuItem(value: 'pagadas', child: Text('Pagadas', maxLines: 1, overflow: TextOverflow.ellipsis)),
+              DropdownMenuItem(value: 'pendientes', child: Text('Con saldo pendiente', maxLines: 1, overflow: TextOverflow.ellipsis)),
             ],
             onChanged: (value) => setState(() => _historialEstado = value ?? 'todos'),
           );
 
           final order = DropdownButtonFormField<String>(
+            isExpanded: true,
             value: _historialOrden,
             decoration: const InputDecoration(labelText: 'Ordenar', prefixIcon: Icon(Icons.swap_vert_rounded)).compactFilter(),
             items: const [
-              DropdownMenuItem(value: 'recientes', child: Text('Más recientes')),
-              DropdownMenuItem(value: 'antiguas', child: Text('Más antiguas')),
-              DropdownMenuItem(value: 'mayor', child: Text('Mayor total')),
-              DropdownMenuItem(value: 'menor', child: Text('Menor total')),
+              DropdownMenuItem(value: 'recientes', child: Text('Más recientes', maxLines: 1, overflow: TextOverflow.ellipsis)),
+              DropdownMenuItem(value: 'antiguas', child: Text('Más antiguas', maxLines: 1, overflow: TextOverflow.ellipsis)),
+              DropdownMenuItem(value: 'mayor', child: Text('Mayor total', maxLines: 1, overflow: TextOverflow.ellipsis)),
+              DropdownMenuItem(value: 'menor', child: Text('Menor total', maxLines: 1, overflow: TextOverflow.ellipsis)),
             ],
             onChanged: (value) => setState(() => _historialOrden = value ?? 'recientes'),
           );
@@ -4811,6 +4815,64 @@ class _MeseroPageState extends ConsumerState<MeseroPage> {
     }
   }
 
+  Future<void> _editarSalidaCaja(
+    CierreCajaResumenModel cierre,
+    SalidaCajaModel salida,
+  ) async {
+    final id = salida.salidaId;
+    if (id == null || _processing) return;
+    try {
+      final opciones = await _dataSource.opcionesSalidaCaja();
+      if (!mounted) return;
+      final decision = await showDialog<_SalidaCajaDecision>(
+        context: context,
+        barrierDismissible: false,
+        builder: (dialogContext) => Dialog(
+          insetPadding: EdgeInsets.symmetric(
+            horizontal: MediaQuery.sizeOf(dialogContext).width < 700 ? 10 : 24,
+            vertical: 18,
+          ),
+          clipBehavior: Clip.antiAlias,
+          child: _SalidaCajaDialog(
+            opciones: opciones,
+            mediosPago: _mediosPago,
+            palette: ref.read(selectedAppPaletteProvider),
+            initialSalida: salida,
+          ),
+        ),
+      );
+      if (decision == null || !mounted) return;
+      setState(() => _processing = true);
+      await _dataSource.actualizarSalidaCaja(
+        salidaId: id,
+        fecha: salida.fecha ?? cierre.fecha ?? _fechaIso(_fechaCierreActual),
+        tipo: decision.tipo,
+        valor: decision.valor,
+        descripcion: decision.descripcion,
+        categoria: decision.categoria,
+        medioPagoId: decision.medioPagoId,
+        gastoId: decision.gastoId,
+        pedidoId: decision.pedidoId,
+      );
+      await _reloadCierreCaja();
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text(
+            'Movimiento corregido. Totales y diferencias de caja actualizados.',
+          )),
+        );
+      }
+    } catch (error) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('No fue posible modificar el movimiento: $error')),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _processing = false);
+    }
+  }
+
   Future<void> _anularSalidaCaja(
     CierreCajaResumenModel cierre,
     SalidaCajaModel salida,
@@ -4825,7 +4887,9 @@ class _MeseroPageState extends ConsumerState<MeseroPage> {
         content: Text(
           'Se anulará ${salida.descripcion ?? 'esta salida'} por '
           '${CurrencyUtils.format(salida.valor)}. '
-          'Si corresponde a un pedido, el saldo pendiente se restaurará.',
+          'Si corresponde a un pedido, el saldo pendiente se restaurará. '
+          'También se recalcularán los totales del cierre y las diferencias por medio de pago, '
+          'aunque el turno ya esté cerrado.',
         ),
         actions: [
           TextButton(
@@ -4845,6 +4909,13 @@ class _MeseroPageState extends ConsumerState<MeseroPage> {
       setState(() => _processing = true);
       await _dataSource.anularSalidaCaja(id);
       await _reloadCierreCaja();
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text(
+            'Salida anulada. Se recalcularon los totales y las diferencias de caja.',
+          )),
+        );
+      }
     } catch (error) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
@@ -5678,12 +5749,18 @@ class _MeseroPageState extends ConsumerState<MeseroPage> {
               onEditarBase: cerrado
                   ? null
                   : () => _registrarBaseInicialCierreCaja(cierre),
-              onRegistrarSalida: cerrado || _processing
+              onRegistrarSalida: _processing
                   ? null
                   : () => _registrarSalidaCaja(cierre),
-              onAnularSalida: cerrado || _processing
+              onEditarSalida: _processing
+                  ? null
+                  : (salida) => _editarSalidaCaja(cierre, salida),
+              onAnularSalida: _processing
                   ? null
                   : (salida) => _anularSalidaCaja(cierre, salida),
+              onEditarGastos: _processing
+                  ? null
+                  : () => _registrarCierreCaja(cierre),
             ),
             const SizedBox(height: 14),
             _CierreCollapsibleSection(
@@ -5742,11 +5819,13 @@ class _SalidaCajaDialog extends StatefulWidget {
     required this.opciones,
     required this.mediosPago,
     required this.palette,
+    this.initialSalida,
   });
 
   final SalidaCajaOpcionesModel opciones;
   final List<MeseroMedioPagoModel> mediosPago;
   final AppPalette palette;
+  final SalidaCajaModel? initialSalida;
 
   @override
   State<_SalidaCajaDialog> createState() => _SalidaCajaDialogState();
@@ -5774,11 +5853,26 @@ class _SalidaCajaDialogState extends State<_SalidaCajaDialog> {
   @override
   void initState() {
     super.initState();
+    final initial = widget.initialSalida;
+    if (initial != null) {
+      _tipo = initial.tipo ?? 'GASTO_TURNO';
+      _categoria = initial.categoria ?? 'OTROS';
+      _gastoId = initial.gastoId;
+      _pedidoId = initial.pedidoId;
+      _valorController.text = _formatCurrencyInputAmount(initial.valor ?? 0);
+      _descripcionController.text = initial.descripcion ?? '';
+      for (final medio in widget.mediosPago) {
+        if ((medio.nombre ?? '').trim().toLowerCase() ==
+            (initial.medioPagoNombre ?? '').trim().toLowerCase()) {
+          _medioPagoId = medio.medioPagoId;
+          break;
+        }
+      }
+    }
     final disponibles = widget.mediosPago
         .where((medio) => medio.medioPagoId != null)
         .toList(growable: false);
-    _medioPagoId =
-        disponibles.length == 1 ? disponibles.first.medioPagoId : null;
+    _medioPagoId ??= disponibles.length == 1 ? disponibles.first.medioPagoId : null;
   }
 
   @override
@@ -5793,6 +5887,12 @@ class _SalidaCajaDialogState extends State<_SalidaCajaDialog> {
   SalidaCajaPedidoOpcionModel? get _pedido {
     for (final item in widget.opciones.pedidosPendientes) {
       if (item.id == _pedidoId) return item;
+    }
+    if (_pedidoId != null && _pedidoId == widget.initialSalida?.pedidoId) {
+      return SalidaCajaPedidoOpcionModel(
+        id: _pedidoId!,
+        saldoPendiente: 0,
+      );
     }
     return null;
   }
@@ -5814,9 +5914,13 @@ class _SalidaCajaDialogState extends State<_SalidaCajaDialog> {
     }
     if (_tipo == 'PAGO_PEDIDO') {
       final pedido = _pedido;
+      final saldoEditable = (pedido?.saldoPendiente ?? 0) +
+          (_pedidoId == widget.initialSalida?.pedidoId
+              ? (widget.initialSalida?.valor ?? 0)
+              : 0);
       return _medioPagoId != null &&
           (pedido != null
-              ? _valor <= pedido.saldoPendiente + .01
+              ? _valor <= saldoEditable + .01
               : _descripcionController.text.trim().isNotEmpty);
     }
     return _descripcionController.text.trim().isNotEmpty;
@@ -5874,7 +5978,7 @@ class _SalidaCajaDialogState extends State<_SalidaCajaDialog> {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text(
-                          'Registrar pago o salida',
+                          widget.initialSalida == null ? 'Registrar pago o salida' : 'Corregir gasto o pago',
                           style: TextStyle(
                             color: palette.textPrimary,
                             fontWeight: FontWeight.w900,
@@ -5962,9 +6066,9 @@ class _SalidaCajaDialogState extends State<_SalidaCajaDialog> {
                     onPressed: _canSubmit ? _submit : null,
                     icon: const Icon(Icons.outbox_rounded),
                     label: Text(
-                      _valor > 0
+                      widget.initialSalida != null ? 'Guardar cambios' : (_valor > 0
                           ? 'Registrar ' + CurrencyUtils.format(_valor)
-                          : 'Registrar movimiento',
+                          : 'Registrar movimiento'),
                     ),
                   ),
                 ],
@@ -5989,7 +6093,7 @@ class _SalidaCajaDialogState extends State<_SalidaCajaDialog> {
             prefixIcon: const Icon(Icons.payments_outlined),
             suffixText: 'COP',
             helperText: _tipo == 'PAGO_PEDIDO' && _pedido != null
-                ? 'Máximo: ' + CurrencyUtils.format(_pedido!.saldoPendiente)
+                ? 'Máximo: ' + CurrencyUtils.format(_pedido!.saldoPendiente + (_pedidoId == widget.initialSalida?.pedidoId ? (widget.initialSalida?.valor ?? 0) : 0))
                 : null,
           ),
         );
@@ -6005,8 +6109,17 @@ class _SalidaCajaDialogState extends State<_SalidaCajaDialog> {
               helperText: 'Si la compra fue fuera de BarLytics, deja el pedido sin seleccionar.',
               prefixIcon: Icon(Icons.inventory_2_outlined),
             ),
-            items: widget.opciones.pedidosPendientes
-                .map(
+            items: [
+              const DropdownMenuItem<int>(
+                value: null,
+                child: Text('Sin pedido asociado · compra externa'),
+              ),
+              if (_pedidoId != null && !widget.opciones.pedidosPendientes.any((p) => p.id == _pedidoId))
+                DropdownMenuItem<int>(
+                  value: _pedidoId,
+                  child: Text('Pedido #$_pedidoId · asociado a este pago'),
+                ),
+              ...widget.opciones.pedidosPendientes.map(
                   (item) => DropdownMenuItem<int>(
                     value: item.id,
                     child: Text(
@@ -6017,8 +6130,8 @@ class _SalidaCajaDialogState extends State<_SalidaCajaDialog> {
                       overflow: TextOverflow.ellipsis,
                     ),
                   ),
-                )
-                .toList(),
+                ),
+            ],
             onChanged: (value) {
               setState(() {
                 _pedidoId = value;
@@ -6240,9 +6353,13 @@ class _SalidaCajaDialogState extends State<_SalidaCajaDialog> {
     final text = _tipo == 'PAGO_PEDIDO'
         ? medio == null
             ? 'Selecciona cómo se pagó el pedido.'
-            : _esMedioPagoEfectivo(medio)
-                ? 'Reduce el saldo del pedido y sí afecta el efectivo que debe cuadrar la cajera.'
-                : 'Reduce el saldo del pedido, pero el pago por ${medio.nombre ?? 'giro electrónico'} no modifica el cierre de efectivo.'
+            : _pedidoId == null
+                ? _esMedioPagoEfectivo(medio)
+                    ? 'Pedido externo: el efectivo sí afecta el cruce de caja. No se asocia a pedidos ni inventario del sistema.'
+                    : 'Pedido externo: el pago por ${medio.nombre ?? 'giro electrónico'} queda registrado sin alterar efectivo, inventario ni saldos de pedidos internos.'
+                : _esMedioPagoEfectivo(medio)
+                    ? 'Reduce el saldo del pedido y sí afecta el efectivo que debe cuadrar la cajera.'
+                    : 'Reduce el saldo del pedido, pero el pago por ${medio.nombre ?? 'giro electrónico'} no modifica el cierre de efectivo.'
         : _tipo == 'PAGO_GASTO'
             ? medio == null
                 ? 'Selecciona cómo se pagó la factura o gasto.'
@@ -6855,7 +6972,14 @@ class _CierrePosResumenPanel extends ConsumerWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(cuadrado ? 'Caja cuadrada' : 'Diferencia de caja', style: TextStyle(color: statusColor, fontWeight: FontWeight.w900, fontSize: 12)),
+                Text(
+                  cuadrado
+                      ? 'Caja cuadrada'
+                      : diferencia < 0
+                          ? 'Faltante de caja'
+                          : 'Sobrante de caja',
+                  style: TextStyle(color: statusColor, fontWeight: FontWeight.w900, fontSize: 12),
+                ),
                 const SizedBox(height: 3),
                 Text(CurrencyUtils.format(diferencia), style: TextStyle(color: statusColor, fontWeight: FontWeight.w900, fontSize: 24)),
               ],
@@ -6917,7 +7041,9 @@ class _CierrePosMovimientosPanel extends ConsumerWidget {
     required this.cerrado,
     this.onEditarBase,
     this.onRegistrarSalida,
+    this.onEditarSalida,
     this.onAnularSalida,
+    this.onEditarGastos,
   });
 
   final double valorBase;
@@ -6930,7 +7056,9 @@ class _CierrePosMovimientosPanel extends ConsumerWidget {
   final bool cerrado;
   final VoidCallback? onEditarBase;
   final VoidCallback? onRegistrarSalida;
+  final ValueChanged<SalidaCajaModel>? onEditarSalida;
   final ValueChanged<SalidaCajaModel>? onAnularSalida;
+  final VoidCallback? onEditarGastos;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -6948,7 +7076,7 @@ class _CierrePosMovimientosPanel extends ConsumerWidget {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
-                    'Movimientos de efectivo',
+                    'Gastos y movimientos de caja',
                     style: TextStyle(
                       color: palette.textPrimary,
                       fontWeight: FontWeight.w900,
@@ -6956,7 +7084,7 @@ class _CierrePosMovimientosPanel extends ConsumerWidget {
                     ),
                   ),
                   Text(
-                    'Todo lo que salió de caja durante el turno, clasificado sin duplicar costos.',
+                    'Puedes corregir gastos incluso después del cierre. El faltante o sobrante se recalcula.',
                     style: TextStyle(
                       color: palette.textSecondary,
                       fontWeight: FontWeight.w600,
@@ -6978,6 +7106,12 @@ class _CierrePosMovimientosPanel extends ConsumerWidget {
                 onPressed: onEditarBase,
                 icon: const Icon(Icons.savings_rounded, size: 18),
                 label: const Text('Base inicial'),
+              ),
+            if (gastosLegacy.isNotEmpty && onEditarGastos != null)
+              OutlinedButton.icon(
+                onPressed: onEditarGastos,
+                icon: const Icon(Icons.edit_note_rounded, size: 18),
+                label: const Text('Editar gastos del cierre'),
               ),
             if (onRegistrarSalida != null)
               FilledButton.icon(
@@ -7062,6 +7196,9 @@ class _CierrePosMovimientosPanel extends ConsumerWidget {
               _SalidaCajaRow(
                 salida: salida,
                 palette: palette,
+                onEditar: onEditarSalida == null
+                    ? null
+                    : () => onEditarSalida!(salida),
                 onAnular: onAnularSalida == null
                     ? null
                     : () => onAnularSalida!(salida),
@@ -7076,7 +7213,7 @@ class _CierrePosMovimientosPanel extends ConsumerWidget {
             const SizedBox(height: 12),
             Text(
               cerrado
-                  ? 'No se registraron pagos ni salidas en este turno.'
+                  ? 'No se registraron pagos ni salidas en este turno. Puedes agregarlos o corregirlos.'
                   : 'Aún no hay movimientos. Registra aquí pagos de pedidos, facturas o salidas del turno.',
               style: TextStyle(
                 color: palette.textSecondary,
@@ -7095,11 +7232,13 @@ class _SalidaCajaRow extends StatelessWidget {
   const _SalidaCajaRow({
     required this.salida,
     required this.palette,
+    this.onEditar,
     this.onAnular,
   });
 
   final SalidaCajaModel salida;
   final AppPalette palette;
+  final VoidCallback? onEditar;
   final VoidCallback? onAnular;
 
   @override
@@ -7230,6 +7369,13 @@ class _SalidaCajaRow extends StatelessWidget {
                   fontSize: 12,
                 ),
               ),
+              if (onEditar != null)
+                IconButton(
+                  tooltip: 'Editar gasto o pago',
+                  visualDensity: VisualDensity.compact,
+                  onPressed: onEditar,
+                  icon: const Icon(Icons.edit_outlined, size: 18),
+                ),
               if (onAnular != null)
                 IconButton(
                   tooltip: 'Anular salida',

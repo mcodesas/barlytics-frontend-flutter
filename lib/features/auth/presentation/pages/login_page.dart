@@ -56,6 +56,13 @@ class _LoginPageState extends ConsumerState<LoginPage> {
     final screen = MediaQuery.sizeOf(context);
     final wide = screen.width >= 920;
     final compactHeight = wide && screen.height <= 760;
+    // En web y escritorio nativo no mostrar el panel publicitario del login.
+    // Se conserva el diseño anterior exclusivamente en móviles y tablets nativos.
+    final isNativeDesktop = !kIsWeb &&
+        (defaultTargetPlatform == TargetPlatform.windows ||
+            defaultTargetPlatform == TargetPlatform.macOS ||
+            defaultTargetPlatform == TargetPlatform.linux);
+    final simpleLogin = kIsWeb || isNativeDesktop;
 
     return Scaffold(
       body: Stack(
@@ -67,36 +74,50 @@ class _LoginPageState extends ConsumerState<LoginPage> {
                 child: ConstrainedBox(
                   constraints: const BoxConstraints(maxWidth: 1180),
                   child: SingleChildScrollView(
-                    padding: EdgeInsets.symmetric(
-                      vertical: compactHeight ? 4 : 10,
+                    padding: EdgeInsets.only(
+                      top: simpleLogin
+                          ? (kIsWeb && screen.width < 620 ? 62 : 12)
+                          : (compactHeight ? 4 : 10),
+                      bottom: simpleLogin ? 14 : (compactHeight ? 4 : 10),
                     ),
-                    child: wide
-                        ? Row(
-                            crossAxisAlignment: CrossAxisAlignment.center,
-                            children: [
-                              Expanded(
-                                child: _BarHero(dense: compactHeight),
-                              ),
-                              SizedBox(width: compactHeight ? 22 : 34),
-                              Expanded(
-                                child: _GlassLoginCard(
-                                  state: this,
-                                  loading: state.loading,
-                                  dense: compactHeight,
-                                ),
-                              ),
-                            ],
-                          )
-                        : Column(
-                            children: [
-                              const _BarHero(compact: true),
-                              const SizedBox(height: 20),
-                              _GlassLoginCard(
+                    child: simpleLogin
+                        // Login web y nativo de escritorio sin sección comercial:
+                        // solo el formulario, centrado y adaptable a cada ancho.
+                        ? Center(
+                            child: ConstrainedBox(
+                              constraints: const BoxConstraints(maxWidth: 530),
+                              child: _GlassLoginCard(
                                 state: this,
                                 loading: state.loading,
+                                dense: compactHeight,
                               ),
-                            ],
-                          ),
+                            ),
+                          )
+                        : wide
+                            ? Row(
+                                crossAxisAlignment: CrossAxisAlignment.center,
+                                children: [
+                                  Expanded(child: _BarHero(dense: compactHeight)),
+                                  SizedBox(width: compactHeight ? 22 : 34),
+                                  Expanded(
+                                    child: _GlassLoginCard(
+                                      state: this,
+                                      loading: state.loading,
+                                      dense: compactHeight,
+                                    ),
+                                  ),
+                                ],
+                              )
+                            : Column(
+                                children: [
+                                  const _BarHero(compact: true),
+                                  const SizedBox(height: 20),
+                                  _GlassLoginCard(
+                                    state: this,
+                                    loading: state.loading,
+                                  ),
+                                ],
+                              ),
                   ),
                 ),
               ),
@@ -290,8 +311,10 @@ class _GlassLoginCard extends ConsumerWidget {
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
                   _WelcomeHeader(dense: dense),
-                  SizedBox(height: dense ? 10 : 22),
-                  _AccessModeStrip(dense: dense),
+                  if (!kIsWeb) ...[
+                    SizedBox(height: dense ? 10 : 22),
+                    _AccessModeStrip(dense: dense),
+                  ],
                   SizedBox(height: dense ? 10 : 18),
                   _GoogleLoginSection(state: state, loading: loading),
                   if (BarLyticsAppleSignInButton.supported) ...[
@@ -423,28 +446,42 @@ class _GlassLoginCard extends ConsumerWidget {
                       ),
                     ),
                   ),
-                  SizedBox(height: dense ? 8 : 12),
-                  OutlinedButton.icon(
-                    onPressed: loading ? null : () => context.go('/registro'),
-                    icon: const Icon(Icons.person_add_alt_1_rounded),
-                    label: const Text('Registrarse'),
-                    style: OutlinedButton.styleFrom(
-                      foregroundColor: palette.textPrimary,
-                      side: BorderSide(color: palette.primary.withOpacity(0.42)),
-                      backgroundColor: palette.primary.withOpacity(0.07),
-                      padding: EdgeInsets.symmetric(vertical: dense ? 10 : 15),
-                      minimumSize: Size.fromHeight(dense ? 40 : 48),
-                      tapTargetSize: dense
-                          ? MaterialTapTargetSize.shrinkWrap
-                          : MaterialTapTargetSize.padded,
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(dense ? 14 : 16),
+                  // CTA de registro uniforme en todas las plataformas.
+                  // Compacto y con Wrap para adaptarse a móviles y tablets.
+                  SizedBox(height: dense ? 6 : 10),
+                  Wrap(
+                    alignment: WrapAlignment.center,
+                    crossAxisAlignment: WrapCrossAlignment.center,
+                    spacing: 4,
+                    runSpacing: 0,
+                    children: [
+                      Text(
+                        '¿Aún no tienes cuenta?',
+                        style: TextStyle(
+                          color: palette.textSecondary,
+                          fontSize: dense ? 11.5 : 12.5,
+                          fontWeight: FontWeight.w600,
+                        ),
                       ),
-                      textStyle: const TextStyle(fontWeight: FontWeight.w800),
-                    ),
+                      TextButton.icon(
+                        onPressed: loading ? null : () => context.go('/registro'),
+                        icon: const Icon(Icons.person_add_alt_1_rounded, size: 15),
+                        label: const Text('Crear mi cuenta'),
+                        style: TextButton.styleFrom(
+                          foregroundColor: palette.primary,
+                          minimumSize: const Size(0, 36),
+                          tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                          padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
+                          textStyle: const TextStyle(
+                            fontSize: 12.5,
+                            fontWeight: FontWeight.w800,
+                          ),
+                        ),
+                      ),
+                    ],
                   ),
-                  if (dense) ...[
-                    const SizedBox(height: 2),
+                  if (dense || (kIsWeb && MediaQuery.sizeOf(context).width >= 440)) ...[
+                    const SizedBox(height: 6),
                     Row(
                       children: [
                         Expanded(
@@ -495,24 +532,10 @@ class _GlassLoginCard extends ConsumerWidget {
                       label: const Text('Activar con código'),
                     ),
                   ],
-                  SizedBox(height: dense ? 2 : 4),
-                  OutlinedButton.icon(
-                    onPressed: () => showPaletteSettingsDialog(context),
-                    icon: Icon(Icons.palette_outlined, size: dense ? 17 : 20),
-                    label: const Text('Personalizar colores'),
-                    style: OutlinedButton.styleFrom(
-                      foregroundColor: palette.textPrimary,
-                      side: BorderSide(color: palette.primary.withOpacity(0.30)),
-                      backgroundColor: palette.textPrimary.withOpacity(0.055),
-                      padding: EdgeInsets.symmetric(vertical: dense ? 9 : 15),
-                      minimumSize: Size.fromHeight(dense ? 38 : 48),
-                      tapTargetSize: dense
-                          ? MaterialTapTargetSize.shrinkWrap
-                          : MaterialTapTargetSize.padded,
-                    ),
-                  ),
-                  SizedBox(height: dense ? 8 : 16),
-                  _SecurityNote(dense: dense),
+                  if (!kIsWeb) ...[
+                    SizedBox(height: dense ? 8 : 16),
+                    _SecurityNote(dense: dense),
+                  ],
                   SizedBox(height: dense ? 5 : 14),
                   _LoginLegalFooter(dense: dense),
                 ],

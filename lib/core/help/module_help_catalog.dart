@@ -190,6 +190,7 @@ const _helps = <String, ModuleHelp>{
     ModuleHelpEntry('Sucursal', 'Cambia la sede de los datos cuando tengas acceso.'),
   ]),
   '/comandas': ModuleHelp('Comandas', 'Consulta y gestiona los pedidos enviados a preparación.', [
+    ModuleHelpEntry('Estación', 'Filtra por Cocina o Barra para consultar los productos enviados a cada estación de preparación.'),
     ModuleHelpEntry('Pendientes', 'Identifica comandas que requieren atención.'),
     ModuleHelpEntry('Detalle', 'Revisa productos, cantidades y observaciones.'),
     ModuleHelpEntry('Estado', 'Actualiza la preparación o entrega según permisos.'),
@@ -205,11 +206,14 @@ const _helps = <String, ModuleHelp>{
     ModuleHelpEntry('Roles', 'Asigna las funciones necesarias.'),
     ModuleHelpEntry('Estado', 'Desactiva accesos cuando corresponda.'),
   ]),
-  '/roles_personalizados': ModuleHelp('Roles personalizados', 'Configura menús y permisos específicos.', [
-    ModuleHelpEntry('Crear', 'Define el nombre del rol.'),
-    ModuleHelpEntry('Opciones', 'Selecciona los menús delegables.'),
-    ModuleHelpEntry('Orden', 'Organiza la visibilidad de los elementos.'),
-    ModuleHelpEntry('Aplicar', 'Asigna el rol a los usuarios indicados.'),
+  '/roles_personalizados': ModuleHelp('Roles y funciones', 'Define quién puede acceder a cada módulo de tu empresa antes de crear los usuarios.', [
+    ModuleHelpEntry('Perfiles de ejemplo', 'Comienza con Mesero, Cajero, Cocina, Barra, Inventario, Movimientos o Supervisión. Cada perfil es una plantilla editable, no modifica los roles estándar de otras empresas.'),
+    ModuleHelpEntry('Funciones', 'Marca solo las opciones delegables que necesita este rol. Lee las descripciones para conocer su utilidad y alcance.'),
+    ModuleHelpEntry('Vista previa', 'Explora cómo quedará el menú del rol en celular y escritorio; selecciona una función para ver una pantalla ilustrativa, sin datos reales.'),
+    ModuleHelpEntry('Orden', 'Arrastra los módulos para cambiar el orden de navegación del perfil.'),
+    ModuleHelpEntry('Alcance', 'Configura si el perfil pertenece a toda la empresa o a una sucursal, siempre dentro de tus permisos.'),
+    ModuleHelpEntry('Guardar y asignar', 'Guarda primero cada rol y después asígnalo a los usuarios. Los permisos reales son validados también por el servidor.'),
+    ModuleHelpEntry('Roles estándar', 'Si prefieres no personalizar perfiles, confirma los roles estándar en la puesta en marcha.'),
   ]),
   '/roles': ModuleHelp('Roles', 'Consulta los perfiles que controlan el acceso.', [
     ModuleHelpEntry('Permisos', 'Revisa qué acciones habilita cada perfil.'),

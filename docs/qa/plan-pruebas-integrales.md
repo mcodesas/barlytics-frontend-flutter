@@ -1,6 +1,54 @@
 # BarLytics — Plan maestro de validación funcional
 
-**Rama:** `fix/historial-navegacion-eliminar-pedidos` (frontend y backend). **Estado inicial:** pendiente de ejecución. Inventario derivado de la estructura de `lib/features/**/presentation/pages` y `modules/**/api`. Los casos no equivalen a pruebas ejecutadas.
+**Origen del plan:** `fix/historial-navegacion-eliminar-pedidos`. **Ramas activas del ciclo 2026-10-19:** frontend `fix/ios-header-role-selector-overlap-20261017`, backend `feat/setup-roles-per-company-20261017`. Los resultados históricos se conservan como evidencia, pero no sustituyen una nueva validación de versiones actuales.
+
+**Rama de continuación para incidencias iPad:** `fix/ios-header-role-selector-overlap-20261017`. Esta rama no equivale a una validación de nueva build, ni autoriza PR o merge.
+
+## Ciclo nuevo — QA multiplataforma desde cero (2026-10-19)
+
+**Objetivo:** reiniciar desde **QA-001**, probando **el mismo caso funcional en tres frentes simultáneos: Móvil, Escritorio y Web**. No reiniciar IDs ni borrar los resultados anteriores. Registrar cada plataforma por separado: aprobar en Web **no aprueba** Móvil ni Escritorio.
+
+**Dispositivos:**
+- **Móvil:** Android e iPhone (iOS/TestFlight); tablet iPad/Android tablet para casos responsive. Informar modelo y build.
+- **Escritorio:** Windows, macOS y Linux según el instalador disponible. Cada sistema operativo se registra individualmente, no se presupone equivalencia.
+- **Web:** navegadores Chrome/Edge y Safari cuando corresponda; probar al menos navegador de escritorio y vista reducida para UX.
+
+**Regla de avance:** abrir simultáneamente los tres frentes para QA-001; recoger resultados de cada plataforma, solucionar fallos en las ramas activas y repetir solo combinaciones afectadas. Continuar al QA-002 cuando los escenarios obligatorios de QA-001 estén aprobados o debidamente bloqueados/NO APLICA con motivo. Las rondas 1, 2 y 3 se mantienen, pero se registran por cada plataforma.
+
+**Separación de versiones:** verificar la versión/build realmente instalada antes de cada prueba. Las correcciones recientes de caja, roles, Cocina/Barra e iPad están en ramas sin PR, merge ni despliegue: **no se pueden dar por validadas con las apps publicadas**. Preparar builds de prueba de las ramas antes de verificar dichas correcciones, sin tocar producción sin autorización.
+
+### Estado del ciclo nuevo (ronda 1 / funcional)
+
+| Caso | Web | Móvil Android | Móvil iOS | Escritorio Windows | Escritorio macOS | Escritorio Linux | Observaciones |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| **QA-001** Inicio de sesión | PENDIENTE | PENDIENTE | PENDIENTE | PENDIENTE | PENDIENTE | PENDIENTE | Ciclo reiniciado: no heredar aprobado histórico. |
+| **QA-002** Recuperación de contraseña | PENDIENTE | PENDIENTE | PENDIENTE | PENDIENTE | PENDIENTE | PENDIENTE | Iniciar después de cerrar QA-001. |
+| **QA-003** Inicio de sesión social | PENDIENTE | PENDIENTE | PENDIENTE | PENDIENTE | PENDIENTE | PENDIENTE | Marcar NO APLICA solo tras comprobar disponibilidad real. |
+
+**Seguimiento:** registrar resultados con fecha, entorno, SO/navegador, build, rol, sucursal, pasos, estado, evidencia/observaciones, issue/commit cuando haya corrección. Las celdas sin dispositivo ejecutado siguen PENDIENTE. Conservar la evidencia QA-001…QA-008 de 2026-10-15/17 únicamente en el registro histórico inferior.
+
+### Subcaso visual: login web simplificado — 2026-10-19
+
+- **Decisión de producto:** mostrar **únicamente el formulario de inicio de sesión**, centrado en el espacio disponible. Se eliminó el panel promocional izquierdo, el video, el texto comercial y los indicadores anteriores.
+- **Web escritorio:** comprobar en Chrome/Edge y Safari que el formulario mantiene logo, correo, contraseña, inicio de sesión social, recuperación, registro y enlaces; centrado horizontal/verticalmente con ancho máximo de 530 px.
+- **Registro uniforme (ajuste UX):** Web, Android, iOS, Windows, macOS, Linux y tablets deben mostrar debajo de “Entrar a BarLytics” el mismo texto pequeño «¿Aún no tienes cuenta? Crear mi cuenta», con el mismo icono, espaciado y enlace a `/registro`. En pantallas estrechas el texto puede distribuirse en dos líneas sin overflow, manteniendo los botones accesibles. No existe el botón grande «Registrarse» en ninguna plataforma.
+- **Regresión registro/login:** comprobar que el registro continúa accesible para cada plataforma y que se mantienen el acceso por correo/Google, recuperación de contraseña y validación de formulario. La nueva acción debe estar deshabilitada mientras se procesa un inicio de sesión.
+- **Web angosta y ventana baja:** verificar que el formulario sigue visible, permite desplazarse con el teclado y el enlace "Volver" no tapa los campos.
+- **Escritorio nativo:** **Windows/macOS/Linux también muestran exclusivamente el login centrado**, sin panel «BarLytics para tu negocio», iconos, tarjetas ni video. En móvil/tablet nativos se conserva por ahora la composición original.
+- **Tema único 2026-10-19:** validar en Web, Android, iOS, Windows, macOS y Linux que no existe botón «Personalizar colores» en login ni opción «Apariencia» en menú lateral o «Más»; la paleta oficial oscura turquesa/cian se mantiene tras iniciar/cerrar sesión, cambiar de sucursal y reiniciar, incluso si previamente se guardó un tema claro/personalizado.
+- **Estado:** implementado en rama, pendiente de compilar y validar por plataforma; no se ha publicado una nueva versión por estas correcciones.
+
+### QA-001 — Inicio de sesión, credenciales inválidas y bloqueo (nueva ejecución)
+
+| Paso | Acción | Resultado esperado |
+| --- | --- | --- |
+| 1 | Abrir BarLytics en Web, app móvil y app de escritorio | Login legible, responsive, sin recortes ni overflow; no exponer rutas privadas sin autenticación |
+| 2 | Iniciar sesión con cuenta de prueba habilitada | Acceso autorizado; empresa, sucursal y menú corresponden a la sesión |
+| 3 | Cerrar sesión; intentar contraseña equivocada con cuenta de pruebas | Mensaje entendible sin filtrar datos, sin iniciar sesión |
+| 4 | Comprobar límites/intentos de acceso **solo en cuenta de prueba** | Bloqueo/temporización según reglas, sin afectar cuentas productivas |
+| 5 | Restaurar sesión válida, cerrar y reabrir aplicación/navegador | El comportamiento de persistencia corresponde a la plataforma (la prueba profunda se hará en QA-004) |
+
+**Entrega de resultados:** Web: [Aprobado/Falló/Bloqueado/No aplica + evidencia]; Móvil Android: [...]; Móvil iOS: [...]; Escritorio Windows: [...]; Escritorio macOS: [...]; Escritorio Linux: [...]. Agrupar por caso QA-001, no marcar todas las plataformas por un solo resultado.
 
 ## Matriz de ejecución por plataforma
 
@@ -30,12 +78,14 @@ En cada caso anotar: fecha, ID, ronda, plataforma/dispositivo, versión, rol, su
 | 2026-10-15 | QA-005 | Web | 1 — Funcional | **APROBADO EN TERCERA REPRUEBA** | Usuario confirmó que los roles y las sucursales asignadas se actualizan correctamente sin reiniciar sesión. Se conservan dos repruebas fallidas previas en historial de incidencias. |
 | 2026-10-15 | QA-006 | Web | 1 — Funcional | **APROBADO** | Ninguna (resultado informado por el usuario). |
 | 2026-10-15 | QA-007 | Web | 1 — Funcional | **APROBADO** | Ninguna (resultado informado por el usuario). |
+| 2026-10-17 | QA-008 (guía iPad: cambio de roles y sucursales) | iPad — TestFlight | 1 — Funcional | **APROBADO** | Usuario confirmó los 6 pasos sin observaciones: todos los roles; rol único; varios roles; cambiar de sucursal; volver a la anterior; cerrar/reabrir aplicación conservando sesión y contexto. **Registro independiente del QA-008 maestro (elección de plan antes de pagar), que sigue pendiente.** |
 
 **Avance verificable:** QA-001, QA-002, QA-003 y QA-006 aprobadas en Web / Ronda 1; QA-005 aprobada en tercera reprueba con actualización dinámica de roles y sucursales; QA-004 aprobada en reprueba de persistencia (restan escenarios de expiración y revocación). Los demás entornos y rondas permanecen pendientes; cada caso maestro se completa cuando se cubren las combinaciones aplicables.
 
 ### Incidencias responsive pendientes
 
 | 2026-10-15 | QA-026 | Celular (Web móvil/iPhone) | 2 — Interfaz / UX | **FALLÓ — REPRUEBA PENDIENTE** | Captura del usuario: fecha de sección en columna de letras, indicadores y total salen del ancho, barra inferior resalta Mesas durante Historial. Ajustes frontend 3dfbdfab y 3a3dd778. |
+| 2026-10-19 | QA-026 | Windows nativo — Debug | 2 — Interfaz / UX | **FALLÓ — REPRUEBA PENDIENTE** | Flutter compiló Windows pero `DropdownButtonFormField<String>` en `mesero_page.dart:1827` produjo `RenderFlex overflowed by 40 pixels on the right`. Corregido en frontend commit `57ee111f` con `isExpanded: true` en Estado/Ordenar y `TextOverflow.ellipsis` en todas las opciones. Validar Windows en distintas anchuras, web Chrome/Edge y Android/iOS; la compilación no acredita el responsive. |
 
 ### Historial de QA-005
 
@@ -43,6 +93,13 @@ En cada caso anotar: fecha, ID, ronda, plataforma/dispositivo, versión, rol, su
 - 2026-10-15: Reprueba fallida: los roles se actualizaban, pero aparecían sucursales no asignadas.
 - 2026-10-15: Segunda reprueba fallida: continuaban apareciendo todas las sucursales.
 - 2026-10-15: **Tercera reprueba aprobada**, según validación funcional del usuario en Web; los restantes entornos y rondas siguen pendientes.
+
+### Ronda guiada de iPad / TestFlight — cambio de roles y sucursales
+
+- **QA-008 (identificador de sesión guiada, no del catálogo maestro)** — 2026-10-17 — **APROBADO**, 6/6 pasos; entorno **iPad TestFlight**, ronda **funcional**, sin observaciones, confirmado por el usuario. Validó: todos los roles (menús sin duplicados), rol único (menús correspondientes), selección múltiple (consolidación de permisos), cambio A→B de sucursal (mesas/ventas/inventario/caja visibles según sede), regreso B→A (sin datos cruzados) y continuidad de sesión y contexto tras cerrar/reabrir la app.
+- **Trazabilidad del catálogo:** aporta evidencia parcial a **QA-004** (persistencia; no prueba expiración/revocación), **QA-005** (selección de roles; no prueba revocación en segunda sesión), **QA-016** (cambio de sucursal en la sesión, sin cobertura de todos los módulos en ronda 3) y **QA-018** (roles personalizados y menú; no reemplaza pruebas administrativas de configuración). Estas casillas maestras se mantienen pendientes de sus escenarios restantes.
+- **Sin incidencia que corregir:** no se requiere modificación funcional por este resultado. La corrección visual del encabezado para iPad permanece sin validar tras su integración en una nueva build de TestFlight.
+- **Próximo caso guiado (QA-009):** verificar aislamiento multisucursal en **cierre de caja**, sin finalizar cierres reales ni modificar operaciones de producción: cambiar sucursal A/B, contrastar resumen/base/ventas/pagos/gastos y regresar; registrar cualquier contaminación cruzada con evidencia. No confundir con **QA-009 del catálogo maestro** (pago de suscripción).
 
 ## Catálogo de casos
 
@@ -74,6 +131,23 @@ En cada caso anotar: fecha, ID, ronda, plataforma/dispositivo, versión, rol, su
 - [ ] **QA-016** Cambio de sucursal en todos los módulos
 - [ ] **QA-017** Gestión de usuarios y cupos por plan
 - [ ] **QA-018** Roles personalizados, orden de menú y permisos
+- [ ] **QA-072** Ajustes de gastos y pedidos externos después del cierre de caja
+  - Configurar 2 sucursales A/B con distintos valores de ventas y caja, registrar gastos en A y cerrar el turno. Editar valor, descripción y categoría del gasto: el cierre sigue cerrado, se actualizan movimientos, total de gastos, cruce y **faltante/sobrante** de A sin modificar B ni ventas incluidas.
+  - Agregar y anular una salida después del cierre y comprobar que se recalculan totales persistidos y resumen/PDF; el registro anulado conserva referencia para auditoría y deja de afectar las sumas.
+  - Pagar pedido registrado con saldo parcial, después editar el pago: no debe exceder el saldo total disponible considerando su valor anterior; mantener vínculo de pago e inventario y no duplicar movimientos.
+  - Registrar **PAGO_PEDIDO sin pedido seleccionado** aportando descripción, valor y medio de pago: el campo `pedi_id` debe ser NULL, no se escribe a `pedido_compra_pago`, no se altera inventario, no falla restricción `ck_salida_caja_referencia`; comprobar que permite volver a elegir 'Sin pedido asociado'.
+  - Probar pagos externos en efectivo y Nequi/DaviPlata: los electrónicos deben aparecer en el registro pero no afectar la diferencia de efectivo.
+  - Rechazar edición de gasto de otra sucursal, de movimiento anulado, cambio de tipo o cambio de pedido asociado. Confirmar que el cierre histórico pertenece a su sucursal.
+  - Aplicar primero en PostgreSQL la migración **V32__permitir_pagos_pedido_externos_sin_pedido.sql** (Flyway o manual) antes de usar este cambio en producción. Pendientes `./gradlew test` y `flutter analyze`. No desplegar ni fusionar sin autorización.
+- [ ] **QA-071** Roles y funciones configurables desde la puesta en marcha de empresas
+  - **Nueva empresa:** al completar datos, sucursales, medios, catálogo y pedidos aparece **Roles y funciones** como etapa obligatoria antes de crear usuarios; probar guardar varios perfiles por empresa y asignarlos desde Usuarios.
+  - **Plantillas editables:** Mesero, Caja, Cocina, Barra, Inventario, Movimientos y Supervisión muestran solamente opciones delegables. Cocina y Barra reciben inicialmente solo el módulo Comandas; pueden seleccionar su estación desde el filtro de comandas. Cada opción ofrece explicación y vista previa móvil/escritorio. Los nombres de plantillas no coinciden con roles globales reservados.
+  - **QA de comandas por perfil:** crear rol personalizado de Cocina y otro de Barra; comprobar que ambos pueden ver comandas y gestionar la preparación según su menú asignado, sin acceso automático a ventas, cierre de caja, inventario ni administración. Renombrar el rol y comprobar que los permisos concedidos no desaparecen. Quitar Comandas y verificar que se revoca la gestión. Confirmar que el filtro Cocina/Barra funciona y no confundirlo con aislamiento obligatorio por estación en backend, que requeriría un permiso independiente.
+  - **Opciones alternativas:** confirmar expresamente roles predefinidos con el botón correspondiente; verificar que solo afecta el estado de puesta en marcha de esa empresa, sin cambiar privilegios del sistema ni de otros tenants.
+  - **Persistencia y seguridad:** tras guardar al menos un rol personalizado activo, la etapa se marca completa al actualizar el estado. Comprobar que usuarios sin permisos no administran roles ajenos, que roles inactivos no completan empresas nuevas, y que una empresa ya activada no se bloquea retroactivamente.
+  - **Interfaz iPad:** comprobar modal de rol con teclado y vista previa, orden de opciones, vertical/horizontal, regreso a la guía, y confirmación de roles predefinidos.
+  - **Pendiente de ejecución:** frontend rama `fix/ios-header-role-selector-overlap-20261017` y backend rama `feat/setup-roles-per-company-20261017`. Validar `flutter analyze` y `./gradlew test` antes de PR/merge.
+
 
 ### Mesas, ventas y caja
 - [ ] **QA-019** CRUD de mesas según rol y mesas inactivas
@@ -85,6 +159,7 @@ En cada caso anotar: fecha, ID, ronda, plataforma/dispositivo, versión, rol, su
 - [ ] **QA-025** Finalizar, cancelar y reabrir venta según reglas
 - [ ] **QA-026** Historial con selección de fechas y búsqueda
   - **Celular / Web móvil / Ronda 2:** captura del usuario muestra cabecera comprimida y navegación de Historial mal seleccionada. Corregido en rama de trabajo, pendiente confirmar visualmente en iPhone (no aprobado todavía).
+  - **Windows / Web / Ronda 2:** reproducir filtros de Estado y Ordenar en Historial de ventas, probar `Todos los estados`, `Con saldo pendiente` y `Más recientes`, estrechar/redimensionar la ventana y comprobar que no aparece franja amarilla-negra de `RenderFlex overflow` ni desaparecen las flechas de los dropdowns. Repetir en móvil/tablet y registrar evidencia de reprueba para cierre de QA-026.
 - [ ] **QA-027** Factura por sistema PDF y ticket LAN 80 mm con nombre de sucursal
 - [ ] **QA-028** Cierre de caja: base inicial, efectivo, otros medios, gastos y diferencias
 - [ ] **QA-029** Confirmación y exportación de cierre
@@ -151,11 +226,11 @@ En cada caso anotar: fecha, ID, ronda, plataforma/dispositivo, versión, rol, su
 
 
 ## Reglas
-1. Ejecutar **una prueba a la vez**, no marcar aprobado por solo inspeccionar código o por un workflow exitoso.
+1. Ejecutar **un caso QA a la vez en tres frentes paralelos (Móvil, Escritorio y Web)**, con registros por dispositivo/SO. No aprobar por inspección de código ni por workflow exitoso.
 2. Reproducir y corregir un fallo en la rama de trabajo, registrar commit, volver a ejecutar antes de pasar al siguiente caso.
 3. Usar entorno y usuarios de prueba; no ejecutar cambios destructivos ni pagos reales en producción.
 4. Las funciones dependientes de hardware, tienda o plataforma se marcan `NO APLICA` únicamente en el entorno donde de verdad no existan.
-5. Al cierre registrar reporte por caso y matriz de 4 × 3. Una función está aprobada globalmente cuando estén aprobadas las combinaciones aplicables.
+5. Registrar resultado por caso, plataforma y ronda (incluyendo subplataformas Android/iOS y Windows/macOS/Linux). Solo aprobar globalmente tras cubrir todas las combinaciones aplicables.
 
-## Primera prueba propuesta
-**QA-001 / Web / Ronda 1 — Inicio de sesión.** Abrir `/login`; entrar con cuenta de pruebas válida y comprobar que se muestra la vista autorizada sin errores. Repetir con credenciales inválidas. No compartir contraseñas ni tokens en evidencias.
+## Primera prueba del ciclo nuevo
+**QA-001 / Web + Móvil + Escritorio / Ronda 1 — Inicio de sesión.** Seguir los cinco pasos del apartado «QA-001 — Inicio de sesión» en los tres frentes. Enviar resultados separados por SO/dispositivo, sin compartir contraseñas ni tokens.

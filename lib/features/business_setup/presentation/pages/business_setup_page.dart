@@ -740,7 +740,7 @@ class _OptionalSection extends ConsumerWidget {
             style: TextStyle(color: palette.textPrimary, fontWeight: FontWeight.w900),
           ),
           subtitle: Text(
-            'Usuarios, mesas y permisos no bloquean el inicio. BarLytics te recordará lo importante más adelante.',
+            'Puedes crear más usuarios y organizar las mesas cuando estés listo; los roles se configuran antes.',
             style: TextStyle(color: palette.textSecondary, fontSize: 12.5),
           ),
           children: [
@@ -953,8 +953,10 @@ String _benefitFor(String code) {
       return 'Elige qué productos venderás. Puedes seleccionarlos de otra sucursal, migrar precio de compra y venta, o cargar los que no existan con la plantilla Excel de BarLytics.';
     case 'OPERATIONS':
       return 'Define el número que recibirá los pedidos de reposición para que esa función quede lista desde el primer día.';
+    case 'CUSTOM_ROLES':
+      return 'Antes de invitar al equipo, define qué puede hacer un cajero, mesero, encargado de inventario o supervisor. Revisa la vista previa de su menú en móvil y escritorio.';
     case 'TEAM':
-      return 'Invita a las personas que trabajarán contigo para que cada una entre con su propio usuario y permisos.';
+      return 'Invita a las personas que trabajarán contigo y asigna los perfiles que acabas de definir.';
     default:
       return 'Completa esta etapa y BarLytics quedará un paso más cerca de estar listo para operar.';
   }
@@ -974,8 +976,10 @@ String _friendlyHintFor(String code) {
       return 'No tienes que registrar todo uno a uno: usa la selección de productos o descarga la plantilla Excel, complétala y súbela. Luego revisa precios y cantidades.';
     case 'OPERATIONS':
       return 'El consecutivo del pedido lo genera BarLytics automáticamente; aquí solo defines el destino de los pedidos.';
+    case 'CUSTOM_ROLES':
+      return 'Elige un perfil de ejemplo, revisa la explicación de cada función, marca las permitidas y observa cómo se verá la navegación. Los roles estándar también son una opción.';
     case 'TEAM':
-      return 'Puedes crear primero los usuarios principales y luego seguir ampliando el equipo.';
+      return 'Los roles se configuran antes para que cada usuario reciba únicamente las funciones que le correspondan.';
     default:
       return 'Puedes regresar a esta guía cuando termines; tu avance se conserva.';
   }
@@ -995,6 +999,8 @@ String _friendlyActionFor(String code) {
       return 'Seleccionar o cargar productos';
     case 'OPERATIONS':
       return 'Configurar pedidos';
+    case 'CUSTOM_ROLES':
+      return 'Definir roles y ver pantallas';
     case 'TEAM':
       return 'Crear usuarios';
     default:
@@ -1021,7 +1027,9 @@ String _previewFor(String code) {
     case 'TABLES':
       return 'Organiza mesas si tu operación las utiliza.';
     case 'CUSTOM_ROLES':
-      return 'Personaliza permisos si necesitas más control.';
+      return 'Selecciona las funciones de cada perfil y previsualiza su menú antes de crear usuarios.';
+    case 'ROLE_REVIEW':
+      return 'Vuelve a editar los roles y sus funciones en cualquier momento.';
     default:
       return 'Personaliza esta parte cuando la necesites.';
   }
