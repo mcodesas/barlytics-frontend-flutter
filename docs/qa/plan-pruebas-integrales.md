@@ -85,6 +85,7 @@ En cada caso anotar: fecha, ID, ronda, plataforma/dispositivo, versión, rol, su
 ### Incidencias responsive pendientes
 
 | 2026-10-15 | QA-026 | Celular (Web móvil/iPhone) | 2 — Interfaz / UX | **FALLÓ — REPRUEBA PENDIENTE** | Captura del usuario: fecha de sección en columna de letras, indicadores y total salen del ancho, barra inferior resalta Mesas durante Historial. Ajustes frontend 3dfbdfab y 3a3dd778. |
+| 2026-10-19 | QA-026 | Windows nativo — Debug | 2 — Interfaz / UX | **FALLÓ — REPRUEBA PENDIENTE** | Flutter compiló Windows pero `DropdownButtonFormField<String>` en `mesero_page.dart:1827` produjo `RenderFlex overflowed by 40 pixels on the right`. Corregido en frontend commit `57ee111f` con `isExpanded: true` en Estado/Ordenar y `TextOverflow.ellipsis` en todas las opciones. Validar Windows en distintas anchuras, web Chrome/Edge y Android/iOS; la compilación no acredita el responsive. |
 
 ### Historial de QA-005
 
@@ -158,6 +159,7 @@ En cada caso anotar: fecha, ID, ronda, plataforma/dispositivo, versión, rol, su
 - [ ] **QA-025** Finalizar, cancelar y reabrir venta según reglas
 - [ ] **QA-026** Historial con selección de fechas y búsqueda
   - **Celular / Web móvil / Ronda 2:** captura del usuario muestra cabecera comprimida y navegación de Historial mal seleccionada. Corregido en rama de trabajo, pendiente confirmar visualmente en iPhone (no aprobado todavía).
+  - **Windows / Web / Ronda 2:** reproducir filtros de Estado y Ordenar en Historial de ventas, probar `Todos los estados`, `Con saldo pendiente` y `Más recientes`, estrechar/redimensionar la ventana y comprobar que no aparece franja amarilla-negra de `RenderFlex overflow` ni desaparecen las flechas de los dropdowns. Repetir en móvil/tablet y registrar evidencia de reprueba para cierre de QA-026.
 - [ ] **QA-027** Factura por sistema PDF y ticket LAN 80 mm con nombre de sucursal
 - [ ] **QA-028** Cierre de caja: base inicial, efectivo, otros medios, gastos y diferencias
 - [ ] **QA-029** Confirmación y exportación de cierre
