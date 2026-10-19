@@ -5891,7 +5891,7 @@ class _SalidaCajaDialogState extends State<_SalidaCajaDialog> {
     if (_pedidoId != null && _pedidoId == widget.initialSalida?.pedidoId) {
       return SalidaCajaPedidoOpcionModel(
         id: _pedidoId!,
-        saldoPendiente: widget.initialSalida?.valor ?? 0,
+        saldoPendiente: 0,
       );
     }
     return null;
@@ -5914,9 +5914,13 @@ class _SalidaCajaDialogState extends State<_SalidaCajaDialog> {
     }
     if (_tipo == 'PAGO_PEDIDO') {
       final pedido = _pedido;
+      final saldoEditable = (pedido?.saldoPendiente ?? 0) +
+          (_pedidoId == widget.initialSalida?.pedidoId
+              ? (widget.initialSalida?.valor ?? 0)
+              : 0);
       return _medioPagoId != null &&
           (pedido != null
-              ? _valor <= pedido.saldoPendiente + .01
+              ? _valor <= saldoEditable + .01
               : _descripcionController.text.trim().isNotEmpty);
     }
     return _descripcionController.text.trim().isNotEmpty;
@@ -6089,7 +6093,7 @@ class _SalidaCajaDialogState extends State<_SalidaCajaDialog> {
             prefixIcon: const Icon(Icons.payments_outlined),
             suffixText: 'COP',
             helperText: _tipo == 'PAGO_PEDIDO' && _pedido != null
-                ? 'Máximo: ' + CurrencyUtils.format(_pedido!.saldoPendiente)
+                ? 'Máximo: ' + CurrencyUtils.format(_pedido!.saldoPendiente + (_pedidoId == widget.initialSalida?.pedidoId ? (widget.initialSalida?.valor ?? 0) : 0))
                 : null,
           ),
         );
