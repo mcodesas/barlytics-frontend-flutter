@@ -4821,168 +4821,24 @@ class _MeseroPageState extends ConsumerState<MeseroPage> {
   ) async {
     final id = salida.salidaId;
     if (id == null || _processing) return;
-    final descripcion = TextEditingController(text: salida.descripcion ?? '');
-    final valor = TextEditingController(
-      text: _formatCurrencyInputAmount(salida.valor ?? 0),
-    );
-    final categoria = TextEditingController(text: salida.categoria ?? 'OTROS');
-    final medios = _mediosPago
-        .where((medio) => medio.medioPagoId != null)
-        .toList(growable: false);
-    int? medioId;
-    for (final medio in medios) {
-      if ((medio.nombre ?? '').trim().toLowerCase() ==
-          (salida.medioPagoNombre ?? '').trim().toLowerCase()) {
-        medioId = medio.medioPagoId;
-        break;
-      }
-    }
-    final esTurno = salida.tipo == 'GASTO_TURNO';
-    final opciones = esTurno ? await _dataSource.opcionesSalidaCaja() : const SalidaCajaOpcionesModel();
-    if (!mounted) return;
-    String tipoEditado = salida.tipo ?? 'GASTO_TURNO';
-    int? gastoSeleccionado = salida.gastoId;
     try {
-      final decision = await showDialog<({double valor, String descripcion, String categoria, String tipo, int? gastoId, int? medioPagoId})>(
+      final opciones = await _dataSource.opcionesSalidaCaja();
+      if (!mounted) return;
+      final decision = await showDialog<_SalidaCajaDecision>(
         context: context,
-        builder: (dialogContext) => StatefulBuilder(
-          builder: (dialogContext, setDialogState) {
-            final total = _parseCurrencyInput(valor.text);
-            final permitido = total > 0 &&
-                descripcion.text.trim().isNotEmpty &&
-                (tipoEditado == 'GASTO_TURNO' || (medioId != null &&
-                    (tipoEditado != 'PAGO_GASTO' || gastoSeleccionado != null)));
-            return AlertDialog(
-              title: const Text('Corregir gasto o pago'),
-              content: SizedBox(
-                width: 440,
-                child: SingleChildScrollView(
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                    children: [
-                      Text(
-                        'Puedes corregir este movimiento incluso después de cerrar caja. '
-                        'Se actualizarán los totales y la diferencia, sin modificar las ventas.',
-                        style: TextStyle(color: Theme.of(dialogContext).colorScheme.onSurfaceVariant),
-                      ),
-                      if (esTurno) ...[
-                        const SizedBox(height: 14),
-                        DropdownButtonFormField<String>(
-                          value: tipoEditado,
-                          decoration: const InputDecoration(
-                            labelText: 'Tipo de salida',
-                            border: OutlineInputBorder(),
-                          ),
-                          items: const [
-                            DropdownMenuItem(value: 'GASTO_TURNO', child: Text('Gasto del turno')),
-                            DropdownMenuItem(value: 'PAGO_GASTO', child: Text('Pago de factura o gasto')),
-                            DropdownMenuItem(value: 'PAGO_PEDIDO', child: Text('Pago de pedido externo')),
-                          ],
-                          onChanged: (v) => setDialogState(() {
-                            tipoEditado = v ?? 'GASTO_TURNO';
-                            gastoSeleccionado = null;
-                          }),
-                        ),
-                        if (tipoEditado == 'PAGO_GASTO') ...[
-                          const SizedBox(height: 12),
-                          DropdownButtonFormField<int>(
-                            value: gastoSeleccionado,
-                            isExpanded: true,
-                            decoration: const InputDecoration(
-                              labelText: 'Gasto configurado',
-                              border: OutlineInputBorder(),
-                            ),
-                            items: opciones.gastosConfigurados
-                                .map((g) => DropdownMenuItem<int>(
-                                  value: g.id,
-                                  child: Text(g.nombre, overflow: TextOverflow.ellipsis),
-                                )).toList(),
-                            onChanged: (v) => setDialogState(() => gastoSeleccionado = v),
-                          ),
-                        ],
-                      ],
-                      const SizedBox(height: 14),
-                      TextField(
-                        controller: descripcion,
-                        maxLength: 300,
-                        onChanged: (_) => setDialogState(() {}),
-                        decoration: const InputDecoration(
-                          labelText: 'Descripción',
-                          border: OutlineInputBorder(),
-                        ),
-                      ),
-                      const SizedBox(height: 8),
-                      TextField(
-                        controller: valor,
-                        keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                        inputFormatters: _currencyInputFormatters,
-                        onChanged: (_) => setDialogState(() {}),
-                        decoration: const InputDecoration(
-                          labelText: 'Valor corregido',
-                          suffixText: 'COP',
-                          border: OutlineInputBorder(),
-                        ),
-                      ),
-                      if (tipoEditado == 'GASTO_TURNO') ...[
-                        const SizedBox(height: 12),
-                        TextField(
-                          controller: categoria,
-                          maxLength: 50,
-                          decoration: const InputDecoration(
-                            labelText: 'Categoría',
-                            border: OutlineInputBorder(),
-                          ),
-                        ),
-                      ] else ...[
-                        const SizedBox(height: 12),
-                        DropdownButtonFormField<int>(
-                          value: medios.any((m) => m.medioPagoId == medioId)
-                              ? medioId : null,
-                          isExpanded: true,
-                          decoration: const InputDecoration(
-                            labelText: 'Medio con el que se pagó',
-                            border: OutlineInputBorder(),
-                          ),
-                          items: medios.map((medio) => DropdownMenuItem<int>(
-                            value: medio.medioPagoId,
-                            child: Text(medio.nombre ?? 'Medio de pago',
-                                overflow: TextOverflow.ellipsis),
-                          )).toList(growable: false),
-                          onChanged: (v) => setDialogState(() => medioId = v),
-                        ),
-                        const SizedBox(height: 8),
-                        const Text(
-                          'El pedido o gasto asociado se conserva. Para cambiar la referencia, '
-                          'anula el movimiento y regístralo nuevamente.',
-                        ),
-                      ],
-                    ],
-                  ),
-                ),
-              ),
-              actions: [
-                TextButton(
-                  onPressed: () => Navigator.pop(dialogContext),
-                  child: const Text('Cancelar'),
-                ),
-                FilledButton.icon(
-                  onPressed: permitido
-                      ? () => Navigator.pop(dialogContext, (
-                          valor: total,
-                          descripcion: descripcion.text.trim(),
-                          categoria: categoria.text.trim(),
-                          tipo: tipoEditado,
-                          gastoId: gastoSeleccionado,
-                          medioPagoId: medioId,
-                        ))
-                      : null,
-                  icon: const Icon(Icons.save_outlined),
-                  label: const Text('Guardar cambios'),
-                ),
-              ],
-            );
-          },
+        barrierDismissible: false,
+        builder: (dialogContext) => Dialog(
+          insetPadding: EdgeInsets.symmetric(
+            horizontal: MediaQuery.sizeOf(dialogContext).width < 700 ? 10 : 24,
+            vertical: 18,
+          ),
+          clipBehavior: Clip.antiAlias,
+          child: _SalidaCajaDialog(
+            opciones: opciones,
+            mediosPago: _mediosPago,
+            palette: ref.read(selectedAppPaletteProvider),
+            initialSalida: salida,
+          ),
         ),
       );
       if (decision == null || !mounted) return;
@@ -4996,13 +4852,13 @@ class _MeseroPageState extends ConsumerState<MeseroPage> {
         categoria: decision.categoria,
         medioPagoId: decision.medioPagoId,
         gastoId: decision.gastoId,
-        pedidoId: salida.pedidoId,
+        pedidoId: decision.pedidoId,
       );
       await _reloadCierreCaja();
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text(
-            'Movimiento corregido. Total de gastos y diferencia de caja actualizados.',
+            'Movimiento corregido. Totales y diferencias de caja actualizados.',
           )),
         );
       }
@@ -5013,11 +4869,6 @@ class _MeseroPageState extends ConsumerState<MeseroPage> {
         );
       }
     } finally {
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        descripcion.dispose();
-        valor.dispose();
-        categoria.dispose();
-      });
       if (mounted) setState(() => _processing = false);
     }
   }
@@ -5968,11 +5819,13 @@ class _SalidaCajaDialog extends StatefulWidget {
     required this.opciones,
     required this.mediosPago,
     required this.palette,
+    this.initialSalida,
   });
 
   final SalidaCajaOpcionesModel opciones;
   final List<MeseroMedioPagoModel> mediosPago;
   final AppPalette palette;
+  final SalidaCajaModel? initialSalida;
 
   @override
   State<_SalidaCajaDialog> createState() => _SalidaCajaDialogState();
@@ -6000,11 +5853,26 @@ class _SalidaCajaDialogState extends State<_SalidaCajaDialog> {
   @override
   void initState() {
     super.initState();
+    final initial = widget.initialSalida;
+    if (initial != null) {
+      _tipo = initial.tipo ?? 'GASTO_TURNO';
+      _categoria = initial.categoria ?? 'OTROS';
+      _gastoId = initial.gastoId;
+      _pedidoId = initial.pedidoId;
+      _valorController.text = _formatCurrencyInputAmount(initial.valor ?? 0);
+      _descripcionController.text = initial.descripcion ?? '';
+      for (final medio in widget.mediosPago) {
+        if ((medio.nombre ?? '').trim().toLowerCase() ==
+            (initial.medioPagoNombre ?? '').trim().toLowerCase()) {
+          _medioPagoId = medio.medioPagoId;
+          break;
+        }
+      }
+    }
     final disponibles = widget.mediosPago
         .where((medio) => medio.medioPagoId != null)
         .toList(growable: false);
-    _medioPagoId =
-        disponibles.length == 1 ? disponibles.first.medioPagoId : null;
+    _medioPagoId ??= disponibles.length == 1 ? disponibles.first.medioPagoId : null;
   }
 
   @override
@@ -6019,6 +5887,12 @@ class _SalidaCajaDialogState extends State<_SalidaCajaDialog> {
   SalidaCajaPedidoOpcionModel? get _pedido {
     for (final item in widget.opciones.pedidosPendientes) {
       if (item.id == _pedidoId) return item;
+    }
+    if (_pedidoId != null && _pedidoId == widget.initialSalida?.pedidoId) {
+      return SalidaCajaPedidoOpcionModel(
+        id: _pedidoId!,
+        saldoPendiente: widget.initialSalida?.valor ?? 0,
+      );
     }
     return null;
   }
@@ -6100,7 +5974,7 @@ class _SalidaCajaDialogState extends State<_SalidaCajaDialog> {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text(
-                          'Registrar pago o salida',
+                          widget.initialSalida == null ? 'Registrar pago o salida' : 'Corregir gasto o pago',
                           style: TextStyle(
                             color: palette.textPrimary,
                             fontWeight: FontWeight.w900,
@@ -6188,9 +6062,9 @@ class _SalidaCajaDialogState extends State<_SalidaCajaDialog> {
                     onPressed: _canSubmit ? _submit : null,
                     icon: const Icon(Icons.outbox_rounded),
                     label: Text(
-                      _valor > 0
+                      widget.initialSalida != null ? 'Guardar cambios' : (_valor > 0
                           ? 'Registrar ' + CurrencyUtils.format(_valor)
-                          : 'Registrar movimiento',
+                          : 'Registrar movimiento'),
                     ),
                   ),
                 ],
@@ -6236,6 +6110,11 @@ class _SalidaCajaDialogState extends State<_SalidaCajaDialog> {
                 value: null,
                 child: Text('Sin pedido asociado · compra externa'),
               ),
+              if (_pedidoId != null && !widget.opciones.pedidosPendientes.any((p) => p.id == _pedidoId))
+                DropdownMenuItem<int>(
+                  value: _pedidoId,
+                  child: Text('Pedido #$_pedidoId · asociado a este pago'),
+                ),
               ...widget.opciones.pedidosPendientes.map(
                   (item) => DropdownMenuItem<int>(
                     value: item.id,
