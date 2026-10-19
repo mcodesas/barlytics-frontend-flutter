@@ -947,7 +947,7 @@ class _RolPersonalizadoFormSheetState extends ConsumerState<_RolPersonalizadoFor
   // Alias visible solo al configurar permisos; no cambia la ruta ni el ID.
   String _menuDisplayName(MenuAsignableModel menu) =>
       menu.parametro.trim().toLowerCase() == 'productos'
-          ? 'Catálogo de productos'
+          ? 'Administrar productos'
           : menu.nombre;
 
   List<MenuAsignableModel> get _filteredMenus {
