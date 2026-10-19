@@ -32,10 +32,11 @@
 - **Decisión de producto:** mostrar **únicamente el formulario de inicio de sesión**, centrado en el espacio disponible. Se eliminó el panel promocional izquierdo, el video, el texto comercial y los indicadores anteriores.
 - **Web escritorio:** comprobar en Chrome/Edge y Safari que el formulario mantiene logo, correo, contraseña, inicio de sesión social, recuperación, registro y enlaces; centrado horizontal/verticalmente con ancho máximo de 530 px.
 - **Registro compacto (ajuste UX):** verificar que debajo de “Entrar a BarLytics” aparezca discretamente “¿Aún no tienes cuenta? Crear mi cuenta” en una sola línea cuando alcance el ancho, con enlace visible y clic hacia `/registro`; en móvil web debe ajustarse sin overflow. No se muestra recuadro ni botón grande. La fila Caja/Mesas y la nota técnica JWT siguen ocultas en web; “Personalizar colores” conserva una jerarquía secundaria.
-- **Regresión nativa:** comprobar que las aplicaciones Android, iOS, Windows, macOS y Linux conservan la opción “Registrarse” y los accesos originales. **Pendiente de validación visual/funcional**, no aprobado.
+- **Regresión registro/login:** comprobar que Android, iOS, Windows, macOS y Linux conservan acceso por correo/Google y la ruta de registro original. El enlace “Crear mi cuenta” compacto sigue siendo exclusivo del login web.
 - **Web angosta y ventana baja:** verificar que el formulario sigue visible, permite desplazarse con el teclado y el enlace "Volver" no tapa los campos.
-- **Apps nativas:** conservar diseño anterior en Android, iOS, Windows, macOS y Linux. Esta simplificación solo se aplica a Flutter web.
-- **Estado:** implementado en rama, pendiente de compilar y validar en navegador. No se ha publicado una nueva versión por esta corrección.
+- **Escritorio nativo:** **Windows/macOS/Linux también muestran exclusivamente el login centrado**, sin panel «BarLytics para tu negocio», iconos, tarjetas ni video. En móvil/tablet nativos se conserva por ahora la composición original.
+- **Tema único 2026-10-19:** validar en Web, Android, iOS, Windows, macOS y Linux que no existe botón «Personalizar colores» en login ni opción «Apariencia» en menú lateral o «Más»; la paleta oficial oscura turquesa/cian se mantiene tras iniciar/cerrar sesión, cambiar de sucursal y reiniciar, incluso si previamente se guardó un tema claro/personalizado.
+- **Estado:** implementado en rama, pendiente de compilar y validar por plataforma; no se ha publicado una nueva versión por estas correcciones.
 
 ### QA-001 — Inicio de sesión, credenciales inválidas y bloqueo (nueva ejecución)
 
