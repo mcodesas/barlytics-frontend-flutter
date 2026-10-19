@@ -3545,18 +3545,6 @@ class _ManagerBottomNavigation extends ConsumerWidget {
     required List<UserMenuItem> items,
     required String selectedPath,
   }) async {
-    const appearanceItem = UserMenuItem(
-      keyName: 'apariencia',
-      title: 'Apariencia',
-      path: '__appearance__',
-      description: 'Colores y apariencia de la aplicación',
-      groupCode: 'CONFIGURACION',
-      groupName: 'Configuración',
-      groupIcon: 'settings',
-      groupOrder: 50,
-      menuOrder: 15,
-      system: true,
-    );
     const profileItem = UserMenuItem(
       keyName: 'profile',
       title: 'Perfil',
@@ -3570,7 +3558,7 @@ class _ManagerBottomNavigation extends ConsumerWidget {
       system: true,
     );
 
-    final allItems = <UserMenuItem>[...items, appearanceItem, profileItem];
+    final allItems = <UserMenuItem>[...items, profileItem];
     var query = '';
     final destination = await showModalBottomSheet<String>(
       context: context,
@@ -3716,9 +3704,7 @@ class _ManagerBottomNavigation extends ConsumerWidget {
                                             leading: Icon(
                                               item.keyName == 'profile'
                                                   ? Icons.person_rounded
-                                                  : item.path == '__appearance__'
-                                                      ? Icons.palette_outlined
-                                                      : _customRoleMenuIcon(item),
+                                                  : _customRoleMenuIcon(item),
                                               color: item.path == selectedPath
                                                   ? palette.secondary
                                                   : palette.textSecondary,
@@ -3765,10 +3751,6 @@ class _ManagerBottomNavigation extends ConsumerWidget {
       ),
     );
 
-    if (destination == '__appearance__' && context.mounted) {
-      showPaletteSettingsDialog(context);
-      return;
-    }
     if (destination != null && context.mounted) {
       context.go(destination);
     }
@@ -4128,22 +4110,6 @@ class _AuthorizedMenuGroupsState extends State<_AuthorizedMenuGroups> {
       metadata.putIfAbsent(code, () => item);
     }
 
-    // Apariencia es una utilidad local del cliente, no un permiso de negocio.
-    // Se integra visualmente en Configuración sin alterar OPCIONMENU.
-    const appearance = UserMenuItem(
-      keyName: 'parametros',
-      title: 'Apariencia',
-      path: '__appearance__',
-      groupCode: 'CONFIGURACION',
-      groupName: 'Configuración',
-      groupIcon: 'settings',
-      groupOrder: 50,
-      menuOrder: 15,
-      system: true,
-    );
-    byCode.putIfAbsent('CONFIGURACION', () => <UserMenuItem>[]).add(appearance);
-    metadata.putIfAbsent('CONFIGURACION', () => appearance);
-
     final groups = <_MenuGroupData>[];
     for (final entry in byCode.entries) {
       final meta = metadata[entry.key]!;
@@ -4265,9 +4231,7 @@ class _AuthorizedMenuGroupsState extends State<_AuthorizedMenuGroups> {
                 child: Row(
                   children: [
                     Icon(
-                      item.system && item.path == '__appearance__'
-                          ? Icons.palette_outlined
-                          : _customRoleMenuIcon(item),
+                      _customRoleMenuIcon(item),
                       size: 19,
                     ),
                     const SizedBox(width: 10),
@@ -4302,17 +4266,10 @@ class _AuthorizedMenuGroupsState extends State<_AuthorizedMenuGroups> {
       dark: widget.dark,
       compact: widget.compact,
       palette: widget.palette,
-      onTap: item.system && item.path == '__appearance__'
-          ? () => showPaletteSettingsDialog(context)
-          : null,
     );
   }
 
   void _openItem(UserMenuItem item) {
-    if (item.system && item.path == '__appearance__') {
-      showPaletteSettingsDialog(context);
-      return;
-    }
     GoRouter.of(context).go(item.path);
   }
 
