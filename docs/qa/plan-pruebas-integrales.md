@@ -1,8 +1,43 @@
 # BarLytics — Plan maestro de validación funcional
 
-**Rama:** `fix/historial-navegacion-eliminar-pedidos` (frontend y backend). **Estado inicial:** pendiente de ejecución. Inventario derivado de la estructura de `lib/features/**/presentation/pages` y `modules/**/api`. Los casos no equivalen a pruebas ejecutadas.
+**Origen del plan:** `fix/historial-navegacion-eliminar-pedidos`. **Ramas activas del ciclo 2026-10-19:** frontend `fix/ios-header-role-selector-overlap-20261017`, backend `feat/setup-roles-per-company-20261017`. Los resultados históricos se conservan como evidencia, pero no sustituyen una nueva validación de versiones actuales.
 
 **Rama de continuación para incidencias iPad:** `fix/ios-header-role-selector-overlap-20261017`. Esta rama no equivale a una validación de nueva build, ni autoriza PR o merge.
+
+## Ciclo nuevo — QA multiplataforma desde cero (2026-10-19)
+
+**Objetivo:** reiniciar desde **QA-001**, probando **el mismo caso funcional en tres frentes simultáneos: Móvil, Escritorio y Web**. No reiniciar IDs ni borrar los resultados anteriores. Registrar cada plataforma por separado: aprobar en Web **no aprueba** Móvil ni Escritorio.
+
+**Dispositivos:**
+- **Móvil:** Android e iPhone (iOS/TestFlight); tablet iPad/Android tablet para casos responsive. Informar modelo y build.
+- **Escritorio:** Windows, macOS y Linux según el instalador disponible. Cada sistema operativo se registra individualmente, no se presupone equivalencia.
+- **Web:** navegadores Chrome/Edge y Safari cuando corresponda; probar al menos navegador de escritorio y vista reducida para UX.
+
+**Regla de avance:** abrir simultáneamente los tres frentes para QA-001; recoger resultados de cada plataforma, solucionar fallos en las ramas activas y repetir solo combinaciones afectadas. Continuar al QA-002 cuando los escenarios obligatorios de QA-001 estén aprobados o debidamente bloqueados/NO APLICA con motivo. Las rondas 1, 2 y 3 se mantienen, pero se registran por cada plataforma.
+
+**Separación de versiones:** verificar la versión/build realmente instalada antes de cada prueba. Las correcciones recientes de caja, roles, Cocina/Barra e iPad están en ramas sin PR, merge ni despliegue: **no se pueden dar por validadas con las apps publicadas**. Preparar builds de prueba de las ramas antes de verificar dichas correcciones, sin tocar producción sin autorización.
+
+### Estado del ciclo nuevo (ronda 1 / funcional)
+
+| Caso | Web | Móvil Android | Móvil iOS | Escritorio Windows | Escritorio macOS | Escritorio Linux | Observaciones |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| **QA-001** Inicio de sesión | PENDIENTE | PENDIENTE | PENDIENTE | PENDIENTE | PENDIENTE | PENDIENTE | Ciclo reiniciado: no heredar aprobado histórico. |
+| **QA-002** Recuperación de contraseña | PENDIENTE | PENDIENTE | PENDIENTE | PENDIENTE | PENDIENTE | PENDIENTE | Iniciar después de cerrar QA-001. |
+| **QA-003** Inicio de sesión social | PENDIENTE | PENDIENTE | PENDIENTE | PENDIENTE | PENDIENTE | PENDIENTE | Marcar NO APLICA solo tras comprobar disponibilidad real. |
+
+**Seguimiento:** registrar resultados con fecha, entorno, SO/navegador, build, rol, sucursal, pasos, estado, evidencia/observaciones, issue/commit cuando haya corrección. Las celdas sin dispositivo ejecutado siguen PENDIENTE. Conservar la evidencia QA-001…QA-008 de 2026-10-15/17 únicamente en el registro histórico inferior.
+
+### QA-001 — Inicio de sesión, credenciales inválidas y bloqueo (nueva ejecución)
+
+| Paso | Acción | Resultado esperado |
+| --- | --- | --- |
+| 1 | Abrir BarLytics en Web, app móvil y app de escritorio | Login legible, responsive, sin recortes ni overflow; no exponer rutas privadas sin autenticación |
+| 2 | Iniciar sesión con cuenta de prueba habilitada | Acceso autorizado; empresa, sucursal y menú corresponden a la sesión |
+| 3 | Cerrar sesión; intentar contraseña equivocada con cuenta de pruebas | Mensaje entendible sin filtrar datos, sin iniciar sesión |
+| 4 | Comprobar límites/intentos de acceso **solo en cuenta de prueba** | Bloqueo/temporización según reglas, sin afectar cuentas productivas |
+| 5 | Restaurar sesión válida, cerrar y reabrir aplicación/navegador | El comportamiento de persistencia corresponde a la plataforma (la prueba profunda se hará en QA-004) |
+
+**Entrega de resultados:** Web: [Aprobado/Falló/Bloqueado/No aplica + evidencia]; Móvil Android: [...]; Móvil iOS: [...]; Escritorio Windows: [...]; Escritorio macOS: [...]; Escritorio Linux: [...]. Agrupar por caso QA-001, no marcar todas las plataformas por un solo resultado.
 
 ## Matriz de ejecución por plataforma
 
@@ -178,11 +213,11 @@ En cada caso anotar: fecha, ID, ronda, plataforma/dispositivo, versión, rol, su
 
 
 ## Reglas
-1. Ejecutar **una prueba a la vez**, no marcar aprobado por solo inspeccionar código o por un workflow exitoso.
+1. Ejecutar **un caso QA a la vez en tres frentes paralelos (Móvil, Escritorio y Web)**, con registros por dispositivo/SO. No aprobar por inspección de código ni por workflow exitoso.
 2. Reproducir y corregir un fallo en la rama de trabajo, registrar commit, volver a ejecutar antes de pasar al siguiente caso.
 3. Usar entorno y usuarios de prueba; no ejecutar cambios destructivos ni pagos reales en producción.
 4. Las funciones dependientes de hardware, tienda o plataforma se marcan `NO APLICA` únicamente en el entorno donde de verdad no existan.
-5. Al cierre registrar reporte por caso y matriz de 4 × 3. Una función está aprobada globalmente cuando estén aprobadas las combinaciones aplicables.
+5. Registrar resultado por caso, plataforma y ronda (incluyendo subplataformas Android/iOS y Windows/macOS/Linux). Solo aprobar globalmente tras cubrir todas las combinaciones aplicables.
 
-## Primera prueba propuesta
-**QA-001 / Web / Ronda 1 — Inicio de sesión.** Abrir `/login`; entrar con cuenta de pruebas válida y comprobar que se muestra la vista autorizada sin errores. Repetir con credenciales inválidas. No compartir contraseñas ni tokens en evidencias.
+## Primera prueba del ciclo nuevo
+**QA-001 / Web + Móvil + Escritorio / Ronda 1 — Inicio de sesión.** Seguir los cinco pasos del apartado «QA-001 — Inicio de sesión» en los tres frentes. Enviar resultados separados por SO/dispositivo, sin compartir contraseñas ni tokens.
