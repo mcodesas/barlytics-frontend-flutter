@@ -6414,9 +6414,13 @@ class _SalidaCajaDialogState extends State<_SalidaCajaDialog> {
     final text = _tipo == 'PAGO_PEDIDO'
         ? medio == null
             ? 'Selecciona cómo se pagó el pedido.'
-            : _esMedioPagoEfectivo(medio)
-                ? 'Reduce el saldo del pedido y sí afecta el efectivo que debe cuadrar la cajera.'
-                : 'Reduce el saldo del pedido, pero el pago por ${medio.nombre ?? 'giro electrónico'} no modifica el cierre de efectivo.'
+            : _pedidoId == null
+                ? _esMedioPagoEfectivo(medio)
+                    ? 'Pedido externo: el efectivo sí afecta el cruce de caja. No se asocia a pedidos ni inventario del sistema.'
+                    : 'Pedido externo: el pago por ${medio.nombre ?? 'giro electrónico'} queda registrado sin alterar efectivo, inventario ni saldos de pedidos internos.'
+                : _esMedioPagoEfectivo(medio)
+                    ? 'Reduce el saldo del pedido y sí afecta el efectivo que debe cuadrar la cajera.'
+                    : 'Reduce el saldo del pedido, pero el pago por ${medio.nombre ?? 'giro electrónico'} no modifica el cierre de efectivo.'
         : _tipo == 'PAGO_GASTO'
             ? medio == null
                 ? 'Selecciona cómo se pagó la factura o gasto.'
