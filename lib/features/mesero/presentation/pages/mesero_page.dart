@@ -4838,15 +4838,20 @@ class _MeseroPageState extends ConsumerState<MeseroPage> {
       }
     }
     final esTurno = salida.tipo == 'GASTO_TURNO';
+    final opciones = esTurno ? await _dataSource.opcionesSalidaCaja() : const SalidaCajaOpcionesModel();
+    if (!mounted) return;
+    String tipoEditado = salida.tipo ?? 'GASTO_TURNO';
+    int? gastoSeleccionado = salida.gastoId;
     try {
-      final decision = await showDialog<({double valor, String descripcion, String categoria, int? medioPagoId})>(
+      final decision = await showDialog<({double valor, String descripcion, String categoria, String tipo, int? gastoId, int? medioPagoId})>(
         context: context,
         builder: (dialogContext) => StatefulBuilder(
           builder: (dialogContext, setDialogState) {
             final total = _parseCurrencyInput(valor.text);
             final permitido = total > 0 &&
                 descripcion.text.trim().isNotEmpty &&
-                (esTurno || medioId != null);
+                (tipoEditado == 'GASTO_TURNO' || (medioId != null &&
+                    (tipoEditado != 'PAGO_GASTO' || gastoSeleccionado != null)));
             return AlertDialog(
               title: const Text('Corregir gasto o pago'),
               content: SizedBox(
@@ -4861,6 +4866,42 @@ class _MeseroPageState extends ConsumerState<MeseroPage> {
                         'Se actualizarán los totales y la diferencia, sin modificar las ventas.',
                         style: TextStyle(color: Theme.of(dialogContext).colorScheme.onSurfaceVariant),
                       ),
+                      if (esTurno) ...[
+                        const SizedBox(height: 14),
+                        DropdownButtonFormField<String>(
+                          value: tipoEditado,
+                          decoration: const InputDecoration(
+                            labelText: 'Tipo de salida',
+                            border: OutlineInputBorder(),
+                          ),
+                          items: const [
+                            DropdownMenuItem(value: 'GASTO_TURNO', child: Text('Gasto del turno')),
+                            DropdownMenuItem(value: 'PAGO_GASTO', child: Text('Pago de factura o gasto')),
+                            DropdownMenuItem(value: 'PAGO_PEDIDO', child: Text('Pago de pedido externo')),
+                          ],
+                          onChanged: (v) => setDialogState(() {
+                            tipoEditado = v ?? 'GASTO_TURNO';
+                            gastoSeleccionado = null;
+                          }),
+                        ),
+                        if (tipoEditado == 'PAGO_GASTO') ...[
+                          const SizedBox(height: 12),
+                          DropdownButtonFormField<int>(
+                            value: gastoSeleccionado,
+                            isExpanded: true,
+                            decoration: const InputDecoration(
+                              labelText: 'Gasto configurado',
+                              border: OutlineInputBorder(),
+                            ),
+                            items: opciones.gastosConfigurados
+                                .map((g) => DropdownMenuItem<int>(
+                                  value: g.id,
+                                  child: Text(g.nombre, overflow: TextOverflow.ellipsis),
+                                )).toList(),
+                            onChanged: (v) => setDialogState(() => gastoSeleccionado = v),
+                          ),
+                        ],
+                      ],
                       const SizedBox(height: 14),
                       TextField(
                         controller: descripcion,
@@ -4883,7 +4924,7 @@ class _MeseroPageState extends ConsumerState<MeseroPage> {
                           border: OutlineInputBorder(),
                         ),
                       ),
-                      if (esTurno) ...[
+                      if (tipoEditado == 'GASTO_TURNO') ...[
                         const SizedBox(height: 12),
                         TextField(
                           controller: categoria,
@@ -4931,6 +4972,8 @@ class _MeseroPageState extends ConsumerState<MeseroPage> {
                           valor: total,
                           descripcion: descripcion.text.trim(),
                           categoria: categoria.text.trim(),
+                          tipo: tipoEditado,
+                          gastoId: gastoSeleccionado,
                           medioPagoId: medioId,
                         ))
                       : null,
@@ -4947,12 +4990,12 @@ class _MeseroPageState extends ConsumerState<MeseroPage> {
       await _dataSource.actualizarSalidaCaja(
         salidaId: id,
         fecha: salida.fecha ?? cierre.fecha ?? _fechaIso(_fechaCierreActual),
-        tipo: salida.tipo ?? 'GASTO_TURNO',
+        tipo: decision.tipo,
         valor: decision.valor,
         descripcion: decision.descripcion,
         categoria: decision.categoria,
         medioPagoId: decision.medioPagoId,
-        gastoId: salida.gastoId,
+        gastoId: decision.gastoId,
         pedidoId: salida.pedidoId,
       );
       await _reloadCierreCaja();
