@@ -274,7 +274,7 @@ class AppPalette {
 }
 
 const List<AppPalette> appPalettes = <AppPalette>[
-  AppPalette(id: 'barlytics_mint', name: 'BarLytics menta', primary: Color(0xFF21E6BE), secondary: Color(0xFF38BDF8), accent: Color(0xFFFFC857), background: Color(0xFF061723), surface: Color(0xFF0B2634), titleBackground: Color(0xFF0D3142), titleText: Color(0xFFF8FAFC), textPrimary: Color(0xFFF8FAFC), textSecondary: Color(0xFFCBD5E1), isDarkHeader: true, darkBackground: true),
+  AppPalette(id: 'barlytics_mint', name: 'BarLytics oficial', primary: Color(0xFF21E6BE), secondary: Color(0xFF38BDF8), accent: Color(0xFF22D3EE), background: Color(0xFF061723), surface: Color(0xFF0B2634), titleBackground: Color(0xFF0D3142), titleText: Color(0xFFF8FAFC), textPrimary: Color(0xFFF8FAFC), textSecondary: Color(0xFFCBD5E1), isDarkHeader: true, darkBackground: true),
   AppPalette(id: 'emerald_pos', name: 'Caja esmeralda', primary: Color(0xFF064E3B), secondary: Color(0xFF047857), accent: Color(0xFF34D399), background: Color(0xFFF1F8F5), surface: Color(0xFFFFFFFF), titleBackground: Color(0xFF064E3B), titleText: Color(0xFFFFFFFF), textPrimary: Color(0xFF052E2B), textSecondary: Color(0xFF4B635E), isDarkHeader: true, darkBackground: false),
   AppPalette(id: 'amber_lounge', name: 'Lounge ámbar', primary: Color(0xFF422006), secondary: Color(0xFFB45309), accent: Color(0xFFF59E0B), background: Color(0xFFFFF7E6), surface: Color(0xFFFFFCF5), titleBackground: Color(0xFF78350F), titleText: Color(0xFFFFFBEB), textPrimary: Color(0xFF2F1A04), textSecondary: Color(0xFF7C5A2A), isDarkHeader: true, darkBackground: false),
   AppPalette(id: 'graphite_cyan', name: 'Grafito cian', primary: Color(0xFF111827), secondary: Color(0xFF0E7490), accent: Color(0xFF22D3EE), background: Color(0xFFF2FBFC), surface: Color(0xFFFFFFFF), titleBackground: Color(0xFF111827), titleText: Color(0xFFE0F2FE), textPrimary: Color(0xFF111827), textSecondary: Color(0xFF52616B), isDarkHeader: true, darkBackground: false),
@@ -331,36 +331,16 @@ class AppPaletteController extends StateNotifier<AppPalette> {
   static const String _cornerScaleKey = 'barlytics.appearance.cornerScale';
   static const String _showPatternKey = 'barlytics.appearance.showPattern';
 
-  Future<void> _load() async {
-    final prefs = await SharedPreferences.getInstance();
-    final customEnabled = prefs.getBool(_customKey) ?? false;
-    AppPalette selected;
-
-    if (customEnabled) {
-      final baseId = prefs.getString(_idKey) ?? appPalettes.first.id;
-      final base = _firstOrNull(appPalettes.where((palette) => palette.id == baseId)) ?? appPalettes.first;
-      selected = _readCustom(prefs, base);
-    } else {
-      final id = prefs.getString(_idKey);
-      selected = _firstOrNull(appPalettes.where((palette) => palette.id == id)) ?? appPalettes.first;
-    }
-
-    state = _readAppearance(prefs, selected);
+  // Identidad visual única en web, iOS, Android, Windows, macOS y Linux.
+  // No recuperar elecciones antiguas guardadas en SharedPreferences: cualquier
+  // usuario que usara otro color recibe automáticamente la paleta oficial.
+  void _load() {
+    state = appPalettes.first;
   }
 
+  // Compatibilidad con el controlador anterior: bloquear cambios de paleta.
   Future<void> select(AppPalette palette) async {
-    state = palette.copyWith(
-      fontFamily: state.fontFamily,
-      fontScale: state.fontScale,
-      density: state.density,
-      surfaceStyle: state.surfaceStyle,
-      cornerScale: state.cornerScale,
-      showBackgroundPattern: state.showBackgroundPattern,
-    );
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setString(_idKey, palette.id);
-    await prefs.setBool(_customKey, false);
-    await _persistAppearance(prefs);
+    state = appPalettes.first;
   }
 
   Future<void> customize({
@@ -376,28 +356,7 @@ class AppPaletteController extends StateNotifier<AppPalette> {
     bool? darkBackground,
     bool autoTitleText = false,
   }) async {
-    final nextDark = darkBackground ?? state.darkBackground;
-    final nextBackground = background ?? (darkBackground == null ? state.background : (nextDark ? const Color(0xFF061723) : const Color(0xFFF8FAFC)));
-    final nextSurface = surface ?? (darkBackground == null ? state.surface : (nextDark ? const Color(0xFF0B2634) : Colors.white));
-    final nextTextPrimary = textPrimary ?? (darkBackground == null ? state.textPrimary : (nextDark ? const Color(0xFFF8FAFC) : const Color(0xFF0F172A)));
-    final nextTextSecondary = textSecondary ?? (darkBackground == null ? state.textSecondary : (nextDark ? const Color(0xFFCBD5E1) : const Color(0xFF64748B)));
-
-    state = state.copyWith(
-      id: 'custom',
-      name: 'Personalizada',
-      primary: primary,
-      secondary: secondary,
-      accent: accent,
-      background: nextBackground,
-      surface: nextSurface,
-      titleBackground: titleBackground,
-      titleText: autoTitleText && titleBackground != null ? _contrastTitleText(titleBackground) : titleText,
-      textPrimary: nextTextPrimary,
-      textSecondary: nextTextSecondary,
-      isDarkHeader: _isDark(titleBackground ?? state.titleBackground),
-      darkBackground: nextDark,
-    );
-    await _persistCustom();
+    state = appPalettes.first;
   }
 
   Future<void> updateAppearance({
