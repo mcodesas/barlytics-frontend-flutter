@@ -446,61 +446,40 @@ class _GlassLoginCard extends ConsumerWidget {
                       ),
                     ),
                   ),
-                  if (kIsWeb) ...[
-                    SizedBox(height: dense ? 6 : 10),
-                    Wrap(
-                      alignment: WrapAlignment.center,
-                      crossAxisAlignment: WrapCrossAlignment.center,
-                      spacing: 4,
-                      runSpacing: 0,
-                      children: [
-                        Text(
-                          '¿Aún no tienes cuenta?',
-                          style: TextStyle(
-                            color: palette.textSecondary,
-                            fontSize: dense ? 11.5 : 12.5,
-                            fontWeight: FontWeight.w600,
-                          ),
+                  // CTA de registro uniforme en todas las plataformas.
+                  // Compacto y con Wrap para adaptarse a móviles y tablets.
+                  SizedBox(height: dense ? 6 : 10),
+                  Wrap(
+                    alignment: WrapAlignment.center,
+                    crossAxisAlignment: WrapCrossAlignment.center,
+                    spacing: 4,
+                    runSpacing: 0,
+                    children: [
+                      Text(
+                        '¿Aún no tienes cuenta?',
+                        style: TextStyle(
+                          color: palette.textSecondary,
+                          fontSize: dense ? 11.5 : 12.5,
+                          fontWeight: FontWeight.w600,
                         ),
-                        TextButton.icon(
-                          onPressed: loading ? null : () => context.go('/registro'),
-                          icon: const Icon(Icons.person_add_alt_1_rounded, size: 15),
-                          label: const Text('Crear mi cuenta'),
-                          style: TextButton.styleFrom(
-                            foregroundColor: palette.primary,
-                            minimumSize: const Size(0, 36),
-                            tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                            padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
-                            textStyle: const TextStyle(
-                              fontSize: 12.5,
-                              fontWeight: FontWeight.w800,
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ] else ...[
-                    SizedBox(height: dense ? 8 : 12),
-                    OutlinedButton.icon(
-                      onPressed: loading ? null : () => context.go('/registro'),
-                      icon: const Icon(Icons.person_add_alt_1_rounded),
-                      label: const Text('Registrarse'),
-                      style: OutlinedButton.styleFrom(
-                        foregroundColor: palette.textPrimary,
-                        side: BorderSide(color: palette.primary.withOpacity(0.42)),
-                        backgroundColor: palette.primary.withOpacity(0.07),
-                        padding: EdgeInsets.symmetric(vertical: dense ? 10 : 15),
-                        minimumSize: Size.fromHeight(dense ? 40 : 48),
-                        tapTargetSize: dense
-                            ? MaterialTapTargetSize.shrinkWrap
-                            : MaterialTapTargetSize.padded,
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(dense ? 14 : 16),
-                        ),
-                        textStyle: const TextStyle(fontWeight: FontWeight.w800),
                       ),
-                    ),
-                  ],
+                      TextButton.icon(
+                        onPressed: loading ? null : () => context.go('/registro'),
+                        icon: const Icon(Icons.person_add_alt_1_rounded, size: 15),
+                        label: const Text('Crear mi cuenta'),
+                        style: TextButton.styleFrom(
+                          foregroundColor: palette.primary,
+                          minimumSize: const Size(0, 36),
+                          tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                          padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
+                          textStyle: const TextStyle(
+                            fontSize: 12.5,
+                            fontWeight: FontWeight.w800,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
                   if (dense || (kIsWeb && MediaQuery.sizeOf(context).width >= 440)) ...[
                     const SizedBox(height: 6),
                     Row(
