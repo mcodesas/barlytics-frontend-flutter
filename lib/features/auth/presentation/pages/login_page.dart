@@ -553,39 +553,6 @@ class _GlassLoginCard extends ConsumerWidget {
                       label: const Text('Activar con código'),
                     ),
                   ],
-                  SizedBox(height: dense ? 2 : 4),
-                  if (kIsWeb)
-                    Center(
-                      child: TextButton.icon(
-                        onPressed: () => showPaletteSettingsDialog(context),
-                        icon: const Icon(Icons.palette_outlined, size: 17),
-                        label: const Text('Personalizar colores'),
-                        style: TextButton.styleFrom(
-                          foregroundColor: palette.textSecondary,
-                          textStyle: const TextStyle(fontSize: 12),
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 10,
-                            vertical: 5,
-                          ),
-                        ),
-                      ),
-                    )
-                  else
-                    OutlinedButton.icon(
-                      onPressed: () => showPaletteSettingsDialog(context),
-                      icon: Icon(Icons.palette_outlined, size: dense ? 17 : 20),
-                      label: const Text('Personalizar colores'),
-                      style: OutlinedButton.styleFrom(
-                        foregroundColor: palette.textPrimary,
-                        side: BorderSide(color: palette.primary.withOpacity(0.30)),
-                        backgroundColor: palette.textPrimary.withOpacity(0.055),
-                        padding: EdgeInsets.symmetric(vertical: dense ? 9 : 15),
-                        minimumSize: Size.fromHeight(dense ? 38 : 48),
-                        tapTargetSize: dense
-                            ? MaterialTapTargetSize.shrinkWrap
-                            : MaterialTapTargetSize.padded,
-                      ),
-                    ),
                   if (!kIsWeb) ...[
                     SizedBox(height: dense ? 8 : 16),
                     _SecurityNote(dense: dense),
