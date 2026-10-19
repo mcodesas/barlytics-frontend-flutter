@@ -28,7 +28,8 @@ class UserMenuRepository {
       final normalizedKey = _normalizeModuleKey(item.keyName);
       final keyName = moduleAliases[normalizedKey] ?? normalizedKey;
       if (keyName.isEmpty) continue;
-      final normalizedItem = item.copyWith(keyName: keyName, path: '/$keyName');
+      final path = keyName == 'mesero_productos' ? '/mesero/productos' : '/$keyName';
+      final normalizedItem = item.copyWith(keyName: keyName, path: path);
       final previous = byKey[keyName];
       if (previous == null) {
         byKey[keyName] = normalizedItem;
@@ -102,6 +103,7 @@ class UserMenuRepository {
       'soporte_configuracion': moduleRegistry.length + 24,
       'soporte_mantenimiento': moduleRegistry.length + 25,
       'sincronizar_catalogo': moduleRegistry.length + 26,
+      'mesero_productos': moduleRegistry.length + 27,
     };
     final list = items.toList(growable: false);
     list.sort((a, b) => (order[a.keyName] ?? 9999).compareTo(order[b.keyName] ?? 9999));
