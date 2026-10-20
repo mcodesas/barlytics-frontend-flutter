@@ -2,6 +2,11 @@ import '../../../../core/constants/api_paths.dart';
 import '../../../../core/network/api_client.dart';
 import '../models/mesero_models.dart';
 
+/// Una venta de mostrador solo puede abrir su panel si ya tiene la
+/// cuenta inicial persistida. Se comparte entre apertura y reanudación.
+bool cuentaDirectaLista(MeseroVentaModel venta) =>
+    venta.ventaId != null && venta.cuentas.any((cuenta) => cuenta.cuentaId != null);
+
 class MeseroRemoteDataSource {
   MeseroRemoteDataSource(this._apiClient);
 
@@ -173,7 +178,23 @@ class MeseroRemoteDataSource {
       const <String, dynamic>{},
       (json) => MeseroVentaModel.fromJson(Map<String, dynamic>.from(json as Map)),
     );
-    return response.data!;
+    final venta = response.data;
+    if (venta == null || venta.ventaId == null) {
+      throw StateError('No se recibió el identificador de la venta directa.');
+    }
+    if (cuentaDirectaLista(venta)) return venta;
+
+    // Compatibilidad con backends que responden antes de sincronizar INSERT
+    // de CUENTAVENTA: una única consulta de la venta ya confirmada.
+    // NO volver a ejecutar POST: se crearían ventas directas duplicadas.
+    final completa = await consultarVenta(venta.ventaId!);
+    if (!cuentaDirectaLista(completa)) {
+      throw StateError(
+        'La venta directa ${venta.ventaId} fue creada, pero aún no tiene una cuenta disponible. '
+        'Puedes retomarla desde ventas directas pendientes.',
+      );
+    }
+    return completa;
   }
 
   Future<List<MeseroVentaModel>> listarVentasDirectasAbiertas() async {
