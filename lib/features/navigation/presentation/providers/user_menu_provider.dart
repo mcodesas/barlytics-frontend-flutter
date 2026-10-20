@@ -24,60 +24,23 @@ final userMenuProvider = FutureProvider<List<UserMenuItem>>((ref) async {
   final allItems = await ref.watch(userMenuRepositoryProvider).findMyMenu(
         preserveBackendOrder: hasCustomRole && activeRoles.length == 1,
       );
+  // El JWT usa la categoría PERSONALIZADO; el backend informa el nombre
+  // real del rol y su categoría tomada de commerce.roles.role_tipo.
+  // Filtrar por tipo solamente para PERSONALIZADO, nunca por coincidencias
+  // aproximadas de nombres (pueden corresponder a roles distintos).
   final filteredItems = activeRoles.length == authState.roles.length
       ? allItems
       : allItems.where((item) {
-          if (item.roles.isEmpty) return true;
-          return item.roles.any((role) =>
-              roleMatches(role, activeRoles) ||
-              (hasCustomRole && _isCustomRoleName(role)));
+          if (item.roles.isEmpty && item.roleTypes.isEmpty) return false;
+          return item.roles.any((role) => roleMatches(role, activeRoles)) ||
+              (hasCustomRole &&
+                  item.roleTypes.any(
+                    (type) => normalizeRoleName(type) == 'PERSONALIZADO',
+                  ));
         }).toList(growable: false);
 
   final normalizedActive = activeRoles.map(normalizeRoleName).toSet();
-  final canUseCommands = normalizedActive.any((role) => const {
-        'MESERO',
-        'MESERA',
-        'CAJERO',
-        'CAJERA',
-        'VENDEDOR',
-        'VENDEDORA',
-        'VENTAS',
-        'SELLER',
-        'GERENTE',
-        'MANAGER',
-        'SUPERVISOR',
-        'COCINA',
-        'BARRA',
-        'COMANDAS',
-        'ADMIN',
-        'ADMINISTRADOR',
-        'SUPERADMIN',
-        'SUPER_ADMIN',
-      }.contains(role));
-
-  final withCommands = canUseCommands &&
-          !filteredItems.any((item) => item.keyName == 'comandas')
-      ? <UserMenuItem>[
-          ...filteredItems,
-          const UserMenuItem(
-            keyName: 'comandas',
-            title: 'Comandas',
-            path: '/comandas',
-            description: 'Pedidos pendientes de Cocina y Barra',
-            groupCode: 'OPERACION',
-            groupName: 'Operación',
-            groupIcon: 'room_service',
-            groupOrder: 2,
-            menuOrder: 4,
-            bottomCode: 'COMANDAS',
-            bottomName: 'Comandas',
-            bottomIcon: 'room_service',
-            bottomOrder: 4,
-            bottomVisible: true,
-            system: true,
-          ),
-        ]
-      : filteredItems;
+  final withCommands = filteredItems;
 
   final commandsOnly = normalizedActive.isNotEmpty &&
       normalizedActive.every(
@@ -121,22 +84,3 @@ final userMenuProvider = FutureProvider<List<UserMenuItem>>((ref) async {
     return item;
   }).toList(growable: false);
 });
-
-
-// El backend devuelve el nombre real del rol personalizado, mientras que
-// la selección de la vista utiliza la categoría PERSONALIZADO.
-// La lista ya fue autorizada por /auth/me/menus en el backend.
-bool _isCustomRoleName(String name) {
-  final normalized = normalizeRoleName(name);
-  if (normalized.isEmpty) return false;
-  const standardRoles = <String>{
-    'ADMIN', 'ADMINISTRADOR', 'SUPERADMIN', 'SUPER_ADMIN',
-    'GERENTE', 'MANAGER', 'SUPERVISOR',
-    'CAJERO', 'CAJERA', 'MESERO', 'MESERA',
-    'VENDEDOR', 'VENDEDORA', 'VENTAS', 'SELLER',
-    'INVENTARIO', 'INVENTORY', 'BODEGA', 'ALMACEN',
-    'MOVIMIENTOS', 'MOVIMIENTO', 'COCINA', 'BARRA',
-    'COMANDAS', 'PERSONALIZADO',
-  };
-  return !standardRoles.contains(normalized);
-}
