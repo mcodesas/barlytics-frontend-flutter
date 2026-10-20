@@ -42,6 +42,8 @@ class UserMenuRepository {
         byKey[keyName] = previous.copyWith(
           roles: mergedRoles,
           roleTypes: <String>{...previous.roleTypes, ...normalizedItem.roleTypes}.toList(growable: false),
+          roleIds: <int>{...previous.roleIds, ...normalizedItem.roleIds}.toList(growable: false),
+          customOrderByRole: {...previous.customOrderByRole, ...normalizedItem.customOrderByRole},
           customOrder: previous.customOrder == null
               ? normalizedItem.customOrder
               : normalizedItem.customOrder == null
