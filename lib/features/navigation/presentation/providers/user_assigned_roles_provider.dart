@@ -17,8 +17,9 @@ class UserAssignedRole {
   final String type;
 
   bool get isCustom => type.trim().toUpperCase() == 'PERSONALIZADO';
-  String get selectionKey =>
-      isCustom ? customRoleSelectionKey(roleId) : 'ROLE_$name';
+  String get selectionKey => isCustom
+      ? customRoleSelectionKey(roleId)
+      : systemRoleSelectionKey(roleId);
 
   factory UserAssignedRole.fromJson(Map<String, dynamic> json) {
     final rawId = json['roleId'];
@@ -28,6 +29,14 @@ class UserAssignedRole {
       type: json['roleTipo']?.toString() ?? 'PREDEFINIDO',
     );
   }
+}
+
+const systemRoleSelectionPrefix = 'SYSTEM_ROLE_ID:';
+String systemRoleSelectionKey(int id) => '$systemRoleSelectionPrefix$id';
+
+int? systemRoleIdFromSelection(String value) {
+  if (!value.startsWith(systemRoleSelectionPrefix)) return null;
+  return int.tryParse(value.substring(systemRoleSelectionPrefix.length));
 }
 
 const customRoleSelectionPrefix = 'CUSTOM_ROLE_ID:';
