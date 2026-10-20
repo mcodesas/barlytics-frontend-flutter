@@ -189,7 +189,8 @@ class _ProductosListPageState extends ConsumerState<ProductosListPage> {
                     child: ProductosSetupTools(
                       palette: palette,
                       branches: branchState.branches,
-                        onCompleted: () async {
+                      activeBranchId: branchState.activeBranchId,
+                      onCompleted: () async {
                         _selectedProductIds.clear();
                         await notifier.refresh();
                       },
