@@ -1975,9 +1975,11 @@ class _LaborDialogState extends State<_LaborDialog> {
                       }
                     },
               child: InputDecorator(
-                decoration: const InputDecoration(
-                  labelText: 'Vigente desde',
-                  prefixIcon: Icon(Icons.calendar_today_outlined),
+                decoration: InputDecoration(
+                  labelText: rateMode == 'RECURRENTE'
+                      ? 'Vigente desde'
+                      : rateMode == 'DIA' ? 'Fecha de trabajo' : 'Fecha inicial',
+                  prefixIcon: const Icon(Icons.calendar_today_outlined),
                 ),
                 child: Text(DateFormat('dd/MM/yyyy').format(effective)),
               ),
