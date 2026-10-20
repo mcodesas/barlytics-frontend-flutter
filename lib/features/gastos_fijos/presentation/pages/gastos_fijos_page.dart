@@ -444,7 +444,9 @@ class _GastosFijosPageState extends ConsumerState<GastosFijosPage> {
                         },
                         child: InputDecorator(
                           decoration: const InputDecoration(
-                            labelText: 'Vigente desde',
+                            labelText: rateMode == 'RECURRENTE'
+                       ? 'Vigente desde'
+                       : rateMode == 'DIA' ? 'Fecha de trabajo' : 'Fecha inicial',
                             prefixIcon: Icon(Icons.calendar_today_outlined),
                           ),
                           child: Text(
@@ -1253,7 +1255,9 @@ class _LaborDialogState extends State<_LaborDialog> {
   bool saving = false;
   String? loadWarning;
   Set<int> days = {1, 2, 3, 4, 5};
+  String rateMode = 'RECURRENTE';
   DateTime effective = DateTime.now();
+  DateTime? endDate;
 
   @override
   void initState() {
@@ -1615,12 +1619,18 @@ class _LaborDialogState extends State<_LaborDialog> {
   }
 
   Future<void> _saveRate() async {
-    if (selected == null || days.isEmpty || saving) return;
+    if (selected == null || (rateMode == 'RECURRENTE' && days.isEmpty) || saving) return;
 
     final raw = value.text.replaceAll('.', '').replaceAll(',', '.');
     final amount = double.tryParse(raw);
     if (amount == null || amount < 0) {
       _message('Ingresa un valor válido para la tarifa.', error: true);
+      return;
+    }
+
+    if (rateMode == 'PERIODO' &&
+        (endDate == null || endDate!.isBefore(DateTime(effective.year, effective.month, effective.day)))) {
+      _message('Selecciona una fecha final igual o posterior a la inicial.', error: true);
       return;
     }
 
@@ -1630,9 +1640,12 @@ class _LaborDialogState extends State<_LaborDialog> {
       await widget.api.post<Object?>(
         '/api/v1/gastos-fijos/cargos/$cargoId/tarifas',
         {
-          'diasSemana': days.toList()..sort(),
+          'modo': rateMode,
+          if (rateMode == 'RECURRENTE') 'diasSemana': days.toList()..sort(),
           'valor': amount,
           'vigenciaDesde': DateFormat('yyyy-MM-dd').format(effective),
+          if (rateMode == 'PERIODO')
+            'vigenciaHasta': DateFormat('yyyy-MM-dd').format(endDate!),
         },
         (json) => json,
       );
@@ -1848,13 +1861,38 @@ class _LaborDialogState extends State<_LaborDialog> {
           ],
         ),
         Text(
-          'Define cuánto cuesta un día de trabajo para este cargo. Puedes usar una combinación rápida o seleccionar días individualmente.',
+          'Define cuánto cuesta un día de trabajo. Puedes registrarlo por una sola fecha, un período o una recurrencia semanal.',
           style: TextStyle(
             color: widget.palette.textSecondary,
             height: 1.3,
           ),
         ),
         const SizedBox(height: 12),
+        Wrap(
+          spacing: 8,
+          runSpacing: 8,
+          children: [
+            ChoiceChip(
+              label: const Text('Recurrente'),
+              selected: rateMode == 'RECURRENTE',
+              onSelected: (_) => setState(() => rateMode = 'RECURRENTE'),
+            ),
+            ChoiceChip(
+              label: const Text('Un día'),
+              selected: rateMode == 'DIA',
+              onSelected: (_) => setState(() => rateMode = 'DIA'),
+            ),
+            ChoiceChip(
+              label: const Text('Período'),
+              selected: rateMode == 'PERIODO',
+              onSelected: (_) => setState(() {
+                rateMode = 'PERIODO';
+                endDate ??= effective;
+              }),
+            ),
+          ],
+        ),
+        if (rateMode == 'RECURRENTE') ...[
         Wrap(
           spacing: 8,
           runSpacing: 8,
@@ -1901,6 +1939,7 @@ class _LaborDialogState extends State<_LaborDialog> {
             );
           }),
         ),
+        ],
         const SizedBox(height: 12),
         LayoutBuilder(
           builder: (_, constraints) {
@@ -1910,7 +1949,7 @@ class _LaborDialogState extends State<_LaborDialog> {
               keyboardType:
                   const TextInputType.numberWithOptions(decimal: true),
               decoration: const InputDecoration(
-                labelText: 'Valor por día seleccionado',
+                labelText: 'Costo diario del cargo',
                 prefixIcon: Icon(Icons.payments_outlined),
               ),
             );
@@ -1927,7 +1966,12 @@ class _LaborDialogState extends State<_LaborDialog> {
                         lastDate: DateTime(2100),
                       );
                       if (picked != null) {
-                        setState(() => effective = picked);
+                        setState(() {
+                           effective = picked;
+                           if (endDate != null && endDate!.isBefore(picked)) {
+                             endDate = picked;
+                           }
+                         });
                       }
                     },
               child: InputDecorator(
@@ -1939,21 +1983,49 @@ class _LaborDialogState extends State<_LaborDialog> {
               ),
             );
 
-            if (constraints.maxWidth < 570) {
+            final endPicker = InkWell(
+              borderRadius: BorderRadius.circular(12),
+              onTap: saving
+                  ? null
+                  : () async {
+                      final picked = await showDatePicker(
+                        context: context,
+                        initialDate: endDate != null && !endDate!.isBefore(effective)
+                            ? endDate! : effective,
+                        firstDate: effective,
+                        lastDate: DateTime(2100),
+                      );
+                      if (picked != null) setState(() => endDate = picked);
+                    },
+              child: InputDecorator(
+                decoration: const InputDecoration(
+                  labelText: 'Fecha final (incluida)',
+                  prefixIcon: Icon(Icons.event_outlined),
+                ),
+                child: Text(endDate == null
+                    ? 'Seleccionar'
+                    : DateFormat('dd/MM/yyyy').format(endDate!)),
+              ),
+            );
+
+            final saveButton = FilledButton.icon(
+              onPressed: saving ? null : _saveRate,
+              icon: const Icon(Icons.save_outlined),
+              label: const Text('Guardar tarifa'),
+            );
+            if (constraints.maxWidth < 720) {
               return Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
                   amount,
                   const SizedBox(height: 10),
                   date,
+                  if (rateMode == 'PERIODO') ...[
+                    const SizedBox(height: 10),
+                    endPicker,
+                  ],
                   const SizedBox(height: 10),
-                  SizedBox(
-                    width: double.infinity,
-                    child: FilledButton.icon(
-                      onPressed: saving ? null : _saveRate,
-                      icon: const Icon(Icons.save_outlined),
-                      label: const Text('Aplicar tarifa'),
-                    ),
-                  ),
+                  saveButton,
                 ],
               );
             }
@@ -1962,13 +2034,13 @@ class _LaborDialogState extends State<_LaborDialog> {
               children: [
                 Expanded(child: amount),
                 const SizedBox(width: 10),
-                SizedBox(width: 190, child: date),
+                SizedBox(width: 175, child: date),
+                if (rateMode == 'PERIODO') ...[
+                  const SizedBox(width: 10),
+                  SizedBox(width: 175, child: endPicker),
+                ],
                 const SizedBox(width: 10),
-                FilledButton.icon(
-                  onPressed: saving ? null : _saveRate,
-                  icon: const Icon(Icons.save_outlined),
-                  label: const Text('Aplicar'),
-                ),
+                saveButton,
               ],
             );
           },
