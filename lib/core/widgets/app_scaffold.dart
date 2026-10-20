@@ -16,6 +16,7 @@ import '../../features/mesero/presentation/providers/mesero_tab_provider.dart';
 import '../../features/navigation/data/models/user_menu_item.dart';
 import '../../features/navigation/presentation/providers/user_menu_provider.dart';
 import '../../features/navigation/presentation/providers/active_role_provider.dart';
+import '../../features/navigation/presentation/providers/user_assigned_roles_provider.dart';
 import '../../features/profile/presentation/providers/profile_header_provider.dart';
 import '../utils/responsive_utils.dart';
 import 'barlytics_brand.dart';
@@ -990,19 +991,22 @@ class _RoleScopeSelector extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final assigned = ref.watch(authControllerProvider).roles;
-    if (assigned.length <= 1) return const SizedBox.shrink();
+    final assigned = ref.watch(userAssignedRolesProvider).valueOrNull;
+    // Un usuario puede tener varios roles propios aunque su JWT contenga
+    // una sola autoridad interna ROLE_PERSONALIZADO.
+    if (assigned == null || assigned.length <= 1) return const SizedBox.shrink();
     final selected = ref.watch(selectedRolesProvider);
-    final active = ref.watch(activeRolesProvider);
+    final active = selected == null ? assigned :
+        assigned.where((role) => selected.contains(role.selectionKey)).toList();
     final all = selected == null;
     final activeLabel = all
         ? (compact ? 'Todos' : 'Todos los roles')
         : active.length == 1
-            ? _displayRole(active.first)
+            ? active.first.name
             : compact
                 ? '${active.length} roles'
                 : active.length == 2
-                    ? active.map(_displayRole).join(' + ')
+                    ? active.map((role) => role.name).join(' + ')
                     : '${active.length} roles seleccionados';
 
     final selector = Material(
@@ -1076,13 +1080,8 @@ class _RoleScopeSelector extends ConsumerWidget {
     );
   }
 
-  static String _displayRole(String role) {
-    final value = role.replaceFirst(RegExp(r'^ROLE_', caseSensitive: false), '').replaceAll('_', ' ').trim();
-    if (value.isEmpty) return 'Rol';
-    return value.split(' ').map((w) => w.isEmpty ? w : '${w[0].toUpperCase()}${w.substring(1).toLowerCase()}').join(' ');
-  }
-
-  Future<void> _showRoleSelector(BuildContext context, WidgetRef ref, List<String> assigned, Set<String>? current) async {
+  Future<void> _showRoleSelector(BuildContext context, WidgetRef ref,
+      List<UserAssignedRole> assigned, Set<String>? current) async {
     Set<String>? draft = current == null ? null : {...current};
     final applied = await showModalBottomSheet<Set<String>?>(
       context: context,
@@ -1121,16 +1120,16 @@ class _RoleScopeSelector extends ConsumerWidget {
                 const Divider(),
                 for (final role in assigned)
                   CheckboxListTile(
-                    value: all || (draft?.any((r) => normalizeRoleName(r) == normalizeRoleName(role)) ?? false),
+                    value: all || (draft?.contains(role.selectionKey) ?? false),
                     contentPadding: EdgeInsets.zero,
-                    title: Text(_displayRole(role), style: const TextStyle(fontWeight: FontWeight.w800)),
+                    title: Text(role.name, style: const TextStyle(fontWeight: FontWeight.w800)),
                     onChanged: (checked) {
                       setSheetState(() {
-                        if (draft == null) draft = {role};
-                        else if (checked == true) draft = {...draft!, role};
+                        if (draft == null) draft = {role.selectionKey};
+                        else if (checked == true) draft = {...draft!, role.selectionKey};
                         else {
-                          final next = {...draft!}..removeWhere((r) => normalizeRoleName(r) == normalizeRoleName(role));
-                          draft = next.isEmpty ? {role} : next;
+                          final next = {...draft!}..remove(role.selectionKey);
+                          draft = next.isEmpty ? {role.selectionKey} : next;
                         }
                       });
                     },
