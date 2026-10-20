@@ -78,26 +78,6 @@ class _GastosFijosPageState extends ConsumerState<GastosFijosPage> {
         .toList();
   }
 
-  bool _rateIsActiveOn(Map<String, dynamic> rate, DateTime date) {
-    final from = DateTime.tryParse(
-      rate['gafdVigenciaDesde']?.toString() ?? '',
-    );
-    final until = DateTime.tryParse(
-      rate['gafdVigenciaHasta']?.toString() ?? '',
-    );
-    if (from == null) return false;
-
-    final day = DateTime(date.year, date.month, date.day);
-    final fromDay = DateTime(from.year, from.month, from.day);
-    if (fromDay.isAfter(day)) return false;
-
-    if (until != null) {
-      final untilDay = DateTime(until.year, until.month, until.day);
-      if (untilDay.isBefore(day)) return false;
-    }
-    return true;
-  }
-
   Future<void> _loadLaborSummary(Map<String, dynamic>? laborExpense) async {
     if (laborExpense == null || !mounted) {
       if (mounted) {
@@ -112,61 +92,40 @@ class _GastosFijosPageState extends ConsumerState<GastosFijosPage> {
 
     final api = ref.read(apiClientProvider);
     try {
+      final expenseId = laborExpense['gafiId'];
       final cargoResponse = await api.get<List<Map<String, dynamic>>>(
-        '/api/v1/gastos-fijos/${laborExpense['gafiId']}/cargos',
+        '/api/v1/gastos-fijos/$expenseId/cargos',
         _parseMapList,
       );
       final cargos = cargoResponse.data ?? <Map<String, dynamic>>[];
+      final rateResponse = await api.get<List<Map<String, dynamic>>>(
+        '/api/v1/gastos-fijos/$expenseId/tarifas',
+        _parseMapList,
+      );
+      final ratesByCargo = <String, List<Map<String, dynamic>>>{};
+      for (final rate in rateResponse.data ?? <Map<String, dynamic>>[]) {
+        final id = rate['gafcId']?.toString() ?? '';
+        if (id.isNotEmpty) ratesByCargo.putIfAbsent(id, () => []).add(rate);
+      }
 
       final today = DateTime.now();
-      final todayWeekday = today.weekday;
+      final lastDay = DateTime(today.year, today.month + 1, 0).day;
       var todayTotal = 0.0;
-      var weeklyTotal = 0.0;
-
+      var monthTotal = 0.0;
       for (final cargo in cargos) {
-        final cargoId = cargo['gafcId'];
-        final rateResponse = await api.get<List<Map<String, dynamic>>>(
-          '/api/v1/gastos-fijos/cargos/$cargoId/tarifas',
-          _parseMapList,
-        );
-        final allRates = rateResponse.data ?? <Map<String, dynamic>>[];
-
-        for (var weekday = 1; weekday <= 7; weekday++) {
-          final candidates = allRates
-              .where((rate) {
-                final rateDay = (rate['gafdDiaSemana'] as num?)?.toInt() ??
-                    int.tryParse(
-                          rate['gafdDiaSemana']?.toString() ?? '',
-                        ) ??
-                    0;
-                return rateDay == weekday && _rateIsActiveOn(rate, today);
-              })
-              .toList()
-            ..sort((a, b) {
-              final ad = DateTime.tryParse(
-                    a['gafdVigenciaDesde']?.toString() ?? '',
-                  ) ??
-                  DateTime(1900);
-              final bd = DateTime.tryParse(
-                    b['gafdVigenciaDesde']?.toString() ?? '',
-                  ) ??
-                  DateTime(1900);
-              return bd.compareTo(ad);
-            });
-
-          if (candidates.isEmpty) continue;
-          final amount = _number(candidates.first['gafdValor']);
-          weeklyTotal += amount;
-          if (weekday == todayWeekday) {
-            todayTotal += amount;
-          }
+        final rateList = ratesByCargo[cargo['gafcId'].toString()] ??
+            const <Map<String, dynamic>>[];
+        todayTotal += costoManoObraEnFecha(rateList, today);
+        for (var day = 1; day <= lastDay; day++) {
+          monthTotal += costoManoObraEnFecha(
+              rateList, DateTime(today.year, today.month, day));
         }
       }
 
       if (!mounted) return;
       setState(() {
         laborToday = todayTotal;
-        laborMonthly = weeklyTotal * (30.4375 / 7);
+        laborMonthly = monthTotal;
         laborCargoCount = cargos.length;
       });
     } catch (error) {
@@ -876,7 +835,7 @@ class _Summary extends StatelessWidget {
                   ? money.format(laborToday)
                   : 'Sin configurar',
               subtitle: hasLabor
-                  ? '${money.format(laborMonthly)} / mes aprox. · '
+                  ? '${money.format(laborMonthly)} / mes actual · '
                       '$laborCargoCount cargo${laborCargoCount == 1 ? '' : 's'}'
                   : null,
             ),
@@ -2254,4 +2213,46 @@ class _RatesList extends StatelessWidget {
       },
     );
   }
+}
+
+/// Selecciona una única tarifa por cargo y fecha sin doble conteo.
+/// Una excepción puntual tiene prioridad sobre un período y ambos
+/// prevalecen frente a la tarifa recurrente de la misma fecha.
+double costoManoObraEnFecha(
+    Iterable<Map<String, dynamic>> tarifas, DateTime fecha) {
+  int dia = fecha.weekday;
+  DateTime normalize(DateTime x) => DateTime(x.year, x.month, x.day);
+  int prioridad(String? tipo) {
+    if (tipo == 'DIA') return 0;
+    if (tipo == 'PERIODO') return 1;
+    return 2;
+  }
+
+  final disponibles = tarifas.where((tarifa) {
+    final diaTarifa = (tarifa['gafdDiaSemana'] as num?)?.toInt() ??
+        int.tryParse(tarifa['gafdDiaSemana']?.toString() ?? '') ?? 0;
+    final desde = DateTime.tryParse(tarifa['gafdVigenciaDesde']?.toString() ?? '');
+    final hasta = DateTime.tryParse(tarifa['gafdVigenciaHasta']?.toString() ?? '');
+    return diaTarifa == dia &&
+        desde != null &&
+        !normalize(desde).isAfter(normalize(fecha)) &&
+        (hasta == null || !normalize(hasta).isBefore(normalize(fecha)));
+  }).toList();
+
+  if (disponibles.isEmpty) return 0;
+  disponibles.sort((a, b) {
+    final byType = prioridad(a['gafdModo']?.toString())
+        .compareTo(prioridad(b['gafdModo']?.toString()));
+    if (byType != 0) return byType;
+    final fromA = a['gafdVigenciaDesde']?.toString() ?? '';
+    final fromB = b['gafdVigenciaDesde']?.toString() ?? '';
+    final byDate = fromB.compareTo(fromA);
+    if (byDate != 0) return byDate;
+    final idA = (a['gafdId'] as num?)?.toInt() ?? 0;
+    final idB = (b['gafdId'] as num?)?.toInt() ?? 0;
+    return idB.compareTo(idA);
+  });
+  final amount = disponibles.first['gafdValor'];
+  return (amount as num?)?.toDouble() ??
+      double.tryParse(amount?.toString() ?? '') ?? 0;
 }
