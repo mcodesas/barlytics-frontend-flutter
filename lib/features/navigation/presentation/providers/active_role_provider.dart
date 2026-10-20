@@ -1,6 +1,7 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../auth/presentation/providers/auth_provider.dart';
+import 'user_assigned_roles_provider.dart';
 
 /// null = Todos los roles. Un Set no vacío = solo esos roles activos en la UI.
 final selectedRolesProvider = StateProvider<Set<String>?>((ref) => null);
@@ -22,8 +23,10 @@ final activeRolesProvider = Provider<List<String>>((ref) {
   final selected = ref.watch(selectedRolesProvider);
   if (selected == null || assigned.length <= 1) return assigned;
   final selectedNormalized = selected.map(normalizeRoleName).toSet();
+  final customSelected = selected.any((key) => customRoleIdFromSelection(key) != null);
   final filtered = assigned
-      .where((role) => selectedNormalized.contains(normalizeRoleName(role)))
+      .where((role) => selectedNormalized.contains(normalizeRoleName(role)) ||
+          (customSelected && normalizeRoleName(role) == 'PERSONALIZADO'))
       .toList(growable: false);
   return filtered.isEmpty ? assigned : filtered;
 });
