@@ -32,6 +32,15 @@ import '../widgets/productos_setup_tools.dart';
 
 enum _ProductViewMode { cards, list, table }
 
+/// Seguridad visual adicional al filtro SQL por sucursal.
+/// Nunca renderizar productos sin contexto de sucursal activa.
+List<ProductosResponseModel> productosDeSucursalActiva(
+    Iterable<ProductosResponseModel> productos, int? sucursalId) {
+  if (sucursalId == null) return <ProductosResponseModel>[];
+  return productos.where((producto) => producto.sucuId == sucursalId)
+      .toList(growable: false);
+}
+
 class ProductosListPage extends ConsumerStatefulWidget {
   const ProductosListPage({super.key});
 
@@ -78,7 +87,7 @@ class _ProductosListPageState extends ConsumerState<ProductosListPage> {
     final tiposState = ref.watch(tiposproductoProvider);
     final notifier = ref.read(productosPagedProvider.notifier);
     final items = state.sucursalId == branchState.activeBranchId
-        ? state.items.where((item) => item.sucuId == branchState.activeBranchId).toList(growable: false)
+        ? productosDeSucursalActiva(state.items, branchState.activeBranchId)
         : <ProductosResponseModel>[];
     final activeRoles = ref.watch(activeRolesProvider);
     final movementOnly = activeRoles.isNotEmpty &&
