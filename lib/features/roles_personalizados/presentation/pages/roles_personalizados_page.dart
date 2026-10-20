@@ -833,23 +833,20 @@ class _RolPersonalizadoFormSheetState extends ConsumerState<_RolPersonalizadoFor
 
   List<String> get _menuTypes {
     final values = widget.menus
-        .expand((menu) => menu.tipos.isEmpty ? const ['General'] : menu.tipos)
+        .expand((menu) => menu.tipos)
         .toSet()
         .toList()
       ..sort((a, b) => a.toLowerCase().compareTo(b.toLowerCase()));
     return values;
   }
 
-  // Alias visible solo al configurar permisos; no cambia la ruta ni el ID.
-  String _menuDisplayName(MenuAsignableModel menu) =>
-      menu.parametro.trim().toLowerCase() == 'productos'
-          ? 'Administrar productos'
-          : menu.nombre;
+  // El nombre visible corresponde al registro en commerce.menus.
+  String _menuDisplayName(MenuAsignableModel menu) => menu.nombre;
 
   List<MenuAsignableModel> get _filteredMenus {
     final query = _normalizeMenuText(_menuSearch.text);
     return widget.menus.where((menu) {
-      final types = menu.tipos.isEmpty ? const ['General'] : menu.tipos;
+      final types = menu.tipos;
       if (_menuType != 'Todos' && !types.contains(_menuType)) return false;
       if (query.isEmpty) return true;
       final searchable = _normalizeMenuText([
@@ -2030,7 +2027,7 @@ class _RolPersonalizadoFormSheetState extends ConsumerState<_RolPersonalizadoFor
                                                             spacing: 5,
                                                             runSpacing: 5,
                                                             children: [
-                                                              for (final type in (menu.tipos.isEmpty ? const ['General'] : menu.tipos))
+                                                              for (final type in (menu.tipos))
                                                                 Container(
                                                                   padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                                                                   decoration: BoxDecoration(
