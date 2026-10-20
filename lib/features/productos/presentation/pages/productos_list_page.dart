@@ -2560,33 +2560,12 @@ class _TableProductActionsState extends State<_TableProductActions> {
   }
 
   Future<void> _openEdit() async {
+    // Un único editor permite agregar/quitar ingredientes y adiciones,
+    // además de modificar el producto. Evita el editor rápido incompleto.
+    final id = widget.item.prodId;
+    if (id == null) return;
     FocusScope.of(context).unfocus();
-    await showModalBottomSheet<bool>(
-      context: context,
-      isScrollControlled: true,
-      useSafeArea: true,
-      backgroundColor: Colors.transparent,
-      barrierColor: Colors.black.withOpacity(.72),
-      elevation: 0,
-      builder: (_) => LayoutBuilder(
-        builder: (context, constraints) => Align(
-          alignment: Alignment.bottomCenter,
-          child: ConstrainedBox(
-            constraints: const BoxConstraints(maxWidth: 760),
-            child: FractionallySizedBox(
-              heightFactor: constraints.maxHeight < 720 ? .98 : .94,
-              child: _ProductEditBottomSheet(
-                item: widget.item,
-                palette: widget.palette,
-                marcas: widget.marcas,
-                tipos: widget.tipos,
-                onUpdateProduct: widget.onUpdateProduct,
-              ),
-            ),
-          ),
-        ),
-      ),
-    );
+    context.go('/productos/$id/editar');
   }
 
   @override
@@ -3074,37 +3053,10 @@ class _InlineProductControlsState extends State<_InlineProductControls> {
   }
 
   Future<void> _openEditPanel() async {
+    final id = widget.item.prodId;
+    if (id == null) return;
     FocusScope.of(context).unfocus();
-    await showModalBottomSheet<bool>(
-      context: context,
-      isScrollControlled: true,
-      useSafeArea: true,
-      backgroundColor: Colors.transparent,
-      barrierColor: Colors.black.withOpacity(0.72),
-      elevation: 0,
-      builder: (sheetContext) {
-        return LayoutBuilder(
-          builder: (context, constraints) {
-            return Align(
-              alignment: Alignment.bottomCenter,
-              child: ConstrainedBox(
-                constraints: const BoxConstraints(maxWidth: 760),
-                child: FractionallySizedBox(
-                  heightFactor: constraints.maxHeight < 720 ? 0.98 : 0.94,
-                  child: _ProductEditBottomSheet(
-                    item: widget.item,
-                    palette: widget.palette,
-                    marcas: widget.marcas,
-                    tipos: widget.tipos,
-                    onUpdateProduct: widget.onUpdateProduct,
-                  ),
-                ),
-              ),
-            );
-          },
-        );
-      },
-    );
+    context.go('/productos/$id/editar');
   }
 
   @override
