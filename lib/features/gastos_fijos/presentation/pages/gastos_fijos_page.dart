@@ -402,9 +402,7 @@ class _GastosFijosPageState extends ConsumerState<GastosFijosPage> {
                         },
                         child: InputDecorator(
                           decoration: const InputDecoration(
-                            labelText: rateMode == 'RECURRENTE'
-                       ? 'Vigente desde'
-                       : rateMode == 'DIA' ? 'Fecha de trabajo' : 'Fecha inicial',
+                            labelText: 'Vigente desde',
                             prefixIcon: Icon(Icons.calendar_today_outlined),
                           ),
                           child: Text(
