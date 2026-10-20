@@ -182,6 +182,7 @@ class ProductosPagedNotifier extends StateNotifier<ProductosPagedState> {
 
   final CrudRepository<ProductosResponseModel> _repository;
   final dynamic _apiClient;
+  int _requestSequence = 0;
 
   Future<void> load({
     int? page,
@@ -197,6 +198,7 @@ class ProductosPagedNotifier extends StateNotifier<ProductosPagedState> {
     ProductosQuickFilter? quickFilter,
     ProductosPriceStatus? priceStatus,
   }) async {
+    final requestId = ++_requestSequence;
     final nextState = state.copyWith(
       page: page,
       size: size,
@@ -230,6 +232,7 @@ class ProductosPagedNotifier extends StateNotifier<ProductosPagedState> {
           if (nextState.priceStatus.queryValue != null) 'priceStatus': nextState.priceStatus.queryValue,
         },
       );
+      if (requestId != _requestSequence) return;
       final pageData = response.data ?? const ProductosPageResponseModel();
       state = nextState.copyWith(
         items: pageData.content,
@@ -242,6 +245,7 @@ class ProductosPagedNotifier extends StateNotifier<ProductosPagedState> {
         last: pageData.last,
       );
     } catch (error) {
+      if (requestId != _requestSequence) return;
       state = nextState.copyWith(loading: false, failure: ErrorMapper.map(error));
     }
   }
