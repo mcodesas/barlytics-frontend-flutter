@@ -39,8 +39,21 @@ final userMenuProvider = FutureProvider<List<UserMenuItem>>((ref) async {
                   ));
         }).toList(growable: false);
 
+  // Al seleccionar solo la vista PERSONALIZADO, el orden es el definido
+  // por el usuario en OPCIONMENU, incluso si también tiene GERENTE o CAJERO.
+  // No se utiliza el orden global de grupos del catálogo de MENUS.
+  final customFiltered = List<UserMenuItem>.of(filteredItems);
+  if (hasCustomRole && activeRoles.length == 1) {
+    customFiltered.sort((a, b) {
+      final byCustomOrder = (a.customOrder ?? 0x7fffffff)
+          .compareTo(b.customOrder ?? 0x7fffffff);
+      if (byCustomOrder != 0) return byCustomOrder;
+      return a.menuOrder.compareTo(b.menuOrder);
+    });
+  }
+
   final normalizedActive = activeRoles.map(normalizeRoleName).toSet();
-  final withCommands = filteredItems;
+  final withCommands = customFiltered;
 
   final commandsOnly = normalizedActive.isNotEmpty &&
       normalizedActive.every(
