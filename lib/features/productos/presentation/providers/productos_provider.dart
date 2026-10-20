@@ -277,5 +277,7 @@ class ProductosPagedNotifier extends StateNotifier<ProductosPagedState> {
 final productosPagedProvider = StateNotifierProvider<ProductosPagedNotifier, ProductosPagedState>((ref) {
   final repository = ref.watch(productosCrudRepositoryProvider);
   final apiClient = ref.watch(apiClientProvider);
-  return ProductosPagedNotifier(repository, apiClient);
+  // No descargar todas las sucursales antes de resolver la sucursal global.
+  // La pantalla inicia load(sucursalId: activeBranchId) al tener el contexto.
+  return ProductosPagedNotifier(repository, apiClient, autoLoad: false);
 });
