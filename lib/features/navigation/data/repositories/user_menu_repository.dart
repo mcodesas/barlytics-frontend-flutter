@@ -41,6 +41,7 @@ class UserMenuRepository {
             : previous;
         byKey[keyName] = previous.copyWith(
           roles: mergedRoles,
+          roleTypes: <String>{...previous.roleTypes, ...normalizedItem.roleTypes}.toList(growable: false),
           bottomCode: bottomSource.bottomCode,
           bottomName: bottomSource.bottomName,
           bottomIcon: bottomSource.bottomIcon,
