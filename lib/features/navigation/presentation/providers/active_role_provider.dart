@@ -23,9 +23,21 @@ final activeRolesProvider = Provider<List<String>>((ref) {
   final selected = ref.watch(selectedRolesProvider);
   if (selected == null || assigned.length <= 1) return assigned;
   final selectedNormalized = selected.map(normalizeRoleName).toSet();
-  final customSelected = selected.any((key) => customRoleIdFromSelection(key) != null);
+  final visibleRoles = ref.watch(userAssignedRolesProvider).valueOrNull ??
+      const <UserAssignedRole>[];
+  // Resolver por ID a la categoría interna; no inferir privilegios desde el
+  // nombre dado a un rol personalizado.
+  final selectedDbTypes = visibleRoles
+      .where((role) => selected.contains(role.selectionKey))
+      .map((role) => role.isCustom
+          ? 'PERSONALIZADO'
+          : normalizeRoleName(role.name))
+      .toSet();
+  final customSelected = selected.any((key) =>
+      customRoleIdFromSelection(key) != null);
   final filtered = assigned
       .where((role) => selectedNormalized.contains(normalizeRoleName(role)) ||
+          selectedDbTypes.contains(normalizeRoleName(role)) ||
           (customSelected && normalizeRoleName(role) == 'PERSONALIZADO'))
       .toList(growable: false);
   return filtered.isEmpty ? assigned : filtered;
