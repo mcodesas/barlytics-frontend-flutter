@@ -1275,9 +1275,7 @@ List<UserMenuItem> _buildAvailableItems(
     result.add(item);
   }
 
-  for (final item in _systemItemsFor(profile.type)) {
-    add(item);
-  }
+  // Los accesos siempre proceden del menú autorizado por el backend.
   for (final item in databaseItems) {
     add(item);
   }
@@ -1381,135 +1379,7 @@ List<_WorkflowStep> _workflowFor(
   return result;
 }
 
-List<UserMenuItem> _systemItemsFor(_RoleHomeType type) {
-  const mesas = UserMenuItem(
-    keyName: 'mesas',
-    title: 'Mesas',
-    path: '/mesero',
-    description: 'Abrir ventas y operar cuentas por mesa.',
-    system: true,
-  );
-  const productosMesero = UserMenuItem(
-    keyName: 'productos',
-    title: 'Productos',
-    path: '/mesero/productos',
-    description: 'Buscar y agregar productos a la cuenta.',
-    system: true,
-  );
-  const resumen = UserMenuItem(
-    keyName: 'resumen',
-    title: 'Resumen',
-    path: '/mesero/resumen',
-    description: 'Consultar mesas abiertas y saldos pendientes.',
-    system: true,
-  );
-  const historial = UserMenuItem(
-    keyName: 'ventas',
-    title: 'Historial',
-    path: '/mesero/historial',
-    description: 'Revisar ventas y pagos registrados.',
-    system: true,
-  );
-  const cierre = UserMenuItem(
-    keyName: 'cierres_caja',
-    title: 'Cierre de caja',
-    path: '/mesero/cierre-caja',
-    description: 'Validar y cerrar la operación de caja.',
-    system: true,
-  );
 
-
-  return switch (type) {
-    _RoleHomeType.waiter => const [mesas, productosMesero, resumen],
-    _RoleHomeType.cashier =>
-      const [mesas, productosMesero, resumen, historial, cierre],
-    _RoleHomeType.inventory => const [
-        UserMenuItem(
-          keyName: 'inventario',
-          title: 'Inventario',
-          path: '/inventario',
-          description: 'Consultar existencias por sucursal.',
-          system: true,
-        ),
-        UserMenuItem(
-          keyName: 'productos',
-          title: 'Productos',
-          path: '/productos',
-          description: 'Administrar el catálogo de productos.',
-          system: true,
-        ),
-        UserMenuItem(
-          keyName: 'movimientos',
-          title: 'Movimientos',
-          path: '/movimientos',
-          description: 'Registrar entradas, salidas y ajustes.',
-          system: true,
-        ),
-        UserMenuItem(
-          keyName: 'proximo_pedido',
-          title: 'Próximo pedido',
-          path: '/proximo_pedido',
-          description: 'Consultar reposición sugerida.',
-          system: true,
-        ),
-        UserMenuItem(
-          keyName: 'precios',
-          title: 'Precios',
-          path: '/precios',
-          description: 'Consultar y actualizar precios.',
-          system: true,
-        ),
-        UserMenuItem(
-          keyName: 'reportes',
-          title: 'Reportes',
-          path: '/reportes',
-          description: 'Revisar indicadores de inventario.',
-          system: true,
-        ),
-      ],
-    _RoleHomeType.prices => const [
-        UserMenuItem(
-          keyName: 'precios',
-          title: 'Precios',
-          path: '/precios',
-          description: 'Actualizar precios vigentes.',
-          system: true,
-        ),
-        UserMenuItem(
-          keyName: 'productos',
-          title: 'Productos',
-          path: '/productos',
-          description: 'Consultar productos y presentaciones.',
-          system: true,
-        ),
-      ],
-    _RoleHomeType.movements => const [
-        UserMenuItem(
-          keyName: 'movimientos',
-          title: 'Movimientos',
-          path: '/movimientos',
-          description: 'Registrar entradas, salidas y ajustes.',
-          system: true,
-        ),
-        UserMenuItem(
-          keyName: 'inventario',
-          title: 'Inventario',
-          path: '/inventario',
-          description: 'Verificar existencias actuales.',
-          system: true,
-        ),
-        UserMenuItem(
-          keyName: 'productos',
-          title: 'Productos',
-          path: '/productos',
-          description: 'Consultar productos y presentaciones.',
-          system: true,
-        ),
-      ],
-    _RoleHomeType.admin => const [],
-    _RoleHomeType.custom => const [],
-  };
-}
 
 UserMenuItem? _findByKey(List<UserMenuItem> items, String key) {
   for (final item in items) {
