@@ -1948,8 +1948,7 @@ class _OperationalBottomNavigation extends ConsumerWidget {
           orElse: () => const <UserMenuItem>[],
         );
     final roles = ref.watch(activeRolesProvider);
-    final assignedRoles = ref.watch(authControllerProvider).roles;
-    final isCajero = assignedRoles.any(
+    final isCajero = roles.any(
       (role) => _normalizedRoleToken(role) == 'CAJERO' ||
           _normalizedRoleToken(role) == 'CAJERA',
     );
@@ -1965,6 +1964,10 @@ class _OperationalBottomNavigation extends ConsumerWidget {
       });
     }
 
+    // Las pestañas operativas también respetan commerce.opcionmenu.
+    bool allows(String key) =>
+        authorizedMenus.any((item) => item.keyName == key);
+
     final entries = <({
       String path,
       MeseroPageMode? mode,
@@ -1978,7 +1981,7 @@ class _OperationalBottomNavigation extends ConsumerWidget {
           label: 'Inicio',
         ),
       ),
-      (
+      if (allows('mesero')) (
         path: '/mesero',
         mode: MeseroPageMode.mesas,
         item: const BottomNavigationBarItem(
@@ -1986,7 +1989,7 @@ class _OperationalBottomNavigation extends ConsumerWidget {
           label: 'Mesas',
         ),
       ),
-      (
+      if (allows('mesero_productos')) (
         path: '/mesero/productos',
         mode: MeseroPageMode.productos,
         item: const BottomNavigationBarItem(
@@ -1994,7 +1997,7 @@ class _OperationalBottomNavigation extends ConsumerWidget {
           label: 'Productos',
         ),
       ),
-      if (!isCajero)
+      if (!isCajero && allows('mesero'))
         (
           path: '/mesero/resumen',
           mode: MeseroPageMode.resumen,
@@ -2004,7 +2007,7 @@ class _OperationalBottomNavigation extends ConsumerWidget {
           ),
         ),
       if (isCajero) ...[
-        (
+        if (allows('historial_ventas')) (
           path: '/mesero/historial',
           mode: MeseroPageMode.historial,
           item: const BottomNavigationBarItem(
@@ -2012,7 +2015,7 @@ class _OperationalBottomNavigation extends ConsumerWidget {
             label: 'Historial',
           ),
         ),
-        (
+        if (allows('pedidos_compra')) (
           path: '/pedidos-compra',
           mode: null,
           item: const BottomNavigationBarItem(
@@ -2020,7 +2023,7 @@ class _OperationalBottomNavigation extends ConsumerWidget {
             label: 'Pedidos',
           ),
         ),
-        (
+        if (allows('cierre_caja')) (
           path: '/mesero/cierre-caja',
           mode: MeseroPageMode.cierreCaja,
           item: const BottomNavigationBarItem(
