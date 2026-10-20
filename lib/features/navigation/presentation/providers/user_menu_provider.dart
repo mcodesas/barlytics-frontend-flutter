@@ -52,35 +52,6 @@ final userMenuProvider = FutureProvider<List<UserMenuItem>>((ref) async {
         .toList(growable: false);
   }
 
-  final operationalOnly = normalizedActive.isNotEmpty &&
-      normalizedActive.every((role) => const {
-            'INVENTARIO',
-            'INVENTORY',
-            'BODEGA',
-            'ALMACEN',
-            'MOVIMIENTOS',
-            'MOVIMIENTO',
-          }.contains(role));
-
-  if (!operationalOnly) return withCommands;
-
-  return withCommands.map((item) {
-    if (item.keyName == 'inventario' &&
-        normalizedActive.any((role) => const {
-              'INVENTARIO',
-              'INVENTORY',
-              'BODEGA',
-              'ALMACEN',
-            }.contains(role))) {
-      return item.copyWith(title: 'Tomar inventario');
-    }
-    if (item.keyName == 'productos' &&
-        normalizedActive.any((role) => const {
-              'MOVIMIENTOS',
-              'MOVIMIENTO',
-            }.contains(role))) {
-      return item.copyWith(title: 'Registrar movimientos');
-    }
-    return item;
-  }).toList(growable: false);
+  // Los nombres y destinos se toman exclusivamente de commerce.menus.
+  return withCommands;
 });
