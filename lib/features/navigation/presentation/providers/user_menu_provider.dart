@@ -28,7 +28,9 @@ final userMenuProvider = FutureProvider<List<UserMenuItem>>((ref) async {
       ? allItems
       : allItems.where((item) {
           if (item.roles.isEmpty) return true;
-          return item.roles.any((role) => roleMatches(role, activeRoles));
+          return item.roles.any((role) =>
+              roleMatches(role, activeRoles) ||
+              (hasCustomRole && _isCustomRoleName(role)));
         }).toList(growable: false);
 
   final normalizedActive = activeRoles.map(normalizeRoleName).toSet();
@@ -119,3 +121,22 @@ final userMenuProvider = FutureProvider<List<UserMenuItem>>((ref) async {
     return item;
   }).toList(growable: false);
 });
+
+
+// El backend devuelve el nombre real del rol personalizado, mientras que
+// la selección de la vista utiliza la categoría PERSONALIZADO.
+// La lista ya fue autorizada por /auth/me/menus en el backend.
+bool _isCustomRoleName(String name) {
+  final normalized = normalizeRoleName(name);
+  if (normalized.isEmpty) return false;
+  const standardRoles = <String>{
+    'ADMIN', 'ADMINISTRADOR', 'SUPERADMIN', 'SUPER_ADMIN',
+    'GERENTE', 'MANAGER', 'SUPERVISOR',
+    'CAJERO', 'CAJERA', 'MESERO', 'MESERA',
+    'VENDEDOR', 'VENDEDORA', 'VENTAS', 'SELLER',
+    'INVENTARIO', 'INVENTORY', 'BODEGA', 'ALMACEN',
+    'MOVIMIENTOS', 'MOVIMIENTO', 'COCINA', 'BARRA',
+    'COMANDAS', 'PERSONALIZADO',
+  };
+  return !standardRoles.contains(normalized);
+}
