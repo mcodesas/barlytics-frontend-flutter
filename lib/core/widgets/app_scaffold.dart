@@ -1951,15 +1951,31 @@ class _OperationalBottomNavigation extends ConsumerWidget {
       (role) => _normalizedRoleToken(role) == 'CAJERO' ||
           _normalizedRoleToken(role) == 'CAJERA',
     );
+    // Las rutas explícitas prevalecen sobre el estado anterior del provider.
+    // Al abrir «Listar productos» desde el menú lateral, el provider puede
+    // seguir en «Mesas» aunque la página visible ya sea el catálogo.
+    final currentPath = GoRouterState.of(context).uri.path;
+    final routeMode = switch (currentPath) {
+      '/mesero/productos' => MeseroPageMode.productos,
+      '/mesero/resumen' => MeseroPageMode.resumen,
+      '/mesero/historial' || '/historial_ventas' => MeseroPageMode.historial,
+      '/mesero/cierre-caja' || '/cierre_caja' => MeseroPageMode.cierreCaja,
+      '/administrar_mesas' => MeseroPageMode.mesas,
+      _ => null,
+    };
+    final requestedMode = routeMode ?? rawSelectedMode;
     final selectedMode = !isCajero &&
-            (rawSelectedMode == MeseroPageMode.historial ||
-                rawSelectedMode == MeseroPageMode.cierreCaja)
+            (requestedMode == MeseroPageMode.historial ||
+                requestedMode == MeseroPageMode.cierreCaja)
         ? MeseroPageMode.resumen
-        : rawSelectedMode;
+        : requestedMode;
 
     if (selectedMode != rawSelectedMode) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
-        ref.read(meseroSelectedModeProvider.notifier).state = selectedMode;
+        if (context.mounted &&
+            ref.read(meseroSelectedModeProvider) != selectedMode) {
+          ref.read(meseroSelectedModeProvider.notifier).state = selectedMode;
+        }
       });
     }
 
@@ -2056,7 +2072,6 @@ class _OperationalBottomNavigation extends ConsumerWidget {
         ),
     ];
 
-    final currentPath = GoRouterState.of(context).uri.path;
     // Mesas, Productos e Historial pueden compartir la ruta /mesero
     // mientras su contenido cambia mediante el provider de pestaña.
     // La barra debe reflejar la pantalla realmente visible, no la ruta base.
