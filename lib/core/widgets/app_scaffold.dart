@@ -2078,11 +2078,23 @@ class _OperationalBottomNavigation extends ConsumerWidget {
       selectedIndex =
           navigationEntries.indexWhere((entry) => entry.mode == selectedMode);
     }
-    if (extraMenus.any(
-      (item) =>
-          currentPath == item.path ||
-          currentPath.startsWith('${item.path}/'),
-    )) {
+    // Las opciones representadas como pestañas operativas tienen prioridad.
+    // Evita que una ruta padre (p. ej. /mesero) marque «Más» o «Mesas»
+    // cuando el usuario está en /mesero/productos.
+    final activeOperationalTab = navigationEntries.any(
+      (entry) =>
+          entry.mode != null &&
+          (currentPath == entry.path ||
+              currentPath.startsWith('${entry.path}/')) &&
+          entry.mode == selectedMode,
+    );
+    if (!activeOperationalTab &&
+        extraMenus.any(
+          (item) =>
+              currentPath == item.path ||
+              (item.path != '/home' &&
+                  currentPath.startsWith('${item.path}/')),
+        )) {
       selectedIndex =
           navigationEntries.indexWhere((entry) => entry.path == '__more__');
     }
