@@ -3300,7 +3300,12 @@ class _MeseroPageState extends ConsumerState<MeseroPage> {
         _cuentaSeleccionadaId = venta.cuentas.isNotEmpty ? venta.cuentas.first.cuentaId : null;
         _future = future;
       });
-      await future;
+      // Abrir el panel inmediatamente tras crear y validar la cuenta.
+      // Una caída temporal al recargar mesas NO debe ocultar una venta
+      // directa ya persistida ni forzar al usuario a crear otra.
+      unawaited(future.catchError((Object error, StackTrace stackTrace) {
+        debugPrint('No se pudo actualizar el listado de mesas tras abrir venta directa: $error');
+      }));
       return venta;
     } catch (error) {
       if (!mounted) return null;
@@ -3350,14 +3355,44 @@ class _MeseroPageState extends ConsumerState<MeseroPage> {
     }
 
     final ventaId = venta.ventaId;
-    final cuenta = venta.cuentas.isNotEmpty ? venta.cuentas.first : null;
-    if (ventaId == null || cuenta?.cuentaId == null) {
+    if (ventaId == null) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('No fue posible preparar la cuenta de la venta directa.')),
+        const SnackBar(content: Text('La venta directa no tiene identificador.')),
       );
       return;
     }
+
+    // En una venta recién creada, no descartar el panel por usar una
+    // respuesta antigua sin la primera cuenta. Consultar la venta persistida.
+    MeseroVentaModel listaParaAbrir = venta;
+    if (!cuentaDirectaLista(listaParaAbrir)) {
+      try {
+        listaParaAbrir = await _dataSource.consultarVenta(ventaId);
+      } catch (error) {
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('No se pudo consultar la cuenta de la venta #$ventaId: $error')),
+        );
+        return;
+      }
+    }
+    if (!cuentaDirectaLista(listaParaAbrir)) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(
+          'La venta #$ventaId sigue abierta, pero no tiene una cuenta disponible. '
+          'Puedes retomarla desde ventas directas pendientes.',
+        )),
+      );
+      return;
+    }
+    if (!mounted) return;
+    final cuenta = listaParaAbrir.cuentas.firstWhere((c) => c.cuentaId != null);
+    setState(() {
+      _ventaActiva = listaParaAbrir;
+      _cuentaSeleccionadaId = cuenta.cuentaId;
+    });
 
     final cantidadesPedidasHoy = await _cargarProductosMasPedidosHoy();
     if (!mounted) return;
