@@ -2156,11 +2156,23 @@ class _RatesList extends StatelessWidget {
       );
     }
 
+    // Un PERIODO se guarda con hasta siete filas (una por día semanal),
+    // pero representa una sola decisión de negocio en el historial.
+    final unique = <String, Map<String, dynamic>>{};
+    for (final rate in rates) {
+      final modo = rate['gafdModo']?.toString() ?? 'RECURRENTE';
+      final key = modo == 'PERIODO'
+          ? 'PERIODO|${rate['gafdVigenciaDesde']}|${rate['gafdVigenciaHasta']}|${rate['gafdValor']}'
+          : 'TARIFA|${rate['gafdId']}';
+      unique.putIfAbsent(key, () => rate);
+    }
+    final visibleRates = unique.values.toList(growable: false);
+
     return ListView.separated(
-      itemCount: rates.length,
+      itemCount: visibleRates.length,
       separatorBuilder: (_, __) => const SizedBox(height: 7),
       itemBuilder: (_, index) {
-        final rate = rates[index];
+        final rate = visibleRates[index];
         final day = (rate['gafdDiaSemana'] as num?)?.toInt() ??
             int.tryParse(rate['gafdDiaSemana']?.toString() ?? '') ??
             0;
@@ -2169,6 +2181,7 @@ class _RatesList extends StatelessWidget {
             0;
         final from = rate['gafdVigenciaDesde']?.toString() ?? '';
         final until = rate['gafdVigenciaHasta']?.toString();
+        final modo = rate['gafdModo']?.toString() ?? 'RECURRENTE';
 
         return Container(
           padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
