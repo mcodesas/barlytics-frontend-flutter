@@ -68,6 +68,8 @@ class _ProductosFormPageState extends ConsumerState<ProductosFormPage> {
   bool _hydratedProduct = false;
   bool _hydratedPrice = false;
   bool _gastroLoaded = false;
+  bool _gastroLoading = false;
+  String? _gastroError;
   String _tipoControl = 'NORMAL';
   String _unidadBase = 'UND';
   String _estacionPreparacion = 'COCINA';
@@ -111,17 +113,20 @@ class _ProductosFormPageState extends ConsumerState<ProductosFormPage> {
       _sucursalId = int.tryParse(raw ?? '');
       _loadedStorage = true;
     });
-    if (_editing) {
-      await _loadGastroConfig();
-    }
+    // Esperar a cargar el producto; su sucursal es la fuente de verdad
+    // y puede diferir del valor guardado previamente en el dispositivo.
   }
 
   Future<void> _loadGastroConfig() async {
-    if (_gastroLoaded) return;
+    if (_gastroLoaded || _gastroLoading) return;
     final productId = _editingId;
     final branchId = _sucursalId;
     if (productId == null || branchId == null) return;
 
+    setState(() {
+      _gastroLoading = true;
+      _gastroError = null;
+    });
     try {
       final response = await ref.read(apiClientProvider).get<Map<String, dynamic>>(
             '/api/v1/productos/$productId/gastro',
@@ -129,7 +134,8 @@ class _ProductosFormPageState extends ConsumerState<ProductosFormPage> {
             queryParameters: <String, dynamic>{'sucursalId': branchId},
           );
       final data = response.data;
-      if (!mounted || data == null) return;
+      if (!mounted) return;
+      if (data == null) throw StateError('No se recibió la configuración de la receta.');
 
       final ingredientes = (data['ingredientes'] as List? ?? const <dynamic>[])
           .whereType<Map>()
@@ -152,11 +158,19 @@ class _ProductosFormPageState extends ConsumerState<ProductosFormPage> {
           ..clear()
           ..addAll(adiciones);
         _gastroLoaded = true;
+        _gastroError = null;
       });
-    } catch (_) {
-      // Los productos existentes siguen siendo compatibles como NORMAL aunque
-      // la configuración gastrobar todavía no haya sido creada.
-      if (mounted) setState(() => _gastroLoaded = true);
+    } catch (error) {
+      // Nunca convertir un error de API en receta vacía: guardar después
+      // borraría las relaciones históricas de ingredientes/adiciones.
+      if (mounted) {
+        setState(() {
+          _gastroLoaded = false;
+          _gastroError = 'No se pudo recuperar la receta. Reintenta antes de modificar.';
+        });
+      }
+    } finally {
+      if (mounted) setState(() => _gastroLoading = false);
     }
   }
 
@@ -185,6 +199,9 @@ class _ProductosFormPageState extends ConsumerState<ProductosFormPage> {
       _tipoControl = (producto.prodTipoControl ?? 'NORMAL').toUpperCase();
       _unidadBase = (producto.prodUnidadBase ?? 'UND').toUpperCase();
     }
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) _loadGastroConfig();
+    });
   }
 
   void _hydratePrice(List<PreciosResponseModel> precios) {
@@ -473,6 +490,28 @@ class _ProductosFormPageState extends ConsumerState<ProductosFormPage> {
                 allowNone: true,
               ),
               const SizedBox(height: 18),
+              if (_editing && !_gastroLoaded) ...[
+                const SizedBox(height: 8),
+                if (_gastroLoading)
+                  const LinearProgressIndicator()
+                else
+                  Row(
+                    children: [
+                      Expanded(
+                        child: Text(
+                          _gastroError ?? 'La receta aún no está disponible.',
+                          style: TextStyle(color: palette.textSecondary),
+                        ),
+                      ),
+                      TextButton.icon(
+                        onPressed: _loadGastroConfig,
+                        icon: const Icon(Icons.refresh),
+                        label: const Text('Reintentar'),
+                      ),
+                    ],
+                  ),
+                const SizedBox(height: 12),
+              ],
               _GastroControlSection(
                 palette: palette,
                 tipoControl: _tipoControl,
@@ -1668,6 +1707,10 @@ class _ProductosFormPageState extends ConsumerState<ProductosFormPage> {
   }
 
   bool _validateGeneral() {
+    if (_editing && !_gastroLoaded) {
+      _showError('Debes cargar la receta antes de guardar para conservar los ingredientes y adiciones.');
+      return false;
+    }
     final validForm = _generalFormKey.currentState?.validate() ?? false;
     if (!validForm) return false;
     if (_sucursalId == null) {
