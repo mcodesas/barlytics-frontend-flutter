@@ -169,13 +169,44 @@ class _RolesPersonalizadosPageState extends ConsumerState<RolesPersonalizadosPag
   }
 
   Future<void> _openForm([RolPersonalizadoModel? role, RolPlantillaModel? template]) async {
+    // Consultar el estado más reciente antes de editar o crear. El usuario
+    // puede haber cambiado permisos desde otro dispositivo o sesión.
+    RolPersonalizadoModel? currentRole = role;
+    List<MenuAsignableModel> currentMenus;
+    try {
+      final api = ref.read(apiClientProvider);
+      final available = await api.get<List<MenuAsignableModel>>(
+        ApiPaths.rolesPersonalizadosOpciones,
+        (json) => (json as List? ?? const <Object?>[])
+            .whereType<Map>()
+            .map((item) => MenuAsignableModel.fromJson(Map<String, dynamic>.from(item)))
+            .toList(growable: false),
+      );
+      currentMenus = available.data ?? const <MenuAsignableModel>[];
+      if (role != null) {
+        final detail = await api.get<RolPersonalizadoModel>(
+          '${ApiPaths.rolesPersonalizados}/${role.roleId}',
+          (json) => RolPersonalizadoModel.fromJson(Map<String, dynamic>.from(json as Map)),
+        );
+        if (detail.data == null) throw StateError('El rol no existe o no está disponible.');
+        currentRole = detail.data;
+      }
+    } catch (error) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('No fue posible actualizar los permisos desde la base de datos: $error')),
+        );
+      }
+      return;
+    }
+    if (!mounted) return;
     if (_companies.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('No hay una empresa disponible para crear el rol.')),
       );
       return;
     }
-    if (_menus.isEmpty) {
+    if (currentMenus.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Tu usuario no tiene opciones de menú que pueda delegar.')),
       );
