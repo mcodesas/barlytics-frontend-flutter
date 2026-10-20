@@ -31,6 +31,7 @@ class _RolesPersonalizadosPageState extends ConsumerState<RolesPersonalizadosPag
   final TextEditingController _search = TextEditingController();
   List<RolPersonalizadoModel> _roles = const [];
   List<MenuAsignableModel> _menus = const [];
+  Map<int, String> _menuNamesById = const {};
   List<RolPlantillaModel> _templates = const [];
   String? _templatesError;
   List<EmpresasResponseModel> _companies = const [];
@@ -68,6 +69,7 @@ class _RolesPersonalizadosPageState extends ConsumerState<RolesPersonalizadosPag
             .whereType<Map>()
             .map((item) => RolPersonalizadoModel.fromJson(Map<String, dynamic>.from(item)))
             .toList(),
+        queryParameters: const {'compacto': true},
       );
       final menusFuture = api.get<List<MenuAsignableModel>>(
         ApiPaths.rolesPersonalizadosOpciones,
@@ -113,6 +115,7 @@ class _RolesPersonalizadosPageState extends ConsumerState<RolesPersonalizadosPag
       setState(() {
         _roles = rolesResponse.data ?? const [];
         _menus = menusResponse.data ?? const [];
+        _menuNamesById = {for (final menu in _menus) menu.menuId: menu.nombre};
         _templates = templates;
         _companies = companiesResponse.data ?? const [];
         _branches = branchesResponse.data ?? const [];
@@ -137,7 +140,7 @@ class _RolesPersonalizadosPageState extends ConsumerState<RolesPersonalizadosPag
         role.roleDescripcion,
         _companyName(role.emprId),
         _branchName(role.sucuId),
-        ...role.menus.map((item) => item.nombre),
+        ...role.menuIds.map((id) => _menuNamesById[id] ?? ''),
       ].join(' ').toLowerCase();
       return text.contains(query);
     }).toList()
@@ -480,6 +483,10 @@ class _RolesPersonalizadosPageState extends ConsumerState<RolesPersonalizadosPag
                                         role: role,
                                         company: _companyName(role.emprId),
                                         branch: _branchName(role.sucuId),
+                                        menuNames: [
+                                          for (final id in role.menuIds)
+                                            if (_menuNamesById.containsKey(id)) _menuNamesById[id]!,
+                                        ],
                                         onEdit: () => _openForm(role),
                                         onDelete: role.active ? () => _inactivate(role) : null,
                                       ),
@@ -742,11 +749,12 @@ class _Filters extends StatelessWidget {
 }
 
 class _RoleCard extends StatelessWidget {
-  const _RoleCard({required this.palette, required this.role, required this.company, required this.branch, required this.onEdit, this.onDelete});
+  const _RoleCard({required this.palette, required this.role, required this.company, required this.branch, required this.menuNames, required this.onEdit, this.onDelete});
   final AppPalette palette;
   final RolPersonalizadoModel role;
   final String company;
   final String branch;
+  final List<String> menuNames;
   final VoidCallback onEdit;
   final VoidCallback? onDelete;
 
@@ -800,10 +808,10 @@ class _RoleCard extends StatelessWidget {
               Chip(avatar: const Icon(Icons.group_outlined, size: 17), label: Text('${role.usuariosAsignados} usuarios')),
             ],
           ),
-          if (role.menus.isNotEmpty) ...[
+          if (menuNames.isNotEmpty) ...[
             const SizedBox(height: 10),
             Text(
-              role.menus.take(3).map((menu) => menu.nombre).join(' · '),
+              menuNames.take(3).join(' · '),
               maxLines: 2,
               overflow: TextOverflow.ellipsis,
               style: TextStyle(color: palette.textSecondary, fontSize: 12, fontWeight: FontWeight.w700),
