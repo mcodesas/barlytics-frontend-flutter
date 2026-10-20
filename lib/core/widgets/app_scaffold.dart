@@ -1993,7 +1993,7 @@ class _OperationalBottomNavigation extends ConsumerWidget {
         mode: MeseroPageMode.productos,
         item: const BottomNavigationBarItem(
           icon: Icon(Icons.liquor_rounded),
-          label: 'Productos',
+          label: 'Listar productos',
         ),
       ),
       if (!isCajero && allows('mesero'))
