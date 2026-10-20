@@ -9,6 +9,7 @@ class UserMenuItem {
     this.optionId,
     this.roles = const <String>[],
     this.roleTypes = const <String>[],
+    this.customOrder,
     this.groupCode = 'OTROS',
     this.groupName = 'Otros',
     this.groupIcon = 'more_horiz',
@@ -32,6 +33,7 @@ class UserMenuItem {
   final int? optionId;
   final List<String> roles;
   final List<String> roleTypes;
+  final int? customOrder;
   final String groupCode;
   final String groupName;
   final String groupIcon;
@@ -58,6 +60,7 @@ class UserMenuItem {
       optionId: _toInt(json['opcionId']),
       roles: (json['roles'] as List? ?? const <Object?>[]).map((e) => e.toString()).toList(growable: false),
       roleTypes: (json['tiposRoles'] as List? ?? const <Object?>[]).map((e) => e.toString()).toList(growable: false),
+      customOrder: _toInt(json['ordenPersonalizado']),
       groupCode: _text(json['grupoCodigo'], 'OTROS'),
       groupName: _text(json['grupoNombre'], 'Otros'),
       groupIcon: _text(json['grupoIcono'], 'more_horiz'),
@@ -78,6 +81,7 @@ class UserMenuItem {
     String? path,
     List<String>? roles,
     List<String>? roleTypes,
+    int? customOrder,
     String? groupCode,
     String? groupName,
     String? groupIcon,
@@ -100,6 +104,7 @@ class UserMenuItem {
         optionId: optionId,
         roles: roles ?? this.roles,
         roleTypes: roleTypes ?? this.roleTypes,
+        customOrder: customOrder ?? this.customOrder,
         groupCode: groupCode ?? this.groupCode,
         groupName: groupName ?? this.groupName,
         groupIcon: groupIcon ?? this.groupIcon,
