@@ -11,6 +11,8 @@ import '../../../../core/branch/branch_scope_provider.dart';
 import '../../../../core/widgets/tech_background.dart';
 import '../../../navigation/data/models/user_menu_item.dart';
 import '../../../navigation/presentation/providers/user_menu_provider.dart';
+import '../../../navigation/presentation/providers/active_role_provider.dart';
+import '../../../navigation/presentation/providers/user_assigned_roles_provider.dart';
 import '../../../profile/presentation/providers/profile_header_provider.dart';
 import '../../../sucursales/data/models/sucursales_response_model.dart';
 
@@ -51,7 +53,15 @@ class _RoleHomePageState extends ConsumerState<RoleHomePage> {
     final palette = ref.watch(selectedAppPaletteProvider);
     final branchState = ref.watch(branchScopeProvider);
     final profileAsync = ref.watch(profileHeaderProvider);
-    final profile = _RoleHomeProfile.resolve(widget.roles);
+    final roleOptions = ref.watch(userAssignedRolesProvider).valueOrNull ?? const <UserAssignedRole>[];
+    final selectedRoleKeys = ref.watch(selectedRolesProvider);
+    final customOptions = roleOptions.where((role) =>
+        role.isCustom &&
+        (selectedRoleKeys == null || selectedRoleKeys.contains(role.selectionKey))).toList();
+    final customName = customOptions.length == 1 &&
+        (selectedRoleKeys != null || roleOptions.length == 1)
+        ? customOptions.first.name : null;
+    final profile = _RoleHomeProfile.resolve(widget.roles, customName: customName);
     final availableItems = _buildAvailableItems(profile, widget.items);
     final featuredItems = _featuredItems(profile, availableItems);
     final workflow = _workflowFor(profile, availableItems);
@@ -1095,7 +1105,7 @@ class _RoleHomeProfile {
   final Color color;
   final List<String> priority;
 
-  static _RoleHomeProfile resolve(List<String> roles) {
+  static _RoleHomeProfile resolve(List<String> roles, {String? customName}) {
     final normalized = roles.map(_normalizeRole).toList(growable: false);
     final hasInventory = normalized.any((role) =>
         role.contains('INVENTARIO') ||
@@ -1135,9 +1145,9 @@ class _RoleHomeProfile {
 
     if (normalized.any((role) =>
         role.replaceFirst('ROLE_', '') == 'PERSONALIZADO')) {
-      return const _RoleHomeProfile(
+      return _RoleHomeProfile(
         type: _RoleHomeType.custom,
-        label: 'Rol personalizado',
+        label: customName == null || customName.isEmpty ? 'Rol personalizado' : customName,
         subtitle:
             'Accede únicamente a las funciones configuradas específicamente para tu rol.',
         workflowSubtitle:
