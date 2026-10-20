@@ -194,10 +194,8 @@ class _ProductosListPageState extends ConsumerState<ProductosListPage> {
                     onChanged: _onSearchChanged,
                     tipos: tiposState.items,
                     marcas: marcasState.items,
-                    sucursales: branchState.branches,
                     selectedTipoId: _selectedTipoId,
                     selectedMarcaId: _selectedMarcaId,
-                    activeBranchId: branchState.activeBranchId,
                     sortOption: state.sortOption,
                     viewMode: _viewMode,
                     selectedQuickFilter: state.quickFilter,
@@ -658,7 +656,6 @@ class _ProductosHeader extends StatelessWidget {
     required this.onChanged,
     required this.tipos,
     required this.marcas,
-    required this.sucursales,
     required this.selectedTipoId,
     required this.selectedMarcaId,
     required this.sortOption,
@@ -684,7 +681,6 @@ class _ProductosHeader extends StatelessWidget {
   final ValueChanged<String> onChanged;
   final List<TiposProductoResponseModel> tipos;
   final List<MarcasResponseModel> marcas;
-  final List<SucursalesResponseModel> sucursales;
   final int? selectedTipoId;
   final int? selectedMarcaId;
   final ProductosSortOption sortOption;
