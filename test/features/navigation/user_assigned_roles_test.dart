@@ -21,6 +21,10 @@ void main() {
     expect(cocina.selectionKey, customRoleSelectionKey(52));
     expect(caja.selectionKey, isNot(cocina.selectionKey));
     expect(customRoleIdFromSelection(caja.selectionKey), 51);
+    final cajero = UserAssignedRole.fromJson({
+      'roleId': 31, 'roleNombre': 'CAJERO', 'roleTipo': 'PREDEFINIDO',
+    });
+    expect(cajero.selectionKey, systemRoleSelectionKey(31));
   });
 
   test('cada rol personalizado ve solo sus permisos por ID', () {
@@ -43,7 +47,7 @@ void main() {
     expect(orderMenusForCustomRole(cocina, roleId: 52)
         .map((item) => item.keyName), ['comandas', 'home']);
 
-    final cajero = filterMenusBySelectedRoles(menus, {'ROLE_CAJERO'});
+    final cajero = filterMenusBySelectedRoles(menus, {systemRoleSelectionKey(31)});
     expect(cajero.map((item) => item.keyName), ['mesero_productos']);
     final todos = filterMenusBySelectedRoles(menus, null);
     expect(todos.length, 3);
