@@ -176,12 +176,14 @@ class ProductosPagedNotifier extends StateNotifier<ProductosPagedState> {
     this._repository,
     this._apiClient, {
     bool autoLoad = true,
+    this.requireSucursal = false,
   }) : super(const ProductosPagedState()) {
     if (autoLoad) load();
   }
 
   final CrudRepository<ProductosResponseModel> _repository;
   final dynamic _apiClient;
+  final bool requireSucursal;
   int _requestSequence = 0;
 
   Future<void> load({
@@ -213,6 +215,17 @@ class ProductosPagedNotifier extends StateNotifier<ProductosPagedState> {
       quickFilter: quickFilter,
       priceStatus: priceStatus,
     );
+    if (requireSucursal && nextState.sucursalId == null) {
+      // La pantalla de Productos nunca debe descargar otras sucursales.
+      state = nextState.copyWith(
+        items: const <ProductosResponseModel>[],
+        page: 0,
+        totalElements: 0,
+        totalPages: 0,
+        loading: false,
+      );
+      return;
+    }
     state = nextState.copyWith(loading: true);
 
     try {
@@ -283,5 +296,7 @@ final productosPagedProvider = StateNotifierProvider<ProductosPagedNotifier, Pro
   final apiClient = ref.watch(apiClientProvider);
   // No descargar todas las sucursales antes de resolver la sucursal global.
   // La pantalla inicia load(sucursalId: activeBranchId) al tener el contexto.
-  return ProductosPagedNotifier(repository, apiClient, autoLoad: false);
+  return ProductosPagedNotifier(
+    repository, apiClient, autoLoad: false, requireSucursal: true,
+  );
 });
