@@ -176,8 +176,7 @@ class _ProductosListPageState extends ConsumerState<ProductosListPage> {
                     child: ProductosSetupTools(
                       palette: palette,
                       branches: branchState.branches,
-                      activeBranchId: branchState.activeBranchId,
-                      onCompleted: () async {
+                        onCompleted: () async {
                         _selectedProductIds.clear();
                         await notifier.refresh();
                       },
@@ -198,7 +197,6 @@ class _ProductosListPageState extends ConsumerState<ProductosListPage> {
                     sucursales: branchState.branches,
                     selectedTipoId: _selectedTipoId,
                     selectedMarcaId: _selectedMarcaId,
-                    selectedSucursalId: _selectedSucursalId,
                     activeBranchId: branchState.activeBranchId,
                     sortOption: state.sortOption,
                     viewMode: _viewMode,
@@ -663,16 +661,12 @@ class _ProductosHeader extends StatelessWidget {
     required this.sucursales,
     required this.selectedTipoId,
     required this.selectedMarcaId,
-    required this.selectedSucursalId,
-    required this.activeBranchId,
-    required this.onActiveBranchChanged,
     required this.sortOption,
     required this.viewMode,
     required this.selectedQuickFilter,
     required this.onQuickFilterChanged,
     required this.onTipoChanged,
     required this.onMarcaChanged,
-    required this.onSucursalChanged,
     required this.onSortChanged,
     required this.onViewChanged,
     required this.onClearFilters,
@@ -693,16 +687,12 @@ class _ProductosHeader extends StatelessWidget {
   final List<SucursalesResponseModel> sucursales;
   final int? selectedTipoId;
   final int? selectedMarcaId;
-  final int? selectedSucursalId;
-  final int? activeBranchId;
-  final ValueChanged<int?> onActiveBranchChanged;
   final ProductosSortOption sortOption;
   final _ProductViewMode viewMode;
   final ProductosQuickFilter selectedQuickFilter;
   final ValueChanged<ProductosQuickFilter> onQuickFilterChanged;
   final ValueChanged<int?> onTipoChanged;
   final ValueChanged<int?> onMarcaChanged;
-  final ValueChanged<int?> onSucursalChanged;
   final ValueChanged<ProductosSortOption?> onSortChanged;
   final ValueChanged<_ProductViewMode> onViewChanged;
   final VoidCallback onClearFilters;
@@ -714,7 +704,6 @@ class _ProductosHeader extends StatelessWidget {
     if (controller.text.trim().isNotEmpty) count++;
     if (selectedTipoId != null) count++;
     if (selectedMarcaId != null) count++;
-    if (sucursales.length > 1 && selectedSucursalId != null) count++;
     if (selectedQuickFilter != ProductosQuickFilter.all) count++;
     return count;
   }
