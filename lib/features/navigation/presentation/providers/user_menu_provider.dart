@@ -83,13 +83,18 @@ List<UserMenuItem> filterMenusBySelectedRoles(
   if (selected == null) return items.toList(growable: false);
   final customIds = selected.map(customRoleIdFromSelection)
       .whereType<int>().toSet();
-  final names = selected.where((key) =>
-      customRoleIdFromSelection(key) == null).toList();
-  final legacyCustom = customIds.isEmpty &&
-      names.any((key) => normalizeRoleName(key) == 'PERSONALIZADO');
+  final systemIds = selected.map(systemRoleIdFromSelection)
+      .whereType<int>().toSet();
+  // Compatibilidad con valores de selección anteriores al despliegue.
+  final legacyNames = selected.where((key) =>
+      customRoleIdFromSelection(key) == null &&
+      systemRoleIdFromSelection(key) == null).toList();
+  final legacyCustom = customIds.isEmpty && legacyNames.any(
+      (key) => normalizeRoleName(key) == 'PERSONALIZADO');
   return items.where((item) =>
       item.roleIds.any(customIds.contains) ||
-      item.roles.any((role) => roleMatches(role, names)) ||
+      item.roleIds.any(systemIds.contains) ||
+      item.roles.any((role) => roleMatches(role, legacyNames)) ||
       (legacyCustom && item.roleTypes.any(
           (type) => normalizeRoleName(type) == 'PERSONALIZADO'))
   ).toList(growable: false);
