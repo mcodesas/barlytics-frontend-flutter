@@ -127,10 +127,14 @@ class _ProductosListPageState extends ConsumerState<ProductosListPage> {
         state.quickFilter != ProductosQuickFilter.all;
 
     Widget content;
-    if (branchState.loading || branchState.activeBranchId == null ||
-        state.sucursalId != branchState.activeBranchId ||
+    if (branchState.loading ||
+        (branchState.activeBranchId != null && state.sucursalId != branchState.activeBranchId) ||
         (state.loading && items.isEmpty)) {
       content = const AppLoader();
+    } else if (branchState.activeBranchId == null) {
+      content = const AppEmptyView(
+        message: 'Selecciona una sucursal en el encabezado para consultar sus productos.',
+      );
     } else if (state.failure != null && items.isEmpty) {
       content = AppErrorView(
         message: state.failure!.message,
