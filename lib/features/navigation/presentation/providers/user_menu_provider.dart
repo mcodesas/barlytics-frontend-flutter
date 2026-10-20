@@ -5,6 +5,7 @@ import '../../../auth/presentation/providers/auth_provider.dart';
 import '../../data/models/user_menu_item.dart';
 import '../../data/repositories/user_menu_repository.dart';
 import 'active_role_provider.dart';
+import 'user_assigned_roles_provider.dart';
 
 final userMenuRepositoryProvider = Provider<UserMenuRepository>((ref) {
   return UserMenuRepository(ref.watch(apiClientProvider));
@@ -21,29 +22,39 @@ final userMenuProvider = FutureProvider<List<UserMenuItem>>((ref) async {
   final hasCustomRole = activeRoles.any(
     (role) => normalizeRoleName(role) == 'PERSONALIZADO',
   );
+  final selection = ref.watch(selectedRolesProvider);
+  final customIds = selection?.map(customRoleIdFromSelection)
+          .whereType<int>().toSet() ?? <int>{};
+  final predefinedSelections = selection
+          ?.where((key) => customRoleIdFromSelection(key) == null).toList() ??
+      <String>[];
+  final legacyCustomSelection = predefinedSelections.any(
+      (key) => normalizeRoleName(key) == 'PERSONALIZADO');
+  final onlyCustomView = hasCustomRole && activeRoles.length == 1 &&
+      (selection == null || (selection.length == 1 &&
+          (customIds.length == 1 || legacyCustomSelection)));
+
   final allItems = await ref.watch(userMenuRepositoryProvider).findMyMenu(
-        preserveBackendOrder: hasCustomRole && activeRoles.length == 1,
+        preserveBackendOrder: onlyCustomView,
       );
-  // El JWT usa la categoría PERSONALIZADO; el backend informa el nombre
-  // real del rol y su categoría tomada de commerce.roles.role_tipo.
-  // Filtrar por tipo solamente para PERSONALIZADO, nunca por coincidencias
-  // aproximadas de nombres (pueden corresponder a roles distintos).
-  final filteredItems = activeRoles.length == authState.roles.length
+  // En roles personalizados usar IDs de commerce.roles, no el tipo genérico
+  // PERSONALIZADO. Seleccionar uno NO debe filtrar menús de otros roles custom.
+  final filteredItems = selection == null
       ? allItems
       : allItems.where((item) {
-          if (item.roles.isEmpty && item.roleTypes.isEmpty) return false;
-          return item.roles.any((role) => roleMatches(role, activeRoles)) ||
-              (hasCustomRole &&
-                  item.roleTypes.any(
-                    (type) => normalizeRoleName(type) == 'PERSONALIZADO',
-                  ));
+          final byCustomId = item.roleIds.any(customIds.contains);
+          final byPredefined = item.roles.any(
+              (name) => roleMatches(name, predefinedSelections));
+          final byLegacyCustomType = legacyCustomSelection &&
+              customIds.isEmpty &&
+              item.roleTypes.any((type) =>
+                  normalizeRoleName(type) == 'PERSONALIZADO');
+          return byCustomId || byPredefined || byLegacyCustomType;
         }).toList(growable: false);
 
-  // Al seleccionar solo la vista PERSONALIZADO, el orden es el definido
-  // por el usuario en OPCIONMENU, incluso si también tiene GERENTE o CAJERO.
-  // No se utiliza el orden global de grupos del catálogo de MENUS.
-  final customFiltered = hasCustomRole && activeRoles.length == 1
-      ? orderMenusForCustomRole(filteredItems)
+  final customFiltered = onlyCustomView
+      ? orderMenusForCustomRole(filteredItems,
+          roleId: customIds.length == 1 ? customIds.first : null)
       : filteredItems;
 
   final normalizedActive = activeRoles.map(normalizeRoleName).toSet();
@@ -66,11 +77,14 @@ final userMenuProvider = FutureProvider<List<UserMenuItem>>((ref) async {
 
 /// Respeta la secuencia guardada en OPCIONMENU para cada rol personalizado.
 /// El menú 'home' no se inserta ni se reordena artificialmente.
-List<UserMenuItem> orderMenusForCustomRole(Iterable<UserMenuItem> items) {
+List<UserMenuItem> orderMenusForCustomRole(
+    Iterable<UserMenuItem> items, {int? roleId}) {
   final ordered = List<UserMenuItem>.of(items);
+  int position(UserMenuItem item) => roleId == null
+      ? item.customOrder ?? 0x7fffffff
+      : item.customOrderByRole[roleId] ?? 0x7fffffff;
   ordered.sort((a, b) {
-    final byConfiguredOrder = (a.customOrder ?? 0x7fffffff)
-        .compareTo(b.customOrder ?? 0x7fffffff);
+    final byConfiguredOrder = position(a).compareTo(position(b));
     if (byConfiguredOrder != 0) return byConfiguredOrder;
     return a.menuOrder.compareTo(b.menuOrder);
   });
