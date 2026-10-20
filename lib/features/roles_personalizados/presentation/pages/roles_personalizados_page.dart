@@ -20,60 +20,6 @@ import '../../data/models/rol_personalizado_model.dart';
 
 enum _RoleStatusFilter { todos, activos, inactivos }
 
-class _StarterRoleTemplate {
-  const _StarterRoleTemplate(this.name, this.description, this.type, this.icon, this.purpose);
-  final String name;
-  final String description;
-  final String type;
-  final IconData icon;
-  final String purpose;
-}
-
-const _starterRoles = <_StarterRoleTemplate>[
-  _StarterRoleTemplate(
-    'Atención de mesas', 'Registra pedidos, ventas y cuentas de las mesas.',
-    'Vendedor / Mesero', Icons.room_service_outlined,
-    'Para meseros: selecciona ventas, mesas y comandas.'),
-  _StarterRoleTemplate(
-    'Caja y cobros', 'Gestiona ventas, cobros y cierre de caja.',
-    'Cajero', Icons.point_of_sale_outlined,
-    'Para cajeros: decide si también administran mesas y pedidos.'),
-  _StarterRoleTemplate(
-    'Control de inventario', 'Gestiona existencias, conteos y movimientos.',
-    'Inventario', Icons.inventory_2_outlined,
-    'Para bodegueros: selecciona inventario, conteos y trazabilidad.'),
-  _StarterRoleTemplate(
-    'Movimientos de bodega', 'Registra entradas, salidas y ajustes de productos.',
-    'Movimientos', Icons.swap_horiz_rounded,
-    'Para auxiliares: limita el acceso a movimientos de inventario.'),
-  _StarterRoleTemplate(
-    'Equipo de cocina', 'Recibe comandas de cocina y registra el avance de preparación.',
-    'Cocina', Icons.soup_kitchen_outlined,
-    'Para cocina: trabaja con Comandas, revisa los pedidos y actualiza su preparación.'),
-  _StarterRoleTemplate(
-    'Equipo de barra', 'Recibe comandas de bebidas y registra su preparación.',
-    'Barra', Icons.local_bar_outlined,
-    'Para barra: consulta las comandas de bebidas y actualiza su preparación.'),
-  _StarterRoleTemplate(
-    'Supervisión operativa', 'Supervisa reportes y configuración del negocio.',
-    'Gerente', Icons.space_dashboard_outlined,
-    'Para supervisores: elige las consultas delegables.'),
-];
-
-bool _menuMatchesTemplate(MenuAsignableModel menu, _StarterRoleTemplate template) {
-  if (!menu.asignable) return false;
-  final parameter = menu.parametro.trim().toLowerCase();
-  // Cocina y barra solo reciben Comandas como menú inicial. No se
-  // conceden módulos de ventas, caja, inventario ni administración.
-  if (template.type == 'Cocina' || template.type == 'Barra') {
-    return parameter == 'comandas';
-  }
-  if (template.type == 'Movimientos') {
-    return parameter == 'movimientos';
-  }
-  return menu.tipos.any((type) => type.toLowerCase() == template.type.toLowerCase());
-}
-
 class RolesPersonalizadosPage extends ConsumerStatefulWidget {
   const RolesPersonalizadosPage({super.key});
 
@@ -203,7 +149,7 @@ class _RolesPersonalizadosPageState extends ConsumerState<RolesPersonalizadosPag
     return 'Sucursal #$id';
   }
 
-  Future<void> _openForm([RolPersonalizadoModel? role, _StarterRoleTemplate? template]) async {
+  Future<void> _openForm([RolPersonalizadoModel? role]) async {
     if (_companies.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('No hay una empresa disponible para crear el rol.')),
@@ -262,7 +208,6 @@ class _RolesPersonalizadosPageState extends ConsumerState<RolesPersonalizadosPag
                   ),
                   child: _RolPersonalizadoFormSheet(
                 role: role,
-                template: template,
                 menus: _menus,
                 companies: _companies,
                     branches: _branches,
@@ -388,7 +333,6 @@ class _RolesPersonalizadosPageState extends ConsumerState<RolesPersonalizadosPag
                             palette: palette,
                             currentRoles: _roles.where((role) => role.active).length,
                             busy: _loading,
-                            onTemplate: (template) => _openForm(null, template),
                             onDefaults: _confirmPredefinedRoles,
                           ),
                         ),
@@ -508,14 +452,12 @@ class _RolesSetupGuide extends StatelessWidget {
     required this.palette,
     required this.currentRoles,
     required this.busy,
-    required this.onTemplate,
     required this.onDefaults,
   });
 
   final AppPalette palette;
   final int currentRoles;
   final bool busy;
-  final ValueChanged<_StarterRoleTemplate> onTemplate;
   final VoidCallback onDefaults;
 
   @override
@@ -821,9 +763,8 @@ class _MessageState extends StatelessWidget {
 }
 
 class _RolPersonalizadoFormSheet extends ConsumerStatefulWidget {
-  const _RolPersonalizadoFormSheet({required this.menus, required this.companies, required this.branches, this.role, this.template});
+  const _RolPersonalizadoFormSheet({required this.menus, required this.companies, required this.branches, this.role});
   final RolPersonalizadoModel? role;
-  final _StarterRoleTemplate? template;
   final List<MenuAsignableModel> menus;
   final List<EmpresasResponseModel> companies;
   final List<SucursalesResponseModel> branches;
@@ -854,17 +795,10 @@ class _RolPersonalizadoFormSheetState extends ConsumerState<_RolPersonalizadoFor
   void initState() {
     super.initState();
     final role = widget.role;
-    _name = TextEditingController(text: role?.roleNombre ?? widget.template?.name ?? '');
-    _description = TextEditingController(text: role?.roleDescripcion ?? widget.template?.description ?? '');
+    _name = TextEditingController(text: role?.roleNombre ?? '');
+    _description = TextEditingController(text: role?.roleDescripcion ?? '');
     _menuSearch = TextEditingController();
-    _menuOrder = role != null
-        ? [...role.menuIds]
-        : widget.template == null
-            ? <int>[]
-            : widget.menus
-                .where((menu) => _menuMatchesTemplate(menu, widget.template!))
-                .map((menu) => menu.menuId)
-                .toList();
+    _menuOrder = role == null ? <int>[] : [...role.menuIds];
     _selectedMenus = _menuOrder.toSet();
     final companyIds = <int>{
       ...widget.companies.map((item) => item.emprId).whereType<int>(),
