@@ -23,6 +23,8 @@ class MeseroRemoteDataSource {
       (json) => (json as List? ?? const [])
           .map((e) => MeseroMesaResumenModel.fromJson(Map<String, dynamic>.from(e as Map)))
           .toList(growable: false),
+      // La pantalla POS no dibuja fotos de mesas; evitar transferir base64.
+      queryParameters: const {'incluirFotos': false},
     );
     return response.data ?? const <MeseroMesaResumenModel>[];
   }
