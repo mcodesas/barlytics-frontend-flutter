@@ -8,6 +8,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../../app/theme/app_palette.dart';
+import '../../../../core/branch/branch_scope_provider.dart';
 import '../../../../core/constants/storage_keys.dart';
 import '../../../../core/providers/core_providers.dart';
 import '../../../../core/utils/input_constraints.dart';
@@ -107,10 +108,13 @@ class _ProductosFormPageState extends ConsumerState<ProductosFormPage> {
   }
 
   Future<void> _loadAssignedSucursal() async {
-    final raw = await ref.read(secureStorageProvider).read(StorageKeys.sucursalId);
+    final active = ref.read(branchScopeProvider).activeBranchId;
+    final raw = active == null
+        ? await ref.read(secureStorageProvider).read(StorageKeys.sucursalId)
+        : null;
     if (!mounted) return;
     setState(() {
-      _sucursalId = int.tryParse(raw ?? '');
+      _sucursalId = active ?? int.tryParse(raw ?? '');
       _loadedStorage = true;
     });
     // Esperar a cargar el producto; su sucursal es la fuente de verdad
@@ -233,6 +237,12 @@ class _ProductosFormPageState extends ConsumerState<ProductosFormPage> {
   @override
   Widget build(BuildContext context) {
     final palette = ref.watch(selectedAppPaletteProvider);
+    final activeSucursalId = ref.watch(branchScopeProvider).activeBranchId;
+    if (!_editing && activeSucursalId != null && _sucursalId != activeSucursalId) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) setState(() => _sucursalId = activeSucursalId);
+      });
+    }
     final productosState = ref.watch(productosProvider);
     final preciosState = ref.watch(preciosProvider);
     final inventarioState = ref.watch(inventarioProvider);
@@ -242,7 +252,8 @@ class _ProductosFormPageState extends ConsumerState<ProductosFormPage> {
 
     final producto = _editingId == null
         ? null
-        : _firstOrNull(productosState.items.where((item) => item.prodId == _editingId));
+        : _firstOrNull(productosState.items.where((item) =>
+            item.prodId == _editingId && item.sucuId == activeSucursalId));
 
     if (_editing && producto != null) {
       _hydrateProduct(producto);
