@@ -35,15 +35,17 @@ void main() {
   });
 
   test('período inclusivo no se cobra fuera de los límites', () {
-    final tarifa = <Map<String, dynamic>>{
-      'gafdId': 10,
-      'gafdDiaSemana': 3,
-      'gafdModo': 'PERIODO',
-      'gafdVigenciaDesde': '2026-10-19',
-      'gafdVigenciaHasta': '2026-10-21',
-      'gafdValor': 80000,
-    };
-    expect(costoManoObraEnFecha([tarifa], DateTime(2026, 10, 21)), 80000);
-    expect(costoManoObraEnFecha([tarifa], DateTime(2026, 10, 28)), 0);
+    final tarifas = <Map<String, dynamic>>[
+      {
+        'gafdId': 10,
+        'gafdDiaSemana': 3,
+        'gafdModo': 'PERIODO',
+        'gafdVigenciaDesde': '2026-10-19',
+        'gafdVigenciaHasta': '2026-10-21',
+        'gafdValor': 80000,
+      },
+    ];
+    expect(costoManoObraEnFecha(tarifas, DateTime(2026, 10, 21)), 80000);
+    expect(costoManoObraEnFecha(tarifas, DateTime(2026, 10, 28)), 0);
   });
 }
