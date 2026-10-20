@@ -2190,7 +2190,11 @@ class _RatesList extends StatelessWidget {
             children: [
               Expanded(
                 child: Text(
-                  day >= 1 && day <= 7 ? names[day] : 'Día $day',
+                  modo == 'DIA'
+                      ? 'Día único'
+                      : modo == 'PERIODO'
+                          ? 'Período'
+                          : (day >= 1 && day <= 7 ? names[day] : 'Día $day'),
                   style: TextStyle(
                     color: palette.textPrimary,
                     fontWeight: FontWeight.w700,
