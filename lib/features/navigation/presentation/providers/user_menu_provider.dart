@@ -42,15 +42,9 @@ final userMenuProvider = FutureProvider<List<UserMenuItem>>((ref) async {
   // Al seleccionar solo la vista PERSONALIZADO, el orden es el definido
   // por el usuario en OPCIONMENU, incluso si también tiene GERENTE o CAJERO.
   // No se utiliza el orden global de grupos del catálogo de MENUS.
-  final customFiltered = List<UserMenuItem>.of(filteredItems);
-  if (hasCustomRole && activeRoles.length == 1) {
-    customFiltered.sort((a, b) {
-      final byCustomOrder = (a.customOrder ?? 0x7fffffff)
-          .compareTo(b.customOrder ?? 0x7fffffff);
-      if (byCustomOrder != 0) return byCustomOrder;
-      return a.menuOrder.compareTo(b.menuOrder);
-    });
-  }
+  final customFiltered = hasCustomRole && activeRoles.length == 1
+      ? orderMenusForCustomRole(filteredItems)
+      : filteredItems;
 
   final normalizedActive = activeRoles.map(normalizeRoleName).toSet();
   final withCommands = customFiltered;
@@ -68,3 +62,17 @@ final userMenuProvider = FutureProvider<List<UserMenuItem>>((ref) async {
   // Los nombres y destinos se toman exclusivamente de commerce.menus.
   return withCommands;
 });
+
+
+/// Respeta la secuencia guardada en OPCIONMENU para cada rol personalizado.
+/// El menú 'home' no se inserta ni se reordena artificialmente.
+List<UserMenuItem> orderMenusForCustomRole(Iterable<UserMenuItem> items) {
+  final ordered = List<UserMenuItem>.of(items);
+  ordered.sort((a, b) {
+    final byConfiguredOrder = (a.customOrder ?? 0x7fffffff)
+        .compareTo(b.customOrder ?? 0x7fffffff);
+    if (byConfiguredOrder != 0) return byConfiguredOrder;
+    return a.menuOrder.compareTo(b.menuOrder);
+  });
+  return ordered;
+}
