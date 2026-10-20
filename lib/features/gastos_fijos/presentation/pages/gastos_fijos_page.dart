@@ -112,9 +112,8 @@ class _GastosFijosPageState extends ConsumerState<GastosFijosPage> {
       final lastDay = DateTime(today.year, today.month + 1, 0).day;
       var todayTotal = 0.0;
       var monthTotal = 0.0;
-      for (final cargo in cargos) {
-        final rateList = ratesByCargo[cargo['gafcId'].toString()] ??
-            const <Map<String, dynamic>>[];
+      // Incluir también el costo histórico de cargos hoy inactivos.
+      for (final rateList in ratesByCargo.values) {
         todayTotal += costoManoObraEnFecha(rateList, today);
         for (var day = 1; day <= lastDay; day++) {
           monthTotal += costoManoObraEnFecha(
@@ -2242,8 +2241,9 @@ double costoManoObraEnFecha(
   }
 
   final disponibles = tarifas.where((tarifa) {
-    final diaTarifa = (tarifa['gafdDiaSemana'] as num?)?.toInt() ??
-        int.tryParse(tarifa['gafdDiaSemana']?.toString() ?? '') ?? 0;
+    final rawDia = tarifa['gafdDiaSemana'];
+    final diaTarifa = rawDia is num ? rawDia.toInt() :
+        int.tryParse(rawDia?.toString() ?? '') ?? 0;
     final desde = DateTime.tryParse(tarifa['gafdVigenciaDesde']?.toString() ?? '');
     final hasta = DateTime.tryParse(tarifa['gafdVigenciaHasta']?.toString() ?? '');
     return diaTarifa == dia &&
@@ -2261,11 +2261,14 @@ double costoManoObraEnFecha(
     final fromB = b['gafdVigenciaDesde']?.toString() ?? '';
     final byDate = fromB.compareTo(fromA);
     if (byDate != 0) return byDate;
-    final idA = (a['gafdId'] as num?)?.toInt() ?? 0;
-    final idB = (b['gafdId'] as num?)?.toInt() ?? 0;
+    final rawIdA = a['gafdId'];
+    final rawIdB = b['gafdId'];
+    final idA = rawIdA is num ? rawIdA.toInt() : int.tryParse(rawIdA?.toString() ?? '') ?? 0;
+    final idB = rawIdB is num ? rawIdB.toInt() : int.tryParse(rawIdB?.toString() ?? '') ?? 0;
     return idB.compareTo(idA);
   });
   final amount = disponibles.first['gafdValor'];
-  return (amount as num?)?.toDouble() ??
-      double.tryParse(amount?.toString() ?? '') ?? 0;
+  return amount is num
+      ? amount.toDouble()
+      : double.tryParse(amount?.toString() ?? '') ?? 0;
 }
