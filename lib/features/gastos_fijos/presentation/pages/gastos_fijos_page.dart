@@ -1349,41 +1349,34 @@ class _LaborDialogState extends State<_LaborDialog> {
 
   Future<void> _loadRates(List<Map<String, dynamic>> loaded) async {
     if (loaded.isEmpty || !mounted) return;
-
-    final loadedRates = <String, List<Map<String, dynamic>>>{};
-    var failedRateLoads = 0;
-
-    for (final cargo in loaded) {
-      if (!mounted) return;
-      final cargoId = cargo['gafcId'];
-      try {
-        final response = await widget.api.get<List<Map<String, dynamic>>>(
-          '/api/v1/gastos-fijos/cargos/$cargoId/tarifas',
-          _parseMapList,
-        );
-        loadedRates[cargoId.toString()] =
-            response.data ?? <Map<String, dynamic>>[];
-      } catch (error) {
-        debugPrint('Error cargando tarifas del cargo $cargoId: $error');
-        failedRateLoads++;
-        loadedRates[cargoId.toString()] = <Map<String, dynamic>>[];
+    try {
+      final response = await widget.api.get<List<Map<String, dynamic>>>(
+        '/api/v1/gastos-fijos/${widget.gasto['gafiId']}/tarifas',
+        _parseMapList,
+      );
+      final grouped = <String, List<Map<String, dynamic>>>{};
+      for (final rate in response.data ?? <Map<String, dynamic>>[]) {
+        final key = rate['gafcId']?.toString() ?? '';
+        if (key.isNotEmpty) {
+          grouped.putIfAbsent(key, () => []).add(rate);
+        }
       }
+      if (!mounted) return;
+      setState(() {
+        rates = {
+          for (final cargo in cargos)
+            cargo['gafcId'].toString():
+                grouped[cargo['gafcId'].toString()] ?? <Map<String, dynamic>>[],
+        };
+        loadWarning = null;
+      });
+    } catch (error) {
+      debugPrint('Error cargando tarifas de mano de obra: $error');
+      if (!mounted) return;
+      setState(() {
+        loadWarning = 'Los cargos están disponibles, pero no se pudo cargar el historial de tarifas. Reintenta la consulta.';
+      });
     }
-
-    if (!mounted) return;
-    setState(() {
-      rates = {
-        for (final cargo in cargos)
-          cargo['gafcId'].toString():
-              loadedRates[cargo['gafcId'].toString()] ??
-                  <Map<String, dynamic>>[],
-      };
-      loadWarning = failedRateLoads == 0
-          ? null
-          : failedRateLoads == 1
-              ? 'Los cargos se cargaron correctamente, pero una tarifa no pudo consultarse. Puedes seguir trabajando y reintentar.'
-              : 'Los cargos se cargaron correctamente, pero algunas tarifas no pudieron consultarse. Puedes seguir trabajando y reintentar.';
-    });
   }
 
   Future<void> _addRole() async {
