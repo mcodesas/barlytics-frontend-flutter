@@ -25,32 +25,15 @@ final userMenuProvider = FutureProvider<List<UserMenuItem>>((ref) async {
   final selection = ref.watch(selectedRolesProvider);
   final customIds = selection?.map(customRoleIdFromSelection)
           .whereType<int>().toSet() ?? <int>{};
-  final predefinedSelections = selection
-          ?.where((key) => customRoleIdFromSelection(key) == null).toList() ??
-      <String>[];
-  final legacyCustomSelection = predefinedSelections.any(
-      (key) => normalizeRoleName(key) == 'PERSONALIZADO');
   final onlyCustomView = hasCustomRole && activeRoles.length == 1 &&
       (selection == null || (selection.length == 1 &&
-          (customIds.length == 1 || legacyCustomSelection)));
+          (customIds.length == 1 ||
+           selection.any((value) => normalizeRoleName(value) == 'PERSONALIZADO'))));
 
   final allItems = await ref.watch(userMenuRepositoryProvider).findMyMenu(
         preserveBackendOrder: onlyCustomView,
       );
-  // En roles personalizados usar IDs de commerce.roles, no el tipo genérico
-  // PERSONALIZADO. Seleccionar uno NO debe filtrar menús de otros roles custom.
-  final filteredItems = selection == null
-      ? allItems
-      : allItems.where((item) {
-          final byCustomId = item.roleIds.any(customIds.contains);
-          final byPredefined = item.roles.any(
-              (name) => roleMatches(name, predefinedSelections));
-          final byLegacyCustomType = legacyCustomSelection &&
-              customIds.isEmpty &&
-              item.roleTypes.any((type) =>
-                  normalizeRoleName(type) == 'PERSONALIZADO');
-          return byCustomId || byPredefined || byLegacyCustomType;
-        }).toList(growable: false);
+  final filteredItems = filterMenusBySelectedRoles(allItems, selection);
 
   final customFiltered = onlyCustomView
       ? orderMenusForCustomRole(filteredItems,
@@ -89,4 +72,25 @@ List<UserMenuItem> orderMenusForCustomRole(
     return a.menuOrder.compareTo(b.menuOrder);
   });
   return ordered;
+}
+
+
+/// Selecciona permisos de un rol PERSONALIZADO por ID, nunca por nombre ni
+/// por su categoría genérica. Permite varios roles propios simultáneos sin
+/// filtrar los módulos de otro rol personalizado de la misma empresa.
+List<UserMenuItem> filterMenusBySelectedRoles(
+    Iterable<UserMenuItem> items, Set<String>? selected) {
+  if (selected == null) return items.toList(growable: false);
+  final customIds = selected.map(customRoleIdFromSelection)
+      .whereType<int>().toSet();
+  final names = selected.where((key) =>
+      customRoleIdFromSelection(key) == null).toList();
+  final legacyCustom = customIds.isEmpty &&
+      names.any((key) => normalizeRoleName(key) == 'PERSONALIZADO');
+  return items.where((item) =>
+      item.roleIds.any(customIds.contains) ||
+      item.roles.any((role) => roleMatches(role, names)) ||
+      (legacyCustom && item.roleTypes.any(
+          (type) => normalizeRoleName(type) == 'PERSONALIZADO'))
+  ).toList(growable: false);
 }
