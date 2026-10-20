@@ -528,49 +528,11 @@ class _RolesSetupGuide extends StatelessWidget {
         Text('Define las funciones de tu equipo desde el principio',
           style: TextStyle(color: palette.textPrimary, fontSize: 19, fontWeight: FontWeight.w900)),
         const SizedBox(height: 7),
-        Text('Paso 6 · Antes de crear usuarios, configura un perfil por cada tipo de trabajo. '
-          'Selecciona una plantilla (incluye Cocina y Barra), ajusta sus permisos y mira '
-          'la vista previa del menú en celular o escritorio.',
+        Text('Paso 6 · Los roles estándar ya incluyen funciones asignadas. '
+          'Para permisos distintos usa «Nuevo rol» y selecciona los menús necesarios.',
           style: TextStyle(color: palette.textSecondary, height: 1.45)),
-        const SizedBox(height: 10),
-        Text('1. Elige un ejemplo    2. Revisa las funciones    3. Guarda el rol y asígnalo a los usuarios',
-          style: TextStyle(color: palette.secondary, fontWeight: FontWeight.w800)),
-        const SizedBox(height: 14),
-        Wrap(
-          spacing: 10,
-          runSpacing: 10,
-          children: [
-            for (final template in _starterRoles)
-              SizedBox(
-                width: 235,
-                child: OutlinedButton(
-                  onPressed: busy ? null : () => onTemplate(template),
-                  style: OutlinedButton.styleFrom(
-                    padding: const EdgeInsets.all(12),
-                    alignment: Alignment.centerLeft,
-                  ),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Icon(template.icon, color: palette.secondary),
-                      const SizedBox(height: 7),
-                      Text(template.name,
-                        style: TextStyle(color: palette.textPrimary, fontWeight: FontWeight.w900)),
-                      const SizedBox(height: 5),
-                      Text(template.purpose,
-                        style: TextStyle(color: palette.textSecondary, fontSize: 12)),
-                      const SizedBox(height: 8),
-                      Text('Personalizar y ver ejemplo →',
-                        style: TextStyle(color: palette.secondary, fontWeight: FontWeight.w800, fontSize: 12)),
-                    ],
-                  ),
-                ),
-              ),
-          ],
-        ),
         const SizedBox(height: 12),
-        Text('Perfiles personalizados activos: $currentRoles. Puedes crear varios. '
-          'La vista previa muestra un ejemplo del menú, no simula operaciones ni datos reales.',
+        Text('Perfiles personalizados activos: $currentRoles.',
           style: TextStyle(color: palette.textSecondary, fontSize: 12)),
         const SizedBox(height: 8),
         TextButton.icon(
