@@ -242,11 +242,9 @@ const List<TextInputFormatter> _tipCurrencyInputFormatters = [
 class MeseroPage extends ConsumerStatefulWidget {
   const MeseroPage({super.key, this.initialMode});
 
-  /// Pestaña inicial usada solo al entrar por una ruta directa antigua
-  /// como `/mesero/productos` o `/mesero/resumen`.
-  ///
-  /// Cuando se entra por `/mesero`, se conserva la pestaña actual del provider
-  /// para que la barra inferior no recree la página ni recargue toda la información.
+  /// Pestaña de entrada para cada ruta operativa, incluida /mesero (Mesas).
+  /// La selección interna sigue en Riverpod para evitar recargas innecesarias,
+  /// pero volver a la ruta base no debe conservar Cierre de caja o Historial.
   final MeseroPageMode? initialMode;
 
   @override
