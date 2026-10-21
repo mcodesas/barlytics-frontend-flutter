@@ -2825,7 +2825,10 @@ class _CustomRoleBottomNavigation extends ConsumerWidget {
         child: SafeArea(
           top: false,
           child: InkWell(
-            onTap: () => context.go(item.path),
+            onTap: () {
+              selectMeseroModeForMenuPath(ref, item.path);
+              context.go(item.path);
+            },
             child: Padding(
               padding: const EdgeInsets.symmetric(vertical: 10),
               child: Column(
@@ -2925,10 +2928,13 @@ class _CustomRoleBottomNavigation extends ConsumerWidget {
                 palette: palette,
                 items: overflowItems,
                 selectedPath: selectedPath,
+                ref: ref,
               );
               return;
             }
-            context.go(visibleItems[index].path);
+            final targetPath = visibleItems[index].path;
+            selectMeseroModeForMenuPath(ref, targetPath);
+            context.go(targetPath);
           },
           items: [
             for (final item in visibleItems)
@@ -2972,6 +2978,7 @@ class _CustomRoleBottomNavigation extends ConsumerWidget {
     required AppPalette palette,
     required List<UserMenuItem> items,
     required String? selectedPath,
+    required WidgetRef ref,
   }) async {
     var query = '';
     await showModalBottomSheet<void>(
@@ -3064,6 +3071,7 @@ class _CustomRoleBottomNavigation extends ConsumerWidget {
                                   WidgetsBinding.instance
                                       .addPostFrameCallback((_) {
                                     if (context.mounted) {
+                                      selectMeseroModeForMenuPath(ref, item.path);
                                       context.go(item.path);
                                     }
                                   });
@@ -4471,7 +4479,7 @@ class _NavigationCollapseButton extends StatelessWidget {
       );
 }
 
-class _NavTile extends StatelessWidget {
+class _NavTile extends ConsumerWidget {
   const _NavTile({
     required this.title,
     required this.keyName,
@@ -4491,7 +4499,7 @@ class _NavTile extends StatelessWidget {
   final VoidCallback? onTap;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final visual = ModuleVisuals.byKey(keyName);
     final appPalette = palette ?? appPalettes.first;
     final pathNow = _currentPath(context);
@@ -4529,6 +4537,7 @@ class _NavTile extends StatelessWidget {
               onTap!();
               return;
             }
+            selectMeseroModeForMenuPath(ref, path);
             router.go(path);
           },
           child: LayoutBuilder(
