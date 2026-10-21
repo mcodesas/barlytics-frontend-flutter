@@ -23,6 +23,7 @@ import '../widgets/profit_expense_breakdown.dart';
 import '../utils/order_whatsapp_message_formatter.dart';
 import '../utils/order_destination_resolver.dart';
 import '../widgets/manual_purchase_order_dialog.dart';
+import '../widgets/order_inventory_diagnostic_table.dart';
 import '../../../subscription/presentation/providers/subscription_provider.dart';
 
 class ReportesPage extends ConsumerWidget {
@@ -1396,6 +1397,7 @@ class _ReporteDetailState extends ConsumerState<_ReporteDetail> {
                         definition: activeDefinition,
                         payload: payload,
                         palette: palette,
+                        range: _range,
                       );
                     },
                   ),
@@ -1899,11 +1901,13 @@ class _ReportContent extends StatelessWidget {
     required this.definition,
     required this.payload,
     required this.palette,
+    required this.range,
   });
 
   final _ReportDefinition definition;
   final _ReportPayload payload;
   final AppPalette palette;
+  final DateTimeRange range;
 
   @override
   Widget build(BuildContext context) {
@@ -1933,6 +1937,7 @@ class _ReportContent extends StatelessWidget {
         payload: payload,
         metrics: metrics,
         palette: palette,
+        range: range,
       );
     }
 
@@ -4030,12 +4035,14 @@ class _NextOrderContent extends ConsumerStatefulWidget {
     required this.payload,
     required this.metrics,
     required this.palette,
+    required this.range,
   });
 
   final _ReportDefinition definition;
   final _ReportPayload payload;
   final Map<String, dynamic> metrics;
   final AppPalette palette;
+  final DateTimeRange range;
 
   @override
   ConsumerState<_NextOrderContent> createState() =>
@@ -4053,6 +4060,7 @@ class _NextOrderContentState extends ConsumerState<_NextOrderContent> {
   bool _showInventoryDetail = false;
   bool _confirming = false;
   bool _exportingSelection = false;
+  bool _exportingDiagnostics = false;
   bool _sendingWhatsapp = false;
   int? _confirmedOrderId;
   String? _confirmedWhatsapp;
@@ -4604,6 +4612,43 @@ class _NextOrderContentState extends ConsumerState<_NextOrderContent> {
       _orderHistoryBranchId = branchId;
       _orderHistoryFuture = _loadOrderHistory(branchId);
     });
+  }
+
+  Future<void> _exportDiagnosticsExcel() async {
+    if (_exportingDiagnostics) return;
+    final branchId = ref.read(branchScopeProvider).activeBranchId;
+    if (branchId == null) {
+      _showMessage('Selecciona una sucursal para exportar el diagnóstico.');
+      return;
+    }
+    setState(() => _exportingDiagnostics = true);
+    try {
+      final bytes = await ref.read(apiClientProvider).getBytes(
+        '/api/v1/reportes/inventario/diagnostico/excel',
+        queryParameters: <String, dynamic>{
+          'sucursalId': branchId,
+          'inicio': DateFormat('yyyy-MM-dd').format(widget.range.start),
+          'fin': DateFormat('yyyy-MM-dd').format(widget.range.end),
+        },
+      );
+      final saved = await downloadBytesFile(
+        fileName: 'diagnostico_inventario_' +
+            branchId.toString() + '_' +
+            DateFormat('yyyyMMdd').format(widget.range.start) + '_' +
+            DateFormat('yyyyMMdd').format(widget.range.end) + '.xlsx',
+        bytes: bytes,
+        mimeType: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+      );
+      if (mounted) {
+        _showMessage(saved
+            ? 'Diagnóstico de inventario descargado en Excel.'
+            : 'La descarga fue cancelada.');
+      }
+    } catch (error) {
+      if (mounted) _showMessage('No fue posible descargar el Excel: ' + error.toString());
+    } finally {
+      if (mounted) setState(() => _exportingDiagnostics = false);
+    }
   }
 
   Future<void> _exportSelectedPdf() async {
@@ -5287,6 +5332,8 @@ class _NextOrderContentState extends ConsumerState<_NextOrderContent> {
                   selectedFilter: _filter,
                   definition: widget.definition,
                   palette: widget.palette,
+                  exportingExcel: _exportingDiagnostics,
+                  onExportExcel: _exportDiagnosticsExcel,
                   onToggle: () => setState(
                     () => _showInventoryDetail = !_showInventoryDetail,
                   ),
@@ -7084,6 +7131,8 @@ class _OrderInventoryDiagnostics extends StatelessWidget {
     required this.palette,
     required this.onToggle,
     required this.onFilterChanged,
+    required this.onExportExcel,
+    required this.exportingExcel,
   });
 
   final bool expanded;
@@ -7094,6 +7143,8 @@ class _OrderInventoryDiagnostics extends StatelessWidget {
   final AppPalette palette;
   final VoidCallback onToggle;
   final ValueChanged<_ProfitOrderFilter> onFilterChanged;
+  final VoidCallback onExportExcel;
+  final bool exportingExcel;
 
   @override
   Widget build(BuildContext context) {
@@ -7156,6 +7207,20 @@ class _OrderInventoryDiagnostics extends StatelessWidget {
                       ],
                     ),
                   ),
+                  Tooltip(
+                    message: 'Descargar diagnóstico completo en Excel',
+                    child: OutlinedButton.icon(
+                      onPressed: exportingExcel ? null : onExportExcel,
+                      icon: exportingExcel
+                          ? const SizedBox.square(
+                              dimension: 16,
+                              child: CircularProgressIndicator(strokeWidth: 2),
+                            )
+                          : const Icon(Icons.file_download_outlined, size: 18),
+                      label: Text(exportingExcel ? 'Preparando' : 'Excel'),
+                    ),
+                  ),
+                  const SizedBox(width: 7),
                   Icon(
                     expanded
                         ? Icons.keyboard_arrow_up_rounded
@@ -7192,11 +7257,9 @@ class _OrderInventoryDiagnostics extends StatelessWidget {
                       message: 'No hay productos para el filtro seleccionado.',
                     )
                   else
-                    _ReportTable(
+                    OrderInventoryDiagnosticTable(
                       rows: filteredRows,
                       palette: palette,
-                      currencyKeys: definition.currencyKeys,
-                      percentageKeys: definition.percentageKeys,
                     ),
                 ],
               ),
