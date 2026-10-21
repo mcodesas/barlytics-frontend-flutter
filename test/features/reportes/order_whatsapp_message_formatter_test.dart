@@ -64,6 +64,81 @@ void main() {
     expect(text, contains('*TOTAL ESTIMADO:*'));
   });
 
+  test('un producto comprado por paquete nunca se solicita como unidad suelta', () {
+    final text = formato(rows: [
+      {
+        'producto': 'Agua mineral',
+        'presentaciones_pedir': 2,
+        'presentacion_compra': 'Unidad',
+        'unidades_por_presentacion': 12,
+        'unidades_pedir': 24,
+        'costo_pedido_estimado': 40000,
+      },
+    ]);
+
+    expect(text, contains('• *2 paquetes x 12* — Agua mineral'));
+    expect(text, contains('  Equivalente: 24 unidades'));
+    expect(text, isNot(contains('• *2 unidades* — Agua mineral')));
+    expect(text, isNot(contains('• *24 unidades* — Agua mineral')));
+  });
+
+  test('conserva presentación de paquete explícita y no duplica su cantidad', () {
+    final text = formato(rows: [
+      {
+        'producto': 'Galletas',
+        'presentaciones_pedir': 3,
+        'presentacion_compra': 'Paquete x 6',
+        'unidades_por_presentacion': 6,
+        'unidades_pedir': 18,
+      },
+      {
+        'producto': 'Cerveza',
+        'presentaciones_pedir': 2,
+        'presentacion_compra': 'Caja x 24',
+        'unidades_por_presentacion': 24,
+        'unidades_pedir': 48,
+      },
+    ]);
+    expect(text, contains('• *3 Paquetes x 6* — Galletas'));
+    expect(text, contains('• *2 cajas x 24* — Cerveza'));
+    expect(text, isNot(contains('x 6 x 6')));
+    expect(text, isNot(contains('x 24 x 24')));
+  });
+
+  test('si falta la etiqueta usa el tamaño del paquete confirmado', () {
+    final text = formato(rows: [
+      {
+        'producto': 'Papas fritas',
+        'presentaciones_pedir': 1,
+        'presentacion_compra': '',
+        'unidades_por_presentacion': 10,
+        'unidades_pedir': 10,
+      },
+      {
+        'producto': 'Gaseosa',
+        'presentaciones_pedir': 4,
+        'presentacion_compra': 'Presentación',
+        'unidades_pedir': 48,
+      },
+    ]);
+    expect(text, contains('• *1 paquete x 10* — Papas fritas'));
+    expect(text, contains('• *4 paquetes x 12* — Gaseosa'));
+  });
+
+  test('artículos individuales siguen mostrándose por unidades', () {
+    final text = formato(rows: [
+      {
+        'producto': 'Limón',
+        'presentaciones_pedir': 5,
+        'presentacion_compra': 'Unidad',
+        'unidades_por_presentacion': 1,
+        'unidades_pedir': 5,
+      },
+    ]);
+    expect(text, contains('• *5 unidades* — Limón'));
+    expect(text, isNot(contains('paquetes')));
+  });
+
   test('conserva saltos de línea en observaciones del pedido', () {
     final text = formato(observation: 'Entregar mañana.\nDespués de las 10:00 a. m.');
     expect(
