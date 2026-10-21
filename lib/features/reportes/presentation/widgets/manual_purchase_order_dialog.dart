@@ -234,7 +234,7 @@ class _ManualPurchaseOrderDialogState extends State<ManualPurchaseOrderDialog> {
                           ? null
                           : () => Navigator.pop(context, Map<int, int>.from(_selected)),
                       icon: const Icon(Icons.check_rounded),
-                      label: Text('Agregar ' + _selected.length.toString() + ' productos'),
+                      label: Text('Agregar ' + _selected.length.toString() + (_selected.length == 1 ? ' producto' : ' productos')),
                     ),
                   ];
                   if (compact) {
