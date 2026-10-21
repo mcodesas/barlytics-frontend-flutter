@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../../../../app/theme/app_palette.dart';
 import '../../../../core/utils/currency_utils.dart';
+import '../utils/order_whatsapp_message_formatter.dart';
 
 /// Diagnóstico compacto para Próximo pedido. Oculta columnas técnicas de
 /// reportes genéricos y conserva los valores del backend sin recalcular stock.
@@ -128,8 +129,7 @@ class OrderInventoryDiagnosticTable extends StatelessWidget {
             children: [
               Text(
                 suggested > 0
-                    ? 'Sugerido: ' + _qty(row['presentaciones_pedir']) +
-                        ' ' + (row['presentacion_compra'] ?? 'unidades').toString()
+                    ? 'Sugerido: ' + OrderWhatsappMessageFormatter.purchaseQuantityLabel(row)
                     : 'No requiere compra sugerida',
                 style: TextStyle(
                   color: suggested > 0 ? palette.secondary : palette.textSecondary,
@@ -217,8 +217,7 @@ class OrderInventoryDiagnosticTable extends StatelessWidget {
                           child: _pill(rows[i]['estado_reposicion']),
                         ),
                         _cell(_num(rows[i]['presentaciones_pedir']) > 0
-                            ? _qty(rows[i]['presentaciones_pedir']) + ' ' +
-                                (rows[i]['presentacion_compra'] ?? 'unidades').toString()
+                            ? OrderWhatsappMessageFormatter.purchaseQuantityLabel(rows[i])
                             : '—'),
                         _cell(_num(rows[i]['costo_pedido_estimado']) > 0
                             ? CurrencyUtils.format(_num(rows[i]['costo_pedido_estimado']))
