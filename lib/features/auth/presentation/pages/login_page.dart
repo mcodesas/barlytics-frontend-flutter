@@ -84,6 +84,10 @@ class _LoginPageState extends ConsumerState<LoginPage> {
 
     ref.listen(authControllerProvider, (previous, next) {
       if (next.authenticated) {
+        if (_submitting) {
+          // Solicitar guardado antes de que GoRouter desmonte AutofillGroup.
+          TextInput.finishAutofillContext(shouldSave: _rememberPassword);
+        }
         context.go(next.subscriptionActive ? '/home' : '/activar-suscripcion');
         return;
       }
@@ -233,9 +237,8 @@ class _LoginPageState extends ConsumerState<LoginPage> {
             password,
           );
       if (!success) return;
-      // El sistema o navegador administra las contraseñas; no se escriben en
-      // preferencias del navegador ni en otros almacenes de sesión.
-      TextInput.finishAutofillContext(shouldSave: shouldRemember);
+      // Se recuerda el identificador; la contraseña solo en el gestor
+      // del sistema o navegador si este ofrece guardar credenciales.
       try {
         await _rememberPreferences.save(
           enabled: shouldRemember,
@@ -421,7 +424,18 @@ class _GlassLoginCard extends ConsumerWidget {
                     ],
                   ),
                   SizedBox(height: dense ? 8 : 16),
-                  _GlassTextField(
+                  Focus(
+                    skipTraversal: true,
+                    onKeyEvent: (_, event) {
+                      if (event is KeyDownEvent &&
+                          event.logicalKey == LogicalKeyboardKey.tab &&
+                          !HardwareKeyboard.instance.isShiftPressed) {
+                        state._passwordFocus.requestFocus();
+                        return KeyEventResult.handled;
+                      }
+                      return KeyEventResult.ignored;
+                    },
+                    child: _GlassTextField(
                     controller: state._identifier,
                      focusNode: state._identifierFocus,
                      onFieldSubmitted: (_) => state._passwordFocus.requestFocus(),
@@ -439,6 +453,7 @@ class _GlassLoginCard extends ConsumerWidget {
                         state.setState(() => state._loginErrorMessage = null);
                       }
                     },
+                    ),
                   ),
                   SizedBox(height: dense ? 8 : 14),
                   _GlassTextField(
