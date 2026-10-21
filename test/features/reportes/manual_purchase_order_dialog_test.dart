@@ -57,10 +57,10 @@ void main() {
     // El stock actual es suficiente, pero el pedido manual lo admite.
     await tester.tap(find.byType(Checkbox).first);
     await tester.pumpAndSettle();
-    expect(find.text('Agregar 1 productos'), findsOneWidget);
+    expect(find.text('Agregar 1 producto'), findsOneWidget);
     await tester.tap(find.byTooltip('Aumentar cantidad').first);
     await tester.pumpAndSettle();
-    await tester.tap(find.text('Agregar 1 productos'));
+    await tester.tap(find.text('Agregar 1 producto'));
     await tester.pumpAndSettle();
     expect(selection, <int, int>{11: 2});
   });
