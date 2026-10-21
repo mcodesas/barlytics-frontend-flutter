@@ -43,7 +43,7 @@ class _ManualPurchaseOrderDialogState extends State<ManualPurchaseOrderDialog> {
       if (quantity <= 0) {
         _selected.remove(id);
       } else {
-        _selected[id] = quantity.clamp(1, 99999);
+        _selected[id] = quantity.clamp(1, 99999).toInt();
       }
     });
   }
@@ -64,7 +64,14 @@ class _ManualPurchaseOrderDialogState extends State<ManualPurchaseOrderDialog> {
       insetPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 18),
       child: SizedBox(
         width: math.min(width - 24, 750),
-        height: math.min(MediaQuery.sizeOf(context).height * 0.82, 730),
+        height: math.min(
+          730,
+          math.max(
+            310,
+            MediaQuery.sizeOf(context).height -
+                MediaQuery.viewInsetsOf(context).bottom - 65,
+          ),
+        ),
         child: Padding(
           padding: const EdgeInsets.all(16),
           child: Column(
