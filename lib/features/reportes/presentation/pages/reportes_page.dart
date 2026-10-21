@@ -20,6 +20,7 @@ import '../../../../core/widgets/app_loader.dart';
 import '../../../../core/widgets/tech_background.dart';
 import '../../services/reporte_pdf_service.dart';
 import '../widgets/profit_expense_breakdown.dart';
+import '../utils/order_whatsapp_message_formatter.dart';
 import '../../../subscription/presentation/providers/subscription_provider.dart';
 
 class ReportesPage extends ConsumerWidget {
@@ -4824,79 +4825,6 @@ class _NextOrderContentState extends ConsumerState<_NextOrderContent> {
     return companyId == null ? 'Empresa no identificada' : 'Empresa $companyId';
   }
 
-  String _buildWhatsappMessage(
-    List<Map<String, dynamic>> rows,
-    String companyName,
-    String branchName, {
-    int? orderId,
-    String? destinationName,
-  }) {
-    final buffer = StringBuffer()
-      ..writeln(
-        '*PEDIDO DE COMPRA' +
-            (orderId == null ? '' : ' #' + orderId.toString()) +
-            '*',
-      )
-      ..writeln('*Empresa:* ' + companyName)
-      ..writeln('*Sucursal:* ' + branchName);
-    if (destinationName != null && destinationName.trim().isNotEmpty) {
-      buffer.writeln('*Proveedor:* ' + destinationName.trim());
-    }
-    buffer
-      ..writeln(
-        '*Fecha:* ' +
-            DateFormat('dd/MM/yyyy HH:mm').format(DateTime.now()),
-      )
-      ..writeln()
-      ..writeln('*Productos:*');
-
-    for (var index = 0; index < rows.length; index++) {
-      final row = rows[index];
-      final presentations = _displayValue(row['presentaciones_pedir']);
-      final presentation =
-          (row['presentacion_compra'] ?? 'Unidad').toString();
-      final units = _displayValue(row['unidades_pedir']);
-      final subtotal =
-          _displayValue(row['costo_pedido_estimado'], currency: true);
-      buffer
-        ..writeln(
-          (index + 1).toString() +
-              '. *' +
-              (row['producto'] ?? 'Producto').toString() +
-              '*',
-        )
-        ..writeln(
-          '   ' +
-              presentations +
-              ' ' +
-              presentation +
-              ' (' +
-              units +
-              ' unidades) - ' +
-              subtotal,
-        );
-    }
-    buffer
-      ..writeln()
-      ..writeln(
-        '*Total estimado:* ' +
-            _displayValue(
-              _sum(rows, 'costo_pedido_estimado'),
-              currency: true,
-            ),
-      );
-    final observation = _observationController.text.trim();
-    if (observation.isNotEmpty) {
-      buffer
-        ..writeln()
-        ..writeln('*Observación:* ' + observation);
-    }
-    buffer
-      ..writeln()
-      ..write('Generado desde BarLytics.');
-    return buffer.toString();
-  }
-
   Future<Map<String, dynamic>?> _selectConfirmedOrderForWhatsapp() async {
     if (_confirmedOrders.isEmpty) return null;
     if (_confirmedOrders.length == 1) return _confirmedOrders.first;
@@ -5004,12 +4932,17 @@ class _NextOrderContentState extends ConsumerState<_NextOrderContent> {
       }
       final branch = ref.read(branchScopeProvider).activeBranch;
       final companyName = await _loadCompanyName(branch?.emprId);
-      final message = _buildWhatsappMessage(
-        rows,
-        companyName,
-        branch?.sucuNombre ?? 'Sucursal seleccionada',
+      final message = OrderWhatsappMessageFormatter.format(
+        products: rows,
+        companyName: companyName,
+        branchName: branch?.sucuNombre ?? 'Sucursal seleccionada',
         orderId: (order['pediId'] as num?)?.toInt(),
-        destinationName: order['destinoNombre']?.toString(),
+        supplierName: order['destinoNombre']?.toString(),
+        // El pedido confirmado es la fuente de verdad; no usar la
+        // observación que pudiera quedar en el editor tras confirmar.
+        observation: order['observacion']?.toString(),
+        date: DateTime.tryParse(order['fecha']?.toString() ?? '') ??
+            DateTime.now(),
       );
       final uri = Uri.parse(
         'https://wa.me/' +
