@@ -14,6 +14,7 @@ import '../../app/theme/module_visuals.dart';
 import '../../features/auth/presentation/providers/auth_provider.dart';
 import '../../features/mesero/presentation/providers/mesero_tab_provider.dart';
 import '../../features/navigation/data/models/user_menu_item.dart';
+import '../../features/navigation/domain/menu_path_selection.dart';
 import '../../features/navigation/presentation/providers/user_menu_provider.dart';
 import '../../features/navigation/presentation/providers/active_role_provider.dart';
 import '../../features/navigation/presentation/providers/user_assigned_roles_provider.dart';
@@ -2782,7 +2783,19 @@ class _CustomRoleBottomNavigation extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final palette = ref.watch(selectedAppPaletteProvider);
-    final currentPath = GoRouterState.of(context).uri.path;
+    final currentPath =
+        GoRouter.of(context).routerDelegate.currentConfiguration.uri.path;
+    final selectedMode = ref.watch(meseroSelectedModeProvider);
+    // /mesero puede cambiar de pantalla internamente sin actualizar la URL.
+    final effectivePath = currentPath == '/mesero'
+        ? switch (selectedMode) {
+            MeseroPageMode.mesas => '/mesero',
+            MeseroPageMode.productos => '/mesero/productos',
+            MeseroPageMode.resumen => '/mesero/resumen',
+            MeseroPageMode.historial => '/mesero/historial',
+            MeseroPageMode.cierreCaja => '/mesero/cierre-caja',
+          }
+        : currentPath;
     final width = MediaQuery.sizeOf(context).width;
     final authorizedMenus = ref.watch(userMenuProvider).maybeWhen(
           data: (items) => items,
@@ -2797,10 +2810,12 @@ class _CustomRoleBottomNavigation extends ConsumerWidget {
     }
     final allItems = uniqueByPath.values.toList(growable: false);
     if (allItems.isEmpty) return const SizedBox.shrink();
+    final selectedPath =
+        mostSpecificMenuPath(effectivePath, allItems.map((item) => item.path));
 
     if (allItems.length == 1) {
       final item = allItems.first;
-      final selected = _matchesPath(currentPath, item.path);
+      final selected = selectedPath == item.path;
       return Container(
         decoration: BoxDecoration(
           color: palette.surface.withOpacity(
@@ -2866,12 +2881,13 @@ class _CustomRoleBottomNavigation extends ConsumerWidget {
         ? allItems.skip(visibleCount).toList(growable: false)
         : const <UserMenuItem>[];
 
+    // No seleccionar /mesero cuando existe /mesero/productos (o cierre,
+    // historial, etc.). Buscar primero entre TODOS los destinos autorizados.
     var selectedIndex = visibleItems.indexWhere(
-      (item) => _matchesPath(currentPath, item.path),
+      (item) => item.path == selectedPath,
     );
-    final selectedInOverflow = overflowItems.any(
-      (item) => _matchesPath(currentPath, item.path),
-    );
+    final selectedInOverflow =
+        overflowItems.any((item) => item.path == selectedPath);
     if (selectedIndex < 0 && selectedInOverflow) {
       selectedIndex = visibleItems.length;
     }
@@ -2917,7 +2933,7 @@ class _CustomRoleBottomNavigation extends ConsumerWidget {
                 context: context,
                 palette: palette,
                 items: overflowItems,
-                currentPath: currentPath,
+                selectedPath: selectedPath,
               );
               return;
             }
@@ -2960,16 +2976,11 @@ class _CustomRoleBottomNavigation extends ConsumerWidget {
     );
   }
 
-  bool _matchesPath(String currentPath, String itemPath) {
-    return currentPath == itemPath ||
-        (itemPath != '/home' && currentPath.startsWith('$itemPath/'));
-  }
-
   Future<void> _showMore({
     required BuildContext context,
     required AppPalette palette,
     required List<UserMenuItem> items,
-    required String currentPath,
+    required String? selectedPath,
   }) async {
     var query = '';
     await showModalBottomSheet<void>(
@@ -3054,8 +3065,7 @@ class _CustomRoleBottomNavigation extends ConsumerWidget {
                                 const SizedBox(height: 7),
                             itemBuilder: (itemContext, index) {
                               final item = filtered[index];
-                              final selected =
-                                  _matchesPath(currentPath, item.path);
+                              final selected = selectedPath == item.path;
                               return ListTile(
                                 selected: selected,
                                 onTap: () {
