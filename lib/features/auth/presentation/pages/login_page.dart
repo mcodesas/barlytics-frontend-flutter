@@ -490,9 +490,14 @@ class _GlassLoginCard extends ConsumerWidget {
                   SizedBox(height: dense ? 3 : 6),
                   Align(
                     alignment: Alignment.centerLeft,
-                    child: Tooltip(
-                      message: 'El gestor de contraseñas de tu dispositivo puede recordar el acceso.',
-                      child: InkWell(
+                    child: Semantics(
+                      label: 'Recordar contraseña',
+                      checked: state._rememberPassword,
+                      enabled: !loading,
+                      excludeSemantics: true,
+                      child: Tooltip(
+                        message: 'El gestor de contraseñas de tu dispositivo puede recordar el acceso.',
+                        child: InkWell(
                         borderRadius: BorderRadius.circular(8),
                         onTap: loading
                             ? null
@@ -524,6 +529,7 @@ class _GlassLoginCard extends ConsumerWidget {
                           ),
                         ),
                       ),
+                    ),
                     ),
                   ),
                   if (state._loginErrorMessage != null) ...[
