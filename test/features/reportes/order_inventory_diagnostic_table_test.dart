@@ -13,6 +13,8 @@ void main() {
       'estado_reposicion': 'PEDIR_AHORA',
       'presentaciones_pedir': 2,
       'presentacion_compra': 'Caja',
+      'unidades_por_presentacion': 24,
+      'unidades_pedir': 48,
       'costo_pedido_estimado': 140000,
     },
   ];
@@ -36,7 +38,7 @@ void main() {
     expect(find.text('Cerveza Dorada'), findsOneWidget);
     expect(find.text('Pedir ahora'), findsOneWidget);
     expect(find.text('Disponible'), findsOneWidget);
-    expect(find.text('Sugerido: 2 Caja'), findsOneWidget);
+    expect(find.text('Sugerido: 2 cajas x 24'), findsOneWidget);
     expect(tester.takeException(), isNull);
   });
 
