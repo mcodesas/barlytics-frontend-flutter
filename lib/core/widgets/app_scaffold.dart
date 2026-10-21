@@ -1954,7 +1954,7 @@ class _OperationalBottomNavigation extends ConsumerWidget {
     // Las rutas explícitas prevalecen sobre el estado anterior del provider.
     // Al abrir «Listar productos» desde el menú lateral, el provider puede
     // seguir en «Mesas» aunque la página visible ya sea el catálogo.
-    final currentPath = GoRouterState.of(context).uri.path;
+    final currentPath = GoRouter.of(context).routerDelegate.currentConfiguration.uri.path;
     final routeMode = switch (currentPath) {
       '/mesero/productos' => MeseroPageMode.productos,
       '/mesero/resumen' => MeseroPageMode.resumen,
@@ -2072,42 +2072,42 @@ class _OperationalBottomNavigation extends ConsumerWidget {
         ),
     ];
 
-    // Prioridad: ruta exacta > subruta > pestaña en /mesero > Más.
-    // Antes el estado de Mesas ganaba siempre que la ruta comenzara por
-    // /mesero, incluso si el contenido visible era /mesero/productos.
-    // /mesero aloja varias vistas en una sola ruta. Si el usuario cambió
-    // la pestaña mediante Riverpod, respetar esa vista antes de la ruta base.
-    var selectedIndex = currentPath == '/mesero'
-        ? navigationEntries.indexWhere((entry) => entry.mode == selectedMode)
-        : -1;
-    if (selectedIndex < 0) {
-      selectedIndex = navigationEntries.indexWhere(
-        (entry) => entry.path != '__more__' && entry.path == currentPath,
+    // La ruta global evita leer un GoRouterState heredado de una pantalla
+    // anterior cuando AppScaffold y la barra inferior se reconstruyen.
+    // Los alias históricos apuntan a las mismas pestañas operativas.
+    final effectivePath = switch (currentPath) {
+      '/historial_ventas' => '/mesero/historial',
+      '/cierre_caja' => '/mesero/cierre-caja',
+      '/administrar_mesas' => '/mesero',
+      _ => currentPath,
+    };
+    var selectedIndex = navigationEntries.indexWhere(
+      (entry) => entry.path != '__more__' && entry.path == effectivePath,
+    );
+    if (currentPath == '/mesero') {
+      // En esta ruta se puede alternar de vista sin navegar.
+      final modeIndex = navigationEntries.indexWhere(
+        (entry) => entry.mode == selectedMode,
       );
+      if (modeIndex >= 0) selectedIndex = modeIndex;
     }
     if (selectedIndex < 0) {
       selectedIndex = navigationEntries.indexWhere(
         (entry) => entry.path != '__more__' &&
             entry.path != '/home' &&
             entry.path != '/mesero' &&
-            currentPath.startsWith('${entry.path}/'),
-      );
-    }
-    if (selectedIndex < 0 && currentPath == '/mesero') {
-      selectedIndex = navigationEntries.indexWhere(
-        (entry) => entry.mode == selectedMode,
+            effectivePath.startsWith('${entry.path}/'),
       );
     }
     if (selectedIndex < 0 &&
         extraMenus.any((item) =>
-            currentPath == item.path ||
+            effectivePath == item.path ||
             (item.path != '/home' &&
-                currentPath.startsWith('${item.path}/')))) {
+                effectivePath.startsWith('${item.path}/')))) {
       selectedIndex = navigationEntries.indexWhere(
         (entry) => entry.path == '__more__',
       );
     }
-
     return Container(
       decoration: BoxDecoration(
         color: palette.surface.withOpacity(palette.darkBackground ? 0.94 : 0.98),
