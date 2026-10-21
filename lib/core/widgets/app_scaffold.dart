@@ -2072,25 +2072,31 @@ class _OperationalBottomNavigation extends ConsumerWidget {
         ),
     ];
 
-    // La ruta global evita leer un GoRouterState heredado de una pantalla
-    // anterior cuando AppScaffold y la barra inferior se reconstruyen.
-    // Los alias históricos apuntan a las mismas pestañas operativas.
+    // Cada ruta operativa tiene una selección inequívoca. Solo /mesero
+    // permite que el provider decida cuál pestaña interna está visible.
     final effectivePath = switch (currentPath) {
       '/historial_ventas' => '/mesero/historial',
       '/cierre_caja' => '/mesero/cierre-caja',
       '/administrar_mesas' => '/mesero',
       _ => currentPath,
     };
+    final routeSelectedPath = switch (effectivePath) {
+      '/mesero/productos' => '/mesero/productos',
+      '/mesero/historial' => '/mesero/historial',
+      '/mesero/cierre-caja' => '/mesero/cierre-caja',
+      '/mesero/resumen' => '/mesero/resumen',
+      '/mesero' => switch (selectedMode) {
+          MeseroPageMode.productos => '/mesero/productos',
+          MeseroPageMode.historial => '/mesero/historial',
+          MeseroPageMode.cierreCaja => '/mesero/cierre-caja',
+          MeseroPageMode.resumen => '/mesero/resumen',
+          MeseroPageMode.mesas => '/mesero',
+        },
+      _ => effectivePath,
+    };
     var selectedIndex = navigationEntries.indexWhere(
-      (entry) => entry.path != '__more__' && entry.path == effectivePath,
+      (entry) => entry.path == routeSelectedPath,
     );
-    if (currentPath == '/mesero') {
-      // En esta ruta se puede alternar de vista sin navegar.
-      final modeIndex = navigationEntries.indexWhere(
-        (entry) => entry.mode == selectedMode,
-      );
-      if (modeIndex >= 0) selectedIndex = modeIndex;
-    }
     if (selectedIndex < 0) {
       selectedIndex = navigationEntries.indexWhere(
         (entry) => entry.path != '__more__' &&
@@ -2108,6 +2114,14 @@ class _OperationalBottomNavigation extends ConsumerWidget {
         (entry) => entry.path == '__more__',
       );
     }
+    assert(() {
+      debugPrint(
+        'BarLytics navegación: ruta=$currentPath, '
+        'pestaña=${selectedMode.name}, seleccion=$routeSelectedPath, '
+        'índice=$selectedIndex',
+      );
+      return true;
+    }());
     return Container(
       decoration: BoxDecoration(
         color: palette.surface.withOpacity(palette.darkBackground ? 0.94 : 0.98),
@@ -2122,6 +2136,7 @@ class _OperationalBottomNavigation extends ConsumerWidget {
       child: SafeArea(
         top: false,
         child: BottomNavigationBar(
+          key: ValueKey('operational-$routeSelectedPath-$selectedIndex'),
           currentIndex: selectedIndex < 0 ? 0 : selectedIndex,
           selectedItemColor: palette.secondary,
           unselectedItemColor: palette.textSecondary,
