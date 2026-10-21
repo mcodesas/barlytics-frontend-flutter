@@ -934,7 +934,7 @@ class _PriceCatalogFilters extends StatelessWidget {
           .compareTo((b.mrcaNombre ?? '').toLowerCase()));
 
     final typeFilter = DropdownButtonFormField<int?>(
-      key: ValueKey('precios-tipo-filter-${selectedTipoId ?? 'all'}'),
+      key: ValueKey('precios-tipo-filter-${selectedTipoId ?? 'all'}-${orderedTypes.any((item) => item.tpprId == selectedTipoId)}'),
       value: orderedTypes.any((item) => item.tpprId == selectedTipoId)
           ? selectedTipoId
           : null,
@@ -959,7 +959,7 @@ class _PriceCatalogFilters extends StatelessWidget {
       onChanged: onTipoChanged,
     );
     final brandFilter = DropdownButtonFormField<int?>(
-      key: ValueKey('precios-marca-filter-${selectedMarcaId ?? 'all'}'),
+      key: ValueKey('precios-marca-filter-${selectedMarcaId ?? 'all'}-${orderedBrands.any((item) => item.mrcaId == selectedMarcaId)}'),
       value: orderedBrands.any((item) => item.mrcaId == selectedMarcaId)
           ? selectedMarcaId
           : null,
