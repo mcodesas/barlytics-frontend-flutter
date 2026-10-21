@@ -723,7 +723,7 @@ class _ReporteDetailState extends ConsumerState<_ReporteDetail> {
     });
   }
 
-  Future<void> _selectPeriod() async {
+  Future<void> _selectPeriod({bool forceProfitCustom = false}) async {
     final selected = await showDateRangePicker(
       context: context,
       firstDate: DateTime(2020),
@@ -747,7 +747,8 @@ class _ReporteDetailState extends ConsumerState<_ReporteDetail> {
         start: DateUtils.dateOnly(selected.start),
         end: DateUtils.dateOnly(selected.end),
       );
-      if (_isProfitReport && _profitPeriodMode != _ProfitPeriodMode.inventoryCross) {
+      if (_isProfitReport &&
+          (forceProfitCustom || _profitPeriodMode != _ProfitPeriodMode.inventoryCross)) {
         _profitPeriodMode = _ProfitPeriodMode.custom;
       }
       _future = _load();
@@ -1204,7 +1205,7 @@ class _ReporteDetailState extends ConsumerState<_ReporteDetail> {
 
   void _changeProfitPeriodMode(_ProfitPeriodMode mode) {
     if (mode == _ProfitPeriodMode.custom) {
-      _selectPeriod();
+      _selectPeriod(forceProfitCustom: true);
       return;
     }
     if (_profitPeriodMode == mode) return;
