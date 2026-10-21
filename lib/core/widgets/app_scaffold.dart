@@ -19,6 +19,7 @@ import '../../features/navigation/presentation/providers/user_menu_provider.dart
 import '../../features/navigation/presentation/providers/active_role_provider.dart';
 import '../../features/navigation/presentation/providers/user_assigned_roles_provider.dart';
 import '../../features/profile/presentation/providers/profile_header_provider.dart';
+import '../../features/subscription/presentation/providers/subscription_provider.dart';
 import '../utils/responsive_utils.dart';
 import 'barlytics_brand.dart';
 import 'ready_order_notification_host.dart';
@@ -97,6 +98,76 @@ bool _isGlobalAdminRole(String role) {
 }
 
 
+/// Aviso persistente durante los siete días anteriores al vencimiento.
+/// La renovación automática se anuncia como próximo cobro, no como deuda.
+class _SubscriptionExpiryBanner extends ConsumerWidget {
+  const _SubscriptionExpiryBanner({required this.canManage});
+
+  final bool canManage;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final current = ref.watch(subscriptionCurrentProvider).valueOrNull;
+    if (current == null || !current.active || !current.expiryWarning ||
+        current.daysUntilExpiry == null) {
+      return const SizedBox.shrink();
+    }
+    final palette = ref.watch(selectedAppPaletteProvider);
+    final days = current.daysUntilExpiry!;
+    final label = days <= 0 ? 'hoy' : days == 1 ? 'mañana' : 'en $days días';
+    final renewal = current.automaticRenewal && !current.cancellationScheduled;
+    final message = renewal
+        ? 'Tu plan ${current.planName ?? ''} se renovará automáticamente $label. Comprueba tu medio de pago.'
+        : 'Tu plan ${current.planName ?? ''} vence $label. Renueva a tiempo para evitar interrupciones.';
+    final action = canManage
+        ? TextButton(
+            onPressed: () => context.go('/activar-suscripcion'),
+            child: Text(renewal ? 'Ver suscripción' : 'Renovar plan'),
+          )
+        : null;
+
+    return Material(
+      color: palette.warning.withOpacity(0.12),
+      child: SafeArea(
+        bottom: false,
+        child: LayoutBuilder(
+          builder: (context, constraints) {
+            final compact = constraints.maxWidth < 640;
+            final info = Row(
+              children: [
+                Icon(Icons.schedule_rounded, color: palette.warning, size: 19),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Text(
+                    message,
+                    style: TextStyle(color: palette.textPrimary, fontWeight: FontWeight.w700, fontSize: 12),
+                  ),
+                ),
+              ],
+            );
+            return Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 5),
+              child: compact
+                  ? Column(
+                      children: [
+                        info,
+                        if (action != null) Align(alignment: Alignment.centerRight, child: action),
+                      ],
+                    )
+                  : Row(
+                      children: [
+                        Expanded(child: info),
+                        if (action != null) action,
+                      ],
+                    ),
+            );
+          },
+        ),
+      ),
+    );
+  }
+}
+
 /// Scaffold principal con navegación adaptable y diseño tecnológico unificado.
 class AppScaffold extends ConsumerStatefulWidget {
   const AppScaffold({super.key, required this.child});
@@ -110,6 +181,7 @@ class _AppScaffoldState extends ConsumerState<AppScaffold> {
   bool _mainMenuCollapsed = true;
   bool _guideScheduled = false;
   Timer? _rolesRefreshTimer;
+  Timer? _subscriptionRefreshTimer;
 
   @override
   void initState() {
@@ -126,11 +198,18 @@ class _AppScaffoldState extends ConsumerState<AppScaffold> {
       // de los roles. Nunca reutilizar una lista que quedó obsoleta.
       ref.read(branchScopeProvider.notifier).load();
     });
+    // Las sesiones que quedan abiertas también deben enterarse del vencimiento.
+    _subscriptionRefreshTimer = Timer.periodic(const Duration(hours: 1), (_) {
+      if (mounted && ref.read(authControllerProvider).authenticated) {
+        ref.invalidate(subscriptionCurrentProvider);
+      }
+    });
   }
 
   @override
   void dispose() {
     _rolesRefreshTimer?.cancel();
+    _subscriptionRefreshTimer?.cancel();
     super.dispose();
   }
 
@@ -179,14 +258,20 @@ class _AppScaffoldState extends ConsumerState<AppScaffold> {
       hasBranches: branchScope.branches.length > 1,
     );
     Widget withReadyOrderNotifications(Widget scaffold) {
+      final decorated = Column(
+        children: [
+          _SubscriptionExpiryBanner(canManage: isManager || isGlobalAdmin),
+          Expanded(child: scaffold),
+        ],
+      );
       final branches = branchScope.branches;
       if (branches.length <= 1) {
-        return ReadyOrderNotificationHost(child: scaffold);
+        return ReadyOrderNotificationHost(child: decorated);
       }
       return ReadyOrderNotificationHost(
         child: KeyedSubtree(
           key: ValueKey('sucursal-${branchScope.activeBranchId}'),
-          child: scaffold,
+          child: decorated,
         ),
       );
     }
