@@ -2075,9 +2075,16 @@ class _OperationalBottomNavigation extends ConsumerWidget {
     // Prioridad: ruta exacta > subruta > pestaña en /mesero > Más.
     // Antes el estado de Mesas ganaba siempre que la ruta comenzara por
     // /mesero, incluso si el contenido visible era /mesero/productos.
-    var selectedIndex = navigationEntries.indexWhere(
-      (entry) => entry.path != '__more__' && entry.path == currentPath,
-    );
+    // /mesero aloja varias vistas en una sola ruta. Si el usuario cambió
+    // la pestaña mediante Riverpod, respetar esa vista antes de la ruta base.
+    var selectedIndex = currentPath == '/mesero'
+        ? navigationEntries.indexWhere((entry) => entry.mode == selectedMode)
+        : -1;
+    if (selectedIndex < 0) {
+      selectedIndex = navigationEntries.indexWhere(
+        (entry) => entry.path != '__more__' && entry.path == currentPath,
+      );
+    }
     if (selectedIndex < 0) {
       selectedIndex = navigationEntries.indexWhere(
         (entry) => entry.path != '__more__' &&
