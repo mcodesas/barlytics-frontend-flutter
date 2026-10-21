@@ -1,45 +1,52 @@
 /// Determina qué opción del menú corresponde realmente a la ruta visible.
-/// Una coincidencia exacta prevalece sobre sus rutas padre; de lo contrario,
-/// se toma la ruta padre más específica.
+/// Prioridad: ruta literal exacta, alias equivalente y finalmente ruta padre
+/// más específica. Evita seleccionar /mesero al visitar /mesero/productos,
+/// pero también distingue /administrar_mesas de /mesero.
 String? mostSpecificMenuPath(String currentPath, Iterable<String> menuPaths) {
-  final current = _canonicalMenuPath(currentPath);
+  final currentLiteral = _normalizePath(currentPath);
+  final currentCanonical = _canonicalMenuPath(currentLiteral);
   String? selected;
-  var selectedLength = -1;
-  var exactMatchFound = false;
+  var bestPriority = 0;
+  var bestLength = -1;
 
   for (final candidate in menuPaths) {
     final original = candidate.trim();
     if (original.isEmpty) continue;
+    final candidateLiteral = _normalizePath(original);
+    final canonical = _canonicalMenuPath(candidateLiteral);
 
-    final path = _canonicalMenuPath(original);
-    final exact = current == path;
-    final child = path != '/home' && current.startsWith('$path/');
+    final priority = currentLiteral == candidateLiteral
+        ? 3
+        : currentCanonical == canonical
+            ? 2
+            : canonical != '/home' &&
+                    currentCanonical.startsWith('$canonical/')
+                ? 1
+                : 0;
+    if (priority == 0) continue;
 
-    if (!exact && !child) continue;
-    if (exact) {
-      if (!exactMatchFound || path.length > selectedLength) {
-        exactMatchFound = true;
-        selected = original;
-        selectedLength = path.length;
-      }
-    } else if (!exactMatchFound && path.length > selectedLength) {
+    if (priority > bestPriority ||
+        (priority == bestPriority && canonical.length > bestLength)) {
+      bestPriority = priority;
+      bestLength = canonical.length;
       selected = original;
-      selectedLength = path.length;
     }
   }
-
   return selected;
 }
 
+String _normalizePath(String raw) {
+  final path = raw.trim();
+  return path.length > 1 && path.endsWith('/')
+      ? path.substring(0, path.length - 1)
+      : path;
+}
+
 String _canonicalMenuPath(String raw) {
-  final value = raw.trim();
-  final path = value.length > 1 && value.endsWith('/')
-      ? value.substring(0, value.length - 1)
-      : value;
-  return switch (path) {
+  return switch (_normalizePath(raw)) {
     '/historial_ventas' => '/mesero/historial',
     '/cierre_caja' => '/mesero/cierre-caja',
     '/administrar_mesas' => '/mesero',
-    _ => path,
+    final path => path,
   };
 }
