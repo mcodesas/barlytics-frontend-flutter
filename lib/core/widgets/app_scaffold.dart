@@ -2072,46 +2072,33 @@ class _OperationalBottomNavigation extends ConsumerWidget {
         ),
     ];
 
-    // Mesas, Productos e Historial pueden compartir la ruta /mesero
-    // mientras su contenido cambia mediante el provider de pestaña.
-    // La barra debe reflejar la pantalla realmente visible, no la ruta base.
-    var selectedIndex = currentPath.startsWith('/mesero')
-        ? navigationEntries.indexWhere((entry) => entry.mode == selectedMode)
-        : -1;
+    // Prioridad: ruta exacta > subruta > pestaña en /mesero > Más.
+    // Antes el estado de Mesas ganaba siempre que la ruta comenzara por
+    // /mesero, incluso si el contenido visible era /mesero/productos.
+    var selectedIndex = navigationEntries.indexWhere(
+      (entry) => entry.path != '__more__' && entry.path == currentPath,
+    );
     if (selectedIndex < 0) {
       selectedIndex = navigationEntries.indexWhere(
-        (entry) => entry.path != '__more__' && currentPath == entry.path,
-      );
-    }
-    if (selectedIndex < 0) {
-      selectedIndex = navigationEntries.indexWhere(
-        (entry) => entry.path != '__more__' && entry.path != '/home' &&
+        (entry) => entry.path != '__more__' &&
+            entry.path != '/home' &&
+            entry.path != '/mesero' &&
             currentPath.startsWith('${entry.path}/'),
       );
     }
-    if (selectedIndex < 0 && currentPath.startsWith('/mesero')) {
-      selectedIndex =
-          navigationEntries.indexWhere((entry) => entry.mode == selectedMode);
+    if (selectedIndex < 0 && currentPath == '/mesero') {
+      selectedIndex = navigationEntries.indexWhere(
+        (entry) => entry.mode == selectedMode,
+      );
     }
-    // Las opciones representadas como pestañas operativas tienen prioridad.
-    // Evita que una ruta padre (p. ej. /mesero) marque «Más» o «Mesas»
-    // cuando el usuario está en /mesero/productos.
-    final activeOperationalTab = navigationEntries.any(
-      (entry) =>
-          entry.mode != null &&
-          (currentPath == entry.path ||
-              currentPath.startsWith('${entry.path}/')) &&
-          entry.mode == selectedMode,
-    );
-    if (!activeOperationalTab &&
-        extraMenus.any(
-          (item) =>
-              currentPath == item.path ||
-              (item.path != '/home' &&
-                  currentPath.startsWith('${item.path}/')),
-        )) {
-      selectedIndex =
-          navigationEntries.indexWhere((entry) => entry.path == '__more__');
+    if (selectedIndex < 0 &&
+        extraMenus.any((item) =>
+            currentPath == item.path ||
+            (item.path != '/home' &&
+                currentPath.startsWith('${item.path}/')))) {
+      selectedIndex = navigationEntries.indexWhere(
+        (entry) => entry.path == '__more__',
+      );
     }
 
     return Container(
