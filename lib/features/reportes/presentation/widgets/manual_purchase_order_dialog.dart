@@ -63,11 +63,11 @@ class _ManualPurchaseOrderDialogState extends State<ManualPurchaseOrderDialog> {
     return Dialog(
       insetPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 18),
       child: SizedBox(
-        width: math.min(width - 24, 750),
+        width: math.min(width - 24, 750.0),
         height: math.min(
-          730,
+          730.0,
           math.max(
-            310,
+            310.0,
             MediaQuery.sizeOf(context).height -
                 MediaQuery.viewInsetsOf(context).bottom - 65,
           ),
