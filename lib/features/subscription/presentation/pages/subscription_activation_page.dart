@@ -97,15 +97,28 @@ class _SubscriptionActivationPageState extends ConsumerState<SubscriptionActivat
           status != null;
       final remote = ref.read(subscriptionRemoteDataSourceProvider);
 
+      Future<SubscriptionModel> loadCurrentSubscription() async {
+        if (returnedFromPayment) {
+          return remote.sync(
+            paymentId: paymentId,
+            preapprovalId: preapprovalId,
+            externalReference: externalReference,
+            preferenceId: preferenceId,
+          );
+        }
+        final current = await remote.current();
+        if (current.active) return current;
+        // Si Mercado Pago aprobó pero el webhook se retrasó, el backend
+        // reconcilia el último pago pendiente antes de pedir otro pago.
+        try {
+          return await remote.sync();
+        } catch (_) {
+          return current;
+        }
+      }
+
       final results = await Future.wait<Object>([
-        returnedFromPayment
-            ? remote.sync(
-                paymentId: paymentId,
-                preapprovalId: preapprovalId,
-                externalReference: externalReference,
-                preferenceId: preferenceId,
-              )
-            : remote.current(),
+        loadCurrentSubscription(),
         remote.plans(),
       ]);
 
@@ -115,7 +128,7 @@ class _SubscriptionActivationPageState extends ConsumerState<SubscriptionActivat
       await _refreshPaymentConfig();
       await _applySubscription(
         results[0] as SubscriptionModel,
-        navigateIfActivated: returnedFromPayment,
+        navigateIfActivated: returnedFromPayment || !ref.read(authControllerProvider).subscriptionActive,
       );
     } catch (error) {
       if (mounted) setState(() => _message = _cleanError(error));
