@@ -2152,7 +2152,8 @@ class _OperationalBottomNavigation extends ConsumerWidget {
 
     final representedPaths = entries.map((entry) => entry.path).toSet();
     final extraMenus = authorizedMenus.where((item) {
-      if (item.path.trim().isEmpty || item.keyName == 'mesero') return false;
+      if (item.path.trim().isEmpty || item.keyName == 'mesero' ||
+          item.path == '/home' || item.keyName == 'home') return false;
       return !representedPaths.contains(item.path);
     }).toList(growable: false);
     final hasExtraMenus = extraMenus.isNotEmpty;
@@ -2893,10 +2894,16 @@ class _CustomRoleBottomNavigation extends ConsumerWidget {
           orElse: () => const <UserMenuItem>[],
         );
 
-    final uniqueByPath = <String, UserMenuItem>{};
+    final uniqueByPath = <String, UserMenuItem>{
+      '/home': const UserMenuItem(
+        keyName: 'home', title: 'Inicio', path: '/home',
+        groupCode: 'INICIO', groupName: 'Inicio',
+        groupIcon: 'home', groupOrder: 0, menuOrder: 0,
+      ),
+    };
     for (final item in authorizedMenus) {
       final path = item.path.trim();
-      if (path.isEmpty) continue;
+      if (path.isEmpty || path == '/home' || item.keyName == 'home') continue;
       uniqueByPath.putIfAbsent(path, () => item);
     }
     final allItems = uniqueByPath.values.toList(growable: false);
@@ -3998,9 +4005,8 @@ class _SideNavigation extends ConsumerWidget {
                     children: [
                       _MenuProfileCard(profile: profile, palette: palette, compact: collapsed),
                       const SizedBox(height: 6),
-                      if (!personalizedRole)
-                        _NavTile(title: 'Inicio', keyName: 'home', path: '/home', compact: collapsed, palette: palette),
-                      if (!collapsed && !personalizedRole) const SizedBox(height: 8),
+                      _NavTile(title: 'Inicio', keyName: 'home', path: '/home', compact: collapsed, palette: palette),
+                      if (!collapsed) const SizedBox(height: 8),
                       ..._authorizedMenuWidgets(
                         ref: ref,
                         menuAsync: menuAsync,
@@ -4055,9 +4061,8 @@ class _DrawerContent extends ConsumerWidget {
               children: [
                 _MenuProfileCard(profile: profile, palette: palette),
                 const SizedBox(height: 6),
-                if (!personalizedRole)
-                  _NavTile(title: 'Inicio', keyName: 'home', path: '/home', palette: palette),
-                if (!personalizedRole) const Divider(),
+                _NavTile(title: 'Inicio', keyName: 'home', path: '/home', palette: palette),
+                const Divider(),
                 ..._authorizedMenuWidgets(
                   ref: ref,
                   menuAsync: menuAsync,
@@ -4219,7 +4224,7 @@ class _AuthorizedMenuGroupsState extends State<_AuthorizedMenuGroups> {
   Widget build(BuildContext context) {
     if (widget.preserveExactOrder) {
       final orderedItems = widget.items
-          .where((item) => item.path.trim().isNotEmpty)
+          .where((item) => item.path.trim().isNotEmpty && item.path != '/home')
           .toList(growable: false);
       if (orderedItems.isEmpty) return const SizedBox.shrink();
       return Column(
@@ -4252,6 +4257,7 @@ class _AuthorizedMenuGroupsState extends State<_AuthorizedMenuGroups> {
     final metadata = <String, UserMenuItem>{};
 
     for (final item in widget.items) {
+      if (item.path == '/home' || item.keyName == 'home') continue;
       final code = item.groupCode.trim().isEmpty ? 'OTROS' : item.groupCode.trim().toUpperCase();
       byCode.putIfAbsent(code, () => <UserMenuItem>[]).add(item);
       metadata.putIfAbsent(code, () => item);
