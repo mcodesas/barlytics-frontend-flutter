@@ -253,6 +253,20 @@ class _AppScaffoldState extends ConsumerState<AppScaffold> {
     // actualmente seleccionado. El backend ya filtra por destinatario, por lo
     // que todos los shells autenticados pueden consultar sus propios avisos.
     final branchScope = ref.watch(branchScopeProvider);
+    // Verificación al entrar: no confiar indefinidamente en el estado
+    // de suscripción que había quedado guardado en Secure Storage.
+    ref.listen(subscriptionCurrentProvider, (previous, next) {
+      final current = next.valueOrNull;
+      if (current == null || current.active ||
+          !ref.read(authControllerProvider).subscriptionActive) return;
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted || !ref.read(authControllerProvider).subscriptionActive) return;
+        unawaited(ref.read(authControllerProvider.notifier).updateSubscription(
+          status: current.status,
+          active: false,
+        ));
+      });
+    });
     _scheduleHeaderGuide(
       hasRoles: ref.watch(authControllerProvider).roles.length > 1,
       hasBranches: branchScope.branches.length > 1,
