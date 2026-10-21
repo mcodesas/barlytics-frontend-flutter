@@ -55,7 +55,7 @@ class OrderWhatsappMessageFormatter {
     // "Unidad" es el valor heredado del catálogo; no debe convertir
     // 2 paquetes de 12 en un pedido de 2 unidades.
     final legacyUnit = RegExp(
-      r'^(?:unidades?|unds?|presentaci[oó]n(?:es)?)(?:\\s|$)',
+      r'^(?:unidades?|unds?|presentaci[oó]n(?:es)?)(?:\s|$)',
       caseSensitive: false,
     ).hasMatch(configured);
     final generic = configured.isEmpty || legacyUnit ||
