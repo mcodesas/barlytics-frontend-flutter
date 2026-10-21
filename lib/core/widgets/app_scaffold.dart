@@ -4532,12 +4532,16 @@ class _NavTile extends ConsumerWidget {
           onTap: () {
             final router = GoRouter.of(context);
             final shouldCloseDrawer = Scaffold.maybeOf(context)?.isDrawerOpen ?? false;
+            if (onTap == null) {
+              // El drawer puede desmontarse al cerrarse. Actualizar el
+              // provider ANTES para evitar usar WidgetRef desactivado.
+              selectMeseroModeForMenuPath(ref, path);
+            }
             if (shouldCloseDrawer) Navigator.of(context).pop();
             if (onTap != null) {
               onTap!();
               return;
             }
-            selectMeseroModeForMenuPath(ref, path);
             router.go(path);
           },
           child: LayoutBuilder(
