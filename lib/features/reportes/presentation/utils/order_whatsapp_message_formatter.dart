@@ -29,6 +29,62 @@ class OrderWhatsappMessageFormatter {
 
   static String _formatQuantity(double amount) => _quantityFormat.format(amount);
 
+  /// Un artículo comprado por cantidad (p. ej. un paquete de 12 unidades)
+  /// se pide por presentaciones, no por unidades sueltas. Algunos productos
+  /// antiguos guardaron la presentación como "Unidad" o "Presentación" aun
+  /// teniendo más de una unidad por compra.
+  static String _purchasePresentationLabel(
+    Map<String, dynamic> row,
+    double presentations,
+    double units,
+  ) {
+    final configured = _singleLine(row['presentacion_compra']);
+    final unitsPerPresentation = _asNumber(row['unidades_por_presentacion']);
+    final ratio = unitsPerPresentation > 0
+        ? unitsPerPresentation
+        : (presentations > 0 ? units / presentations : 0.0);
+    final grouped = ratio > 1.0001;
+
+    if (!grouped) {
+      return _presentationLabel(
+        configured.isEmpty ? 'unidad' : configured,
+        presentations,
+      );
+    }
+
+    // "Unidad" es el valor heredado del catálogo; no debe convertir
+    // 2 paquetes de 12 en un pedido de 2 unidades.
+    final generic = configured.isEmpty ||
+        const <String>{
+          'unidad',
+          'unidades',
+          'und',
+          'unds',
+          'presentacion',
+          'presentación',
+          'paquete',
+          'paquetes',
+          'pack',
+          'packs',
+        }.contains(configured.toLowerCase());
+
+    if (generic) {
+      return _presentationLabel(
+        'paquete x ${_formatQuantity(ratio)}',
+        presentations,
+      );
+    }
+
+    // Respetar cajas, bultos, bolsas y otras presentaciones específicas.
+    // Evitar duplicar "x 24" cuando la descripción ya lo contiene.
+    final hasQuantity = RegExp(r'\bx\s*\d', caseSensitive: false)
+        .hasMatch(configured);
+    return _presentationLabel(
+      hasQuantity ? configured : '$configured x ${_formatQuantity(ratio)}',
+      presentations,
+    );
+  }
+
   static String _presentationLabel(String label, double quantity) {
     final trimmed = _singleLine(label, fallback: 'unidad');
     if (quantity == 1) return trimmed;
@@ -93,10 +149,7 @@ class OrderWhatsappMessageFormatter {
       final units = _asNumber(row['unidades_pedir']);
       final count = presentations > 0 ? presentations : units;
       final label = presentations > 0
-          ? _presentationLabel(
-              _singleLine(row['presentacion_compra'], fallback: 'unidad'),
-              presentations,
-            )
+          ? _purchasePresentationLabel(row, presentations, units)
           : _presentationLabel('unidad', units);
       final product = _singleLine(row['producto'], fallback: 'Producto sin nombre');
       final description = _singleLine(
