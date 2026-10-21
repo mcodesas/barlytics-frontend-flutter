@@ -54,7 +54,11 @@ class OrderWhatsappMessageFormatter {
 
     // "Unidad" es el valor heredado del catálogo; no debe convertir
     // 2 paquetes de 12 en un pedido de 2 unidades.
-    final generic = configured.isEmpty ||
+    final legacyUnit = RegExp(
+      r'^(?:unidades?|unds?|presentaci[oó]n(?:es)?)(?:\\s|$)',
+      caseSensitive: false,
+    ).hasMatch(configured);
+    final generic = configured.isEmpty || legacyUnit ||
         const <String>{
           'unidad',
           'unidades',
@@ -77,7 +81,7 @@ class OrderWhatsappMessageFormatter {
 
     // Respetar cajas, bultos, bolsas y otras presentaciones específicas.
     // Evitar duplicar "x 24" cuando la descripción ya lo contiene.
-    final hasQuantity = RegExp(r'\bx\s*\d', caseSensitive: false)
+    final hasQuantity = RegExp(r'\b(?:x|de|por)\s*\d', caseSensitive: false)
         .hasMatch(configured);
     return _presentationLabel(
       hasQuantity ? configured : '$configured x ${_formatQuantity(ratio)}',
