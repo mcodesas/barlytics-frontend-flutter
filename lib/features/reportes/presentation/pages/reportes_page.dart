@@ -4813,16 +4813,41 @@ class _NextOrderContentState extends ConsumerState<_NextOrderContent> {
                     : <String, dynamic>{},
               );
       final data = response.data ?? const <String, dynamic>{};
-      final commercialName =
-          data['empresaNombreComercial']?.toString().trim() ?? '';
-      final businessName =
-          data['empresaRazonSocial']?.toString().trim() ?? '';
-      if (commercialName.isNotEmpty) return commercialName;
-      if (businessName.isNotEmpty) return businessName;
+      final profileCompanyId = (data['empresaId'] as num?)?.toInt();
+      // El encabezado siempre debe representar a la empresa de la sucursal
+      // seleccionada, no a otra empresa del usuario autenticado.
+      if (companyId == null || profileCompanyId == companyId) {
+        final commercialName =
+            data['empresaNombreComercial']?.toString().trim() ?? '';
+        final businessName =
+            data['empresaRazonSocial']?.toString().trim() ?? '';
+        if (commercialName.isNotEmpty) return commercialName;
+        if (businessName.isNotEmpty) return businessName;
+      }
     } catch (_) {
-      // La consulta del nombre no debe impedir abrir WhatsApp.
+      // Recuperar nombre de empresa no debe impedir abrir WhatsApp.
     }
-    return companyId == null ? 'Empresa no identificada' : 'Empresa $companyId';
+
+    if (companyId != null) {
+      try {
+        final response =
+            await ref.read(apiClientProvider).get<Map<String, dynamic>>(
+                  '/api/v1/empresas/' + companyId.toString(),
+                  (json) => json is Map
+                      ? Map<String, dynamic>.from(json)
+                      : <String, dynamic>{},
+                );
+        final data = response.data ?? const <String, dynamic>{};
+        final name = (data['empreNombreComercial'] ??
+                data['emprRazonSocial'] ??
+                '').toString().trim();
+        if (name.isNotEmpty) return name;
+      } catch (_) {
+        // Un rol sin permisos de consulta empresarial conserva el fallback.
+      }
+    }
+
+    return companyId == null ? 'Empresa' : 'Empresa #' + companyId.toString();
   }
 
   Future<Map<String, dynamic>?> _selectConfirmedOrderForWhatsapp() async {
