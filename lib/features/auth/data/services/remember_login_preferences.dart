@@ -1,5 +1,7 @@
 import 'package:shared_preferences/shared_preferences.dart';
 
+import '../../../../core/constants/storage_keys.dart';
+
 /// Preferencia de uso del gestor de contraseñas, NO almacenamiento de claves.
 /// Flutter Web y macOS pueden guardar sesiones en preferencias locales, por eso
 /// nunca se escribe aquí la contraseña del usuario.
@@ -15,8 +17,8 @@ class RememberLoginPreferences {
 
   // No usar el prefijo "auth" / "barlytics." reservado para el cierre
   // de sesión: recordar la cuenta no implica mantener un JWT activo.
-  static const enabledKey = 'login_remember_password_enabled';
-  static const identifierKey = 'login_remember_identifier';
+  static const enabledKey = StorageKeys.rememberLoginEnabled;
+  static const identifierKey = StorageKeys.rememberLoginIdentifier;
 
   Future<RememberedLogin> load() async {
     final prefs = await SharedPreferences.getInstance();
