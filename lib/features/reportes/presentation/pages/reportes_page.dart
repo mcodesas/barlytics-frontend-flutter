@@ -3024,9 +3024,11 @@ class _ProfitExpenseDetails extends StatelessWidget {
       'MANO DE OBRA': 'Mano de obra por cargo',
     };
     final subtotal = <String, double>{};
+    final counts = <String, int>{};
     for (final item in items) {
       final type = (item['categoria'] ?? '').toString().toUpperCase();
       subtotal[type] = (subtotal[type] ?? 0) + _toDouble(item['valor']);
+      counts[type] = (counts[type] ?? 0) + 1;
     }
     final total = subtotal.values.fold<double>(0, (sum, amount) => sum + amount);
     final expected = _toDouble(finance['gastos_operativos_periodo']);
@@ -3046,7 +3048,7 @@ class _ProfitExpenseDetails extends StatelessWidget {
               style: TextStyle(color: palette.textSecondary),
             ),
           for (final category in categories.entries)
-            if (items.any((item) => (item['categoria'] ?? '').toString().toUpperCase() == category.key))
+            if ((counts[category.key] ?? 0) > 0)
               ExpansionTile(
                 key: PageStorageKey('detalle-gasto-${category.key}'),
                 initiallyExpanded: category.key == 'MANO DE OBRA',
@@ -3056,7 +3058,7 @@ class _ProfitExpenseDetails extends StatelessWidget {
                   style: TextStyle(color: palette.textPrimary, fontWeight: FontWeight.w800),
                 ),
                 subtitle: Text(
-                  '${items.where((item) => (item['categoria'] ?? '').toString().toUpperCase() == category.key).length} conceptos',
+                  '${counts[category.key] ?? 0} conceptos',
                   style: TextStyle(color: palette.textSecondary, fontSize: 12),
                 ),
                 trailing: Text(
