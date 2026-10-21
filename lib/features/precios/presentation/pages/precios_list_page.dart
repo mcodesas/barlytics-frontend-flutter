@@ -654,6 +654,14 @@ class _PricingToolbar extends StatelessWidget {
     required this.searchController,
     required this.filter,
     required this.viewMode,
+    required this.tipos,
+    required this.marcas,
+    required this.selectedTipoId,
+    required this.selectedMarcaId,
+    required this.filtersActive,
+    required this.onTipoChanged,
+    required this.onMarcaChanged,
+    required this.onClearFilters,
     required this.visibleOnPage,
     required this.totalElements,
     required this.changed,
@@ -673,6 +681,14 @@ class _PricingToolbar extends StatelessWidget {
   final TextEditingController searchController;
   final _PriceFilter filter;
   final _PriceViewMode viewMode;
+  final List<TiposProductoResponseModel> tipos;
+  final List<MarcasResponseModel> marcas;
+  final int? selectedTipoId;
+  final int? selectedMarcaId;
+  final bool filtersActive;
+  final ValueChanged<int?> onTipoChanged;
+  final ValueChanged<int?> onMarcaChanged;
+  final VoidCallback onClearFilters;
   final int visibleOnPage;
   final int totalElements;
   final int changed;
@@ -758,6 +774,18 @@ class _PricingToolbar extends StatelessWidget {
             ],
           );
 
+          final catalogFilters = _PriceCatalogFilters(
+            palette: palette,
+            tipos: tipos,
+            marcas: marcas,
+            selectedTipoId: selectedTipoId,
+            selectedMarcaId: selectedMarcaId,
+            filtersActive: filtersActive,
+            onTipoChanged: onTipoChanged,
+            onMarcaChanged: onMarcaChanged,
+            onClearFilters: onClearFilters,
+          );
+
           final viewSelector = _PriceViewSelector(
             palette: palette,
             value: viewMode,
@@ -777,7 +805,7 @@ class _PricingToolbar extends StatelessWidget {
               Expanded(
                 child: Text(
                   filter == _PriceFilter.changed
-                      ? '$totalElements cambios pendientes'
+                      ? '$visibleOnPage de $changed cambios pendientes'
                       : 'Mostrando $visibleOnPage de $totalElements productos',
                   style: TextStyle(color: palette.textSecondary, fontWeight: FontWeight.w800, fontSize: 12.2),
                 ),
@@ -812,6 +840,8 @@ class _PricingToolbar extends StatelessWidget {
                 search,
                 const SizedBox(height: 10),
                 filters,
+                const SizedBox(height: 11),
+                catalogFilters,
                 const SizedBox(height: 10),
                 Align(
                   alignment: Alignment.centerLeft,
@@ -836,6 +866,8 @@ class _PricingToolbar extends StatelessWidget {
                 ],
               ),
               const SizedBox(height: 12),
+              catalogFilters,
+              const SizedBox(height: 12),
               Row(
                 crossAxisAlignment: CrossAxisAlignment.center,
                 children: [
@@ -848,6 +880,119 @@ class _PricingToolbar extends StatelessWidget {
           );
         },
       ),
+    );
+  }
+}
+
+/// Los filtros de catálogo se aplican en el servidor a toda la paginación.
+/// En modo Modificados, también se aplican a los borradores locales.
+class _PriceCatalogFilters extends StatelessWidget {
+  const _PriceCatalogFilters({
+    required this.palette,
+    required this.tipos,
+    required this.marcas,
+    required this.selectedTipoId,
+    required this.selectedMarcaId,
+    required this.filtersActive,
+    required this.onTipoChanged,
+    required this.onMarcaChanged,
+    required this.onClearFilters,
+  });
+
+  final AppPalette palette;
+  final List<TiposProductoResponseModel> tipos;
+  final List<MarcasResponseModel> marcas;
+  final int? selectedTipoId;
+  final int? selectedMarcaId;
+  final bool filtersActive;
+  final ValueChanged<int?> onTipoChanged;
+  final ValueChanged<int?> onMarcaChanged;
+  final VoidCallback onClearFilters;
+
+  @override
+  Widget build(BuildContext context) {
+    final orderedTypes = tipos.where((item) => item.tpprId != null).toList()
+      ..sort((a, b) => (a.tpprNombre ?? '').toLowerCase()
+          .compareTo((b.tpprNombre ?? '').toLowerCase()));
+    final orderedBrands = marcas.where((item) => item.mrcaId != null).toList()
+      ..sort((a, b) => (a.mrcaNombre ?? '').toLowerCase()
+          .compareTo((b.mrcaNombre ?? '').toLowerCase()));
+
+    final typeFilter = DropdownButtonFormField<int?>(
+      key: const ValueKey('precios-tipo-filter'),
+      value: orderedTypes.any((item) => item.tpprId == selectedTipoId)
+          ? selectedTipoId
+          : null,
+      isExpanded: true,
+      decoration: const InputDecoration(
+        labelText: 'Tipo de producto',
+        prefixIcon: Icon(Icons.category_outlined, size: 19),
+      ).compactFilter(),
+      items: [
+        const DropdownMenuItem<int?>(value: null, child: Text('Todos los tipos')),
+        for (final item in orderedTypes)
+          DropdownMenuItem<int?>(
+            value: item.tpprId,
+            child: Text(
+              item.tpprNombre?.trim().isNotEmpty == true
+                  ? item.tpprNombre!.trim()
+                  : 'Tipo ${item.tpprId}',
+              overflow: TextOverflow.ellipsis,
+            ),
+          ),
+      ],
+      onChanged: onTipoChanged,
+    );
+    final brandFilter = DropdownButtonFormField<int?>(
+      key: const ValueKey('precios-marca-filter'),
+      value: orderedBrands.any((item) => item.mrcaId == selectedMarcaId)
+          ? selectedMarcaId
+          : null,
+      isExpanded: true,
+      decoration: const InputDecoration(
+        labelText: 'Marca',
+        prefixIcon: Icon(Icons.sell_outlined, size: 19),
+      ).compactFilter(),
+      items: [
+        const DropdownMenuItem<int?>(value: null, child: Text('Todas las marcas')),
+        for (final item in orderedBrands)
+          DropdownMenuItem<int?>(
+            value: item.mrcaId,
+            child: Text(
+              item.mrcaNombre?.trim().isNotEmpty == true
+                  ? item.mrcaNombre!.trim()
+                  : 'Marca ${item.mrcaId}',
+              overflow: TextOverflow.ellipsis,
+            ),
+          ),
+      ],
+      onChanged: onMarcaChanged,
+    );
+
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final stacked = constraints.maxWidth < 620;
+        final width = stacked ? constraints.maxWidth : (constraints.maxWidth - 10) / 2;
+        return Wrap(
+          spacing: 10,
+          runSpacing: 9,
+          crossAxisAlignment: WrapCrossAlignment.center,
+          children: [
+            SizedBox(width: width, child: typeFilter),
+            SizedBox(width: width, child: brandFilter),
+            if (filtersActive)
+              TextButton.icon(
+                onPressed: onClearFilters,
+                icon: const Icon(Icons.filter_alt_off_rounded, size: 18),
+                label: const Text('Limpiar filtros'),
+                style: TextButton.styleFrom(
+                  foregroundColor: palette.secondary,
+                  visualDensity: VisualDensity.compact,
+                ),
+              ),
+          ],
+        );
+      },
     );
   }
 }
