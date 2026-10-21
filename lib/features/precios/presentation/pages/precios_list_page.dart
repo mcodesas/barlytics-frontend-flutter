@@ -87,7 +87,7 @@ class _PreciosListPageState extends ConsumerState<PreciosListPage> {
     _ensureBranchLoaded(branchState.activeBranchId, pagedState);
 
     final pageProducts = pagedState.items
-        .where((item) => _sucursalId == null || item.sucuId == _sucursalId)
+        .where((item) => _sucursalId != null && item.sucuId == _sucursalId)
         .toList(growable: false);
     final pagePrices = <int, PreciosResponseModel?>{};
     for (final product in pageProducts) {
@@ -272,9 +272,21 @@ class _PreciosListPageState extends ConsumerState<PreciosListPage> {
 
   void _ensureBranchLoaded(int? branchId, ProductosPagedState state) {
     if (branchId == null || branchId == _initializedBranchId) return;
+    final previousBranchId = _initializedBranchId;
     _initializedBranchId = branchId;
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (!mounted) return;
+      if (!mounted || ref.read(branchScopeProvider).activeBranchId != branchId) return;
+      if (previousBranchId != null && previousBranchId != branchId) {
+        // También cubre cambios desde el selector global de sucursal.
+        _searchDebounce?.cancel();
+        _clearDrafts();
+        _searchController.clear();
+        setState(() {
+          _filter = _PriceFilter.all;
+          _selectedTipoId = null;
+          _selectedMarcaId = null;
+        });
+      }
       ref.read(_preciosProductosPagedProvider.notifier).load(
             page: 0,
             size: 12,
@@ -333,7 +345,10 @@ class _PreciosListPageState extends ConsumerState<PreciosListPage> {
   }
 
   List<MapEntry<int, _PriceDraft>> get _pendingDrafts => _drafts.entries
-      .where((entry) => entry.value.isDirty)
+      .where((entry) =>
+          entry.value.isDirty &&
+          _sucursalId != null &&
+          _loadedProducts[entry.key]?.sucuId == _sucursalId)
       .toList(growable: false);
 
   ProductosPriceStatus _priceStatusFor(_PriceFilter filter) => switch (filter) {
@@ -919,7 +934,7 @@ class _PriceCatalogFilters extends StatelessWidget {
           .compareTo((b.mrcaNombre ?? '').toLowerCase()));
 
     final typeFilter = DropdownButtonFormField<int?>(
-      key: const ValueKey('precios-tipo-filter'),
+      key: ValueKey('precios-tipo-filter-${selectedTipoId ?? 'all'}'),
       value: orderedTypes.any((item) => item.tpprId == selectedTipoId)
           ? selectedTipoId
           : null,
@@ -944,7 +959,7 @@ class _PriceCatalogFilters extends StatelessWidget {
       onChanged: onTipoChanged,
     );
     final brandFilter = DropdownButtonFormField<int?>(
-      key: const ValueKey('precios-marca-filter'),
+      key: ValueKey('precios-marca-filter-${selectedMarcaId ?? 'all'}'),
       value: orderedBrands.any((item) => item.mrcaId == selectedMarcaId)
           ? selectedMarcaId
           : null,
