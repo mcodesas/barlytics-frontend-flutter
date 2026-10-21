@@ -5331,7 +5331,6 @@ class _NextOrderContentState extends ConsumerState<_NextOrderContent> {
                   allRows: allRows,
                   filteredRows: filteredRows,
                   selectedFilter: _filter,
-                  definition: widget.definition,
                   palette: widget.palette,
                   exportingExcel: _exportingDiagnostics,
                   onExportExcel: _exportDiagnosticsExcel,
@@ -6602,7 +6601,6 @@ class _OrderInventoryDiagnostics extends StatelessWidget {
     required this.allRows,
     required this.filteredRows,
     required this.selectedFilter,
-    required this.definition,
     required this.palette,
     required this.onToggle,
     required this.onFilterChanged,
@@ -6614,7 +6612,6 @@ class _OrderInventoryDiagnostics extends StatelessWidget {
   final List<Map<String, dynamic>> allRows;
   final List<Map<String, dynamic>> filteredRows;
   final _ProfitOrderFilter selectedFilter;
-  final _ReportDefinition definition;
   final AppPalette palette;
   final VoidCallback onToggle;
   final ValueChanged<_ProfitOrderFilter> onFilterChanged;
