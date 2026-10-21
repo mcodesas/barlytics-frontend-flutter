@@ -97,6 +97,14 @@ class AuthInterceptor extends Interceptor {
         err.requestOptions.headers['Authorization']?.toString().trim().isNotEmpty == true;
     final statusCode = err.response?.statusCode;
 
+    // Un 402 significa suscripción vencida, no sesión caducada. Se conserva el
+    // JWT y el router dirige al usuario a renovar, incluso con la sesión abierta.
+    if (hadAuthenticatedRequest && statusCode == 402 &&
+        err.requestOptions.path.startsWith('/api/v1/') &&
+        !err.requestOptions.path.startsWith('/api/v1/subscriptions/')) {
+      _sessionExpirationNotifier.subscriptionExpired();
+    }
+
     // 401 = token ausente/expirado/inválido.
     // 403 = sesión válida sin permiso: se conserva la sesión y la pantalla puede
     // mostrar el error funcional sin expulsar al usuario.
