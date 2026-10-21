@@ -16,6 +16,7 @@ void main() {
       'producto': 'Agua mineral',
       'stock_actual': 40,
       'presentacion_compra': 'Unidad',
+      'unidades_por_presentacion': 12,
       'costo_presentacion_actual': 2000,
     },
     {
@@ -58,11 +59,30 @@ void main() {
     await tester.tap(find.byType(Checkbox).first);
     await tester.pumpAndSettle();
     expect(find.text('Agregar 1 producto'), findsOneWidget);
-    await tester.tap(find.byTooltip('Aumentar cantidad').first);
+    await tester.tap(find.byTooltip('Aumentar paquetes o presentaciones').first);
     await tester.pumpAndSettle();
     await tester.tap(find.text('Agregar 1 producto'));
     await tester.pumpAndSettle();
     expect(selection, <int, int>{11: 2});
+  });
+
+  testWidgets('muestra paquetes y no unidades al elegir la cantidad de compra',
+      (tester) async {
+    await tester.pumpWidget(const MaterialApp(
+      home: Scaffold(
+        body: ManualPurchaseOrderDialog(
+          products: products,
+          initialSelection: <int, int>{12: 2},
+        ),
+      ),
+    ));
+    await tester.pumpAndSettle();
+
+    // Presentación histórica "Unidad", pero realmente compramos por paquetes
+    // de 12. Mostrar dos paquetes, no dos unidades ni veinticuatro sueltas.
+    expect(find.textContaining('Compra por: 1 paquete x 12'), findsOneWidget);
+    expect(find.text('Pedir: 2 paquetes x 12'), findsOneWidget);
+    expect(find.text('Pedir: 2 unidades'), findsNothing);
   });
 
   testWidgets('no permite seleccionar productos sin costo de compra',
