@@ -4062,6 +4062,8 @@ class _NextOrderContentState extends ConsumerState<_NextOrderContent> {
   List<Map<String, dynamic>> _confirmedRows = const <Map<String, dynamic>>[];
   List<Map<String, dynamic>> _confirmedOrders = const <Map<String, dynamic>>[];
   List<Map<String, dynamic>> _orderDestinations = const <Map<String, dynamic>>[];
+  bool _orderDestinationsLoaded = false;
+  int? _loadedDestinationBranchId;
   final Map<int, int?> _selectedDestinationByProduct = <int, int?>{};
   Future<List<Map<String, dynamic>>>? _orderHistoryFuture;
   int? _orderHistoryBranchId;
@@ -4382,55 +4384,64 @@ class _NextOrderContentState extends ConsumerState<_NextOrderContent> {
       if (mounted) {
         setState(() {
           _orderDestinations = const <Map<String, dynamic>>[];
+          _orderDestinationsLoaded = false;
+          _loadedDestinationBranchId = null;
           _selectedDestinationByProduct.clear();
         });
       }
       return;
     }
 
+    if (_loadedDestinationBranchId != branchId) {
+      _selectedDestinationByProduct.clear();
+      _orderDestinationsLoaded = false;
+      _loadedDestinationBranchId = branchId;
+    }
     try {
       final response = await ref.read(apiClientProvider).get<Object?>(
-            '/api/v1/pedidos-compra/destinos',
-            (json) => json,
-            queryParameters: <String, dynamic>{'sucursalId': branchId},
-          );
+        '/api/v1/pedidos-compra/destinos',
+        (json) => json,
+        queryParameters: <String, dynamic>{'sucursalId': branchId},
+      );
       final raw = response.data;
       final destinations = raw is List
-          ? raw
-              .whereType<Map>()
+          ? raw.whereType<Map>()
               .map((item) => Map<String, dynamic>.from(item))
               .toList(growable: false)
           : const <Map<String, dynamic>>[];
-
-      final defaults = <int, int?>{};
-      for (final destination in destinations) {
-        final destinationId = (destination['id'] as num?)?.toInt();
-        final products = destination['productoIdsPredeterminados'];
-        if (destinationId == null || products is! List) continue;
-        for (final product in products.whereType<num>()) {
-          defaults[product.toInt()] = destinationId;
-        }
-      }
-
-      if (!mounted) return;
+      if (!mounted || ref.read(branchScopeProvider).activeBranchId != branchId) return;
       setState(() {
         _orderDestinations = destinations;
-        for (final entry in defaults.entries) {
-          _selectedDestinationByProduct.putIfAbsent(
-            entry.key,
-            () => entry.value,
+        _orderDestinationsLoaded = true;
+        for (final row in _orderRows) {
+          final productId = _productId(row);
+          if (productId == null) continue;
+          final linked = OrderDestinationResolver.associatedDestinations(
+            productId, destinations,
           );
+          final selected = _selectedDestinationByProduct[productId];
+          if (linked.isNotEmpty && (selected == null || !linked.contains(selected))) {
+            _selectedDestinationByProduct[productId] =
+                OrderDestinationResolver.resolve(
+                  productId: productId, destinations: destinations,
+                );
+          }
         }
       });
     } catch (_) {
-      // La ausencia temporal de proveedores no debe impedir crear el pedido;
-      // se conserva el WhatsApp general como fallback.
+      if (mounted) setState(() => _orderDestinationsLoaded = false);
     }
   }
 
   Future<Map<int, int?>?> _chooseOrderDestinations(
     List<Map<String, dynamic>> rows,
   ) async {
+    await _loadOrderDestinations();
+    if (!mounted) return null;
+    if (!_orderDestinationsLoaded) {
+      _showMessage('No fue posible consultar los proveedores. Reintenta antes de confirmar para evitar un destino equivocado.');
+      return null;
+    }
     if (_orderDestinations.isEmpty) {
       return <int, int?>{
         for (final row in rows)
@@ -4441,8 +4452,18 @@ class _NextOrderContentState extends ConsumerState<_NextOrderContent> {
     final selection = <int, int>{
       for (final row in rows)
         if (_productId(row) != null)
-          _productId(row)!:
-              _selectedDestinationByProduct[_productId(row)!] ?? 0,
+          _productId(row)!: (() {
+            final productId = _productId(row)!;
+            final linked = OrderDestinationResolver.associatedDestinations(
+              productId, _orderDestinations,
+            );
+            final selected = OrderDestinationResolver.resolve(
+              productId: productId,
+              destinations: _orderDestinations,
+              selected: _selectedDestinationByProduct[productId],
+            );
+            return selected ?? (linked.isEmpty ? 0 : -1);
+          })(),
     };
 
     final accepted = await showDialog<bool>(
@@ -4462,6 +4483,13 @@ class _NextOrderContentState extends ConsumerState<_NextOrderContent> {
                   final row = rows[index];
                   final productId = _productId(row);
                   if (productId == null) return const SizedBox.shrink();
+                  final associated = OrderDestinationResolver.associatedDestinations(
+                    productId, _orderDestinations,
+                  );
+                  final available = associated.isEmpty
+                      ? _orderDestinations
+                      : _orderDestinations.where((d) =>
+                          associated.contains((d['id'] as num?)?.toInt())).toList();
                   return Row(
                     children: [
                       Expanded(
@@ -4482,11 +4510,17 @@ class _NextOrderContentState extends ConsumerState<_NextOrderContent> {
                             isDense: true,
                           ),
                           items: <DropdownMenuItem<int>>[
-                            const DropdownMenuItem<int>(
-                              value: 0,
-                              child: Text('WhatsApp general'),
-                            ),
-                            ..._orderDestinations.map((destination) {
+                            if (associated.isEmpty)
+                              const DropdownMenuItem<int>(
+                                value: 0,
+                                child: Text('WhatsApp general (sin proveedor)'),
+                              ),
+                            if (selection[productId] == -1)
+                              const DropdownMenuItem<int>(
+                                value: -1,
+                                child: Text('Selecciona proveedor'),
+                              ),
+                            ...available.map((destination) {
                               final id = (destination['id'] as num?)?.toInt();
                               return DropdownMenuItem<int>(
                                 value: id,
@@ -4516,7 +4550,9 @@ class _NextOrderContentState extends ConsumerState<_NextOrderContent> {
               child: const Text('Cancelar'),
             ),
             FilledButton.icon(
-              onPressed: () => Navigator.pop(dialogContext, true),
+              onPressed: selection.values.any((id) => id == -1)
+                  ? null
+                  : () => Navigator.pop(dialogContext, true),
               icon: const Icon(Icons.call_split_rounded),
               label: const Text('Continuar'),
             ),
@@ -4972,12 +5008,17 @@ class _NextOrderContentState extends ConsumerState<_NextOrderContent> {
 
     setState(() => _sendingWhatsapp = true);
     try {
-      final number =
-          _normalizeWhatsapp(order['whatsappDestino']?.toString() ?? '') ??
-              await _loadWhatsappNumber();
+      final destinationId = (order['destinoId'] as num?)?.toInt();
+      final providerNumber =
+          _normalizeWhatsapp(order['whatsappDestino']?.toString() ?? '');
+      final number = destinationId != null
+          ? providerNumber
+          : providerNumber ?? await _loadWhatsappNumber();
       if (number == null) {
         _showMessage(
-          'Configura un WhatsApp para el proveedor o el número general de la sucursal.',
+          destinationId == null
+              ? 'Configura un WhatsApp general para la sucursal.'
+              : 'El proveedor asignado no tiene un WhatsApp válido. Corrige su número; no se usará el general.',
         );
         return;
       }
