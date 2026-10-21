@@ -13,6 +13,7 @@ import '../../../navigation/data/models/user_menu_item.dart';
 import '../../../navigation/presentation/providers/user_menu_provider.dart';
 import '../../../navigation/presentation/providers/active_role_provider.dart';
 import '../../../navigation/presentation/providers/user_assigned_roles_provider.dart';
+import '../../../mesero/presentation/providers/mesero_tab_provider.dart';
 import '../../../profile/presentation/providers/profile_header_provider.dart';
 import '../../../sucursales/data/models/sucursales_response_model.dart';
 
@@ -100,7 +101,11 @@ class _RoleHomePageState extends ConsumerState<RoleHomePage> {
                             ref.read(branchScopeProvider.notifier).select(id),
                         onPrimaryAction: featuredItems.isEmpty
                             ? null
-                            : () => context.go(featuredItems.first.path),
+                            : () {
+                                final targetPath = featuredItems.first.path;
+                                selectMeseroModeForMenuPath(ref, targetPath);
+                                context.go(targetPath);
+                              },
                         primaryActionLabel: featuredItems.isEmpty
                             ? null
                             : featuredItems.first.title,
@@ -761,14 +766,14 @@ class _WorkflowGrid extends StatelessWidget {
   }
 }
 
-class _WorkflowCard extends StatelessWidget {
+class _WorkflowCard extends ConsumerWidget {
   const _WorkflowCard({required this.step, required this.palette});
 
   final _WorkflowStep step;
   final AppPalette palette;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final visual = ModuleVisuals.byKey(step.item.keyName);
     final accent = Color.lerp(visual.color, palette.secondary, 0.45) ??
         palette.secondary;
@@ -777,7 +782,10 @@ class _WorkflowCard extends StatelessWidget {
       borderRadius: BorderRadius.circular(palette.radius(21)),
       clipBehavior: Clip.antiAlias,
       child: InkWell(
-        onTap: () => context.go(step.item.path),
+        onTap: () {
+          selectMeseroModeForMenuPath(ref, step.item.path);
+          context.go(step.item.path);
+        },
         child: Container(
           constraints: const BoxConstraints(minHeight: 142),
           padding: const EdgeInsets.all(15),
@@ -875,14 +883,14 @@ class _FeaturedGrid extends StatelessWidget {
   }
 }
 
-class _FeaturedCard extends StatelessWidget {
+class _FeaturedCard extends ConsumerWidget {
   const _FeaturedCard({required this.item, required this.palette});
 
   final UserMenuItem item;
   final AppPalette palette;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final visual = ModuleVisuals.byKey(item.keyName);
     final accent = Color.lerp(visual.color, palette.secondary, 0.48) ??
         palette.secondary;
@@ -891,7 +899,10 @@ class _FeaturedCard extends StatelessWidget {
       borderRadius: BorderRadius.circular(palette.radius(22)),
       clipBehavior: Clip.antiAlias,
       child: InkWell(
-        onTap: () => context.go(item.path),
+        onTap: () {
+          selectMeseroModeForMenuPath(ref, item.path);
+          context.go(item.path);
+        },
         child: Container(
           constraints: const BoxConstraints(minHeight: 154),
           padding: const EdgeInsets.all(16),
@@ -985,14 +996,14 @@ class _AllModulesGrid extends StatelessWidget {
   }
 }
 
-class _ModuleTile extends StatelessWidget {
+class _ModuleTile extends ConsumerWidget {
   const _ModuleTile({required this.item, required this.palette});
 
   final UserMenuItem item;
   final AppPalette palette;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final visual = ModuleVisuals.byKey(item.keyName);
     final accent = Color.lerp(visual.color, palette.secondary, 0.50) ??
         palette.secondary;
@@ -1001,7 +1012,10 @@ class _ModuleTile extends StatelessWidget {
       borderRadius: BorderRadius.circular(palette.radius(18)),
       clipBehavior: Clip.antiAlias,
       child: InkWell(
-        onTap: () => context.go(item.path),
+        onTap: () {
+          selectMeseroModeForMenuPath(ref, item.path);
+          context.go(item.path);
+        },
         child: Container(
           constraints: const BoxConstraints(minHeight: 112),
           padding: const EdgeInsets.all(13),
