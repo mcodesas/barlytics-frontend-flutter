@@ -6062,6 +6062,22 @@ class _OrderProductRow extends StatelessWidget {
           maximum: maximum,
           palette: palette,
         ),
+        const SizedBox(height: 6),
+        Text(
+          selected
+              ? 'Pedir: ' + selectedPurchase
+              : 'Compra por: ' +
+                  OrderWhatsappMessageFormatter.purchaseQuantityLabel(
+                    row, presentations: 1, units: factor,
+                  ),
+          maxLines: 2,
+          overflow: TextOverflow.ellipsis,
+          style: TextStyle(
+            color: selected ? palette.secondary : palette.textSecondary,
+            fontSize: 11.5,
+            fontWeight: FontWeight.w800,
+          ),
+        ),
       ],
     );
 
@@ -6123,7 +6139,7 @@ class _OrderProductRow extends StatelessWidget {
         const SizedBox(height: 2),
         Text(
           selected
-              ? selectedPurchase + ' · ' + _displayValue(units) + ' unidades'
+              ? _displayValue(units) + ' unidades (inventario)'
               : hasCost
                   ? _displayValue(cost, currency: true) + ' por presentación'
                   : 'Configura el costo',
