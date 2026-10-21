@@ -2115,14 +2115,6 @@ class _OperationalBottomNavigation extends ConsumerWidget {
         (entry) => entry.path == '__more__',
       );
     }
-    assert(() {
-      debugPrint(
-        'BarLytics navegación: ruta=$currentPath, '
-        'pestaña=${selectedMode.name}, seleccion=$routeSelectedPath, '
-        'índice=$selectedIndex',
-      );
-      return true;
-    }());
     return Container(
       decoration: BoxDecoration(
         color: palette.surface.withOpacity(palette.darkBackground ? 0.94 : 0.98),
@@ -2137,7 +2129,6 @@ class _OperationalBottomNavigation extends ConsumerWidget {
       child: SafeArea(
         top: false,
         child: BottomNavigationBar(
-          key: ValueKey('operational-$routeSelectedPath-$selectedIndex'),
           currentIndex: selectedIndex < 0 ? 0 : selectedIndex,
           selectedItemColor: palette.secondary,
           unselectedItemColor: palette.textSecondary,
