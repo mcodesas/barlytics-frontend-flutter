@@ -24,6 +24,7 @@ import '../utils/order_whatsapp_message_formatter.dart';
 import '../utils/order_destination_resolver.dart';
 import '../widgets/manual_purchase_order_dialog.dart';
 import '../widgets/order_inventory_diagnostic_table.dart';
+import '../widgets/order_history_card.dart';
 import '../../../subscription/presentation/providers/subscription_provider.dart';
 
 class ReportesPage extends ConsumerWidget {
@@ -5404,7 +5405,7 @@ class _OrderHistoryPanel extends StatelessWidget {
                         style: TextStyle(
                           color: palette.textPrimary,
                           fontWeight: FontWeight.w900,
-                          fontSize: 15.5,
+                          fontSize: 17,
                         ),
                       ),
                       const SizedBox(height: 2),
@@ -5413,7 +5414,7 @@ class _OrderHistoryPanel extends StatelessWidget {
                         style: TextStyle(
                           color: palette.textSecondary,
                           fontWeight: FontWeight.w600,
-                          fontSize: 10.5,
+                          fontSize: 12.5,
                         ),
                       ),
                     ],
@@ -5536,7 +5537,7 @@ class _OrderHistoryPanel extends StatelessWidget {
                                 SizedBox(
                                   width: width,
                                   child: Container(
-                                    padding: const EdgeInsets.all(10),
+                                    padding: const EdgeInsets.all(13),
                                     decoration: BoxDecoration(
                                       color: palette.background.withOpacity(.28),
                                       borderRadius: BorderRadius.circular(13),
@@ -5549,7 +5550,7 @@ class _OrderHistoryPanel extends StatelessWidget {
                                         Icon(
                                           item.$3,
                                           color: palette.secondary,
-                                          size: 17,
+                                          size: 20,
                                         ),
                                         const SizedBox(width: 7),
                                         Expanded(
@@ -5563,7 +5564,7 @@ class _OrderHistoryPanel extends StatelessWidget {
                                                 style: TextStyle(
                                                   color: palette.textPrimary,
                                                   fontWeight: FontWeight.w900,
-                                                  fontSize: 11.5,
+                                                  fontSize: 15,
                                                 ),
                                               ),
                                               Text(
@@ -5571,7 +5572,7 @@ class _OrderHistoryPanel extends StatelessWidget {
                                                 style: TextStyle(
                                                   color: palette.textSecondary,
                                                   fontWeight: FontWeight.w600,
-                                                  fontSize: 9,
+                                                  fontSize: 11.5,
                                                 ),
                                               ),
                                             ],
@@ -5603,8 +5604,8 @@ class _OrderHistoryPanel extends StatelessWidget {
                               for (final row in rows)
                                 SizedBox(
                                   width: width,
-                                  child: _OrderHistoryRow(
-                                    row: row,
+                                  child: OrderHistoryCard(
+                                    data: row,
                                     palette: palette,
                                   ),
                                 ),
@@ -5621,532 +5622,6 @@ class _OrderHistoryPanel extends StatelessWidget {
       ),
     );
   }
-}
-
-class _OrderHistoryRow extends StatelessWidget {
-  const _OrderHistoryRow({
-    required this.row,
-    required this.palette,
-  });
-
-  final Map<String, dynamic> row;
-  final AppPalette palette;
-
-  @override
-  Widget build(BuildContext context) {
-    final id = (row['pediId'] as num?)?.toInt();
-    final total = _toDouble(row['totalEstimado']);
-    final paid = _toDouble(row['totalPagado']);
-    final balance = _toDouble(row['saldoPendiente']);
-    final status = (row['estadoPago'] ?? 'PENDIENTE')
-        .toString()
-        .toUpperCase();
-    final orderStatus =
-        (row['estado'] ?? 'CONFIRMADO').toString().toUpperCase();
-    final provider = (row['destinoNombre'] ?? '').toString().trim();
-    final whatsapp = (row['whatsappDestino'] ?? '').toString().trim();
-    final observation = (row['observacion'] ?? '').toString().trim();
-    final payments = row['pagos'] is List
-        ? (row['pagos'] as List)
-            .whereType<Map>()
-            .map((item) => Map<String, dynamic>.from(item))
-            .toList(growable: false)
-        : const <Map<String, dynamic>>[];
-    final details = row['detalles'] is List
-        ? (row['detalles'] as List)
-            .whereType<Map>()
-            .map((item) => Map<String, dynamic>.from(item))
-            .toList(growable: false)
-        : const <Map<String, dynamic>>[];
-
-    final tone = status == 'PAGADO'
-        ? palette.success
-        : status == 'PAGO_PARCIAL'
-            ? palette.warning
-            : Colors.orangeAccent;
-    final paidProgress =
-        total <= 0 ? 0.0 : (paid / total).clamp(0.0, 1.0).toDouble();
-
-    Widget metric(String label, double value, {Color? valueColor}) {
-      return Expanded(
-        child: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 8),
-          decoration: BoxDecoration(
-            color: palette.background.withOpacity(.34),
-            borderRadius: BorderRadius.circular(12),
-            border: Border.all(color: palette.cardBorder.withOpacity(.55)),
-          ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                label,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: TextStyle(
-                  color: palette.textSecondary,
-                  fontSize: 8.8,
-                  fontWeight: FontWeight.w700,
-                ),
-              ),
-              const SizedBox(height: 2),
-              Text(
-                _displayValue(value, currency: true),
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: TextStyle(
-                  color: valueColor ?? palette.textPrimary,
-                  fontSize: 11,
-                  fontWeight: FontWeight.w900,
-                ),
-              ),
-            ],
-          ),
-        ),
-      );
-    }
-
-    return Container(
-      decoration: BoxDecoration(
-        color: palette.background.withOpacity(
-          palette.darkBackground ? .24 : .42,
-        ),
-        borderRadius: BorderRadius.circular(18),
-        border: Border.all(color: tone.withOpacity(.18)),
-      ),
-      clipBehavior: Clip.antiAlias,
-      child: Theme(
-        data: Theme.of(context).copyWith(
-          dividerColor: Colors.transparent,
-          splashColor: Colors.transparent,
-          hoverColor: Colors.transparent,
-        ),
-        child: ExpansionTile(
-          tilePadding: const EdgeInsets.fromLTRB(12, 10, 10, 10),
-          childrenPadding: const EdgeInsets.fromLTRB(12, 0, 12, 12),
-          leading: Container(
-            width: 42,
-            height: 42,
-            decoration: BoxDecoration(
-              color: tone.withOpacity(.10),
-              borderRadius: BorderRadius.circular(13),
-            ),
-            child: Icon(
-              orderStatus == 'RECIBIDO'
-                  ? Icons.inventory_2_rounded
-                  : Icons.local_shipping_outlined,
-              color: tone,
-              size: 20,
-            ),
-          ),
-          title: Row(
-            children: [
-              Expanded(
-                child: Text(
-                  id == null ? 'Pedido confirmado' : 'Pedido #$id',
-                  style: TextStyle(
-                    color: palette.textPrimary,
-                    fontWeight: FontWeight.w900,
-                    fontSize: 13.5,
-                  ),
-                ),
-              ),
-              _OrderPaymentStatusBadge(status: status, color: tone),
-            ],
-          ),
-          subtitle: Padding(
-            padding: const EdgeInsets.only(top: 7),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                if (provider.isNotEmpty || row['fecha'] != null)
-                  Row(
-                    children: [
-                      if (provider.isNotEmpty) ...[
-                        Icon(
-                          Icons.storefront_outlined,
-                          color: palette.secondary,
-                          size: 13,
-                        ),
-                        const SizedBox(width: 4),
-                        Expanded(
-                          child: Text(
-                            provider,
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: TextStyle(
-                              color: palette.textSecondary,
-                              fontWeight: FontWeight.w700,
-                              fontSize: 9.8,
-                            ),
-                          ),
-                        ),
-                      ] else
-                        const Spacer(),
-                      if (row['fecha'] != null)
-                        Text(
-                          _orderHistoryDate(row['fecha']),
-                          style: TextStyle(
-                            color: palette.textSecondary,
-                            fontWeight: FontWeight.w600,
-                            fontSize: 9.4,
-                          ),
-                        ),
-                    ],
-                  ),
-                const SizedBox(height: 8),
-                Row(
-                  children: [
-                    metric('Total', total),
-                    const SizedBox(width: 6),
-                    metric('Pagado', paid, valueColor: palette.success),
-                    const SizedBox(width: 6),
-                    metric(
-                      'Pendiente',
-                      balance,
-                      valueColor: balance > 0 ? tone : palette.success,
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 8),
-                ClipRRect(
-                  borderRadius: BorderRadius.circular(999),
-                  child: LinearProgressIndicator(
-                    value: paidProgress,
-                    minHeight: 5,
-                    backgroundColor: palette.cardBorder.withOpacity(.45),
-                  ),
-                ),
-                const SizedBox(height: 5),
-                Text(
-                  orderStatus == 'RECIBIDO'
-                      ? 'Mercancía recibida · ${details.length} producto${details.length == 1 ? '' : 's'}'
-                      : 'Pendiente de recepción · ${details.length} producto${details.length == 1 ? '' : 's'}',
-                  style: TextStyle(
-                    color: orderStatus == 'RECIBIDO'
-                        ? palette.success
-                        : palette.textSecondary,
-                    fontWeight: FontWeight.w800,
-                    fontSize: 9.4,
-                  ),
-                ),
-              ],
-            ),
-          ),
-          children: [
-            if (whatsapp.isNotEmpty || observation.isNotEmpty) ...[
-              Container(
-                width: double.infinity,
-                padding: const EdgeInsets.all(9),
-                decoration: BoxDecoration(
-                  color: palette.surface.withOpacity(.55),
-                  borderRadius: BorderRadius.circular(12),
-                  border: Border.all(color: palette.cardBorder.withOpacity(.55)),
-                ),
-                child: Wrap(
-                  spacing: 14,
-                  runSpacing: 6,
-                  children: [
-                    if (whatsapp.isNotEmpty)
-                      Text(
-                        'WhatsApp: $whatsapp',
-                        style: TextStyle(
-                          color: palette.textSecondary,
-                          fontSize: 9.5,
-                          fontWeight: FontWeight.w700,
-                        ),
-                      ),
-                    if (observation.isNotEmpty)
-                      Text(
-                        'Nota: $observation',
-                        style: TextStyle(
-                          color: palette.textSecondary,
-                          fontSize: 9.5,
-                          fontWeight: FontWeight.w700,
-                        ),
-                      ),
-                  ],
-                ),
-              ),
-              const SizedBox(height: 9),
-            ],
-            LayoutBuilder(
-              builder: (context, constraints) {
-                final compact = constraints.maxWidth < 560;
-                final paymentPanel = _OrderHistorySubPanel(
-                  title: 'Pagos',
-                  icon: Icons.payments_outlined,
-                  palette: palette,
-                  child: payments.isEmpty
-                      ? Text(
-                          balance > 0
-                              ? 'Sin abonos registrados. El pedido sigue pendiente de pago.'
-                              : 'No hay pagos registrados.',
-                          style: TextStyle(
-                            color: palette.textSecondary,
-                            fontWeight: FontWeight.w600,
-                            fontSize: 10,
-                          ),
-                        )
-                      : Column(
-                          children: [
-                            for (var i = 0; i < payments.length; i++) ...[
-                              _OrderPaymentRow(
-                                payment: payments[i],
-                                palette: palette,
-                              ),
-                              if (i != payments.length - 1)
-                                const SizedBox(height: 6),
-                            ],
-                          ],
-                        ),
-                );
-
-                final detailPanel = _OrderHistorySubPanel(
-                  title: 'Productos',
-                  icon: Icons.inventory_2_outlined,
-                  palette: palette,
-                  child: details.isEmpty
-                      ? Text(
-                          'Sin detalle disponible.',
-                          style: TextStyle(
-                            color: palette.textSecondary,
-                            fontWeight: FontWeight.w600,
-                            fontSize: 10,
-                          ),
-                        )
-                      : Column(
-                          children: [
-                            for (var i = 0; i < details.length; i++) ...[
-                              _OrderHistoryProductRow(
-                                detail: details[i],
-                                palette: palette,
-                              ),
-                              if (i != details.length - 1)
-                                const SizedBox(height: 6),
-                            ],
-                          ],
-                        ),
-                );
-
-                if (compact) {
-                  return Column(
-                    children: [
-                      paymentPanel,
-                      const SizedBox(height: 9),
-                      detailPanel,
-                    ],
-                  );
-                }
-                return Row(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Expanded(child: paymentPanel),
-                    const SizedBox(width: 9),
-                    Expanded(child: detailPanel),
-                  ],
-                );
-              },
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-class _OrderPaymentStatusBadge extends StatelessWidget {
-  const _OrderPaymentStatusBadge({
-    required this.status,
-    required this.color,
-  });
-
-  final String status;
-  final Color color;
-
-  @override
-  Widget build(BuildContext context) => Container(
-        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-        decoration: BoxDecoration(
-          color: color.withOpacity(.10),
-          borderRadius: BorderRadius.circular(999),
-          border: Border.all(color: color.withOpacity(.20)),
-        ),
-        child: Text(
-          switch (status) {
-            'PAGADO' => 'Pagado',
-            'PAGO_PARCIAL' => 'Pago parcial',
-            _ => 'Pendiente',
-          },
-          style: TextStyle(
-            color: color,
-            fontWeight: FontWeight.w900,
-            fontSize: 9,
-          ),
-        ),
-      );
-}
-
-class _OrderHistorySubPanel extends StatelessWidget {
-  const _OrderHistorySubPanel({
-    required this.title,
-    required this.icon,
-    required this.palette,
-    required this.child,
-  });
-
-  final String title;
-  final IconData icon;
-  final AppPalette palette;
-  final Widget child;
-
-  @override
-  Widget build(BuildContext context) => Container(
-        padding: const EdgeInsets.all(10),
-        decoration: BoxDecoration(
-          color: palette.background.withOpacity(.26),
-          borderRadius: BorderRadius.circular(14),
-          border: Border.all(color: palette.cardBorder.withOpacity(.60)),
-        ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            Row(
-              children: [
-                Icon(icon, color: palette.secondary, size: 16),
-                const SizedBox(width: 6),
-                Text(
-                  title,
-                  style: TextStyle(
-                    color: palette.textPrimary,
-                    fontWeight: FontWeight.w900,
-                    fontSize: 10.5,
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 8),
-            child,
-          ],
-        ),
-      );
-}
-
-class _OrderPaymentRow extends StatelessWidget {
-  const _OrderPaymentRow({
-    required this.payment,
-    required this.palette,
-  });
-
-  final Map<String, dynamic> payment;
-  final AppPalette palette;
-
-  @override
-  Widget build(BuildContext context) => Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Icon(
-            Icons.check_circle_outline_rounded,
-            color: palette.success,
-            size: 16,
-          ),
-          const SizedBox(width: 7),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  _displayValue(
-                    _toDouble(payment['valor']),
-                    currency: true,
-                  ),
-                  style: TextStyle(
-                    color: palette.textPrimary,
-                    fontWeight: FontWeight.w900,
-                    fontSize: 10.5,
-                  ),
-                ),
-                Text(
-                  '${payment['medio'] ?? 'CAJA'} · ${_orderHistoryDate(payment['fecha'])}',
-                  style: TextStyle(
-                    color: palette.textSecondary,
-                    fontWeight: FontWeight.w600,
-                    fontSize: 9,
-                  ),
-                ),
-                if ((payment['observacion'] ?? '')
-                    .toString()
-                    .trim()
-                    .isNotEmpty)
-                  Text(
-                    payment['observacion'].toString(),
-                    style: TextStyle(
-                      color: palette.textSecondary,
-                      fontWeight: FontWeight.w600,
-                      fontSize: 9,
-                    ),
-                  ),
-              ],
-            ),
-          ),
-        ],
-      );
-}
-
-class _OrderHistoryProductRow extends StatelessWidget {
-  const _OrderHistoryProductRow({
-    required this.detail,
-    required this.palette,
-  });
-
-  final Map<String, dynamic> detail;
-  final AppPalette palette;
-
-  @override
-  Widget build(BuildContext context) {
-    final name = (detail['producto'] ?? 'Producto').toString();
-    final presentations = _toDouble(detail['presentaciones']);
-    final units = _toDouble(detail['unidades']);
-    final subtotal = _toDouble(detail['subtotal']);
-    return Row(
-      children: [
-        Expanded(
-          child: Text(
-            name,
-            maxLines: 2,
-            overflow: TextOverflow.ellipsis,
-            style: TextStyle(
-              color: palette.textPrimary,
-              fontWeight: FontWeight.w700,
-              fontSize: 9.5,
-            ),
-          ),
-        ),
-        const SizedBox(width: 8),
-        Flexible(
-          child: Text(
-            '${_displayValue(presentations)} pres. · '
-            '${_displayValue(units)} und. · '
-            '${_displayValue(subtotal, currency: true)}',
-            textAlign: TextAlign.right,
-            style: TextStyle(
-              color: palette.textSecondary,
-              fontWeight: FontWeight.w700,
-              fontSize: 9,
-            ),
-          ),
-        ),
-      ],
-    );
-  }
-}
-
-String _orderHistoryDate(Object? value) {
-  final raw = value?.toString();
-  if (raw == null || raw.trim().isEmpty) return 'Sin fecha';
-  final parsed = DateTime.tryParse(raw);
-  if (parsed == null) return raw;
-  return DateFormat('dd/MM/yyyy HH:mm').format(parsed);
 }
 
 class _OrderHealthStrip extends StatelessWidget {
