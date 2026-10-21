@@ -618,7 +618,7 @@ class _ReportCapabilityChip extends StatelessWidget {
   }
 }
 
-enum _ProfitPeriodMode { day, week, fortnight, month, inventoryCross }
+enum _ProfitPeriodMode { day, week, fortnight, month, custom, inventoryCross }
 
 class _ReporteDetail extends ConsumerStatefulWidget {
   const _ReporteDetail({
@@ -746,6 +746,9 @@ class _ReporteDetailState extends ConsumerState<_ReporteDetail> {
         start: DateUtils.dateOnly(selected.start),
         end: DateUtils.dateOnly(selected.end),
       );
+      if (_isProfitReport && _profitPeriodMode != _ProfitPeriodMode.inventoryCross) {
+        _profitPeriodMode = _ProfitPeriodMode.custom;
+      }
       _future = _load();
     });
   }
@@ -768,6 +771,9 @@ class _ReporteDetailState extends ConsumerState<_ReporteDetail> {
         return;
       case _ProfitPeriodMode.month:
         await _selectProfitMonth();
+        return;
+      case _ProfitPeriodMode.custom:
+        await _selectPeriod();
         return;
       case _ProfitPeriodMode.inventoryCross:
         await _selectPeriod();
@@ -1196,6 +1202,10 @@ class _ReporteDetailState extends ConsumerState<_ReporteDetail> {
   }
 
   void _changeProfitPeriodMode(_ProfitPeriodMode mode) {
+    if (mode == _ProfitPeriodMode.custom) {
+      _selectPeriod();
+      return;
+    }
     if (_profitPeriodMode == mode) return;
     final today = DateUtils.dateOnly(DateTime.now());
     final anchor = _range.end.isAfter(today) ? today : _range.end;
@@ -1233,6 +1243,7 @@ class _ReporteDetailState extends ConsumerState<_ReporteDetail> {
               ? today
               : DateTime(anchor.year, anchor.month + 1, 0),
         ),
+      _ProfitPeriodMode.custom => _range,
       _ProfitPeriodMode.inventoryCross => DateTimeRange(
           start: DateTime(today.year, today.month),
           end: today,
@@ -1439,6 +1450,8 @@ class _DetailHeader extends StatelessWidget {
       _ProfitPeriodMode.fortnight =>
         '${value.start.day >= 16 ? '2.ª' : '1.ª'} quincena · ${_monthYearLabel(value.start)}',
       _ProfitPeriodMode.month => _monthYearLabel(value.start),
+      _ProfitPeriodMode.custom =>
+        '${DateFormat('dd/MM/yyyy').format(value.start)} - ${DateFormat('dd/MM/yyyy').format(value.end)}',
       _ProfitPeriodMode.inventoryCross =>
         '${DateFormat('dd/MM').format(value.start)} - ${DateFormat('dd/MM/yyyy').format(value.end)}',
       null =>
@@ -1707,7 +1720,7 @@ class _DetailHeader extends StatelessWidget {
                       children: [
                         if (periodModeFilter != null)
                           SizedBox(
-                            width: tablet ? 520 : 570,
+                            width: tablet ? 570 : 675,
                             child: periodModeFilter,
                           ),
                         if (dateFilter != null)
@@ -1759,6 +1772,7 @@ class _ProfitPeriodSelector extends StatelessWidget {
         icon: Icons.date_range_rounded,
       ),
       (value: _ProfitPeriodMode.month, label: 'Mes', icon: Icons.calendar_month_rounded),
+      (value: _ProfitPeriodMode.custom, label: 'Personalizado', icon: Icons.edit_calendar_rounded),
       (
         value: _ProfitPeriodMode.inventoryCross,
         label: 'Cruce inventario',
@@ -1766,29 +1780,41 @@ class _ProfitPeriodSelector extends StatelessWidget {
       ),
     ];
 
-    return Container(
-      height: 40,
-      padding: const EdgeInsets.all(3),
-      decoration: BoxDecoration(
-        color: palette.background.withOpacity(0.50),
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: palette.cardBorder),
-      ),
-      child: Row(
-        children: [
-          for (final option in options)
-            Expanded(
-              flex: option.value == _ProfitPeriodMode.inventoryCross ? 2 : 1,
-              child: _ProfitPeriodButton(
-                label: option.label,
-                icon: option.icon,
-                selected: selected == option.value,
-                palette: palette,
-                onTap: () => onChanged(option.value),
-              ),
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final mobile = constraints.maxWidth < 580;
+        final itemWidth = mobile
+            ? (constraints.maxWidth - 16) / 3
+            : (constraints.maxWidth - 10) / 6;
+        return DecoratedBox(
+          decoration: BoxDecoration(
+            color: palette.background.withOpacity(0.50),
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: palette.cardBorder),
+          ),
+          child: Padding(
+            padding: const EdgeInsets.all(3),
+            child: Wrap(
+              spacing: 2,
+              runSpacing: 2,
+              children: [
+                for (final option in options)
+                  SizedBox(
+                    width: itemWidth - 2,
+                    height: 38,
+                    child: _ProfitPeriodButton(
+                      label: option.label,
+                      icon: option.icon,
+                      selected: selected == option.value,
+                      palette: palette,
+                      onTap: () => onChanged(option.value),
+                    ),
+                  ),
+              ],
             ),
-        ],
-      ),
+          ),
+        );
+      },
     );
   }
 }
