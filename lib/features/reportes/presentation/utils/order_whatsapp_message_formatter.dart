@@ -85,6 +85,23 @@ class OrderWhatsappMessageFormatter {
     );
   }
 
+  /// Texto legible de la unidad de compra para los selectores, el resumen
+  /// y el mensaje al proveedor. La cantidad siempre es de presentaciones,
+  /// mientras que las unidades físicas solo se usan para calcular inventario.
+  static String purchaseQuantityLabel(
+    Map<String, dynamic> product, {
+    num? presentations,
+    num? units,
+  }) {
+    final presentationCount =
+        presentations?.toDouble() ?? _asNumber(product['presentaciones_pedir']);
+    final unitCount = units?.toDouble() ?? _asNumber(product['unidades_pedir']);
+    if (presentationCount <= 0) {
+      return '${_formatQuantity(unitCount)} ${_presentationLabel('unidad', unitCount)}';
+    }
+    return '${_formatQuantity(presentationCount)} ${_purchasePresentationLabel(product, presentationCount, unitCount)}';
+  }
+
   static String _presentationLabel(String label, double quantity) {
     final trimmed = _singleLine(label, fallback: 'unidad');
     if (quantity == 1) return trimmed;
@@ -147,17 +164,18 @@ class OrderWhatsappMessageFormatter {
     for (final row in products) {
       final presentations = _asNumber(row['presentaciones_pedir']);
       final units = _asNumber(row['unidades_pedir']);
-      final count = presentations > 0 ? presentations : units;
-      final label = presentations > 0
-          ? _purchasePresentationLabel(row, presentations, units)
-          : _presentationLabel('unidad', units);
+      final quantityLabel = purchaseQuantityLabel(
+        row,
+        presentations: presentations,
+        units: units,
+      );
       final product = _singleLine(row['producto'], fallback: 'Producto sin nombre');
       final description = _singleLine(
           row['descripcion'] ?? row['producto_descripcion'] ?? row['prodDescripcion']);
 
       buffer
         ..writeln()
-        ..writeln('• *' + _formatQuantity(count) + ' ' + label + '* — ' + product);
+        ..writeln('• *' + quantityLabel + '* — ' + product);
 
       if (description.isNotEmpty &&
           description.toLowerCase() != product.toLowerCase()) {
