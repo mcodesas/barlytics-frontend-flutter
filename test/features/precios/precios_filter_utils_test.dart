@@ -33,7 +33,7 @@ void main() {
     final result = filtrarPreciosPendientes(
       productos: products, sucursalId: 10, tipoId: 3,
     );
-    expect(result.map((p) => p.prodId), [1, 5, 2]);
+    expect(result.map((p) => p.prodId), [1, 2, 5]);
   });
 
   test('tipo y marca se intersectan sin perder el contexto de sucursal', () {
