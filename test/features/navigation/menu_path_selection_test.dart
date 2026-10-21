@@ -47,6 +47,33 @@ void main() {
       );
     });
 
+    test('La ruta literal de administrar mesas gana al alias de Mesas', () {
+      expect(
+        mostSpecificMenuPath(
+          '/administrar_mesas',
+          ['/mesero', '/administrar_mesas'],
+        ),
+        '/administrar_mesas',
+      );
+      expect(
+        mostSpecificMenuPath(
+          '/mesero',
+          ['/administrar_mesas', '/mesero'],
+        ),
+        '/mesero',
+      );
+    });
+
+    test('Prioriza historial exacto frente a un alias equivalente', () {
+      expect(
+        mostSpecificMenuPath(
+          '/historial_ventas',
+          ['/mesero/historial', '/historial_ventas'],
+        ),
+        '/historial_ventas',
+      );
+    });
+
     test('Sin coincidencias no selecciona una opción equivocada', () {
       expect(
         mostSpecificMenuPath('/reporte', ['/home', '/mesero']),
