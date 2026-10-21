@@ -487,33 +487,44 @@ class _GlassLoginCard extends ConsumerWidget {
                       ),
                     ),
                   ),
-                  SizedBox(height: dense ? 4 : 7),
-                  CheckboxListTile(
-                    dense: true,
-                    contentPadding: EdgeInsets.zero,
-                    visualDensity: VisualDensity.compact,
-                    controlAffinity: ListTileControlAffinity.leading,
-                    activeColor: palette.primary,
-                    checkColor: palette.onPrimary,
-                    title: Text(
-                      'Recordar contraseña',
-                      style: TextStyle(
-                        color: palette.textPrimary,
-                        fontSize: dense ? 12 : 13,
-                        fontWeight: FontWeight.w700,
+                  SizedBox(height: dense ? 3 : 6),
+                  Align(
+                    alignment: Alignment.centerLeft,
+                    child: Tooltip(
+                      message: 'El gestor de contraseñas de tu dispositivo puede recordar el acceso.',
+                      child: InkWell(
+                        borderRadius: BorderRadius.circular(8),
+                        onTap: loading
+                            ? null
+                            : () => state._changeRememberPassword(!state._rememberPassword),
+                        child: Padding(
+                          padding: const EdgeInsets.symmetric(vertical: 3, horizontal: 2),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Icon(
+                                state._rememberPassword
+                                    ? Icons.check_box_rounded
+                                    : Icons.check_box_outline_blank_rounded,
+                                size: dense ? 19 : 21,
+                                color: state._rememberPassword
+                                    ? palette.primary
+                                    : palette.textSecondary,
+                              ),
+                              const SizedBox(width: 7),
+                              Text(
+                                'Recordar contraseña',
+                                style: TextStyle(
+                                  color: palette.textPrimary.withOpacity(0.85),
+                                  fontSize: dense ? 11.5 : 12.5,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
                       ),
                     ),
-                    subtitle: Text(
-                      'Usar el gestor de contraseñas del dispositivo o navegador',
-                      style: TextStyle(
-                        color: palette.textSecondary,
-                        fontSize: dense ? 10 : 11,
-                      ),
-                    ),
-                    value: state._rememberPassword,
-                    onChanged: loading
-                        ? null
-                        : (selected) => state._changeRememberPassword(selected ?? false),
                   ),
                   if (state._loginErrorMessage != null) ...[
                     SizedBox(height: dense ? 8 : 14),
