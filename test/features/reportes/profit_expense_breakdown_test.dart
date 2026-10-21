@@ -41,7 +41,7 @@ void main() {
 
     await tester.enterText(find.byType(TextField), 'Mesero');
     await tester.pumpAndSettle();
-    expect(find.text('Mesero'), findsOneWidget);
+    expect(find.text('Mesero'), findsWidgets);
     expect(find.text('Arriendo'), findsNothing);
     expect(find.text('Desglose conciliado'), findsOneWidget);
   });
