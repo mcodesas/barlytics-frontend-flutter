@@ -139,6 +139,48 @@ void main() {
     expect(text, isNot(contains('paquetes')));
   });
 
+  test('selector y WhatsApp muestran los mismos paquetes para una selección', () {
+    final product = <String, dynamic>{
+      'producto': 'Gaseosa',
+      'presentacion_compra': 'Unidad',
+      'unidades_por_presentacion': 12,
+    };
+    final selection = OrderWhatsappMessageFormatter.purchaseQuantityLabel(
+      product, presentations: 3, units: 36,
+    );
+    expect(selection, '3 paquetes x 12');
+    final message = formato(rows: [
+      {
+        ...product,
+        'presentaciones_pedir': 3,
+        'unidades_pedir': 36,
+      },
+    ]);
+    expect(message, contains('• *' + selection + '* — Gaseosa'));
+    expect(message, contains('Equivalente: 36 unidades'));
+  });
+
+  test('etiqueta antigua Unidad x 12 también se convierte en paquetes', () {
+    final qty = OrderWhatsappMessageFormatter.purchaseQuantityLabel({
+      'presentacion_compra': 'Unidad x 12',
+      'unidades_por_presentacion': 12,
+    }, presentations: 2, units: 24);
+    expect(qty, '2 paquetes x 12');
+  });
+
+  test('no duplica tamaño en paquetes de 6 o cajas de 24', () {
+    final package = OrderWhatsappMessageFormatter.purchaseQuantityLabel({
+      'presentacion_compra': 'Paquete de 6',
+      'unidades_por_presentacion': 6,
+    }, presentations: 3, units: 18);
+    expect(package, '3 paquetes de 6');
+    final crate = OrderWhatsappMessageFormatter.purchaseQuantityLabel({
+      'presentacion_compra': 'Caja de 24',
+      'unidades_por_presentacion': 24,
+    }, presentations: 2, units: 48);
+    expect(crate, '2 cajas de 24');
+  });
+
   test('conserva saltos de línea en observaciones del pedido', () {
     final text = formato(observation: 'Entregar mañana.\nDespués de las 10:00 a. m.');
     expect(
