@@ -379,7 +379,7 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       ),
       GoRoute(path: '/tablas_parametricas', builder: (context, state) => _setupAwareScaffold(ref, state, const TablasParametricasPage())),
       GoRoute(path: '/comandas', builder: (context, state) => AppScaffold(child: const ComandasPage())),
-      GoRoute(path: '/mesero', builder: (context, state) => AppScaffold(child: const MeseroPage())),
+      GoRoute(path: '/mesero', builder: (context, state) => AppScaffold(child: const MeseroPage(initialMode: MeseroPageMode.mesas))),
       GoRoute(path: '/mesero/productos', builder: (context, state) => AppScaffold(child: const MeseroPage(initialMode: MeseroPageMode.productos))),
       GoRoute(path: '/mesero/resumen', builder: (context, state) => AppScaffold(child: const MeseroPage(initialMode: MeseroPageMode.resumen))),
       GoRoute(path: '/mesero/historial', builder: (context, state) => AppScaffold(child: const MeseroPage(initialMode: MeseroPageMode.historial))),

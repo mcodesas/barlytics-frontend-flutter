@@ -11,6 +11,9 @@ import '../../../../core/branch/branch_scope_provider.dart';
 import '../../../../core/widgets/tech_background.dart';
 import '../../../navigation/data/models/user_menu_item.dart';
 import '../../../navigation/presentation/providers/user_menu_provider.dart';
+import '../../../navigation/presentation/providers/active_role_provider.dart';
+import '../../../navigation/presentation/providers/user_assigned_roles_provider.dart';
+import '../../../mesero/presentation/providers/mesero_tab_provider.dart';
 import '../../../profile/presentation/providers/profile_header_provider.dart';
 import '../../../sucursales/data/models/sucursales_response_model.dart';
 
@@ -51,7 +54,15 @@ class _RoleHomePageState extends ConsumerState<RoleHomePage> {
     final palette = ref.watch(selectedAppPaletteProvider);
     final branchState = ref.watch(branchScopeProvider);
     final profileAsync = ref.watch(profileHeaderProvider);
-    final profile = _RoleHomeProfile.resolve(widget.roles);
+    final roleOptions = ref.watch(userAssignedRolesProvider).valueOrNull ?? const <UserAssignedRole>[];
+    final selectedRoleKeys = ref.watch(selectedRolesProvider);
+    final customOptions = roleOptions.where((role) =>
+        role.isCustom &&
+        (selectedRoleKeys == null || selectedRoleKeys.contains(role.selectionKey))).toList();
+    final customName = customOptions.length == 1 &&
+        (selectedRoleKeys != null || roleOptions.length == 1)
+        ? customOptions.first.name : null;
+    final profile = _RoleHomeProfile.resolve(widget.roles, customName: customName);
     final availableItems = _buildAvailableItems(profile, widget.items);
     final featuredItems = _featuredItems(profile, availableItems);
     final workflow = _workflowFor(profile, availableItems);
@@ -90,7 +101,11 @@ class _RoleHomePageState extends ConsumerState<RoleHomePage> {
                             ref.read(branchScopeProvider.notifier).select(id),
                         onPrimaryAction: featuredItems.isEmpty
                             ? null
-                            : () => context.go(featuredItems.first.path),
+                            : () {
+                                final targetPath = featuredItems.first.path;
+                                selectMeseroModeForMenuPath(ref, targetPath);
+                                context.go(targetPath);
+                              },
                         primaryActionLabel: featuredItems.isEmpty
                             ? null
                             : featuredItems.first.title,
@@ -751,14 +766,14 @@ class _WorkflowGrid extends StatelessWidget {
   }
 }
 
-class _WorkflowCard extends StatelessWidget {
+class _WorkflowCard extends ConsumerWidget {
   const _WorkflowCard({required this.step, required this.palette});
 
   final _WorkflowStep step;
   final AppPalette palette;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final visual = ModuleVisuals.byKey(step.item.keyName);
     final accent = Color.lerp(visual.color, palette.secondary, 0.45) ??
         palette.secondary;
@@ -767,7 +782,10 @@ class _WorkflowCard extends StatelessWidget {
       borderRadius: BorderRadius.circular(palette.radius(21)),
       clipBehavior: Clip.antiAlias,
       child: InkWell(
-        onTap: () => context.go(step.item.path),
+        onTap: () {
+          selectMeseroModeForMenuPath(ref, step.item.path);
+          context.go(step.item.path);
+        },
         child: Container(
           constraints: const BoxConstraints(minHeight: 142),
           padding: const EdgeInsets.all(15),
@@ -865,14 +883,14 @@ class _FeaturedGrid extends StatelessWidget {
   }
 }
 
-class _FeaturedCard extends StatelessWidget {
+class _FeaturedCard extends ConsumerWidget {
   const _FeaturedCard({required this.item, required this.palette});
 
   final UserMenuItem item;
   final AppPalette palette;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final visual = ModuleVisuals.byKey(item.keyName);
     final accent = Color.lerp(visual.color, palette.secondary, 0.48) ??
         palette.secondary;
@@ -881,7 +899,10 @@ class _FeaturedCard extends StatelessWidget {
       borderRadius: BorderRadius.circular(palette.radius(22)),
       clipBehavior: Clip.antiAlias,
       child: InkWell(
-        onTap: () => context.go(item.path),
+        onTap: () {
+          selectMeseroModeForMenuPath(ref, item.path);
+          context.go(item.path);
+        },
         child: Container(
           constraints: const BoxConstraints(minHeight: 154),
           padding: const EdgeInsets.all(16),
@@ -975,14 +996,14 @@ class _AllModulesGrid extends StatelessWidget {
   }
 }
 
-class _ModuleTile extends StatelessWidget {
+class _ModuleTile extends ConsumerWidget {
   const _ModuleTile({required this.item, required this.palette});
 
   final UserMenuItem item;
   final AppPalette palette;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final visual = ModuleVisuals.byKey(item.keyName);
     final accent = Color.lerp(visual.color, palette.secondary, 0.50) ??
         palette.secondary;
@@ -991,7 +1012,10 @@ class _ModuleTile extends StatelessWidget {
       borderRadius: BorderRadius.circular(palette.radius(18)),
       clipBehavior: Clip.antiAlias,
       child: InkWell(
-        onTap: () => context.go(item.path),
+        onTap: () {
+          selectMeseroModeForMenuPath(ref, item.path);
+          context.go(item.path);
+        },
         child: Container(
           constraints: const BoxConstraints(minHeight: 112),
           padding: const EdgeInsets.all(13),
@@ -1095,7 +1119,7 @@ class _RoleHomeProfile {
   final Color color;
   final List<String> priority;
 
-  static _RoleHomeProfile resolve(List<String> roles) {
+  static _RoleHomeProfile resolve(List<String> roles, {String? customName}) {
     final normalized = roles.map(_normalizeRole).toList(growable: false);
     final hasInventory = normalized.any((role) =>
         role.contains('INVENTARIO') ||
@@ -1135,9 +1159,9 @@ class _RoleHomeProfile {
 
     if (normalized.any((role) =>
         role.replaceFirst('ROLE_', '') == 'PERSONALIZADO')) {
-      return const _RoleHomeProfile(
+      return _RoleHomeProfile(
         type: _RoleHomeType.custom,
-        label: 'Rol personalizado',
+        label: customName == null || customName.isEmpty ? 'Rol personalizado' : customName,
         subtitle:
             'Accede únicamente a las funciones configuradas específicamente para tu rol.',
         workflowSubtitle:
@@ -1275,9 +1299,7 @@ List<UserMenuItem> _buildAvailableItems(
     result.add(item);
   }
 
-  for (final item in _systemItemsFor(profile.type)) {
-    add(item);
-  }
+  // Los accesos siempre proceden del menú autorizado por el backend.
   for (final item in databaseItems) {
     add(item);
   }
@@ -1381,135 +1403,7 @@ List<_WorkflowStep> _workflowFor(
   return result;
 }
 
-List<UserMenuItem> _systemItemsFor(_RoleHomeType type) {
-  const mesas = UserMenuItem(
-    keyName: 'mesas',
-    title: 'Mesas',
-    path: '/mesero',
-    description: 'Abrir ventas y operar cuentas por mesa.',
-    system: true,
-  );
-  const productosMesero = UserMenuItem(
-    keyName: 'productos',
-    title: 'Productos',
-    path: '/mesero/productos',
-    description: 'Buscar y agregar productos a la cuenta.',
-    system: true,
-  );
-  const resumen = UserMenuItem(
-    keyName: 'resumen',
-    title: 'Resumen',
-    path: '/mesero/resumen',
-    description: 'Consultar mesas abiertas y saldos pendientes.',
-    system: true,
-  );
-  const historial = UserMenuItem(
-    keyName: 'ventas',
-    title: 'Historial',
-    path: '/mesero/historial',
-    description: 'Revisar ventas y pagos registrados.',
-    system: true,
-  );
-  const cierre = UserMenuItem(
-    keyName: 'cierres_caja',
-    title: 'Cierre de caja',
-    path: '/mesero/cierre-caja',
-    description: 'Validar y cerrar la operación de caja.',
-    system: true,
-  );
 
-
-  return switch (type) {
-    _RoleHomeType.waiter => const [mesas, productosMesero, resumen],
-    _RoleHomeType.cashier =>
-      const [mesas, productosMesero, resumen, historial, cierre],
-    _RoleHomeType.inventory => const [
-        UserMenuItem(
-          keyName: 'inventario',
-          title: 'Inventario',
-          path: '/inventario',
-          description: 'Consultar existencias por sucursal.',
-          system: true,
-        ),
-        UserMenuItem(
-          keyName: 'productos',
-          title: 'Productos',
-          path: '/productos',
-          description: 'Administrar el catálogo de productos.',
-          system: true,
-        ),
-        UserMenuItem(
-          keyName: 'movimientos',
-          title: 'Movimientos',
-          path: '/movimientos',
-          description: 'Registrar entradas, salidas y ajustes.',
-          system: true,
-        ),
-        UserMenuItem(
-          keyName: 'proximo_pedido',
-          title: 'Próximo pedido',
-          path: '/proximo_pedido',
-          description: 'Consultar reposición sugerida.',
-          system: true,
-        ),
-        UserMenuItem(
-          keyName: 'precios',
-          title: 'Precios',
-          path: '/precios',
-          description: 'Consultar y actualizar precios.',
-          system: true,
-        ),
-        UserMenuItem(
-          keyName: 'reportes',
-          title: 'Reportes',
-          path: '/reportes',
-          description: 'Revisar indicadores de inventario.',
-          system: true,
-        ),
-      ],
-    _RoleHomeType.prices => const [
-        UserMenuItem(
-          keyName: 'precios',
-          title: 'Precios',
-          path: '/precios',
-          description: 'Actualizar precios vigentes.',
-          system: true,
-        ),
-        UserMenuItem(
-          keyName: 'productos',
-          title: 'Productos',
-          path: '/productos',
-          description: 'Consultar productos y presentaciones.',
-          system: true,
-        ),
-      ],
-    _RoleHomeType.movements => const [
-        UserMenuItem(
-          keyName: 'movimientos',
-          title: 'Movimientos',
-          path: '/movimientos',
-          description: 'Registrar entradas, salidas y ajustes.',
-          system: true,
-        ),
-        UserMenuItem(
-          keyName: 'inventario',
-          title: 'Inventario',
-          path: '/inventario',
-          description: 'Verificar existencias actuales.',
-          system: true,
-        ),
-        UserMenuItem(
-          keyName: 'productos',
-          title: 'Productos',
-          path: '/productos',
-          description: 'Consultar productos y presentaciones.',
-          system: true,
-        ),
-      ],
-    _RoleHomeType.admin => const [],
-    _RoleHomeType.custom => const [],
-  };
-}
 
 UserMenuItem? _findByKey(List<UserMenuItem> items, String key) {
   for (final item in items) {

@@ -32,6 +32,7 @@ class _GastosFijosPageState extends ConsumerState<GastosFijosPage> {
   double laborToday = 0;
   double laborMonthly = 0;
   int laborCargoCount = 0;
+  bool laborSummaryError = false;
 
   static const _categories = <String>[
     'Arriendo',
@@ -78,26 +79,6 @@ class _GastosFijosPageState extends ConsumerState<GastosFijosPage> {
         .toList();
   }
 
-  bool _rateIsActiveOn(Map<String, dynamic> rate, DateTime date) {
-    final from = DateTime.tryParse(
-      rate['gafdVigenciaDesde']?.toString() ?? '',
-    );
-    final until = DateTime.tryParse(
-      rate['gafdVigenciaHasta']?.toString() ?? '',
-    );
-    if (from == null) return false;
-
-    final day = DateTime(date.year, date.month, date.day);
-    final fromDay = DateTime(from.year, from.month, from.day);
-    if (fromDay.isAfter(day)) return false;
-
-    if (until != null) {
-      final untilDay = DateTime(until.year, until.month, until.day);
-      if (untilDay.isBefore(day)) return false;
-    }
-    return true;
-  }
-
   Future<void> _loadLaborSummary(Map<String, dynamic>? laborExpense) async {
     if (laborExpense == null || !mounted) {
       if (mounted) {
@@ -105,6 +86,7 @@ class _GastosFijosPageState extends ConsumerState<GastosFijosPage> {
           laborToday = 0;
           laborMonthly = 0;
           laborCargoCount = 0;
+          laborSummaryError = false;
         });
       }
       return;
@@ -112,71 +94,50 @@ class _GastosFijosPageState extends ConsumerState<GastosFijosPage> {
 
     final api = ref.read(apiClientProvider);
     try {
+      final expenseId = laborExpense['gafiId'];
       final cargoResponse = await api.get<List<Map<String, dynamic>>>(
-        '/api/v1/gastos-fijos/${laborExpense['gafiId']}/cargos',
+        '/api/v1/gastos-fijos/$expenseId/cargos',
         _parseMapList,
       );
       final cargos = cargoResponse.data ?? <Map<String, dynamic>>[];
+      final rateResponse = await api.get<List<Map<String, dynamic>>>(
+        '/api/v1/gastos-fijos/$expenseId/tarifas',
+        _parseMapList,
+      );
+      final ratesByCargo = <String, List<Map<String, dynamic>>>{};
+      for (final rate in rateResponse.data ?? <Map<String, dynamic>>[]) {
+        final id = rate['gafcId']?.toString() ?? '';
+        if (id.isNotEmpty) ratesByCargo.putIfAbsent(id, () => []).add(rate);
+      }
 
       final today = DateTime.now();
-      final todayWeekday = today.weekday;
+      final lastDay = DateTime(today.year, today.month + 1, 0).day;
       var todayTotal = 0.0;
-      var weeklyTotal = 0.0;
-
-      for (final cargo in cargos) {
-        final cargoId = cargo['gafcId'];
-        final rateResponse = await api.get<List<Map<String, dynamic>>>(
-          '/api/v1/gastos-fijos/cargos/$cargoId/tarifas',
-          _parseMapList,
-        );
-        final allRates = rateResponse.data ?? <Map<String, dynamic>>[];
-
-        for (var weekday = 1; weekday <= 7; weekday++) {
-          final candidates = allRates
-              .where((rate) {
-                final rateDay = (rate['gafdDiaSemana'] as num?)?.toInt() ??
-                    int.tryParse(
-                          rate['gafdDiaSemana']?.toString() ?? '',
-                        ) ??
-                    0;
-                return rateDay == weekday && _rateIsActiveOn(rate, today);
-              })
-              .toList()
-            ..sort((a, b) {
-              final ad = DateTime.tryParse(
-                    a['gafdVigenciaDesde']?.toString() ?? '',
-                  ) ??
-                  DateTime(1900);
-              final bd = DateTime.tryParse(
-                    b['gafdVigenciaDesde']?.toString() ?? '',
-                  ) ??
-                  DateTime(1900);
-              return bd.compareTo(ad);
-            });
-
-          if (candidates.isEmpty) continue;
-          final amount = _number(candidates.first['gafdValor']);
-          weeklyTotal += amount;
-          if (weekday == todayWeekday) {
-            todayTotal += amount;
-          }
+      var monthTotal = 0.0;
+      // Incluir también el costo histórico de cargos hoy inactivos.
+      for (final rateList in ratesByCargo.values) {
+        todayTotal += costoManoObraEnFecha(rateList, today);
+        for (var day = 1; day <= lastDay; day++) {
+          monthTotal += costoManoObraEnFecha(
+              rateList, DateTime(today.year, today.month, day));
         }
       }
 
       if (!mounted) return;
       setState(() {
         laborToday = todayTotal;
-        laborMonthly = weeklyTotal * (30.4375 / 7);
+        laborMonthly = monthTotal;
         laborCargoCount = cargos.length;
+        laborSummaryError = false;
       });
     } catch (error) {
       debugPrint('Error calculando resumen de mano de obra: $error');
       if (!mounted) return;
       setState(() {
-        laborToday = 0;
-        laborMonthly = 0;
-        laborCargoCount = 0;
+        // Un fallo HTTP no significa que el costo real sea cero.
+        laborSummaryError = true;
       });
+      _message('No se pudo consultar el costo de mano de obra. Reintenta actualizar.', error: true);
     }
   }
 
@@ -190,6 +151,7 @@ class _GastosFijosPageState extends ConsumerState<GastosFijosPage> {
           laborToday = 0;
           laborMonthly = 0;
           laborCargoCount = 0;
+          laborSummaryError = false;
           loading = false;
         });
       }
@@ -669,6 +631,7 @@ class _GastosFijosPageState extends ConsumerState<GastosFijosPage> {
                     laborToday: laborToday,
                     laborMonthly: laborMonthly,
                     laborCargoCount: laborCargoCount,
+                    laborSummaryError: laborSummaryError,
                     money: money,
                   ),
                 ),
@@ -728,6 +691,8 @@ class _GastosFijosPageState extends ConsumerState<GastosFijosPage> {
                                 _isLabor(item) ? laborMonthly : null,
                             laborCargoCount:
                                 _isLabor(item) ? laborCargoCount : null,
+                            laborSummaryError:
+                                _isLabor(item) && laborSummaryError,
                           ),
                         ),
                       );
@@ -837,6 +802,7 @@ class _Summary extends StatelessWidget {
   final double laborToday;
   final double laborMonthly;
   final int laborCargoCount;
+  final bool laborSummaryError;
   final NumberFormat money;
 
   const _Summary({
@@ -847,6 +813,7 @@ class _Summary extends StatelessWidget {
     required this.laborToday,
     required this.laborMonthly,
     required this.laborCargoCount,
+    required this.laborSummaryError,
     required this.money,
   });
 
@@ -870,13 +837,17 @@ class _Summary extends StatelessWidget {
               palette: palette,
               icon: Icons.groups_2_outlined,
               label: 'Mano de obra · hoy',
-              value: hasLabor
-                  ? money.format(laborToday)
-                  : 'Sin configurar',
-              subtitle: hasLabor
-                  ? '${money.format(laborMonthly)} / mes aprox. · '
-                      '$laborCargoCount cargo${laborCargoCount == 1 ? '' : 's'}'
-                  : null,
+              value: !hasLabor
+                  ? 'Sin configurar'
+                  : laborSummaryError
+                      ? 'No disponible'
+                      : money.format(laborToday),
+              subtitle: !hasLabor
+                  ? null
+                  : laborSummaryError
+                      ? 'No se pudieron consultar las tarifas'
+                      : '${money.format(laborMonthly)} / mes actual · '
+                          '$laborCargoCount cargo${laborCargoCount == 1 ? '' : 's'}',
             ),
           ];
 
@@ -1055,6 +1026,7 @@ class _Expense extends StatelessWidget {
   final double? laborToday;
   final double? laborMonthly;
   final int? laborCargoCount;
+  final bool laborSummaryError;
 
   const _Expense({
     required this.item,
@@ -1066,6 +1038,7 @@ class _Expense extends StatelessWidget {
     this.laborToday,
     this.laborMonthly,
     this.laborCargoCount,
+    this.laborSummaryError = false,
   });
 
   @override
@@ -1181,7 +1154,9 @@ class _Expense extends StatelessWidget {
                     badge,
                     Text(
                       labor
-                          ? 'Hoy ${money.format(laborToday ?? 0)} · Mes aprox. ${money.format(laborMonthly ?? 0)}'
+                          ? laborSummaryError
+                              ? 'Costo no disponible'
+                              : 'Hoy ${money.format(laborToday ?? 0)} · Mes aprox. ${money.format(laborMonthly ?? 0)}'
                           : money.format(value),
                       style: TextStyle(
                         color: palette.textPrimary,
@@ -1204,7 +1179,9 @@ class _Expense extends StatelessWidget {
                 width: labor ? 210 : 150,
                 child: Text(
                   labor
-                      ? 'Hoy ${money.format(laborToday ?? 0)}\nMes ${money.format(laborMonthly ?? 0)}'
+                      ? laborSummaryError
+                          ? 'Costo no disponible'
+                          : 'Hoy ${money.format(laborToday ?? 0)}\nMes ${money.format(laborMonthly ?? 0)}'
                       : money.format(value),
                   textAlign: TextAlign.right,
                   style: TextStyle(
@@ -1253,7 +1230,9 @@ class _LaborDialogState extends State<_LaborDialog> {
   bool saving = false;
   String? loadWarning;
   Set<int> days = {1, 2, 3, 4, 5};
+  String rateMode = 'RECURRENTE';
   DateTime effective = DateTime.now();
+  DateTime? endDate;
 
   @override
   void initState() {
@@ -1345,41 +1324,34 @@ class _LaborDialogState extends State<_LaborDialog> {
 
   Future<void> _loadRates(List<Map<String, dynamic>> loaded) async {
     if (loaded.isEmpty || !mounted) return;
-
-    final loadedRates = <String, List<Map<String, dynamic>>>{};
-    var failedRateLoads = 0;
-
-    for (final cargo in loaded) {
-      if (!mounted) return;
-      final cargoId = cargo['gafcId'];
-      try {
-        final response = await widget.api.get<List<Map<String, dynamic>>>(
-          '/api/v1/gastos-fijos/cargos/$cargoId/tarifas',
-          _parseMapList,
-        );
-        loadedRates[cargoId.toString()] =
-            response.data ?? <Map<String, dynamic>>[];
-      } catch (error) {
-        debugPrint('Error cargando tarifas del cargo $cargoId: $error');
-        failedRateLoads++;
-        loadedRates[cargoId.toString()] = <Map<String, dynamic>>[];
+    try {
+      final response = await widget.api.get<List<Map<String, dynamic>>>(
+        '/api/v1/gastos-fijos/${widget.gasto['gafiId']}/tarifas',
+        _parseMapList,
+      );
+      final grouped = <String, List<Map<String, dynamic>>>{};
+      for (final rate in response.data ?? <Map<String, dynamic>>[]) {
+        final key = rate['gafcId']?.toString() ?? '';
+        if (key.isNotEmpty) {
+          grouped.putIfAbsent(key, () => []).add(rate);
+        }
       }
+      if (!mounted) return;
+      setState(() {
+        rates = {
+          for (final cargo in cargos)
+            cargo['gafcId'].toString():
+                grouped[cargo['gafcId'].toString()] ?? <Map<String, dynamic>>[],
+        };
+        loadWarning = null;
+      });
+    } catch (error) {
+      debugPrint('Error cargando tarifas de mano de obra: $error');
+      if (!mounted) return;
+      setState(() {
+        loadWarning = 'Los cargos están disponibles, pero no se pudo cargar el historial de tarifas. Reintenta la consulta.';
+      });
     }
-
-    if (!mounted) return;
-    setState(() {
-      rates = {
-        for (final cargo in cargos)
-          cargo['gafcId'].toString():
-              loadedRates[cargo['gafcId'].toString()] ??
-                  <Map<String, dynamic>>[],
-      };
-      loadWarning = failedRateLoads == 0
-          ? null
-          : failedRateLoads == 1
-              ? 'Los cargos se cargaron correctamente, pero una tarifa no pudo consultarse. Puedes seguir trabajando y reintentar.'
-              : 'Los cargos se cargaron correctamente, pero algunas tarifas no pudieron consultarse. Puedes seguir trabajando y reintentar.';
-    });
   }
 
   Future<void> _addRole() async {
@@ -1615,12 +1587,18 @@ class _LaborDialogState extends State<_LaborDialog> {
   }
 
   Future<void> _saveRate() async {
-    if (selected == null || days.isEmpty || saving) return;
+    if (selected == null || (rateMode == 'RECURRENTE' && days.isEmpty) || saving) return;
 
     final raw = value.text.replaceAll('.', '').replaceAll(',', '.');
     final amount = double.tryParse(raw);
     if (amount == null || amount < 0) {
       _message('Ingresa un valor válido para la tarifa.', error: true);
+      return;
+    }
+
+    if (rateMode == 'PERIODO' &&
+        (endDate == null || endDate!.isBefore(DateTime(effective.year, effective.month, effective.day)))) {
+      _message('Selecciona una fecha final igual o posterior a la inicial.', error: true);
       return;
     }
 
@@ -1630,9 +1608,12 @@ class _LaborDialogState extends State<_LaborDialog> {
       await widget.api.post<Object?>(
         '/api/v1/gastos-fijos/cargos/$cargoId/tarifas',
         {
-          'diasSemana': days.toList()..sort(),
+          'modo': rateMode,
+          if (rateMode == 'RECURRENTE') 'diasSemana': days.toList()..sort(),
           'valor': amount,
           'vigenciaDesde': DateFormat('yyyy-MM-dd').format(effective),
+          if (rateMode == 'PERIODO')
+            'vigenciaHasta': DateFormat('yyyy-MM-dd').format(endDate!),
         },
         (json) => json,
       );
@@ -1848,13 +1829,38 @@ class _LaborDialogState extends State<_LaborDialog> {
           ],
         ),
         Text(
-          'Define cuánto cuesta un día de trabajo para este cargo. Puedes usar una combinación rápida o seleccionar días individualmente.',
+          'Define cuánto cuesta un día de trabajo. Puedes registrarlo por una sola fecha, un período o una recurrencia semanal.',
           style: TextStyle(
             color: widget.palette.textSecondary,
             height: 1.3,
           ),
         ),
         const SizedBox(height: 12),
+        Wrap(
+          spacing: 8,
+          runSpacing: 8,
+          children: [
+            ChoiceChip(
+              label: const Text('Recurrente'),
+              selected: rateMode == 'RECURRENTE',
+              onSelected: (_) => setState(() => rateMode = 'RECURRENTE'),
+            ),
+            ChoiceChip(
+              label: const Text('Un día'),
+              selected: rateMode == 'DIA',
+              onSelected: (_) => setState(() => rateMode = 'DIA'),
+            ),
+            ChoiceChip(
+              label: const Text('Período'),
+              selected: rateMode == 'PERIODO',
+              onSelected: (_) => setState(() {
+                rateMode = 'PERIODO';
+                endDate ??= effective;
+              }),
+            ),
+          ],
+        ),
+        if (rateMode == 'RECURRENTE') ...[
         Wrap(
           spacing: 8,
           runSpacing: 8,
@@ -1901,6 +1907,7 @@ class _LaborDialogState extends State<_LaborDialog> {
             );
           }),
         ),
+        ],
         const SizedBox(height: 12),
         LayoutBuilder(
           builder: (_, constraints) {
@@ -1910,7 +1917,7 @@ class _LaborDialogState extends State<_LaborDialog> {
               keyboardType:
                   const TextInputType.numberWithOptions(decimal: true),
               decoration: const InputDecoration(
-                labelText: 'Valor por día seleccionado',
+                labelText: 'Costo diario del cargo',
                 prefixIcon: Icon(Icons.payments_outlined),
               ),
             );
@@ -1927,33 +1934,68 @@ class _LaborDialogState extends State<_LaborDialog> {
                         lastDate: DateTime(2100),
                       );
                       if (picked != null) {
-                        setState(() => effective = picked);
+                        setState(() {
+                           effective = picked;
+                           if (endDate != null && endDate!.isBefore(picked)) {
+                             endDate = picked;
+                           }
+                         });
                       }
                     },
               child: InputDecorator(
-                decoration: const InputDecoration(
-                  labelText: 'Vigente desde',
-                  prefixIcon: Icon(Icons.calendar_today_outlined),
+                decoration: InputDecoration(
+                  labelText: rateMode == 'RECURRENTE'
+                      ? 'Vigente desde'
+                      : rateMode == 'DIA' ? 'Fecha de trabajo' : 'Fecha inicial',
+                  prefixIcon: const Icon(Icons.calendar_today_outlined),
                 ),
                 child: Text(DateFormat('dd/MM/yyyy').format(effective)),
               ),
             );
 
-            if (constraints.maxWidth < 570) {
+            final endPicker = InkWell(
+              borderRadius: BorderRadius.circular(12),
+              onTap: saving
+                  ? null
+                  : () async {
+                      final picked = await showDatePicker(
+                        context: context,
+                        initialDate: endDate != null && !endDate!.isBefore(effective)
+                            ? endDate! : effective,
+                        firstDate: effective,
+                        lastDate: DateTime(2100),
+                      );
+                      if (picked != null) setState(() => endDate = picked);
+                    },
+              child: InputDecorator(
+                decoration: const InputDecoration(
+                  labelText: 'Fecha final (incluida)',
+                  prefixIcon: Icon(Icons.event_outlined),
+                ),
+                child: Text(endDate == null
+                    ? 'Seleccionar'
+                    : DateFormat('dd/MM/yyyy').format(endDate!)),
+              ),
+            );
+
+            final saveButton = FilledButton.icon(
+              onPressed: saving ? null : _saveRate,
+              icon: const Icon(Icons.save_outlined),
+              label: const Text('Guardar tarifa'),
+            );
+            if (constraints.maxWidth < 720) {
               return Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
                   amount,
                   const SizedBox(height: 10),
                   date,
+                  if (rateMode == 'PERIODO') ...[
+                    const SizedBox(height: 10),
+                    endPicker,
+                  ],
                   const SizedBox(height: 10),
-                  SizedBox(
-                    width: double.infinity,
-                    child: FilledButton.icon(
-                      onPressed: saving ? null : _saveRate,
-                      icon: const Icon(Icons.save_outlined),
-                      label: const Text('Aplicar tarifa'),
-                    ),
-                  ),
+                  saveButton,
                 ],
               );
             }
@@ -1962,13 +2004,13 @@ class _LaborDialogState extends State<_LaborDialog> {
               children: [
                 Expanded(child: amount),
                 const SizedBox(width: 10),
-                SizedBox(width: 190, child: date),
+                SizedBox(width: 175, child: date),
+                if (rateMode == 'PERIODO') ...[
+                  const SizedBox(width: 10),
+                  SizedBox(width: 175, child: endPicker),
+                ],
                 const SizedBox(width: 10),
-                FilledButton.icon(
-                  onPressed: saving ? null : _saveRate,
-                  icon: const Icon(Icons.save_outlined),
-                  label: const Text('Aplicar'),
-                ),
+                saveButton,
               ],
             );
           },
@@ -2130,11 +2172,23 @@ class _RatesList extends StatelessWidget {
       );
     }
 
+    // Un PERIODO se guarda con hasta siete filas (una por día semanal),
+    // pero representa una sola decisión de negocio en el historial.
+    final unique = <String, Map<String, dynamic>>{};
+    for (final rate in rates) {
+      final modo = rate['gafdModo']?.toString() ?? 'RECURRENTE';
+      final key = modo == 'PERIODO'
+          ? 'PERIODO|${rate['gafdVigenciaDesde']}|${rate['gafdVigenciaHasta']}|${rate['gafdValor']}'
+          : 'TARIFA|${rate['gafdId']}';
+      unique.putIfAbsent(key, () => rate);
+    }
+    final visibleRates = unique.values.toList(growable: false);
+
     return ListView.separated(
-      itemCount: rates.length,
+      itemCount: visibleRates.length,
       separatorBuilder: (_, __) => const SizedBox(height: 7),
       itemBuilder: (_, index) {
-        final rate = rates[index];
+        final rate = visibleRates[index];
         final day = (rate['gafdDiaSemana'] as num?)?.toInt() ??
             int.tryParse(rate['gafdDiaSemana']?.toString() ?? '') ??
             0;
@@ -2143,6 +2197,7 @@ class _RatesList extends StatelessWidget {
             0;
         final from = rate['gafdVigenciaDesde']?.toString() ?? '';
         final until = rate['gafdVigenciaHasta']?.toString();
+        final modo = rate['gafdModo']?.toString() ?? 'RECURRENTE';
 
         return Container(
           padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
@@ -2154,7 +2209,11 @@ class _RatesList extends StatelessWidget {
             children: [
               Expanded(
                 child: Text(
-                  day >= 1 && day <= 7 ? names[day] : 'Día $day',
+                  modo == 'DIA'
+                      ? 'Día único'
+                      : modo == 'PERIODO'
+                          ? 'Período'
+                          : (day >= 1 && day <= 7 ? names[day] : 'Día $day'),
                   style: TextStyle(
                     color: palette.textPrimary,
                     fontWeight: FontWeight.w700,
@@ -2187,4 +2246,50 @@ class _RatesList extends StatelessWidget {
       },
     );
   }
+}
+
+/// Selecciona una única tarifa por cargo y fecha sin doble conteo.
+/// Una excepción puntual tiene prioridad sobre un período y ambos
+/// prevalecen frente a la tarifa recurrente de la misma fecha.
+double costoManoObraEnFecha(
+    Iterable<Map<String, dynamic>> tarifas, DateTime fecha) {
+  int dia = fecha.weekday;
+  DateTime normalize(DateTime x) => DateTime(x.year, x.month, x.day);
+  int prioridad(String? tipo) {
+    if (tipo == 'DIA') return 0;
+    if (tipo == 'PERIODO') return 1;
+    return 2;
+  }
+
+  final disponibles = tarifas.where((tarifa) {
+    final rawDia = tarifa['gafdDiaSemana'];
+    final diaTarifa = rawDia is num ? rawDia.toInt() :
+        int.tryParse(rawDia?.toString() ?? '') ?? 0;
+    final desde = DateTime.tryParse(tarifa['gafdVigenciaDesde']?.toString() ?? '');
+    final hasta = DateTime.tryParse(tarifa['gafdVigenciaHasta']?.toString() ?? '');
+    return diaTarifa == dia &&
+        desde != null &&
+        !normalize(desde).isAfter(normalize(fecha)) &&
+        (hasta == null || !normalize(hasta).isBefore(normalize(fecha)));
+  }).toList();
+
+  if (disponibles.isEmpty) return 0;
+  disponibles.sort((a, b) {
+    final byType = prioridad(a['gafdModo']?.toString())
+        .compareTo(prioridad(b['gafdModo']?.toString()));
+    if (byType != 0) return byType;
+    final fromA = a['gafdVigenciaDesde']?.toString() ?? '';
+    final fromB = b['gafdVigenciaDesde']?.toString() ?? '';
+    final byDate = fromB.compareTo(fromA);
+    if (byDate != 0) return byDate;
+    final rawIdA = a['gafdId'];
+    final rawIdB = b['gafdId'];
+    final idA = rawIdA is num ? rawIdA.toInt() : int.tryParse(rawIdA?.toString() ?? '') ?? 0;
+    final idB = rawIdB is num ? rawIdB.toInt() : int.tryParse(rawIdB?.toString() ?? '') ?? 0;
+    return idB.compareTo(idA);
+  });
+  final amount = disponibles.first['gafdValor'];
+  return amount is num
+      ? amount.toDouble()
+      : double.tryParse(amount?.toString() ?? '') ?? 0;
 }

@@ -8,6 +8,10 @@ class UserMenuItem {
     this.roleId,
     this.optionId,
     this.roles = const <String>[],
+    this.roleTypes = const <String>[],
+    this.roleIds = const <int>[],
+    this.customOrderByRole = const <int, int>{},
+    this.customOrder,
     this.groupCode = 'OTROS',
     this.groupName = 'Otros',
     this.groupIcon = 'more_horiz',
@@ -30,6 +34,10 @@ class UserMenuItem {
   final int? roleId;
   final int? optionId;
   final List<String> roles;
+  final List<String> roleTypes;
+  final List<int> roleIds;
+  final Map<int, int> customOrderByRole;
+  final int? customOrder;
   final String groupCode;
   final String groupName;
   final String groupIcon;
@@ -55,6 +63,13 @@ class UserMenuItem {
       roleId: _toInt(json['roleId']),
       optionId: _toInt(json['opcionId']),
       roles: (json['roles'] as List? ?? const <Object?>[]).map((e) => e.toString()).toList(growable: false),
+      roleTypes: (json['tiposRoles'] as List? ?? const <Object?>[]).map((e) => e.toString()).toList(growable: false),
+      roleIds: (json['roleIds'] as List? ?? const <Object?>[])
+          .map(_toInt).whereType<int>().toList(growable: false),
+      customOrderByRole: (json['ordenPorRol'] as Map? ?? const <Object?, Object?>{})
+          .map((key, value) => MapEntry(int.tryParse(key.toString()) ?? -1, _toInt(value) ?? 0))
+          ..remove(-1),
+      customOrder: _toInt(json['ordenPersonalizado']),
       groupCode: _text(json['grupoCodigo'], 'OTROS'),
       groupName: _text(json['grupoNombre'], 'Otros'),
       groupIcon: _text(json['grupoIcono'], 'more_horiz'),
@@ -74,6 +89,10 @@ class UserMenuItem {
     String? title,
     String? path,
     List<String>? roles,
+    List<String>? roleTypes,
+    List<int>? roleIds,
+    Map<int, int>? customOrderByRole,
+    int? customOrder,
     String? groupCode,
     String? groupName,
     String? groupIcon,
@@ -95,6 +114,10 @@ class UserMenuItem {
         roleId: roleId,
         optionId: optionId,
         roles: roles ?? this.roles,
+        roleTypes: roleTypes ?? this.roleTypes,
+        roleIds: roleIds ?? this.roleIds,
+        customOrderByRole: customOrderByRole ?? this.customOrderByRole,
+        customOrder: customOrder ?? this.customOrder,
         groupCode: groupCode ?? this.groupCode,
         groupName: groupName ?? this.groupName,
         groupIcon: groupIcon ?? this.groupIcon,

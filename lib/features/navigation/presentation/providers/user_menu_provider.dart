@@ -5,6 +5,7 @@ import '../../../auth/presentation/providers/auth_provider.dart';
 import '../../data/models/user_menu_item.dart';
 import '../../data/repositories/user_menu_repository.dart';
 import 'active_role_provider.dart';
+import 'user_assigned_roles_provider.dart';
 
 final userMenuRepositoryProvider = Provider<UserMenuRepository>((ref) {
   return UserMenuRepository(ref.watch(apiClientProvider));
@@ -21,61 +22,26 @@ final userMenuProvider = FutureProvider<List<UserMenuItem>>((ref) async {
   final hasCustomRole = activeRoles.any(
     (role) => normalizeRoleName(role) == 'PERSONALIZADO',
   );
+  final selection = ref.watch(selectedRolesProvider);
+  final customIds = selection?.map(customRoleIdFromSelection)
+          .whereType<int>().toSet() ?? <int>{};
+  final onlyCustomView = hasCustomRole && activeRoles.length == 1 &&
+      (selection == null || (selection.length == 1 &&
+          (customIds.length == 1 ||
+           selection.any((value) => normalizeRoleName(value) == 'PERSONALIZADO'))));
+
   final allItems = await ref.watch(userMenuRepositoryProvider).findMyMenu(
-        preserveBackendOrder: hasCustomRole && activeRoles.length == 1,
+        preserveBackendOrder: onlyCustomView,
       );
-  final filteredItems = activeRoles.length == authState.roles.length
-      ? allItems
-      : allItems.where((item) {
-          if (item.roles.isEmpty) return true;
-          return item.roles.any((role) => roleMatches(role, activeRoles));
-        }).toList(growable: false);
+  final filteredItems = filterMenusBySelectedRoles(allItems, selection);
+
+  final customFiltered = onlyCustomView
+      ? orderMenusForCustomRole(filteredItems,
+          roleId: customIds.length == 1 ? customIds.first : null)
+      : filteredItems;
 
   final normalizedActive = activeRoles.map(normalizeRoleName).toSet();
-  final canUseCommands = normalizedActive.any((role) => const {
-        'MESERO',
-        'MESERA',
-        'CAJERO',
-        'CAJERA',
-        'VENDEDOR',
-        'VENDEDORA',
-        'VENTAS',
-        'SELLER',
-        'GERENTE',
-        'MANAGER',
-        'SUPERVISOR',
-        'COCINA',
-        'BARRA',
-        'COMANDAS',
-        'ADMIN',
-        'ADMINISTRADOR',
-        'SUPERADMIN',
-        'SUPER_ADMIN',
-      }.contains(role));
-
-  final withCommands = canUseCommands &&
-          !filteredItems.any((item) => item.keyName == 'comandas')
-      ? <UserMenuItem>[
-          ...filteredItems,
-          const UserMenuItem(
-            keyName: 'comandas',
-            title: 'Comandas',
-            path: '/comandas',
-            description: 'Pedidos pendientes de Cocina y Barra',
-            groupCode: 'OPERACION',
-            groupName: 'Operación',
-            groupIcon: 'room_service',
-            groupOrder: 2,
-            menuOrder: 4,
-            bottomCode: 'COMANDAS',
-            bottomName: 'Comandas',
-            bottomIcon: 'room_service',
-            bottomOrder: 4,
-            bottomVisible: true,
-            system: true,
-          ),
-        ]
-      : filteredItems;
+  final withCommands = customFiltered;
 
   final commandsOnly = normalizedActive.isNotEmpty &&
       normalizedActive.every(
@@ -87,35 +53,49 @@ final userMenuProvider = FutureProvider<List<UserMenuItem>>((ref) async {
         .toList(growable: false);
   }
 
-  final operationalOnly = normalizedActive.isNotEmpty &&
-      normalizedActive.every((role) => const {
-            'INVENTARIO',
-            'INVENTORY',
-            'BODEGA',
-            'ALMACEN',
-            'MOVIMIENTOS',
-            'MOVIMIENTO',
-          }.contains(role));
-
-  if (!operationalOnly) return withCommands;
-
-  return withCommands.map((item) {
-    if (item.keyName == 'inventario' &&
-        normalizedActive.any((role) => const {
-              'INVENTARIO',
-              'INVENTORY',
-              'BODEGA',
-              'ALMACEN',
-            }.contains(role))) {
-      return item.copyWith(title: 'Tomar inventario');
-    }
-    if (item.keyName == 'productos' &&
-        normalizedActive.any((role) => const {
-              'MOVIMIENTOS',
-              'MOVIMIENTO',
-            }.contains(role))) {
-      return item.copyWith(title: 'Registrar movimientos');
-    }
-    return item;
-  }).toList(growable: false);
+  // Los nombres y destinos se toman exclusivamente de commerce.menus.
+  return withCommands;
 });
+
+
+/// Respeta la secuencia guardada en OPCIONMENU para cada rol personalizado.
+/// El menú 'home' no se inserta ni se reordena artificialmente.
+List<UserMenuItem> orderMenusForCustomRole(
+    Iterable<UserMenuItem> items, {int? roleId}) {
+  final ordered = List<UserMenuItem>.of(items);
+  int position(UserMenuItem item) => roleId == null
+      ? item.customOrder ?? 0x7fffffff
+      : item.customOrderByRole[roleId] ?? 0x7fffffff;
+  ordered.sort((a, b) {
+    final byConfiguredOrder = position(a).compareTo(position(b));
+    if (byConfiguredOrder != 0) return byConfiguredOrder;
+    return a.menuOrder.compareTo(b.menuOrder);
+  });
+  return ordered;
+}
+
+
+/// Selecciona permisos de un rol PERSONALIZADO por ID, nunca por nombre ni
+/// por su categoría genérica. Permite varios roles propios simultáneos sin
+/// filtrar los módulos de otro rol personalizado de la misma empresa.
+List<UserMenuItem> filterMenusBySelectedRoles(
+    Iterable<UserMenuItem> items, Set<String>? selected) {
+  if (selected == null) return items.toList(growable: false);
+  final customIds = selected.map(customRoleIdFromSelection)
+      .whereType<int>().toSet();
+  final systemIds = selected.map(systemRoleIdFromSelection)
+      .whereType<int>().toSet();
+  // Compatibilidad con valores de selección anteriores al despliegue.
+  final legacyNames = selected.where((key) =>
+      customRoleIdFromSelection(key) == null &&
+      systemRoleIdFromSelection(key) == null).toList();
+  final legacyCustom = customIds.isEmpty && legacyNames.any(
+      (key) => normalizeRoleName(key) == 'PERSONALIZADO');
+  return items.where((item) =>
+      item.roleIds.any(customIds.contains) ||
+      item.roleIds.any(systemIds.contains) ||
+      item.roles.any((role) => roleMatches(role, legacyNames)) ||
+      (legacyCustom && item.roleTypes.any(
+          (type) => normalizeRoleName(type) == 'PERSONALIZADO'))
+  ).toList(growable: false);
+}

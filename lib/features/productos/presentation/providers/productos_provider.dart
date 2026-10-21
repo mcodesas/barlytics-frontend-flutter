@@ -176,12 +176,15 @@ class ProductosPagedNotifier extends StateNotifier<ProductosPagedState> {
     this._repository,
     this._apiClient, {
     bool autoLoad = true,
+    this.requireSucursal = false,
   }) : super(const ProductosPagedState()) {
     if (autoLoad) load();
   }
 
   final CrudRepository<ProductosResponseModel> _repository;
   final dynamic _apiClient;
+  final bool requireSucursal;
+  int _requestSequence = 0;
 
   Future<void> load({
     int? page,
@@ -197,6 +200,7 @@ class ProductosPagedNotifier extends StateNotifier<ProductosPagedState> {
     ProductosQuickFilter? quickFilter,
     ProductosPriceStatus? priceStatus,
   }) async {
+    final requestId = ++_requestSequence;
     final nextState = state.copyWith(
       page: page,
       size: size,
@@ -211,6 +215,17 @@ class ProductosPagedNotifier extends StateNotifier<ProductosPagedState> {
       quickFilter: quickFilter,
       priceStatus: priceStatus,
     );
+    if (requireSucursal && nextState.sucursalId == null) {
+      // La pantalla de Productos nunca debe descargar otras sucursales.
+      state = nextState.copyWith(
+        items: const <ProductosResponseModel>[],
+        page: 0,
+        totalElements: 0,
+        totalPages: 0,
+        loading: false,
+      );
+      return;
+    }
     state = nextState.copyWith(loading: true);
 
     try {
@@ -230,6 +245,7 @@ class ProductosPagedNotifier extends StateNotifier<ProductosPagedState> {
           if (nextState.priceStatus.queryValue != null) 'priceStatus': nextState.priceStatus.queryValue,
         },
       );
+      if (requestId != _requestSequence) return;
       final pageData = response.data ?? const ProductosPageResponseModel();
       state = nextState.copyWith(
         items: pageData.content,
@@ -242,6 +258,7 @@ class ProductosPagedNotifier extends StateNotifier<ProductosPagedState> {
         last: pageData.last,
       );
     } catch (error) {
+      if (requestId != _requestSequence) return;
       state = nextState.copyWith(loading: false, failure: ErrorMapper.map(error));
     }
   }
@@ -277,5 +294,9 @@ class ProductosPagedNotifier extends StateNotifier<ProductosPagedState> {
 final productosPagedProvider = StateNotifierProvider<ProductosPagedNotifier, ProductosPagedState>((ref) {
   final repository = ref.watch(productosCrudRepositoryProvider);
   final apiClient = ref.watch(apiClientProvider);
-  return ProductosPagedNotifier(repository, apiClient);
+  // No descargar todas las sucursales antes de resolver la sucursal global.
+  // La pantalla inicia load(sucursalId: activeBranchId) al tener el contexto.
+  return ProductosPagedNotifier(
+    repository, apiClient, autoLoad: false, requireSucursal: true,
+  );
 });

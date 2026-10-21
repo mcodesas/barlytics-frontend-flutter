@@ -78,3 +78,30 @@ class RolPersonalizadoModel {
         roleFechaCambio: json['roleFechaCambio']?.toString(),
       );
 }
+
+
+/// Plantilla cargada desde un rol predefinido y sus OPCIONMENU en PostgreSQL.
+class RolPlantillaModel {
+  const RolPlantillaModel({
+    required this.roleId,
+    required this.nombre,
+    required this.descripcion,
+    required this.menuIds,
+  });
+
+  final int roleId;
+  final String nombre;
+  final String descripcion;
+  final List<int> menuIds;
+
+  factory RolPlantillaModel.fromJson(Map<String, dynamic> json) =>
+      RolPlantillaModel(
+        roleId: (json['roleId'] as num).toInt(),
+        nombre: json['nombre']?.toString() ?? '',
+        descripcion: json['descripcion']?.toString() ?? '',
+        menuIds: (json['menuIds'] as List? ?? const <Object?>[])
+            .whereType<num>()
+            .map((value) => value.toInt())
+            .toList(growable: false),
+      );
+}

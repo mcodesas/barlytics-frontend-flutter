@@ -32,6 +32,15 @@ import '../widgets/productos_setup_tools.dart';
 
 enum _ProductViewMode { cards, list, table }
 
+/// Seguridad visual adicional al filtro SQL por sucursal.
+/// Nunca renderizar productos sin contexto de sucursal activa.
+List<ProductosResponseModel> productosDeSucursalActiva(
+    Iterable<ProductosResponseModel> productos, int? sucursalId) {
+  if (sucursalId == null) return <ProductosResponseModel>[];
+  return productos.where((producto) => producto.sucuId == sucursalId)
+      .toList(growable: false);
+}
+
 class ProductosListPage extends ConsumerStatefulWidget {
   const ProductosListPage({super.key});
 
@@ -77,7 +86,9 @@ class _ProductosListPageState extends ConsumerState<ProductosListPage> {
     final marcasState = ref.watch(marcasProvider);
     final tiposState = ref.watch(tiposproductoProvider);
     final notifier = ref.read(productosPagedProvider.notifier);
-    final items = state.items;
+    final items = state.sucursalId == branchState.activeBranchId
+        ? productosDeSucursalActiva(state.items, branchState.activeBranchId)
+        : <ProductosResponseModel>[];
     final activeRoles = ref.watch(activeRolesProvider);
     final movementOnly = activeRoles.isNotEmpty &&
         activeRoles.every((role) {
@@ -92,13 +103,17 @@ class _ProductosListPageState extends ConsumerState<ProductosListPage> {
           }.contains(normalized);
         });
 
-    if (!_branchInitialized && !branchState.loading && branchState.activeBranchId != null) {
+    // Únicamente la sucursal activa seleccionada en el encabezado global.
+    // También sincroniza cuando se cambia desde otro módulo.
+    final activeBranchId = branchState.activeBranchId;
+    if (!branchState.loading && activeBranchId != null &&
+        (!_branchInitialized || _selectedSucursalId != activeBranchId)) {
       _branchInitialized = true;
-      final branchId = branchState.activeBranchId!;
-      _selectedSucursalId = branchId;
+      _selectedSucursalId = activeBranchId;
+      _selectedProductIds.clear();
       WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (!mounted) return;
-        notifier.load(page: 0, sucursalId: branchId);
+        if (!mounted || ref.read(branchScopeProvider).activeBranchId != activeBranchId) return;
+        notifier.load(page: 0, sucursalId: activeBranchId);
       });
     }
 
@@ -106,16 +121,20 @@ class _ProductosListPageState extends ConsumerState<ProductosListPage> {
     final outOfStock = items.where((item) => (item.inventarioActual ?? 0) <= 0).length;
     final expiringSoon = items.where((item) => _expiresWithinDays(item.prodFechaVencimiento, 30)).length;
     final salesYesterday = items.fold<double>(0, (sum, item) => sum + (item.ventasAyer ?? 0));
-    final hasMultipleBranches = branchState.branches.length > 1;
     final hasFilters = _searchController.text.trim().isNotEmpty ||
         _selectedTipoId != null ||
         _selectedMarcaId != null ||
-        (hasMultipleBranches && _selectedSucursalId != null) ||
         state.quickFilter != ProductosQuickFilter.all;
 
     Widget content;
-    if (state.loading && items.isEmpty) {
+    if (branchState.loading ||
+        (branchState.activeBranchId != null && state.sucursalId != branchState.activeBranchId) ||
+        (state.loading && items.isEmpty)) {
       content = const AppLoader();
+    } else if (branchState.activeBranchId == null) {
+      content = const AppEmptyView(
+        message: 'Selecciona una sucursal en el encabezado para consultar sus productos.',
+      );
     } else if (state.failure != null && items.isEmpty) {
       content = AppErrorView(
         message: state.failure!.message,
@@ -189,12 +208,8 @@ class _ProductosListPageState extends ConsumerState<ProductosListPage> {
                     onChanged: _onSearchChanged,
                     tipos: tiposState.items,
                     marcas: marcasState.items,
-                    sucursales: branchState.branches,
                     selectedTipoId: _selectedTipoId,
                     selectedMarcaId: _selectedMarcaId,
-                    selectedSucursalId: _selectedSucursalId,
-                    activeBranchId: branchState.activeBranchId,
-                    onActiveBranchChanged: _changeActiveBranch,
                     sortOption: state.sortOption,
                     viewMode: _viewMode,
                     selectedQuickFilter: state.quickFilter,
@@ -222,10 +237,6 @@ class _ProductosListPageState extends ConsumerState<ProductosListPage> {
                       setState(() => _selectedMarcaId = value);
                       notifier.load(page: 0, marcaId: value, clearMarcaId: value == null);
                     },
-                    onSucursalChanged: (value) {
-                      setState(() => _selectedSucursalId = value);
-                      notifier.load(page: 0, sucursalId: value, clearSucursalId: value == null);
-                    },
                     onSortChanged: (value) {
                       if (value == null) return;
                       notifier.load(page: 0, sortOption: value);
@@ -234,21 +245,16 @@ class _ProductosListPageState extends ConsumerState<ProductosListPage> {
                     onClearFilters: () {
                       _searchDebounce?.cancel();
                       _searchController.clear();
-                      final singleBranchId = branchState.branches.length == 1
-                          ? branchState.activeBranchId
-                          : null;
                       setState(() {
                         _selectedTipoId = null;
                         _selectedMarcaId = null;
-                        _selectedSucursalId = singleBranchId;
                       });
                       notifier.load(
                         page: 0,
                         query: '',
                         clearTipoId: true,
                         clearMarcaId: true,
-                        sucursalId: singleBranchId,
-                        clearSucursalId: singleBranchId == null,
+                        sucursalId: branchState.activeBranchId,
                         sortOption: ProductosSortOption.nombreAsc,
                         quickFilter: ProductosQuickFilter.all,
                       );
@@ -375,19 +381,6 @@ class _ProductosListPageState extends ConsumerState<ProductosListPage> {
     } finally {
       if (mounted) setState(() => _bulkDeleting = false);
     }
-  }
-
-  Future<void> _changeActiveBranch(int? branchId) async {
-    if (branchId == null || branchId == ref.read(branchScopeProvider).activeBranchId) return;
-    await ref.read(branchScopeProvider.notifier).select(branchId);
-    if (!mounted) return;
-    setState(() {
-      _selectedSucursalId = branchId;
-    });
-    await ref.read(productosPagedProvider.notifier).load(
-          page: 0,
-          sucursalId: branchId,
-        );
   }
 
   Future<bool> _registerMovementInline(
@@ -677,19 +670,14 @@ class _ProductosHeader extends StatelessWidget {
     required this.onChanged,
     required this.tipos,
     required this.marcas,
-    required this.sucursales,
     required this.selectedTipoId,
     required this.selectedMarcaId,
-    required this.selectedSucursalId,
-    required this.activeBranchId,
-    required this.onActiveBranchChanged,
     required this.sortOption,
     required this.viewMode,
     required this.selectedQuickFilter,
     required this.onQuickFilterChanged,
     required this.onTipoChanged,
     required this.onMarcaChanged,
-    required this.onSucursalChanged,
     required this.onSortChanged,
     required this.onViewChanged,
     required this.onClearFilters,
@@ -707,19 +695,14 @@ class _ProductosHeader extends StatelessWidget {
   final ValueChanged<String> onChanged;
   final List<TiposProductoResponseModel> tipos;
   final List<MarcasResponseModel> marcas;
-  final List<SucursalesResponseModel> sucursales;
   final int? selectedTipoId;
   final int? selectedMarcaId;
-  final int? selectedSucursalId;
-  final int? activeBranchId;
-  final ValueChanged<int?> onActiveBranchChanged;
   final ProductosSortOption sortOption;
   final _ProductViewMode viewMode;
   final ProductosQuickFilter selectedQuickFilter;
   final ValueChanged<ProductosQuickFilter> onQuickFilterChanged;
   final ValueChanged<int?> onTipoChanged;
   final ValueChanged<int?> onMarcaChanged;
-  final ValueChanged<int?> onSucursalChanged;
   final ValueChanged<ProductosSortOption?> onSortChanged;
   final ValueChanged<_ProductViewMode> onViewChanged;
   final VoidCallback onClearFilters;
@@ -731,7 +714,6 @@ class _ProductosHeader extends StatelessWidget {
     if (controller.text.trim().isNotEmpty) count++;
     if (selectedTipoId != null) count++;
     if (selectedMarcaId != null) count++;
-    if (sucursales.length > 1 && selectedSucursalId != null) count++;
     if (selectedQuickFilter != ProductosQuickFilter.all) count++;
     return count;
   }
@@ -743,15 +725,8 @@ class _ProductosHeader extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          if (sucursales.length > 1) ...[
-            _ProductBranchScope(
-              palette: palette,
-              branches: sucursales,
-              activeBranchId: activeBranchId,
-              onChanged: onActiveBranchChanged,
-            ),
-            const SizedBox(height: 10),
-          ],
+          // La sucursal ya se selecciona globalmente en el encabezado.
+          // Evitar un segundo selector dentro de Productos.
           _CatalogSummary(
             palette: palette,
             visible: visible,
@@ -985,26 +960,6 @@ class _ProductosHeader extends StatelessWidget {
                 onChanged: onMarcaChanged,
               ),
             ),
-            if (sucursales.length > 1)
-              SizedBox(
-                width: filterWidth,
-                child: _HeaderDropdown<int?>(
-                  label: 'Sucursal',
-                  value: selectedSucursalId,
-                  palette: palette,
-                  icon: Icons.storefront_rounded,
-                  items: [
-                    const DropdownMenuItem<int?>(value: null, child: Text('Todas las sucursales')),
-                    ...sucursales.map(
-                      (item) => DropdownMenuItem<int?>(
-                        value: item.sucuId,
-                        child: Text(item.sucuNombre ?? 'Sucursal ${item.sucuId ?? '-'}'),
-                      ),
-                    ),
-                  ],
-                  onChanged: onSucursalChanged,
-                ),
-              ),
             SizedBox(
               width: filterWidth,
               child: _HeaderDropdown<ProductosSortOption>(
@@ -1041,7 +996,6 @@ class _ProductosHeader extends StatelessWidget {
   Future<void> _showMobileFilters(BuildContext context) async {
     var localTipo = selectedTipoId;
     var localMarca = selectedMarcaId;
-    var localSucursal = selectedSucursalId;
     var localSort = sortOption;
     var localViewMode = viewMode;
 
@@ -1189,28 +1143,6 @@ class _ProductosHeader extends StatelessWidget {
                                 onMarcaChanged(value);
                               },
                             ),
-                            if (sucursales.length > 1) ...[
-                              const SizedBox(height: 10),
-                              _HeaderDropdown<int?>(
-                                label: 'Sucursal',
-                                value: localSucursal,
-                                palette: palette,
-                                icon: Icons.storefront_rounded,
-                                items: [
-                                  const DropdownMenuItem<int?>(value: null, child: Text('Todas las sucursales')),
-                                  ...sucursales.map(
-                                    (item) => DropdownMenuItem<int?>(
-                                      value: item.sucuId,
-                                      child: Text(item.sucuNombre ?? 'Sucursal ${item.sucuId ?? '-'}'),
-                                    ),
-                                  ),
-                                ],
-                                onChanged: (value) {
-                                  setModalState(() => localSucursal = value);
-                                  onSucursalChanged(value);
-                                },
-                              ),
-                            ],
                             const SizedBox(height: 22),
                             _FilterSectionLabel(
                               icon: Icons.sort_rounded,
@@ -1271,9 +1203,6 @@ class _ProductosHeader extends StatelessWidget {
                                 setModalState(() {
                                   localTipo = null;
                                   localMarca = null;
-                                  localSucursal = sucursales.length == 1
-                                      ? activeBranchId
-                                      : null;
                                   localSort = ProductosSortOption.nombreAsc;
                                   localViewMode = viewMode;
                                 });
@@ -1353,101 +1282,6 @@ class _FilterSectionLabel extends StatelessWidget {
           ),
         ),
       ],
-    );
-  }
-}
-
-class _ProductBranchScope extends StatelessWidget {
-  const _ProductBranchScope({
-    required this.palette,
-    required this.branches,
-    required this.activeBranchId,
-    required this.onChanged,
-  });
-
-  final AppPalette palette;
-  final List<SucursalesResponseModel> branches;
-  final int? activeBranchId;
-  final ValueChanged<int?> onChanged;
-
-  @override
-  Widget build(BuildContext context) {
-    if (branches.length <= 1) return const SizedBox.shrink();
-    SucursalesResponseModel? branch;
-    for (final item in branches) {
-      if (item.sucuId == activeBranchId) {
-        branch = item;
-        break;
-      }
-    }
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-      decoration: palette.panelDecoration(
-        baseRadius: 18,
-        tint: palette.secondary,
-        elevated: false,
-      ),
-      child: LayoutBuilder(
-        builder: (context, constraints) {
-          final compact = constraints.maxWidth < 620;
-          final selector = DropdownButtonFormField<int>(
-            value: branches.any((item) => item.sucuId == activeBranchId) ? activeBranchId : null,
-            isExpanded: true,
-            decoration: const InputDecoration(
-              labelText: 'Sucursal activa',
-              prefixIcon: Icon(Icons.storefront_rounded),
-            ).compactFilter(),
-            hint: const Text('Selecciona una sucursal'),
-            items: branches
-                .where((item) => item.sucuId != null)
-                .map(
-                  (item) => DropdownMenuItem<int>(
-                    value: item.sucuId!,
-                    child: Text(
-                      item.sucuNombre?.trim().isNotEmpty == true
-                          ? item.sucuNombre!.trim()
-                          : 'Sucursal ${item.sucuId}',
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                  ),
-                )
-                .toList(growable: false),
-            onChanged: branches.length <= 1 ? null : onChanged,
-          );
-
-          final info = Row(
-            children: [
-              Icon(Icons.info_outline_rounded, size: 16, color: palette.textSecondary),
-              const SizedBox(width: 6),
-              Expanded(
-                child: Text(
-                  'Los productos nuevos y los movimientos se registrarán en ${branch?.sucuNombre ?? 'la sucursal seleccionada'}. El filtro puede mostrar todas las sucursales permitidas.',
-                  style: TextStyle(
-                    color: palette.textSecondary,
-                    fontSize: 11.5,
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-              ),
-            ],
-          );
-
-          if (compact) {
-            return Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [selector, const SizedBox(height: 8), info],
-            );
-          }
-          return Row(
-            children: [
-              SizedBox(width: 300, child: selector),
-              const SizedBox(width: 14),
-              Expanded(child: info),
-            ],
-          );
-        },
-      ),
     );
   }
 }
@@ -2736,33 +2570,12 @@ class _TableProductActionsState extends State<_TableProductActions> {
   }
 
   Future<void> _openEdit() async {
+    // Un único editor permite agregar/quitar ingredientes y adiciones,
+    // además de modificar el producto. Evita el editor rápido incompleto.
+    final id = widget.item.prodId;
+    if (id == null) return;
     FocusScope.of(context).unfocus();
-    await showModalBottomSheet<bool>(
-      context: context,
-      isScrollControlled: true,
-      useSafeArea: true,
-      backgroundColor: Colors.transparent,
-      barrierColor: Colors.black.withOpacity(.72),
-      elevation: 0,
-      builder: (_) => LayoutBuilder(
-        builder: (context, constraints) => Align(
-          alignment: Alignment.bottomCenter,
-          child: ConstrainedBox(
-            constraints: const BoxConstraints(maxWidth: 760),
-            child: FractionallySizedBox(
-              heightFactor: constraints.maxHeight < 720 ? .98 : .94,
-              child: _ProductEditBottomSheet(
-                item: widget.item,
-                palette: widget.palette,
-                marcas: widget.marcas,
-                tipos: widget.tipos,
-                onUpdateProduct: widget.onUpdateProduct,
-              ),
-            ),
-          ),
-        ),
-      ),
-    );
+    context.go('/productos/$id/editar');
   }
 
   @override
@@ -3250,37 +3063,10 @@ class _InlineProductControlsState extends State<_InlineProductControls> {
   }
 
   Future<void> _openEditPanel() async {
+    final id = widget.item.prodId;
+    if (id == null) return;
     FocusScope.of(context).unfocus();
-    await showModalBottomSheet<bool>(
-      context: context,
-      isScrollControlled: true,
-      useSafeArea: true,
-      backgroundColor: Colors.transparent,
-      barrierColor: Colors.black.withOpacity(0.72),
-      elevation: 0,
-      builder: (sheetContext) {
-        return LayoutBuilder(
-          builder: (context, constraints) {
-            return Align(
-              alignment: Alignment.bottomCenter,
-              child: ConstrainedBox(
-                constraints: const BoxConstraints(maxWidth: 760),
-                child: FractionallySizedBox(
-                  heightFactor: constraints.maxHeight < 720 ? 0.98 : 0.94,
-                  child: _ProductEditBottomSheet(
-                    item: widget.item,
-                    palette: widget.palette,
-                    marcas: widget.marcas,
-                    tipos: widget.tipos,
-                    onUpdateProduct: widget.onUpdateProduct,
-                  ),
-                ),
-              ),
-            );
-          },
-        );
-      },
-    );
+    context.go('/productos/$id/editar');
   }
 
   @override

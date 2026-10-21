@@ -20,60 +20,6 @@ import '../../data/models/rol_personalizado_model.dart';
 
 enum _RoleStatusFilter { todos, activos, inactivos }
 
-class _StarterRoleTemplate {
-  const _StarterRoleTemplate(this.name, this.description, this.type, this.icon, this.purpose);
-  final String name;
-  final String description;
-  final String type;
-  final IconData icon;
-  final String purpose;
-}
-
-const _starterRoles = <_StarterRoleTemplate>[
-  _StarterRoleTemplate(
-    'Atención de mesas', 'Registra pedidos, ventas y cuentas de las mesas.',
-    'Vendedor / Mesero', Icons.room_service_outlined,
-    'Para meseros: selecciona ventas, mesas y comandas.'),
-  _StarterRoleTemplate(
-    'Caja y cobros', 'Gestiona ventas, cobros y cierre de caja.',
-    'Cajero', Icons.point_of_sale_outlined,
-    'Para cajeros: decide si también administran mesas y pedidos.'),
-  _StarterRoleTemplate(
-    'Control de inventario', 'Gestiona existencias, conteos y movimientos.',
-    'Inventario', Icons.inventory_2_outlined,
-    'Para bodegueros: selecciona inventario, conteos y trazabilidad.'),
-  _StarterRoleTemplate(
-    'Movimientos de bodega', 'Registra entradas, salidas y ajustes de productos.',
-    'Movimientos', Icons.swap_horiz_rounded,
-    'Para auxiliares: limita el acceso a movimientos de inventario.'),
-  _StarterRoleTemplate(
-    'Equipo de cocina', 'Recibe comandas de cocina y registra el avance de preparación.',
-    'Cocina', Icons.soup_kitchen_outlined,
-    'Para cocina: trabaja con Comandas, revisa los pedidos y actualiza su preparación.'),
-  _StarterRoleTemplate(
-    'Equipo de barra', 'Recibe comandas de bebidas y registra su preparación.',
-    'Barra', Icons.local_bar_outlined,
-    'Para barra: consulta las comandas de bebidas y actualiza su preparación.'),
-  _StarterRoleTemplate(
-    'Supervisión operativa', 'Supervisa reportes y configuración del negocio.',
-    'Gerente', Icons.space_dashboard_outlined,
-    'Para supervisores: elige las consultas delegables.'),
-];
-
-bool _menuMatchesTemplate(MenuAsignableModel menu, _StarterRoleTemplate template) {
-  if (!menu.asignable) return false;
-  final parameter = menu.parametro.trim().toLowerCase();
-  // Cocina y barra solo reciben Comandas como menú inicial. No se
-  // conceden módulos de ventas, caja, inventario ni administración.
-  if (template.type == 'Cocina' || template.type == 'Barra') {
-    return parameter == 'comandas';
-  }
-  if (template.type == 'Movimientos') {
-    return parameter == 'movimientos';
-  }
-  return menu.tipos.any((type) => type.toLowerCase() == template.type.toLowerCase());
-}
-
 class RolesPersonalizadosPage extends ConsumerStatefulWidget {
   const RolesPersonalizadosPage({super.key});
 
@@ -85,6 +31,9 @@ class _RolesPersonalizadosPageState extends ConsumerState<RolesPersonalizadosPag
   final TextEditingController _search = TextEditingController();
   List<RolPersonalizadoModel> _roles = const [];
   List<MenuAsignableModel> _menus = const [];
+  Map<int, String> _menuNamesById = const {};
+  List<RolPlantillaModel> _templates = const [];
+  String? _templatesError;
   List<EmpresasResponseModel> _companies = const [];
   List<SucursalesResponseModel> _branches = const [];
   _RoleStatusFilter _status = _RoleStatusFilter.todos;
@@ -112,6 +61,7 @@ class _RolesPersonalizadosPageState extends ConsumerState<RolesPersonalizadosPag
       });
     }
     try {
+      _templatesError = null;
       final api = ref.read(apiClientProvider);
       final rolesFuture = api.get<List<RolPersonalizadoModel>>(
         ApiPaths.rolesPersonalizados,
@@ -119,6 +69,7 @@ class _RolesPersonalizadosPageState extends ConsumerState<RolesPersonalizadosPag
             .whereType<Map>()
             .map((item) => RolPersonalizadoModel.fromJson(Map<String, dynamic>.from(item)))
             .toList(),
+        queryParameters: const {'compacto': true},
       );
       final menusFuture = api.get<List<MenuAsignableModel>>(
         ApiPaths.rolesPersonalizadosOpciones,
@@ -145,10 +96,27 @@ class _RolesPersonalizadosPageState extends ConsumerState<RolesPersonalizadosPag
       final menusResponse = await menusFuture;
       final companiesResponse = await companiesFuture;
       final branchesResponse = await branchesFuture;
+      List<RolPlantillaModel> templates = const [];
+      try {
+        final response = await api.get<List<RolPlantillaModel>>(
+          ApiPaths.rolesPersonalizadosPlantillas,
+          (json) => (json as List? ?? const <Object?>[])
+              .whereType<Map>()
+              .map((item) => RolPlantillaModel.fromJson(Map<String, dynamic>.from(item)))
+              .toList(growable: false),
+        );
+        templates = response.data ?? const [];
+      } catch (error) {
+        // La lista de roles sigue disponible aunque el backend TEST todavía
+        // no tenga desplegado el nuevo endpoint de plantillas.
+        _templatesError = error.toString();
+      }
       if (!mounted) return;
       setState(() {
         _roles = rolesResponse.data ?? const [];
         _menus = menusResponse.data ?? const [];
+        _menuNamesById = {for (final menu in _menus) menu.menuId: menu.nombre};
+        _templates = templates;
         _companies = companiesResponse.data ?? const [];
         _branches = branchesResponse.data ?? const [];
         if (_companies.length == 1) _companyFilter = _companies.first.emprId;
@@ -172,7 +140,7 @@ class _RolesPersonalizadosPageState extends ConsumerState<RolesPersonalizadosPag
         role.roleDescripcion,
         _companyName(role.emprId),
         _branchName(role.sucuId),
-        ...role.menus.map((item) => item.nombre),
+        ...role.menuIds.map((id) => _menuNamesById[id] ?? ''),
       ].join(' ').toLowerCase();
       return text.contains(query);
     }).toList()
@@ -203,14 +171,45 @@ class _RolesPersonalizadosPageState extends ConsumerState<RolesPersonalizadosPag
     return 'Sucursal #$id';
   }
 
-  Future<void> _openForm([RolPersonalizadoModel? role, _StarterRoleTemplate? template]) async {
+  Future<void> _openForm([RolPersonalizadoModel? role, RolPlantillaModel? template]) async {
+    // Consultar el estado más reciente antes de editar o crear. El usuario
+    // puede haber cambiado permisos desde otro dispositivo o sesión.
+    RolPersonalizadoModel? currentRole = role;
+    List<MenuAsignableModel> currentMenus;
+    try {
+      final api = ref.read(apiClientProvider);
+      final available = await api.get<List<MenuAsignableModel>>(
+        ApiPaths.rolesPersonalizadosOpciones,
+        (json) => (json as List? ?? const <Object?>[])
+            .whereType<Map>()
+            .map((item) => MenuAsignableModel.fromJson(Map<String, dynamic>.from(item)))
+            .toList(growable: false),
+      );
+      currentMenus = available.data ?? const <MenuAsignableModel>[];
+      if (role != null) {
+        final detail = await api.get<RolPersonalizadoModel>(
+          '${ApiPaths.rolesPersonalizados}/${role.roleId}',
+          (json) => RolPersonalizadoModel.fromJson(Map<String, dynamic>.from(json as Map)),
+        );
+        if (detail.data == null) throw StateError('El rol no existe o no está disponible.');
+        currentRole = detail.data;
+      }
+    } catch (error) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('No fue posible actualizar los permisos desde la base de datos: $error')),
+        );
+      }
+      return;
+    }
+    if (!mounted) return;
     if (_companies.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('No hay una empresa disponible para crear el rol.')),
       );
       return;
     }
-    if (_menus.isEmpty) {
+    if (currentMenus.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Tu usuario no tiene opciones de menú que pueda delegar.')),
       );
@@ -261,10 +260,11 @@ class _RolesPersonalizadosPageState extends ConsumerState<RolesPersonalizadosPag
                     top: Radius.circular(30),
                   ),
                   child: _RolPersonalizadoFormSheet(
-                role: role,
-                template: template,
-                menus: _menus,
-                companies: _companies,
+                    role: currentRole,
+                    template: template,
+                    templates: _templates,
+                    menus: currentMenus,
+                    companies: _companies,
                     branches: _branches,
                   ),
                 ),
@@ -388,8 +388,10 @@ class _RolesPersonalizadosPageState extends ConsumerState<RolesPersonalizadosPag
                             palette: palette,
                             currentRoles: _roles.where((role) => role.active).length,
                             busy: _loading,
-                            onTemplate: (template) => _openForm(null, template),
                             onDefaults: _confirmPredefinedRoles,
+                            templates: _templates,
+                            templatesError: _templatesError,
+                            onTemplate: (template) => _openForm(null, template),
                           ),
                         ),
                       ),
@@ -481,6 +483,10 @@ class _RolesPersonalizadosPageState extends ConsumerState<RolesPersonalizadosPag
                                         role: role,
                                         company: _companyName(role.emprId),
                                         branch: _branchName(role.sucuId),
+                                        menuNames: [
+                                          for (final id in role.menuIds)
+                                            if (_menuNamesById.containsKey(id)) _menuNamesById[id]!,
+                                        ],
                                         onEdit: () => _openForm(role),
                                         onDelete: role.active ? () => _inactivate(role) : null,
                                       ),
@@ -508,15 +514,19 @@ class _RolesSetupGuide extends StatelessWidget {
     required this.palette,
     required this.currentRoles,
     required this.busy,
-    required this.onTemplate,
     required this.onDefaults,
+    required this.templates,
+    required this.templatesError,
+    required this.onTemplate,
   });
 
   final AppPalette palette;
   final int currentRoles;
   final bool busy;
-  final ValueChanged<_StarterRoleTemplate> onTemplate;
   final VoidCallback onDefaults;
+  final List<RolPlantillaModel> templates;
+  final String? templatesError;
+  final ValueChanged<RolPlantillaModel> onTemplate;
 
   @override
   Widget build(BuildContext context) => Container(
@@ -528,50 +538,36 @@ class _RolesSetupGuide extends StatelessWidget {
         Text('Define las funciones de tu equipo desde el principio',
           style: TextStyle(color: palette.textPrimary, fontSize: 19, fontWeight: FontWeight.w900)),
         const SizedBox(height: 7),
-        Text('Paso 6 · Antes de crear usuarios, configura un perfil por cada tipo de trabajo. '
-          'Selecciona una plantilla (incluye Cocina y Barra), ajusta sus permisos y mira '
-          'la vista previa del menú en celular o escritorio.',
+        Text('Paso 6 · Los roles estándar ya incluyen funciones asignadas. '
+          'Para permisos distintos usa «Nuevo rol» y selecciona los menús necesarios.',
           style: TextStyle(color: palette.textSecondary, height: 1.45)),
-        const SizedBox(height: 10),
-        Text('1. Elige un ejemplo    2. Revisa las funciones    3. Guarda el rol y asígnalo a los usuarios',
-          style: TextStyle(color: palette.secondary, fontWeight: FontWeight.w800)),
-        const SizedBox(height: 14),
-        Wrap(
-          spacing: 10,
-          runSpacing: 10,
-          children: [
-            for (final template in _starterRoles)
-              SizedBox(
-                width: 235,
-                child: OutlinedButton(
-                  onPressed: busy ? null : () => onTemplate(template),
-                  style: OutlinedButton.styleFrom(
-                    padding: const EdgeInsets.all(12),
-                    alignment: Alignment.centerLeft,
-                  ),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Icon(template.icon, color: palette.secondary),
-                      const SizedBox(height: 7),
-                      Text(template.name,
-                        style: TextStyle(color: palette.textPrimary, fontWeight: FontWeight.w900)),
-                      const SizedBox(height: 5),
-                      Text(template.purpose,
-                        style: TextStyle(color: palette.textSecondary, fontSize: 12)),
-                      const SizedBox(height: 8),
-                      Text('Personalizar y ver ejemplo →',
-                        style: TextStyle(color: palette.secondary, fontWeight: FontWeight.w800, fontSize: 12)),
-                    ],
-                  ),
-                ),
-              ),
-          ],
-        ),
         const SizedBox(height: 12),
-        Text('Perfiles personalizados activos: $currentRoles. Puedes crear varios. '
-          'La vista previa muestra un ejemplo del menú, no simula operaciones ni datos reales.',
+        Text('Perfiles personalizados activos: $currentRoles.',
           style: TextStyle(color: palette.textSecondary, fontSize: 12)),
+        const SizedBox(height: 8),
+        if (templates.isNotEmpty) ...[
+          Text('Partir de un rol registrado en la base de datos:',
+              style: TextStyle(color: palette.textPrimary, fontWeight: FontWeight.w800)),
+          const SizedBox(height: 8),
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: [
+              for (final template in templates)
+                ActionChip(
+                  avatar: const Icon(Icons.badge_outlined, size: 17),
+                  label: Text(template.nombre),
+                  onPressed: busy ? null : () => onTemplate(template),
+                ),
+            ],
+          ),
+        ] else
+          Text(
+            templatesError == null
+                ? 'No hay perfiles predefinidos con opciones delegables en la base de datos.'
+                : 'No fue posible consultar las plantillas desde el backend.',
+            style: TextStyle(color: palette.textSecondary),
+          ),
         const SizedBox(height: 8),
         TextButton.icon(
           onPressed: busy ? null : onDefaults,
@@ -753,11 +749,12 @@ class _Filters extends StatelessWidget {
 }
 
 class _RoleCard extends StatelessWidget {
-  const _RoleCard({required this.palette, required this.role, required this.company, required this.branch, required this.onEdit, this.onDelete});
+  const _RoleCard({required this.palette, required this.role, required this.company, required this.branch, required this.menuNames, required this.onEdit, this.onDelete});
   final AppPalette palette;
   final RolPersonalizadoModel role;
   final String company;
   final String branch;
+  final List<String> menuNames;
   final VoidCallback onEdit;
   final VoidCallback? onDelete;
 
@@ -811,10 +808,10 @@ class _RoleCard extends StatelessWidget {
               Chip(avatar: const Icon(Icons.group_outlined, size: 17), label: Text('${role.usuariosAsignados} usuarios')),
             ],
           ),
-          if (role.menus.isNotEmpty) ...[
+          if (menuNames.isNotEmpty) ...[
             const SizedBox(height: 10),
             Text(
-              role.menus.take(3).map((menu) => menu.nombre).join(' · '),
+              menuNames.take(3).join(' · '),
               maxLines: 2,
               overflow: TextOverflow.ellipsis,
               style: TextStyle(color: palette.textSecondary, fontSize: 12, fontWeight: FontWeight.w700),
@@ -859,9 +856,10 @@ class _MessageState extends StatelessWidget {
 }
 
 class _RolPersonalizadoFormSheet extends ConsumerStatefulWidget {
-  const _RolPersonalizadoFormSheet({required this.menus, required this.companies, required this.branches, this.role, this.template});
+  const _RolPersonalizadoFormSheet({required this.menus, required this.companies, required this.branches, required this.templates, this.role, this.template});
   final RolPersonalizadoModel? role;
-  final _StarterRoleTemplate? template;
+  final RolPlantillaModel? template;
+  final List<RolPlantillaModel> templates;
   final List<MenuAsignableModel> menus;
   final List<EmpresasResponseModel> companies;
   final List<SucursalesResponseModel> branches;
@@ -877,6 +875,7 @@ class _RolPersonalizadoFormSheetState extends ConsumerState<_RolPersonalizadoFor
   late final TextEditingController _menuSearch;
   late Set<int> _selectedMenus;
   late List<int> _menuOrder;
+  int? _templateId;
   String _menuType = 'Todos';
   int? _companyId;
   int? _branchId;
@@ -892,17 +891,16 @@ class _RolPersonalizadoFormSheetState extends ConsumerState<_RolPersonalizadoFor
   void initState() {
     super.initState();
     final role = widget.role;
-    _name = TextEditingController(text: role?.roleNombre ?? widget.template?.name ?? '');
-    _description = TextEditingController(text: role?.roleDescripcion ?? widget.template?.description ?? '');
+    _name = TextEditingController(text: role?.roleNombre ?? '');
+    _description = TextEditingController(text: role?.roleDescripcion ?? widget.template?.descripcion ?? '');
     _menuSearch = TextEditingController();
+    _templateId = widget.template?.roleId;
+    final delegable = widget.menus.where((menu) => menu.asignable).map((menu) => menu.menuId).toSet();
     _menuOrder = role != null
         ? [...role.menuIds]
         : widget.template == null
             ? <int>[]
-            : widget.menus
-                .where((menu) => _menuMatchesTemplate(menu, widget.template!))
-                .map((menu) => menu.menuId)
-                .toList();
+            : widget.template!.menuIds.where(delegable.contains).toList(growable: true);
     _selectedMenus = _menuOrder.toSet();
     final companyIds = <int>{
       ...widget.companies.map((item) => item.emprId).whereType<int>(),
@@ -922,6 +920,19 @@ class _RolPersonalizadoFormSheetState extends ConsumerState<_RolPersonalizadoFor
     super.dispose();
   }
 
+  void _applyTemplate(int? roleId) {
+    final matches = widget.templates.where((item) => item.roleId == roleId);
+    if (matches.isEmpty) return;
+    final template = matches.first;
+    final delegable = widget.menus.where((menu) => menu.asignable).map((menu) => menu.menuId).toSet();
+    setState(() {
+      _templateId = roleId;
+      _description.text = template.descripcion;
+      _menuOrder = template.menuIds.where(delegable.contains).toList(growable: true);
+      _selectedMenus = _menuOrder.toSet();
+    });
+  }
+
   List<SucursalesResponseModel> get _availableBranches => widget.branches
       .where((branch) => (_companyId == null || branch.emprId == _companyId) && (branch.sucuEstado == null || branch.sucuEstado == 1))
       .toList()
@@ -937,20 +948,24 @@ class _RolPersonalizadoFormSheetState extends ConsumerState<_RolPersonalizadoFor
 
   List<String> get _menuTypes {
     final values = widget.menus
-        .expand((menu) => menu.tipos.isEmpty ? const ['General'] : menu.tipos)
+        .expand((menu) => menu.tipos)
         .toSet()
         .toList()
       ..sort((a, b) => a.toLowerCase().compareTo(b.toLowerCase()));
     return values;
   }
 
+  // El nombre visible corresponde al registro en commerce.menus.
+  String _menuDisplayName(MenuAsignableModel menu) => menu.nombre;
+
   List<MenuAsignableModel> get _filteredMenus {
     final query = _normalizeMenuText(_menuSearch.text);
     return widget.menus.where((menu) {
-      final types = menu.tipos.isEmpty ? const ['General'] : menu.tipos;
+      final types = menu.tipos;
       if (_menuType != 'Todos' && !types.contains(_menuType)) return false;
       if (query.isEmpty) return true;
       final searchable = _normalizeMenuText([
+        _menuDisplayName(menu),
         menu.nombre,
         menu.descripcion,
         menu.parametro,
@@ -1664,6 +1679,31 @@ class _RolPersonalizadoFormSheetState extends ConsumerState<_RolPersonalizadoFor
                                   ),
                                 ),
                               ),
+                            if (widget.role == null && widget.templates.isNotEmpty) ...[
+                              _Section(
+                                palette: palette,
+                                icon: Icons.auto_awesome_outlined,
+                                title: 'Plantilla de la base de datos (opcional)',
+                                child: DropdownButtonFormField<int>(
+                                  value: _templateId,
+                                  isExpanded: true,
+                                  decoration: const InputDecoration(
+                                    labelText: 'Partir de los permisos de un rol predefinido',
+                                    border: OutlineInputBorder(),
+                                  ),
+                                  hint: const Text('Configurar desde cero'),
+                                  items: [
+                                    for (final template in widget.templates)
+                                      DropdownMenuItem<int>(
+                                        value: template.roleId,
+                                        child: Text(template.nombre, overflow: TextOverflow.ellipsis),
+                                      ),
+                                  ],
+                                  onChanged: _saving ? null : _applyTemplate,
+                                ),
+                              ),
+                              const SizedBox(height: 12),
+                            ],
                             _Section(
                               palette: palette,
                               icon: Icons.badge_outlined,
@@ -2105,7 +2145,7 @@ class _RolPersonalizadoFormSheetState extends ConsumerState<_RolPersonalizadoFor
                                                             child: Icon(Icons.lock_outline_rounded, color: palette.textSecondary),
                                                           ),
                                                     title: Text(
-                                                      menu.nombre,
+                                                      _menuDisplayName(menu),
                                                       style: TextStyle(
                                                         color: menu.asignable ? palette.textPrimary : palette.textSecondary,
                                                         fontWeight: FontWeight.w900,
@@ -2127,7 +2167,7 @@ class _RolPersonalizadoFormSheetState extends ConsumerState<_RolPersonalizadoFor
                                                             spacing: 5,
                                                             runSpacing: 5,
                                                             children: [
-                                                              for (final type in (menu.tipos.isEmpty ? const ['General'] : menu.tipos))
+                                                              for (final type in (menu.tipos))
                                                                 Container(
                                                                   padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                                                                   decoration: BoxDecoration(

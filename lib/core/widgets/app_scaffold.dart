@@ -14,8 +14,10 @@ import '../../app/theme/module_visuals.dart';
 import '../../features/auth/presentation/providers/auth_provider.dart';
 import '../../features/mesero/presentation/providers/mesero_tab_provider.dart';
 import '../../features/navigation/data/models/user_menu_item.dart';
+import '../../features/navigation/domain/menu_path_selection.dart';
 import '../../features/navigation/presentation/providers/user_menu_provider.dart';
 import '../../features/navigation/presentation/providers/active_role_provider.dart';
+import '../../features/navigation/presentation/providers/user_assigned_roles_provider.dart';
 import '../../features/profile/presentation/providers/profile_header_provider.dart';
 import '../utils/responsive_utils.dart';
 import 'barlytics_brand.dart';
@@ -990,19 +992,22 @@ class _RoleScopeSelector extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final assigned = ref.watch(authControllerProvider).roles;
-    if (assigned.length <= 1) return const SizedBox.shrink();
+    final assigned = ref.watch(userAssignedRolesProvider).valueOrNull;
+    // Un usuario puede tener varios roles propios aunque su JWT contenga
+    // una sola autoridad interna ROLE_PERSONALIZADO.
+    if (assigned == null || assigned.length <= 1) return const SizedBox.shrink();
     final selected = ref.watch(selectedRolesProvider);
-    final active = ref.watch(activeRolesProvider);
+    final active = selected == null ? assigned :
+        assigned.where((role) => selected.contains(role.selectionKey)).toList();
     final all = selected == null;
     final activeLabel = all
         ? (compact ? 'Todos' : 'Todos los roles')
         : active.length == 1
-            ? _displayRole(active.first)
+            ? active.first.name
             : compact
                 ? '${active.length} roles'
                 : active.length == 2
-                    ? active.map(_displayRole).join(' + ')
+                    ? active.map((role) => role.name).join(' + ')
                     : '${active.length} roles seleccionados';
 
     final selector = Material(
@@ -1076,13 +1081,8 @@ class _RoleScopeSelector extends ConsumerWidget {
     );
   }
 
-  static String _displayRole(String role) {
-    final value = role.replaceFirst(RegExp(r'^ROLE_', caseSensitive: false), '').replaceAll('_', ' ').trim();
-    if (value.isEmpty) return 'Rol';
-    return value.split(' ').map((w) => w.isEmpty ? w : '${w[0].toUpperCase()}${w.substring(1).toLowerCase()}').join(' ');
-  }
-
-  Future<void> _showRoleSelector(BuildContext context, WidgetRef ref, List<String> assigned, Set<String>? current) async {
+  Future<void> _showRoleSelector(BuildContext context, WidgetRef ref,
+      List<UserAssignedRole> assigned, Set<String>? current) async {
     Set<String>? draft = current == null ? null : {...current};
     final applied = await showModalBottomSheet<Set<String>?>(
       context: context,
@@ -1121,16 +1121,16 @@ class _RoleScopeSelector extends ConsumerWidget {
                 const Divider(),
                 for (final role in assigned)
                   CheckboxListTile(
-                    value: all || (draft?.any((r) => normalizeRoleName(r) == normalizeRoleName(role)) ?? false),
+                    value: all || (draft?.contains(role.selectionKey) ?? false),
                     contentPadding: EdgeInsets.zero,
-                    title: Text(_displayRole(role), style: const TextStyle(fontWeight: FontWeight.w800)),
+                    title: Text(role.name, style: const TextStyle(fontWeight: FontWeight.w800)),
                     onChanged: (checked) {
                       setSheetState(() {
-                        if (draft == null) draft = {role};
-                        else if (checked == true) draft = {...draft!, role};
+                        if (draft == null) draft = {role.selectionKey};
+                        else if (checked == true) draft = {...draft!, role.selectionKey};
                         else {
-                          final next = {...draft!}..removeWhere((r) => normalizeRoleName(r) == normalizeRoleName(role));
-                          draft = next.isEmpty ? {role} : next;
+                          final next = {...draft!}..remove(role.selectionKey);
+                          draft = next.isEmpty ? {role.selectionKey} : next;
                         }
                       });
                     },
@@ -1948,22 +1948,41 @@ class _OperationalBottomNavigation extends ConsumerWidget {
           orElse: () => const <UserMenuItem>[],
         );
     final roles = ref.watch(activeRolesProvider);
-    final assignedRoles = ref.watch(authControllerProvider).roles;
-    final isCajero = assignedRoles.any(
+    final isCajero = roles.any(
       (role) => _normalizedRoleToken(role) == 'CAJERO' ||
           _normalizedRoleToken(role) == 'CAJERA',
     );
+    // Las rutas explícitas prevalecen sobre el estado anterior del provider.
+    // Al abrir «Listar productos» desde el menú lateral, el provider puede
+    // seguir en «Mesas» aunque la página visible ya sea el catálogo.
+    final currentPath = GoRouter.of(context).routerDelegate.currentConfiguration.uri.path;
+    final routeMode = switch (currentPath) {
+      '/mesero/productos' => MeseroPageMode.productos,
+      '/mesero/resumen' => MeseroPageMode.resumen,
+      '/mesero/historial' || '/historial_ventas' => MeseroPageMode.historial,
+      '/mesero/cierre-caja' || '/cierre_caja' => MeseroPageMode.cierreCaja,
+      '/administrar_mesas' => MeseroPageMode.mesas,
+      _ => null,
+    };
+    final requestedMode = routeMode ?? rawSelectedMode;
     final selectedMode = !isCajero &&
-            (rawSelectedMode == MeseroPageMode.historial ||
-                rawSelectedMode == MeseroPageMode.cierreCaja)
+            (requestedMode == MeseroPageMode.historial ||
+                requestedMode == MeseroPageMode.cierreCaja)
         ? MeseroPageMode.resumen
-        : rawSelectedMode;
+        : requestedMode;
 
     if (selectedMode != rawSelectedMode) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
-        ref.read(meseroSelectedModeProvider.notifier).state = selectedMode;
+        if (context.mounted &&
+            ref.read(meseroSelectedModeProvider) != selectedMode) {
+          ref.read(meseroSelectedModeProvider.notifier).state = selectedMode;
+        }
       });
     }
+
+    // Las pestañas operativas también respetan commerce.opcionmenu.
+    bool allows(String key) =>
+        authorizedMenus.any((item) => item.keyName == key);
 
     final entries = <({
       String path,
@@ -1978,7 +1997,7 @@ class _OperationalBottomNavigation extends ConsumerWidget {
           label: 'Inicio',
         ),
       ),
-      (
+      if (allows('mesero')) (
         path: '/mesero',
         mode: MeseroPageMode.mesas,
         item: const BottomNavigationBarItem(
@@ -1986,15 +2005,15 @@ class _OperationalBottomNavigation extends ConsumerWidget {
           label: 'Mesas',
         ),
       ),
-      (
+      if (allows('mesero_productos')) (
         path: '/mesero/productos',
         mode: MeseroPageMode.productos,
         item: const BottomNavigationBarItem(
           icon: Icon(Icons.liquor_rounded),
-          label: 'Productos',
+          label: 'Listar productos',
         ),
       ),
-      if (!isCajero)
+      if (!isCajero && allows('mesero'))
         (
           path: '/mesero/resumen',
           mode: MeseroPageMode.resumen,
@@ -2004,7 +2023,7 @@ class _OperationalBottomNavigation extends ConsumerWidget {
           ),
         ),
       if (isCajero) ...[
-        (
+        if (allows('historial_ventas')) (
           path: '/mesero/historial',
           mode: MeseroPageMode.historial,
           item: const BottomNavigationBarItem(
@@ -2012,7 +2031,7 @@ class _OperationalBottomNavigation extends ConsumerWidget {
             label: 'Historial',
           ),
         ),
-        (
+        if (allows('pedidos_compra')) (
           path: '/pedidos-compra',
           mode: null,
           item: const BottomNavigationBarItem(
@@ -2020,7 +2039,7 @@ class _OperationalBottomNavigation extends ConsumerWidget {
             label: 'Pedidos',
           ),
         ),
-        (
+        if (allows('cierre_caja')) (
           path: '/mesero/cierre-caja',
           mode: MeseroPageMode.cierreCaja,
           item: const BottomNavigationBarItem(
@@ -2054,37 +2073,48 @@ class _OperationalBottomNavigation extends ConsumerWidget {
         ),
     ];
 
-    final currentPath = GoRouterState.of(context).uri.path;
-    // Mesas, Productos e Historial pueden compartir la ruta /mesero
-    // mientras su contenido cambia mediante el provider de pestaña.
-    // La barra debe reflejar la pantalla realmente visible, no la ruta base.
-    var selectedIndex = currentPath.startsWith('/mesero')
-        ? navigationEntries.indexWhere((entry) => entry.mode == selectedMode)
-        : -1;
+    // Cada ruta operativa tiene una selección inequívoca. Solo /mesero
+    // permite que el provider decida cuál pestaña interna está visible.
+    final effectivePath = switch (currentPath) {
+      '/historial_ventas' => '/mesero/historial',
+      '/cierre_caja' => '/mesero/cierre-caja',
+      '/administrar_mesas' => '/mesero',
+      _ => currentPath,
+    };
+    final routeSelectedPath = switch (effectivePath) {
+      '/mesero/productos' => '/mesero/productos',
+      '/mesero/historial' => '/mesero/historial',
+      '/mesero/cierre-caja' => '/mesero/cierre-caja',
+      '/mesero/resumen' => '/mesero/resumen',
+      '/mesero' => switch (selectedMode) {
+          MeseroPageMode.productos => '/mesero/productos',
+          MeseroPageMode.historial => '/mesero/historial',
+          MeseroPageMode.cierreCaja => '/mesero/cierre-caja',
+          MeseroPageMode.resumen => '/mesero/resumen',
+          MeseroPageMode.mesas => '/mesero',
+        },
+      _ => effectivePath,
+    };
+    var selectedIndex = navigationEntries.indexWhere(
+      (entry) => entry.path == routeSelectedPath,
+    );
     if (selectedIndex < 0) {
       selectedIndex = navigationEntries.indexWhere(
-        (entry) => entry.path != '__more__' && currentPath == entry.path,
+        (entry) => entry.path != '__more__' &&
+            entry.path != '/home' &&
+            entry.path != '/mesero' &&
+            effectivePath.startsWith('${entry.path}/'),
       );
     }
-    if (selectedIndex < 0) {
+    if (selectedIndex < 0 &&
+        extraMenus.any((item) =>
+            effectivePath == item.path ||
+            (item.path != '/home' &&
+                effectivePath.startsWith('${item.path}/')))) {
       selectedIndex = navigationEntries.indexWhere(
-        (entry) => entry.path != '__more__' && entry.path != '/home' &&
-            currentPath.startsWith('${entry.path}/'),
+        (entry) => entry.path == '__more__',
       );
     }
-    if (selectedIndex < 0 && currentPath.startsWith('/mesero')) {
-      selectedIndex =
-          navigationEntries.indexWhere((entry) => entry.mode == selectedMode);
-    }
-    if (extraMenus.any(
-      (item) =>
-          currentPath == item.path ||
-          currentPath.startsWith('${item.path}/'),
-    )) {
-      selectedIndex =
-          navigationEntries.indexWhere((entry) => entry.path == '__more__');
-    }
-
     return Container(
       decoration: BoxDecoration(
         color: palette.surface.withOpacity(palette.darkBackground ? 0.94 : 0.98),
@@ -2744,7 +2774,19 @@ class _CustomRoleBottomNavigation extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final palette = ref.watch(selectedAppPaletteProvider);
-    final currentPath = GoRouterState.of(context).uri.path;
+    final currentPath =
+        GoRouter.of(context).routerDelegate.currentConfiguration.uri.path;
+    final selectedMode = ref.watch(meseroSelectedModeProvider);
+    // /mesero puede cambiar de pantalla internamente sin actualizar la URL.
+    final effectivePath = currentPath == '/mesero'
+        ? switch (selectedMode) {
+            MeseroPageMode.mesas => '/mesero',
+            MeseroPageMode.productos => '/mesero/productos',
+            MeseroPageMode.resumen => '/mesero/resumen',
+            MeseroPageMode.historial => '/mesero/historial',
+            MeseroPageMode.cierreCaja => '/mesero/cierre-caja',
+          }
+        : currentPath;
     final width = MediaQuery.sizeOf(context).width;
     final authorizedMenus = ref.watch(userMenuProvider).maybeWhen(
           data: (items) => items,
@@ -2759,10 +2801,12 @@ class _CustomRoleBottomNavigation extends ConsumerWidget {
     }
     final allItems = uniqueByPath.values.toList(growable: false);
     if (allItems.isEmpty) return const SizedBox.shrink();
+    final selectedPath =
+        mostSpecificMenuPath(effectivePath, allItems.map((item) => item.path));
 
     if (allItems.length == 1) {
       final item = allItems.first;
-      final selected = _matchesPath(currentPath, item.path);
+      final selected = selectedPath == item.path;
       return Container(
         decoration: BoxDecoration(
           color: palette.surface.withOpacity(
@@ -2781,7 +2825,10 @@ class _CustomRoleBottomNavigation extends ConsumerWidget {
         child: SafeArea(
           top: false,
           child: InkWell(
-            onTap: () => context.go(item.path),
+            onTap: () {
+              selectMeseroModeForMenuPath(ref, item.path);
+              context.go(item.path);
+            },
             child: Padding(
               padding: const EdgeInsets.symmetric(vertical: 10),
               child: Column(
@@ -2828,12 +2875,13 @@ class _CustomRoleBottomNavigation extends ConsumerWidget {
         ? allItems.skip(visibleCount).toList(growable: false)
         : const <UserMenuItem>[];
 
+    // No seleccionar /mesero cuando existe /mesero/productos (o cierre,
+    // historial, etc.). Buscar primero entre TODOS los destinos autorizados.
     var selectedIndex = visibleItems.indexWhere(
-      (item) => _matchesPath(currentPath, item.path),
+      (item) => item.path == selectedPath,
     );
-    final selectedInOverflow = overflowItems.any(
-      (item) => _matchesPath(currentPath, item.path),
-    );
+    final selectedInOverflow =
+        overflowItems.any((item) => item.path == selectedPath);
     if (selectedIndex < 0 && selectedInOverflow) {
       selectedIndex = visibleItems.length;
     }
@@ -2879,11 +2927,14 @@ class _CustomRoleBottomNavigation extends ConsumerWidget {
                 context: context,
                 palette: palette,
                 items: overflowItems,
-                currentPath: currentPath,
+                selectedPath: selectedPath,
+                ref: ref,
               );
               return;
             }
-            context.go(visibleItems[index].path);
+            final targetPath = visibleItems[index].path;
+            selectMeseroModeForMenuPath(ref, targetPath);
+            context.go(targetPath);
           },
           items: [
             for (final item in visibleItems)
@@ -2922,16 +2973,12 @@ class _CustomRoleBottomNavigation extends ConsumerWidget {
     );
   }
 
-  bool _matchesPath(String currentPath, String itemPath) {
-    return currentPath == itemPath ||
-        (itemPath != '/home' && currentPath.startsWith('$itemPath/'));
-  }
-
   Future<void> _showMore({
     required BuildContext context,
     required AppPalette palette,
     required List<UserMenuItem> items,
-    required String currentPath,
+    required String? selectedPath,
+    required WidgetRef ref,
   }) async {
     var query = '';
     await showModalBottomSheet<void>(
@@ -3016,8 +3063,7 @@ class _CustomRoleBottomNavigation extends ConsumerWidget {
                                 const SizedBox(height: 7),
                             itemBuilder: (itemContext, index) {
                               final item = filtered[index];
-                              final selected =
-                                  _matchesPath(currentPath, item.path);
+                              final selected = selectedPath == item.path;
                               return ListTile(
                                 selected: selected,
                                 onTap: () {
@@ -3025,6 +3071,7 @@ class _CustomRoleBottomNavigation extends ConsumerWidget {
                                   WidgetsBinding.instance
                                       .addPostFrameCallback((_) {
                                     if (context.mounted) {
+                                      selectMeseroModeForMenuPath(ref, item.path);
                                       context.go(item.path);
                                     }
                                   });
@@ -4432,7 +4479,7 @@ class _NavigationCollapseButton extends StatelessWidget {
       );
 }
 
-class _NavTile extends StatelessWidget {
+class _NavTile extends ConsumerWidget {
   const _NavTile({
     required this.title,
     required this.keyName,
@@ -4452,7 +4499,7 @@ class _NavTile extends StatelessWidget {
   final VoidCallback? onTap;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final visual = ModuleVisuals.byKey(keyName);
     final appPalette = palette ?? appPalettes.first;
     final pathNow = _currentPath(context);
@@ -4485,6 +4532,11 @@ class _NavTile extends StatelessWidget {
           onTap: () {
             final router = GoRouter.of(context);
             final shouldCloseDrawer = Scaffold.maybeOf(context)?.isDrawerOpen ?? false;
+            if (onTap == null) {
+              // El drawer puede desmontarse al cerrarse. Actualizar el
+              // provider ANTES para evitar usar WidgetRef desactivado.
+              selectMeseroModeForMenuPath(ref, path);
+            }
             if (shouldCloseDrawer) Navigator.of(context).pop();
             if (onTap != null) {
               onTap!();
