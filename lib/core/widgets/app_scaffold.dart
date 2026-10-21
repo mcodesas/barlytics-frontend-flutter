@@ -117,7 +117,7 @@ class _SubscriptionExpiryBanner extends ConsumerWidget {
     final label = days <= 0 ? 'hoy' : days == 1 ? 'mañana' : 'en $days días';
     final renewal = current.automaticRenewal && !current.cancellationScheduled;
     final message = renewal
-        ? 'Tu plan ${current.planName ?? ''} se renovará automáticamente $label. Comprueba tu medio de pago.'
+        ? 'El período de ${current.planName ?? 'BarLytics'} finaliza $label. La renovación automática está habilitada; comprueba tu medio de pago.'
         : 'Tu plan ${current.planName ?? ''} vence $label. Renueva a tiempo para evitar interrupciones.';
     final action = canManage
         ? TextButton(
