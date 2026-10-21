@@ -16,10 +16,15 @@ import '../../../../core/widgets/app_empty_view.dart';
 import '../../../../core/widgets/app_error_view.dart';
 import '../../../../core/widgets/app_loader.dart';
 import '../../../../core/widgets/tech_background.dart';
+import '../../../marcas/data/models/marcas_response_model.dart';
+import '../../../marcas/presentation/providers/marcas_provider.dart';
+import '../../../tipos_producto/data/models/tipos_producto_response_model.dart';
+import '../../../tipos_producto/presentation/providers/tipos_producto_provider.dart';
 import '../../../productos/data/models/productos_response_model.dart';
 import '../../../productos/presentation/providers/productos_provider.dart';
 import '../../../sucursales/data/models/sucursales_response_model.dart';
 import '../../data/models/precios_response_model.dart';
+import '../utils/precios_filter_utils.dart';
 
 enum _PriceFilter { all, withPrice, withoutPrice, changed }
 
@@ -31,6 +36,7 @@ final _preciosProductosPagedProvider = StateNotifierProvider.autoDispose<
     ref.watch(productosCrudRepositoryProvider),
     ref.watch(apiClientProvider),
     autoLoad: false,
+    requireSucursal: true,
   );
 });
 
@@ -51,6 +57,8 @@ class _PreciosListPageState extends ConsumerState<PreciosListPage> {
 
   Timer? _searchDebounce;
   _PriceFilter _filter = _PriceFilter.all;
+  int? _selectedTipoId;
+  int? _selectedMarcaId;
   _PriceViewMode _viewMode = _PriceViewMode.cards;
   int? _sucursalId;
   int? _initializedBranchId;
@@ -72,6 +80,8 @@ class _PreciosListPageState extends ConsumerState<PreciosListPage> {
     final palette = ref.watch(selectedAppPaletteProvider);
     final branchState = ref.watch(branchScopeProvider);
     final pagedState = ref.watch(_preciosProductosPagedProvider);
+    final tipos = ref.watch(tiposproductoProvider).items;
+    final marcas = ref.watch(marcasProvider).items;
     _sucursalId = branchState.activeBranchId;
 
     _ensureBranchLoaded(branchState.activeBranchId, pagedState);
@@ -117,6 +127,10 @@ class _PreciosListPageState extends ConsumerState<PreciosListPage> {
     final visible = _filter == _PriceFilter.changed
         ? _changedProducts()
         : pageProducts;
+    final filtersActive = _selectedTipoId != null ||
+        _selectedMarcaId != null ||
+        _searchController.text.trim().isNotEmpty ||
+        _filter != _PriceFilter.all;
     final changed = _pendingDrafts.length;
 
     return Scaffold(
@@ -142,6 +156,14 @@ class _PreciosListPageState extends ConsumerState<PreciosListPage> {
                       searchController: _searchController,
                       filter: _filter,
                       viewMode: _viewMode,
+                      tipos: tipos,
+                      marcas: marcas,
+                      selectedTipoId: _selectedTipoId,
+                      selectedMarcaId: _selectedMarcaId,
+                      filtersActive: filtersActive,
+                      onTipoChanged: _changeTipo,
+                      onMarcaChanged: _changeMarca,
+                      onClearFilters: _clearFilters,
                       visibleOnPage: visible.length,
                       totalElements: _filter == _PriceFilter.changed ? changed : pagedState.totalElements,
                       changed: changed,
@@ -299,21 +321,15 @@ class _PreciosListPageState extends ConsumerState<PreciosListPage> {
   }
 
   List<ProductosResponseModel> _changedProducts() {
-    final query = _searchController.text.trim().toLowerCase();
-    final result = _pendingDrafts
-        .map((entry) => _loadedProducts[entry.key])
-        .whereType<ProductosResponseModel>()
-        .where((product) {
-          if (query.isEmpty) return true;
-          return <String>[
-            product.prodNombre ?? '',
-            product.prodDescripcion ?? '',
-            product.prodId?.toString() ?? '',
-          ].join(' ').toLowerCase().contains(query);
-        })
-        .toList(growable: false)
-      ..sort((a, b) => (a.prodNombre ?? '').toLowerCase().compareTo((b.prodNombre ?? '').toLowerCase()));
-    return result;
+    return filtrarPreciosPendientes(
+      productos: _pendingDrafts
+          .map((entry) => _loadedProducts[entry.key])
+          .whereType<ProductosResponseModel>(),
+      sucursalId: _sucursalId,
+      tipoId: _selectedTipoId,
+      marcaId: _selectedMarcaId,
+      busqueda: _searchController.text,
+    );
   }
 
   List<MapEntry<int, _PriceDraft>> get _pendingDrafts => _drafts.entries
@@ -327,9 +343,12 @@ class _PreciosListPageState extends ConsumerState<PreciosListPage> {
       };
 
   String _emptyMessage(List<ProductosResponseModel> pageProducts) {
-    if (_filter == _PriceFilter.changed) return 'No hay precios modificados pendientes.';
-    if (pageProducts.isEmpty && _searchController.text.trim().isNotEmpty) {
-      return 'No hay productos que coincidan con la búsqueda.';
+    if (_filter == _PriceFilter.changed) {
+      return 'No hay precios modificados pendientes que coincidan con los filtros.';
+    }
+    if (_selectedTipoId != null || _selectedMarcaId != null ||
+        _searchController.text.trim().isNotEmpty) {
+      return 'No hay productos que coincidan con el tipo, la marca o la búsqueda.';
     }
     return switch (_filter) {
       _PriceFilter.withPrice => 'No hay productos con precio vigente en esta sucursal.',
@@ -349,20 +368,59 @@ class _PreciosListPageState extends ConsumerState<PreciosListPage> {
             query: value.trim(),
             sucursalId: _sucursalId,
             priceStatus: _priceStatusFor(_filter),
+            tipoId: _selectedTipoId,
+            clearTipoId: _selectedTipoId == null,
+            marcaId: _selectedMarcaId,
+            clearMarcaId: _selectedMarcaId == null,
           );
     });
   }
 
   Future<void> _changeFilter(_PriceFilter value) async {
     if (value == _filter) return;
+    _searchDebounce?.cancel();
     setState(() => _filter = value);
     if (value == _PriceFilter.changed) return;
+    await _loadWithCurrentFilters();
+  }
+
+  Future<void> _changeTipo(int? tipoId) async {
+    if (_selectedTipoId == tipoId) return;
+    _searchDebounce?.cancel();
+    setState(() => _selectedTipoId = tipoId);
+    if (_filter != _PriceFilter.changed) await _loadWithCurrentFilters();
+  }
+
+  Future<void> _changeMarca(int? marcaId) async {
+    if (_selectedMarcaId == marcaId) return;
+    _searchDebounce?.cancel();
+    setState(() => _selectedMarcaId = marcaId);
+    if (_filter != _PriceFilter.changed) await _loadWithCurrentFilters();
+  }
+
+  Future<void> _loadWithCurrentFilters({int? page}) async {
+    if (_sucursalId == null) return;
     await ref.read(_preciosProductosPagedProvider.notifier).load(
-          page: 0,
-          query: _searchController.text.trim(),
-          sucursalId: _sucursalId,
-          priceStatus: _priceStatusFor(value),
-        );
+      page: page ?? 0,
+      query: _searchController.text.trim(),
+      sucursalId: _sucursalId,
+      priceStatus: _priceStatusFor(_filter),
+      tipoId: _selectedTipoId,
+      clearTipoId: _selectedTipoId == null,
+      marcaId: _selectedMarcaId,
+      clearMarcaId: _selectedMarcaId == null,
+    );
+  }
+
+  Future<void> _clearFilters() async {
+    _searchDebounce?.cancel();
+    _searchController.clear();
+    setState(() {
+      _selectedTipoId = null;
+      _selectedMarcaId = null;
+      _filter = _PriceFilter.all;
+    });
+    await _loadWithCurrentFilters();
   }
 
   Future<void> _changeBranch(int? branchId) async {
@@ -393,6 +451,9 @@ class _PreciosListPageState extends ConsumerState<PreciosListPage> {
 
     _clearDrafts();
     _filter = _PriceFilter.all;
+    _selectedTipoId = null;
+    _selectedMarcaId = null;
+    _searchDebounce?.cancel();
     _searchController.clear();
     _initializedBranchId = branchId;
 
@@ -422,12 +483,9 @@ class _PreciosListPageState extends ConsumerState<PreciosListPage> {
   }
 
   Future<void> _refresh() async {
-    await ref.read(_preciosProductosPagedProvider.notifier).load(
-          page: _filter == _PriceFilter.changed ? 0 : null,
-          query: _searchController.text.trim(),
-          sucursalId: _sucursalId,
-          priceStatus: _priceStatusFor(_filter),
-        );
+    await _loadWithCurrentFilters(
+      page: _filter == _PriceFilter.changed ? 0 : ref.read(_preciosProductosPagedProvider).page,
+    );
   }
 
   Future<void> _downloadPrices() async {
