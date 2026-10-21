@@ -21,6 +21,8 @@ import '../../../../core/widgets/tech_background.dart';
 import '../../services/reporte_pdf_service.dart';
 import '../widgets/profit_expense_breakdown.dart';
 import '../utils/order_whatsapp_message_formatter.dart';
+import '../utils/order_destination_resolver.dart';
+import '../widgets/manual_purchase_order_dialog.dart';
 import '../../../subscription/presentation/providers/subscription_provider.dart';
 
 class ReportesPage extends ConsumerWidget {
@@ -4309,6 +4311,30 @@ class _NextOrderContentState extends ConsumerState<_NextOrderContent> {
     _selectionChanged(_selectedPresentations.clear);
   }
 
+  Future<void> _openManualOrder() async {
+    if (_confirming || _sendingWhatsapp || _exportingSelection) return;
+    final result = await showDialog<Map<int, int>>(
+      context: context,
+      builder: (_) => ManualPurchaseOrderDialog(
+        products: _orderRows,
+        initialSelection: Map<int, int>.from(_selectedPresentations),
+      ),
+    );
+    if (!mounted || result == null) return;
+    _searchController.clear();
+    _selectionChanged(() {
+      _selectedPresentations
+        ..clear()
+        ..addAll(result);
+      _workspaceFilter = _OrderWorkspaceFilter.seleccionados;
+    });
+    _showMessage(
+      result.length.toString() +
+          ' productos añadidos. Revisa cantidades y elige Confirmar pedido para continuar.',
+    );
+  }
+
+
   List<Map<String, dynamic>> get _effectiveOrderRows =>
       _confirmedRows.isNotEmpty ? _confirmedRows : _selectedRows;
 
@@ -5036,13 +5062,7 @@ class _NextOrderContentState extends ConsumerState<_NextOrderContent> {
                                 _exportingSelection ||
                                 _sendingWhatsapp
                             ? null
-                            : () {
-                                _searchController.clear();
-                                setState(
-                                  () => _workspaceFilter =
-                                      _OrderWorkspaceFilter.todos,
-                                );
-                              },
+                            : _openManualOrder,
                         icon: const Icon(Icons.add_shopping_cart_rounded, size: 17),
                         label: const Text('Pedido manual'),
                       ),
