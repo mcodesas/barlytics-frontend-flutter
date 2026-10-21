@@ -98,6 +98,8 @@ class _UsuarioRolesPageState extends ConsumerState<UsuarioRolesPage> {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Roles actualizados correctamente.')),
       );
+      // Este formulario es exclusivo de roles: al guardar regresamos al listado.
+      context.go('/usuarios');
     } catch (error) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
