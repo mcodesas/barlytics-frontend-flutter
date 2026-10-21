@@ -641,7 +641,8 @@ class _SubscriptionActivationPageState extends ConsumerState<SubscriptionActivat
       return;
     }
     if (navigateIfActivated && !wasActive && subscription.active && mounted) {
-      context.go('/configurar-negocio');
+      final setupComplete = ref.read(authControllerProvider).businessSetupComplete;
+      context.go(setupComplete ? '/home' : '/configurar-negocio');
     }
   }
 
