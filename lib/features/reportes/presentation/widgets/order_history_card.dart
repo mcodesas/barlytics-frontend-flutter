@@ -3,6 +3,7 @@ import 'package:intl/intl.dart';
 
 import '../../../../app/theme/app_palette.dart';
 import '../../../../core/utils/currency_utils.dart';
+import '../utils/order_whatsapp_message_formatter.dart';
 
 /// Historial compacto y legible, organizado por pedido y no por celdas
 /// diminutas. Los importes son los calculados en el backend.
@@ -98,11 +99,13 @@ class OrderHistoryCard extends StatelessWidget {
   }
 
   Widget _product(Map<String, dynamic> detail) {
-    final presentation = (detail['presentacion'] ?? '').toString().trim();
     final units = _money(detail['unidades']);
     final packages = _money(detail['presentaciones']);
     final amount = _money(detail['subtotal']);
-    final qty = packages > 0 ? packages.toStringAsFixed(packages % 1 == 0 ? 0 : 2) : units.toStringAsFixed(units % 1 == 0 ? 0 : 2);
+    final quantity = OrderWhatsappMessageFormatter.purchaseQuantityLabel({
+      'presentacion_compra': detail['presentacion'],
+      'unidades_por_presentacion': detail['unidadesPorPresentacion'],
+    }, presentations: packages, units: units);
     return Padding(
       padding: const EdgeInsets.only(bottom: 12),
       child: Row(
@@ -117,8 +120,9 @@ class OrderHistoryCard extends StatelessWidget {
                   style: TextStyle(color: palette.textPrimary, fontSize: 13, fontWeight: FontWeight.w800)),
               const SizedBox(height: 3),
               Text(
-                qty + ' ' + (presentation.isEmpty ? 'unidades' : presentation) +
-                    (units > 0 && units != packages ? ' · ' + units.toStringAsFixed(0) + ' unidades' : ''),
+                quantity + (units > 0 && (units - packages).abs() > 0.0001
+                    ? ' · ' + units.toStringAsFixed(units % 1 == 0 ? 0 : 2) + ' unidades'
+                    : ''),
                 style: TextStyle(color: palette.textSecondary, fontSize: 12),
               ),
             ],
