@@ -128,6 +128,22 @@ class AuthController extends StateNotifier<AuthState> {
   final Ref _ref;
 
   void _handleSessionExpired() {
+    // Un 402 no invalida las credenciales: actualizamos solamente el estado
+    // de suscripción para que el router lleve al cobro, conservando la sesión.
+    if (_sessionExpirationNotifier.subscriptionRequired) {
+      if (!state.authenticated || !state.subscriptionActive) return;
+      state = state.copyWith(
+        subscriptionStatus: 'PAST_DUE',
+        subscriptionActive: false,
+        businessSetupComplete: false,
+      );
+      unawaited(_repository.updateSubscriptionState(
+        status: 'PAST_DUE',
+        active: false,
+      ).catchError((Object _) {}));
+      _ref.invalidate(branchScopeProvider);
+      return;
+    }
     // También se ejecuta durante checkSession(). Si el token vence mientras se
     // restaura una sesión, el estado todavía puede estar en authenticated=false;
     // aun así debemos cancelar la restauración y volver al login.
