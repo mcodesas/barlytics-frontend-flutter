@@ -6002,6 +6002,12 @@ class _OrderProductRow extends StatelessWidget {
         ? math.max(1, _toDouble(row['presentaciones_pedir']).ceil())
         : 1;
     final factor = math.max(1.0, _toDouble(row['unidades_por_presentacion']));
+    final suggestedPurchase = OrderWhatsappMessageFormatter.purchaseQuantityLabel(
+      row, presentations: suggested, units: suggested * factor,
+    );
+    final selectedPurchase = OrderWhatsappMessageFormatter.purchaseQuantityLabel(
+      row, presentations: count, units: count * factor,
+    );
     final cost = _orderPresentationCost(row);
     final hasCost = cost > 0;
     final subtotal = _orderSubtotal(row, presentations: count.toDouble());
@@ -6073,7 +6079,7 @@ class _OrderProductRow extends StatelessWidget {
         const SizedBox(height: 2),
         Text(
           hasSuggestion
-              ? '$suggested ${row['presentacion_compra'] ?? 'presentaciones'}'
+              ? suggestedPurchase
               : 'Disponible para agregar',
           style: TextStyle(
             color: palette.textPrimary,
@@ -6117,9 +6123,9 @@ class _OrderProductRow extends StatelessWidget {
         const SizedBox(height: 2),
         Text(
           selected
-              ? '${_displayValue(units)} unidades'
+              ? selectedPurchase + ' · ' + _displayValue(units) + ' unidades'
               : hasCost
-                  ? '${_displayValue(cost, currency: true)} c/u'
+                  ? _displayValue(cost, currency: true) + ' por presentación'
                   : 'Configura el costo',
           textAlign: TextAlign.end,
           style: TextStyle(
@@ -6387,12 +6393,17 @@ class _OrderCartSummary extends StatelessWidget {
                       ),
                     ),
                     const SizedBox(width: 7),
-                    Text(
-                      '${_displayValue(row['presentaciones_pedir'])}',
-                      style: TextStyle(
+                    Flexible(
+                      child: Text(
+                        OrderWhatsappMessageFormatter.purchaseQuantityLabel(row),
+                        textAlign: TextAlign.end,
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
                         color: palette.textSecondary,
                         fontSize: 11.5,
                         fontWeight: FontWeight.w900,
+                        ),
                       ),
                     ),
                   ],
@@ -7166,7 +7177,9 @@ class _SelectableOrderCard extends StatelessWidget {
             ],
           ),
           Text(
-            '$count ${row['presentacion_compra'] ?? 'Unidad'} · ${_displayValue(units)} unidades',
+            OrderWhatsappMessageFormatter.purchaseQuantityLabel(
+              row, presentations: count, units: units,
+            ) + ' · ' + _displayValue(units) + ' unidades',
             style: TextStyle(
               color: palette.textPrimary,
               fontWeight: FontWeight.w800,
@@ -7501,7 +7514,8 @@ class _OrderHighlights extends StatelessWidget {
                       ),
                       const SizedBox(height: 10),
                       Text(
-                        '${_displayValue(row['presentaciones_pedir'])} ${row['presentacion_compra'] ?? 'presentaciones'} · ${_displayValue(row['unidades_pedir'])} unidades',
+                        OrderWhatsappMessageFormatter.purchaseQuantityLabel(row) +
+                            ' · ' + _displayValue(row['unidades_pedir']) + ' unidades',
                         style: TextStyle(
                           color: palette.textPrimary,
                           fontWeight: FontWeight.w800,
