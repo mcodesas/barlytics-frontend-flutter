@@ -436,29 +436,29 @@ class _GlassLoginCard extends ConsumerWidget {
                       return KeyEventResult.ignored;
                     },
                     child: _GlassTextField(
-                    controller: state._identifier,
-                     focusNode: state._identifierFocus,
-                     onFieldSubmitted: (_) => state._passwordFocus.requestFocus(),
-                    label: 'Usuario o correo',
-                    hint: 'correo@barlytics.com',
-                    icon: Icons.alternate_email_rounded,
-                    keyboardType: TextInputType.emailAddress,
-                    autofillHints: const [AutofillHints.username, AutofillHints.email],
-                    textInputAction: TextInputAction.next,
-                    maxLength: 255,
-                    validator: Validators.required,
-                    dense: dense,
-                    onChanged: (_) {
-                      if (state._loginErrorMessage != null) {
-                        state.setState(() => state._loginErrorMessage = null);
-                      }
-                    },
+                      controller: state._identifier,
+                      focusNode: state._identifierFocus,
+                      onFieldSubmitted: (_) => state._passwordFocus.requestFocus(),
+                      label: 'Usuario o correo',
+                      hint: 'correo@barlytics.com',
+                      icon: Icons.alternate_email_rounded,
+                      keyboardType: TextInputType.emailAddress,
+                      autofillHints: const [AutofillHints.username, AutofillHints.email],
+                      textInputAction: TextInputAction.next,
+                      maxLength: 255,
+                      validator: Validators.required,
+                      dense: dense,
+                      onChanged: (_) {
+                        if (state._loginErrorMessage != null) {
+                          state.setState(() => state._loginErrorMessage = null);
+                        }
+                      },
                     ),
                   ),
                   SizedBox(height: dense ? 8 : 14),
                   _GlassTextField(
                     controller: state._password,
-                     focusNode: state._passwordFocus,
+                    focusNode: state._passwordFocus,
                     label: 'Contraseña',
                     hint: 'Clave segura',
                     icon: Icons.lock_outline_rounded,
@@ -488,25 +488,34 @@ class _GlassLoginCard extends ConsumerWidget {
                     ),
                   ),
                   SizedBox(height: dense ? 4 : 7),
-                   CheckboxListTile(
-                     dense: true,
-                     contentPadding: EdgeInsets.zero,
-                     visualDensity: VisualDensity.compact,
-                     controlAffinity: ListTileControlAffinity.leading,
-                     activeColor: palette.primary,
-                     checkColor: palette.onPrimary,
-                     title: Text(
-                       'Recordar contraseña',
-                       style: TextStyle(color: palette.textPrimary, fontSize: dense ? 12 : 13, fontWeight: FontWeight.w700),
-                     ),
-                     subtitle: Text(
-                       'Usar el gestor de contraseñas del dispositivo o navegador',
-                       style: TextStyle(color: palette.textSecondary, fontSize: dense ? 10 : 11),
-                     ),
-                     value: state._rememberPassword,
-                     onChanged: loading ? null : (selected) => state._changeRememberPassword(selected ?? false),
-                   ),
-                   if (state._loginErrorMessage != null) ...[
+                  CheckboxListTile(
+                    dense: true,
+                    contentPadding: EdgeInsets.zero,
+                    visualDensity: VisualDensity.compact,
+                    controlAffinity: ListTileControlAffinity.leading,
+                    activeColor: palette.primary,
+                    checkColor: palette.onPrimary,
+                    title: Text(
+                      'Recordar contraseña',
+                      style: TextStyle(
+                        color: palette.textPrimary,
+                        fontSize: dense ? 12 : 13,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                    subtitle: Text(
+                      'Usar el gestor de contraseñas del dispositivo o navegador',
+                      style: TextStyle(
+                        color: palette.textSecondary,
+                        fontSize: dense ? 10 : 11,
+                      ),
+                    ),
+                    value: state._rememberPassword,
+                    onChanged: loading
+                        ? null
+                        : (selected) => state._changeRememberPassword(selected ?? false),
+                  ),
+                  if (state._loginErrorMessage != null) ...[
                     SizedBox(height: dense ? 8 : 14),
                     _LoginAlert(message: state._loginErrorMessage!),
                   ],
