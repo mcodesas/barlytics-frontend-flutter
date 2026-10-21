@@ -10,3 +10,7 @@ final subscriptionRemoteDataSourceProvider = Provider<SubscriptionRemoteDataSour
 final planCapabilitiesProvider = FutureProvider<PlanCapabilitiesModel>((ref) {
   return ref.watch(subscriptionRemoteDataSourceProvider).capabilities();
 });
+
+final subscriptionCurrentProvider = FutureProvider.autoDispose<SubscriptionModel>((ref) {
+  return ref.watch(subscriptionRemoteDataSourceProvider).current();
+});
