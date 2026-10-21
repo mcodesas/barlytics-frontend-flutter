@@ -99,7 +99,7 @@ void main() {
         'unidades_pedir': 48,
       },
     ]);
-    expect(text, contains('• *3 Paquetes x 6* — Galletas'));
+    expect(text, contains('• *3 paquetes x 6* — Galletas'));
     expect(text, contains('• *2 cajas x 24* — Cerveza'));
     expect(text, isNot(contains('x 6 x 6')));
     expect(text, isNot(contains('x 24 x 24')));
