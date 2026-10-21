@@ -19,6 +19,7 @@ import '../../../../core/widgets/app_error_view.dart';
 import '../../../../core/widgets/app_loader.dart';
 import '../../../../core/widgets/tech_background.dart';
 import '../../services/reporte_pdf_service.dart';
+import '../widgets/profit_expense_breakdown.dart';
 import '../../../subscription/presentation/providers/subscription_provider.dart';
 
 class ReportesPage extends ConsumerWidget {
@@ -2620,7 +2621,7 @@ class _ProfitContentState extends State<_ProfitContent> {
                   palette: widget.palette,
                 ),
                 const SizedBox(height: 14),
-                _ProfitExpenseDetails(
+                ProfitExpenseBreakdown(
                   items: _asRows(widget.payload.summary['desglose_gastos_periodo']),
                   finance: widget.payload.summary,
                   palette: widget.palette,
@@ -3025,131 +3026,6 @@ class _ProfitHero extends StatelessWidget {
             ],
           );
         },
-      ),
-    );
-  }
-}
-
-class _ProfitExpenseDetails extends StatelessWidget {
-  const _ProfitExpenseDetails({
-    required this.items,
-    required this.finance,
-    required this.palette,
-  });
-
-  final List<Map<String, dynamic>> items;
-  final Map<String, dynamic> finance;
-  final AppPalette palette;
-
-  @override
-  Widget build(BuildContext context) {
-    const categories = <String, String>{
-      'FIJO': 'Gastos fijos',
-      'VARIABLE': 'Gastos variables configurados',
-      'GASTOS TURNO': 'Gastos del turno',
-      'MANO DE OBRA': 'Mano de obra por cargo',
-    };
-    final subtotal = <String, double>{};
-    final counts = <String, int>{};
-    for (final item in items) {
-      final type = (item['categoria'] ?? '').toString().toUpperCase();
-      subtotal[type] = (subtotal[type] ?? 0) + _toDouble(item['valor']);
-      counts[type] = (counts[type] ?? 0) + 1;
-    }
-    final total = subtotal.values.fold<double>(0, (sum, amount) => sum + amount);
-    final expected = _toDouble(finance['gastos_operativos_periodo']);
-    final difference = total - expected;
-
-    return _Panel(
-      title: '¿En qué se van los gastos?',
-      subtitle: 'Detalle calculado del periodo y la sucursal seleccionados. Mano de obra corresponde a tarifas configuradas, no a un estado de pago de nómina.',
-      icon: Icons.receipt_long_rounded,
-      palette: palette,
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          if (items.isEmpty)
-            Text(
-              'No se encontraron gastos que afecten la utilidad en este periodo.',
-              style: TextStyle(color: palette.textSecondary),
-            ),
-          for (final category in categories.entries)
-            if ((counts[category.key] ?? 0) > 0)
-              ExpansionTile(
-                key: PageStorageKey('detalle-gasto-${category.key}'),
-                initiallyExpanded: category.key == 'MANO DE OBRA',
-                tilePadding: EdgeInsets.zero,
-                title: Text(
-                  category.value,
-                  style: TextStyle(color: palette.textPrimary, fontWeight: FontWeight.w800),
-                ),
-                subtitle: Text(
-                  '${counts[category.key] ?? 0} conceptos',
-                  style: TextStyle(color: palette.textSecondary, fontSize: 12),
-                ),
-                trailing: Text(
-                  _displayValue(subtotal[category.key] ?? 0, currency: true),
-                  style: TextStyle(color: palette.textPrimary, fontWeight: FontWeight.w900),
-                ),
-                children: [
-                  for (final item in items.where((entry) => (entry['categoria'] ?? '').toString().toUpperCase() == category.key))
-                    Padding(
-                      padding: const EdgeInsets.symmetric(vertical: 5),
-                      child: Row(
-                        children: [
-                          Expanded(
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Text(
-                                  (item['concepto'] ?? 'Sin concepto').toString(),
-                                  style: TextStyle(color: palette.textPrimary, fontWeight: FontWeight.w600),
-                                ),
-                                if (item['fecha'] != null || (item['tipo'] ?? '').toString().trim().isNotEmpty)
-                                  Text(
-                                    [
-                                      if (item['fecha'] != null) item['fecha'].toString(),
-                                      if ((item['tipo'] ?? '').toString().trim().isNotEmpty) item['tipo'].toString(),
-                                    ].join(' · '),
-                                    style: TextStyle(color: palette.textSecondary, fontSize: 11),
-                                  ),
-                              ],
-                            ),
-                          ),
-                          const SizedBox(width: 12),
-                          Text(
-                            _displayValue(_toDouble(item['valor']), currency: true),
-                            style: TextStyle(color: palette.textPrimary, fontWeight: FontWeight.w800),
-                          ),
-                        ],
-                      ),
-                    ),
-                ],
-              ),
-          const Divider(),
-          Row(
-            children: [
-              Expanded(
-                child: Text(
-                  'Total detallado',
-                  style: TextStyle(color: palette.textPrimary, fontWeight: FontWeight.w800),
-                ),
-              ),
-              Text(
-                _displayValue(total, currency: true),
-                style: TextStyle(color: palette.textPrimary, fontWeight: FontWeight.w900),
-              ),
-            ],
-          ),
-          if (finance.containsKey('gastos_operativos_periodo') && difference.abs() > 0.01)
-            Padding(
-              padding: const EdgeInsets.only(top: 8),
-              child: Text(
-                'Atención: diferencia de ${_displayValue(difference, currency: true)} frente al total del reporte. Revisa los conceptos del periodo.',
-                style: TextStyle(color: palette.warning, fontSize: 12, fontWeight: FontWeight.w700),
-              ),
-            ),
-        ],
       ),
     );
   }
