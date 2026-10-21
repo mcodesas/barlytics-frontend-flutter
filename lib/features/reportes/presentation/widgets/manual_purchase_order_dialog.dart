@@ -2,6 +2,8 @@ import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 
+import '../utils/order_whatsapp_message_formatter.dart';
+
 /// Permite armar un pedido aunque el stock esté cubierto. Solo devuelve
 /// borradores: confirmar el pedido sigue siendo una acción independiente.
 class ManualPurchaseOrderDialog extends StatefulWidget {
@@ -155,7 +157,15 @@ class _ManualPurchaseOrderDialogState extends State<ManualPurchaseOrderDialog> {
                           final cost = _amount(product['costo_presentacion_actual']);
                           final available = cost > 0;
                           final stock = _amount(product['stock_actual']);
-                          final package = (product['presentacion_compra'] ?? 'Unidad').toString();
+                          final factor = _amount(product['unidades_por_presentacion']) > 1
+                              ? _amount(product['unidades_por_presentacion'])
+                              : 1.0;
+                          final onePresentation = OrderWhatsappMessageFormatter.purchaseQuantityLabel(
+                            product, presentations: 1, units: factor,
+                          );
+                          final selectedPresentation = OrderWhatsappMessageFormatter.purchaseQuantityLabel(
+                            product, presentations: selectedCount, units: selectedCount * factor,
+                          );
                           return Padding(
                             padding: const EdgeInsets.symmetric(vertical: 8),
                             child: Row(
@@ -179,7 +189,7 @@ class _ManualPurchaseOrderDialogState extends State<ManualPurchaseOrderDialog> {
                                       const SizedBox(height: 4),
                                       Text(
                                         available
-                                            ? 'Compra por: ' + package + ' · Stock: ' + stock.toStringAsFixed(0)
+                                            ? 'Compra por: ' + onePresentation + ' · Stock: ' + stock.toStringAsFixed(0)
                                             : 'Sin costo de compra configurado',
                                         style: theme.textTheme.bodySmall?.copyWith(
                                           color: available
@@ -187,13 +197,23 @@ class _ManualPurchaseOrderDialogState extends State<ManualPurchaseOrderDialog> {
                                               : theme.colorScheme.error,
                                         ),
                                       ),
+                                      if (available && selectedCount > 0) ...[
+                                        const SizedBox(height: 3),
+                                        Text(
+                                          'Pedir: ' + selectedPresentation,
+                                          style: theme.textTheme.bodySmall?.copyWith(
+                                            color: theme.colorScheme.primary,
+                                            fontWeight: FontWeight.w800,
+                                          ),
+                                        ),
+                                      ],
                                     ],
                                   ),
                                 ),
                                 if (available) ...[
                                   IconButton(
                                     visualDensity: VisualDensity.compact,
-                                    tooltip: 'Disminuir cantidad',
+                                    tooltip: 'Disminuir paquetes o presentaciones',
                                     onPressed: selectedCount == 0
                                         ? null
                                         : () => _change(id, selectedCount - 1),
@@ -209,7 +229,7 @@ class _ManualPurchaseOrderDialogState extends State<ManualPurchaseOrderDialog> {
                                   ),
                                   IconButton(
                                     visualDensity: VisualDensity.compact,
-                                    tooltip: 'Aumentar cantidad',
+                                    tooltip: 'Aumentar paquetes o presentaciones',
                                     onPressed: () => _change(id, selectedCount + 1),
                                     icon: const Icon(Icons.add_circle_outline),
                                   ),
