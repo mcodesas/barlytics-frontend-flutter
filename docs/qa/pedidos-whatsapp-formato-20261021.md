@@ -17,6 +17,15 @@
 11. La URL de WhatsApp usa Uri.encodeComponent(message); revisar saltos de línea y caracteres especiales.
 12. Abrir WhatsApp no debe confirmar, eliminar, recibir ni modificar nuevamente un pedido.
 
+## Cantidades por presentación al seleccionar pedidos
+
+1. En **Próximo pedido**, configurar un producto con compra por cantidad (por ejemplo, paquetes de 12). Verificar que tanto la lista como el resumen digan **2 paquetes x 12** en lugar de 2 unidades.
+2. Desde **Pedido manual**, incrementar la cantidad a 3. Debe verse **3 paquetes x 12** y enviarse al backend como 3 presentaciones, equivalentes a 36 unidades de inventario.
+3. Revisar productos con compra por caja x 24, paquete de 6 y unidad individual. Las cajas/paquetes deben respetar su presentación; los unitarios siguen diciendo unidades.
+4. Confirmar el pedido, consultar historial y abrir WhatsApp. Los tres lugares deben mostrar la misma cantidad por presentación, sin multiplicarla de nuevo.
+5. Probar datos anteriores cuya etiqueta de presentación sea `Unidad`, `Unidad x 12` o `Presentación` pero tengan `unidades_por_presentacion > 1`: mostrar paquetes correctamente.
+6. Verificar selección y botones +/- en móvil, escritorio y web, sin desbordar las filas al mostrar la presentación completa.
+
 ## Comandos antes del PR
 
 ```bash
