@@ -689,10 +689,26 @@ class _ReporteDetailState extends ConsumerState<_ReporteDetail> {
           (json) => json,
           queryParameters: query,
         );
-    final payload = _ReportPayload.fromRaw(
+    var payload = _ReportPayload.fromRaw(
       response.data,
       summary: definition.summary,
     );
+    // El inventario puede no tener ventas: los gastos y la mano de obra
+    // deben seguir visibles, usando el resumen financiero para el periodo.
+    if (definition.kind == _ReportKind.profit) {
+      final financeResponse = await ref.read(apiClientProvider).get<Object?>(
+        '/api/v1/reportes/resumen',
+        (json) => json,
+        queryParameters: query,
+      );
+      final financeData = financeResponse.data;
+      if (financeData is Map) {
+        payload = _ReportPayload(
+          summary: Map<String, dynamic>.from(financeData),
+          rows: payload.rows,
+        );
+      }
+    }
     if (mounted && loadVersion == _loadVersion) {
       setState(() => _lastPayload = payload);
     }
@@ -2570,9 +2586,17 @@ class _ProfitContentState extends State<_ProfitContent> {
               children: [
                 _ProfitHero(
                   rows: rows,
-                  metadata: widget.payload.rows.isEmpty
-                      ? const <String, dynamic>{}
-                      : widget.payload.rows.first,
+                  metadata: widget.payload.summary.isNotEmpty
+                      ? widget.payload.summary
+                      : (widget.payload.rows.isEmpty
+                          ? const <String, dynamic>{}
+                          : widget.payload.rows.first),
+                  palette: widget.palette,
+                ),
+                const SizedBox(height: 14),
+                _ProfitExpenseDetails(
+                  items: _asRows(widget.payload.summary['desglose_gastos_periodo']),
+                  finance: widget.payload.summary,
                   palette: widget.palette,
                 ),
                 const SizedBox(height: 14),
@@ -2975,6 +2999,129 @@ class _ProfitHero extends StatelessWidget {
             ],
           );
         },
+      ),
+    );
+  }
+}
+
+class _ProfitExpenseDetails extends StatelessWidget {
+  const _ProfitExpenseDetails({
+    required this.items,
+    required this.finance,
+    required this.palette,
+  });
+
+  final List<Map<String, dynamic>> items;
+  final Map<String, dynamic> finance;
+  final AppPalette palette;
+
+  @override
+  Widget build(BuildContext context) {
+    const categories = <String, String>{
+      'FIJO': 'Gastos fijos',
+      'VARIABLE': 'Gastos variables configurados',
+      'GASTOS TURNO': 'Gastos del turno',
+      'MANO DE OBRA': 'Mano de obra por cargo',
+    };
+    final subtotal = <String, double>{};
+    for (final item in items) {
+      final type = (item['categoria'] ?? '').toString().toUpperCase();
+      subtotal[type] = (subtotal[type] ?? 0) + _toDouble(item['valor']);
+    }
+    final total = subtotal.values.fold<double>(0, (sum, amount) => sum + amount);
+    final expected = _toDouble(finance['gastos_operativos_periodo']);
+    final difference = total - expected;
+
+    return _Panel(
+      title: '¿En qué se van los gastos?',
+      subtitle: 'Detalle calculado del periodo y la sucursal seleccionados. Mano de obra corresponde a tarifas configuradas, no a un estado de pago de nómina.',
+      icon: Icons.receipt_long_rounded,
+      palette: palette,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          if (items.isEmpty)
+            Text(
+              'No se encontraron gastos que afecten la utilidad en este periodo.',
+              style: TextStyle(color: palette.textSecondary),
+            ),
+          for (final category in categories.entries)
+            if (items.any((item) => (item['categoria'] ?? '').toString().toUpperCase() == category.key))
+              ExpansionTile(
+                key: PageStorageKey('detalle-gasto-${category.key}'),
+                initiallyExpanded: category.key == 'MANO DE OBRA',
+                tilePadding: EdgeInsets.zero,
+                title: Text(
+                  category.value,
+                  style: TextStyle(color: palette.textPrimary, fontWeight: FontWeight.w800),
+                ),
+                subtitle: Text(
+                  '${items.where((item) => (item['categoria'] ?? '').toString().toUpperCase() == category.key).length} conceptos',
+                  style: TextStyle(color: palette.textSecondary, fontSize: 12),
+                ),
+                trailing: Text(
+                  _displayValue(subtotal[category.key] ?? 0, currency: true),
+                  style: TextStyle(color: palette.textPrimary, fontWeight: FontWeight.w900),
+                ),
+                children: [
+                  for (final item in items.where((entry) => (entry['categoria'] ?? '').toString().toUpperCase() == category.key))
+                    Padding(
+                      padding: const EdgeInsets.symmetric(vertical: 5),
+                      child: Row(
+                        children: [
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  (item['concepto'] ?? 'Sin concepto').toString(),
+                                  style: TextStyle(color: palette.textPrimary, fontWeight: FontWeight.w600),
+                                ),
+                                if (item['fecha'] != null || (item['tipo'] ?? '').toString().trim().isNotEmpty)
+                                  Text(
+                                    [
+                                      if (item['fecha'] != null) item['fecha'].toString(),
+                                      if ((item['tipo'] ?? '').toString().trim().isNotEmpty) item['tipo'].toString(),
+                                    ].join(' · '),
+                                    style: TextStyle(color: palette.textSecondary, fontSize: 11),
+                                  ),
+                              ],
+                            ),
+                          ),
+                          const SizedBox(width: 12),
+                          Text(
+                            _displayValue(_toDouble(item['valor']), currency: true),
+                            style: TextStyle(color: palette.textPrimary, fontWeight: FontWeight.w800),
+                          ),
+                        ],
+                      ),
+                    ),
+                ],
+              ),
+          const Divider(),
+          Row(
+            children: [
+              Expanded(
+                child: Text(
+                  'Total detallado',
+                  style: TextStyle(color: palette.textPrimary, fontWeight: FontWeight.w800),
+                ),
+              ),
+              Text(
+                _displayValue(total, currency: true),
+                style: TextStyle(color: palette.textPrimary, fontWeight: FontWeight.w900),
+              ),
+            ],
+          ),
+          if (finance.containsKey('gastos_operativos_periodo') && difference.abs() > 0.01)
+            Padding(
+              padding: const EdgeInsets.only(top: 8),
+              child: Text(
+                'Atención: diferencia de ${_displayValue(difference, currency: true)} frente al total del reporte. Revisa los conceptos del periodo.',
+                style: TextStyle(color: palette.warning, fontSize: 12, fontWeight: FontWeight.w700),
+              ),
+            ),
+        ],
       ),
     );
   }
@@ -11346,8 +11493,9 @@ Map<String, dynamic> _buildMetrics(
   if (definition.kind == _ReportKind.profit) {
     final ingresos = _sum(rows, 'ingresos_periodo');
     final ganancia = _sum(rows, 'ganancia_bruta_periodo');
-    final metadata =
-        rows.isEmpty ? const <String, dynamic>{} : rows.first;
+    final metadata = payload.summary.isNotEmpty
+        ? payload.summary
+        : (rows.isEmpty ? const <String, dynamic>{} : rows.first);
     final gastosFijos = _toDouble(metadata['gastos_fijos_periodo']);
     final gastosVariables = _toDouble(metadata['gastos_variables_periodo']);
     final manoObra = _toDouble(metadata['mano_obra_periodo']);
