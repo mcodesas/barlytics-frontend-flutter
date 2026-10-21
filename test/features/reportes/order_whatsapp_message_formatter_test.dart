@@ -117,4 +117,32 @@ void main() {
     expect(text, contains('• *2 unidades* — Agua con gas'));
     expect(text, isNot(contains('null')));
   });
+  test('el mensaje mantiene saltos al codificarse para WhatsApp', () {
+    final message = formato(observation: 'Línea 1\nLínea 2');
+    final encoded = Uri.encodeComponent(message);
+    expect(encoded, contains('%0A'));
+    expect(Uri.decodeComponent(encoded), message);
+    expect(Uri.decodeComponent(encoded),
+        contains('*OBSERVACIONES:*\nLínea 1\nLínea 2'));
+  });
+
+  test('cada pedido independiente conserva únicamente sus productos', () {
+    final pedidoA = formato(
+      supplierName: 'Distribuidora A',
+      rows: [productos.first],
+      orderId: 201,
+    );
+    final pedidoB = formato(
+      supplierName: 'Distribuidora B',
+      rows: [productos.last],
+      orderId: 202,
+    );
+    expect(pedidoA, contains('• *3 cajas x 24* — Cerveza Águila'));
+    expect(pedidoA, isNot(contains('Limón')));
+    expect(pedidoB, contains('• *2 unidades* — Limón'));
+    expect(pedidoB, isNot(contains('Cerveza Águila')));
+    expect(pedidoA, contains('*Proveedor:* Distribuidora A'));
+    expect(pedidoB, contains('*Proveedor:* Distribuidora B'));
+  });
+
 }
