@@ -32,6 +32,7 @@ class _GastosFijosPageState extends ConsumerState<GastosFijosPage> {
   double laborToday = 0;
   double laborMonthly = 0;
   int laborCargoCount = 0;
+  bool laborSummaryError = false;
 
   static const _categories = <String>[
     'Arriendo',
@@ -85,6 +86,7 @@ class _GastosFijosPageState extends ConsumerState<GastosFijosPage> {
           laborToday = 0;
           laborMonthly = 0;
           laborCargoCount = 0;
+          laborSummaryError = false;
         });
       }
       return;
@@ -126,15 +128,16 @@ class _GastosFijosPageState extends ConsumerState<GastosFijosPage> {
         laborToday = todayTotal;
         laborMonthly = monthTotal;
         laborCargoCount = cargos.length;
+        laborSummaryError = false;
       });
     } catch (error) {
       debugPrint('Error calculando resumen de mano de obra: $error');
       if (!mounted) return;
       setState(() {
-        laborToday = 0;
-        laborMonthly = 0;
-        laborCargoCount = 0;
+        // Un fallo HTTP no significa que el costo real sea cero.
+        laborSummaryError = true;
       });
+      _message('No se pudo consultar el costo de mano de obra. Reintenta actualizar.', error: true);
     }
   }
 
@@ -148,6 +151,7 @@ class _GastosFijosPageState extends ConsumerState<GastosFijosPage> {
           laborToday = 0;
           laborMonthly = 0;
           laborCargoCount = 0;
+          laborSummaryError = false;
           loading = false;
         });
       }
@@ -627,6 +631,7 @@ class _GastosFijosPageState extends ConsumerState<GastosFijosPage> {
                     laborToday: laborToday,
                     laborMonthly: laborMonthly,
                     laborCargoCount: laborCargoCount,
+                    laborSummaryError: laborSummaryError,
                     money: money,
                   ),
                 ),
@@ -686,6 +691,8 @@ class _GastosFijosPageState extends ConsumerState<GastosFijosPage> {
                                 _isLabor(item) ? laborMonthly : null,
                             laborCargoCount:
                                 _isLabor(item) ? laborCargoCount : null,
+                            laborSummaryError:
+                                _isLabor(item) && laborSummaryError,
                           ),
                         ),
                       );
@@ -795,6 +802,7 @@ class _Summary extends StatelessWidget {
   final double laborToday;
   final double laborMonthly;
   final int laborCargoCount;
+  final bool laborSummaryError;
   final NumberFormat money;
 
   const _Summary({
@@ -805,6 +813,7 @@ class _Summary extends StatelessWidget {
     required this.laborToday,
     required this.laborMonthly,
     required this.laborCargoCount,
+    required this.laborSummaryError,
     required this.money,
   });
 
@@ -828,13 +837,17 @@ class _Summary extends StatelessWidget {
               palette: palette,
               icon: Icons.groups_2_outlined,
               label: 'Mano de obra · hoy',
-              value: hasLabor
-                  ? money.format(laborToday)
-                  : 'Sin configurar',
-              subtitle: hasLabor
-                  ? '${money.format(laborMonthly)} / mes actual · '
-                      '$laborCargoCount cargo${laborCargoCount == 1 ? '' : 's'}'
-                  : null,
+              value: !hasLabor
+                  ? 'Sin configurar'
+                  : laborSummaryError
+                      ? 'No disponible'
+                      : money.format(laborToday),
+              subtitle: !hasLabor
+                  ? null
+                  : laborSummaryError
+                      ? 'No se pudieron consultar las tarifas'
+                      : '${money.format(laborMonthly)} / mes actual · '
+                          '$laborCargoCount cargo${laborCargoCount == 1 ? '' : 's'}',
             ),
           ];
 
@@ -1013,6 +1026,7 @@ class _Expense extends StatelessWidget {
   final double? laborToday;
   final double? laborMonthly;
   final int? laborCargoCount;
+  final bool laborSummaryError;
 
   const _Expense({
     required this.item,
@@ -1024,6 +1038,7 @@ class _Expense extends StatelessWidget {
     this.laborToday,
     this.laborMonthly,
     this.laborCargoCount,
+    this.laborSummaryError = false,
   });
 
   @override
@@ -1139,7 +1154,9 @@ class _Expense extends StatelessWidget {
                     badge,
                     Text(
                       labor
-                          ? 'Hoy ${money.format(laborToday ?? 0)} · Mes aprox. ${money.format(laborMonthly ?? 0)}'
+                          ? laborSummaryError
+                              ? 'Costo no disponible'
+                              : 'Hoy ${money.format(laborToday ?? 0)} · Mes aprox. ${money.format(laborMonthly ?? 0)}'
                           : money.format(value),
                       style: TextStyle(
                         color: palette.textPrimary,
@@ -1162,7 +1179,9 @@ class _Expense extends StatelessWidget {
                 width: labor ? 210 : 150,
                 child: Text(
                   labor
-                      ? 'Hoy ${money.format(laborToday ?? 0)}\nMes ${money.format(laborMonthly ?? 0)}'
+                      ? laborSummaryError
+                          ? 'Costo no disponible'
+                          : 'Hoy ${money.format(laborToday ?? 0)}\nMes ${money.format(laborMonthly ?? 0)}'
                       : money.format(value),
                   textAlign: TextAlign.right,
                   style: TextStyle(
