@@ -4,6 +4,7 @@ import 'package:intl/intl.dart';
 
 import '../../../../app/theme/app_palette.dart';
 import '../../../../core/branch/branch_scope_provider.dart';
+import '../../../../core/errors/app_exception.dart';
 import '../../../../core/providers/core_providers.dart';
 import '../../../../core/widgets/app_empty_view.dart';
 import '../../../../core/widgets/app_loader.dart';
@@ -270,8 +271,19 @@ class _PedidosCompraPageState extends ConsumerState<PedidosCompraPage> {
       await _reload();
     } catch (error) {
       if (!mounted) return;
+      final reason = error is AppException
+          ? (error.statusCode == 409
+              ? 'El pedido tiene registros relacionados y no pudo eliminarse. '
+                  'No se modificaron sus pagos ni movimientos de caja. '
+                  'Actualiza los datos y vuelve a intentarlo.'
+              : error.message)
+          : 'Ocurrió un problema al eliminar el pedido. Inténtalo nuevamente.';
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('No fue posible eliminar el pedido: ' + error.toString())),
+        SnackBar(
+          content: Text(reason),
+          duration: const Duration(seconds: 6),
+          behavior: SnackBarBehavior.floating,
+        ),
       );
     } finally {
       if (mounted) setState(() => _deleting.remove(id));
