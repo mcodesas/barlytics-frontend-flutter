@@ -2546,6 +2546,11 @@ class _OperationalBottomNavigation extends ConsumerWidget {
     final metadata = <String, UserMenuItem>{};
 
     for (final item in items) {
+      // Inicio se accede siempre desde la barra inferior, no desde Más.
+      if (item.path.trim() == '/home' ||
+          const {'home', 'inicio'}.contains(item.keyName.trim().toLowerCase())) {
+        continue;
+      }
       final code = item.groupCode.trim().isEmpty ? 'OTROS' : item.groupCode.trim().toUpperCase();
       byCode.putIfAbsent(code, () => <UserMenuItem>[]).add(item);
       metadata.putIfAbsent(code, () => item);
@@ -3529,6 +3534,12 @@ class _ManagerBottomNavigation extends ConsumerWidget {
           data: (items) => items
               .where((item) => !_managerBlockedKeys.contains(item.keyName.trim().toLowerCase()))
               .where((item) => item.path.trim().isNotEmpty)
+              // El shell ya agrega Inicio como elemento estructural.
+              // No incluirlo de nuevo como grupo de la base de datos.
+              .where((item) =>
+                  item.path.trim() != '/home' &&
+                  !const {'home', 'inicio'}.contains(item.keyName.trim().toLowerCase()) &&
+                  item.bottomCode.trim().toUpperCase() != 'INICIO')
               .toList(growable: false),
           orElse: () => const <UserMenuItem>[],
         );
@@ -3656,8 +3667,13 @@ class _ManagerBottomNavigation extends ConsumerWidget {
     final metadata = <String, UserMenuItem>{};
 
     for (final item in items) {
-      if (!item.bottomVisible) continue;
+      if (!item.bottomVisible || item.path.trim() == '/home' ||
+          const {'home', 'inicio'}.contains(item.keyName.trim().toLowerCase())) {
+        continue;
+      }
       final code = item.bottomCode.trim().isEmpty ? 'OTROS' : item.bottomCode.trim().toUpperCase();
+      // INICIO se dibuja aparte y no debe consumir uno de los tres cupos.
+      if (code == 'INICIO') continue;
       byCode.putIfAbsent(code, () => <UserMenuItem>[]).add(item);
       final current = metadata[code];
       if (current == null || item.bottomOrder < current.bottomOrder) {
