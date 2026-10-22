@@ -29,7 +29,17 @@ class UserMenuRepository {
       final keyName = moduleAliases[normalizedKey] ?? normalizedKey;
       if (keyName.isEmpty) continue;
       final path = keyName == 'mesero_productos' ? '/mesero/productos' : '/$keyName';
-      final normalizedItem = item.copyWith(keyName: keyName, path: path);
+      // Inicio es una entrada principal; aunque la BD antigua la etiquete
+      // como OTROS nunca debe aparecer dentro de ese grupo.
+      final normalizedItem = item.copyWith(
+        keyName: keyName,
+        path: path,
+        groupCode: keyName == 'home' ? 'INICIO' : null,
+        groupName: keyName == 'home' ? 'Inicio' : null,
+        groupIcon: keyName == 'home' ? 'home' : null,
+        groupOrder: keyName == 'home' ? 0 : null,
+        menuOrder: keyName == 'home' ? 0 : null,
+      );
       final previous = byKey[keyName];
       if (previous == null) {
         byKey[keyName] = normalizedItem;
@@ -133,6 +143,10 @@ class UserMenuRepository {
 }
 
 const moduleAliases = <String, String>{
+  'inicio': 'home',
+  'pagina_inicio': 'home',
+  'paginainicio': 'home',
+  'principal': 'home',
   'cuentasventa': 'cuentas_venta',
   'cuentas_venta': 'cuentas_venta',
   'detallecuentaventa': 'detalle_cuenta_venta',

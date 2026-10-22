@@ -16,10 +16,15 @@ import '../../../../core/widgets/app_empty_view.dart';
 import '../../../../core/widgets/app_error_view.dart';
 import '../../../../core/widgets/app_loader.dart';
 import '../../../../core/widgets/tech_background.dart';
+import '../../../marcas/data/models/marcas_response_model.dart';
+import '../../../marcas/presentation/providers/marcas_provider.dart';
+import '../../../tipos_producto/data/models/tipos_producto_response_model.dart';
+import '../../../tipos_producto/presentation/providers/tipos_producto_provider.dart';
 import '../../../productos/data/models/productos_response_model.dart';
 import '../../../productos/presentation/providers/productos_provider.dart';
 import '../../../sucursales/data/models/sucursales_response_model.dart';
 import '../../data/models/precios_response_model.dart';
+import '../utils/precios_filter_utils.dart';
 
 enum _PriceFilter { all, withPrice, withoutPrice, changed }
 
@@ -31,6 +36,7 @@ final _preciosProductosPagedProvider = StateNotifierProvider.autoDispose<
     ref.watch(productosCrudRepositoryProvider),
     ref.watch(apiClientProvider),
     autoLoad: false,
+    requireSucursal: true,
   );
 });
 
@@ -51,6 +57,8 @@ class _PreciosListPageState extends ConsumerState<PreciosListPage> {
 
   Timer? _searchDebounce;
   _PriceFilter _filter = _PriceFilter.all;
+  int? _selectedTipoId;
+  int? _selectedMarcaId;
   _PriceViewMode _viewMode = _PriceViewMode.cards;
   int? _sucursalId;
   int? _initializedBranchId;
@@ -72,12 +80,14 @@ class _PreciosListPageState extends ConsumerState<PreciosListPage> {
     final palette = ref.watch(selectedAppPaletteProvider);
     final branchState = ref.watch(branchScopeProvider);
     final pagedState = ref.watch(_preciosProductosPagedProvider);
+    final tipos = ref.watch(tiposproductoProvider).items;
+    final marcas = ref.watch(marcasProvider).items;
     _sucursalId = branchState.activeBranchId;
 
     _ensureBranchLoaded(branchState.activeBranchId, pagedState);
 
     final pageProducts = pagedState.items
-        .where((item) => _sucursalId == null || item.sucuId == _sucursalId)
+        .where((item) => _sucursalId != null && item.sucuId == _sucursalId)
         .toList(growable: false);
     final pagePrices = <int, PreciosResponseModel?>{};
     for (final product in pageProducts) {
@@ -117,6 +127,10 @@ class _PreciosListPageState extends ConsumerState<PreciosListPage> {
     final visible = _filter == _PriceFilter.changed
         ? _changedProducts()
         : pageProducts;
+    final filtersActive = _selectedTipoId != null ||
+        _selectedMarcaId != null ||
+        _searchController.text.trim().isNotEmpty ||
+        _filter != _PriceFilter.all;
     final changed = _pendingDrafts.length;
 
     return Scaffold(
@@ -142,6 +156,14 @@ class _PreciosListPageState extends ConsumerState<PreciosListPage> {
                       searchController: _searchController,
                       filter: _filter,
                       viewMode: _viewMode,
+                      tipos: tipos,
+                      marcas: marcas,
+                      selectedTipoId: _selectedTipoId,
+                      selectedMarcaId: _selectedMarcaId,
+                      filtersActive: filtersActive,
+                      onTipoChanged: _changeTipo,
+                      onMarcaChanged: _changeMarca,
+                      onClearFilters: _clearFilters,
                       visibleOnPage: visible.length,
                       totalElements: _filter == _PriceFilter.changed ? changed : pagedState.totalElements,
                       changed: changed,
@@ -250,9 +272,21 @@ class _PreciosListPageState extends ConsumerState<PreciosListPage> {
 
   void _ensureBranchLoaded(int? branchId, ProductosPagedState state) {
     if (branchId == null || branchId == _initializedBranchId) return;
+    final previousBranchId = _initializedBranchId;
     _initializedBranchId = branchId;
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (!mounted) return;
+      if (!mounted || ref.read(branchScopeProvider).activeBranchId != branchId) return;
+      if (previousBranchId != null && previousBranchId != branchId) {
+        // También cubre cambios desde el selector global de sucursal.
+        _searchDebounce?.cancel();
+        _clearDrafts();
+        _searchController.clear();
+        setState(() {
+          _filter = _PriceFilter.all;
+          _selectedTipoId = null;
+          _selectedMarcaId = null;
+        });
+      }
       ref.read(_preciosProductosPagedProvider.notifier).load(
             page: 0,
             size: 12,
@@ -299,25 +333,22 @@ class _PreciosListPageState extends ConsumerState<PreciosListPage> {
   }
 
   List<ProductosResponseModel> _changedProducts() {
-    final query = _searchController.text.trim().toLowerCase();
-    final result = _pendingDrafts
-        .map((entry) => _loadedProducts[entry.key])
-        .whereType<ProductosResponseModel>()
-        .where((product) {
-          if (query.isEmpty) return true;
-          return <String>[
-            product.prodNombre ?? '',
-            product.prodDescripcion ?? '',
-            product.prodId?.toString() ?? '',
-          ].join(' ').toLowerCase().contains(query);
-        })
-        .toList(growable: false)
-      ..sort((a, b) => (a.prodNombre ?? '').toLowerCase().compareTo((b.prodNombre ?? '').toLowerCase()));
-    return result;
+    return filtrarPreciosPendientes(
+      productos: _pendingDrafts
+          .map((entry) => _loadedProducts[entry.key])
+          .whereType<ProductosResponseModel>(),
+      sucursalId: _sucursalId,
+      tipoId: _selectedTipoId,
+      marcaId: _selectedMarcaId,
+      busqueda: _searchController.text,
+    );
   }
 
   List<MapEntry<int, _PriceDraft>> get _pendingDrafts => _drafts.entries
-      .where((entry) => entry.value.isDirty)
+      .where((entry) =>
+          entry.value.isDirty &&
+          _sucursalId != null &&
+          _loadedProducts[entry.key]?.sucuId == _sucursalId)
       .toList(growable: false);
 
   ProductosPriceStatus _priceStatusFor(_PriceFilter filter) => switch (filter) {
@@ -327,9 +358,12 @@ class _PreciosListPageState extends ConsumerState<PreciosListPage> {
       };
 
   String _emptyMessage(List<ProductosResponseModel> pageProducts) {
-    if (_filter == _PriceFilter.changed) return 'No hay precios modificados pendientes.';
-    if (pageProducts.isEmpty && _searchController.text.trim().isNotEmpty) {
-      return 'No hay productos que coincidan con la búsqueda.';
+    if (_filter == _PriceFilter.changed) {
+      return 'No hay precios modificados pendientes que coincidan con los filtros.';
+    }
+    if (_selectedTipoId != null || _selectedMarcaId != null ||
+        _searchController.text.trim().isNotEmpty) {
+      return 'No hay productos que coincidan con el tipo, la marca o la búsqueda.';
     }
     return switch (_filter) {
       _PriceFilter.withPrice => 'No hay productos con precio vigente en esta sucursal.',
@@ -349,20 +383,59 @@ class _PreciosListPageState extends ConsumerState<PreciosListPage> {
             query: value.trim(),
             sucursalId: _sucursalId,
             priceStatus: _priceStatusFor(_filter),
+            tipoId: _selectedTipoId,
+            clearTipoId: _selectedTipoId == null,
+            marcaId: _selectedMarcaId,
+            clearMarcaId: _selectedMarcaId == null,
           );
     });
   }
 
   Future<void> _changeFilter(_PriceFilter value) async {
     if (value == _filter) return;
+    _searchDebounce?.cancel();
     setState(() => _filter = value);
     if (value == _PriceFilter.changed) return;
+    await _loadWithCurrentFilters();
+  }
+
+  Future<void> _changeTipo(int? tipoId) async {
+    if (_selectedTipoId == tipoId) return;
+    _searchDebounce?.cancel();
+    setState(() => _selectedTipoId = tipoId);
+    if (_filter != _PriceFilter.changed) await _loadWithCurrentFilters();
+  }
+
+  Future<void> _changeMarca(int? marcaId) async {
+    if (_selectedMarcaId == marcaId) return;
+    _searchDebounce?.cancel();
+    setState(() => _selectedMarcaId = marcaId);
+    if (_filter != _PriceFilter.changed) await _loadWithCurrentFilters();
+  }
+
+  Future<void> _loadWithCurrentFilters({int? page}) async {
+    if (_sucursalId == null) return;
     await ref.read(_preciosProductosPagedProvider.notifier).load(
-          page: 0,
-          query: _searchController.text.trim(),
-          sucursalId: _sucursalId,
-          priceStatus: _priceStatusFor(value),
-        );
+      page: page ?? 0,
+      query: _searchController.text.trim(),
+      sucursalId: _sucursalId,
+      priceStatus: _priceStatusFor(_filter),
+      tipoId: _selectedTipoId,
+      clearTipoId: _selectedTipoId == null,
+      marcaId: _selectedMarcaId,
+      clearMarcaId: _selectedMarcaId == null,
+    );
+  }
+
+  Future<void> _clearFilters() async {
+    _searchDebounce?.cancel();
+    _searchController.clear();
+    setState(() {
+      _selectedTipoId = null;
+      _selectedMarcaId = null;
+      _filter = _PriceFilter.all;
+    });
+    await _loadWithCurrentFilters();
   }
 
   Future<void> _changeBranch(int? branchId) async {
@@ -393,6 +466,9 @@ class _PreciosListPageState extends ConsumerState<PreciosListPage> {
 
     _clearDrafts();
     _filter = _PriceFilter.all;
+    _selectedTipoId = null;
+    _selectedMarcaId = null;
+    _searchDebounce?.cancel();
     _searchController.clear();
     _initializedBranchId = branchId;
 
@@ -422,12 +498,9 @@ class _PreciosListPageState extends ConsumerState<PreciosListPage> {
   }
 
   Future<void> _refresh() async {
-    await ref.read(_preciosProductosPagedProvider.notifier).load(
-          page: _filter == _PriceFilter.changed ? 0 : null,
-          query: _searchController.text.trim(),
-          sucursalId: _sucursalId,
-          priceStatus: _priceStatusFor(_filter),
-        );
+    await _loadWithCurrentFilters(
+      page: _filter == _PriceFilter.changed ? 0 : ref.read(_preciosProductosPagedProvider).page,
+    );
   }
 
   Future<void> _downloadPrices() async {
@@ -596,6 +669,14 @@ class _PricingToolbar extends StatelessWidget {
     required this.searchController,
     required this.filter,
     required this.viewMode,
+    required this.tipos,
+    required this.marcas,
+    required this.selectedTipoId,
+    required this.selectedMarcaId,
+    required this.filtersActive,
+    required this.onTipoChanged,
+    required this.onMarcaChanged,
+    required this.onClearFilters,
     required this.visibleOnPage,
     required this.totalElements,
     required this.changed,
@@ -615,6 +696,14 @@ class _PricingToolbar extends StatelessWidget {
   final TextEditingController searchController;
   final _PriceFilter filter;
   final _PriceViewMode viewMode;
+  final List<TiposProductoResponseModel> tipos;
+  final List<MarcasResponseModel> marcas;
+  final int? selectedTipoId;
+  final int? selectedMarcaId;
+  final bool filtersActive;
+  final ValueChanged<int?> onTipoChanged;
+  final ValueChanged<int?> onMarcaChanged;
+  final VoidCallback onClearFilters;
   final int visibleOnPage;
   final int totalElements;
   final int changed;
@@ -700,6 +789,18 @@ class _PricingToolbar extends StatelessWidget {
             ],
           );
 
+          final catalogFilters = _PriceCatalogFilters(
+            palette: palette,
+            tipos: tipos,
+            marcas: marcas,
+            selectedTipoId: selectedTipoId,
+            selectedMarcaId: selectedMarcaId,
+            filtersActive: filtersActive,
+            onTipoChanged: onTipoChanged,
+            onMarcaChanged: onMarcaChanged,
+            onClearFilters: onClearFilters,
+          );
+
           final viewSelector = _PriceViewSelector(
             palette: palette,
             value: viewMode,
@@ -719,7 +820,7 @@ class _PricingToolbar extends StatelessWidget {
               Expanded(
                 child: Text(
                   filter == _PriceFilter.changed
-                      ? '$totalElements cambios pendientes'
+                      ? '$visibleOnPage de $changed cambios pendientes'
                       : 'Mostrando $visibleOnPage de $totalElements productos',
                   style: TextStyle(color: palette.textSecondary, fontWeight: FontWeight.w800, fontSize: 12.2),
                 ),
@@ -754,6 +855,8 @@ class _PricingToolbar extends StatelessWidget {
                 search,
                 const SizedBox(height: 10),
                 filters,
+                const SizedBox(height: 11),
+                catalogFilters,
                 const SizedBox(height: 10),
                 Align(
                   alignment: Alignment.centerLeft,
@@ -778,6 +881,8 @@ class _PricingToolbar extends StatelessWidget {
                 ],
               ),
               const SizedBox(height: 12),
+              catalogFilters,
+              const SizedBox(height: 12),
               Row(
                 crossAxisAlignment: CrossAxisAlignment.center,
                 children: [
@@ -790,6 +895,119 @@ class _PricingToolbar extends StatelessWidget {
           );
         },
       ),
+    );
+  }
+}
+
+/// Los filtros de catálogo se aplican en el servidor a toda la paginación.
+/// En modo Modificados, también se aplican a los borradores locales.
+class _PriceCatalogFilters extends StatelessWidget {
+  const _PriceCatalogFilters({
+    required this.palette,
+    required this.tipos,
+    required this.marcas,
+    required this.selectedTipoId,
+    required this.selectedMarcaId,
+    required this.filtersActive,
+    required this.onTipoChanged,
+    required this.onMarcaChanged,
+    required this.onClearFilters,
+  });
+
+  final AppPalette palette;
+  final List<TiposProductoResponseModel> tipos;
+  final List<MarcasResponseModel> marcas;
+  final int? selectedTipoId;
+  final int? selectedMarcaId;
+  final bool filtersActive;
+  final ValueChanged<int?> onTipoChanged;
+  final ValueChanged<int?> onMarcaChanged;
+  final VoidCallback onClearFilters;
+
+  @override
+  Widget build(BuildContext context) {
+    final orderedTypes = tipos.where((item) => item.tpprId != null).toList()
+      ..sort((a, b) => (a.tpprNombre ?? '').toLowerCase()
+          .compareTo((b.tpprNombre ?? '').toLowerCase()));
+    final orderedBrands = marcas.where((item) => item.mrcaId != null).toList()
+      ..sort((a, b) => (a.mrcaNombre ?? '').toLowerCase()
+          .compareTo((b.mrcaNombre ?? '').toLowerCase()));
+
+    final typeFilter = DropdownButtonFormField<int?>(
+      key: ValueKey('precios-tipo-filter-${selectedTipoId ?? 'all'}-${orderedTypes.any((item) => item.tpprId == selectedTipoId)}'),
+      value: orderedTypes.any((item) => item.tpprId == selectedTipoId)
+          ? selectedTipoId
+          : null,
+      isExpanded: true,
+      decoration: const InputDecoration(
+        labelText: 'Tipo de producto',
+        prefixIcon: Icon(Icons.category_outlined, size: 19),
+      ).compactFilter(),
+      items: [
+        const DropdownMenuItem<int?>(value: null, child: Text('Todos los tipos')),
+        for (final item in orderedTypes)
+          DropdownMenuItem<int?>(
+            value: item.tpprId,
+            child: Text(
+              item.tpprNombre?.trim().isNotEmpty == true
+                  ? item.tpprNombre!.trim()
+                  : 'Tipo ${item.tpprId}',
+              overflow: TextOverflow.ellipsis,
+            ),
+          ),
+      ],
+      onChanged: onTipoChanged,
+    );
+    final brandFilter = DropdownButtonFormField<int?>(
+      key: ValueKey('precios-marca-filter-${selectedMarcaId ?? 'all'}-${orderedBrands.any((item) => item.mrcaId == selectedMarcaId)}'),
+      value: orderedBrands.any((item) => item.mrcaId == selectedMarcaId)
+          ? selectedMarcaId
+          : null,
+      isExpanded: true,
+      decoration: const InputDecoration(
+        labelText: 'Marca',
+        prefixIcon: Icon(Icons.sell_outlined, size: 19),
+      ).compactFilter(),
+      items: [
+        const DropdownMenuItem<int?>(value: null, child: Text('Todas las marcas')),
+        for (final item in orderedBrands)
+          DropdownMenuItem<int?>(
+            value: item.mrcaId,
+            child: Text(
+              item.mrcaNombre?.trim().isNotEmpty == true
+                  ? item.mrcaNombre!.trim()
+                  : 'Marca ${item.mrcaId}',
+              overflow: TextOverflow.ellipsis,
+            ),
+          ),
+      ],
+      onChanged: onMarcaChanged,
+    );
+
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final stacked = constraints.maxWidth < 620;
+        final width = stacked ? constraints.maxWidth : (constraints.maxWidth - 10) / 2;
+        return Wrap(
+          spacing: 10,
+          runSpacing: 9,
+          crossAxisAlignment: WrapCrossAlignment.center,
+          children: [
+            SizedBox(width: width, child: typeFilter),
+            SizedBox(width: width, child: brandFilter),
+            if (filtersActive)
+              TextButton.icon(
+                onPressed: onClearFilters,
+                icon: const Icon(Icons.filter_alt_off_rounded, size: 18),
+                label: const Text('Limpiar filtros'),
+                style: TextButton.styleFrom(
+                  foregroundColor: palette.secondary,
+                  visualDensity: VisualDensity.compact,
+                ),
+              ),
+          ],
+        );
+      },
     );
   }
 }

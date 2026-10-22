@@ -21,6 +21,9 @@ class SubscriptionModel {
     this.automaticRenewal = false,
     this.currentPeriodStart,
     this.currentPeriodEnd,
+    this.daysUntilExpiry,
+    this.expiryWarning = false,
+    this.renewalRequired = false,
     this.nextChargeAt,
     this.cancellationScheduled = false,
     this.cancellationRequestedAt,
@@ -53,6 +56,9 @@ class SubscriptionModel {
   final bool automaticRenewal;
   final DateTime? currentPeriodStart;
   final DateTime? currentPeriodEnd;
+  final int? daysUntilExpiry;
+  final bool expiryWarning;
+  final bool renewalRequired;
   final DateTime? nextChargeAt;
   final bool cancellationScheduled;
   final DateTime? cancellationRequestedAt;
@@ -88,6 +94,9 @@ class SubscriptionModel {
         automaticRenewal: json['automaticRenewal'] == true,
         currentPeriodStart: DateTime.tryParse(json['currentPeriodStart']?.toString() ?? ''),
         currentPeriodEnd: DateTime.tryParse(json['currentPeriodEnd']?.toString() ?? ''),
+        daysUntilExpiry: (json['daysUntilExpiry'] as num?)?.toInt(),
+        expiryWarning: json['expiryWarning'] == true,
+        renewalRequired: json['renewalRequired'] == true,
         nextChargeAt: DateTime.tryParse(json['nextChargeAt']?.toString() ?? ''),
         cancellationScheduled: json['cancellationScheduled'] == true,
         cancellationRequestedAt: DateTime.tryParse(json['cancellationRequestedAt']?.toString() ?? ''),

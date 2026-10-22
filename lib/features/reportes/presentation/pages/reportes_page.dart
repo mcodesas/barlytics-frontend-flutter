@@ -19,6 +19,12 @@ import '../../../../core/widgets/app_error_view.dart';
 import '../../../../core/widgets/app_loader.dart';
 import '../../../../core/widgets/tech_background.dart';
 import '../../services/reporte_pdf_service.dart';
+import '../widgets/profit_expense_breakdown.dart';
+import '../utils/order_whatsapp_message_formatter.dart';
+import '../utils/order_destination_resolver.dart';
+import '../widgets/manual_purchase_order_dialog.dart';
+import '../widgets/order_inventory_diagnostic_table.dart';
+import '../widgets/order_history_card.dart';
 import '../../../subscription/presentation/providers/subscription_provider.dart';
 
 class ReportesPage extends ConsumerWidget {
@@ -618,7 +624,7 @@ class _ReportCapabilityChip extends StatelessWidget {
   }
 }
 
-enum _ProfitPeriodMode { day, week, fortnight, month, inventoryCross }
+enum _ProfitPeriodMode { day, week, fortnight, month, custom, inventoryCross }
 
 class _ReporteDetail extends ConsumerStatefulWidget {
   const _ReporteDetail({
@@ -689,10 +695,26 @@ class _ReporteDetailState extends ConsumerState<_ReporteDetail> {
           (json) => json,
           queryParameters: query,
         );
-    final payload = _ReportPayload.fromRaw(
+    var payload = _ReportPayload.fromRaw(
       response.data,
       summary: definition.summary,
     );
+    // El inventario puede no tener ventas: los gastos y la mano de obra
+    // deben seguir visibles, usando el resumen financiero para el periodo.
+    if (definition.kind == _ReportKind.profit) {
+      final financeResponse = await ref.read(apiClientProvider).get<Object?>(
+        '/api/v1/reportes/resumen',
+        (json) => json,
+        queryParameters: query,
+      );
+      final financeData = financeResponse.data;
+      if (financeData is Map) {
+        payload = _ReportPayload(
+          summary: Map<String, dynamic>.from(financeData),
+          rows: payload.rows,
+        );
+      }
+    }
     if (mounted && loadVersion == _loadVersion) {
       setState(() => _lastPayload = payload);
     }
@@ -706,7 +728,7 @@ class _ReporteDetailState extends ConsumerState<_ReporteDetail> {
     });
   }
 
-  Future<void> _selectPeriod() async {
+  Future<void> _selectPeriod({bool forceProfitCustom = false}) async {
     final selected = await showDateRangePicker(
       context: context,
       firstDate: DateTime(2020),
@@ -730,6 +752,10 @@ class _ReporteDetailState extends ConsumerState<_ReporteDetail> {
         start: DateUtils.dateOnly(selected.start),
         end: DateUtils.dateOnly(selected.end),
       );
+      if (_isProfitReport &&
+          (forceProfitCustom || _profitPeriodMode != _ProfitPeriodMode.inventoryCross)) {
+        _profitPeriodMode = _ProfitPeriodMode.custom;
+      }
       _future = _load();
     });
   }
@@ -752,6 +778,9 @@ class _ReporteDetailState extends ConsumerState<_ReporteDetail> {
         return;
       case _ProfitPeriodMode.month:
         await _selectProfitMonth();
+        return;
+      case _ProfitPeriodMode.custom:
+        await _selectPeriod();
         return;
       case _ProfitPeriodMode.inventoryCross:
         await _selectPeriod();
@@ -1180,6 +1209,10 @@ class _ReporteDetailState extends ConsumerState<_ReporteDetail> {
   }
 
   void _changeProfitPeriodMode(_ProfitPeriodMode mode) {
+    if (mode == _ProfitPeriodMode.custom) {
+      _selectPeriod(forceProfitCustom: true);
+      return;
+    }
     if (_profitPeriodMode == mode) return;
     final today = DateUtils.dateOnly(DateTime.now());
     final anchor = _range.end.isAfter(today) ? today : _range.end;
@@ -1217,6 +1250,7 @@ class _ReporteDetailState extends ConsumerState<_ReporteDetail> {
               ? today
               : DateTime(anchor.year, anchor.month + 1, 0),
         ),
+      _ProfitPeriodMode.custom => _range,
       _ProfitPeriodMode.inventoryCross => DateTimeRange(
           start: DateTime(today.year, today.month),
           end: today,
@@ -1364,6 +1398,7 @@ class _ReporteDetailState extends ConsumerState<_ReporteDetail> {
                         definition: activeDefinition,
                         payload: payload,
                         palette: palette,
+                        range: _range,
                       );
                     },
                   ),
@@ -1423,6 +1458,8 @@ class _DetailHeader extends StatelessWidget {
       _ProfitPeriodMode.fortnight =>
         '${value.start.day >= 16 ? '2.ª' : '1.ª'} quincena · ${_monthYearLabel(value.start)}',
       _ProfitPeriodMode.month => _monthYearLabel(value.start),
+      _ProfitPeriodMode.custom =>
+        '${DateFormat('dd/MM/yyyy').format(value.start)} - ${DateFormat('dd/MM/yyyy').format(value.end)}',
       _ProfitPeriodMode.inventoryCross =>
         '${DateFormat('dd/MM').format(value.start)} - ${DateFormat('dd/MM/yyyy').format(value.end)}',
       null =>
@@ -1691,7 +1728,7 @@ class _DetailHeader extends StatelessWidget {
                       children: [
                         if (periodModeFilter != null)
                           SizedBox(
-                            width: tablet ? 520 : 570,
+                            width: tablet ? 570 : 675,
                             child: periodModeFilter,
                           ),
                         if (dateFilter != null)
@@ -1743,6 +1780,7 @@ class _ProfitPeriodSelector extends StatelessWidget {
         icon: Icons.date_range_rounded,
       ),
       (value: _ProfitPeriodMode.month, label: 'Mes', icon: Icons.calendar_month_rounded),
+      (value: _ProfitPeriodMode.custom, label: 'Personalizado', icon: Icons.edit_calendar_rounded),
       (
         value: _ProfitPeriodMode.inventoryCross,
         label: 'Cruce inventario',
@@ -1750,29 +1788,41 @@ class _ProfitPeriodSelector extends StatelessWidget {
       ),
     ];
 
-    return Container(
-      height: 40,
-      padding: const EdgeInsets.all(3),
-      decoration: BoxDecoration(
-        color: palette.background.withOpacity(0.50),
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: palette.cardBorder),
-      ),
-      child: Row(
-        children: [
-          for (final option in options)
-            Expanded(
-              flex: option.value == _ProfitPeriodMode.inventoryCross ? 2 : 1,
-              child: _ProfitPeriodButton(
-                label: option.label,
-                icon: option.icon,
-                selected: selected == option.value,
-                palette: palette,
-                onTap: () => onChanged(option.value),
-              ),
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final mobile = constraints.maxWidth < 580;
+        final itemWidth = mobile
+            ? (constraints.maxWidth - 16) / 3
+            : (constraints.maxWidth - 10) / 6;
+        return DecoratedBox(
+          decoration: BoxDecoration(
+            color: palette.background.withOpacity(0.50),
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: palette.cardBorder),
+          ),
+          child: Padding(
+            padding: const EdgeInsets.all(3),
+            child: Wrap(
+              spacing: 2,
+              runSpacing: 2,
+              children: [
+                for (final option in options)
+                  SizedBox(
+                    width: itemWidth - 2,
+                    height: 38,
+                    child: _ProfitPeriodButton(
+                      label: option.label,
+                      icon: option.icon,
+                      selected: selected == option.value,
+                      palette: palette,
+                      onTap: () => onChanged(option.value),
+                    ),
+                  ),
+              ],
             ),
-        ],
-      ),
+          ),
+        );
+      },
     );
   }
 }
@@ -1852,11 +1902,13 @@ class _ReportContent extends StatelessWidget {
     required this.definition,
     required this.payload,
     required this.palette,
+    required this.range,
   });
 
   final _ReportDefinition definition;
   final _ReportPayload payload;
   final AppPalette palette;
+  final DateTimeRange range;
 
   @override
   Widget build(BuildContext context) {
@@ -1886,6 +1938,7 @@ class _ReportContent extends StatelessWidget {
         payload: payload,
         metrics: metrics,
         palette: palette,
+        range: range,
       );
     }
 
@@ -2570,9 +2623,17 @@ class _ProfitContentState extends State<_ProfitContent> {
               children: [
                 _ProfitHero(
                   rows: rows,
-                  metadata: widget.payload.rows.isEmpty
-                      ? const <String, dynamic>{}
-                      : widget.payload.rows.first,
+                  metadata: widget.payload.summary.isNotEmpty
+                      ? widget.payload.summary
+                      : (widget.payload.rows.isEmpty
+                          ? const <String, dynamic>{}
+                          : widget.payload.rows.first),
+                  palette: widget.palette,
+                ),
+                const SizedBox(height: 14),
+                ProfitExpenseBreakdown(
+                  items: _asRows(widget.payload.summary['desglose_gastos_periodo']),
+                  finance: widget.payload.summary,
                   palette: widget.palette,
                 ),
                 const SizedBox(height: 14),
@@ -3975,12 +4036,14 @@ class _NextOrderContent extends ConsumerStatefulWidget {
     required this.payload,
     required this.metrics,
     required this.palette,
+    required this.range,
   });
 
   final _ReportDefinition definition;
   final _ReportPayload payload;
   final Map<String, dynamic> metrics;
   final AppPalette palette;
+  final DateTimeRange range;
 
   @override
   ConsumerState<_NextOrderContent> createState() =>
@@ -3998,6 +4061,7 @@ class _NextOrderContentState extends ConsumerState<_NextOrderContent> {
   bool _showInventoryDetail = false;
   bool _confirming = false;
   bool _exportingSelection = false;
+  bool _exportingDiagnostics = false;
   bool _sendingWhatsapp = false;
   int? _confirmedOrderId;
   String? _confirmedWhatsapp;
@@ -4007,6 +4071,8 @@ class _NextOrderContentState extends ConsumerState<_NextOrderContent> {
   List<Map<String, dynamic>> _confirmedRows = const <Map<String, dynamic>>[];
   List<Map<String, dynamic>> _confirmedOrders = const <Map<String, dynamic>>[];
   List<Map<String, dynamic>> _orderDestinations = const <Map<String, dynamic>>[];
+  bool _orderDestinationsLoaded = false;
+  int? _loadedDestinationBranchId;
   final Map<int, int?> _selectedDestinationByProduct = <int, int?>{};
   Future<List<Map<String, dynamic>>>? _orderHistoryFuture;
   int? _orderHistoryBranchId;
@@ -4256,6 +4322,30 @@ class _NextOrderContentState extends ConsumerState<_NextOrderContent> {
     _selectionChanged(_selectedPresentations.clear);
   }
 
+  Future<void> _openManualOrder() async {
+    if (_confirming || _sendingWhatsapp || _exportingSelection) return;
+    final result = await showDialog<Map<int, int>>(
+      context: context,
+      builder: (_) => ManualPurchaseOrderDialog(
+        products: _orderRows,
+        initialSelection: Map<int, int>.from(_selectedPresentations),
+      ),
+    );
+    if (!mounted || result == null) return;
+    _searchController.clear();
+    _selectionChanged(() {
+      _selectedPresentations
+        ..clear()
+        ..addAll(result);
+      _workspaceFilter = _OrderWorkspaceFilter.seleccionados;
+    });
+    _showMessage(
+      result.length.toString() +
+          ' productos añadidos. Revisa cantidades y elige Confirmar pedido para continuar.',
+    );
+  }
+
+
   List<Map<String, dynamic>> get _effectiveOrderRows =>
       _confirmedRows.isNotEmpty ? _confirmedRows : _selectedRows;
 
@@ -4303,55 +4393,64 @@ class _NextOrderContentState extends ConsumerState<_NextOrderContent> {
       if (mounted) {
         setState(() {
           _orderDestinations = const <Map<String, dynamic>>[];
+          _orderDestinationsLoaded = false;
+          _loadedDestinationBranchId = null;
           _selectedDestinationByProduct.clear();
         });
       }
       return;
     }
 
+    if (_loadedDestinationBranchId != branchId) {
+      _selectedDestinationByProduct.clear();
+      _orderDestinationsLoaded = false;
+      _loadedDestinationBranchId = branchId;
+    }
     try {
       final response = await ref.read(apiClientProvider).get<Object?>(
-            '/api/v1/pedidos-compra/destinos',
-            (json) => json,
-            queryParameters: <String, dynamic>{'sucursalId': branchId},
-          );
+        '/api/v1/pedidos-compra/destinos',
+        (json) => json,
+        queryParameters: <String, dynamic>{'sucursalId': branchId},
+      );
       final raw = response.data;
       final destinations = raw is List
-          ? raw
-              .whereType<Map>()
+          ? raw.whereType<Map>()
               .map((item) => Map<String, dynamic>.from(item))
               .toList(growable: false)
           : const <Map<String, dynamic>>[];
-
-      final defaults = <int, int?>{};
-      for (final destination in destinations) {
-        final destinationId = (destination['id'] as num?)?.toInt();
-        final products = destination['productoIdsPredeterminados'];
-        if (destinationId == null || products is! List) continue;
-        for (final product in products.whereType<num>()) {
-          defaults[product.toInt()] = destinationId;
-        }
-      }
-
-      if (!mounted) return;
+      if (!mounted || ref.read(branchScopeProvider).activeBranchId != branchId) return;
       setState(() {
         _orderDestinations = destinations;
-        for (final entry in defaults.entries) {
-          _selectedDestinationByProduct.putIfAbsent(
-            entry.key,
-            () => entry.value,
+        _orderDestinationsLoaded = true;
+        for (final row in _orderRows) {
+          final productId = _productId(row);
+          if (productId == null) continue;
+          final linked = OrderDestinationResolver.associatedDestinations(
+            productId, destinations,
           );
+          final selected = _selectedDestinationByProduct[productId];
+          if (linked.isNotEmpty && (selected == null || !linked.contains(selected))) {
+            _selectedDestinationByProduct[productId] =
+                OrderDestinationResolver.resolve(
+                  productId: productId, destinations: destinations,
+                );
+          }
         }
       });
     } catch (_) {
-      // La ausencia temporal de proveedores no debe impedir crear el pedido;
-      // se conserva el WhatsApp general como fallback.
+      if (mounted) setState(() => _orderDestinationsLoaded = false);
     }
   }
 
   Future<Map<int, int?>?> _chooseOrderDestinations(
     List<Map<String, dynamic>> rows,
   ) async {
+    await _loadOrderDestinations();
+    if (!mounted) return null;
+    if (!_orderDestinationsLoaded) {
+      _showMessage('No fue posible consultar los proveedores. Reintenta antes de confirmar para evitar un destino equivocado.');
+      return null;
+    }
     if (_orderDestinations.isEmpty) {
       return <int, int?>{
         for (final row in rows)
@@ -4362,8 +4461,18 @@ class _NextOrderContentState extends ConsumerState<_NextOrderContent> {
     final selection = <int, int>{
       for (final row in rows)
         if (_productId(row) != null)
-          _productId(row)!:
-              _selectedDestinationByProduct[_productId(row)!] ?? 0,
+          _productId(row)!: (() {
+            final productId = _productId(row)!;
+            final linked = OrderDestinationResolver.associatedDestinations(
+              productId, _orderDestinations,
+            );
+            final selected = OrderDestinationResolver.resolve(
+              productId: productId,
+              destinations: _orderDestinations,
+              selected: _selectedDestinationByProduct[productId],
+            );
+            return selected ?? (linked.isEmpty ? 0 : -1);
+          })(),
     };
 
     final accepted = await showDialog<bool>(
@@ -4383,6 +4492,13 @@ class _NextOrderContentState extends ConsumerState<_NextOrderContent> {
                   final row = rows[index];
                   final productId = _productId(row);
                   if (productId == null) return const SizedBox.shrink();
+                  final associated = OrderDestinationResolver.associatedDestinations(
+                    productId, _orderDestinations,
+                  );
+                  final available = associated.isEmpty
+                      ? _orderDestinations
+                      : _orderDestinations.where((d) =>
+                          associated.contains((d['id'] as num?)?.toInt())).toList();
                   return Row(
                     children: [
                       Expanded(
@@ -4403,11 +4519,17 @@ class _NextOrderContentState extends ConsumerState<_NextOrderContent> {
                             isDense: true,
                           ),
                           items: <DropdownMenuItem<int>>[
-                            const DropdownMenuItem<int>(
-                              value: 0,
-                              child: Text('WhatsApp general'),
-                            ),
-                            ..._orderDestinations.map((destination) {
+                            if (associated.isEmpty)
+                              const DropdownMenuItem<int>(
+                                value: 0,
+                                child: Text('WhatsApp general (sin proveedor)'),
+                              ),
+                            if (selection[productId] == -1)
+                              const DropdownMenuItem<int>(
+                                value: -1,
+                                child: Text('Selecciona proveedor'),
+                              ),
+                            ...available.map((destination) {
                               final id = (destination['id'] as num?)?.toInt();
                               return DropdownMenuItem<int>(
                                 value: id,
@@ -4437,7 +4559,9 @@ class _NextOrderContentState extends ConsumerState<_NextOrderContent> {
               child: const Text('Cancelar'),
             ),
             FilledButton.icon(
-              onPressed: () => Navigator.pop(dialogContext, true),
+              onPressed: selection.values.any((id) => id == -1)
+                  ? null
+                  : () => Navigator.pop(dialogContext, true),
               icon: const Icon(Icons.call_split_rounded),
               label: const Text('Continuar'),
             ),
@@ -4489,6 +4613,43 @@ class _NextOrderContentState extends ConsumerState<_NextOrderContent> {
       _orderHistoryBranchId = branchId;
       _orderHistoryFuture = _loadOrderHistory(branchId);
     });
+  }
+
+  Future<void> _exportDiagnosticsExcel() async {
+    if (_exportingDiagnostics) return;
+    final branchId = ref.read(branchScopeProvider).activeBranchId;
+    if (branchId == null) {
+      _showMessage('Selecciona una sucursal para exportar el diagnóstico.');
+      return;
+    }
+    setState(() => _exportingDiagnostics = true);
+    try {
+      final bytes = await ref.read(apiClientProvider).getBytes(
+        '/api/v1/reportes/inventario/diagnostico/excel',
+        queryParameters: <String, dynamic>{
+          'sucursalId': branchId,
+          'inicio': DateFormat('yyyy-MM-dd').format(widget.range.start),
+          'fin': DateFormat('yyyy-MM-dd').format(widget.range.end),
+        },
+      );
+      final saved = await downloadBytesFile(
+        fileName: 'diagnostico_inventario_' +
+            branchId.toString() + '_' +
+            DateFormat('yyyyMMdd').format(widget.range.start) + '_' +
+            DateFormat('yyyyMMdd').format(widget.range.end) + '.xlsx',
+        bytes: bytes,
+        mimeType: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+      );
+      if (mounted) {
+        _showMessage(saved
+            ? 'Diagnóstico de inventario descargado en Excel.'
+            : 'La descarga fue cancelada.');
+      }
+    } catch (error) {
+      if (mounted) _showMessage('No fue posible descargar el Excel: ' + error.toString());
+    } finally {
+      if (mounted) setState(() => _exportingDiagnostics = false);
+    }
   }
 
   Future<void> _exportSelectedPdf() async {
@@ -4760,89 +4921,41 @@ class _NextOrderContentState extends ConsumerState<_NextOrderContent> {
                     : <String, dynamic>{},
               );
       final data = response.data ?? const <String, dynamic>{};
-      final commercialName =
-          data['empresaNombreComercial']?.toString().trim() ?? '';
-      final businessName =
-          data['empresaRazonSocial']?.toString().trim() ?? '';
-      if (commercialName.isNotEmpty) return commercialName;
-      if (businessName.isNotEmpty) return businessName;
+      final profileCompanyId = (data['empresaId'] as num?)?.toInt();
+      // El encabezado siempre debe representar a la empresa de la sucursal
+      // seleccionada, no a otra empresa del usuario autenticado.
+      if (companyId == null || profileCompanyId == companyId) {
+        final commercialName =
+            data['empresaNombreComercial']?.toString().trim() ?? '';
+        final businessName =
+            data['empresaRazonSocial']?.toString().trim() ?? '';
+        if (commercialName.isNotEmpty) return commercialName;
+        if (businessName.isNotEmpty) return businessName;
+      }
     } catch (_) {
-      // La consulta del nombre no debe impedir abrir WhatsApp.
+      // Recuperar nombre de empresa no debe impedir abrir WhatsApp.
     }
-    return companyId == null ? 'Empresa no identificada' : 'Empresa $companyId';
-  }
 
-  String _buildWhatsappMessage(
-    List<Map<String, dynamic>> rows,
-    String companyName,
-    String branchName, {
-    int? orderId,
-    String? destinationName,
-  }) {
-    final buffer = StringBuffer()
-      ..writeln(
-        '*PEDIDO DE COMPRA' +
-            (orderId == null ? '' : ' #' + orderId.toString()) +
-            '*',
-      )
-      ..writeln('*Empresa:* ' + companyName)
-      ..writeln('*Sucursal:* ' + branchName);
-    if (destinationName != null && destinationName.trim().isNotEmpty) {
-      buffer.writeln('*Proveedor:* ' + destinationName.trim());
+    if (companyId != null) {
+      try {
+        final response =
+            await ref.read(apiClientProvider).get<Map<String, dynamic>>(
+                  '/api/v1/empresas/' + companyId.toString(),
+                  (json) => json is Map
+                      ? Map<String, dynamic>.from(json)
+                      : <String, dynamic>{},
+                );
+        final data = response.data ?? const <String, dynamic>{};
+        final name = (data['empreNombreComercial'] ??
+                data['emprRazonSocial'] ??
+                '').toString().trim();
+        if (name.isNotEmpty) return name;
+      } catch (_) {
+        // Un rol sin permisos de consulta empresarial conserva el fallback.
+      }
     }
-    buffer
-      ..writeln(
-        '*Fecha:* ' +
-            DateFormat('dd/MM/yyyy HH:mm').format(DateTime.now()),
-      )
-      ..writeln()
-      ..writeln('*Productos:*');
 
-    for (var index = 0; index < rows.length; index++) {
-      final row = rows[index];
-      final presentations = _displayValue(row['presentaciones_pedir']);
-      final presentation =
-          (row['presentacion_compra'] ?? 'Unidad').toString();
-      final units = _displayValue(row['unidades_pedir']);
-      final subtotal =
-          _displayValue(row['costo_pedido_estimado'], currency: true);
-      buffer
-        ..writeln(
-          (index + 1).toString() +
-              '. *' +
-              (row['producto'] ?? 'Producto').toString() +
-              '*',
-        )
-        ..writeln(
-          '   ' +
-              presentations +
-              ' ' +
-              presentation +
-              ' (' +
-              units +
-              ' unidades) - ' +
-              subtotal,
-        );
-    }
-    buffer
-      ..writeln()
-      ..writeln(
-        '*Total estimado:* ' +
-            _displayValue(
-              _sum(rows, 'costo_pedido_estimado'),
-              currency: true,
-            ),
-      );
-    final observation = _observationController.text.trim();
-    if (observation.isNotEmpty) {
-      buffer
-        ..writeln()
-        ..writeln('*Observación:* ' + observation);
-    }
-    buffer
-      ..writeln()
-      ..write('Generado desde BarLytics.');
-    return buffer.toString();
+    return companyId == null ? 'Empresa' : 'Empresa #' + companyId.toString();
   }
 
   Future<Map<String, dynamic>?> _selectConfirmedOrderForWhatsapp() async {
@@ -4941,23 +5054,33 @@ class _NextOrderContentState extends ConsumerState<_NextOrderContent> {
 
     setState(() => _sendingWhatsapp = true);
     try {
-      final number =
-          _normalizeWhatsapp(order['whatsappDestino']?.toString() ?? '') ??
-              await _loadWhatsappNumber();
+      final destinationId = (order['destinoId'] as num?)?.toInt();
+      final providerNumber =
+          _normalizeWhatsapp(order['whatsappDestino']?.toString() ?? '');
+      final number = destinationId != null
+          ? providerNumber
+          : providerNumber ?? await _loadWhatsappNumber();
       if (number == null) {
         _showMessage(
-          'Configura un WhatsApp para el proveedor o el número general de la sucursal.',
+          destinationId == null
+              ? 'Configura un WhatsApp general para la sucursal.'
+              : 'El proveedor asignado no tiene un WhatsApp válido. Corrige su número; no se usará el general.',
         );
         return;
       }
       final branch = ref.read(branchScopeProvider).activeBranch;
       final companyName = await _loadCompanyName(branch?.emprId);
-      final message = _buildWhatsappMessage(
-        rows,
-        companyName,
-        branch?.sucuNombre ?? 'Sucursal seleccionada',
+      final message = OrderWhatsappMessageFormatter.format(
+        products: rows,
+        companyName: companyName,
+        branchName: branch?.sucuNombre ?? 'Sucursal seleccionada',
         orderId: (order['pediId'] as num?)?.toInt(),
-        destinationName: order['destinoNombre']?.toString(),
+        supplierName: order['destinoNombre']?.toString(),
+        // El pedido confirmado es la fuente de verdad; no usar la
+        // observación que pudiera quedar en el editor tras confirmar.
+        observation: order['observacion']?.toString(),
+        date: DateTime.tryParse(order['fecha']?.toString() ?? '') ??
+            DateTime.now(),
       );
       final uri = Uri.parse(
         'https://wa.me/' +
@@ -5026,13 +5149,7 @@ class _NextOrderContentState extends ConsumerState<_NextOrderContent> {
                                 _exportingSelection ||
                                 _sendingWhatsapp
                             ? null
-                            : () {
-                                _searchController.clear();
-                                setState(
-                                  () => _workspaceFilter =
-                                      _OrderWorkspaceFilter.todos,
-                                );
-                              },
+                            : _openManualOrder,
                         icon: const Icon(Icons.add_shopping_cart_rounded, size: 17),
                         label: const Text('Pedido manual'),
                       ),
@@ -5214,8 +5331,9 @@ class _NextOrderContentState extends ConsumerState<_NextOrderContent> {
                   allRows: allRows,
                   filteredRows: filteredRows,
                   selectedFilter: _filter,
-                  definition: widget.definition,
                   palette: widget.palette,
+                  exportingExcel: _exportingDiagnostics,
+                  onExportExcel: _exportDiagnosticsExcel,
                   onToggle: () => setState(
                     () => _showInventoryDetail = !_showInventoryDetail,
                   ),
@@ -5286,7 +5404,7 @@ class _OrderHistoryPanel extends StatelessWidget {
                         style: TextStyle(
                           color: palette.textPrimary,
                           fontWeight: FontWeight.w900,
-                          fontSize: 15.5,
+                          fontSize: 17,
                         ),
                       ),
                       const SizedBox(height: 2),
@@ -5295,7 +5413,7 @@ class _OrderHistoryPanel extends StatelessWidget {
                         style: TextStyle(
                           color: palette.textSecondary,
                           fontWeight: FontWeight.w600,
-                          fontSize: 10.5,
+                          fontSize: 12.5,
                         ),
                       ),
                     ],
@@ -5418,7 +5536,7 @@ class _OrderHistoryPanel extends StatelessWidget {
                                 SizedBox(
                                   width: width,
                                   child: Container(
-                                    padding: const EdgeInsets.all(10),
+                                    padding: const EdgeInsets.all(13),
                                     decoration: BoxDecoration(
                                       color: palette.background.withOpacity(.28),
                                       borderRadius: BorderRadius.circular(13),
@@ -5431,7 +5549,7 @@ class _OrderHistoryPanel extends StatelessWidget {
                                         Icon(
                                           item.$3,
                                           color: palette.secondary,
-                                          size: 17,
+                                          size: 20,
                                         ),
                                         const SizedBox(width: 7),
                                         Expanded(
@@ -5445,7 +5563,7 @@ class _OrderHistoryPanel extends StatelessWidget {
                                                 style: TextStyle(
                                                   color: palette.textPrimary,
                                                   fontWeight: FontWeight.w900,
-                                                  fontSize: 11.5,
+                                                  fontSize: 15,
                                                 ),
                                               ),
                                               Text(
@@ -5453,7 +5571,7 @@ class _OrderHistoryPanel extends StatelessWidget {
                                                 style: TextStyle(
                                                   color: palette.textSecondary,
                                                   fontWeight: FontWeight.w600,
-                                                  fontSize: 9,
+                                                  fontSize: 11.5,
                                                 ),
                                               ),
                                             ],
@@ -5485,8 +5603,8 @@ class _OrderHistoryPanel extends StatelessWidget {
                               for (final row in rows)
                                 SizedBox(
                                   width: width,
-                                  child: _OrderHistoryRow(
-                                    row: row,
+                                  child: OrderHistoryCard(
+                                    data: row,
                                     palette: palette,
                                   ),
                                 ),
@@ -5503,532 +5621,6 @@ class _OrderHistoryPanel extends StatelessWidget {
       ),
     );
   }
-}
-
-class _OrderHistoryRow extends StatelessWidget {
-  const _OrderHistoryRow({
-    required this.row,
-    required this.palette,
-  });
-
-  final Map<String, dynamic> row;
-  final AppPalette palette;
-
-  @override
-  Widget build(BuildContext context) {
-    final id = (row['pediId'] as num?)?.toInt();
-    final total = _toDouble(row['totalEstimado']);
-    final paid = _toDouble(row['totalPagado']);
-    final balance = _toDouble(row['saldoPendiente']);
-    final status = (row['estadoPago'] ?? 'PENDIENTE')
-        .toString()
-        .toUpperCase();
-    final orderStatus =
-        (row['estado'] ?? 'CONFIRMADO').toString().toUpperCase();
-    final provider = (row['destinoNombre'] ?? '').toString().trim();
-    final whatsapp = (row['whatsappDestino'] ?? '').toString().trim();
-    final observation = (row['observacion'] ?? '').toString().trim();
-    final payments = row['pagos'] is List
-        ? (row['pagos'] as List)
-            .whereType<Map>()
-            .map((item) => Map<String, dynamic>.from(item))
-            .toList(growable: false)
-        : const <Map<String, dynamic>>[];
-    final details = row['detalles'] is List
-        ? (row['detalles'] as List)
-            .whereType<Map>()
-            .map((item) => Map<String, dynamic>.from(item))
-            .toList(growable: false)
-        : const <Map<String, dynamic>>[];
-
-    final tone = status == 'PAGADO'
-        ? palette.success
-        : status == 'PAGO_PARCIAL'
-            ? palette.warning
-            : Colors.orangeAccent;
-    final paidProgress =
-        total <= 0 ? 0.0 : (paid / total).clamp(0.0, 1.0).toDouble();
-
-    Widget metric(String label, double value, {Color? valueColor}) {
-      return Expanded(
-        child: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 8),
-          decoration: BoxDecoration(
-            color: palette.background.withOpacity(.34),
-            borderRadius: BorderRadius.circular(12),
-            border: Border.all(color: palette.cardBorder.withOpacity(.55)),
-          ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                label,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: TextStyle(
-                  color: palette.textSecondary,
-                  fontSize: 8.8,
-                  fontWeight: FontWeight.w700,
-                ),
-              ),
-              const SizedBox(height: 2),
-              Text(
-                _displayValue(value, currency: true),
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: TextStyle(
-                  color: valueColor ?? palette.textPrimary,
-                  fontSize: 11,
-                  fontWeight: FontWeight.w900,
-                ),
-              ),
-            ],
-          ),
-        ),
-      );
-    }
-
-    return Container(
-      decoration: BoxDecoration(
-        color: palette.background.withOpacity(
-          palette.darkBackground ? .24 : .42,
-        ),
-        borderRadius: BorderRadius.circular(18),
-        border: Border.all(color: tone.withOpacity(.18)),
-      ),
-      clipBehavior: Clip.antiAlias,
-      child: Theme(
-        data: Theme.of(context).copyWith(
-          dividerColor: Colors.transparent,
-          splashColor: Colors.transparent,
-          hoverColor: Colors.transparent,
-        ),
-        child: ExpansionTile(
-          tilePadding: const EdgeInsets.fromLTRB(12, 10, 10, 10),
-          childrenPadding: const EdgeInsets.fromLTRB(12, 0, 12, 12),
-          leading: Container(
-            width: 42,
-            height: 42,
-            decoration: BoxDecoration(
-              color: tone.withOpacity(.10),
-              borderRadius: BorderRadius.circular(13),
-            ),
-            child: Icon(
-              orderStatus == 'RECIBIDO'
-                  ? Icons.inventory_2_rounded
-                  : Icons.local_shipping_outlined,
-              color: tone,
-              size: 20,
-            ),
-          ),
-          title: Row(
-            children: [
-              Expanded(
-                child: Text(
-                  id == null ? 'Pedido confirmado' : 'Pedido #$id',
-                  style: TextStyle(
-                    color: palette.textPrimary,
-                    fontWeight: FontWeight.w900,
-                    fontSize: 13.5,
-                  ),
-                ),
-              ),
-              _OrderPaymentStatusBadge(status: status, color: tone),
-            ],
-          ),
-          subtitle: Padding(
-            padding: const EdgeInsets.only(top: 7),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                if (provider.isNotEmpty || row['fecha'] != null)
-                  Row(
-                    children: [
-                      if (provider.isNotEmpty) ...[
-                        Icon(
-                          Icons.storefront_outlined,
-                          color: palette.secondary,
-                          size: 13,
-                        ),
-                        const SizedBox(width: 4),
-                        Expanded(
-                          child: Text(
-                            provider,
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: TextStyle(
-                              color: palette.textSecondary,
-                              fontWeight: FontWeight.w700,
-                              fontSize: 9.8,
-                            ),
-                          ),
-                        ),
-                      ] else
-                        const Spacer(),
-                      if (row['fecha'] != null)
-                        Text(
-                          _orderHistoryDate(row['fecha']),
-                          style: TextStyle(
-                            color: palette.textSecondary,
-                            fontWeight: FontWeight.w600,
-                            fontSize: 9.4,
-                          ),
-                        ),
-                    ],
-                  ),
-                const SizedBox(height: 8),
-                Row(
-                  children: [
-                    metric('Total', total),
-                    const SizedBox(width: 6),
-                    metric('Pagado', paid, valueColor: palette.success),
-                    const SizedBox(width: 6),
-                    metric(
-                      'Pendiente',
-                      balance,
-                      valueColor: balance > 0 ? tone : palette.success,
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 8),
-                ClipRRect(
-                  borderRadius: BorderRadius.circular(999),
-                  child: LinearProgressIndicator(
-                    value: paidProgress,
-                    minHeight: 5,
-                    backgroundColor: palette.cardBorder.withOpacity(.45),
-                  ),
-                ),
-                const SizedBox(height: 5),
-                Text(
-                  orderStatus == 'RECIBIDO'
-                      ? 'Mercancía recibida · ${details.length} producto${details.length == 1 ? '' : 's'}'
-                      : 'Pendiente de recepción · ${details.length} producto${details.length == 1 ? '' : 's'}',
-                  style: TextStyle(
-                    color: orderStatus == 'RECIBIDO'
-                        ? palette.success
-                        : palette.textSecondary,
-                    fontWeight: FontWeight.w800,
-                    fontSize: 9.4,
-                  ),
-                ),
-              ],
-            ),
-          ),
-          children: [
-            if (whatsapp.isNotEmpty || observation.isNotEmpty) ...[
-              Container(
-                width: double.infinity,
-                padding: const EdgeInsets.all(9),
-                decoration: BoxDecoration(
-                  color: palette.surface.withOpacity(.55),
-                  borderRadius: BorderRadius.circular(12),
-                  border: Border.all(color: palette.cardBorder.withOpacity(.55)),
-                ),
-                child: Wrap(
-                  spacing: 14,
-                  runSpacing: 6,
-                  children: [
-                    if (whatsapp.isNotEmpty)
-                      Text(
-                        'WhatsApp: $whatsapp',
-                        style: TextStyle(
-                          color: palette.textSecondary,
-                          fontSize: 9.5,
-                          fontWeight: FontWeight.w700,
-                        ),
-                      ),
-                    if (observation.isNotEmpty)
-                      Text(
-                        'Nota: $observation',
-                        style: TextStyle(
-                          color: palette.textSecondary,
-                          fontSize: 9.5,
-                          fontWeight: FontWeight.w700,
-                        ),
-                      ),
-                  ],
-                ),
-              ),
-              const SizedBox(height: 9),
-            ],
-            LayoutBuilder(
-              builder: (context, constraints) {
-                final compact = constraints.maxWidth < 560;
-                final paymentPanel = _OrderHistorySubPanel(
-                  title: 'Pagos',
-                  icon: Icons.payments_outlined,
-                  palette: palette,
-                  child: payments.isEmpty
-                      ? Text(
-                          balance > 0
-                              ? 'Sin abonos registrados. El pedido sigue pendiente de pago.'
-                              : 'No hay pagos registrados.',
-                          style: TextStyle(
-                            color: palette.textSecondary,
-                            fontWeight: FontWeight.w600,
-                            fontSize: 10,
-                          ),
-                        )
-                      : Column(
-                          children: [
-                            for (var i = 0; i < payments.length; i++) ...[
-                              _OrderPaymentRow(
-                                payment: payments[i],
-                                palette: palette,
-                              ),
-                              if (i != payments.length - 1)
-                                const SizedBox(height: 6),
-                            ],
-                          ],
-                        ),
-                );
-
-                final detailPanel = _OrderHistorySubPanel(
-                  title: 'Productos',
-                  icon: Icons.inventory_2_outlined,
-                  palette: palette,
-                  child: details.isEmpty
-                      ? Text(
-                          'Sin detalle disponible.',
-                          style: TextStyle(
-                            color: palette.textSecondary,
-                            fontWeight: FontWeight.w600,
-                            fontSize: 10,
-                          ),
-                        )
-                      : Column(
-                          children: [
-                            for (var i = 0; i < details.length; i++) ...[
-                              _OrderHistoryProductRow(
-                                detail: details[i],
-                                palette: palette,
-                              ),
-                              if (i != details.length - 1)
-                                const SizedBox(height: 6),
-                            ],
-                          ],
-                        ),
-                );
-
-                if (compact) {
-                  return Column(
-                    children: [
-                      paymentPanel,
-                      const SizedBox(height: 9),
-                      detailPanel,
-                    ],
-                  );
-                }
-                return Row(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Expanded(child: paymentPanel),
-                    const SizedBox(width: 9),
-                    Expanded(child: detailPanel),
-                  ],
-                );
-              },
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-class _OrderPaymentStatusBadge extends StatelessWidget {
-  const _OrderPaymentStatusBadge({
-    required this.status,
-    required this.color,
-  });
-
-  final String status;
-  final Color color;
-
-  @override
-  Widget build(BuildContext context) => Container(
-        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-        decoration: BoxDecoration(
-          color: color.withOpacity(.10),
-          borderRadius: BorderRadius.circular(999),
-          border: Border.all(color: color.withOpacity(.20)),
-        ),
-        child: Text(
-          switch (status) {
-            'PAGADO' => 'Pagado',
-            'PAGO_PARCIAL' => 'Pago parcial',
-            _ => 'Pendiente',
-          },
-          style: TextStyle(
-            color: color,
-            fontWeight: FontWeight.w900,
-            fontSize: 9,
-          ),
-        ),
-      );
-}
-
-class _OrderHistorySubPanel extends StatelessWidget {
-  const _OrderHistorySubPanel({
-    required this.title,
-    required this.icon,
-    required this.palette,
-    required this.child,
-  });
-
-  final String title;
-  final IconData icon;
-  final AppPalette palette;
-  final Widget child;
-
-  @override
-  Widget build(BuildContext context) => Container(
-        padding: const EdgeInsets.all(10),
-        decoration: BoxDecoration(
-          color: palette.background.withOpacity(.26),
-          borderRadius: BorderRadius.circular(14),
-          border: Border.all(color: palette.cardBorder.withOpacity(.60)),
-        ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            Row(
-              children: [
-                Icon(icon, color: palette.secondary, size: 16),
-                const SizedBox(width: 6),
-                Text(
-                  title,
-                  style: TextStyle(
-                    color: palette.textPrimary,
-                    fontWeight: FontWeight.w900,
-                    fontSize: 10.5,
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 8),
-            child,
-          ],
-        ),
-      );
-}
-
-class _OrderPaymentRow extends StatelessWidget {
-  const _OrderPaymentRow({
-    required this.payment,
-    required this.palette,
-  });
-
-  final Map<String, dynamic> payment;
-  final AppPalette palette;
-
-  @override
-  Widget build(BuildContext context) => Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Icon(
-            Icons.check_circle_outline_rounded,
-            color: palette.success,
-            size: 16,
-          ),
-          const SizedBox(width: 7),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  _displayValue(
-                    _toDouble(payment['valor']),
-                    currency: true,
-                  ),
-                  style: TextStyle(
-                    color: palette.textPrimary,
-                    fontWeight: FontWeight.w900,
-                    fontSize: 10.5,
-                  ),
-                ),
-                Text(
-                  '${payment['medio'] ?? 'CAJA'} · ${_orderHistoryDate(payment['fecha'])}',
-                  style: TextStyle(
-                    color: palette.textSecondary,
-                    fontWeight: FontWeight.w600,
-                    fontSize: 9,
-                  ),
-                ),
-                if ((payment['observacion'] ?? '')
-                    .toString()
-                    .trim()
-                    .isNotEmpty)
-                  Text(
-                    payment['observacion'].toString(),
-                    style: TextStyle(
-                      color: palette.textSecondary,
-                      fontWeight: FontWeight.w600,
-                      fontSize: 9,
-                    ),
-                  ),
-              ],
-            ),
-          ),
-        ],
-      );
-}
-
-class _OrderHistoryProductRow extends StatelessWidget {
-  const _OrderHistoryProductRow({
-    required this.detail,
-    required this.palette,
-  });
-
-  final Map<String, dynamic> detail;
-  final AppPalette palette;
-
-  @override
-  Widget build(BuildContext context) {
-    final name = (detail['producto'] ?? 'Producto').toString();
-    final presentations = _toDouble(detail['presentaciones']);
-    final units = _toDouble(detail['unidades']);
-    final subtotal = _toDouble(detail['subtotal']);
-    return Row(
-      children: [
-        Expanded(
-          child: Text(
-            name,
-            maxLines: 2,
-            overflow: TextOverflow.ellipsis,
-            style: TextStyle(
-              color: palette.textPrimary,
-              fontWeight: FontWeight.w700,
-              fontSize: 9.5,
-            ),
-          ),
-        ),
-        const SizedBox(width: 8),
-        Flexible(
-          child: Text(
-            '${_displayValue(presentations)} pres. · '
-            '${_displayValue(units)} und. · '
-            '${_displayValue(subtotal, currency: true)}',
-            textAlign: TextAlign.right,
-            style: TextStyle(
-              color: palette.textSecondary,
-              fontWeight: FontWeight.w700,
-              fontSize: 9,
-            ),
-          ),
-        ),
-      ],
-    );
-  }
-}
-
-String _orderHistoryDate(Object? value) {
-  final raw = value?.toString();
-  if (raw == null || raw.trim().isEmpty) return 'Sin fecha';
-  final parsed = DateTime.tryParse(raw);
-  if (parsed == null) return raw;
-  return DateFormat('dd/MM/yyyy HH:mm').format(parsed);
 }
 
 class _OrderHealthStrip extends StatelessWidget {
@@ -6410,6 +6002,12 @@ class _OrderProductRow extends StatelessWidget {
         ? math.max(1, _toDouble(row['presentaciones_pedir']).ceil())
         : 1;
     final factor = math.max(1.0, _toDouble(row['unidades_por_presentacion']));
+    final suggestedPurchase = OrderWhatsappMessageFormatter.purchaseQuantityLabel(
+      row, presentations: suggested, units: suggested * factor,
+    );
+    final selectedPurchase = OrderWhatsappMessageFormatter.purchaseQuantityLabel(
+      row, presentations: count, units: count * factor,
+    );
     final cost = _orderPresentationCost(row);
     final hasCost = cost > 0;
     final subtotal = _orderSubtotal(row, presentations: count.toDouble());
@@ -6464,6 +6062,22 @@ class _OrderProductRow extends StatelessWidget {
           maximum: maximum,
           palette: palette,
         ),
+        const SizedBox(height: 6),
+        Text(
+          selected
+              ? 'Pedir: ' + selectedPurchase
+              : 'Compra por: ' +
+                  OrderWhatsappMessageFormatter.purchaseQuantityLabel(
+                    row, presentations: 1, units: factor,
+                  ),
+          maxLines: 2,
+          overflow: TextOverflow.ellipsis,
+          style: TextStyle(
+            color: selected ? palette.secondary : palette.textSecondary,
+            fontSize: 11.5,
+            fontWeight: FontWeight.w800,
+          ),
+        ),
       ],
     );
 
@@ -6481,7 +6095,7 @@ class _OrderProductRow extends StatelessWidget {
         const SizedBox(height: 2),
         Text(
           hasSuggestion
-              ? '$suggested ${row['presentacion_compra'] ?? 'presentaciones'}'
+              ? suggestedPurchase
               : 'Disponible para agregar',
           style: TextStyle(
             color: palette.textPrimary,
@@ -6525,9 +6139,9 @@ class _OrderProductRow extends StatelessWidget {
         const SizedBox(height: 2),
         Text(
           selected
-              ? '${_displayValue(units)} unidades'
+              ? _displayValue(units) + ' unidades (inventario)'
               : hasCost
-                  ? '${_displayValue(cost, currency: true)} c/u'
+                  ? _displayValue(cost, currency: true) + ' por presentación'
                   : 'Configura el costo',
           textAlign: TextAlign.end,
           style: TextStyle(
@@ -6795,12 +6409,17 @@ class _OrderCartSummary extends StatelessWidget {
                       ),
                     ),
                     const SizedBox(width: 7),
-                    Text(
-                      '${_displayValue(row['presentaciones_pedir'])}',
-                      style: TextStyle(
+                    Flexible(
+                      child: Text(
+                        OrderWhatsappMessageFormatter.purchaseQuantityLabel(row),
+                        textAlign: TextAlign.end,
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
                         color: palette.textSecondary,
                         fontSize: 11.5,
                         fontWeight: FontWeight.w900,
+                        ),
                       ),
                     ),
                   ],
@@ -7009,20 +6628,22 @@ class _OrderInventoryDiagnostics extends StatelessWidget {
     required this.allRows,
     required this.filteredRows,
     required this.selectedFilter,
-    required this.definition,
     required this.palette,
     required this.onToggle,
     required this.onFilterChanged,
+    required this.onExportExcel,
+    required this.exportingExcel,
   });
 
   final bool expanded;
   final List<Map<String, dynamic>> allRows;
   final List<Map<String, dynamic>> filteredRows;
   final _ProfitOrderFilter selectedFilter;
-  final _ReportDefinition definition;
   final AppPalette palette;
   final VoidCallback onToggle;
   final ValueChanged<_ProfitOrderFilter> onFilterChanged;
+  final VoidCallback onExportExcel;
+  final bool exportingExcel;
 
   @override
   Widget build(BuildContext context) {
@@ -7085,6 +6706,20 @@ class _OrderInventoryDiagnostics extends StatelessWidget {
                       ],
                     ),
                   ),
+                  Tooltip(
+                    message: 'Descargar diagnóstico completo en Excel',
+                    child: OutlinedButton.icon(
+                      onPressed: exportingExcel ? null : onExportExcel,
+                      icon: exportingExcel
+                          ? const SizedBox.square(
+                              dimension: 16,
+                              child: CircularProgressIndicator(strokeWidth: 2),
+                            )
+                          : const Icon(Icons.file_download_outlined, size: 18),
+                      label: Text(exportingExcel ? 'Preparando' : 'Excel'),
+                    ),
+                  ),
+                  const SizedBox(width: 7),
                   Icon(
                     expanded
                         ? Icons.keyboard_arrow_up_rounded
@@ -7121,11 +6756,9 @@ class _OrderInventoryDiagnostics extends StatelessWidget {
                       message: 'No hay productos para el filtro seleccionado.',
                     )
                   else
-                    _ReportTable(
+                    OrderInventoryDiagnosticTable(
                       rows: filteredRows,
                       palette: palette,
-                      currencyKeys: definition.currencyKeys,
-                      percentageKeys: definition.percentageKeys,
                     ),
                 ],
               ),
@@ -7560,7 +7193,9 @@ class _SelectableOrderCard extends StatelessWidget {
             ],
           ),
           Text(
-            '$count ${row['presentacion_compra'] ?? 'Unidad'} · ${_displayValue(units)} unidades',
+            OrderWhatsappMessageFormatter.purchaseQuantityLabel(
+              row, presentations: count, units: units,
+            ) + ' · ' + _displayValue(units) + ' unidades',
             style: TextStyle(
               color: palette.textPrimary,
               fontWeight: FontWeight.w800,
@@ -7895,7 +7530,8 @@ class _OrderHighlights extends StatelessWidget {
                       ),
                       const SizedBox(height: 10),
                       Text(
-                        '${_displayValue(row['presentaciones_pedir'])} ${row['presentacion_compra'] ?? 'presentaciones'} · ${_displayValue(row['unidades_pedir'])} unidades',
+                        OrderWhatsappMessageFormatter.purchaseQuantityLabel(row) +
+                            ' · ' + _displayValue(row['unidades_pedir']) + ' unidades',
                         style: TextStyle(
                           color: palette.textPrimary,
                           fontWeight: FontWeight.w800,
@@ -11346,8 +10982,9 @@ Map<String, dynamic> _buildMetrics(
   if (definition.kind == _ReportKind.profit) {
     final ingresos = _sum(rows, 'ingresos_periodo');
     final ganancia = _sum(rows, 'ganancia_bruta_periodo');
-    final metadata =
-        rows.isEmpty ? const <String, dynamic>{} : rows.first;
+    final metadata = payload.summary.isNotEmpty
+        ? payload.summary
+        : (rows.isEmpty ? const <String, dynamic>{} : rows.first);
     final gastosFijos = _toDouble(metadata['gastos_fijos_periodo']);
     final gastosVariables = _toDouble(metadata['gastos_variables_periodo']);
     final manoObra = _toDouble(metadata['mano_obra_periodo']);

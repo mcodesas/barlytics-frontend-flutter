@@ -2,6 +2,7 @@ import 'dart:ui';
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:url_launcher/url_launcher.dart';
@@ -13,6 +14,7 @@ import '../../../../core/errors/failure.dart';
 import '../../../../core/utils/validators.dart';
 import '../../../../core/widgets/barlytics_brand.dart';
 import '../../../../core/widgets/tech_background.dart';
+import '../../data/services/remember_login_preferences.dart';
 import '../providers/auth_provider.dart';
 
 class LoginPage extends ConsumerStatefulWidget {
@@ -26,12 +28,51 @@ class _LoginPageState extends ConsumerState<LoginPage> {
   final _formKey = GlobalKey<FormState>();
   final _identifier = TextEditingController();
   final _password = TextEditingController();
+  final _identifierFocus = FocusNode(debugLabel: 'login-identifier');
+  final _passwordFocus = FocusNode(debugLabel: 'login-password');
+  final _rememberPreferences = const RememberLoginPreferences();
 
   String? _loginErrorMessage;
   bool _hidePassword = true;
+  bool _rememberPassword = false;
+  bool _rememberInteracted = false;
+  bool _submitting = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadRememberedLogin();
+  }
+
+  Future<void> _loadRememberedLogin() async {
+    try {
+      final saved = await _rememberPreferences.load();
+      if (!mounted || _rememberInteracted) return;
+      setState(() {
+        _rememberPassword = saved.enabled;
+        if (saved.enabled && _identifier.text.trim().isEmpty) {
+          _identifier.text = saved.identifier;
+        }
+      });
+    } catch (_) {
+      // No impedir el acceso si falla el almacenamiento local.
+    }
+  }
+
+  void _changeRememberPassword(bool enabled) {
+    setState(() {
+      _rememberInteracted = true;
+      _rememberPassword = enabled;
+    });
+    if (!enabled) {
+      _rememberPreferences.forget().catchError((Object _) {});
+    }
+  }
 
   @override
   void dispose() {
+    _identifierFocus.dispose();
+    _passwordFocus.dispose();
     _identifier.dispose();
     _password.dispose();
     super.dispose();
@@ -43,6 +84,10 @@ class _LoginPageState extends ConsumerState<LoginPage> {
 
     ref.listen(authControllerProvider, (previous, next) {
       if (next.authenticated) {
+        if (_submitting) {
+          // Solicitar guardado antes de que GoRouter desmonte AutofillGroup.
+          TextInput.finishAutofillContext(shouldSave: _rememberPassword);
+        }
         context.go(next.subscriptionActive ? '/home' : '/activar-suscripcion');
         return;
       }
@@ -175,12 +220,41 @@ class _LoginPageState extends ConsumerState<LoginPage> {
   }
 
   Future<void> _login() async {
+    if (_submitting || ref.read(authControllerProvider).loading) return;
     if (!_formKey.currentState!.validate()) return;
-    setState(() => _loginErrorMessage = null);
-    await ref.read(authControllerProvider.notifier).login(
-          _identifier.text.trim(),
-          _password.text,
+
+    final identifier = _identifier.text.trim();
+    final password = _password.text;
+    final shouldRemember = _rememberPassword;
+    setState(() {
+      _submitting = true;
+      _loginErrorMessage = null;
+    });
+
+    try {
+      final success = await ref.read(authControllerProvider.notifier).login(
+            identifier,
+            password,
+          );
+      if (!success) return;
+      // Se recuerda el identificador; la contraseña solo en el gestor
+      // del sistema o navegador si este ofrece guardar credenciales.
+      try {
+        await _rememberPreferences.save(
+          enabled: shouldRemember,
+          identifier: identifier,
         );
+      } catch (_) {
+        // No fallar el ingreso por no poder guardar una preferencia.
+      }
+    } finally {
+      if (mounted) setState(() => _submitting = false);
+    }
+  }
+
+  void _submitPassword() {
+    if (_submitting || ref.read(authControllerProvider).loading) return;
+    _login();
   }
 
   String _messageForLogin(Failure failure) {
@@ -304,6 +378,7 @@ class _GlassLoginCard extends ConsumerWidget {
               border: Border.all(color: palette.textPrimary.withOpacity(0.16)),
             ),
             child: AutofillGroup(
+              onDisposeAction: AutofillContextAction.cancel,
               child: Form(
               key: state._formKey,
               child: Column(
@@ -349,33 +424,48 @@ class _GlassLoginCard extends ConsumerWidget {
                     ],
                   ),
                   SizedBox(height: dense ? 8 : 16),
-                  _GlassTextField(
-                    controller: state._identifier,
-                    label: 'Usuario o correo',
-                    hint: 'correo@barlytics.com',
-                    icon: Icons.alternate_email_rounded,
-                    keyboardType: TextInputType.emailAddress,
-                    autofillHints: const [AutofillHints.username, AutofillHints.email],
-                    textInputAction: TextInputAction.next,
-                    maxLength: 255,
-                    validator: Validators.required,
-                    dense: dense,
-                    onChanged: (_) {
-                      if (state._loginErrorMessage != null) {
-                        state.setState(() => state._loginErrorMessage = null);
+                  Focus(
+                    skipTraversal: true,
+                    onKeyEvent: (_, event) {
+                      if (event is KeyDownEvent &&
+                          event.logicalKey == LogicalKeyboardKey.tab &&
+                          !HardwareKeyboard.instance.isShiftPressed) {
+                        state._passwordFocus.requestFocus();
+                        return KeyEventResult.handled;
                       }
+                      return KeyEventResult.ignored;
                     },
+                    child: _GlassTextField(
+                      controller: state._identifier,
+                      focusNode: state._identifierFocus,
+                      onFieldSubmitted: (_) => state._passwordFocus.requestFocus(),
+                      label: 'Usuario o correo',
+                      hint: 'correo@barlytics.com',
+                      icon: Icons.alternate_email_rounded,
+                      keyboardType: TextInputType.emailAddress,
+                      autofillHints: const [AutofillHints.username, AutofillHints.email],
+                      textInputAction: TextInputAction.next,
+                      maxLength: 255,
+                      validator: Validators.required,
+                      dense: dense,
+                      onChanged: (_) {
+                        if (state._loginErrorMessage != null) {
+                          state.setState(() => state._loginErrorMessage = null);
+                        }
+                      },
+                    ),
                   ),
                   SizedBox(height: dense ? 8 : 14),
                   _GlassTextField(
                     controller: state._password,
+                    focusNode: state._passwordFocus,
                     label: 'Contraseña',
                     hint: 'Clave segura',
                     icon: Icons.lock_outline_rounded,
                     obscureText: state._hidePassword,
                     autofillHints: const [AutofillHints.password],
                     textInputAction: TextInputAction.done,
-                    onFieldSubmitted: (_) => loading ? null : state._login(),
+                    onEditingComplete: loading ? null : state._submitPassword,
                     maxLength: 72,
                     validator: Validators.required,
                     dense: dense,
@@ -395,6 +485,51 @@ class _GlassLoginCard extends ConsumerWidget {
                             : Icons.visibility_off_outlined,
                         color: palette.textPrimary.withOpacity(0.78),
                       ),
+                    ),
+                  ),
+                  SizedBox(height: dense ? 3 : 6),
+                  Align(
+                    alignment: Alignment.centerLeft,
+                    child: Semantics(
+                      label: 'Recordar contraseña',
+                      checked: state._rememberPassword,
+                      enabled: !loading,
+                      excludeSemantics: true,
+                      child: Tooltip(
+                        message: 'El gestor de contraseñas de tu dispositivo puede recordar el acceso.',
+                        child: InkWell(
+                        borderRadius: BorderRadius.circular(8),
+                        onTap: loading
+                            ? null
+                            : () => state._changeRememberPassword(!state._rememberPassword),
+                        child: Padding(
+                          padding: const EdgeInsets.symmetric(vertical: 3, horizontal: 2),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Icon(
+                                state._rememberPassword
+                                    ? Icons.check_box_rounded
+                                    : Icons.check_box_outline_blank_rounded,
+                                size: dense ? 19 : 21,
+                                color: state._rememberPassword
+                                    ? palette.primary
+                                    : palette.textSecondary,
+                              ),
+                              const SizedBox(width: 7),
+                              Text(
+                                'Recordar contraseña',
+                                style: TextStyle(
+                                  color: palette.textPrimary.withOpacity(0.85),
+                                  fontSize: dense ? 11.5 : 12.5,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ),
                     ),
                   ),
                   if (state._loginErrorMessage != null) ...[
@@ -717,6 +852,8 @@ class _GlassTextField extends ConsumerWidget {
   const _GlassTextField({
     required this.controller,
     required this.label,
+    this.focusNode,
+    this.onEditingComplete,
     required this.hint,
     required this.icon,
     this.keyboardType,
@@ -732,6 +869,8 @@ class _GlassTextField extends ConsumerWidget {
   });
 
   final TextEditingController controller;
+  final FocusNode? focusNode;
+  final VoidCallback? onEditingComplete;
   final String label;
   final String hint;
   final IconData icon;
@@ -753,11 +892,13 @@ class _GlassTextField extends ConsumerWidget {
 
     return TextFormField(
       controller: controller,
+      focusNode: focusNode,
       keyboardType: keyboardType,
       obscureText: obscureText,
       autofillHints: autofillHints,
       textInputAction: textInputAction,
       onFieldSubmitted: onFieldSubmitted,
+      onEditingComplete: onEditingComplete,
       enableSuggestions: !obscureText,
       autocorrect: false,
       validator: validator,

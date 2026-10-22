@@ -19,6 +19,7 @@ import '../../features/navigation/presentation/providers/user_menu_provider.dart
 import '../../features/navigation/presentation/providers/active_role_provider.dart';
 import '../../features/navigation/presentation/providers/user_assigned_roles_provider.dart';
 import '../../features/profile/presentation/providers/profile_header_provider.dart';
+import '../../features/subscription/presentation/providers/subscription_provider.dart';
 import '../utils/responsive_utils.dart';
 import 'barlytics_brand.dart';
 import 'ready_order_notification_host.dart';
@@ -97,6 +98,77 @@ bool _isGlobalAdminRole(String role) {
 }
 
 
+/// Aviso persistente durante los siete días anteriores al vencimiento.
+/// La renovación automática se anuncia como próximo cobro, no como deuda.
+class _SubscriptionExpiryBanner extends ConsumerWidget {
+  const _SubscriptionExpiryBanner({required this.canManage});
+
+  final bool canManage;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final current = ref.watch(subscriptionCurrentProvider).valueOrNull;
+    if (current == null || !current.active || !current.expiryWarning ||
+        current.daysUntilExpiry == null) {
+      return const SizedBox.shrink();
+    }
+    final palette = ref.watch(selectedAppPaletteProvider);
+    final days = current.daysUntilExpiry!;
+    final label = days <= 0 ? 'hoy' : days == 1 ? 'mañana' : 'en $days días';
+    final renewal = current.automaticRenewal && !current.cancellationScheduled;
+    final planName = current.planName ?? 'BarLytics';
+    final message = renewal
+        ? 'El período de $planName finaliza $label. La renovación automática está habilitada; comprueba tu medio de pago.'
+        : 'Tu plan $planName vence $label. Renueva a tiempo para evitar interrupciones.';
+    final action = canManage
+        ? TextButton(
+            onPressed: () => context.go('/activar-suscripcion'),
+            child: Text(renewal ? 'Ver suscripción' : 'Renovar plan'),
+          )
+        : null;
+
+    return Material(
+      color: palette.warning.withOpacity(0.12),
+      child: SafeArea(
+        bottom: false,
+        child: LayoutBuilder(
+          builder: (context, constraints) {
+            final compact = constraints.maxWidth < 640;
+            final info = Row(
+              children: [
+                Icon(Icons.schedule_rounded, color: palette.warning, size: 19),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Text(
+                    message,
+                    style: TextStyle(color: palette.textPrimary, fontWeight: FontWeight.w700, fontSize: 12),
+                  ),
+                ),
+              ],
+            );
+            return Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 5),
+              child: compact
+                  ? Column(
+                      children: [
+                        info,
+                        if (action != null) Align(alignment: Alignment.centerRight, child: action),
+                      ],
+                    )
+                  : Row(
+                      children: [
+                        Expanded(child: info),
+                        if (action != null) action,
+                      ],
+                    ),
+            );
+          },
+        ),
+      ),
+    );
+  }
+}
+
 /// Scaffold principal con navegación adaptable y diseño tecnológico unificado.
 class AppScaffold extends ConsumerStatefulWidget {
   const AppScaffold({super.key, required this.child});
@@ -110,6 +182,7 @@ class _AppScaffoldState extends ConsumerState<AppScaffold> {
   bool _mainMenuCollapsed = true;
   bool _guideScheduled = false;
   Timer? _rolesRefreshTimer;
+  Timer? _subscriptionRefreshTimer;
 
   @override
   void initState() {
@@ -126,11 +199,18 @@ class _AppScaffoldState extends ConsumerState<AppScaffold> {
       // de los roles. Nunca reutilizar una lista que quedó obsoleta.
       ref.read(branchScopeProvider.notifier).load();
     });
+    // Las sesiones que quedan abiertas también deben enterarse del vencimiento.
+    _subscriptionRefreshTimer = Timer.periodic(const Duration(hours: 1), (_) {
+      if (mounted && ref.read(authControllerProvider).authenticated) {
+        ref.invalidate(subscriptionCurrentProvider);
+      }
+    });
   }
 
   @override
   void dispose() {
     _rolesRefreshTimer?.cancel();
+    _subscriptionRefreshTimer?.cancel();
     super.dispose();
   }
 
@@ -174,19 +254,39 @@ class _AppScaffoldState extends ConsumerState<AppScaffold> {
     // actualmente seleccionado. El backend ya filtra por destinatario, por lo
     // que todos los shells autenticados pueden consultar sus propios avisos.
     final branchScope = ref.watch(branchScopeProvider);
+    // Verificación al entrar: no confiar indefinidamente en el estado
+    // de suscripción que había quedado guardado en Secure Storage.
+    ref.listen(subscriptionCurrentProvider, (previous, next) {
+      final current = next.valueOrNull;
+      if (current == null || current.active ||
+          !ref.read(authControllerProvider).subscriptionActive) return;
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted || !ref.read(authControllerProvider).subscriptionActive) return;
+        unawaited(ref.read(authControllerProvider.notifier).updateSubscription(
+          status: current.status,
+          active: false,
+        ));
+      });
+    });
     _scheduleHeaderGuide(
       hasRoles: ref.watch(authControllerProvider).roles.length > 1,
       hasBranches: branchScope.branches.length > 1,
     );
     Widget withReadyOrderNotifications(Widget scaffold) {
+      final decorated = Column(
+        children: [
+          _SubscriptionExpiryBanner(canManage: isManager || isGlobalAdmin),
+          Expanded(child: scaffold),
+        ],
+      );
       final branches = branchScope.branches;
       if (branches.length <= 1) {
-        return ReadyOrderNotificationHost(child: scaffold);
+        return ReadyOrderNotificationHost(child: decorated);
       }
       return ReadyOrderNotificationHost(
         child: KeyedSubtree(
           key: ValueKey('sucursal-${branchScope.activeBranchId}'),
-          child: scaffold,
+          child: decorated,
         ),
       );
     }
@@ -2052,7 +2152,8 @@ class _OperationalBottomNavigation extends ConsumerWidget {
 
     final representedPaths = entries.map((entry) => entry.path).toSet();
     final extraMenus = authorizedMenus.where((item) {
-      if (item.path.trim().isEmpty || item.keyName == 'mesero') return false;
+      if (item.path.trim().isEmpty || item.keyName == 'mesero' ||
+          item.path == '/home' || item.keyName == 'home') return false;
       return !representedPaths.contains(item.path);
     }).toList(growable: false);
     final hasExtraMenus = extraMenus.isNotEmpty;
@@ -2793,10 +2894,16 @@ class _CustomRoleBottomNavigation extends ConsumerWidget {
           orElse: () => const <UserMenuItem>[],
         );
 
-    final uniqueByPath = <String, UserMenuItem>{};
+    final uniqueByPath = <String, UserMenuItem>{
+      '/home': const UserMenuItem(
+        keyName: 'home', title: 'Inicio', path: '/home',
+        groupCode: 'INICIO', groupName: 'Inicio',
+        groupIcon: 'home', groupOrder: 0, menuOrder: 0,
+      ),
+    };
     for (final item in authorizedMenus) {
       final path = item.path.trim();
-      if (path.isEmpty) continue;
+      if (path.isEmpty || path == '/home' || item.keyName == 'home') continue;
       uniqueByPath.putIfAbsent(path, () => item);
     }
     final allItems = uniqueByPath.values.toList(growable: false);
@@ -3898,9 +4005,8 @@ class _SideNavigation extends ConsumerWidget {
                     children: [
                       _MenuProfileCard(profile: profile, palette: palette, compact: collapsed),
                       const SizedBox(height: 6),
-                      if (!personalizedRole)
-                        _NavTile(title: 'Inicio', keyName: 'home', path: '/home', compact: collapsed, palette: palette),
-                      if (!collapsed && !personalizedRole) const SizedBox(height: 8),
+                      _NavTile(title: 'Inicio', keyName: 'home', path: '/home', compact: collapsed, palette: palette),
+                      if (!collapsed) const SizedBox(height: 8),
                       ..._authorizedMenuWidgets(
                         ref: ref,
                         menuAsync: menuAsync,
@@ -3955,9 +4061,8 @@ class _DrawerContent extends ConsumerWidget {
               children: [
                 _MenuProfileCard(profile: profile, palette: palette),
                 const SizedBox(height: 6),
-                if (!personalizedRole)
-                  _NavTile(title: 'Inicio', keyName: 'home', path: '/home', palette: palette),
-                if (!personalizedRole) const Divider(),
+                _NavTile(title: 'Inicio', keyName: 'home', path: '/home', palette: palette),
+                const Divider(),
                 ..._authorizedMenuWidgets(
                   ref: ref,
                   menuAsync: menuAsync,
@@ -4119,7 +4224,7 @@ class _AuthorizedMenuGroupsState extends State<_AuthorizedMenuGroups> {
   Widget build(BuildContext context) {
     if (widget.preserveExactOrder) {
       final orderedItems = widget.items
-          .where((item) => item.path.trim().isNotEmpty)
+          .where((item) => item.path.trim().isNotEmpty && item.path != '/home')
           .toList(growable: false);
       if (orderedItems.isEmpty) return const SizedBox.shrink();
       return Column(
@@ -4152,6 +4257,7 @@ class _AuthorizedMenuGroupsState extends State<_AuthorizedMenuGroups> {
     final metadata = <String, UserMenuItem>{};
 
     for (final item in widget.items) {
+      if (item.path == '/home' || item.keyName == 'home') continue;
       final code = item.groupCode.trim().isEmpty ? 'OTROS' : item.groupCode.trim().toUpperCase();
       byCode.putIfAbsent(code, () => <UserMenuItem>[]).add(item);
       metadata.putIfAbsent(code, () => item);

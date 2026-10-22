@@ -3,6 +3,8 @@ import 'dart:io';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import '../constants/storage_keys.dart';
+
 class StorageKeysForMigration {
   static const keys = ['auth_token', 'refresh_token', 'user_id', 'empresa_id', 'sucursal_id', 'email', 'roles', 'subscription_status', 'subscription_active', 'business_setup_complete'];
 }
@@ -79,7 +81,17 @@ class SecureStorageService {
 
     if (Platform.isMacOS) {
       final preferences = await SharedPreferences.getInstance();
+      // Solo estos dos datos no sensibles sobreviven al cierre de sesión
+      // si el usuario eligió explícitamente recordar su cuenta.
+      final remember = preferences.getBool(StorageKeys.rememberLoginEnabled) == true;
+      final identifier = preferences.getString(StorageKeys.rememberLoginIdentifier);
       await preferences.clear();
+      if (remember) {
+        await preferences.setBool(StorageKeys.rememberLoginEnabled, true);
+        if (identifier != null && identifier.isNotEmpty) {
+          await preferences.setString(StorageKeys.rememberLoginIdentifier, identifier);
+        }
+      }
       return;
     }
 
