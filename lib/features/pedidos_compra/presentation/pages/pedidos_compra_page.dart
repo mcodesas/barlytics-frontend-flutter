@@ -1285,47 +1285,61 @@ class _PedidosCompraPageState extends ConsumerState<PedidosCompraPage> {
             ],
           ),
           const SizedBox(height: 12),
-          Row(
-            children: [
-              Expanded(
-                child: OutlinedButton.icon(
-                  onPressed: busy || id == null ? null : () => _deleteOrder(order),
-                  style: OutlinedButton.styleFrom(
-                    minimumSize: const Size.fromHeight(44),
-                  ),
-                  icon: deleting
-                      ? const SizedBox.square(
-                          dimension: 16,
-                          child: CircularProgressIndicator(strokeWidth: 2),
-                        )
-                      : const Icon(Icons.delete_outline_rounded),
-                  label: Text(
-                    deleting ? 'Eliminando...' : 'Eliminar',
-                    style: const TextStyle(fontWeight: FontWeight.w900),
-                  ),
+          LayoutBuilder(
+            builder: (context, constraints) {
+              final deleteButton = OutlinedButton.icon(
+                onPressed: busy || id == null ? null : () => _deleteOrder(order),
+                icon: deleting
+                    ? const SizedBox.square(
+                        dimension: 16,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      )
+                    : const Icon(Icons.delete_outline_rounded, size: 19),
+                label: Text(
+                  deleting ? 'Eliminando...' : 'Eliminar',
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(fontWeight: FontWeight.w800),
                 ),
-              ),
-              const SizedBox(width: 8),
-              Expanded(
-                flex: 2,
-                child: FilledButton.icon(
-                  onPressed: busy || id == null ? null : () => _receive(order),
-                  style: FilledButton.styleFrom(
-                    minimumSize: const Size.fromHeight(44),
-                  ),
-                  icon: receiving
-                      ? const SizedBox.square(
-                          dimension: 16,
-                          child: CircularProgressIndicator(strokeWidth: 2),
-                        )
-                      : const Icon(Icons.inventory_rounded),
-                  label: Text(
-                    receiving ? 'Recibiendo...' : 'Recibir y actualizar stock',
-                    style: const TextStyle(fontWeight: FontWeight.w900),
-                  ),
+              );
+              final receiveButton = FilledButton.icon(
+                onPressed: busy || id == null ? null : () => _receive(order),
+                icon: receiving
+                    ? const SizedBox.square(
+                        dimension: 16,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      )
+                    : const Icon(Icons.inventory_rounded, size: 19),
+                label: Text(
+                  receiving ? 'Recibiendo...' : 'Recibir y actualizar stock',
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(fontWeight: FontWeight.w800),
                 ),
-              ),
-            ],
+              );
+              // En un iPhone las acciones en una sola fila rompen las palabras.
+              // Priorizar la recepción y colocar la acción destructiva debajo.
+              if (constraints.maxWidth < 480) {
+                return Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    SizedBox(height: 46, child: receiveButton),
+                    const SizedBox(height: 9),
+                    SizedBox(height: 44, child: deleteButton),
+                  ],
+                );
+              }
+              return Row(
+                children: [
+                  Expanded(child: SizedBox(height: 44, child: deleteButton)),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    flex: 2,
+                    child: SizedBox(height: 44, child: receiveButton),
+                  ),
+                ],
+              );
+            },
           ),
         ],
       ),
