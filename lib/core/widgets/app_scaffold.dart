@@ -15,6 +15,7 @@ import '../../features/auth/presentation/providers/auth_provider.dart';
 import '../../features/mesero/presentation/providers/mesero_tab_provider.dart';
 import '../../features/navigation/data/models/user_menu_item.dart';
 import '../../features/navigation/domain/menu_path_selection.dart';
+import '../../features/navigation/domain/manager_navigation_filters.dart';
 import '../../features/navigation/presentation/providers/user_menu_provider.dart';
 import '../../features/navigation/presentation/providers/active_role_provider.dart';
 import '../../features/navigation/presentation/providers/user_assigned_roles_provider.dart';
@@ -2547,10 +2548,7 @@ class _OperationalBottomNavigation extends ConsumerWidget {
 
     for (final item in items) {
       // Inicio se accede siempre desde la barra inferior, no desde Más.
-      if (item.path.trim() == '/home' ||
-          const {'home', 'inicio'}.contains(item.keyName.trim().toLowerCase())) {
-        continue;
-      }
+      if (isStructuralHomeItem(item)) continue;
       final code = item.groupCode.trim().isEmpty ? 'OTROS' : item.groupCode.trim().toUpperCase();
       byCode.putIfAbsent(code, () => <UserMenuItem>[]).add(item);
       metadata.putIfAbsent(code, () => item);
@@ -3534,12 +3532,8 @@ class _ManagerBottomNavigation extends ConsumerWidget {
           data: (items) => items
               .where((item) => !_managerBlockedKeys.contains(item.keyName.trim().toLowerCase()))
               .where((item) => item.path.trim().isNotEmpty)
-              // El shell ya agrega Inicio como elemento estructural.
-              // No incluirlo de nuevo como grupo de la base de datos.
-              .where((item) =>
-                  item.path.trim() != '/home' &&
-                  !const {'home', 'inicio'}.contains(item.keyName.trim().toLowerCase()) &&
-                  item.bottomCode.trim().toUpperCase() != 'INICIO')
+              // Inicio ya existe como primer botón del shell.
+              .where((item) => !isStructuralHomeBottomEntry(item))
               .toList(growable: false),
           orElse: () => const <UserMenuItem>[],
         );
@@ -3667,13 +3661,10 @@ class _ManagerBottomNavigation extends ConsumerWidget {
     final metadata = <String, UserMenuItem>{};
 
     for (final item in items) {
-      if (!item.bottomVisible || item.path.trim() == '/home' ||
-          const {'home', 'inicio'}.contains(item.keyName.trim().toLowerCase())) {
+      if (!item.bottomVisible || isStructuralHomeBottomEntry(item)) {
         continue;
       }
       final code = item.bottomCode.trim().isEmpty ? 'OTROS' : item.bottomCode.trim().toUpperCase();
-      // INICIO se dibuja aparte y no debe consumir uno de los tres cupos.
-      if (code == 'INICIO') continue;
       byCode.putIfAbsent(code, () => <UserMenuItem>[]).add(item);
       final current = metadata[code];
       if (current == null || item.bottomOrder < current.bottomOrder) {
@@ -3728,7 +3719,7 @@ class _ManagerBottomNavigation extends ConsumerWidget {
       system: true,
     );
 
-    final allItems = <UserMenuItem>[...items, profileItem];
+    final allItems = <UserMenuItem>[...managerMoreCandidates(items), profileItem];
     var query = '';
     final destination = await showModalBottomSheet<String>(
       context: context,
