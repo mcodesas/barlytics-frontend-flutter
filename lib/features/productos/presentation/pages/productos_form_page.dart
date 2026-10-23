@@ -14,6 +14,7 @@ import '../../../../core/providers/core_providers.dart';
 import '../../../../core/utils/input_constraints.dart';
 import '../../../../core/widgets/app_loader.dart';
 import '../../../../core/widgets/tech_background.dart';
+import '../widgets/product_wizard_viewport.dart';
 import '../../../business_setup/presentation/providers/business_setup_provider.dart';
 import '../../../inventario/data/models/inventario_response_model.dart';
 import '../../../inventario/presentation/providers/inventario_provider.dart';
@@ -279,34 +280,11 @@ class _ProductosFormPageState extends ConsumerState<ProductosFormPage> {
             .where((item) => item.prodId == _editingId && item.sucuId == _sucursalId)
             .fold<double>(0, (total, item) => total + (item.invtCantidad ?? 0));
 
-    return Scaffold(
-      backgroundColor: Colors.transparent,
-      // La navegación permanece visible aunque el paso tenga muchos campos.
-      bottomNavigationBar: SafeArea(
-        top: false,
-        child: Container(
-          decoration: BoxDecoration(
-            color: palette.background.withOpacity(0.97),
-            border: Border(top: BorderSide(color: palette.cardBorder)),
-          ),
-          padding: const EdgeInsets.fromLTRB(12, 10, 12, 12),
-          child: Center(
-            heightFactor: 1,
-            child: ConstrainedBox(
-              constraints: const BoxConstraints(maxWidth: 1120),
-              child: _NavigationButtons(
-                palette: palette,
-                saving: _saving,
-                currentStep: _currentStep,
-                onPrevious: _currentStep == 0 ? null : () => setState(() => _currentStep--),
-                onNext: _goNext,
-                onSave: () => _confirmAndSave(context, palette),
-              ),
-            ),
-          ),
-        ),
-      ),
-      body: Stack(
+    // AppScaffold ya posee su propio Scaffold y barra inferior. El asistente
+    // utiliza un viewport de altura acotada para que en iOS los campos siempre
+    // ocupen la pantalla y la navegación quede al pie, fuera del scroll.
+    return ProductWizardViewport(
+      content: Stack(
         children: [
           const Positioned.fill(child: AppPageBackground()),
           SafeArea(
@@ -408,6 +386,30 @@ class _ProductosFormPageState extends ConsumerState<ProductosFormPage> {
             ),
           ),
         ],
+      ),
+      navigation: SafeArea(
+        top: false,
+        child: Container(
+          decoration: BoxDecoration(
+            color: palette.background.withOpacity(0.97),
+            border: Border(top: BorderSide(color: palette.cardBorder)),
+          ),
+          padding: const EdgeInsets.fromLTRB(12, 10, 12, 12),
+          child: Center(
+            heightFactor: 1,
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 1120),
+              child: _NavigationButtons(
+                palette: palette,
+                saving: _saving,
+                currentStep: _currentStep,
+                onPrevious: _currentStep == 0 ? null : () => setState(() => _currentStep--),
+                onNext: _goNext,
+                onSave: () => _confirmAndSave(context, palette),
+              ),
+            ),
+          ),
+        ),
       ),
     );
   }
