@@ -16,6 +16,7 @@ import '../../../../core/widgets/app_loader.dart';
 import '../../../../core/widgets/app_error_view.dart';
 import '../../../../core/widgets/tech_background.dart';
 import '../widgets/product_wizard_viewport.dart';
+import '../utils/product_save_verification.dart';
 import '../../../business_setup/presentation/providers/business_setup_provider.dart';
 import '../../../inventario/data/models/inventario_response_model.dart';
 import '../../../inventario/presentation/providers/inventario_provider.dart';
@@ -163,7 +164,13 @@ class _ProductosFormPageState extends ConsumerState<ProductosFormPage> {
       );
       if (!mounted) return;
       final currentBranch = ref.read(branchScopeProvider).activeBranchId ?? _sucursalId;
-      if (currentBranch != activeBranch) return;
+      if (currentBranch != activeBranch) {
+        setState(() {
+          _loadingEditingProduct = false;
+          _editingLoadError = 'La sucursal cambió mientras cargábamos el producto. Vuelve a intentarlo.';
+        });
+        return;
+      }
 
       setState(() {
         _editingProduct = product;
@@ -2014,10 +2021,15 @@ class _ProductosFormPageState extends ConsumerState<ProductosFormPage> {
       );
       final verified = persisted.data;
       if (verified == null ||
-          verified.prodId != savedProductId ||
-          verified.sucuId != savedSucursalId ||
-          verified.prodNombre?.trim() != _nombreController.text.trim()) {
-        throw StateError('La lectura de verificación no coincide con el producto guardado.');
+          !productSaveVerified(
+            verified,
+            expectedId: savedProductId,
+            request: productBody,
+          )) {
+        throw StateError(
+          'La lectura posterior no coincide con los datos enviados. '
+          'Confirma el producto en el listado antes de repetir el guardado.',
+        );
       }
 
       // Una falla al actualizar la caché visual no deshace el guardado exitoso.
