@@ -22,6 +22,7 @@ import '../../services/reporte_pdf_service.dart';
 import '../widgets/profit_expense_breakdown.dart';
 import '../utils/order_whatsapp_message_formatter.dart';
 import '../utils/order_destination_resolver.dart';
+import '../utils/order_product_visibility.dart';
 import '../widgets/manual_purchase_order_dialog.dart';
 import '../widgets/order_inventory_diagnostic_table.dart';
 import '../widgets/order_history_card.dart';
@@ -4111,7 +4112,7 @@ class _NextOrderContentState extends ConsumerState<_NextOrderContent> {
   void _initializeSelection() {
     _selectedPresentations.clear();
     var hasSuggested = false;
-    for (final row in widget.payload.rows) {
+    for (final row in activePurchaseCatalog(widget.payload.rows)) {
       final productId = _productId(row);
       final suggested = _toDouble(row['presentaciones_pedir']).ceil();
       if (productId != null &&
@@ -4140,7 +4141,7 @@ class _NextOrderContentState extends ConsumerState<_NextOrderContent> {
       _orderPresentationCost(row);
 
   List<Map<String, dynamic>> get _orderRows {
-    final rows = widget.payload.rows
+    final rows = activePurchaseCatalog(widget.payload.rows)
         .where((row) => _productId(row) != null)
         .toList(growable: false)
       ..sort((a, b) {
@@ -4192,7 +4193,7 @@ class _NextOrderContentState extends ConsumerState<_NextOrderContent> {
   }
 
   List<Map<String, dynamic>> get _filteredRows {
-    return widget.payload.rows.where((row) {
+    return activePurchaseCatalog(widget.payload.rows).where((row) {
       final status = (row['estado_reposicion'] ?? '').toString().toUpperCase();
       return switch (_filter) {
         _ProfitOrderFilter.pedirAhora =>
@@ -5114,7 +5115,7 @@ class _NextOrderContentState extends ConsumerState<_NextOrderContent> {
 
   @override
   Widget build(BuildContext context) {
-    final allRows = widget.payload.rows;
+    final allRows = activePurchaseCatalog(widget.payload.rows);
     final orderRows = _orderRows;
     final suggestedRows = _suggestedOrderRows;
     final selectedRows = _selectedRows;
@@ -11009,7 +11010,8 @@ Map<String, dynamic> _buildMetrics(
     };
   }
   if (definition.kind == _ReportKind.nextOrder) {
-    final pedidos = rows
+    final activos = activePurchaseCatalog(rows);
+    final pedidos = activos
         .where((row) => _toDouble(row['unidades_pedir']) > 0)
         .toList(growable: false);
     return {
@@ -11017,10 +11019,10 @@ Map<String, dynamic> _buildMetrics(
       'unidades_pedir': _sum(pedidos, 'unidades_pedir'),
       'presentaciones_pedir': _sum(pedidos, 'presentaciones_pedir'),
       'costo_pedido_estimado': _sum(pedidos, 'costo_pedido_estimado'),
-      'productos_sin_configurar': rows
+      'productos_sin_configurar': activos
           .where((row) => row['estado_reposicion'] == 'SIN_CONFIGURAR')
           .length,
-      'productos_sobrestock': rows
+      'productos_sobrestock': activos
           .where((row) => row['estado_reposicion'] == 'SOBRESTOCK')
           .length,
     };
