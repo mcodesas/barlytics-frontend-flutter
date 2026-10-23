@@ -1892,7 +1892,10 @@ class _ProductosFormPageState extends ConsumerState<ProductosFormPage> {
   }
 
   Future<void> _save() async {
+    if (_saving) return;
     setState(() => _saving = true);
+    var productWriteConfirmed = false;
+    var currentOperation = 'datos básicos';
     try {
       final apiClient = ref.read(apiClientProvider);
       final compra = _parseDouble(_valorCompraController.text)!;
@@ -1938,7 +1941,9 @@ class _ProductosFormPageState extends ConsumerState<ProductosFormPage> {
       if (savedProductId == null || savedSucursalId == null) {
         throw Exception('No fue posible obtener el producto guardado.');
       }
+      productWriteConfirmed = true;
 
+      currentOperation = 'precio de compra y venta';
       final shouldCreatePrice = _shouldCreatePrice(
         compra: compra,
         venta: venta,
@@ -1964,6 +1969,7 @@ class _ProductosFormPageState extends ConsumerState<ProductosFormPage> {
         );
       }
 
+      currentOperation = 'receta e ingredientes';
       await apiClient.put<Map<String, dynamic>>(
         '/api/v1/productos/$savedProductId/gastro?sucursalId=$savedSucursalId',
         <String, dynamic>{
@@ -1981,6 +1987,7 @@ class _ProductosFormPageState extends ConsumerState<ProductosFormPage> {
         (json) => Map<String, dynamic>.from(json as Map),
       );
 
+      currentOperation = 'entrada de inventario';
       if (_registrarInventario) {
         final cantidad = _parseDouble(_inventarioCantidadController.text);
         if (cantidad != null && cantidad > 0) {
@@ -1997,27 +2004,82 @@ class _ProductosFormPageState extends ConsumerState<ProductosFormPage> {
         }
       }
 
-      await Future.wait([
-        ref.read(productosProvider.notifier).load(),
-        ref.read(preciosProvider.notifier).load(),
-        ref.read(inventarioProvider.notifier).load(),
-      ]);
+      // Comprobar con un GET independiente que el registro está persistido.
+      // De este modo, una respuesta positiva de PUT/POST no se confunde con
+      // la actualización de la vista local ni con una navegación de GoRouter.
+      currentOperation = 'verificación de guardado';
+      final persisted = await apiClient.get<ProductosResponseModel>(
+        '/api/v1/productos/$savedProductId',
+        (json) => ProductosResponseModel.fromJson(Map<String, dynamic>.from(json as Map)),
+      );
+      final verified = persisted.data;
+      if (verified == null ||
+          verified.prodId != savedProductId ||
+          verified.sucuId != savedSucursalId ||
+          verified.prodNombre?.trim() != _nombreController.text.trim()) {
+        throw StateError('La lectura de verificación no coincide con el producto guardado.');
+      }
 
-      // Si el producto se está registrando dentro de la puesta en marcha,
-      // dejamos invalidado el estado del asistente para que al regresar se
-      // reevalúe contra los datos recién guardados.
+      // Una falla al actualizar la caché visual no deshace el guardado exitoso.
+      // Es importante no decir que el producto no se guardó por este motivo.
+      try {
+        await Future.wait([
+          ref.read(productosProvider.notifier).load(),
+          ref.read(preciosProvider.notifier).load(),
+          ref.read(inventarioProvider.notifier).load(),
+        ]);
+      } catch (_) {
+        // La verificación GET ya confirmó la escritura en el servidor.
+      }
+
       if (ref.read(businessSetupGuidedModeProvider)) {
         ref.invalidate(businessSetupStatusProvider);
       }
 
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(_editing ? 'Producto modificado correctamente' : 'Producto creado correctamente')),
+      // No redirigir automáticamente a Inicio ni a una ficha que dependa
+      // de un catálogo paginado. Mostrar un resultado claro y dejar que el
+      // usuario elija cómo continuar.
+      final nextAction = await showDialog<String>(
+        context: context,
+        barrierDismissible: false,
+        builder: (dialogContext) => AlertDialog(
+          title: Row(
+            children: [
+              const Icon(Icons.check_circle_rounded, color: Colors.green),
+              const SizedBox(width: 9),
+              Expanded(
+                child: Text(_editing ? 'Producto actualizado' : 'Producto creado'),
+              ),
+            ],
+          ),
+          content: Text(
+            'El producto "${verified.prodNombre ?? _nombreController.text.trim()}" '
+            'se guardó correctamente y se comprobó en el servidor. '
+            'Código: $savedProductId.',
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(dialogContext).pop('stay'),
+              child: const Text('Seguir editando'),
+            ),
+            FilledButton.icon(
+              onPressed: () => Navigator.of(dialogContext).pop('list'),
+              icon: const Icon(Icons.inventory_2_outlined),
+              label: const Text('Volver a productos'),
+            ),
+          ],
+        ),
       );
-      context.go('/productos/$savedProductId');
+      if (!mounted) return;
+      if (nextAction == 'list') context.go('/productos');
     } catch (error) {
       if (!mounted) return;
-      _showError('No fue posible guardar el producto: $error');
+      _showError(productWriteConfirmed
+          ? 'Los datos básicos del producto fueron aceptados, pero no se completó '
+              'la operación de $currentOperation: $error. '
+              'El producto puede haberse guardado parcialmente; revísalo antes de repetir.'
+          : 'No fue posible guardar el producto: $error');
     } finally {
       if (mounted) setState(() => _saving = false);
     }
