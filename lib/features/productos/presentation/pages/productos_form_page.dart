@@ -13,6 +13,7 @@ import '../../../../core/constants/storage_keys.dart';
 import '../../../../core/providers/core_providers.dart';
 import '../../../../core/utils/input_constraints.dart';
 import '../../../../core/widgets/app_loader.dart';
+import '../../../../core/widgets/app_error_view.dart';
 import '../../../../core/widgets/tech_background.dart';
 import '../widgets/product_wizard_viewport.dart';
 import '../../../business_setup/presentation/providers/business_setup_provider.dart';
@@ -69,6 +70,9 @@ class _ProductosFormPageState extends ConsumerState<ProductosFormPage> {
   bool _loadedStorage = false;
   bool _hydratedProduct = false;
   bool _hydratedPrice = false;
+  bool _loadingEditingProduct = false;
+  ProductosResponseModel? _editingProduct;
+  String? _editingLoadError;
   bool _gastroLoaded = false;
   bool _gastroLoading = false;
   String? _gastroError;
@@ -118,8 +122,65 @@ class _ProductosFormPageState extends ConsumerState<ProductosFormPage> {
       _sucursalId = active ?? int.tryParse(raw ?? '');
       _loadedStorage = true;
     });
-    // Esperar a cargar el producto; su sucursal es la fuente de verdad
-    // y puede diferir del valor guardado previamente en el dispositivo.
+    // El listado de productos puede estar paginado o filtrado. Al editar,
+    // consultar el registro concreto; no depender de que esté en esa lista.
+    if (_editing) await _loadEditingProduct();
+  }
+
+  Future<void> _loadEditingProduct() async {
+    final id = _editingId;
+    if (id == null) {
+      if (mounted) setState(() => _editingLoadError = 'El identificador del producto no es válido.');
+      return;
+    }
+    setState(() {
+      _loadingEditingProduct = true;
+      _editingLoadError = null;
+    });
+    try {
+      final client = ref.read(apiClientProvider);
+      final response = await client.get<ProductosResponseModel>(
+        '/api/v1/productos/$id',
+        (json) => ProductosResponseModel.fromJson(Map<String, dynamic>.from(json as Map)),
+      );
+      final product = response.data;
+      if (product == null || product.prodId != id || product.sucuId == null) {
+        throw StateError('No se encontró el producto solicitado.');
+      }
+      final activeBranch = ref.read(branchScopeProvider).activeBranchId ?? _sucursalId;
+      if (activeBranch != null && product.sucuId != activeBranch) {
+        throw StateError('El producto pertenece a otra sucursal. Selecciona su sucursal para editarlo.');
+      }
+
+      // Recuperar el precio real del producto, no un subconjunto del proveedor
+      // global (que puede traer solo la primera página de resultados).
+      final priceResponse = await client.get<List<PreciosResponseModel>>(
+        '/api/v1/precios/producto/$id/sucursal/${product.sucuId}/historial',
+        (json) => (json is List ? json : const <Object?>[])
+            .whereType<Map>()
+            .map((item) => PreciosResponseModel.fromJson(Map<String, dynamic>.from(item)))
+            .toList(growable: false),
+      );
+      if (!mounted) return;
+      final currentBranch = ref.read(branchScopeProvider).activeBranchId ?? _sucursalId;
+      if (currentBranch != activeBranch) return;
+
+      setState(() {
+        _editingProduct = product;
+        _hydratedProduct = false;
+        _hydratedPrice = false;
+        _hydrateProduct(product);
+        _hydratePrice(priceResponse.data ?? const <PreciosResponseModel>[]);
+        _editingLoadError = null;
+        _loadingEditingProduct = false;
+      });
+    } catch (error) {
+      if (!mounted) return;
+      setState(() {
+        _editingLoadError = 'No fue posible cargar los datos del producto. $error';
+        _loadingEditingProduct = false;
+      });
+    }
   }
 
   Future<void> _loadGastroConfig() async {
@@ -251,20 +312,24 @@ class _ProductosFormPageState extends ConsumerState<ProductosFormPage> {
     final tiposState = ref.watch(tiposproductoProvider);
     final sucursalesState = ref.watch(sucursalesProvider);
 
-    final producto = _editingId == null
-        ? null
-        : _firstOrNull(productosState.items.where((item) =>
-            item.prodId == _editingId && item.sucuId == activeSucursalId));
-
-    if (_editing && producto != null) {
-      _hydrateProduct(producto);
-    }
-    _hydratePrice(preciosState.items);
-
-    if (!_loadedStorage || (_editing && productosState.loading && producto == null)) {
+    if (!_loadedStorage || (_editing && _loadingEditingProduct)) {
       return const Scaffold(
         backgroundColor: Colors.transparent,
         body: Stack(children: [Positioned.fill(child: AppPageBackground()), AppLoader()]),
+      );
+    }
+    if (_editing && (_editingProduct == null || _editingLoadError != null)) {
+      return Scaffold(
+        backgroundColor: Colors.transparent,
+        body: Stack(
+          children: [
+            const Positioned.fill(child: AppPageBackground()),
+            AppErrorView(
+              message: _editingLoadError ?? 'No fue posible recuperar el producto.',
+              onRetry: _loadEditingProduct,
+            ),
+          ],
+        ),
       );
     }
 
