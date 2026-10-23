@@ -94,4 +94,37 @@ void main() {
     expect(tester.getTopLeft(find.text('Valor de compra')).dy, lessThan(160));
     expect(tester.takeException(), isNull);
   });
+  testWidgets('el formulario no desaparece bajo un padre sin altura acotada',
+      (tester) async {
+    await setIPhoneViewport(tester);
+
+    await tester.pumpWidget(MaterialApp(
+      home: Scaffold(
+        body: SingleChildScrollView(
+          child: ProductWizardViewport(
+            content: ListView(
+              children: const [
+                Text('Editar producto'),
+                Text('Nombre del producto'),
+                SizedBox(height: 450),
+              ],
+            ),
+            navigation: const SizedBox(
+              height: 104,
+              child: Center(child: Text('Siguiente y Anterior')),
+            ),
+          ),
+        ),
+      ),
+    ));
+
+    expect(find.text('Nombre del producto'), findsOneWidget);
+    expect(find.text('Siguiente y Anterior'), findsOneWidget);
+    expect(
+      tester.getTopLeft(find.text('Nombre del producto')).dy,
+      lessThan(tester.getTopLeft(find.text('Siguiente y Anterior')).dy),
+    );
+    expect(tester.takeException(), isNull);
+  });
+
 }
