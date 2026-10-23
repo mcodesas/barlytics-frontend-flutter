@@ -1711,11 +1711,8 @@ class _ProductosFormPageState extends ConsumerState<ProductosFormPage> {
 
   void _goNext() {
     if (_currentStep == 0 && !_validateGeneral()) return;
-    if (_currentStep == 1) {
-      if (!(_priceFormKey.currentState?.validate() ?? false)) return;
-      if (!_validatePriceRelationship()) return;
-    }
-    if (_currentStep == 2 && !(_inventoryFormKey.currentState?.validate() ?? false)) return;
+    if (_currentStep == 1 && !_validatePriceStep()) return;
+    if (_currentStep == 2 && !_validateInventoryStep()) return;
     setState(() => _currentStep = math.min(3, _currentStep + 1));
   }
 
@@ -1724,14 +1721,58 @@ class _ProductosFormPageState extends ConsumerState<ProductosFormPage> {
       _showError('Debes cargar la receta antes de guardar para conservar los ingredientes y adiciones.');
       return false;
     }
-    final validForm = _generalFormKey.currentState?.validate() ?? false;
-    if (!validForm) return false;
+    // Solo se construye el paso activo. Al confirmar, el Form general ya
+    // está desmontado y currentState es null, pero los controladores siguen
+    // teniendo los datos. Validarlos siempre evita bloquear el guardado.
+    if (_generalFormKey.currentState?.validate() == false) return false;
+    if (_required(_nombreController.text) != null ||
+        _required(_descripcionController.text) != null) {
+      _showError('Completa el nombre y la descripción del producto.');
+      return false;
+    }
     if (_sucursalId == null) {
       _showError('No se encontró la sucursal asignada al usuario.');
       return false;
     }
     if (_tipoId == null) {
       _showError('Selecciona un tipo de producto.');
+      return false;
+    }
+    return true;
+  }
+
+  bool _validatePriceStep() {
+    if (_priceFormKey.currentState?.validate() == false) return false;
+    if (_requiredPositive(_valorCompraController.text) != null ||
+        _requiredPositiveOrZero(_valorVentaController.text) != null) {
+      _showError('Revisa los valores de compra y venta del producto.');
+      return false;
+    }
+    if (_compraPorCantidad &&
+        (_required(_presentacionCompraController.text) != null ||
+            _requiredPositive(_cantidadCompraController.text) != null)) {
+      _showError('Indica la presentación de compra y cuántas unidades contiene.');
+      return false;
+    }
+    if (_aplicaImpuesto &&
+        _requiredPositiveOrZero(_porcentajeImpuestoController.text) != null) {
+      _showError('Revisa el porcentaje de impuesto.');
+      return false;
+    }
+    return _validatePriceRelationship();
+  }
+
+  bool _validateInventoryStep() {
+    if (_inventoryFormKey.currentState?.validate() == false) return false;
+    final minimum = _requiredPositiveOrZero(_stockMinimoController.text);
+    final maximum = _validateStockMaximo(_stockMaximoController.text);
+    if (minimum != null || maximum != null) {
+      _showError('Revisa los límites mínimo y máximo de inventario.');
+      return false;
+    }
+    if (_registrarInventario &&
+        _requiredPositive(_inventarioCantidadController.text) != null) {
+      _showError('Indica una cantidad válida para agregar al inventario.');
       return false;
     }
     return true;
@@ -1773,12 +1814,11 @@ class _ProductosFormPageState extends ConsumerState<ProductosFormPage> {
       setState(() => _currentStep = 0);
       return;
     }
-    if (!(_priceFormKey.currentState?.validate() ?? false) ||
-        !_validatePriceRelationship()) {
+    if (!_validatePriceStep()) {
       setState(() => _currentStep = 1);
       return;
     }
-    if (!(_inventoryFormKey.currentState?.validate() ?? false)) {
+    if (!_validateInventoryStep()) {
       setState(() => _currentStep = 2);
       return;
     }
