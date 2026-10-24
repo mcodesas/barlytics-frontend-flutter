@@ -258,7 +258,8 @@ class _InventarioAdminPageState extends ConsumerState<InventarioAdminPage> {
   Future<void> _undoSynchronization(Map<String, dynamic> audit) async {
     if (_undoingSynchronization || !_canUndoSynchronization) return;
     final countId = audit['conteo_id'];
-    if (countId == null) return;
+    final movementId = audit['movimiento_id'];
+    if (countId == null || movementId == null) return;
     final controller = TextEditingController();
     final justification = await showDialog<String>(
       context: context,
@@ -316,8 +317,8 @@ class _InventarioAdminPageState extends ConsumerState<InventarioAdminPage> {
     setState(() => _undoingSynchronization = true);
     try {
       await ref.read(apiClientProvider).post<Object?>(
-        '${ApiPaths.inventario}/administracion/sincronizaciones/$countId/anular',
-        {'justificacion': justification},
+        '${ApiPaths.inventario}/administracion/sincronizaciones/anular-lote',
+        {'movimientoIds': [movementId], 'justificacion': justification},
         (json) => json,
       );
       await _load();
