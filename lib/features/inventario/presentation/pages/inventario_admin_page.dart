@@ -53,7 +53,8 @@ class _InventarioAdminPageState extends ConsumerState<InventarioAdminPage> {
   bool get _canUndoSynchronization => ref.read(authControllerProvider).roles.any(
         (role) {
           final code = role.toUpperCase().replaceFirst('ROLE_', '');
-          return code == 'ADMINISTRADOR' || code == 'GERENTE';
+          return const {'ADMINISTRADOR', 'GERENTE', 'ADMIN', 'SUPERADMIN',
+              'SUPER_ADMIN', 'MANAGER'}.contains(code);
         },
       );
 
