@@ -15,6 +15,7 @@ import '../../../../core/widgets/app_error_view.dart';
 import '../../../../core/widgets/app_loader.dart';
 import '../../../../core/widgets/tech_background.dart';
 import '../../../sucursales/data/models/sucursales_response_model.dart';
+import '../../../auth/presentation/providers/auth_provider.dart';
 
 enum _InventoryHistoryView { cards, table }
 
@@ -45,6 +46,15 @@ class _InventarioAdminPageState extends ConsumerState<InventarioAdminPage> {
   String? _error;
   _InventoryAdminFilter _filter = _InventoryAdminFilter.todos;
   List<_InventoryAuditRow> _rows = const [];
+  List<Map<String, dynamic>> _synchronizations = const [];
+  bool _undoingSynchronization = false;
+
+  bool get _canUndoSynchronization => ref.read(authControllerProvider).roles.any(
+        (role) {
+          final code = role.toUpperCase().replaceFirst('ROLE_', '');
+          return code == 'ADMINISTRADOR' || code == 'GERENTE';
+        },
+      );
 
   @override
   void initState() {
@@ -102,9 +112,29 @@ class _InventarioAdminPageState extends ConsumerState<InventarioAdminPage> {
           .map(_InventoryAuditRow.fromJson)
           .toList(growable: false);
 
+      List<Map<String, dynamic>> syncRows = const [];
+      try {
+        final history = await ref.read(apiClientProvider).get<List<Map<String, dynamic>>>(
+          '${ApiPaths.inventario}/administracion/sincronizaciones',
+          (json) => (json as List? ?? const <Object>[])
+              .whereType<Map>()
+              .map((row) => Map<String, dynamic>.from(row))
+              .toList(),
+          queryParameters: {
+            'sucursalId': branchId,
+            'desde': DateFormat('yyyy-MM-dd').format(_range.start),
+            'hasta': DateFormat('yyyy-MM-dd').format(_range.end),
+          },
+        );
+        syncRows = history.data ?? const [];
+      } catch (error) {
+        debugPrint('No fue posible consultar auditoría de sincronizaciones: $error');
+      }
+
       if (!mounted) return;
       setState(() {
         _rows = rows;
+        _synchronizations = syncRows;
         _branchId = branchId;
         _loading = false;
       });
@@ -213,6 +243,91 @@ class _InventarioAdminPageState extends ConsumerState<InventarioAdminPage> {
       );
     } finally {
       if (mounted) setState(() => _exportingExcel = false);
+    }
+  }
+
+  Future<void> _undoSynchronization(Map<String, dynamic> audit) async {
+    if (_undoingSynchronization || !_canUndoSynchronization) return;
+    final countId = audit['conteo_id'];
+    if (countId == null) return;
+    final controller = TextEditingController();
+    final justification = await showDialog<String>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Row(children: [
+          Icon(Icons.restore_outlined, color: Colors.orangeAccent),
+          SizedBox(width: 10),
+          Expanded(child: Text('Anular sincronización')),
+        ]),
+        content: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 460),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(
+                'Se anulará la conciliación del producto '
+                '${audit['producto'] ?? 'seleccionado'} (conteo #$countId). '
+                'El movimiento original seguirá en el historial y no se '
+                'borrarán ventas ni compras posteriores.',
+              ),
+              const SizedBox(height: 14),
+              TextField(
+                controller: controller,
+                autofocus: true,
+                minLines: 2,
+                maxLines: 4,
+                maxLength: 300,
+                decoration: const InputDecoration(
+                  labelText: 'Motivo obligatorio de anulación',
+                  hintText: 'Por ejemplo: conciliación sin autorización o conteo equivocado',
+                ),
+              ),
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext),
+            child: const Text('Cancelar'),
+          ),
+          FilledButton.icon(
+            onPressed: () {
+              if (controller.text.trim().isEmpty) return;
+              Navigator.pop(dialogContext, controller.text.trim());
+            },
+            icon: const Icon(Icons.restore),
+            label: const Text('Confirmar anulación'),
+          ),
+        ],
+      ),
+    );
+    // El diálogo ya devolvió su resultado; el controlador no se utiliza después.
+    controller.dispose();
+    if (justification == null || !mounted) return;
+    setState(() => _undoingSynchronization = true);
+    try {
+      await ref.read(apiClientProvider).post<Object?>(
+        '${ApiPaths.inventario}/administracion/sincronizaciones/$countId/anular',
+        {'justificacion': justification},
+        (json) => json,
+      );
+      await _load();
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text(
+            'Sincronización anulada con trazabilidad. '
+            'Se conservó el inventario operativo.',
+          )),
+        );
+      }
+    } catch (error) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('No fue posible anular: ${ErrorMapper.map(error).message}')),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _undoingSynchronization = false);
     }
   }
 
@@ -426,6 +541,17 @@ class _InventarioAdminPageState extends ConsumerState<InventarioAdminPage> {
                     ),
                   ),
                 ),
+                if (_synchronizations.isNotEmpty)
+                  SliverToBoxAdapter(
+                    child: _PageWidth(
+                      child: _SynchronizationHistoryPanel(
+                        rows: _synchronizations,
+                        palette: palette,
+                        canUndo: _canUndoSynchronization && !_undoingSynchronization,
+                        onUndo: _undoSynchronization,
+                      ),
+                    ),
+                  ),
                 if (_error != null)
                   SliverToBoxAdapter(
                     child: _PageWidth(
