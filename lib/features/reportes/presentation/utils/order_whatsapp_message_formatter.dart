@@ -118,9 +118,9 @@ class OrderWhatsappMessageFormatter {
       }
       if (remainder.abs() < .0001) {
         return _purchasePresentationLabel(product, whole.toDouble(), unitCount)
-            .replaceFirst(RegExp(r'^'), '${_formatQuantity(whole)} ');
+            .replaceFirst(RegExp(r'^'), '${_formatQuantity(whole.toDouble())} ');
       }
-      return '${_formatQuantity(whole)} '
+      return '${_formatQuantity(whole.toDouble())} '
           '${_purchasePresentationLabel(product, whole.toDouble(), whole * factor)}'
           ' + ${_formatQuantity(remainder)} unidades sueltas';
     }
