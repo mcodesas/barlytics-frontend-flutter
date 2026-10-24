@@ -692,7 +692,10 @@ class _InventoryAuditRow {
   final String attendedBy;
 
   bool get hasDifference => difference.abs() > .0001;
-  bool get reconciliable => status == 'PENDIENTE' && latestCount;
+  // Un conteo cuya sincronización fue anulada puede reconciliarse otra vez
+  // si sigue siendo el último conteo físico de ese producto.
+  bool get reconciliable =>
+      (status == 'PENDIENTE' || status == 'ANULADO') && latestCount;
 
   factory _InventoryAuditRow.fromJson(Map<String, dynamic> json) {
     return _InventoryAuditRow(
@@ -770,7 +773,8 @@ class _InventoryCountDay {
   int get salesDay => rows.isEmpty ? 0 : rows.first.salesDay;
   double get totalSoldDay => rows.isEmpty ? 0 : rows.first.totalSoldDay;
   int get differenceCount => rows.where((row) => row.hasDifference).length;
-  int get pendingCount => rows.where((row) => row.status == 'PENDIENTE').length;
+  int get pendingCount =>
+      rows.where((row) => row.reconciliable).length;
   int get reconciliableCount => rows.where((row) => row.reconciliable).length;
   int get syncedCount =>
       rows.where((row) => row.status == 'SINCRONIZADO').length;
@@ -3110,6 +3114,7 @@ class _ProductAuditRow extends StatelessWidget {
     final statusColor = switch (row.status) {
       'PENDIENTE' => palette.warning,
       'SINCRONIZADO' => palette.success,
+      'ANULADO' => palette.warning,
       'SUPERADO' => palette.textSecondary,
       _ => palette.secondary,
     };
