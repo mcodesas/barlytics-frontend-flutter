@@ -2359,37 +2359,74 @@ class _AdminToolbar extends StatelessWidget {
   }
 }
 
-/// Bitácora de todos los movimientos de conciliación; nunca elimina
-/// evidencia original y permite anulación únicamente a roles administrativos.
+/// Bitácora de conciliaciones. Permite elegir movimientos vigentes individuales,
+/// todos los del período consultado o consultar jornadas históricas anteriores.
 class _SynchronizationHistoryPanel extends StatefulWidget {
   const _SynchronizationHistoryPanel({
     required this.rows,
     required this.palette,
     required this.canUndo,
     required this.onUndo,
+    required this.onUndoSelected,
+    required this.allHistorical,
+    required this.onAllHistoricalChanged,
   });
 
   final List<Map<String, dynamic>> rows;
   final AppPalette palette;
   final bool canUndo;
   final ValueChanged<Map<String, dynamic>> onUndo;
+  final ValueChanged<List<int>> onUndoSelected;
+  final bool allHistorical;
+  final ValueChanged<bool> onAllHistoricalChanged;
 
   @override
-  State<_SynchronizationHistoryPanel> createState() => _SynchronizationHistoryPanelState();
+  State<_SynchronizationHistoryPanel> createState() =>
+      _SynchronizationHistoryPanelState();
 }
 
-class _SynchronizationHistoryPanelState extends State<_SynchronizationHistoryPanel> {
+class _SynchronizationHistoryPanelState
+    extends State<_SynchronizationHistoryPanel> {
   bool showAll = false;
+  final Set<int> _selectedMovements = <int>{};
+
+  static int? _movementId(Map<String, dynamic> row) {
+    final value = row['movimiento_id'];
+    if (value is num) return value.toInt();
+    return int.tryParse(value?.toString() ?? '');
+  }
+
+  bool _isSelectable(Map<String, dynamic> row) =>
+      row['anulado'] != true && _movementId(row) != null;
+
+  @override
+  void didUpdateWidget(covariant _SynchronizationHistoryPanel oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    // Cuando cambie sucursal, período o estado de anulaciones, descartar
+    // selecciones que ya no estén disponibles para evitar lotes inesperados.
+    final available = widget.rows
+        .where(_isSelectable)
+        .map(_movementId)
+        .whereType<int>()
+        .toSet();
+    _selectedMovements.removeWhere((id) => !available.contains(id));
+  }
 
   @override
   Widget build(BuildContext context) {
     final palette = widget.palette;
     final ordered = widget.rows;
     final shown = showAll ? ordered : ordered.take(20).toList(growable: false);
+    final available = ordered.where(_isSelectable)
+        .map(_movementId).whereType<int>().toSet();
+    final selectedCount = _selectedMovements.length;
+    final selectedAll = available.isNotEmpty &&
+        _selectedMovements.containsAll(available);
+
     String date(Object? raw) {
       final parsed = DateTime.tryParse(raw?.toString() ?? '');
-      return parsed == null ? 'Sin fecha'
-          : DateFormat('dd/MM/yyyy HH:mm').format(parsed);
+      return parsed == null
+          ? 'Sin fecha' : DateFormat('dd/MM/yyyy HH:mm').format(parsed);
     }
     String observation(Object? raw) {
       final reference = raw?.toString() ?? '';
@@ -2426,12 +2463,73 @@ class _SynchronizationHistoryPanelState extends State<_SynchronizationHistoryPan
                         fontWeight: FontWeight.w900, fontSize: 16)),
                 Text(
                   '${ordered.length} movimientos de conciliación · '
+                  '${available.length} vigentes · '
                   'incluye anotaciones, responsables y anulaciones.',
                   style: TextStyle(color: palette.textSecondary, fontSize: 11),
                 ),
               ],
             )),
           ]),
+          const SizedBox(height: 8),
+          SwitchListTile.adaptive(
+            contentPadding: EdgeInsets.zero,
+            dense: true,
+            title: const Text('Consultar sincronizaciones de todos los períodos'),
+            subtitle: Text(widget.allHistorical
+                ? 'Mostrando todos los registros históricos de esta sucursal.'
+                : 'Por defecto se muestra únicamente el rango de fechas elegido.'),
+            value: widget.allHistorical,
+            onChanged: widget.onAllHistoricalChanged,
+          ),
+          if (widget.canUndo && available.isNotEmpty) ...[
+            const SizedBox(height: 8),
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              crossAxisAlignment: WrapCrossAlignment.center,
+              children: [
+                OutlinedButton.icon(
+                  onPressed: () => setState(() {
+                    if (selectedAll) {
+                      _selectedMovements.clear();
+                    } else {
+                      _selectedMovements
+                        ..clear()
+                        ..addAll(available);
+                    }
+                  }),
+                  icon: Icon(selectedAll
+                      ? Icons.deselect_rounded : Icons.select_all_rounded),
+                  label: Text(selectedAll
+                      ? 'Deseleccionar todas'
+                      : 'Seleccionar todas las vigentes (${available.length})'),
+                ),
+                if (selectedCount > 0)
+                  OutlinedButton.icon(
+                    onPressed: () => setState(_selectedMovements.clear),
+                    icon: const Icon(Icons.clear_rounded),
+                    label: const Text('Limpiar selección'),
+                  ),
+                FilledButton.icon(
+                  onPressed: selectedCount > 0 && selectedCount <= 1000
+                      ? () => widget.onUndoSelected(
+                          _selectedMovements.toList()..sort())
+                      : null,
+                  icon: const Icon(Icons.undo_rounded),
+                  label: Text('Anular seleccionadas ($selectedCount)'),
+                ),
+                Text('$selectedCount seleccionadas',
+                    style: TextStyle(color: palette.textSecondary,
+                        fontSize: 12, fontWeight: FontWeight.w700)),
+              ],
+            ),
+            if (selectedCount > 1000)
+              const Padding(
+                padding: EdgeInsets.only(top: 8),
+                child: Text('Para anular más de 1000 registros, reduce la '
+                    'selección o filtra las fechas y haz varias operaciones.'),
+              ),
+          ],
           const SizedBox(height: 12),
           if (ordered.isEmpty)
             Padding(
@@ -2448,84 +2546,110 @@ class _SynchronizationHistoryPanelState extends State<_SynchronizationHistoryPan
             ),
           if (ordered.isNotEmpty)
             ClipRRect(
-            borderRadius: BorderRadius.circular(12),
-            child: SingleChildScrollView(
-              scrollDirection: Axis.horizontal,
-              child: DataTable(
-                headingRowHeight: 46,
-                dataRowMinHeight: 54,
-                dataRowMaxHeight: 100,
-                columnSpacing: 19,
-                headingRowColor: MaterialStateProperty.all(
-                    palette.secondary.withOpacity(.09)),
-                columns: [
-                  DataColumn(label: head('Fecha')),
-                  DataColumn(label: head('Producto')),
-                  DataColumn(label: head('Diferencia')),
-                  DataColumn(label: head('Sincronizó')),
-                  DataColumn(label: head('Motivo y observación')),
-                  DataColumn(label: head('Estado')),
-                  DataColumn(label: head('Anulación / responsable')),
-                  DataColumn(label: head('Acciones')),
-                ],
-                rows: [
-                  for (final row in shown)
-                    DataRow(
-                      cells: [
-                        DataCell(content(date(row['sincronizado_en']))),
-                        DataCell(SizedBox(
-                          width: 155,
-                          child: content(row['producto']?.toString() ?? 'Producto'),
-                        )),
-                        DataCell(content(
-                          '${row['operacion'] ?? ''} '
-                          '${_qty(_num(row['unidades_ajuste']))}',
-                        )),
-                        DataCell(content(row['sincronizado_por']?.toString() ?? '—')),
-                        DataCell(SizedBox(
-                          width: 220,
-                          child: content(
-                            '${row['motivo'] ?? 'Sin motivo'} · '
-                            '${observation(row['referencia_observacion'])}',
-                          ),
-                        )),
-                        DataCell(
-                          Text(
+              borderRadius: BorderRadius.circular(12),
+              child: SingleChildScrollView(
+                scrollDirection: Axis.horizontal,
+                child: DataTable(
+                  showCheckboxColumn: widget.canUndo,
+                  onSelectAll: widget.canUndo ? (selected) {
+                    setState(() {
+                      final ids = shown
+                          .where(_isSelectable)
+                          .map(_movementId)
+                          .whereType<int>();
+                      if (selected == true) {
+                        _selectedMovements.addAll(ids);
+                      } else {
+                        _selectedMovements.removeAll(ids);
+                      }
+                    });
+                  } : null,
+                  headingRowHeight: 46,
+                  dataRowMinHeight: 54,
+                  dataRowMaxHeight: 100,
+                  columnSpacing: 19,
+                  headingRowColor: MaterialStateProperty.all(
+                      palette.secondary.withOpacity(.09)),
+                  columns: [
+                    DataColumn(label: head('Fecha')),
+                    DataColumn(label: head('Producto')),
+                    DataColumn(label: head('Diferencia')),
+                    DataColumn(label: head('Sincronizó')),
+                    DataColumn(label: head('Motivo y observación')),
+                    DataColumn(label: head('Estado')),
+                    DataColumn(label: head('Anulación / responsable')),
+                    DataColumn(label: head('Acciones')),
+                  ],
+                  rows: [
+                    for (final row in shown)
+                      DataRow(
+                        selected: _selectedMovements.contains(_movementId(row)),
+                        onSelectChanged: widget.canUndo && _isSelectable(row)
+                            ? (selected) {
+                                final id = _movementId(row)!;
+                                setState(() {
+                                  if (selected == true) {
+                                    _selectedMovements.add(id);
+                                  } else {
+                                    _selectedMovements.remove(id);
+                                  }
+                                });
+                              }
+                            : null,
+                        cells: [
+                          DataCell(content(date(row['sincronizado_en']))),
+                          DataCell(SizedBox(
+                            width: 155,
+                            child: content(row['producto']?.toString() ?? 'Producto'),
+                          )),
+                          DataCell(content(
+                            '${row['operacion'] ?? ''} '
+                            '${_qty(_num(row['unidades_ajuste']))}',
+                          )),
+                          DataCell(content(
+                              row['sincronizado_por']?.toString() ?? '—')),
+                          DataCell(SizedBox(
+                            width: 220,
+                            child: content(
+                              '${row['motivo'] ?? 'Sin motivo'} · '
+                              '${observation(row['referencia_observacion'])}',
+                            ),
+                          )),
+                          DataCell(Text(
                             row['anulado'] == true ? 'Anulada' : 'Vigente',
                             style: TextStyle(
                               color: row['anulado'] == true
                                   ? palette.warning : palette.success,
                               fontWeight: FontWeight.w800,
                             ),
-                          ),
-                        ),
-                        DataCell(SizedBox(
-                          width: 230,
-                          child: content(
-                            row['anulado'] == true
-                                ? '${row['anulado_por'] ?? '—'} · '
+                          )),
+                          DataCell(SizedBox(
+                            width: 230,
+                            child: content(
+                              row['anulado'] == true
+                                  ? '${row['anulado_por'] ?? '—'} · '
                                     '${date(row['anulado_en'])} · '
                                     '${row['motivo_anulacion'] ?? ''}'
-                                : 'Sin anulación',
+                                  : 'Sin anulación',
+                            ),
+                          )),
+                          DataCell(
+                            row['anulado'] == true
+                                ? const Icon(Icons.history_rounded, size: 18)
+                                : widget.canUndo
+                                    ? TextButton.icon(
+                                        onPressed: () => widget.onUndo(row),
+                                        icon: const Icon(Icons.undo_rounded, size: 17),
+                                        label: const Text('Anular'),
+                                      )
+                                    : const Text('Solo lectura'),
                           ),
-                        )),
-                        DataCell(
-                          row['anulado'] == true
-                              ? const Icon(Icons.history_rounded, size: 18)
-                              : widget.canUndo
-                                  ? TextButton.icon(
-                                      onPressed: () => widget.onUndo(row),
-                                      icon: const Icon(Icons.undo_rounded, size: 17),
-                                      label: const Text('Anular'),
-                                    )
-                                  : const Text('Solo lectura'),
-                        ),
-                      ],
-                    ),
-                ],
+                        ],
+                      ),
+                  ],
+                ),
               ),
             ),
-          ),
           if (ordered.length > 20) ...[
             const SizedBox(height: 8),
             Align(
