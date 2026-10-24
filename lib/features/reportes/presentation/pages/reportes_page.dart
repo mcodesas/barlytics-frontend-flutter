@@ -5983,18 +5983,22 @@ class _OrderProductList extends StatelessWidget {
   const _OrderProductList({
     required this.rows,
     required this.selectedPresentations,
+    required this.selectedUnits,
     required this.palette,
     required this.busy,
     required this.onToggle,
     required this.onChangePresentations,
+    required this.onEditUnits,
   });
 
   final List<Map<String, dynamic>> rows;
   final Map<int, int> selectedPresentations;
+  final Map<int, double> selectedUnits;
   final AppPalette palette;
   final bool busy;
   final void Function(Map<String, dynamic>, bool) onToggle;
   final void Function(Map<String, dynamic>, int) onChangePresentations;
+  final ValueChanged<Map<String, dynamic>> onEditUnits;
 
   @override
   Widget build(BuildContext context) {
@@ -6057,10 +6061,12 @@ class _OrderProductList extends StatelessWidget {
               itemBuilder: (context, index) => _OrderProductRow(
                 row: rows[index],
                 selectedPresentations: selectedPresentations,
+                selectedUnits: selectedUnits,
                 palette: palette,
                 busy: busy,
                 onToggle: onToggle,
                 onChangePresentations: onChangePresentations,
+                onEditUnits: onEditUnits,
               ),
             ),
         ],
@@ -6073,18 +6079,22 @@ class _OrderProductRow extends StatelessWidget {
   const _OrderProductRow({
     required this.row,
     required this.selectedPresentations,
+    required this.selectedUnits,
     required this.palette,
     required this.busy,
     required this.onToggle,
     required this.onChangePresentations,
+    required this.onEditUnits,
   });
 
   final Map<String, dynamic> row;
   final Map<int, int> selectedPresentations;
+  final Map<int, double> selectedUnits;
   final AppPalette palette;
   final bool busy;
   final void Function(Map<String, dynamic>, bool) onToggle;
   final void Function(Map<String, dynamic>, int) onChangePresentations;
+  final ValueChanged<Map<String, dynamic>> onEditUnits;
 
   @override
   Widget build(BuildContext context) {
@@ -6099,13 +6109,20 @@ class _OrderProductRow extends StatelessWidget {
     final suggestedPurchase = OrderWhatsappMessageFormatter.purchaseQuantityLabel(
       row, presentations: suggested, units: suggested * factor,
     );
+    final unitOverride = productId == null ? null : selectedUnits[productId];
+    final units = unitOverride ?? count * factor;
+    final equivalent = units / factor;
     final selectedPurchase = OrderWhatsappMessageFormatter.purchaseQuantityLabel(
-      row, presentations: count, units: count * factor,
+      {
+        ...row,
+        if (unitOverride != null) 'pedido_por_unidades': true,
+      },
+      presentations: equivalent,
+      units: units,
     );
     final cost = _orderPresentationCost(row);
     final hasCost = cost > 0;
-    final subtotal = _orderSubtotal(row, presentations: count.toDouble());
-    final units = count * factor;
+    final subtotal = _orderSubtotal(row, presentations: equivalent);
     final stock = _toDouble(row['stock_actual']);
     final minimum = _toDouble(row['stock_minimo']);
     final maximum = row['stock_maximo'] == null
@@ -6172,6 +6189,23 @@ class _OrderProductRow extends StatelessWidget {
             fontWeight: FontWeight.w800,
           ),
         ),
+        if (selected && hasCost)
+          Align(
+            alignment: Alignment.centerLeft,
+            child: TextButton.icon(
+              onPressed: busy ? null : () => onEditUnits(row),
+              icon: const Icon(Icons.edit_note_rounded, size: 17),
+              label: Text(
+                unitOverride == null
+                    ? 'Pedir por unidades / media canasta'
+                    : 'Cambiar unidades exactas',
+              ),
+              style: TextButton.styleFrom(
+                visualDensity: VisualDensity.compact,
+                padding: const EdgeInsets.symmetric(horizontal: 4),
+              ),
+            ),
+          ),
       ],
     );
 
