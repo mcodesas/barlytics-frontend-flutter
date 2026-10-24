@@ -1802,7 +1802,16 @@ class _LaborDialogState extends State<_LaborDialog> {
                       final cargo = cargos[index];
                       final cargoId = cargo['gafcId'].toString();
                       final active = selected?['gafcId'].toString() == cargoId;
-                      final configuredRates = rates[cargoId]?.length ?? 0;
+                      final allRates = rates[cargoId] ?? const <Map<String, dynamic>>[];
+                       final now = DateTime.now();
+                       final today = DateTime(now.year, now.month, now.day);
+                       final configuredRates = allRates.where((rate) {
+                         final from = DateTime.tryParse(rate['gafdVigenciaDesde']?.toString() ?? '');
+                         final until = DateTime.tryParse(rate['gafdVigenciaHasta']?.toString() ?? '');
+                         return from != null && !from.isAfter(today) &&
+                             (until == null || !until.isBefore(today));
+                       }).length;
+                       final otherRates = allRates.length - configuredRates;
 
                       return Material(
                         color: active
@@ -1857,7 +1866,7 @@ class _LaborDialogState extends State<_LaborDialog> {
                                       Text(
                                         configuredRates == 0
                                             ? 'Sin tarifas configuradas'
-                                            : '$configuredRates tarifa${configuredRates == 1 ? '' : 's'} registrada${configuredRates == 1 ? '' : 's'}',
+                                            : '$configuredRates vigentes · $otherRates históricas/programadas',
                                         style: TextStyle(
                                           color: configuredRates == 0
                                               ? widget.palette.warning
@@ -2510,7 +2519,23 @@ class _RatesList extends StatelessWidget {
           : 'TARIFA|${rate['gafdId']}';
       unique.putIfAbsent(key, () => rate);
     }
-    final visibleRates = unique.values.toList(growable: false);
+    final visibleRates = unique.values.toList(growable: true);
+    final now = DateTime.now();
+    final today = DateTime(now.year, now.month, now.day);
+    int rateRank(Map<String, dynamic> rate) {
+      final start = DateTime.tryParse(rate['gafdVigenciaDesde']?.toString() ?? '');
+      final end = DateTime.tryParse(rate['gafdVigenciaHasta']?.toString() ?? '');
+      if (start != null && start.isAfter(today)) return 1;
+      if (end != null && end.isBefore(today)) return 2;
+      return 0;
+    }
+    visibleRates.sort((a, b) {
+      final priority = rateRank(a).compareTo(rateRank(b));
+      if (priority != 0) return priority;
+      final firstDay = (a['gafdDiaSemana'] as num?)?.toInt() ?? 0;
+      final secondDay = (b['gafdDiaSemana'] as num?)?.toInt() ?? 0;
+      return firstDay.compareTo(secondDay);
+    });
 
     return ListView.separated(
       itemCount: visibleRates.length,
@@ -2527,60 +2552,96 @@ class _RatesList extends StatelessWidget {
         final until = rate['gafdVigenciaHasta']?.toString();
         final modo = rate['gafdModo']?.toString() ?? 'RECURRENTE';
 
+        final status = rateRank(rate);
+        final statusColor = status == 0 ? palette.success
+            : status == 1 ? palette.secondary : palette.textSecondary;
+        final statusLabel = status == 0 ? 'Vigente'
+            : status == 1 ? 'Programada' : 'Histórica';
         return Container(
-          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 9),
           decoration: BoxDecoration(
-            color: palette.background.withOpacity(.35),
-            borderRadius: BorderRadius.circular(12),
+            color: status == 0
+                ? palette.secondary.withOpacity(.05)
+                : palette.background.withOpacity(.28),
+            borderRadius: BorderRadius.circular(13),
+            border: Border.all(
+              color: status == 0
+                  ? palette.secondary.withOpacity(.21)
+                  : palette.cardBorder.withOpacity(.45),
+            ),
           ),
-          child: Row(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Expanded(
-                child: Text(
-                  modo == 'DIA'
-                      ? 'Día único'
-                      : modo == 'PERIODO'
-                          ? 'Período'
+              Row(
+                children: [
+                  Expanded(
+                    child: Text(
+                      modo == 'DIA' ? 'Día único'
+                          : modo == 'PERIODO' ? 'Período'
                           : (day >= 1 && day <= 7 ? names[day] : 'Día $day'),
-                  style: TextStyle(
-                    color: palette.textPrimary,
-                    fontWeight: FontWeight.w700,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        color: palette.textPrimary,
+                        fontWeight: FontWeight.w800,
+                        fontSize: 13,
+                      ),
+                    ),
                   ),
-                ),
-              ),
-              Text(
-                money.format(amount),
-                style: TextStyle(
-                  color: palette.textPrimary,
-                  fontWeight: FontWeight.w900,
-                ),
-              ),
-              const SizedBox(width: 12),
-              Flexible(
-                child: Text(
-                  until == null || until.isEmpty
-                      ? 'Desde $from'
-                      : '$from → $until',
-                  overflow: TextOverflow.ellipsis,
-                  style: TextStyle(
-                    color: palette.textSecondary,
-                    fontSize: 11,
+                  const SizedBox(width: 5),
+                  Text(money.format(amount),
+                      style: TextStyle(
+                        color: palette.textPrimary,
+                        fontWeight: FontWeight.w900,
+                        fontSize: 13,
+                      )),
+                  const SizedBox(width: 7),
+                  IconButton(
+                    tooltip: 'Modificar únicamente esta tarifa',
+                    onPressed: busy ? null : () => onEdit(rate),
+                    visualDensity: VisualDensity.compact,
+                    constraints: const BoxConstraints(minWidth: 38, minHeight: 38),
+                    icon: Icon(Icons.edit_outlined,
+                        size: 19, color: palette.secondary),
                   ),
-                ),
+                  IconButton(
+                    tooltip: 'Eliminar únicamente esta tarifa',
+                    onPressed: busy ? null : () => onDelete(rate),
+                    visualDensity: VisualDensity.compact,
+                    constraints: const BoxConstraints(minWidth: 38, minHeight: 38),
+                    icon: const Icon(Icons.delete_outline_rounded,
+                        size: 19, color: Colors.redAccent),
+                  ),
+                ],
               ),
-              const SizedBox(width: 4),
-              IconButton(
-                tooltip: 'Modificar esta tarifa',
-                onPressed: busy ? null : () => onEdit(rate),
-                visualDensity: VisualDensity.compact,
-                icon: Icon(Icons.edit_outlined, size: 19, color: palette.secondary),
-              ),
-              IconButton(
-                tooltip: 'Eliminar esta tarifa',
-                onPressed: busy ? null : () => onDelete(rate),
-                visualDensity: VisualDensity.compact,
-                icon: const Icon(Icons.delete_outline_rounded,
-                    size: 19, color: Colors.redAccent),
+              const SizedBox(height: 3),
+              Wrap(
+                spacing: 7,
+                runSpacing: 4,
+                crossAxisAlignment: WrapCrossAlignment.center,
+                children: [
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 7, vertical: 3),
+                    decoration: BoxDecoration(
+                      color: statusColor.withOpacity(.11),
+                      borderRadius: BorderRadius.circular(7),
+                    ),
+                    child: Text(statusLabel,
+                        style: TextStyle(color: statusColor,
+                            fontSize: 10, fontWeight: FontWeight.w800)),
+                  ),
+                  Text(
+                    until == null || until.isEmpty
+                        ? 'Desde $from'
+                        : '$from → $until',
+                    style: TextStyle(
+                      color: palette.textSecondary,
+                      fontSize: 11,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ],
               ),
             ],
           ),
