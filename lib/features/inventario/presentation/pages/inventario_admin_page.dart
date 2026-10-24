@@ -2249,6 +2249,178 @@ class _AdminToolbar extends StatelessWidget {
   }
 }
 
+/// Bitácora de todos los movimientos de conciliación; nunca elimina
+/// evidencia original y permite anulación únicamente a roles administrativos.
+class _SynchronizationHistoryPanel extends StatefulWidget {
+  const _SynchronizationHistoryPanel({
+    required this.rows,
+    required this.palette,
+    required this.canUndo,
+    required this.onUndo,
+  });
+
+  final List<Map<String, dynamic>> rows;
+  final AppPalette palette;
+  final bool canUndo;
+  final ValueChanged<Map<String, dynamic>> onUndo;
+
+  @override
+  State<_SynchronizationHistoryPanel> createState() => _SynchronizationHistoryPanelState();
+}
+
+class _SynchronizationHistoryPanelState extends State<_SynchronizationHistoryPanel> {
+  bool showAll = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final palette = widget.palette;
+    final ordered = widget.rows;
+    final shown = showAll ? ordered : ordered.take(20).toList(growable: false);
+    String date(Object? raw) {
+      final parsed = DateTime.tryParse(raw?.toString() ?? '');
+      return parsed == null ? 'Sin fecha'
+          : DateFormat('dd/MM/yyyy HH:mm').format(parsed);
+    }
+    String observation(Object? raw) {
+      final reference = raw?.toString() ?? '';
+      final separator = reference.indexOf(' - ');
+      return separator < 0 ? reference : reference.substring(separator + 3);
+    }
+    Widget head(String title) => Text(
+          title,
+          style: TextStyle(color: palette.textPrimary,
+              fontSize: 11, fontWeight: FontWeight.w900),
+        );
+    Widget content(String value) => Text(
+          value,
+          maxLines: 3,
+          overflow: TextOverflow.ellipsis,
+          style: TextStyle(color: palette.textPrimary,
+              fontSize: 11.5, fontWeight: FontWeight.w600),
+        );
+    return Container(
+      padding: const EdgeInsets.all(13),
+      decoration: palette.panelDecoration(baseRadius: 20, elevated: false),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(children: [
+            Icon(Icons.history_toggle_off_rounded,
+                color: palette.secondary, size: 23),
+            const SizedBox(width: 8),
+            Expanded(child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text('Historial de sincronizaciones',
+                    style: TextStyle(color: palette.textPrimary,
+                        fontWeight: FontWeight.w900, fontSize: 16)),
+                Text(
+                  '${ordered.length} movimientos de conciliación · '
+                  'incluye anotaciones, responsables y anulaciones.',
+                  style: TextStyle(color: palette.textSecondary, fontSize: 11),
+                ),
+              ],
+            )),
+          ]),
+          const SizedBox(height: 12),
+          ClipRRect(
+            borderRadius: BorderRadius.circular(12),
+            child: SingleChildScrollView(
+              scrollDirection: Axis.horizontal,
+              child: DataTable(
+                headingRowHeight: 46,
+                dataRowMinHeight: 54,
+                dataRowMaxHeight: 100,
+                columnSpacing: 19,
+                headingRowColor: MaterialStateProperty.all(
+                    palette.secondary.withOpacity(.09)),
+                columns: [
+                  DataColumn(label: head('Fecha')),
+                  DataColumn(label: head('Producto')),
+                  DataColumn(label: head('Diferencia')),
+                  DataColumn(label: head('Sincronizó')),
+                  DataColumn(label: head('Motivo y observación')),
+                  DataColumn(label: head('Estado')),
+                  DataColumn(label: head('Anulación / responsable')),
+                  DataColumn(label: head('Acciones')),
+                ],
+                rows: [
+                  for (final row in shown)
+                    DataRow(
+                      cells: [
+                        DataCell(content(date(row['sincronizado_en']))),
+                        DataCell(SizedBox(
+                          width: 155,
+                          child: content(row['producto']?.toString() ?? 'Producto'),
+                        )),
+                        DataCell(content(
+                          '${row['operacion'] ?? ''} '
+                          '${_qty(_num(row['unidades_ajuste']))}',
+                        )),
+                        DataCell(content(row['sincronizado_por']?.toString() ?? '—')),
+                        DataCell(SizedBox(
+                          width: 220,
+                          child: content(
+                            '${row['motivo'] ?? 'Sin motivo'} · '
+                            '${observation(row['referencia_observacion'])}',
+                          ),
+                        )),
+                        DataCell(
+                          Text(
+                            row['anulado'] == true ? 'Anulada' : 'Vigente',
+                            style: TextStyle(
+                              color: row['anulado'] == true
+                                  ? palette.warning : palette.success,
+                              fontWeight: FontWeight.w800,
+                            ),
+                          ),
+                        ),
+                        DataCell(SizedBox(
+                          width: 230,
+                          child: content(
+                            row['anulado'] == true
+                                ? '${row['anulado_por'] ?? '—'} · '
+                                    '${date(row['anulado_en'])} · '
+                                    '${row['motivo_anulacion'] ?? ''}'
+                                : 'Sin anulación',
+                          ),
+                        )),
+                        DataCell(
+                          row['anulado'] == true
+                              ? const Icon(Icons.history_rounded, size: 18)
+                              : widget.canUndo
+                                  ? TextButton.icon(
+                                      onPressed: () => widget.onUndo(row),
+                                      icon: const Icon(Icons.undo_rounded, size: 17),
+                                      label: const Text('Anular'),
+                                    )
+                                  : const Text('Solo lectura'),
+                        ),
+                      ],
+                    ),
+                ],
+              ),
+            ),
+          ),
+          if (ordered.length > 20) ...[
+            const SizedBox(height: 8),
+            Align(
+              alignment: Alignment.centerRight,
+              child: TextButton.icon(
+                onPressed: () => setState(() => showAll = !showAll),
+                icon: Icon(showAll ? Icons.expand_less : Icons.expand_more),
+                label: Text(showAll
+                    ? 'Mostrar solo los últimos 20'
+                    : 'Mostrar todos (${ordered.length})'),
+              ),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
 /// Control de presentación del historial y exportación del período visible.
 class _InventoryHistoryActions extends StatelessWidget {
   const _InventoryHistoryActions({
