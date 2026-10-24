@@ -2188,7 +2188,7 @@ class _CountDayCardState extends State<_CountDayCard> {
                         const SizedBox(height: 4),
                         _Meta(
                           icon: Icons.inventory_outlined,
-                          text: '${day.rows.length} productos contados',
+                          text: '${day.rows.length} productos contados · ${day.exactCount} sin diferencia · Abrir detalle',
                           palette: palette,
                         ),
                       ],
@@ -2217,7 +2217,7 @@ class _CountDayCardState extends State<_CountDayCard> {
                         ),
                         _Meta(
                           icon: Icons.inventory_outlined,
-                          text: '${day.rows.length} productos contados',
+                          text: '${day.rows.length} productos contados · ${day.exactCount} sin diferencia · Abrir detalle',
                           palette: palette,
                         ),
                       ],
