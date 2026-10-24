@@ -6244,13 +6244,21 @@ class _OrderProductRow extends StatelessWidget {
       ],
     );
 
-    final quantity = _CompactOrderStepper(
-      enabled: selected && !busy,
-      value: count,
-      onDecrease: count <= 1 ? null : () => onChangePresentations(row, -1),
-      onIncrease: () => onChangePresentations(row, 1),
-      palette: palette,
-    );
+    final quantity = unitOverride != null
+        ? Tooltip(
+            message: 'Usando cantidad exacta de unidades; vuelve al modo de presentaciones completas',
+            child: TextButton(
+              onPressed: busy ? null : () => onChangePresentations(row, 0),
+              child: const Text('Usar paquetes'),
+            ),
+          )
+        : _CompactOrderStepper(
+            enabled: selected && !busy,
+            value: count,
+            onDecrease: count <= 1 ? null : () => onChangePresentations(row, -1),
+            onIncrease: () => onChangePresentations(row, 1),
+            palette: palette,
+          );
 
     final amount = Column(
       crossAxisAlignment: CrossAxisAlignment.end,
