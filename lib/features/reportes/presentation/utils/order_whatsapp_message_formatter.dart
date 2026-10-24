@@ -100,6 +100,30 @@ class OrderWhatsappMessageFormatter {
     final presentationCount =
         presentations?.toDouble() ?? _asNumber(product['presentaciones_pedir']);
     final unitCount = units?.toDouble() ?? _asNumber(product['unidades_pedir']);
+    if (product['pedido_por_unidades'] == true && unitCount > 0) {
+      final factor = _asNumber(product['unidades_por_presentacion']);
+      final presentationLabel = _purchasePresentationLabel(
+          product, 1, factor > 0 ? factor : 1);
+      if (factor <= 1) {
+        return '${_formatQuantity(unitCount)} ${_presentationLabel('unidad', unitCount)}';
+      }
+      final whole = (unitCount / factor).floor();
+      final remainder = unitCount - whole * factor;
+      if (whole == 0 && (remainder - factor / 2).abs() < .0001) {
+        return '½ $presentationLabel (${_formatQuantity(unitCount)} unidades)';
+      }
+      if (whole == 0) {
+        return '${_formatQuantity(unitCount)} unidades sueltas '
+            '(de $presentationLabel)';
+      }
+      if (remainder.abs() < .0001) {
+        return _purchasePresentationLabel(product, whole.toDouble(), unitCount)
+            .replaceFirst(RegExp(r'^'), '${_formatQuantity(whole)} ');
+      }
+      return '${_formatQuantity(whole)} '
+          '${_purchasePresentationLabel(product, whole.toDouble(), whole * factor)}'
+          ' + ${_formatQuantity(remainder)} unidades sueltas';
+    }
     if (presentationCount <= 0) {
       return '${_formatQuantity(unitCount)} ${_presentationLabel('unidad', unitCount)}';
     }
