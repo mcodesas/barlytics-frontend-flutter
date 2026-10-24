@@ -2141,16 +2141,6 @@ class _LaborDialogState extends State<_LaborDialog> {
             fontSize: 11,
           ),
         ),
-        const SizedBox(height: 4),
-        // Texto histórico conservado para mantener la estructura.
-        SizedBox.shrink(),
-        /* Text(
-          'Tarifas e histórico',
-          style: TextStyle(
-            color: widget.palette.textPrimary,
-            fontWeight: FontWeight.w900,
-          ),
-        ),
         const SizedBox(height: 8),
         Expanded(
           child: _RatesList(
@@ -2266,6 +2256,207 @@ class _LaborDialogState extends State<_LaborDialog> {
                 ],
               ),
       ),
+    );
+  }
+}
+
+/// Edita una sola tarifa ya registrada; nunca modifica ni elimina el cargo.
+class _EditLaborRateDialog extends StatefulWidget {
+  const _EditLaborRateDialog({
+    required this.rate,
+    required this.palette,
+    required this.money,
+  });
+
+  final Map<String, dynamic> rate;
+  final AppPalette palette;
+  final NumberFormat money;
+
+  @override
+  State<_EditLaborRateDialog> createState() => _EditLaborRateDialogState();
+}
+
+class _EditLaborRateDialogState extends State<_EditLaborRateDialog> {
+  late final TextEditingController amountController;
+  late DateTime from;
+  DateTime? until;
+  late final String mode;
+  String? error;
+
+  @override
+  void initState() {
+    super.initState();
+    mode = (widget.rate['gafdModo'] ?? 'RECURRENTE').toString().toUpperCase();
+    final amount = (widget.rate['gafdValor'] as num?)?.toDouble() ??
+        double.tryParse(widget.rate['gafdValor']?.toString() ?? '') ?? 0;
+    amountController = TextEditingController(
+      text: amount == amount.roundToDouble()
+          ? amount.toInt().toString()
+          : amount.toString(),
+    );
+    final started = DateTime.tryParse(
+            widget.rate['gafdVigenciaDesde']?.toString() ?? '') ??
+        DateTime.now();
+    until = DateTime.tryParse(
+        widget.rate['gafdVigenciaHasta']?.toString() ?? '');
+    final now = DateTime.now();
+    final today = DateTime(now.year, now.month, now.day);
+    // Una recurrencia abierta puede cambiar desde hoy sin reescribir meses
+    // históricos. Se permite elegir su inicio para una corrección retroactiva.
+    from = mode == 'RECURRENTE' && until == null && started.isBefore(today)
+        ? today
+        : started;
+  }
+
+  @override
+  void dispose() {
+    amountController.dispose();
+    super.dispose();
+  }
+
+  Future<void> _pickFrom() async {
+    final selected = await showDatePicker(
+      context: context,
+      initialDate: from,
+      firstDate: DateTime(2020),
+      lastDate: DateTime(2100),
+      helpText: 'Desde qué fecha tendrá efecto la tarifa',
+    );
+    if (selected == null || !mounted) return;
+    setState(() {
+      from = selected;
+      if (mode == 'PERIODO' && until != null && until!.isBefore(from)) {
+        until = from;
+      }
+    });
+  }
+
+  Future<void> _pickUntil() async {
+    final selected = await showDatePicker(
+      context: context,
+      initialDate: until != null && !until!.isBefore(from) ? until! : from,
+      firstDate: from,
+      lastDate: DateTime(2100),
+      helpText: 'Hasta cuándo se aplica esta tarifa',
+    );
+    if (selected != null && mounted) setState(() => until = selected);
+  }
+
+  void _submit() {
+    final raw = amountController.text.trim().replaceAll('.', '').replaceAll(',', '.');
+    final amount = double.tryParse(raw);
+    if (amount == null || amount < 0) {
+      setState(() => error = 'Ingresa un costo diario válido.');
+      return;
+    }
+    if (mode == 'PERIODO' && (until == null || until!.isBefore(from))) {
+      setState(() => error = 'La fecha final no puede ser anterior a la inicial.');
+      return;
+    }
+    Navigator.pop(context, <String, dynamic>{
+      'valor': amount,
+      'vigenciaDesde': DateFormat('yyyy-MM-dd').format(from),
+      if (mode == 'PERIODO')
+        'vigenciaHasta': DateFormat('yyyy-MM-dd').format(until!),
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final weekday = (widget.rate['gafdDiaSemana'] as num?)?.toInt() ??
+        int.tryParse(widget.rate['gafdDiaSemana']?.toString() ?? '') ?? 0;
+    const labels = ['', 'Lunes', 'Martes', 'Miércoles',
+        'Jueves', 'Viernes', 'Sábado', 'Domingo'];
+    final dayName = weekday >= 1 && weekday <= 7 ? labels[weekday] : 'día';
+    final subtitle = switch (mode) {
+      'DIA' => 'Corrige la fecha y el costo de este día específico.',
+      'PERIODO' => 'Corrige el período completo y su costo diario.',
+      _ => 'Corrige solo $dayName. Si eliges una fecha posterior al inicio, '
+          'se conserva el precio anterior hasta el día previo.',
+    };
+
+    Widget dateField(String label, DateTime date, VoidCallback onTap) =>
+        OutlinedButton.icon(
+          onPressed: onTap,
+          icon: const Icon(Icons.calendar_month_outlined, size: 18),
+          label: Text('$label: ${DateFormat('dd/MM/yyyy').format(date)}'),
+        );
+
+    return AlertDialog(
+      title: Row(
+        children: [
+          Icon(Icons.edit_calendar_outlined, color: widget.palette.secondary),
+          const SizedBox(width: 10),
+          const Expanded(child: Text('Modificar tarifa')),
+        ],
+      ),
+      content: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: 450),
+        child: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Text(
+                subtitle,
+                style: TextStyle(
+                  color: widget.palette.textSecondary,
+                  fontSize: 12.5,
+                  height: 1.35,
+                ),
+              ),
+              const SizedBox(height: 16),
+              TextField(
+                controller: amountController,
+                autofocus: true,
+                keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                decoration: const InputDecoration(
+                  labelText: 'Costo diario en pesos',
+                  prefixIcon: Icon(Icons.payments_outlined),
+                ),
+              ),
+              const SizedBox(height: 12),
+              dateField(
+                mode == 'DIA' ? 'Fecha de trabajo' :
+                mode == 'PERIODO' ? 'Inicio' : 'Vigente desde',
+                from,
+                _pickFrom,
+              ),
+              if (mode == 'PERIODO') ...[
+                const SizedBox(height: 8),
+                dateField('Hasta', until ?? from, _pickUntil),
+              ],
+              if (error != null) ...[
+                const SizedBox(height: 8),
+                Text(error!, style: const TextStyle(color: Colors.redAccent)),
+              ],
+              if (mode == 'DIA' || mode == 'PERIODO') ...[
+                const SizedBox(height: 10),
+                Text(
+                  'Atención: modificar una tarifa ya aplicada puede '
+                  'recalcular la mano de obra de reportes anteriores.',
+                  style: TextStyle(
+                    color: widget.palette.warning,
+                    fontSize: 11,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+              ],
+            ],
+          ),
+        ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(context),
+          child: const Text('Cancelar'),
+        ),
+        FilledButton.icon(
+          onPressed: _submit,
+          icon: const Icon(Icons.save_outlined),
+          label: const Text('Guardar cambios'),
+        ),
+      ],
     );
   }
 }
