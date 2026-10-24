@@ -3524,6 +3524,7 @@ String _signedQty(num value) {
 String _statusLabel(String value) => switch (value) {
       'PENDIENTE' => 'POR ADMINISTRAR',
       'SINCRONIZADO' => 'CONCILIADO',
+      'ANULADO' => 'ANULADO · PUEDE REVISARSE',
       'SUPERADO' => 'HISTÓRICO',
       _ => 'CUADRA',
     };
