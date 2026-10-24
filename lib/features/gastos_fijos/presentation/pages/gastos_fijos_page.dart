@@ -1598,7 +1598,6 @@ class _LaborDialogState extends State<_LaborDialog> {
       builder: (_) => _EditLaborRateDialog(
         rate: rate,
         palette: widget.palette,
-        money: money,
       ),
     );
     if (update == null || !mounted) return;
@@ -2274,12 +2273,10 @@ class _EditLaborRateDialog extends StatefulWidget {
   const _EditLaborRateDialog({
     required this.rate,
     required this.palette,
-    required this.money,
   });
 
   final Map<String, dynamic> rate;
   final AppPalette palette;
-  final NumberFormat money;
 
   @override
   State<_EditLaborRateDialog> createState() => _EditLaborRateDialogState();
