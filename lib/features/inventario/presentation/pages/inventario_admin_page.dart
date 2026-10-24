@@ -47,6 +47,7 @@ class _InventarioAdminPageState extends ConsumerState<InventarioAdminPage> {
   _InventoryAdminFilter _filter = _InventoryAdminFilter.todos;
   List<_InventoryAuditRow> _rows = const [];
   List<Map<String, dynamic>> _synchronizations = const [];
+  String? _synchronizationWarning;
   bool _undoingSynchronization = false;
 
   bool get _canUndoSynchronization => ref.read(authControllerProvider).roles.any(
@@ -113,6 +114,7 @@ class _InventarioAdminPageState extends ConsumerState<InventarioAdminPage> {
           .toList(growable: false);
 
       List<Map<String, dynamic>> syncRows = const [];
+      String? warning;
       try {
         final history = await ref.read(apiClientProvider).get<List<Map<String, dynamic>>>(
           '${ApiPaths.inventario}/administracion/sincronizaciones',
@@ -129,12 +131,15 @@ class _InventarioAdminPageState extends ConsumerState<InventarioAdminPage> {
         syncRows = history.data ?? const [];
       } catch (error) {
         debugPrint('No fue posible consultar auditoría de sincronizaciones: $error');
+        warning = 'La bitácora de sincronizaciones no está disponible. '
+            'Revisa la conexión o la versión del backend y reintenta.';
       }
 
       if (!mounted) return;
       setState(() {
         _rows = rows;
         _synchronizations = syncRows;
+        _synchronizationWarning = warning;
         _branchId = branchId;
         _loading = false;
       });
@@ -549,6 +554,15 @@ class _InventarioAdminPageState extends ConsumerState<InventarioAdminPage> {
                         palette: palette,
                         canUndo: _canUndoSynchronization && !_undoingSynchronization,
                         onUndo: _undoSynchronization,
+                      ),
+                    ),
+                  ),
+                if (_synchronizationWarning != null)
+                  SliverToBoxAdapter(
+                    child: _PageWidth(
+                      child: _InlineError(
+                        palette: palette,
+                        message: _synchronizationWarning!,
                       ),
                     ),
                   ),
