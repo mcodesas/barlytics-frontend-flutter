@@ -2123,6 +2123,286 @@ class _AdminToolbar extends StatelessWidget {
   }
 }
 
+/// Control de presentación del historial y exportación del período visible.
+class _InventoryHistoryActions extends StatelessWidget {
+  const _InventoryHistoryActions({
+    required this.palette,
+    required this.view,
+    required this.count,
+    required this.exporting,
+    required this.canExport,
+    required this.onViewChanged,
+    required this.onExport,
+  });
+
+  final AppPalette palette;
+  final _InventoryHistoryView view;
+  final int count;
+  final bool exporting;
+  final bool canExport;
+  final ValueChanged<_InventoryHistoryView> onViewChanged;
+  final VoidCallback onExport;
+
+  @override
+  Widget build(BuildContext context) => Container(
+        padding: const EdgeInsets.all(15),
+        decoration: palette.panelDecoration(baseRadius: 19, elevated: false),
+        child: LayoutBuilder(
+          builder: (context, constraints) {
+            final compact = constraints.maxWidth < 720;
+            final heading = Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Historial detallado de conteos',
+                  style: TextStyle(
+                    color: palette.textPrimary,
+                    fontSize: 16,
+                    fontWeight: FontWeight.w900,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  '$count productos contados en las jornadas visibles. '
+                  'El stock actual del sistema se consulta por separado '
+                  'sin usar los conteos físicos.',
+                  style: TextStyle(
+                    color: palette.textSecondary,
+                    fontSize: 11.5,
+                    height: 1.35,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ],
+            );
+            final actions = Wrap(
+              alignment: WrapAlignment.end,
+              crossAxisAlignment: WrapCrossAlignment.center,
+              spacing: 8,
+              runSpacing: 8,
+              children: [
+                ChoiceChip(
+                  avatar: const Icon(Icons.view_agenda_outlined, size: 17),
+                  label: const Text('Tarjetas'),
+                  selected: view == _InventoryHistoryView.cards,
+                  onSelected: (_) => onViewChanged(_InventoryHistoryView.cards),
+                ),
+                ChoiceChip(
+                  avatar: const Icon(Icons.table_rows_rounded, size: 17),
+                  label: const Text('Tabla'),
+                  selected: view == _InventoryHistoryView.table,
+                  onSelected: (_) => onViewChanged(_InventoryHistoryView.table),
+                ),
+                FilledButton.icon(
+                  onPressed: canExport && !exporting ? onExport : null,
+                  icon: exporting
+                      ? const SizedBox(
+                          width: 17,
+                          height: 17,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        )
+                      : const Icon(Icons.table_view_rounded, size: 18),
+                  label: Text(exporting ? 'Generando Excel' : 'Descargar Excel'),
+                ),
+              ],
+            );
+            if (compact) {
+              return Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  heading,
+                  const SizedBox(height: 12),
+                  actions,
+                ],
+              );
+            }
+            return Row(
+              crossAxisAlignment: CrossAxisAlignment.center,
+              children: [
+                Expanded(child: heading),
+                const SizedBox(width: 10),
+                Flexible(child: actions),
+              ],
+            );
+          },
+        ),
+      );
+}
+
+/// Tabla completa: horizontal en móvil, encabezados claros y valores numéricos
+/// comparables para cada producto, incluso cuando diferencia = 0.
+class _InventoryAuditTable extends StatelessWidget {
+  const _InventoryAuditTable({
+    required this.rows,
+    required this.palette,
+  });
+
+  final List<_InventoryAuditRow> rows;
+  final AppPalette palette;
+
+  @override
+  Widget build(BuildContext context) {
+    Text number(String text, {Color? color, bool bold = false}) => Text(
+          text,
+          textAlign: TextAlign.right,
+          maxLines: 2,
+          style: TextStyle(
+            color: color ?? palette.textPrimary,
+            fontSize: 12.5,
+            fontWeight: bold ? FontWeight.w800 : FontWeight.w600,
+          ),
+        );
+
+    DataColumn column(String label, {bool numeric = true}) => DataColumn(
+          numeric: numeric,
+          label: Text(
+            label,
+            style: TextStyle(
+              color: palette.textPrimary,
+              fontWeight: FontWeight.w900,
+              fontSize: 12,
+            ),
+          ),
+        );
+
+    return Container(
+      decoration: BoxDecoration(
+        color: palette.background.withOpacity(.32),
+        borderRadius: BorderRadius.circular(15),
+        border: Border.all(color: palette.cardBorder.withOpacity(.65)),
+      ),
+      clipBehavior: Clip.antiAlias,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Padding(
+            padding: const EdgeInsets.fromLTRB(12, 10, 12, 7),
+            child: Row(
+              children: [
+                Icon(Icons.swipe_rounded,
+                    color: palette.textSecondary, size: 18),
+                const SizedBox(width: 7),
+                Expanded(
+                  child: Text(
+                    'Tabla de productos: desliza horizontalmente para ver '
+                    'cantidades, stock del sistema y valores históricos.',
+                    style: TextStyle(
+                      color: palette.textSecondary,
+                      fontSize: 11,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          SingleChildScrollView(
+            scrollDirection: Axis.horizontal,
+            child: DataTable(
+              headingRowHeight: 50,
+              dataRowMinHeight: 48,
+              dataRowMaxHeight: 64,
+              horizontalMargin: 14,
+              columnSpacing: 24,
+              dividerThickness: .6,
+              headingRowColor:
+                  MaterialStateProperty.all(palette.secondary.withOpacity(.08)),
+              columns: [
+                column('Producto', numeric: false),
+                column('Esperado'),
+                column('Contado'),
+                column('Diferencia'),
+                column('Stock actual sistema'),
+                column('Costo unidad'),
+                column('Valor esperado'),
+                column('Valor contado'),
+                column('Impacto'),
+                column('Estado', numeric: false),
+              ],
+              rows: [
+                for (var i = 0; i < rows.length; i++)
+                  DataRow(
+                    key: ValueKey('producto-conteo-${rows[i].countId}'),
+                    color: MaterialStateProperty.all(
+                      i.isEven
+                          ? palette.background.withOpacity(.08)
+                          : palette.secondary.withOpacity(.035),
+                    ),
+                    cells: [
+                      DataCell(
+                        SizedBox(
+                          width: 205,
+                          child: Text(
+                            rows[i].product,
+                            maxLines: 2,
+                            overflow: TextOverflow.ellipsis,
+                            style: TextStyle(
+                              color: palette.textPrimary,
+                              fontSize: 12.5,
+                              fontWeight: FontWeight.w800,
+                            ),
+                          ),
+                        ),
+                      ),
+                      DataCell(number(_qty(rows[i].expected))),
+                      DataCell(number(_qty(rows[i].counted), bold: true)),
+                      DataCell(number(
+                        _signedQty(rows[i].difference),
+                        color: rows[i].hasDifference
+                            ? rows[i].difference < 0
+                                ? Colors.redAccent
+                                : palette.success
+                            : palette.textSecondary,
+                        bold: rows[i].hasDifference,
+                      )),
+                      DataCell(
+                        Tooltip(
+                          message: rows[i].hasCurrentSystemStock
+                              ? 'Existencia operativa sin registros de conteo físico'
+                              : 'No existen movimientos operativos para este producto',
+                          child: number(
+                            rows[i].hasCurrentSystemStock
+                                ? _qty(rows[i].currentSystemStock)
+                                : 'Sin movimientos',
+                            color: palette.secondary,
+                            bold: true,
+                          ),
+                        ),
+                      ),
+                      DataCell(number(CurrencyUtils.format(rows[i].unitPurchaseCost))),
+                      DataCell(number(CurrencyUtils.format(rows[i].expectedValue))),
+                      DataCell(number(CurrencyUtils.format(rows[i].countedValue), bold: true)),
+                      DataCell(number(
+                        CurrencyUtils.format(rows[i].netImpact),
+                        color: rows[i].netImpact < 0
+                            ? Colors.redAccent
+                            : rows[i].netImpact > 0
+                                ? palette.success
+                                : palette.textSecondary,
+                      )),
+                      DataCell(
+                        Text(
+                          _statusLabel(rows[i].status),
+                          style: TextStyle(
+                            color: rows[i].hasDifference
+                                ? palette.warning
+                                : palette.success,
+                            fontSize: 11,
+                            fontWeight: FontWeight.w800,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
 class _CountDayCard extends StatefulWidget {
   const _CountDayCard({
     super.key,
