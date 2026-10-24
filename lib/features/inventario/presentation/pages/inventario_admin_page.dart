@@ -547,8 +547,7 @@ class _InventarioAdminPageState extends ConsumerState<InventarioAdminPage> {
                     ),
                   ),
                 ),
-                if (_synchronizations.isNotEmpty)
-                  SliverToBoxAdapter(
+                SliverToBoxAdapter(
                     child: _PageWidth(
                       child: _SynchronizationHistoryPanel(
                         rows: _synchronizations,
@@ -2342,7 +2341,21 @@ class _SynchronizationHistoryPanelState extends State<_SynchronizationHistoryPan
             )),
           ]),
           const SizedBox(height: 12),
-          ClipRRect(
+          if (ordered.isEmpty)
+            Padding(
+              padding: const EdgeInsets.symmetric(vertical: 12),
+              child: Text(
+                'Todavía no hay sincronizaciones registradas en el período '
+                'y la sucursal seleccionados.',
+                style: TextStyle(
+                  color: palette.textSecondary,
+                  fontWeight: FontWeight.w700,
+                  fontSize: 12,
+                ),
+              ),
+            ),
+          if (ordered.isNotEmpty)
+            ClipRRect(
             borderRadius: BorderRadius.circular(12),
             child: SingleChildScrollView(
               scrollDirection: Axis.horizontal,
