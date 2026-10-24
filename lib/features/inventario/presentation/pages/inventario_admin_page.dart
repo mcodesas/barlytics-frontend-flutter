@@ -49,6 +49,7 @@ class _InventarioAdminPageState extends ConsumerState<InventarioAdminPage> {
   List<Map<String, dynamic>> _synchronizations = const [];
   String? _synchronizationWarning;
   bool _undoingSynchronization = false;
+  bool _allSynchronizationHistory = false;
 
   bool get _canUndoSynchronization => ref.read(authControllerProvider).roles.any(
         (role) {
@@ -125,8 +126,10 @@ class _InventarioAdminPageState extends ConsumerState<InventarioAdminPage> {
               .toList(),
           queryParameters: {
             'sucursalId': branchId,
-            'desde': DateFormat('yyyy-MM-dd').format(_range.start),
-            'hasta': DateFormat('yyyy-MM-dd').format(_range.end),
+            if (!_allSynchronizationHistory)
+              'desde': DateFormat('yyyy-MM-dd').format(_range.start),
+            if (!_allSynchronizationHistory)
+              'hasta': DateFormat('yyyy-MM-dd').format(_range.end),
           },
         );
         syncRows = history.data ?? const [];
@@ -331,6 +334,89 @@ class _InventarioAdminPageState extends ConsumerState<InventarioAdminPage> {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text('No fue posible anular: ${ErrorMapper.map(error).message}')),
         );
+      }
+    } finally {
+      if (mounted) setState(() => _undoingSynchronization = false);
+    }
+  }
+
+
+  /// Anula en una única transacción los movimientos marcados, incluso si
+  /// pertenecen a distintas fechas de conteo dentro de la sucursal actual.
+  Future<void> _undoSelectedSynchronizations(List<int> movementIds) async {
+    if (_undoingSynchronization || !_canUndoSynchronization || movementIds.isEmpty) return;
+    if (movementIds.length > 1000) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+        content: Text('Puedes anular hasta 1000 sincronizaciones por operación.'),
+      ));
+      return;
+    }
+    final controller = TextEditingController();
+    final justification = await showDialog<String>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Anular sincronizaciones seleccionadas'),
+        content: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 480),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text('Has seleccionado ${movementIds.length} sincronizaciones. '
+                  'Se anularán todas en una sola operación, aunque sean de '
+                  'distintas fechas. Los movimientos originales se conservarán '
+                  'en la bitácora y no se modificarán las ventas ni el stock.'),
+              const SizedBox(height: 14),
+              TextField(
+                controller: controller,
+                autofocus: true,
+                maxLength: 300,
+                minLines: 2,
+                maxLines: 4,
+                decoration: const InputDecoration(
+                  labelText: 'Justificación obligatoria para todo el lote',
+                  hintText: 'Por ejemplo: conciliaciones realizadas por error',
+                ),
+              ),
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext),
+            child: const Text('Cancelar'),
+          ),
+          FilledButton.icon(
+            onPressed: () {
+              if (controller.text.trim().isEmpty) return;
+              Navigator.pop(dialogContext, controller.text.trim());
+            },
+            icon: const Icon(Icons.undo_rounded),
+            label: Text('Anular ${movementIds.length} seleccionadas'),
+          ),
+        ],
+      ),
+    );
+    controller.dispose();
+    if (justification == null || !mounted) return;
+    setState(() => _undoingSynchronization = true);
+    try {
+      await ref.read(apiClientProvider).post<Object?>(
+        '${ApiPaths.inventario}/administracion/sincronizaciones/anular-lote',
+        {'movimientoIds': movementIds, 'justificacion': justification},
+        (json) => json,
+      );
+      await _load();
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+          content: Text('${movementIds.length} sincronizaciones anuladas '
+              'con justificación y trazabilidad.'),
+        ));
+      }
+    } catch (error) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+          content: Text('No se pudo anular el lote: ${ErrorMapper.map(error).message}'),
+        ));
       }
     } finally {
       if (mounted) setState(() => _undoingSynchronization = false);
@@ -554,6 +640,12 @@ class _InventarioAdminPageState extends ConsumerState<InventarioAdminPage> {
                         palette: palette,
                         canUndo: _canUndoSynchronization && !_undoingSynchronization,
                         onUndo: _undoSynchronization,
+                        onUndoSelected: _undoSelectedSynchronizations,
+                        allHistorical: _allSynchronizationHistory,
+                        onAllHistoricalChanged: (all) {
+                          setState(() => _allSynchronizationHistory = all);
+                          _load();
+                        },
                       ),
                     ),
                   ),
