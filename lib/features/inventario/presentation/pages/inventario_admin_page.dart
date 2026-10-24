@@ -359,7 +359,7 @@ class _InventarioAdminPageState extends ConsumerState<InventarioAdminPage> {
       return id != null && selectedIds.contains(id);
     }).take(6).map((row) => '• ${row['producto'] ?? 'Producto'} '
         '(movimiento #${row['movimiento_id']}, conteo #${row['conteo_id']})')
-        .join('\\n');
+        .join('\n');
     final controller = TextEditingController();
     final justification = await showDialog<String>(
       context: context,
