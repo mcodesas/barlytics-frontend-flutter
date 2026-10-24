@@ -1586,6 +1586,106 @@ class _LaborDialogState extends State<_LaborDialog> {
     }
   }
 
+
+  Future<void> _editRate(Map<String, dynamic> rate) async {
+    if (saving || selected == null) return;
+    final cargoId = selected!['gafcId'];
+    final tarifaId = rate['gafdId'];
+    if (tarifaId == null) return;
+
+    final update = await showDialog<Map<String, dynamic>>(
+      context: context,
+      builder: (_) => _EditLaborRateDialog(
+        rate: rate,
+        palette: widget.palette,
+        money: money,
+      ),
+    );
+    if (update == null || !mounted) return;
+
+    setState(() => saving = true);
+    try {
+      await widget.api.put<Object?>(
+        '/api/v1/gastos-fijos/cargos/$cargoId/tarifas/$tarifaId',
+        update,
+        (json) => json,
+      );
+      await _load(keepSelectedId: cargoId);
+      _message('Tarifa actualizada. Los demás días no se modificaron.');
+    } catch (error) {
+      _message('No fue posible modificar la tarifa: $error', error: true);
+    } finally {
+      if (mounted) setState(() => saving = false);
+    }
+  }
+
+  Future<void> _deleteRate(Map<String, dynamic> rate) async {
+    if (saving || selected == null) return;
+    final cargoId = selected!['gafcId'];
+    final tarifaId = rate['gafdId'];
+    if (tarifaId == null) return;
+    final mode = (rate['gafdModo'] ?? 'RECURRENTE').toString().toUpperCase();
+    final weekday = (rate['gafdDiaSemana'] as num?)?.toInt() ??
+        int.tryParse(rate['gafdDiaSemana']?.toString() ?? '') ?? 0;
+    const names = <String>['', 'lunes', 'martes', 'miércoles',
+        'jueves', 'viernes', 'sábado', 'domingo'];
+    final dayLabel = weekday >= 1 && weekday <= 7
+        ? names[weekday] : 'día seleccionado';
+    final description = switch (mode) {
+      'RECURRENTE' =>
+        'Se dejará de aplicar la tarifa de $dayLabel desde hoy. '
+        'Los demás días del cargo seguirán iguales y se conservarán '
+        'los costos de jornadas anteriores.',
+      'DIA' =>
+        'Se eliminará la tarifa de esta fecha específica. '
+        'Si corresponde a un día pasado, se recalcularán los reportes '
+        'históricos de ganancias que incluyen esa fecha.',
+      _ =>
+        'Se eliminará el período completo, no los demás períodos ni las '
+        'tarifas semanales. La parte histórica del período se conserva '
+        'si todavía está vigente. Eliminar un período ya terminado '
+        'puede recalcular reportes históricos.',
+    };
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Row(
+          children: [
+            Icon(Icons.event_busy_outlined),
+            SizedBox(width: 10),
+            Expanded(child: Text('Eliminar tarifa de mano de obra')),
+          ],
+        ),
+        content: Text(description),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext, false),
+            child: const Text('Cancelar'),
+          ),
+          FilledButton.icon(
+            onPressed: () => Navigator.pop(dialogContext, true),
+            icon: const Icon(Icons.delete_outline),
+            label: const Text('Confirmar eliminación'),
+          ),
+        ],
+      ),
+    );
+    if (ok != true || !mounted) return;
+    setState(() => saving = true);
+    try {
+      await widget.api.delete<Object?>(
+        '/api/v1/gastos-fijos/cargos/$cargoId/tarifas/$tarifaId',
+        (json) => json,
+      );
+      await _load(keepSelectedId: cargoId);
+      _message('Tarifa eliminada o finalizada. Los demás días se conservaron.');
+    } catch (error) {
+      _message('No fue posible eliminar la tarifa: $error', error: true);
+    } finally {
+      if (mounted) setState(() => saving = false);
+    }
+  }
+
   Future<void> _saveRate() async {
     if (selected == null || (rateMode == 'RECURRENTE' && days.isEmpty) || saving) return;
 
@@ -2016,7 +2116,35 @@ class _LaborDialogState extends State<_LaborDialog> {
           },
         ),
         const SizedBox(height: 16),
+        Row(
+          children: [
+            Expanded(
+              child: Text(
+                'Tarifas e histórico',
+                style: TextStyle(
+                  color: widget.palette.textPrimary,
+                  fontWeight: FontWeight.w900,
+                ),
+              ),
+            ),
+            Tooltip(
+              message: 'Edita o elimina una tarifa por día sin tocar el cargo',
+              child: Icon(Icons.info_outline_rounded,
+                  size: 18, color: widget.palette.textSecondary),
+            ),
+          ],
+        ),
         Text(
+          'Usa los iconos de cada fila para cambiar o quitar solo ese día.',
+          style: TextStyle(
+            color: widget.palette.textSecondary,
+            fontSize: 11,
+          ),
+        ),
+        const SizedBox(height: 4),
+        // Texto histórico conservado para mantener la estructura.
+        SizedBox.shrink(),
+        /* Text(
           'Tarifas e histórico',
           style: TextStyle(
             color: widget.palette.textPrimary,
@@ -2029,6 +2157,9 @@ class _LaborDialogState extends State<_LaborDialog> {
             rates: selectedRates,
             palette: widget.palette,
             money: money,
+            busy: saving,
+            onEdit: _editRate,
+            onDelete: _deleteRate,
           ),
         ),
       ],
@@ -2143,11 +2274,17 @@ class _RatesList extends StatelessWidget {
   final List<Map<String, dynamic>> rates;
   final AppPalette palette;
   final NumberFormat money;
+  final bool busy;
+  final ValueChanged<Map<String, dynamic>> onEdit;
+  final ValueChanged<Map<String, dynamic>> onDelete;
 
   const _RatesList({
     required this.rates,
     required this.palette,
     required this.money,
+    required this.busy,
+    required this.onEdit,
+    required this.onDelete,
   });
 
   @override
@@ -2239,6 +2376,20 @@ class _RatesList extends StatelessWidget {
                     fontSize: 11,
                   ),
                 ),
+              ),
+              const SizedBox(width: 4),
+              IconButton(
+                tooltip: 'Modificar esta tarifa',
+                onPressed: busy ? null : () => onEdit(rate),
+                visualDensity: VisualDensity.compact,
+                icon: Icon(Icons.edit_outlined, size: 19, color: palette.secondary),
+              ),
+              IconButton(
+                tooltip: 'Eliminar esta tarifa',
+                onPressed: busy ? null : () => onDelete(rate),
+                visualDensity: VisualDensity.compact,
+                icon: const Icon(Icons.delete_outline_rounded,
+                    size: 19, color: Colors.redAccent),
               ),
             ],
           ),
