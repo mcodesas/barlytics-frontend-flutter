@@ -41,6 +41,47 @@ void main() {
     );
   }
 
+  test('pide media canasta de 30 como quince unidades exactas', () {
+    final quantity = OrderWhatsappMessageFormatter.purchaseQuantityLabel({
+      'pedido_por_unidades': true,
+      'presentacion_compra': 'Canasta',
+      'unidades_por_presentacion': 30,
+    }, presentations: .5, units: 15);
+    expect(quantity, contains('½ canasta x 30'));
+    expect(quantity, contains('15 unidades'));
+    final message = formato(rows: [{
+      'producto': 'Cerveza retornable',
+      'pedido_por_unidades': true,
+      'presentacion_compra': 'Canasta',
+      'unidades_por_presentacion': 30,
+      'presentaciones_pedir': .5,
+      'unidades_pedir': 15,
+      'costo_pedido_estimado': 30000,
+    }]);
+    expect(message, contains('15 unidades'));
+    expect(message, isNot(contains('• *1 canasta')));
+  });
+
+  test('permite unidades sueltas y dos canastas más cinco unidades', () {
+    final product = <String, dynamic>{
+      'pedido_por_unidades': true,
+      'presentacion_compra': 'Canasta',
+      'unidades_por_presentacion': 30,
+    };
+    expect(
+      OrderWhatsappMessageFormatter.purchaseQuantityLabel(
+        product, presentations: 7 / 30, units: 7,
+      ),
+      '7 unidades sueltas (de canasta x 30)',
+    );
+    expect(
+      OrderWhatsappMessageFormatter.purchaseQuantityLabel(
+        product, presentations: 65 / 30, units: 65,
+      ),
+      '2 canastas x 30 + 5 unidades sueltas',
+    );
+  });
+
   test('incluye empresa sucursal proveedor y fecha en encabezado separado', () {
     final text = formato();
     expect(text, startsWith('*PEDIDO DE COMPRA #128*\n\n'));
