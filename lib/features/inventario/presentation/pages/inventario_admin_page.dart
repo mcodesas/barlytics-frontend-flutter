@@ -387,6 +387,7 @@ class _InventarioAdminPageState extends ConsumerState<InventarioAdminPage> {
                               bottom: index == days.length - 1 ? 0 : 12,
                             ),
                             child: _CountDayCard(
+                              key: ValueKey('conteo-${days[index].date.toIso8601String()}'),
                               day: days[index],
                               palette: palette,
                               onReview: days[index].reconciliableCount == 0 ||
@@ -2033,8 +2034,9 @@ class _AdminToolbar extends StatelessWidget {
   }
 }
 
-class _CountDayCard extends StatelessWidget {
+class _CountDayCard extends StatefulWidget {
   const _CountDayCard({
+    super.key,
     required this.day,
     required this.palette,
     required this.onReview,
@@ -2045,7 +2047,23 @@ class _CountDayCard extends StatelessWidget {
   final VoidCallback? onReview;
 
   @override
+  State<_CountDayCard> createState() => _CountDayCardState();
+}
+
+class _CountDayCardState extends State<_CountDayCard> {
+  // El historial debe mostrar por defecto todos los productos contados,
+  // incluidos los que coinciden exactamente con el stock esperado.
+  bool _onlyDifferences = false;
+
+  @override
   Widget build(BuildContext context) {
+    final day = widget.day;
+    final palette = widget.palette;
+    final onReview = widget.onReview;
+    final visibleRows = _onlyDifferences
+        ? day.rows.where((row) => row.hasDifference).toList(growable: false)
+        : day.rows;
+
     final risky = day.missingValue > 0 || day.pendingCount > 0;
     final tone = risky ? palette.warning : palette.success;
 
@@ -2224,12 +2242,55 @@ class _CountDayCard extends StatelessWidget {
               const SizedBox(height: 12),
               _ProductAuditHeader(palette: palette),
               const SizedBox(height: 6),
-              for (var index = 0; index < day.rows.length; index++) ...[
+              Text(
+                'Historial completo de productos registrados en la jornada, '
+                'incluyendo los que coinciden con el inventario esperado.',
+                style: TextStyle(
+                  color: palette.textSecondary,
+                  fontWeight: FontWeight.w600,
+                  fontSize: 11,
+                ),
+              ),
+              const SizedBox(height: 8),
+              Wrap(
+                spacing: 8,
+                runSpacing: 6,
+                children: [
+                  ChoiceChip(
+                    label: Text('Todos los contados (${day.rows.length})'),
+                    selected: !_onlyDifferences,
+                    onSelected: (selected) {
+                      if (selected) setState(() => _onlyDifferences = false);
+                    },
+                  ),
+                  ChoiceChip(
+                    label: Text('Solo diferencias (${day.differenceCount})'),
+                    selected: _onlyDifferences,
+                    onSelected: (selected) {
+                      if (selected) setState(() => _onlyDifferences = true);
+                    },
+                  ),
+                ],
+              ),
+              const SizedBox(height: 9),
+              if (visibleRows.isEmpty)
+                Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 14),
+                  child: Text(
+                    'Todos los productos de esta jornada coincidieron '
+                    'con el inventario esperado.',
+                    style: TextStyle(
+                      color: palette.textSecondary,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                ),
+              for (var index = 0; index < visibleRows.length; index++) ...[
                 _ProductAuditRow(
-                  row: day.rows[index],
+                  row: visibleRows[index],
                   palette: palette,
                 ),
-                if (index != day.rows.length - 1)
+                if (index != visibleRows.length - 1)
                   const SizedBox(height: 6),
               ],
             ],
@@ -2440,6 +2501,25 @@ class _ProductAuditRow extends StatelessWidget {
                 label: 'Costo unitario',
                 value: CurrencyUtils.format(row.unitPurchaseCost),
                 palette: palette,
+              ),
+              _AuditValue(
+                label: 'Valor esperado',
+                value: CurrencyUtils.format(row.expectedValue),
+                palette: palette,
+              ),
+              _AuditValue(
+                label: 'Valor contado',
+                value: CurrencyUtils.format(row.countedValue),
+                palette: palette,
+                color: palette.secondary,
+              ),
+              _AuditValue(
+                label: 'Impacto en valor',
+                value: CurrencyUtils.format(row.netImpact),
+                palette: palette,
+                color: row.hasDifference
+                    ? (row.netImpact < 0 ? Colors.redAccent : palette.success)
+                    : palette.textSecondary,
               ),
               _AuditValue(
                 label: 'Valor faltante',
