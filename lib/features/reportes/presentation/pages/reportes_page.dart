@@ -4057,6 +4057,8 @@ class _NextOrderContentState extends ConsumerState<_NextOrderContent> {
   _ProfitOrderFilter _filter = _ProfitOrderFilter.pedirAhora;
   _OrderWorkspaceFilter _workspaceFilter = _OrderWorkspaceFilter.sugeridos;
   final Map<int, int> _selectedPresentations = <int, int>{};
+  // Cantidad física exacta solicitada, independientemente de cajas o canastas.
+  final Map<int, double> _selectedUnits = <int, double>{};
   final TextEditingController _searchController = TextEditingController();
   final TextEditingController _observationController = TextEditingController();
   bool _showInventoryDetail = false;
@@ -4111,6 +4113,7 @@ class _NextOrderContentState extends ConsumerState<_NextOrderContent> {
 
   void _initializeSelection() {
     _selectedPresentations.clear();
+    _selectedUnits.clear();
     var hasSuggested = false;
     for (final row in activePurchaseCatalog(widget.payload.rows)) {
       final productId = _productId(row);
@@ -4173,16 +4176,19 @@ class _NextOrderContentState extends ConsumerState<_NextOrderContent> {
         continue;
       }
       final factor = math.max(1.0, _toDouble(source['unidades_por_presentacion']));
-      final units = presentations * factor;
+      final exactUnits = _selectedUnits[productId];
+      final units = exactUnits ?? presentations * factor;
+      final equivalent = units / factor;
       final current = _toDouble(source['stock_actual']);
       final cost = _purchasePresentationCost(source);
       final subtotal = _orderSubtotal(
         source,
-        presentations: presentations.toDouble(),
+        presentations: equivalent,
       );
       rows.add(<String, dynamic>{
         ...source,
-        'presentaciones_pedir': presentations,
+        'presentaciones_pedir': equivalent,
+        'pedido_por_unidades': exactUnits != null,
         'unidades_pedir': units,
         'stock_proyectado': current + units,
         'costo_presentacion_actual': cost,
@@ -4289,6 +4295,7 @@ class _NextOrderContentState extends ConsumerState<_NextOrderContent> {
       return;
     }
     _selectionChanged(() {
+      _selectedUnits.remove(productId);
       if (selected) {
         _selectedPresentations[productId] =
             math.max(1, _toDouble(row['presentaciones_pedir']).ceil());
@@ -4302,6 +4309,7 @@ class _NextOrderContentState extends ConsumerState<_NextOrderContent> {
     final productId = _productId(row);
     if (productId == null) return;
     _selectionChanged(() {
+      _selectedUnits.remove(productId);
       final current = _selectedPresentations[productId] ?? 1;
       _selectedPresentations[productId] = math.max(1, current + delta);
     });
@@ -4320,7 +4328,85 @@ class _NextOrderContentState extends ConsumerState<_NextOrderContent> {
   }
 
   void _clearSelection() {
-    _selectionChanged(_selectedPresentations.clear);
+    _selectionChanged(() {
+      _selectedPresentations.clear();
+      _selectedUnits.clear();
+    });
+  }
+
+  Future<void> _editExactUnits(Map<String, dynamic> row) async {
+    final productId = _productId(row);
+    if (productId == null || !_selectedPresentations.containsKey(productId)) return;
+    final factor = math.max(1.0, _toDouble(row['unidades_por_presentacion']));
+    final currentUnits = _selectedUnits[productId] ??
+        (_selectedPresentations[productId] ?? 1) * factor;
+    final input = TextEditingController(
+      text: currentUnits.toStringAsFixed(
+        currentUnits == currentUnits.roundToDouble() ? 0 : 2,
+      ),
+    );
+    final chosen = await showDialog<double>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Pedir unidades exactas'),
+        content: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 420),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Text(
+                '${row['producto'] ?? 'Producto'} · La presentación habitual '
+                'contiene ${_displayValue(factor)} unidades. '
+                'Puedes escribir 15 para media canasta de 30, o 7 unidades '
+                'sueltas. El stock se recibe en unidades exactas.',
+              ),
+              const SizedBox(height: 14),
+              TextField(
+                controller: input,
+                autofocus: true,
+                keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                decoration: const InputDecoration(
+                  labelText: 'Unidades a pedir',
+                  helperText: 'Cantidad positiva, máximo 2 decimales',
+                  prefixIcon: Icon(Icons.inventory_2_outlined),
+                ),
+              ),
+              const SizedBox(height: 8),
+              Text(
+                'El valor estimado será proporcional a la presentación. '
+                'Verifica con el proveedor si el precio por unidades sueltas cambia.',
+                style: TextStyle(
+                  color: Theme.of(dialogContext).colorScheme.onSurfaceVariant,
+                  fontSize: 11,
+                ),
+              ),
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext),
+            child: const Text('Cancelar'),
+          ),
+          FilledButton.icon(
+            onPressed: () {
+              final units = double.tryParse(input.text.trim().replaceAll(',', '.'));
+              if (units == null || units <= 0 ||
+                  units > 999999 || ((units * 100) - (units * 100).round()).abs() > .0001) {
+                return;
+              }
+              Navigator.pop(dialogContext, units);
+            },
+            icon: const Icon(Icons.check),
+            label: const Text('Usar unidades'),
+          ),
+        ],
+      ),
+    );
+    input.dispose();
+    if (chosen == null || !mounted) return;
+    _selectionChanged(() => _selectedUnits[productId] = chosen);
   }
 
   Future<void> _openManualOrder() async {
@@ -4338,6 +4424,7 @@ class _NextOrderContentState extends ConsumerState<_NextOrderContent> {
       _selectedPresentations
         ..clear()
         ..addAll(result);
+      _selectedUnits.clear();
       _workspaceFilter = _OrderWorkspaceFilter.seleccionados;
     });
     _showMessage(
@@ -4808,8 +4895,12 @@ class _NextOrderContentState extends ConsumerState<_NextOrderContent> {
                       .map(
                         (row) => <String, dynamic>{
                           'prodId': _productId(row),
-                          'presentaciones':
-                              _toDouble(row['presentaciones_pedir']).round(),
+                          // Con unidades exactas, el backend recalcula la fracción
+                          // sin perder la cantidad física registrada.
+                          'presentaciones': row['pedido_por_unidades'] == true
+                              ? 1 : _toDouble(row['presentaciones_pedir']).round(),
+                          if (row['pedido_por_unidades'] == true)
+                            'unidades': row['unidades_pedir'],
                         },
                       )
                       .toList(growable: false),
@@ -5260,6 +5351,7 @@ class _NextOrderContentState extends ConsumerState<_NextOrderContent> {
                                     rows: visibleRows,
                                     selectedPresentations:
                                         _selectedPresentations,
+                                    selectedUnits: _selectedUnits,
                                     palette: widget.palette,
                                     busy: _confirming ||
                                         _exportingSelection ||
@@ -5267,6 +5359,7 @@ class _NextOrderContentState extends ConsumerState<_NextOrderContent> {
                                     onToggle: _toggleProduct,
                                     onChangePresentations:
                                         _changePresentations,
+                                    onEditUnits: _editExactUnits,
                                   );
                                   final summary = _OrderCartSummary(
                                     selectedRows: selectedRows,
