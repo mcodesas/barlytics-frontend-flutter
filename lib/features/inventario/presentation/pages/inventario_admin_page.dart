@@ -352,6 +352,14 @@ class _InventarioAdminPageState extends ConsumerState<InventarioAdminPage> {
       ));
       return;
     }
+    final selectedIds = movementIds.toSet();
+    final preview = _synchronizations.where((row) {
+      final raw = row['movimiento_id'];
+      final id = raw is num ? raw.toInt() : int.tryParse(raw?.toString() ?? '');
+      return id != null && selectedIds.contains(id);
+    }).take(6).map((row) => '• ${row['producto'] ?? 'Producto'} '
+        '(movimiento #${row['movimiento_id']}, conteo #${row['conteo_id']})')
+        .join('\\n');
     final controller = TextEditingController();
     final justification = await showDialog<String>(
       context: context,
@@ -366,6 +374,12 @@ class _InventarioAdminPageState extends ConsumerState<InventarioAdminPage> {
                   'Se anularán todas en una sola operación, aunque sean de '
                   'distintas fechas. Los movimientos originales se conservarán '
                   'en la bitácora y no se modificarán las ventas ni el stock.'),
+              const SizedBox(height: 10),
+              if (preview.isNotEmpty)
+                Text(preview, maxLines: 6, overflow: TextOverflow.ellipsis),
+              if (movementIds.length > 6)
+                Text('Y ${movementIds.length - 6} movimientos más incluidos '
+                    'en la selección.'),
               const SizedBox(height: 14),
               TextField(
                 controller: controller,
