@@ -1630,11 +1630,20 @@ class _LaborDialogState extends State<_LaborDialog> {
         'jueves', 'viernes', 'sábado', 'domingo'];
     final dayLabel = weekday >= 1 && weekday <= 7
         ? names[weekday] : 'día seleccionado';
+    final until = DateTime.tryParse(
+        rate['gafdVigenciaHasta']?.toString() ?? '');
+    final currentTime = DateTime.now();
+    final today = DateTime(currentTime.year, currentTime.month, currentTime.day);
+    final historicalOnly = until != null && until.isBefore(today);
     final description = switch (mode) {
       'RECURRENTE' =>
-        'Se dejará de aplicar la tarifa de $dayLabel desde hoy. '
-        'Los demás días del cargo seguirán iguales y se conservarán '
-        'los costos de jornadas anteriores.',
+        historicalOnly
+            ? 'Esta tarifa de $dayLabel ya terminó. Eliminarla definitivamente '
+                'cambiará los costos históricos de ese día y podría '
+                'recalcular reportes anteriores. Las demás tarifas no cambian.'
+            : 'Se dejará de aplicar la tarifa de $dayLabel desde hoy. '
+                'Los demás días del cargo seguirán iguales y se conservarán '
+                'los costos de jornadas anteriores.',
       'DIA' =>
         'Se eliminará la tarifa de esta fecha específica. '
         'Si corresponde a un día pasado, se recalcularán los reportes '
