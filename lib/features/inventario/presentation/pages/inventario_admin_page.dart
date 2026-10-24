@@ -10,10 +10,13 @@ import '../../../../core/constants/api_paths.dart';
 import '../../../../core/errors/error_mapper.dart';
 import '../../../../core/providers/core_providers.dart';
 import '../../../../core/utils/currency_utils.dart';
+import '../../../../core/utils/file_download_helper.dart';
 import '../../../../core/widgets/app_error_view.dart';
 import '../../../../core/widgets/app_loader.dart';
 import '../../../../core/widgets/tech_background.dart';
 import '../../../sucursales/data/models/sucursales_response_model.dart';
+
+enum _InventoryHistoryView { cards, table }
 
 enum _InventoryAdminFilter {
   todos,
@@ -37,6 +40,8 @@ class _InventarioAdminPageState extends ConsumerState<InventarioAdminPage> {
   late DateTimeRange _range;
   int? _branchId;
   bool _loading = true;
+  bool _exportingExcel = false;
+  _InventoryHistoryView _historyView = _InventoryHistoryView.cards;
   String? _error;
   _InventoryAdminFilter _filter = _InventoryAdminFilter.todos;
   List<_InventoryAuditRow> _rows = const [];
@@ -153,6 +158,62 @@ class _InventarioAdminPageState extends ConsumerState<InventarioAdminPage> {
                 '${row.countId}'.contains(query),
           );
     }).toList(growable: false);
+  }
+
+  Future<void> _exportExcel({DateTime? onlyDay}) async {
+    if (_exportingExcel || _loading || _rows.isEmpty) return;
+    final branchId = _branchId;
+    if (branchId == null) return;
+    setState(() => _exportingExcel = true);
+    try {
+      final start = onlyDay ?? _range.start;
+      final end = onlyDay ?? _range.end;
+      final dateStart = DateFormat('yyyy-MM-dd').format(start);
+      final dateEnd = DateFormat('yyyy-MM-dd').format(end);
+      final filter = onlyDay == null
+          ? switch (_filter) {
+              _InventoryAdminFilter.todos => 'TODOS',
+              _InventoryAdminFilter.pendientes => 'PENDIENTES',
+              _InventoryAdminFilter.conDiferencias => 'CON_DIFERENCIAS',
+              _InventoryAdminFilter.sincronizados => 'SINCRONIZADOS',
+              _InventoryAdminFilter.cuadrados => 'CUADRADOS',
+            }
+          : 'TODOS';
+      final bytes = await ref.read(apiClientProvider).getBytes(
+        '${ApiPaths.inventario}/administracion/excel',
+        queryParameters: {
+          'sucursalId': branchId,
+          'desde': dateStart,
+          'hasta': dateEnd,
+          'filtro': filter,
+          if (onlyDay == null && _searchController.text.trim().isNotEmpty)
+            'buscar': _searchController.text.trim(),
+        },
+      );
+      final saved = await downloadBytesFile(
+        fileName: 'BarLytics_Conteos_${branchId}_${dateStart}_${dateEnd}.xlsx',
+        bytes: bytes,
+        mimeType:
+            'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+      );
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(saved
+              ? 'Historial de conteos exportado a Excel con todos los productos.'
+              : 'Se canceló la descarga del Excel.'),
+        ),
+      );
+    } catch (error) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('No fue posible descargar Excel: ${ErrorMapper.map(error).message}'),
+        ),
+      );
+    } finally {
+      if (mounted) setState(() => _exportingExcel = false);
+    }
   }
 
   Future<void> _pickRange() async {
@@ -352,6 +413,19 @@ class _InventarioAdminPageState extends ConsumerState<InventarioAdminPage> {
                     ),
                   ),
                 ),
+                SliverToBoxAdapter(
+                  child: _PageWidth(
+                    child: _InventoryHistoryActions(
+                      palette: palette,
+                      view: _historyView,
+                      count: days.fold<int>(0, (sum, day) => sum + day.rows.length),
+                      exporting: _exportingExcel,
+                      canExport: days.isNotEmpty && !_loading,
+                      onViewChanged: (value) => setState(() => _historyView = value),
+                      onExport: () => _exportExcel(),
+                    ),
+                  ),
+                ),
                 if (_error != null)
                   SliverToBoxAdapter(
                     child: _PageWidth(
@@ -390,6 +464,10 @@ class _InventarioAdminPageState extends ConsumerState<InventarioAdminPage> {
                               key: ValueKey('conteo-${days[index].date.toIso8601String()}'),
                               day: days[index],
                               palette: palette,
+                              tableView: _historyView == _InventoryHistoryView.table,
+                              onExportExcel: !_loading && !_exportingExcel
+                                  ? () => _exportExcel(onlyDay: days[index].date)
+                                  : null,
                               onReview: days[index].reconciliableCount == 0 ||
                                       _loading
                                   ? null
@@ -430,6 +508,9 @@ class _InventoryAuditRow {
     required this.expected,
     required this.counted,
     required this.difference,
+    required this.currentSystemStock,
+    required this.hasCurrentSystemStock,
+    required this.currentSystemStockDate,
     required this.unitPurchaseCost,
     required this.purchasePresentationCost,
     required this.unitsPerPresentation,
@@ -460,6 +541,9 @@ class _InventoryAuditRow {
   final double expected;
   final double counted;
   final double difference;
+  final double currentSystemStock;
+  final bool hasCurrentSystemStock;
+  final DateTime? currentSystemStockDate;
   final double unitPurchaseCost;
   final double purchasePresentationCost;
   final double unitsPerPresentation;
@@ -496,6 +580,11 @@ class _InventoryAuditRow {
       expected: _num(json['esperado']),
       counted: _num(json['contado']),
       difference: _num(json['diferencia_unidades']),
+      currentSystemStock: _num(json['stock_actual_sistema']),
+      hasCurrentSystemStock: json['stock_actual_disponible'] == true ||
+          json['stock_actual_disponible']?.toString() == 'true',
+      currentSystemStockDate:
+          DateTime.tryParse(json['stock_actual_fecha']?.toString() ?? ''),
       unitPurchaseCost: _num(json['costo_unitario_compra']),
       purchasePresentationCost:
           _num(json['costo_presentacion_compra']),
@@ -2039,12 +2128,16 @@ class _CountDayCard extends StatefulWidget {
     super.key,
     required this.day,
     required this.palette,
+    required this.tableView,
     required this.onReview,
+    required this.onExportExcel,
   });
 
   final _InventoryCountDay day;
   final AppPalette palette;
+  final bool tableView;
   final VoidCallback? onReview;
+  final VoidCallback? onExportExcel;
 
   @override
   State<_CountDayCard> createState() => _CountDayCardState();
@@ -2270,6 +2363,11 @@ class _CountDayCardState extends State<_CountDayCard> {
                       if (selected) setState(() => _onlyDifferences = true);
                     },
                   ),
+                  OutlinedButton.icon(
+                    onPressed: widget.onExportExcel,
+                    icon: const Icon(Icons.file_download_outlined, size: 17),
+                    label: const Text('Excel de esta jornada'),
+                  ),
                 ],
               ),
               const SizedBox(height: 9),
@@ -2285,14 +2383,20 @@ class _CountDayCardState extends State<_CountDayCard> {
                     ),
                   ),
                 ),
-              for (var index = 0; index < visibleRows.length; index++) ...[
-                _ProductAuditRow(
-                  row: visibleRows[index],
+              if (widget.tableView && visibleRows.isNotEmpty)
+                _InventoryAuditTable(
+                  rows: visibleRows,
                   palette: palette,
-                ),
-                if (index != visibleRows.length - 1)
-                  const SizedBox(height: 6),
-              ],
+                )
+              else if (!widget.tableView)
+                for (var index = 0; index < visibleRows.length; index++) ...[
+                  _ProductAuditRow(
+                    row: visibleRows[index],
+                    palette: palette,
+                  ),
+                  if (index != visibleRows.length - 1)
+                    const SizedBox(height: 6),
+                ],
             ],
           ),
         );
@@ -2498,6 +2602,14 @@ class _ProductAuditRow extends StatelessWidget {
                     : palette.secondary,
               ),
               _AuditValue(
+                label: 'Stock actual del sistema',
+                value: row.hasCurrentSystemStock
+                    ? _qty(row.currentSystemStock)
+                    : 'Sin movimientos',
+                palette: palette,
+                color: palette.secondary,
+              ),
+              _AuditValue(
                 label: 'Costo unitario',
                 value: CurrencyUtils.format(row.unitPurchaseCost),
                 palette: palette,
@@ -2535,6 +2647,19 @@ class _ProductAuditRow extends StatelessWidget {
                 color: row.surplusValue > 0 ? palette.success : null,
               ),
             ],
+          ),
+          const SizedBox(height: 7),
+          Text(
+            row.hasCurrentSystemStock
+                ? 'Stock actual sin incluir conteos físicos'
+                    '${row.currentSystemStockDate == null ? '' : ' · Actualizado ${DateFormat('dd/MM/yyyy HH:mm').format(row.currentSystemStockDate!)}'}'
+                : 'Sin movimientos operativos para calcular stock '
+                    'actual excluyendo conteos físicos.',
+            style: TextStyle(
+              color: palette.textSecondary,
+              fontWeight: FontWeight.w600,
+              fontSize: 10.5,
+            ),
           ),
           if (row.unitsPerPresentation > 1) ...[
             const SizedBox(height: 7),
