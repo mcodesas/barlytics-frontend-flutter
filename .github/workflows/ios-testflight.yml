@@ -13,8 +13,6 @@ on:
     paths:
       - 'ios/**'
       - '.github/workflows/ios-testflight.yml'
-    tags:
-      - "ios-v*"
 
 permissions:
   contents: read
