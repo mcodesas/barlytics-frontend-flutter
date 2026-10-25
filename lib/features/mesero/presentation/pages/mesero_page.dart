@@ -15339,9 +15339,15 @@ class _DetalleHistorialVentaPageState extends ConsumerState<_DetalleHistorialVen
       totalCambio: totalCambio,
     );
     final ventaFinalizada = (venta.estado ?? '').trim().toUpperCase() == 'FINALIZADA';
+    final autorizadoCorregirPagos = ref.watch(authControllerProvider).roles.any((role) {
+      final code = role.toUpperCase().replaceFirst('ROLE_', '');
+      return const {'ADMINISTRADOR', 'GERENTE', 'ADMIN', 'SUPERADMIN',
+        'SUPER_ADMIN', 'MANAGER'}.contains(code);
+    });
     final pagosPanel = _HistorialPagosPanel(
       pagos: pagos,
-      onCambiarMedioPago: ventaFinalizada ? _cambiarMedioPago : null,
+      onCambiarMedioPago: ventaFinalizada && autorizadoCorregirPagos
+          ? _cambiarMedioPago : null,
       actualizandoPagoId: _actualizandoPagoId,
     );
 
