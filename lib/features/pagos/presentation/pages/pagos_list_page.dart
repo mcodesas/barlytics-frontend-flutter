@@ -1287,7 +1287,9 @@ class _PaymentSplitDecision {
 
 class _PaymentSplitEntry {
   _PaymentSplitEntry(this.methodId, double value)
-      : controller = TextEditingController(text: value.toStringAsFixed(0));
+      : controller = TextEditingController(text: value == value.roundToDouble()
+            ? value.toStringAsFixed(0)
+            : value.toStringAsFixed(2));
   int? methodId;
   final TextEditingController controller;
   void dispose() => controller.dispose();
