@@ -5,9 +5,9 @@ on:
     branches: [main]
     # Un cambio dedicado a macOS no vuelve a desplegar Android, Windows, Linux ni web.
     paths-ignore:
-      - '.github/workflows/deploy-macos.yml'
-      - '.github/workflows/deploy-production.yml'
-      - '.github/workflows/ios-testflight.yml'
+      - '.github/workflows/**'
+      - 'docs/**'
+      - 'README*'
       - 'deploy/macos/**'
   workflow_dispatch:
 
