@@ -7544,7 +7544,7 @@ String _notaDiferenciaMedioCierre(
   if (_esMedioEfectivoCierre(medio.medioPagoNombre)) {
     return 'Efectivo: contado + salidas en efectivo - base inicial - recibido sistema';
   }
-  return 'Informativo: se toma automáticamente de las ventas y no requiere conteo de la cajera.';
+  return 'Giro electrónico: valor efectivamente recibido - total según pagos registrados. No afecta la base de efectivo.';
 }
 
 String _formatFechaCierre(String? value) {
