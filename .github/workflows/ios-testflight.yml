@@ -10,13 +10,12 @@ on:
   push:
     branches:
       - main
-    tags:
-      - "ios-v*"
-    # Cambios exclusivos del instalador macOS no deben lanzar TestFlight.
+    # Solo integraciones en main despliegan automáticamente TestFlight.
+    # Los tags y PR ya no disparan ejecuciones automáticas.
     paths-ignore:
-      - '.github/workflows/deploy-macos.yml'
-      - '.github/workflows/deploy-production.yml'
-      - '.github/workflows/ios-testflight.yml'
+      - '.github/workflows/**'
+      - 'docs/**'
+      - 'README*'
       - 'deploy/macos/**'
 
 permissions:
