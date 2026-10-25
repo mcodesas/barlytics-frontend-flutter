@@ -4964,7 +4964,7 @@ class _MeseroPageState extends ConsumerState<MeseroPage> {
     final controllers = <int, TextEditingController>{};
     for (final medio in cierre.mediosPago) {
       final id = medio.medioPagoId;
-      if (id != null && _esMedioEfectivoCierre(medio.medioPagoNombre)) {
+      if (id != null) {
         controllers[id] = TextEditingController(
           text: _formatCurrencyInputAmount(
             medio.valorEntregado ?? medio.totalSistema ?? 0,
@@ -4987,13 +4987,9 @@ class _MeseroPageState extends ConsumerState<MeseroPage> {
     double totalEntregadoActual() => cierre.mediosPago.fold<double>(
           0,
           (sum, medio) {
-            if (_esMedioEfectivoCierre(medio.medioPagoNombre)) {
-              return sum +
-                  _parseCurrencyInput(
-                    controllers[medio.medioPagoId]?.text ?? '0',
-                  );
-            }
-            return sum + (medio.totalSistema ?? 0);
+            return sum + _parseCurrencyInput(
+              controllers[medio.medioPagoId]?.text ?? '0',
+            );
           },
         );
     double totalGastosActual() =>
@@ -5020,14 +5016,14 @@ class _MeseroPageState extends ConsumerState<MeseroPage> {
     }
 
     double diferenciaMedioActual(CierreCajaMedioPagoModel medio) {
-      if (!_esMedioEfectivoCierre(medio.medioPagoNombre)) {
-        return 0;
-      }
       final entregado = _parseCurrencyInput(
         controllers[medio.medioPagoId]?.text ?? '0',
       );
       final sistema = medio.totalSistema ?? 0;
-      return entregado + salidasMedioActual(medio) - baseActual() - sistema;
+      if (_esMedioEfectivoCierre(medio.medioPagoNombre)) {
+        return entregado + salidasMedioActual(medio) - baseActual() - sistema;
+      }
+      return entregado - sistema;
     }
 
     final palette = ref.read(selectedAppPaletteProvider);
@@ -5159,58 +5155,25 @@ class _MeseroPageState extends ConsumerState<MeseroPage> {
                 ],
               ),
               const SizedBox(height: 10),
-              if (_esMedioEfectivoCierre(medio.medioPagoNombre))
-                TextField(
-                  controller: controllers[medio.medioPagoId],
-                  keyboardType:
-                      const TextInputType.numberWithOptions(decimal: true),
-                  textInputAction: TextInputAction.done,
-                  onSubmitted: (_) => FocusScope.of(context).unfocus(),
-                  inputFormatters: _currencyInputFormatters,
-                  onChanged: (_) => setDialogState(() {}),
-                  decoration: InputDecoration(
-                    labelText: 'Efectivo contado',
-                    helperText:
-                        'Incluye la base inicial y el efectivo que quedó físicamente en caja.',
-                    prefixIcon: const Icon(Icons.edit_rounded),
-                    isDense: compact,
-                    border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(14),
-                    ),
-                  ),
-                )
-              else
-                Container(
-                  width: double.infinity,
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-                  decoration: BoxDecoration(
-                    color: palette.background.withOpacity(.42),
-                    borderRadius: BorderRadius.circular(14),
-                    border: Border.all(color: palette.cardBorder),
-                  ),
-                  child: Row(
-                    children: [
-                      Icon(
-                        Icons.lock_outline_rounded,
-                        size: 18,
-                        color: palette.textSecondary,
-                      ),
-                      const SizedBox(width: 8),
-                      Expanded(
-                        child: Text(
-                          'Automático desde ventas: '
-                          '${CurrencyUtils.format(medio.totalSistema)}. '
-                          'No se cuenta físicamente ni cambia por pagos de proveedores.',
-                          style: TextStyle(
-                            color: palette.textSecondary,
-                            fontWeight: FontWeight.w700,
-                            fontSize: 11,
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
+              TextField(
+                controller: controllers[medio.medioPagoId],
+                keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                textInputAction: TextInputAction.done,
+                onSubmitted: (_) => FocusScope.of(context).unfocus(),
+                inputFormatters: _currencyInputFormatters,
+                onChanged: (_) => setDialogState(() {}),
+                decoration: InputDecoration(
+                  labelText: _esMedioEfectivoCierre(medio.medioPagoNombre)
+                      ? 'Efectivo contado'
+                      : 'Valor recibido por ${medio.medioPagoNombre ?? 'giro electrónico'}',
+                  helperText: _esMedioEfectivoCierre(medio.medioPagoNombre)
+                      ? 'Incluye la base inicial y el efectivo físico que quedó en caja.'
+                      : 'Registra lo realmente recibido por este medio. '
+                        'La diferencia se calcula aparte del efectivo físico.',
+                  prefixIcon: const Icon(Icons.edit_rounded),
+                  isDense: compact,
+                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(14)),
+                ),
                 ),
             ],
           ),
@@ -5221,7 +5184,7 @@ class _MeseroPageState extends ConsumerState<MeseroPage> {
         icon: Icons.account_balance_wallet_rounded,
         title: 'Conteo por medio',
         subtitle:
-            'Solo se cuenta efectivo. Nequi, Daviplata y otros giros se toman automáticamente del sistema.',
+            'Puedes corregir el efectivo y los valores recibidos por Nequi, Daviplata y otros giros. La base inicial solo afecta el efectivo.',
         child: cierre.mediosPago.isEmpty
             ? Text('No hay medios de pago registrados para este día.', style: TextStyle(color: palette.textSecondary))
             : Column(children: cierre.mediosPago.map(medioCard).toList(growable: false)),
@@ -5636,9 +5599,7 @@ class _MeseroPageState extends ConsumerState<MeseroPage> {
 
     final medios = cierre.mediosPago
         .where(
-          (medio) =>
-              medio.medioPagoId != null &&
-              _esMedioEfectivoCierre(medio.medioPagoNombre),
+          (medio) => medio.medioPagoId != null,
         )
         .map((medio) => {
               'medioPagoId': medio.medioPagoId,
@@ -7561,9 +7522,6 @@ double _diferenciaMedioCierreAjustada(
   CierreCajaResumenModel cierre,
   CierreCajaMedioPagoModel medio,
 ) {
-  if (!_esMedioEfectivoCierre(medio.medioPagoNombre)) {
-    return 0;
-  }
   final sistema = medio.totalSistema ?? 0;
   final entregado = medio.valorEntregado ?? 0;
   final base = _baseAplicadaMedioCierre(cierre, medio);
