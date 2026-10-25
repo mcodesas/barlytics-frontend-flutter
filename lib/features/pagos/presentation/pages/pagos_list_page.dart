@@ -1279,6 +1279,347 @@ class _PeriodSheetState extends State<_PeriodSheet> {
   }
 }
 
+class _PaymentSplitDecision {
+  const _PaymentSplitDecision(this.payments, this.reason);
+  final List<Map<String, dynamic>> payments;
+  final String reason;
+}
+
+class _PaymentSplitEntry {
+  _PaymentSplitEntry(this.methodId, double value)
+      : controller = TextEditingController(text: value.toStringAsFixed(0));
+  int? methodId;
+  final TextEditingController controller;
+  void dispose() => controller.dispose();
+}
+
+class _PaymentSplitDialog extends StatefulWidget {
+  const _PaymentSplitDialog({
+    required this.accountId,
+    required this.total,
+    required this.methods,
+    required this.existing,
+  });
+  final int accountId;
+  final double total;
+  final List<_PaymentMethod> methods;
+  final List<Map<String, dynamic>> existing;
+
+  @override
+  State<_PaymentSplitDialog> createState() => _PaymentSplitDialogState();
+}
+
+class _PaymentSplitDialogState extends State<_PaymentSplitDialog> {
+  final TextEditingController _reason = TextEditingController();
+  final List<_PaymentSplitEntry> _entries = [];
+
+  @override
+  void initState() {
+    super.initState();
+    for (final raw in widget.existing) {
+      final amount = (raw['valor'] as num?)?.toDouble() ?? 0;
+      _entries.add(_PaymentSplitEntry((raw['medioPagoId'] as num?)?.toInt(), amount));
+    }
+    if (_entries.isEmpty) _entries.add(_PaymentSplitEntry(null, widget.total));
+  }
+
+  @override
+  void dispose() {
+    _reason.dispose();
+    for (final row in _entries) {
+      row.dispose();
+    }
+    super.dispose();
+  }
+
+  double _parse(String raw) {
+    String normalized = raw.trim().replaceAll(RegExp(r'[^0-9,.-]'), '');
+    if (normalized.contains(',') && normalized.contains('.')) {
+      normalized = normalized.replaceAll('.', '').replaceAll(',', '.');
+    } else if (normalized.contains(',')) {
+      normalized = normalized.replaceAll(',', '.');
+    } else if (RegExp(r'^\\d{1,3}(\\.\\d{3})+
+  const _PaymentAdmin({required this.id, required this.accountId, required this.accountNumber, required this.accountDescription, required this.saleId, required this.saleState, required this.saleType, required this.tableNumber, required this.methodId, required this.methodName, required this.amount, required this.valueReceived, required this.change, required this.observation, required this.registeredBy, required this.date, required this.accountTotal, required this.accountTip, required this.accountPaid, required this.accountBalance});
+
+  final int? id;
+  final int? accountId;
+  final int? accountNumber;
+  final String accountDescription;
+  final int? saleId;
+  final String saleState;
+  final String saleType;
+  final int? tableNumber;
+  final int? methodId;
+  final String methodName;
+  final double amount;
+  final double? valueReceived;
+  final double? change;
+  final double? observation;
+  final String registeredBy;
+  final DateTime? date;
+  final double accountTotal;
+  final double accountTip;
+  final double accountPaid;
+  final double accountBalance;
+
+  bool get isCash {
+    final value = methodName.toUpperCase();
+    return value.contains('EFECTIVO') || value.contains('CASH');
+  }
+
+  bool get isDirectSale => saleType.toUpperCase() == 'DIRECTA' || tableNumber == null;
+  String get originLabel => isDirectSale ? 'Venta directa' : 'Mesa ${tableNumber ?? '-'}';
+
+  factory _PaymentAdmin.fromJson(Map<String, dynamic> json) => _PaymentAdmin(
+        id: (json['pacvId'] as num?)?.toInt(),
+        accountId: (json['cuveId'] as num?)?.toInt(),
+        accountNumber: (json['cuentaNumero'] as num?)?.toInt(),
+        accountDescription: json['cuentaDescripcion']?.toString() ?? '',
+        saleId: (json['ventId'] as num?)?.toInt(),
+        saleState: json['ventaEstado']?.toString() ?? '',
+        saleType: json['tipoVenta']?.toString() ?? '',
+        tableNumber: (json['mesaNumero'] as num?)?.toInt(),
+        methodId: (json['mepaId'] as num?)?.toInt(),
+        methodName: json['medioPagoNombre']?.toString() ?? 'Medio de pago',
+        amount: (json['monto'] as num?)?.toDouble() ?? 0,
+        valueReceived: (json['valorRecibido'] as num?)?.toDouble(),
+        change: (json['cambio'] as num?)?.toDouble(),
+        observation: (json['observacion'] as num?)?.toDouble(),
+        registeredBy: json['registradoPor']?.toString() ?? '',
+        date: DateTime.tryParse(json['fecha']?.toString() ?? ''),
+        accountTotal: (json['cuentaTotal'] as num?)?.toDouble() ?? 0,
+        accountTip: (json['cuentaPropina'] as num?)?.toDouble() ?? 0,
+        accountPaid: (json['cuentaPagado'] as num?)?.toDouble() ?? 0,
+        accountBalance: (json['cuentaSaldo'] as num?)?.toDouble() ?? 0,
+      );
+}
+
+class _PendingAccount {
+  const _PendingAccount({required this.id, required this.saleId, required this.saleType, required this.tableNumber, required this.accountNumber, required this.description, required this.total, required this.paid, required this.balance, required this.responsible, required this.saleDate});
+  final int? id;
+  final int? saleId;
+  final String saleType;
+  final int? tableNumber;
+  final int? accountNumber;
+  final String description;
+  final double total;
+  final double paid;
+  final double balance;
+  final String responsible;
+  final DateTime? saleDate;
+
+  bool get isDirectSale => saleType.toUpperCase() == 'DIRECTA' || tableNumber == null;
+  String get originLabel => isDirectSale ? 'Venta directa' : 'Mesa ${tableNumber ?? '-'}';
+
+  factory _PendingAccount.fromJson(Map<String, dynamic> json) => _PendingAccount(
+        id: (json['cuveId'] as num?)?.toInt(),
+        saleId: (json['ventId'] as num?)?.toInt(),
+        saleType: json['tipoVenta']?.toString() ?? '',
+        tableNumber: (json['mesaNumero'] as num?)?.toInt(),
+        accountNumber: (json['cuentaNumero'] as num?)?.toInt(),
+        description: json['cuentaDescripcion']?.toString() ?? '',
+        total: (json['cuentaTotal'] as num?)?.toDouble() ?? 0,
+        paid: (json['totalPagado'] as num?)?.toDouble() ?? 0,
+        balance: (json['saldoPendiente'] as num?)?.toDouble() ?? 0,
+        responsible: json['responsable']?.toString() ?? '',
+        saleDate: DateTime.tryParse(json['ventaFecha']?.toString() ?? ''),
+      );
+}
+
+class _PaymentMethod {
+  const _PaymentMethod(this.id, this.name, this.active);
+  final int? id;
+  final String name;
+  final bool active;
+
+  bool get isCash {
+    final value = name.toUpperCase();
+    return value.contains('EFECTIVO') || value.contains('CASH');
+  }
+
+  factory _PaymentMethod.fromJson(Map<String, dynamic> json) => _PaymentMethod(
+        (json['mepaId'] as num?)?.toInt(),
+        json['mepaNombre']?.toString() ?? 'Medio de pago',
+        (json['mepaEstado'] as num?)?.toInt() != 0,
+      );
+}
+
+class _PaymentMetric {
+  const _PaymentMetric(this.icon, this.label, this.value, this.caption);
+  final IconData icon;
+  final String label;
+  final String value;
+  final String caption;
+}
+
+class _DetailItem {
+  const _DetailItem(this.label, this.value);
+  final String label;
+  final String value;
+}
+
+class _PeriodResult {
+  const _PeriodResult(this.start, this.endExclusive, this.label);
+  final DateTime start;
+  final DateTime endExclusive;
+  final String label;
+}
+).hasMatch(normalized)) {
+      normalized = normalized.replaceAll('.', '');
+    }
+    return double.tryParse(normalized) ?? double.nan;
+  }
+
+  void _confirm() {
+    if (_reason.text.trim().isEmpty || _reason.text.trim().length > 300) {
+      ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Indica una justificación de máximo 300 caracteres.')));
+      return;
+    }
+    final payments = <Map<String, dynamic>>[];
+    var totalCents = 0;
+    for (final entry in _entries) {
+      final amount = _parse(entry.controller.text);
+      if (entry.methodId == null || !amount.isFinite || amount <= 0 ||
+          (amount * 100 - (amount * 100).round()).abs() > 0.001) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Todos los pagos deben tener medio e importe válido.')),
+        );
+        return;
+      }
+      totalCents += (amount * 100).round();
+      payments.add({
+        'medioPagoId': entry.methodId,
+        'valor': double.parse(amount.toStringAsFixed(2)),
+      });
+    }
+    if (totalCents != (widget.total * 100).round()) {
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+        content: Text('La suma debe ser igual a la cuenta: '
+            '${widget.total.toStringAsFixed(2)}. '
+            'Suma ingresada: ${(totalCents / 100).toStringAsFixed(2)}.'),
+      ));
+      return;
+    }
+    Navigator.of(context).pop(_PaymentSplitDecision(payments, _reason.text.trim()));
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final amount = _entries.fold<double>(0, (sum, row) {
+      final value = _parse(row.controller.text);
+      return sum + (value.isFinite ? value : 0);
+    });
+    final matched = (amount - widget.total).abs() < .005;
+    return AlertDialog(
+      title: Text('Editar pagos · Cuenta #${widget.accountId}'),
+      content: SizedBox(
+        width: 540,
+        child: ConstrainedBox(
+          constraints: BoxConstraints(
+            maxHeight: MediaQuery.sizeOf(context).height * 0.65,
+          ),
+          child: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                const Text('Puedes modificar el medio, cambiar la cantidad '
+                    'de cada abono o dividir el pago entre Nequi, DaviPlata, '
+                    'efectivo, tarjeta o transferencia.'),
+                const SizedBox(height: 8),
+                const Text('Se conserva el valor total de la venta y la propina. '
+                    'Se registra un historial de cambios y se recalcula el cierre '
+                    'si esta venta ya estaba incluida en uno.'),
+                const SizedBox(height: 14),
+                for (var i = 0; i < _entries.length; i++) ...[
+                  Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Expanded(
+                        flex: 3,
+                        child: DropdownButtonFormField<int>(
+                          value: widget.methods.any((m) => m.id == _entries[i].methodId)
+                              ? _entries[i].methodId : null,
+                          isExpanded: true,
+                          decoration: const InputDecoration(labelText: 'Medio de pago'),
+                          items: [
+                            for (final method in widget.methods)
+                              if (method.id != null)
+                                DropdownMenuItem(value: method.id, child: Text(method.name)),
+                          ],
+                          onChanged: (value) => setState(() => _entries[i].methodId = value),
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        flex: 2,
+                        child: TextFormField(
+                          controller: _entries[i].controller,
+                          keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                          decoration: const InputDecoration(
+                            labelText: 'Valor',
+                            prefixText: r'$ ',
+                          ),
+                          onChanged: (_) => setState(() {}),
+                        ),
+                      ),
+                      IconButton(
+                        tooltip: 'Eliminar esta división',
+                        onPressed: _entries.length > 1 ? () => setState(() {
+                          _entries.removeAt(i).dispose();
+                        }) : null,
+                        icon: const Icon(Icons.remove_circle_outline),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 10),
+                ],
+                OutlinedButton.icon(
+                  onPressed: _entries.length >= 20 ? null : () => setState(() {
+                    _entries.add(_PaymentSplitEntry(null, 0));
+                  }),
+                  icon: const Icon(Icons.add_rounded),
+                  label: const Text('Agregar otro medio de pago'),
+                ),
+                const SizedBox(height: 12),
+                Text(
+                  'Suma: ${amount.toStringAsFixed(2)} / '
+                  '${widget.total.toStringAsFixed(2)}',
+                  style: TextStyle(
+                    fontWeight: FontWeight.w800,
+                    color: matched ? Colors.green : Colors.orange,
+                  ),
+                ),
+                const SizedBox(height: 12),
+                TextField(
+                  controller: _reason,
+                  maxLength: 300,
+                  minLines: 2,
+                  maxLines: 3,
+                  decoration: const InputDecoration(
+                    labelText: 'Motivo obligatorio de la corrección',
+                    hintText: 'Ejemplo: el cliente pagó una parte por Nequi y otra en efectivo',
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+      actions: [
+        TextButton(onPressed: () => Navigator.of(context).pop(),
+            child: const Text('Cancelar')),
+        FilledButton.icon(
+          onPressed: matched ? _confirm : null,
+          icon: const Icon(Icons.save_rounded),
+          label: const Text('Guardar distribución'),
+        ),
+      ],
+    );
+  }
+}
+
 class _PaymentAdmin {
   const _PaymentAdmin({required this.id, required this.accountId, required this.accountNumber, required this.accountDescription, required this.saleId, required this.saleState, required this.saleType, required this.tableNumber, required this.methodId, required this.methodName, required this.amount, required this.valueReceived, required this.change, required this.observation, required this.registeredBy, required this.date, required this.accountTotal, required this.accountTip, required this.accountPaid, required this.accountBalance});
 
