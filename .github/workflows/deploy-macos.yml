@@ -3,6 +3,11 @@ name: macOS Production
 on:
   push:
     branches: [main]
+    # No iniciar macOS por cambios exclusivos en workflows o documentación.
+    paths-ignore:
+      - '.github/workflows/**'
+      - 'docs/**'
+      - 'README*'
   workflow_dispatch:
 
 # No lanzar la distribución macOS en paralelo con otro despliegue web.
