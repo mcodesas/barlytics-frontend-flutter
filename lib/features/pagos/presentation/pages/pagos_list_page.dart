@@ -648,14 +648,14 @@ class _PagosListPageState extends ConsumerState<PagosListPage> {
                   FilledButton.icon(
                     onPressed: () {
                       Navigator.pop(sheetContext);
-                      Future.microtask(() => _showCorrectPaymentMethod(payment));
+                      Future.microtask(() => _showEditPaymentDistribution(payment));
                     },
                     icon: const Icon(Icons.edit_rounded),
-                    label: const Text('Corregir medio de pago'),
+                    label: const Text('Modificar importe o dividir pagos'),
                   ),
                   const SizedBox(height: 6),
                   Text(
-                    'Solo cambia el medio utilizado. El valor, la cuenta, los productos y la propina permanecen iguales.',
+                    'Corrige el medio, edita los importes o divide esta cuenta entre varios medios. El total cobrado, los productos y la propina no cambian. La modificación queda auditada.',
                     textAlign: TextAlign.center,
                     style: TextStyle(color: palette.textSecondary, fontSize: 11, fontWeight: FontWeight.w600),
                   ),
@@ -666,6 +666,59 @@ class _PagosListPageState extends ConsumerState<PagosListPage> {
         );
       },
     );
+  }
+
+  Future<void> _showEditPaymentDistribution(_PaymentAdmin payment) async {
+    final accountId = payment.accountId;
+    if (accountId == null || !mounted) return;
+    try {
+      final response = await ref.read(apiClientProvider).get<List<Map<String, dynamic>>>(
+        '${ApiPaths.pagos}/cuentas/$accountId/distribucion',
+        (json) => (json as List? ?? const [])
+            .whereType<Map>()
+            .map((value) => Map<String, dynamic>.from(value))
+            .toList(growable: false),
+      );
+      if (!mounted) return;
+      final lines = response.data ?? const <Map<String, dynamic>>[];
+      if (lines.isEmpty) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('La cuenta no tiene pagos para corregir.')),
+        );
+        return;
+      }
+      final decision = await showDialog<_PaymentSplitDecision>(
+        context: context,
+        builder: (_) => _PaymentSplitDialog(
+          accountId: accountId,
+          total: payment.accountTotal,
+          methods: _methods,
+          existing: lines,
+        ),
+      );
+      if (decision == null || !mounted) return;
+      await ref.read(apiClientProvider).put<Map<String, dynamic>>(
+        '${ApiPaths.pagos}/cuentas/$accountId/distribucion',
+        {
+          'pagos': decision.payments,
+          'justificacion': decision.reason,
+        },
+        (json) => Map<String, dynamic>.from(json as Map),
+      );
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Distribución actualizada: '
+            '${decision.payments.length} pagos. '
+            'Verifica nuevamente el cierre de caja de ese día.')),
+      );
+      await _loadData();
+    } catch (error) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(
+            'No se pudo actualizar el pago: ${ErrorMapper.map(error).message}')),
+      );
+    }
   }
 
   Future<void> _showCorrectPaymentMethod(_PaymentAdmin payment) async {
