@@ -27,6 +27,7 @@ import '../../../../core/widgets/tech_background.dart';
 import '../../../auth/presentation/providers/auth_provider.dart';
 import '../../../navigation/presentation/providers/active_role_provider.dart';
 import '../../../navigation/presentation/providers/user_menu_provider.dart';
+import '../../../pagos/presentation/pages/pagos_list_page.dart';
 import '../../data/datasources/mesero_remote_datasource.dart';
 import '../../data/models/mesero_models.dart';
 import '../providers/mesero_tab_provider.dart';
@@ -15280,88 +15281,36 @@ class _DetalleHistorialVentaPageState extends ConsumerState<_DetalleHistorialVen
   }
 
   Future<void> _cambiarMedioPago(MeseroCuentaModel cuenta, MeseroPagoModel pago) async {
-    final cuentaId = cuenta.cuentaId;
     final pagoId = pago.pagoId;
-    if (cuentaId == null || pagoId == null || _actualizandoPagoId != null) return;
-
+    if (pagoId == null || _actualizandoPagoId != null) return;
+    final authorized = ref.read(authControllerProvider).roles.any((role) {
+      final code = role.toUpperCase().replaceFirst('ROLE_', '');
+      return const {'ADMINISTRADOR', 'GERENTE', 'ADMIN', 'SUPERADMIN',
+        'SUPER_ADMIN', 'MANAGER'}.contains(code);
+    });
+    if (!authorized) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+        content: Text('Solo gerencia o administración puede modificar pagos históricos.'),
+      ));
+      return;
+    }
+    setState(() => _actualizandoPagoId = pagoId);
     try {
-      final medios = await _dataSource.listarMediosPago();
-      if (!mounted) return;
-      final disponibles = medios
-          .where((medio) => medio.medioPagoId != null && medio.medioPagoId != pago.medioPagoId)
-          .toList(growable: false);
-      if (disponibles.isEmpty) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('No hay otro medio de pago activo disponible para realizar la corrección.')),
-        );
-        return;
-      }
-
-      final nuevoMedioId = await showDialog<int>(
-        context: context,
-        builder: (dialogContext) {
-          final palette = ref.read(selectedAppPaletteProvider);
-          return AlertDialog(
-            backgroundColor: palette.surface,
-            title: Text('Corregir medio de pago', style: TextStyle(color: palette.textPrimary, fontWeight: FontWeight.w900)),
-            content: ConstrainedBox(
-              constraints: const BoxConstraints(maxWidth: 460),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    'Pago actual: ${pago.medioPagoNombre ?? 'Medio ${pago.medioPagoId ?? '-'}'} · ${CurrencyUtils.format(pago.valor)}',
-                    style: TextStyle(color: palette.textSecondary, fontWeight: FontWeight.w700),
-                  ),
-                  const SizedBox(height: 14),
-                  ...disponibles.map((medio) => Padding(
-                        padding: const EdgeInsets.only(bottom: 8),
-                        child: Material(
-                          color: palette.background.withOpacity(palette.darkBackground ? 0.55 : 0.72),
-                          borderRadius: BorderRadius.circular(14),
-                          child: ListTile(
-                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
-                            leading: Icon(_iconoMedioPago(medio), color: palette.secondary),
-                            title: Text(medio.nombre ?? 'Medio ${medio.medioPagoId}', style: TextStyle(color: palette.textPrimary, fontWeight: FontWeight.w900)),
-                            subtitle: (medio.descripcion ?? '').trim().isEmpty
-                                ? null
-                                : Text(medio.descripcion ?? '', style: TextStyle(color: palette.textSecondary)),
-                            trailing: const Icon(Icons.chevron_right_rounded),
-                            onTap: () => Navigator.of(dialogContext).pop(medio.medioPagoId),
-                          ),
-                        ),
-                      )),
-                ],
-              ),
-            ),
-            actions: [
-              TextButton(onPressed: () => Navigator.of(dialogContext).pop(), child: const Text('Cancelar')),
-            ],
-          );
-        },
-      );
-      if (nuevoMedioId == null || !mounted) return;
-
-      setState(() => _actualizandoPagoId = pagoId);
-      await _dataSource.cambiarMedioPagoCuenta(
-        pagoId: pagoId,
-        medioPagoId: nuevoMedioId,
-      );
+      await Navigator.of(context).push<void>(MaterialPageRoute(
+        builder: (_) => PagosListPage(initialPaymentId: pagoId),
+      ));
       final ventaId = _venta.ventaId;
-      final actualizada = ventaId == null ? _venta : await _dataSource.consultarVenta(ventaId);
-      if (!mounted) return;
-      setState(() {
-        _venta = actualizada;
-        _actualizandoPagoId = null;
-      });
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Medio de pago corregido. El valor de la venta no fue modificado.')),
-      );
+      final actualizada = ventaId == null
+          ? _venta : await _dataSource.consultarVenta(ventaId);
+      if (mounted) setState(() => _venta = actualizada);
     } catch (error) {
-      if (!mounted) return;
-      setState(() => _actualizandoPagoId = null);
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(error.toString())));
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('No fue posible actualizar los pagos: $error')),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _actualizandoPagoId = null);
     }
   }
 
@@ -16009,7 +15958,7 @@ class _HistorialPagoCompacto extends ConsumerWidget {
                 actualizando
                     ? const SizedBox(width: 28, height: 28, child: Padding(padding: EdgeInsets.all(5), child: CircularProgressIndicator(strokeWidth: 2)))
                     : Tooltip(
-                        message: 'Corregir medio de pago',
+                        message: 'Modificar importe o dividir pagos',
                         child: IconButton(
                           visualDensity: VisualDensity.compact,
                           iconSize: 19,
