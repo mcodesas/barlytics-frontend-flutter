@@ -725,6 +725,12 @@ class _EventEditorState extends ConsumerState<EventoEditor>{
        borderRadius:BorderRadius.circular(13),
        border:Border.all(color:active?sea:eventBorder)),
       child:Column(mainAxisSize:MainAxisSize.min,children:[
+       if(_photoSource(m['mesaFoto']?.toString()??'')!=null)
+        Padding(padding:const EdgeInsets.only(bottom:7),
+         child:ClipRRect(borderRadius:BorderRadius.circular(9),
+          child:Image(image:_photoSource(m['mesaFoto']!.toString())!,
+           height:86,width:140,fit:BoxFit.cover,
+           errorBuilder:(_,__,___)=>const SizedBox(height:86,width:140)))),
        FilterChip(label:Text('Mesa '+(m['mesaNumero']?.toString()??id.toString())),
         selected:active,onSelected:(v)=>setState((){
          if(v){chosen.add(id);capacities.putIfAbsent(id,()=>6);}
