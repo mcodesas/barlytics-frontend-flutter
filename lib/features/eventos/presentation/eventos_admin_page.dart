@@ -46,23 +46,42 @@ class _EventosAdminState extends ConsumerState<EventosAdminPage>{
  final searchController=TextEditingController();
  @override void initState(){super.initState();load();}
  @override void dispose(){searchController.dispose();super.dispose();}
- Future<void> load()async{
-  if(mounted)setState((){loading=true;error=null;});
+ int _loadSeq=0;
+ Future<void> load({bool keepVisible=false})async{
+  final seq=++_loadSeq;
+  if(mounted)setState((){loading=!keepVisible;error=null;});
   try{
    final rows=await ref.read(eventosApiProvider).eventos();
-   if(mounted)setState((){entries=rows;loading=false;error=null;});
+   if(!mounted||seq!=_loadSeq)return;
+   setState((){entries=rows;loading=false;error=null;});
   }catch(e){
-   if(mounted)setState((){loading=false;error=niceEventError(e);});
+   if(!mounted||seq!=_loadSeq)return;
+   setState((){loading=false;error=niceEventError(e);});
   }
  }
  Future<void> editor([Map<String,dynamic>? event])async{
-  await showDialog<void>(context:context,builder:(dialog)=>Dialog(
-   backgroundColor:eventSurface,
-   shape:RoundedRectangleBorder(borderRadius:BorderRadius.circular(22)),
-   insetPadding:const EdgeInsets.all(12),
-   child:SizedBox(width:840,height:MediaQuery.sizeOf(dialog).height*.92,
-    child:EventoEditor(initial:event,onSaved:(){Navigator.of(dialog).pop();load();})),
+  final saved=await showDialog<Map<String,dynamic>>(
+   context:context,
+   builder:(dialog)=>Dialog(
+    backgroundColor:eventSurface,
+    shape:RoundedRectangleBorder(borderRadius:BorderRadius.circular(22)),
+    insetPadding:const EdgeInsets.all(12),
+    child:SizedBox(width:840,height:MediaQuery.sizeOf(dialog).height*.92,
+     child:EventoEditor(initial:event,
+      onSaved:(row)=>Navigator.of(dialog).pop(row))),
+   ),
+  );
+  if(!mounted||saved==null)return;
+  setState((){
+    filter='TODOS';search='';searchController.clear();
+    final id=asId(saved['even_id']);
+    if(id!=null)entries=[saved,...entries.where((item)=>asId(item['even_id'])!=id)];
+    error=null;loading=false;
+  });
+  ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+   content:Text(event==null?'Evento creado correctamente':'Evento actualizado correctamente'),
   ));
+  await load(keepVisible:true);
  }
  Future<void> paymentConfig()async{
   final token=TextEditingController(),secret=TextEditingController();
@@ -477,7 +496,7 @@ class _EventHint extends StatelessWidget{
 class EventoEditor extends ConsumerStatefulWidget{
  const EventoEditor({super.key,required this.onSaved,this.initial});
  final Map<String,dynamic>? initial;
- final VoidCallback onSaved;
+ final ValueChanged<Map<String,dynamic>> onSaved;
  @override ConsumerState<EventoEditor> createState()=>_EventEditorState();
 }
 class _EventEditorState extends ConsumerState<EventoEditor>{
@@ -556,9 +575,22 @@ class _EventEditorState extends ConsumerState<EventoEditor>{
     'imagen':photo,'inicio':start.toIso8601String(),'fin':finish.toIso8601String(),
     'precio':price,'medioPago':method,'instruccionesPago':instructions.text.trim(),
     'mesas':chosen.toList(),'publicar':publish};
-   if(widget.initial==null)await ref.read(eventosApiProvider).crear(body);
-   else await ref.read(eventosApiProvider).cambiar(asId(widget.initial!['even_id'])!,body);
-   if(mounted)widget.onSaved();
+   final api=ref.read(eventosApiProvider);
+   final result=widget.initial==null
+     ?await api.crear(body)
+     :await api.cambiar(asId(widget.initial!['even_id'])!,body);
+   if(!mounted)return;
+   widget.onSaved({
+    'even_id':result['id']??widget.initial?['even_id'],
+    'even_slug':result['slug']??widget.initial?['even_slug'],
+    'even_titulo':title.text.trim(),
+    'even_inicio':start.toIso8601String(),
+    'even_fin':finish.toIso8601String(),
+    'even_estado':publish?'PUBLICADO':'BORRADOR',
+    'even_precio':price,
+    'even_medio_pago':method,
+    'sucu_id':branch,
+   });
   }catch(e){if(mounted)ScaffoldMessenger.of(context).showSnackBar(SnackBar(content:Text('No se guardó: '+niceEventError(e))));}
   finally{if(mounted)setState(()=>busy=false);}
  }
