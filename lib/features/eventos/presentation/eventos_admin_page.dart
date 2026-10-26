@@ -151,39 +151,17 @@ class _EventosAdminState extends ConsumerState<EventosAdminPage>{
   ));
  }
  Future<void> paymentConfig()async{
-  final token=TextEditingController(),secret=TextEditingController();
   try{
    final info=await ref.read(eventosApiProvider).pagoConfig();
    if(!mounted)return;
-   await showDialog<void>(context:context,builder:(dialog)=>AlertDialog(
-    title:const Text('Cuenta de cobros del establecimiento'),
-    content:ConstrainedBox(constraints:const BoxConstraints(maxWidth:520),
-     child:SingleChildScrollView(child:Column(mainAxisSize:MainAxisSize.min,
-      crossAxisAlignment:CrossAxisAlignment.start,children:[
-       Text(info['configurada']==true?'Cuenta configurada. Puedes reemplazarla.':'Conecta tu propia cuenta de Mercado Pago para recibir tus cobros.'),
-       const SizedBox(height:10),
-       const Text('Los datos se cifran en el servidor; el token nunca será mostrado públicamente.'),
-       const SizedBox(height:12),
-       SelectableText('Webhook del comercio: '+(info['webhook']?.toString()??'')),
-       const SizedBox(height:14),
-       TextField(controller:token,obscureText:true,decoration:const InputDecoration(labelText:'Access Token privado del comercio',border:OutlineInputBorder())),
-       const SizedBox(height:12),
-       TextField(controller:secret,obscureText:true,decoration:const InputDecoration(labelText:'Firma secreta del webhook',border:OutlineInputBorder())),
-      ]))),
-    actions:[
-     TextButton(onPressed:()=>Navigator.pop(dialog),child:const Text('Cancelar')),
-     FilledButton(onPressed:()async{
-      try{
-       await ref.read(eventosApiProvider).configurar(token.text.trim(),secret.text.trim());
-       if(dialog.mounted){
-        Navigator.pop(dialog);
-        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content:Text('Cuenta de cobro actualizada')));
-       }
-      }catch(e){if(dialog.mounted)ScaffoldMessenger.of(context).showSnackBar(SnackBar(content:Text(niceEventError(e))));}
-     },child:const Text('Guardar configuración')),
-    ]));
-  }catch(e){if(mounted)ScaffoldMessenger.of(context).showSnackBar(SnackBar(content:Text(niceEventError(e))));}
-  finally{token.dispose();secret.dispose();}
+   await showDialog<void>(
+    context:context,
+    builder:(_)=>_EventPaymentGuide(initial:info),
+   );
+  }catch(e){
+   if(mounted)ScaffoldMessenger.of(context).showSnackBar(
+    SnackBar(content:Text(niceEventError(e))));
+  }
  }
  Future<void> detail(int id)async{
   try{
@@ -708,6 +686,207 @@ class _EventHint extends StatelessWidget{
  );
 }
 
+
+
+class _EventPaymentGuide extends ConsumerStatefulWidget{
+ const _EventPaymentGuide({required this.initial});
+ final Map<String,dynamic> initial;
+ @override ConsumerState<_EventPaymentGuide> createState()=>_EventPaymentGuideState();
+}
+class _EventPaymentGuideState extends ConsumerState<_EventPaymentGuide>{
+ final token=TextEditingController(),secret=TextEditingController();
+ bool tokenVisible=false,secretVisible=false,saving=false;
+ String? error;
+ bool get configured=>widget.initial['configurada']==true;
+ String get webhook=>widget.initial['webhook']?.toString()??'';
+ @override void dispose(){token.dispose();secret.dispose();super.dispose();}
+ Future<void> _open(String url)async{
+  final uri=Uri.tryParse(url);
+  if(uri==null)return;
+  final ok=await launchUrl(uri,mode:LaunchMode.externalApplication);
+  if(!ok&&mounted)ScaffoldMessenger.of(context).showSnackBar(
+   const SnackBar(content:Text('No se pudo abrir Mercado Pago. Copia el enlace e inténtalo desde el navegador.')));
+ }
+ Future<void> _save()async{
+  if(saving)return;
+  final access=token.text.trim(),signature=secret.text.trim();
+  if(access.isEmpty||signature.isEmpty){
+   setState(()=>error='Debes completar el Access Token y la clave secreta del webhook.');
+   return;
+  }
+  if(access.startsWith('TEST-')||access.startsWith('TEST_')){
+   setState(()=>error='Selecciona Producción en Mercado Pago. Este formulario configura cobros reales.');
+   return;
+  }
+  setState((){saving=true;error=null;});
+  try{
+   await ref.read(eventosApiProvider).configurar(access,signature);
+   if(!mounted)return;
+   token.clear();secret.clear();
+   Navigator.of(context).pop();
+   ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+    content:Text('Credenciales guardadas de forma cifrada. Realiza una reserva de prueba controlada para verificar las notificaciones.')));
+  }catch(e){
+   if(mounted)setState(()=>error=niceEventError(e));
+  }finally{
+   if(mounted)setState(()=>saving=false);
+  }
+ }
+ Widget _step(int n,String title,String description,{Widget? child})=>Padding(
+  padding:const EdgeInsets.only(bottom:15),
+  child:Row(crossAxisAlignment:CrossAxisAlignment.start,children:[
+   Container(height:33,width:33,alignment:Alignment.center,
+    decoration:BoxDecoration(color:EventColors.primary.withOpacity(.16),
+     borderRadius:BorderRadius.circular(10)),
+    child:Text(n.toString(),style:const TextStyle(
+     color:EventColors.primary,fontWeight:FontWeight.w900))),
+   const SizedBox(width:12),
+   Expanded(child:Column(crossAxisAlignment:CrossAxisAlignment.start,children:[
+    Text(title,style:const TextStyle(
+     color:EventColors.text,fontSize:14,fontWeight:FontWeight.w800)),
+    const SizedBox(height:6),
+    Text(description,style:const TextStyle(
+     color:EventColors.muted,fontSize:12,height:1.5)),
+    if(child!=null)...[const SizedBox(height:10),child],
+   ])),
+  ]),
+ );
+ @override Widget build(BuildContext context){
+  return Dialog(
+   backgroundColor:EventColors.background,
+   shape:RoundedRectangleBorder(borderRadius:BorderRadius.circular(21)),
+   insetPadding:const EdgeInsets.all(12),
+   child:ConstrainedBox(
+    constraints:BoxConstraints(maxWidth:820,
+     maxHeight:MediaQuery.sizeOf(context).height*.93),
+    child:Column(children:[
+     Container(width:double.infinity,padding:const EdgeInsets.all(21),
+      decoration:const BoxDecoration(gradient:LinearGradient(colors:[
+       Color(0xFF104D5D),Color(0xFF0B3040)]),
+       borderRadius:BorderRadius.vertical(top:Radius.circular(21))),
+      child:Row(children:[
+       const Icon(Icons.account_balance_wallet_outlined,
+        size:35,color:EventColors.primary),
+       const SizedBox(width:12),
+       Expanded(child:Column(crossAxisAlignment:CrossAxisAlignment.start,children:[
+        const Text('Configurar cobros de eventos',
+         style:TextStyle(color:EventColors.text,
+          fontSize:21,fontWeight:FontWeight.w900)),
+        const SizedBox(height:4),
+        Text(configured
+         ?'Credenciales almacenadas · Si quieres cambiarlas, completa nuevamente ambos campos.'
+         :'Conecta tu propia cuenta para recibir pagos directamente en tu establecimiento.',
+         style:const TextStyle(color:EventColors.muted,fontSize:12)),
+       ])),
+       IconButton(onPressed:saving?null:()=>Navigator.pop(context),
+        icon:const Icon(Icons.close,color:EventColors.text)),
+      ])),
+     Expanded(child:SingleChildScrollView(
+      padding:const EdgeInsets.all(20),
+      child:Column(crossAxisAlignment:CrossAxisAlignment.start,children:[
+       EventPanel(background:EventColors.surfaceLight,child:Column(
+        crossAxisAlignment:CrossAxisAlignment.start,children:[
+         const EventSectionHeading(icon:Icons.info_outline,
+          title:'¿Qué método se utiliza?',
+          subtitle:'Cobros electrónicos de eventos con Mercado Pago Checkout Pro.'),
+         const SizedBox(height:11),
+         const Text('Necesitas dos datos de tu propia aplicación de Mercado Pago: Access Token de PRODUCCIÓN y clave secreta del Webhook de PRODUCCIÓN. No necesitas Public Key, Client ID, Client Secret ni credenciales de BarLytics.',
+          style:TextStyle(color:EventColors.text,height:1.55,fontSize:12)),
+         const SizedBox(height:10),
+         EventPill(icon:configured?Icons.verified_outlined:Icons.pending_actions_outlined,
+          label:configured?'Guardada en BarLytics (sin comprobar pagos)':'Configuración pendiente',
+          color:configured?EventColors.success:EventColors.warning),
+        ])),
+       const SizedBox(height:19),
+       _step(1,'Abre Mercado Pago Developers',
+        'Entra con la cuenta de Mercado Pago que recibirá el dinero del negocio. Ve a Tus integraciones y selecciona tu aplicación; si no existe, crea una nueva.',
+        child:OutlinedButton.icon(
+         onPressed:()=>_open('https://www.mercadopago.com.co/developers/panel/app'),
+         icon:const Icon(Icons.open_in_new,size:17),
+         label:const Text('Abrir Mis integraciones'))),
+       _step(2,'Copia el Access Token de producción',
+        'Dentro de la aplicación abre Credenciales → Producción y activa el entorno productivo si aún no lo hiciste. Copia Access Token, NO Public Key ni credenciales de prueba.',
+        child:TextField(controller:token,obscureText:!tokenVisible,
+         enableSuggestions:false,autocorrect:false,
+         decoration:InputDecoration(
+          labelText:'Access Token de PRODUCCIÓN',
+          hintText:'Pega aquí el token privado',
+          prefixIcon:const Icon(Icons.key_outlined),
+          suffixIcon:IconButton(
+           tooltip:tokenVisible?'Ocultar token':'Mostrar token',
+           onPressed:()=>setState(()=>tokenVisible=!tokenVisible),
+           icon:Icon(tokenVisible?Icons.visibility_off:Icons.visibility))))),
+       _step(3,'Configura las notificaciones Webhook',
+        'En la misma aplicación abre Webhooks. En Modo productivo pega esta URL HTTPS y activa las notificaciones de Pagos (payment). Guarda la configuración.',
+        child:EventPanel(background:EventColors.surfaceLight,
+         child:Column(crossAxisAlignment:CrossAxisAlignment.start,children:[
+          SelectableText(webhook,style:const TextStyle(
+           color:EventColors.primary,fontSize:12)),
+          const SizedBox(height:8),
+          OutlinedButton.icon(
+           onPressed:webhook.isEmpty?null:()async{
+            await Clipboard.setData(ClipboardData(text:webhook));
+            if(mounted)ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+             content:Text('URL del webhook copiada')));
+           },
+           icon:const Icon(Icons.copy,size:17),label:const Text('Copiar URL')),
+         ]))),
+       _step(4,'Copia la clave secreta del Webhook',
+        'En la configuración de Webhooks de Mercado Pago copia la firma secreta generada para el modo productivo. No es el Client Secret ni el Access Token.',
+        child:TextField(controller:secret,obscureText:!secretVisible,
+         enableSuggestions:false,autocorrect:false,
+         decoration:InputDecoration(
+          labelText:'Clave secreta de firma Webhook',
+          prefixIcon:const Icon(Icons.password_outlined),
+          suffixIcon:IconButton(
+           tooltip:secretVisible?'Ocultar firma':'Mostrar firma',
+           onPressed:()=>setState(()=>secretVisible=!secretVisible),
+           icon:Icon(secretVisible?Icons.visibility_off:Icons.visibility))))),
+       _step(5,'Guarda y verifica una transacción',
+        'Guarda ambas credenciales. Después comprueba desde la página pública de un evento que un pago aprobado llegue a la cuenta del negocio y la reserva quede confirmada. Guardar no valida automáticamente las credenciales.'),
+       if(error!=null)EventPanel(background:const Color(0xFF4A2730),
+        borderColor:EventColors.warning,
+        child:Row(children:[
+         const Icon(Icons.error_outline,color:EventColors.warning),
+         const SizedBox(width:10),
+         Expanded(child:Text(error!,style:const TextStyle(
+          color:EventColors.text,fontSize:12))),
+        ])),
+       const SizedBox(height:8),
+       const Text('Seguridad: los datos se envían al backend para almacenarse cifrados. Nunca publiques estas claves ni las envíes por chat.',
+        style:TextStyle(color:EventColors.muted,fontSize:11,height:1.6)),
+      ]),
+     )),
+     Container(width:double.infinity,
+      padding:const EdgeInsets.all(16),
+      decoration:const BoxDecoration(color:Color(0xFF082532),
+       border:Border(top:BorderSide(color:EventColors.border))),
+      child:LayoutBuilder(builder:(context,box){
+       final cancel=OutlinedButton(
+        onPressed:saving?null:()=>Navigator.pop(context),
+        child:const Text('Cerrar'));
+       final save=FilledButton.icon(
+        onPressed:saving?null:_save,
+        style:FilledButton.styleFrom(backgroundColor:EventColors.primary,
+         foregroundColor:EventColors.onPrimary),
+        icon:const Icon(Icons.lock_outline),
+        label:Text(saving?'Guardando...':'Guardar credenciales'));
+       if(box.maxWidth<480)return Column(
+        mainAxisSize:MainAxisSize.min,children:[
+         SizedBox(width:double.infinity,child:save),
+         const SizedBox(height:9),
+         SizedBox(width:double.infinity,child:cancel),
+        ]);
+       return Row(children:[
+        cancel,const Spacer(),save,
+       ]);
+      }),
+     ),
+    ]),
+   ),
+  );
+ }
+}
 
 /// Registro sin giro o pasarela: aparta la mesa del evento desde el establecimiento.
 class _ReservaInternaDialog extends ConsumerStatefulWidget{
