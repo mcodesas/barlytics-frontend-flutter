@@ -9,6 +9,7 @@ import 'package:url_launcher/url_launcher.dart';
 import 'package:intl/intl.dart';
 import '../../../core/branch/branch_scope_provider.dart';
 import '../data/eventos_api.dart';
+import 'widgets/event_visual_kit.dart';
 
 const sea=Color(0xff24d4ce);
 const eventSurface=Color(0xff102e40);
@@ -73,7 +74,8 @@ class _EventosAdminState extends ConsumerState<EventosAdminPage>{
     backgroundColor:eventSurface,
     shape:RoundedRectangleBorder(borderRadius:BorderRadius.circular(22)),
     insetPadding:const EdgeInsets.all(12),
-    child:SizedBox(width:840,height:MediaQuery.sizeOf(dialog).height*.92,
+    child:SizedBox(width:MediaQuery.sizeOf(dialog).width>1450?1360:MediaQuery.sizeOf(dialog).width*.94,
+      height:MediaQuery.sizeOf(dialog).height*.93,
      child:EventoEditor(initial:event,
       onSaved:(row)=>Navigator.of(dialog).pop(row))),
    ),
@@ -685,136 +687,358 @@ class _EventEditorState extends ConsumerState<EventoEditor>{
   }catch(e){if(mounted)ScaffoldMessenger.of(context).showSnackBar(SnackBar(content:Text('No se guardó: '+niceEventError(e))));}
   finally{if(mounted)setState(()=>busy=false);}
  }
- @override Widget build(BuildContext context){
-  final branches=ref.watch(branchScopeProvider).branches;
-  return Theme(
-   data:ThemeData.dark(useMaterial3:true).copyWith(
-    colorScheme:const ColorScheme.dark(primary:sea,surface:eventSurface)),
-   child:Padding(padding:const EdgeInsets.all(20),child:Form(key:form,child:Column(children:[
-   Row(children:[Expanded(child:Text(widget.initial==null?'Nuevo evento':'Editar borrador',
-      style:Theme.of(context).textTheme.headlineSmall)),IconButton(onPressed:()=>Navigator.pop(context),icon:const Icon(Icons.close))]),
-   Expanded(child:ListView(children:[
-    const SizedBox(height:12),
-    TextFormField(controller:title,maxLength:180,decoration:const InputDecoration(labelText:'Nombre del evento *',border:OutlineInputBorder()),
-     validator:(v)=>(v?.trim().isEmpty??true)?'Ingresa un título':null),
-    const SizedBox(height:8),
-    TextFormField(controller:description,maxLines:3,decoration:const InputDecoration(labelText:'Descripción / artistas / recomendaciones',border:OutlineInputBorder())),
-    const SizedBox(height:14),
-    OutlinedButton.icon(onPressed:_image,icon:const Icon(Icons.upload),label:Text(photo==null?'Cargar afiche o imagen':'Cambiar imagen del evento')),
-    if(photo!=null)const Text('Imagen seleccionada · JPG, PNG o WebP',style:TextStyle(color:sea)),
-    const SizedBox(height:13),
-    TextFormField(controller:mapsUrl,
-     decoration:const InputDecoration(labelText:'Ubicación de Google Maps *',
-      prefixIcon:Icon(Icons.location_on_outlined),
-      hintText:'https://maps.app.goo.gl/...',
-      border:OutlineInputBorder()),
-     validator:(v)=>(v?.trim().isEmpty??true)?'Pega la ubicación de Google Maps':null),
-    const SizedBox(height:7),
-    const Text('En Google Maps pulsa Compartir y copia el enlace del lugar.',
-     style:TextStyle(color:eventSecondary,fontSize:12)),
-    const SizedBox(height:15),
-    Row(children:[
-     const Expanded(child:Text('Fotos del establecimiento',
-      style:TextStyle(fontWeight:FontWeight.w700))),
-     TextButton.icon(onPressed:venuePhotos.length>=4?null:_venueImage,
-      icon:const Icon(Icons.add_photo_alternate_outlined),
-      label:const Text('Agregar fotos')),
-    ]),
-    if(venuePhotos.isNotEmpty)SizedBox(height:118,child:ListView.separated(
-     scrollDirection:Axis.horizontal,
-     itemCount:venuePhotos.length,
-     separatorBuilder:(_,__)=>const SizedBox(width:8),
-     itemBuilder:(ctx,i)=>Stack(children:[
-      ClipRRect(borderRadius:BorderRadius.circular(12),
-       child:_photoSource(venuePhotos[i])==null
-        ?const SizedBox(width:150,height:105)
-        :Image(image:_photoSource(venuePhotos[i])!,width:150,height:105,fit:BoxFit.cover)),
-      Positioned(top:2,right:2,child:IconButton.filledTonal(
-       icon:const Icon(Icons.close,size:15),
-       onPressed:()=>setState(()=>venuePhotos.removeAt(i)))),
+
+ Widget _block(int number,String title,String subtitle,Widget child){
+   return EventPanel(child:Column(crossAxisAlignment:CrossAxisAlignment.start,children:[
+     EventSectionHeading(number:number,title:title,subtitle:subtitle),
+     const SizedBox(height:17),child,
+   ]));
+ }
+ Widget _dateButton(String label,String value,IconData icon,VoidCallback action){
+   return InkWell(onTap:action,borderRadius:BorderRadius.circular(12),
+     child:Container(padding:const EdgeInsets.all(13),
+       decoration:BoxDecoration(color:EventColors.surfaceLight,
+         borderRadius:BorderRadius.circular(12),
+         border:Border.all(color:EventColors.border)),
+       child:Row(children:[
+         Icon(icon,color:EventColors.primary,size:21),const SizedBox(width:11),
+         Expanded(child:Column(crossAxisAlignment:CrossAxisAlignment.start,children:[
+           Text(label,style:const TextStyle(color:EventColors.muted,fontSize:10)),
+           const SizedBox(height:4),
+           Text(value,style:const TextStyle(color:EventColors.text,
+             fontWeight:FontWeight.w800,fontSize:13)),
+         ])),
+         const Icon(Icons.expand_more,color:EventColors.muted,size:16),
+       ])));
+ }
+ Widget _general(dynamic branches,double width){
+   final details=Column(children:[
+     TextFormField(controller:title,maxLength:180,
+       decoration:const InputDecoration(labelText:'Nombre del evento *',
+         prefixIcon:Icon(Icons.celebration_outlined)),
+       validator:(v)=>(v?.trim().isEmpty??true)?'Escribe el nombre del evento':null),
+     const SizedBox(height:10),
+     TextFormField(controller:description,maxLines:3,maxLength:1200,
+       decoration:const InputDecoration(
+         labelText:'Descripción y experiencia',alignLabelWithHint:true)),
+     const SizedBox(height:12),
+     TextFormField(controller:mapsUrl,
+       decoration:const InputDecoration(labelText:'Ubicación en Google Maps *',
+         prefixIcon:Icon(Icons.location_on_outlined),
+         hintText:'https://maps.app.goo.gl/...'),
+       validator:(v)=>(v?.trim().isEmpty??true)?'Pega la ubicación de Google Maps':null),
+     const SizedBox(height:8),
+     const Align(alignment:Alignment.centerLeft,
+       child:Text('En Google Maps selecciona Compartir → Copiar enlace.',
+         style:TextStyle(color:EventColors.muted,fontSize:11))),
+     const SizedBox(height:16),
+     DropdownButtonFormField<int>(value:branch,
+       decoration:const InputDecoration(labelText:'Sucursal *',
+         prefixIcon:Icon(Icons.storefront_outlined)),
+       items:branches.where((e)=>e.sucuId!=null).map<DropdownMenuItem<int>>((v)=>
+         DropdownMenuItem<int>(value:v.sucuId,child:Text(v.sucuNombre??'Sucursal'))).toList(),
+       onChanged:(v){setState((){
+         branch=v;tables=[];chosen={};capacities={};
+       });_loadTables();}),
+   ]);
+   final media=Column(crossAxisAlignment:CrossAxisAlignment.start,children:[
+     const Text('Afiche o portada del evento',
+       style:TextStyle(color:EventColors.text,fontWeight:FontWeight.w800)),
+     const SizedBox(height:8),
+     Stack(children:[
+       EventArtwork(source:photo,width:double.infinity,height:178),
+       if(photo!=null)Positioned(right:7,top:7,
+         child:IconButton.filledTonal(
+           onPressed:()=>setState(()=>photo=null),
+           icon:const Icon(Icons.delete_outline,size:18))),
      ]),
-    )),
-    const SizedBox(height:14),
-    DropdownButtonFormField<int>(value:branch,decoration:const InputDecoration(labelText:'Sucursal *',border:OutlineInputBorder()),
-     items:branches.where((e)=>e.sucuId!=null).map((b)=>DropdownMenuItem(value:b.sucuId,child:Text(b.sucuNombre??'Sucursal'))).toList(),
-     onChanged:(v){setState((){branch=v;tables=[];chosen={};capacities={};});_loadTables();}),
-    const SizedBox(height:15),
-    Text('Inicio del evento',style:Theme.of(context).textTheme.titleMedium),
-    Wrap(spacing:10,runSpacing:8,children:[
-     OutlinedButton.icon(onPressed:()=>_pick(true,true),icon:const Icon(Icons.calendar_month),label:Text('Fecha: '+dateLabel(start))),
-     OutlinedButton.icon(onPressed:()=>_pick(true,false),icon:const Icon(Icons.schedule),label:Text('Hora: '+hourLabel(start))),
-    ]),
-    const SizedBox(height:12),
-    Text('Finalización del evento',style:Theme.of(context).textTheme.titleMedium),
-    Wrap(spacing:10,runSpacing:8,children:[
-     OutlinedButton.icon(onPressed:()=>_pick(false,true),icon:const Icon(Icons.calendar_month),label:Text('Fecha: '+dateLabel(finish))),
-     OutlinedButton.icon(onPressed:()=>_pick(false,false),icon:const Icon(Icons.schedule),label:Text('Hora: '+hourLabel(finish))),
-    ]),
-    const SizedBox(height:20),
-    Text('Mesas habilitadas para este evento',style:Theme.of(context).textTheme.titleMedium),
-    const SizedBox(height:7),
-    const Text('Configura hasta 30 puestos en cada mesa seleccionada (predeterminado: 6).',
-     style:TextStyle(color:eventSecondary,fontSize:12)),
-    const SizedBox(height:9),
-    Wrap(spacing:10,runSpacing:10,children:tables.map((m){
-     final id=asId(m['mesaId']);
-     if(id==null)return const SizedBox.shrink();
-     final active=chosen.contains(id);
-     return Container(width:163,padding:const EdgeInsets.all(9),
-      decoration:BoxDecoration(
-       color:active?const Color(0xff1c4b5d):const Color(0xff183647),
-       borderRadius:BorderRadius.circular(13),
-       border:Border.all(color:active?sea:eventBorder)),
-      child:Column(mainAxisSize:MainAxisSize.min,children:[
-       if(_photoSource(m['mesaFoto']?.toString()??'')!=null)
-        Padding(padding:const EdgeInsets.only(bottom:7),
-         child:ClipRRect(borderRadius:BorderRadius.circular(9),
-          child:Image(image:_photoSource(m['mesaFoto']!.toString())!,
-           height:86,width:140,fit:BoxFit.cover,
-           errorBuilder:(_,__,___)=>const SizedBox(height:86,width:140)))),
-       FilterChip(label:Text('Mesa '+(m['mesaNumero']?.toString()??id.toString())),
-        selected:active,onSelected:(v)=>setState((){
-         if(v){chosen.add(id);capacities.putIfAbsent(id,()=>6);}
-         else{chosen.remove(id);capacities.remove(id);}
-        })),
-       if(active)...[
-        const Text('Puestos',style:TextStyle(fontSize:11,color:eventSecondary)),
-        DropdownButton<int>(value:capacities[id]??6,
-         items:List.generate(30,(i)=>DropdownMenuItem(
-          value:i+1,child:Text('${i+1} puestos'))),
-         onChanged:(v)=>setState(()=>capacities[id]=v??6)),
-       ],
-      ]),
-     );
-    }).toList()),
-    if(tables.isEmpty)const Padding(padding:EdgeInsets.all(9),child:Text('No se encontraron mesas para la sucursal seleccionada.')),
-    const SizedBox(height:18),
-    DropdownButtonFormField<String>(value:method,
-     decoration:const InputDecoration(labelText:'Forma de reservar *',border:OutlineInputBorder()),
-     items:const [
-      DropdownMenuItem(value:'GRATIS',child:Text('Gratis, QR inmediato')),
-      DropdownMenuItem(value:'MANUAL',child:Text('Pago manual, revisión del negocio')),
-      DropdownMenuItem(value:'MERCADOPAGO',child:Text('Pago electrónico / PSE (Mercado Pago)')),
-     ],onChanged:(v)=>setState((){method=v??'GRATIS';if(method=='GRATIS')amount.text='0';})),
-    const SizedBox(height:13),
-    TextFormField(controller:amount,keyboardType:TextInputType.number,
-     decoration:const InputDecoration(labelText:'Precio por puesto (COP)',
-      prefixText:'\$ ',border:OutlineInputBorder())),
-    const SizedBox(height:6),
-    const Text('El total se calcula multiplicando el valor por la cantidad de puestos reservados.',
-     style:TextStyle(color:eventSecondary,fontSize:12)),
-    if(method=='MANUAL')...[
-     const SizedBox(height:13),TextFormField(controller:instructions,maxLines:3,
-      decoration:const InputDecoration(labelText:'Instrucciones de pago / datos del negocio',border:OutlineInputBorder()))
-    ],
-    const SizedBox(height:12),
-    SwitchListTile(value:publish,title:const Text('Publicar ahora'),
-     subtitle:const Text('Si lo dejas desactivado, podrás editarlo como borrador.'),
-     onChanged:(v)=>setState(()=>publish=v)),
-   ])),
-   const SizedBox(height:10),
-   Align(alignment:Alignment.centerRight,child:FilledButton.icon(onPressed:busy?null:_save,
-    icon:const Icon(Icons.save),label:Text(busy?'Guardando...':'Guardar evento'))),
-  ]))));
+     const SizedBox(height:8),
+     SizedBox(width:double.infinity,child:OutlinedButton.icon(
+       onPressed:busy?null:_image,icon:const Icon(Icons.upload_file_outlined),
+       label:Text(photo==null?'Cargar afiche':'Cambiar afiche'))),
+     const SizedBox(height:14),
+     Row(children:[
+       const Expanded(child:Text('Fotos del establecimiento',
+         style:TextStyle(color:EventColors.text,fontWeight:FontWeight.w700))),
+       TextButton.icon(
+         onPressed:venuePhotos.length>=4?null:_venueImage,
+         icon:const Icon(Icons.add_photo_alternate_outlined,size:16),
+         label:const Text('Agregar')),
+     ]),
+     SizedBox(height:100,child:ListView.separated(
+       scrollDirection:Axis.horizontal,
+       itemCount:venuePhotos.length<4?venuePhotos.length+1:venuePhotos.length,
+       separatorBuilder:(_,__)=>const SizedBox(width:8),
+       itemBuilder:(context,i){
+         if(i==venuePhotos.length)return InkWell(onTap:_venueImage,
+           child:Container(width:100,
+             decoration:BoxDecoration(borderRadius:BorderRadius.circular(12),
+               border:Border.all(color:EventColors.primary)),
+             child:const Column(mainAxisAlignment:MainAxisAlignment.center,children:[
+               Icon(Icons.add_photo_alternate_outlined,color:EventColors.primary),
+               SizedBox(height:5),
+               Text('Agregar fotos',style:TextStyle(
+                 fontSize:10,color:EventColors.primary)),
+             ])));
+         return SizedBox(width:132,child:Stack(children:[
+           EventArtwork(source:venuePhotos[i],width:132,height:100),
+           Positioned(right:2,top:2,child:IconButton.filledTonal(
+             onPressed:()=>setState(()=>venuePhotos.removeAt(i)),
+             constraints:const BoxConstraints(minWidth:30,minHeight:30),
+             padding:EdgeInsets.zero,icon:const Icon(Icons.close,size:15))),
+         ]));
+       },
+     )),
+   ]);
+   return _block(1,'Información general',
+     'Da identidad al evento: foto, lugar, nombre y descripción.',
+     width>635?Row(crossAxisAlignment:CrossAxisAlignment.start,children:[
+       Expanded(flex:6,child:details),const SizedBox(width:17),
+       Expanded(flex:5,child:media),
+     ]):Column(children:[details,const SizedBox(height:17),media]));
+ }
+ Widget _dates()=>_block(2,'Fecha y horario',
+   'Elige cuándo comienza y termina tu evento.',
+   LayoutBuilder(builder:(context,box){
+     final count=box.maxWidth>680?4:box.maxWidth>330?2:1;
+     final w=(box.maxWidth-10*(count-1))/count;
+     return Wrap(spacing:10,runSpacing:10,children:[
+       SizedBox(width:w,child:_dateButton('Fecha de inicio',dateLabel(start),
+         Icons.calendar_month_outlined,()=>_pick(true,true))),
+       SizedBox(width:w,child:_dateButton('Hora de inicio',hourLabel(start),
+         Icons.schedule_outlined,()=>_pick(true,false))),
+       SizedBox(width:w,child:_dateButton('Fecha de fin',dateLabel(finish),
+         Icons.event_available_outlined,()=>_pick(false,true))),
+       SizedBox(width:w,child:_dateButton('Hora de fin',hourLabel(finish),
+         Icons.nights_stay_outlined,()=>_pick(false,false))),
+     ]);
+   }));
+ Widget _tables()=>_block(3,'Mesas habilitadas',
+   'Selecciona las mesas y define su capacidad de puestos.',
+   Column(crossAxisAlignment:CrossAxisAlignment.start,children:[
+     Align(alignment:Alignment.centerRight,child:TextButton.icon(
+       onPressed:tables.isEmpty?null:()=>setState((){
+         final all=tables.every((m)=>chosen.contains(asId(m['mesaId'])));
+         if(all){chosen.clear();capacities.clear();}
+         else{for(final m in tables){
+           final id=asId(m['mesaId']);
+           if(id!=null){chosen.add(id);capacities.putIfAbsent(id,()=>6);}
+         }}
+       }),
+       icon:const Icon(Icons.select_all,size:18),
+       label:const Text('Seleccionar / quitar todas'))),
+     if(tables.isEmpty)const Padding(
+       padding:EdgeInsets.all(22),
+       child:Center(child:Text('No se encontraron mesas de esta sucursal.',
+         style:TextStyle(color:EventColors.muted))))
+     else GridView.builder(
+       shrinkWrap:true,physics:const NeverScrollableScrollPhysics(),
+       itemCount:tables.length,
+       gridDelegate:const SliverGridDelegateWithMaxCrossAxisExtent(
+         maxCrossAxisExtent:185,mainAxisExtent:198,
+         mainAxisSpacing:10,crossAxisSpacing:10),
+       itemBuilder:(ctx,i){
+         final m=tables[i],id=asId(m['mesaId']);
+         if(id==null)return const SizedBox.shrink();
+         final active=chosen.contains(id);
+         return Container(
+           clipBehavior:Clip.antiAlias,
+           decoration:BoxDecoration(
+             color:active?const Color(0xFF17495A):EventColors.surfaceLight,
+             borderRadius:BorderRadius.circular(13),
+             border:Border.all(color:active?EventColors.primary:EventColors.border,
+               width:active?1.8:1)),
+           child:Column(crossAxisAlignment:CrossAxisAlignment.stretch,children:[
+             Expanded(child:InkWell(
+               onTap:()=>setState((){
+                 if(active){chosen.remove(id);capacities.remove(id);}
+                 else{chosen.add(id);capacities.putIfAbsent(id,()=>6);}
+               }),
+               child:Stack(children:[
+                 Positioned.fill(child:EventArtwork(
+                   source:m['mesaFoto'],height:115,
+                   borderRadius:0,emptyIcon:Icons.table_restaurant_outlined)),
+                 Positioned(left:6,top:6,child:Container(
+                   decoration:BoxDecoration(
+                     color:active?EventColors.primary:EventColors.background,
+                     borderRadius:BorderRadius.circular(7)),
+                   padding:const EdgeInsets.all(5),
+                   child:Icon(active?Icons.check:Icons.add,size:15,
+                     color:active?EventColors.onPrimary:EventColors.muted))),
+               ]))),
+             Padding(padding:const EdgeInsets.fromLTRB(10,8,10,0),
+               child:Text('Mesa '+(m['mesaNumero']??id).toString(),
+                 style:const TextStyle(color:EventColors.text,
+                   fontWeight:FontWeight.w800,fontSize:12))),
+             SizedBox(height:43,child:Padding(
+               padding:const EdgeInsets.symmetric(horizontal:9),
+               child:DropdownButtonHideUnderline(child:DropdownButton<int>(
+                 isExpanded:true,isDense:true,value:capacities[id]??6,
+                 dropdownColor:EventColors.surfaceLight,
+                 style:const TextStyle(color:EventColors.text,fontSize:12),
+                 items:List.generate(30,(x)=>DropdownMenuItem<int>(
+                   value:x+1,child:Text((x+1).toString()+' puestos'))),
+                 onChanged:active?(v){if(v!=null)setState(()=>capacities[id]=v);}:null,
+               )))),
+           ]),
+         );
+       }),
+   ]));
+ Widget _paymentOption(String value,IconData icon,String name,String subtitle){
+   final active=method==value;
+   return InkWell(onTap:()=>setState((){
+     method=value;if(method=='GRATIS')amount.text='0';
+   }),child:Container(
+     padding:const EdgeInsets.all(13),
+     decoration:BoxDecoration(
+       color:active?EventColors.primary:EventColors.surfaceLight,
+       borderRadius:BorderRadius.circular(12),
+       border:Border.all(color:active?EventColors.primary:EventColors.border)),
+     child:Column(crossAxisAlignment:CrossAxisAlignment.start,children:[
+       Icon(icon,color:active?EventColors.onPrimary:EventColors.primary,size:23),
+       const SizedBox(height:6),
+       Text(name,style:TextStyle(fontSize:12,fontWeight:FontWeight.w800,
+         color:active?EventColors.onPrimary:EventColors.text)),
+       Text(subtitle,style:TextStyle(fontSize:10,
+         color:active?EventColors.onPrimary:EventColors.muted)),
+     ]),
+   ));
+ }
+ Widget _payments()=>_block(4,'Reservas y pagos',
+   'Configura cómo reservar y el precio por cada puesto.',
+   Column(crossAxisAlignment:CrossAxisAlignment.start,children:[
+     LayoutBuilder(builder:(context,box){
+       final columns=box.maxWidth>485?3:1;
+       final w=(box.maxWidth-(columns-1)*9)/columns;
+       return Wrap(spacing:9,runSpacing:9,children:[
+         SizedBox(width:w,child:_paymentOption('GRATIS',
+           Icons.celebration_outlined,'Gratis','Reserva sin costo')),
+         SizedBox(width:w,child:_paymentOption('MANUAL',
+           Icons.payments_outlined,'Pago manual','Revisión del negocio')),
+         SizedBox(width:w,child:_paymentOption('MERCADOPAGO',
+           Icons.credit_card_outlined,'Pago electrónico','Mercado Pago / PSE')),
+       ]);
+     }),
+     const SizedBox(height:16),
+     TextFormField(controller:amount,readOnly:method=='GRATIS',
+       keyboardType:const TextInputType.numberWithOptions(decimal:true),
+       onChanged:(_)=>setState((){}),
+       decoration:const InputDecoration(
+         labelText:'Precio por puesto (COP)',prefixIcon:Icon(Icons.attach_money),
+         helperText:'Total = precio por puesto × cantidad de puestos reservados')),
+     if(method=='MANUAL')...[
+       const SizedBox(height:13),
+       TextFormField(controller:instructions,maxLines:3,
+         decoration:const InputDecoration(labelText:'Instrucciones de pago manual',
+           alignLabelWithHint:true)),
+     ],
+   ]));
+ Widget _summary(){
+   final capacity=chosen.fold<int>(0,(n,id)=>n+(capacities[id]??6));
+   final unit=double.tryParse(amount.text.replaceAll(',','.'))??0;
+   return EventPanel(background:const Color(0xFF0A2637),
+     child:Column(crossAxisAlignment:CrossAxisAlignment.start,children:[
+       const EventSectionHeading(icon:Icons.fact_check_outlined,
+         title:'Resumen del evento',
+         subtitle:'Todo listo para dar vida a tu experiencia.'),
+       const SizedBox(height:22),
+       EventMetric(icon:Icons.table_restaurant_outlined,
+         label:'Mesas seleccionadas',value:chosen.length.toString()),
+       const Divider(color:EventColors.border,height:28),
+       EventMetric(icon:Icons.groups_outlined,
+         label:'Capacidad total',value:capacity.toString()+' puestos'),
+       const Divider(color:EventColors.border,height:28),
+       EventMetric(icon:Icons.payments_outlined,label:'Precio por puesto',
+         value:method=='GRATIS'?'Gratis':
+           NumberFormat.currency(locale:'es_CO',symbol:'COP ',decimalDigits:0).format(unit)),
+       const Divider(color:EventColors.border,height:28),
+       const EventMetric(icon:Icons.public_outlined,label:'Página pública',
+         value:'Lista al publicar',color:EventColors.success),
+       const SizedBox(height:17),
+       const Text('Los asistentes verán el afiche, el lugar y las mesas reales. Podrán elegir puestos y compartir el evento.',
+         style:TextStyle(color:EventColors.muted,fontSize:12,height:1.5)),
+     ]));
+ }
+
+ @override Widget build(BuildContext context){
+   final branches=ref.watch(branchScopeProvider).branches;
+   return Theme(
+     data:ThemeData.dark(useMaterial3:true).copyWith(
+       colorScheme:const ColorScheme.dark(
+         primary:EventColors.primary,surface:EventColors.surface),
+       inputDecorationTheme:InputDecorationTheme(
+         filled:true,fillColor:EventColors.surfaceLight,
+         border:OutlineInputBorder(borderRadius:BorderRadius.circular(11)),
+         enabledBorder:OutlineInputBorder(
+           borderRadius:BorderRadius.circular(11),
+           borderSide:const BorderSide(color:EventColors.border)),
+         contentPadding:const EdgeInsets.symmetric(horizontal:14,vertical:14),
+         labelStyle:const TextStyle(color:EventColors.muted),
+       )),
+     child:Form(key:form,child:LayoutBuilder(builder:(context,box){
+       final wide=box.maxWidth>=1000;
+       return Column(children:[
+         Container(padding:const EdgeInsets.symmetric(horizontal:19,vertical:17),
+           decoration:const BoxDecoration(
+             gradient:LinearGradient(colors:[
+               Color(0xFF10485A),Color(0xFF0C2B3E),Color(0xFF103B4D)]),
+             border:Border(bottom:BorderSide(color:EventColors.border))),
+           child:Row(children:[
+             Container(width:45,height:45,
+               decoration:BoxDecoration(
+                 color:EventColors.primary.withOpacity(.15),
+                 borderRadius:BorderRadius.circular(13)),
+               child:const Icon(Icons.event_available_outlined,color:EventColors.primary)),
+             const SizedBox(width:12),
+             Expanded(child:Column(crossAxisAlignment:CrossAxisAlignment.start,children:[
+               Text(widget.initial==null?'Crear nuevo evento':'Editar evento',
+                 style:const TextStyle(color:EventColors.text,
+                   fontSize:21,fontWeight:FontWeight.w900)),
+               const SizedBox(height:3),
+               const Text('Crea una experiencia única y recibe reservas en línea desde tu página pública.',
+                 maxLines:2,style:TextStyle(color:EventColors.muted,fontSize:12)),
+             ])),
+             if(wide)const EventPill(icon:Icons.edit_note_outlined,label:'Borrador'),
+             const SizedBox(width:7),
+             IconButton(onPressed:busy?null:()=>Navigator.pop(context),
+               icon:const Icon(Icons.close,color:EventColors.text)),
+           ])),
+         Expanded(child:Row(crossAxisAlignment:CrossAxisAlignment.start,children:[
+           Expanded(child:ListView(padding:const EdgeInsets.all(13),children:[
+             LayoutBuilder(builder:(context,inner)=>
+               _general(branches,inner.maxWidth)),
+             const SizedBox(height:12),_dates(),
+             const SizedBox(height:12),_tables(),
+             const SizedBox(height:12),_payments(),
+             if(!wide)...[const SizedBox(height:12),_summary()],
+             const SizedBox(height:22),
+           ])),
+           if(wide)SizedBox(width:303,child:Padding(
+             padding:const EdgeInsets.fromLTRB(0,13,13,13),
+             child:SingleChildScrollView(child:_summary()))),
+         ])),
+         Container(padding:const EdgeInsets.fromLTRB(14,11,14,13),
+           decoration:const BoxDecoration(color:Color(0xFF082532),
+             border:Border(top:BorderSide(color:EventColors.border))),
+           child:Wrap(alignment:WrapAlignment.end,spacing:9,runSpacing:8,
+             children:[
+               OutlinedButton(onPressed:busy?null:()=>Navigator.pop(context),
+                 child:const Text('Cancelar')),
+               OutlinedButton.icon(onPressed:busy?null:(){
+                 setState(()=>publish=false);_save();
+               },icon:const Icon(Icons.save_outlined,size:17),
+                 label:Text(busy?'Guardando...':'Guardar borrador')),
+               FilledButton.icon(
+                 onPressed:busy?null:(){setState(()=>publish=true);_save();},
+                 style:FilledButton.styleFrom(
+                   backgroundColor:EventColors.primary,
+                   foregroundColor:EventColors.onPrimary,
+                   padding:const EdgeInsets.symmetric(horizontal:20,vertical:14)),
+                 icon:const Icon(Icons.send_outlined,size:17),
+                 label:Text(busy?'Publicando...':'Publicar evento')),
+             ])),
+       ]);
+     })),
+   );
  }
 }
