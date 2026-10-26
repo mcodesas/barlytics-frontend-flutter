@@ -544,6 +544,7 @@ class EventoEditor extends ConsumerStatefulWidget{
 }
 class _EventEditorState extends ConsumerState<EventoEditor>{
  final form=GlobalKey<FormState>();
+ final productSearch=TextEditingController();
  final title=TextEditingController(),description=TextEditingController(),
        amount=TextEditingController(text:'0'),instructions=TextEditingController(),
        mapsUrl=TextEditingController();
@@ -552,6 +553,11 @@ class _EventEditorState extends ConsumerState<EventoEditor>{
  String method='GRATIS';String? photo;bool publish=false,busy=false;
  int? branch;Set<int> chosen={};List<Map<String,dynamic>> tables=[];
  Map<int,int> capacities={};List<String> venuePhotos=[];
+ List<Map<String,dynamic>> availableProducts=[];
+ Set<int> selectedProducts={};
+ bool loadingProducts=false,onlySelected=false;
+ String? productError;
+ int productRequest=0;
  @override void initState(){
   super.initState();
   final i=widget.initial;
@@ -568,17 +574,44 @@ class _EventEditorState extends ConsumerState<EventoEditor>{
    capacities=(i['capacidadesMesas'] as Map? ??{}).map((key,value)=>
     MapEntry(int.tryParse(key.toString())??-1,asId(value)??6))..remove(-1);
    venuePhotos=(i['fotosLugar'] as List? ??[]).whereType<String>().toList();
+   selectedProducts=(i['productos'] as List? ??[]).map(asId).whereType<int>().toSet();
   }
   WidgetsBinding.instance.addPostFrameCallback((_){if(mounted)_loadTables();});
  }
- @override void dispose(){title.dispose();description.dispose();amount.dispose();instructions.dispose();mapsUrl.dispose();super.dispose();}
+ @override void dispose(){
+  productSearch.dispose();title.dispose();description.dispose();amount.dispose();
+  instructions.dispose();mapsUrl.dispose();super.dispose();
+ }
  Future<void> _loadTables()async{
-  final branchState=ref.read(branchScopeProvider);
-  branch??=branchState.activeBranchId;
-  if(branch==null)return;
-  try{final t=await ref.read(eventosApiProvider).mesas(branch!);
-    if(mounted)setState(()=>tables=t.where((e)=>e['mesaEstado']?.toString().toUpperCase()!='INACTIVA').toList());
-  }catch(e){if(mounted)ScaffoldMessenger.of(context).showSnackBar(SnackBar(content:Text('Mesas: '+niceEventError(e))));}
+  branch??=ref.read(branchScopeProvider).activeBranchId;
+  final branchId=branch;
+  if(branchId==null)return;
+  _loadProducts(branchId);
+  try{
+   final rows=await ref.read(eventosApiProvider).mesas(branchId);
+   if(!mounted||branch!=branchId)return;
+   setState(()=>tables=rows.where((e)=>
+    e['mesaEstado']?.toString().toUpperCase()!='INACTIVA').toList());
+  }catch(e){
+   if(mounted&&branch==branchId)ScaffoldMessenger.of(context).showSnackBar(
+    SnackBar(content:Text('Mesas: '+niceEventError(e))));
+  }
+ }
+ Future<void> _loadProducts(int branchId)async{
+  final req=++productRequest;
+  if(mounted)setState((){loadingProducts=true;productError=null;});
+  try{
+   final products=await ref.read(eventosApiProvider).productos(branchId);
+   if(!mounted||branch!=branchId||req!=productRequest)return;
+   setState((){
+    availableProducts=products;loadingProducts=false;productError=null;
+   });
+  }catch(e){
+   if(!mounted||branch!=branchId||req!=productRequest)return;
+   setState((){
+    loadingProducts=false;productError=niceEventError(e);
+   });
+  }
  }
  Future<void> _venueImage()async{
   final files=await FilePicker.platform.pickFiles(allowMultiple:true,
@@ -667,7 +700,8 @@ class _EventEditorState extends ConsumerState<EventoEditor>{
     'precio':price,'medioPago':method,'instruccionesPago':instructions.text.trim(),
     'mesas':chosen.toList(),'publicar':publish,
     'googleMapsUrl':mapsUrl.text.trim(),'fotosLugar':venuePhotos,
-    'capacidadesMesas':{for(final id in chosen)id.toString():capacities[id]??6}};
+    'capacidadesMesas':{for(final id in chosen)id.toString():capacities[id]??6},
+    'productos':selectedProducts.toList()};
    final api=ref.read(eventosApiProvider);
    final result=widget.initial==null
      ?await api.crear(body)
@@ -738,7 +772,10 @@ class _EventEditorState extends ConsumerState<EventoEditor>{
        items:branches.where((e)=>e.sucuId!=null).map<DropdownMenuItem<int>>((v)=>
          DropdownMenuItem<int>(value:v.sucuId,child:Text(v.sucuNombre??'Sucursal'))).toList(),
        onChanged:(v){setState((){
+         productRequest++;
          branch=v;tables=[];chosen={};capacities={};
+         availableProducts=[];selectedProducts={};onlySelected=false;
+         productSearch.clear();productError=null;
        });_loadTables();}),
    ]);
    final media=Column(crossAxisAlignment:CrossAxisAlignment.start,children:[
@@ -904,7 +941,123 @@ class _EventEditorState extends ConsumerState<EventoEditor>{
      ]),
    ));
  }
- Widget _payments()=>_block(4,'Reservas y pagos',
+
+ Widget _products()=>_block(4,'Productos destacados del evento',
+  'Selecciona de la carta de esta sucursal lo que verán tus asistentes.',
+  Column(crossAxisAlignment:CrossAxisAlignment.start,children:[
+   Wrap(spacing:10,runSpacing:10,crossAxisAlignment:WrapCrossAlignment.center,children:[
+    SizedBox(width:300,child:TextField(
+     controller:productSearch,onChanged:(_)=>setState((){}),
+     decoration:const InputDecoration(
+      hintText:'Buscar bebidas, comidas o cócteles',
+      prefixIcon:Icon(Icons.search_outlined),isDense:true))),
+    FilterChip(
+     selected:onlySelected,
+     label:Text('Seleccionados ('+selectedProducts.length.toString()+')'),
+     onSelected:(v)=>setState(()=>onlySelected=v)),
+    OutlinedButton.icon(
+     onPressed:loadingProducts||branch==null?null:()=>_loadProducts(branch!),
+     icon:const Icon(Icons.refresh,size:18),
+     label:const Text('Actualizar')),
+   ]),
+   const SizedBox(height:12),
+   if(loadingProducts)const Padding(
+    padding:EdgeInsets.all(25),child:Center(child:CircularProgressIndicator()))
+   else if(productError!=null)
+    EventPanel(background:EventColors.surfaceLight,child:Row(children:[
+     const Icon(Icons.warning_amber_rounded,color:EventColors.warning),
+     const SizedBox(width:10),
+     Expanded(child:Text(productError!,
+      style:const TextStyle(color:EventColors.muted,fontSize:12))),
+     TextButton(onPressed:branch==null?null:()=>_loadProducts(branch!),
+      child:const Text('Reintentar')),
+    ]))
+   else if(availableProducts.isEmpty)
+    const Padding(padding:EdgeInsets.all(25),child:Center(
+     child:Text('No hay productos vendibles con precio vigente en esta sucursal.',
+      textAlign:TextAlign.center,style:TextStyle(color:EventColors.muted))))
+   else LayoutBuilder(builder:(ctx,box){
+    final query=productSearch.text.toLowerCase().trim();
+    final filtered=availableProducts.where((item){
+     final id=asId(item['id']);
+     if(id==null||(onlySelected&&!selectedProducts.contains(id)))return false;
+     if(query.isEmpty)return true;
+     return (item['nombre']?.toString().toLowerCase().contains(query)??false)||
+            (item['descripcion']?.toString().toLowerCase().contains(query)??false);
+    }).toList();
+    if(filtered.isEmpty)return const Padding(
+     padding:EdgeInsets.all(22),
+     child:Text('No encontramos productos con esos filtros.',
+      style:TextStyle(color:EventColors.muted)));
+    return SizedBox(height:filtered.length<=3?132:340,
+     child:GridView.builder(
+      itemCount:filtered.length,
+      gridDelegate:const SliverGridDelegateWithMaxCrossAxisExtent(
+       maxCrossAxisExtent:310,mainAxisExtent:119,
+       crossAxisSpacing:10,mainAxisSpacing:10),
+      itemBuilder:(ctx,index){
+       final item=filtered[index],id=asId(item['id']);
+       if(id==null)return const SizedBox.shrink();
+       final selected=selectedProducts.contains(id);
+       final cost=NumberFormat.currency(locale:'es_CO',symbol:'COP ',
+        decimalDigits:0).format(double.tryParse(item['precio']?.toString()??'')??0);
+       return InkWell(
+        onTap:(){
+         if(!selected&&selectedProducts.length>=100){
+          ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+           content:Text('Puedes destacar máximo 100 productos por evento')));
+          return;
+         }
+         setState((){if(selected)selectedProducts.remove(id);
+           else selectedProducts.add(id);});
+        },
+        borderRadius:BorderRadius.circular(13),
+        child:Container(
+         clipBehavior:Clip.antiAlias,
+         decoration:BoxDecoration(
+          color:selected?const Color(0xFF194B5A):EventColors.surfaceLight,
+          borderRadius:BorderRadius.circular(13),
+          border:Border.all(
+           color:selected?EventColors.primary:EventColors.border,
+           width:selected?1.7:1)),
+         child:Row(children:[
+          SizedBox(width:90,child:Stack(children:[
+           Positioned.fill(child:EventArtwork(
+            source:item['imagen'],borderRadius:0,height:119,
+            emptyIcon:Icons.restaurant_menu_outlined)),
+           if(selected)const Positioned(top:7,left:7,
+            child:CircleAvatar(radius:13,backgroundColor:EventColors.primary,
+             child:Icon(Icons.check,color:EventColors.onPrimary,size:16))),
+          ])),
+          const SizedBox(width:11),
+          Expanded(child:Column(
+           mainAxisAlignment:MainAxisAlignment.center,
+           crossAxisAlignment:CrossAxisAlignment.start,children:[
+            Text(item['nombre']?.toString()??'Producto',
+             maxLines:2,overflow:TextOverflow.ellipsis,
+             style:const TextStyle(fontWeight:FontWeight.w800,
+              color:EventColors.text,fontSize:12)),
+            const SizedBox(height:7),
+            Text(cost,style:const TextStyle(color:EventColors.primary,
+             fontWeight:FontWeight.w700,fontSize:12)),
+            const SizedBox(height:3),
+            Text(selected?'Incluido en el evento':'Toca para incluir',
+             style:TextStyle(fontSize:10,
+              color:selected?EventColors.success:EventColors.muted)),
+           ])),
+          const SizedBox(width:8),
+         ]),
+        ),
+       );
+      },
+     ));
+   }),
+   const SizedBox(height:12),
+   Text(selectedProducts.length.toString()+' producto(s) en la página del evento.',
+    style:const TextStyle(color:EventColors.muted,fontSize:12)),
+  ]));
+
+ Widget _payments()=>_block(5,'Reservas y pagos',
    'Configura cómo reservar y el precio por cada puesto.',
    Column(crossAxisAlignment:CrossAxisAlignment.start,children:[
      LayoutBuilder(builder:(context,box){
@@ -951,6 +1104,9 @@ class _EventEditorState extends ConsumerState<EventoEditor>{
        EventMetric(icon:Icons.payments_outlined,label:'Precio por puesto',
          value:method=='GRATIS'?'Gratis':
            NumberFormat.currency(locale:'es_CO',symbol:'COP ',decimalDigits:0).format(unit)),
+       const Divider(color:EventColors.border,height:28),
+       EventMetric(icon:Icons.restaurant_menu_outlined,
+        label:'Productos destacados',value:selectedProducts.length.toString()),
        const Divider(color:EventColors.border,height:28),
        const EventMetric(icon:Icons.public_outlined,label:'Página pública',
          value:'Lista al publicar',color:EventColors.success),
@@ -1085,6 +1241,7 @@ class _EventEditorState extends ConsumerState<EventoEditor>{
                _general(branches,inner.maxWidth)),
              const SizedBox(height:12),_dates(),
              const SizedBox(height:12),_tables(),
+             const SizedBox(height:12),_products(),
              const SizedBox(height:12),_payments(),
              if(!wide)...[const SizedBox(height:12),_summary()],
              const SizedBox(height:22),
