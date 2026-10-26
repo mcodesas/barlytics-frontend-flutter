@@ -60,7 +60,7 @@ class AuthInterceptor extends Interceptor {
     // Nunca enviamos un JWT antiguo a endpoints públicos. En particular, esto
     // evita que /auth/google/config falle con 401 al volver al login después
     // de que una sesión haya expirado y desaparezca el botón de Google.
-    final isPublicRequest = _publicPaths.contains(options.path);
+    final isPublicRequest = _publicPaths.contains(options.path) || options.path.startsWith('/api/v1/eventos/public/');
     // Web también recibe una sesión renovable para persistir al cerrar el navegador.
     options.headers['X-BarLytics-Platform'] = kIsWeb ? 'web' : _platform;
     final explicitAuthorization =
