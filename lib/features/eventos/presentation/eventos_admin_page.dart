@@ -289,7 +289,7 @@ class _EventosAdminState extends ConsumerState<EventosAdminPage>{
               Text(r['eres_nota'].toString(),
                style:const TextStyle(color:EventColors.muted,fontSize:12)),
              ],
-             if(state=='PENDIENTE_REVISION'||(internal&&state=='CONFIRMADA'))...[
+             if(state=='PENDIENTE_REVISION'||(internal&&['CONFIRMADA','CANCELADA'].contains(state)))...[
               const SizedBox(height:10),
               Wrap(spacing:10,children:[
                if(state=='PENDIENTE_REVISION')FilledButton.icon(
@@ -303,6 +303,22 @@ class _EventosAdminState extends ConsumerState<EventosAdminPage>{
                  }
                 },icon:const Icon(Icons.check,size:17),
                 label:const Text('Aprobar')),
+               if(internal&&['CONFIRMADA','CANCELADA'].contains(state))
+                OutlinedButton.icon(
+                 onPressed:()async{
+                  final edited=await showDialog<bool>(
+                   context:dialog,builder:(_)=>_ReservaInternaDialog(
+                    eventId:id,
+                    eventTitle:data['even_titulo']?.toString()??'Evento',
+                    initial:r));
+                  if(edited==true&&dialog.mounted){
+                   Navigator.pop(dialog);
+                   if(mounted)detail(id);
+                  }
+                 },
+                 icon:const Icon(Icons.edit_note_outlined,size:17),
+                 label:Text(state=='CANCELADA'?'Modificar / reactivar':'Modificar'),
+                ),
                if(internal&&state=='CONFIRMADA')OutlinedButton.icon(
                 onPressed:()async{
                  final confirm=await showDialog<bool>(
@@ -695,9 +711,10 @@ class _EventHint extends StatelessWidget{
 
 /// Registro sin giro o pasarela: aparta la mesa del evento desde el establecimiento.
 class _ReservaInternaDialog extends ConsumerStatefulWidget{
- const _ReservaInternaDialog({required this.eventId,required this.eventTitle});
+ const _ReservaInternaDialog({required this.eventId,required this.eventTitle,this.initial});
  final int eventId;
  final String eventTitle;
+ final Map<String,dynamic>? initial;
  @override ConsumerState<_ReservaInternaDialog> createState()=>_ReservaInternaState();
 }
 class _ReservaInternaState extends ConsumerState<_ReservaInternaDialog>{
@@ -710,7 +727,23 @@ class _ReservaInternaState extends ConsumerState<_ReservaInternaDialog>{
  int? selectedTable;
  int seats=1;
  String source='BAR';
- @override void initState(){super.initState();load();}
+ bool reactivate=false;
+ bool get editing=>widget.initial!=null;
+ bool get cancelled=>widget.initial?['eres_estado']=='CANCELADA';
+ int? get bookingId=>asId(widget.initial?['eres_id']);
+ @override void initState(){
+  super.initState();
+  final i=widget.initial;
+  if(i!=null){
+   name.text=i['eres_nombre']?.toString()??'';
+   phone.text=i['eres_telefono']?.toString()??'';
+   notes.text=i['eres_nota']?.toString()??'';
+   selectedTable=asId(i['mesa_id']);
+   seats=asId(i['eres_puestos'])??1;
+   source=i['eres_origen']?.toString()??'BAR';
+  }
+  load();
+ }
  @override void dispose(){
   name.dispose();phone.dispose();notes.dispose();super.dispose();
  }
@@ -722,7 +755,8 @@ class _ReservaInternaState extends ConsumerState<_ReservaInternaDialog>{
    setState((){
     tables=values;loading=false;
     if(selectedTable!=null&&!tables.any((t)=>
-      asId(t['id'])==selectedTable&&t['estado']=='DISPONIBLE')){
+      asId(t['id'])==selectedTable&&
+      (t['estado']=='DISPONIBLE'||(!cancelled&&editing&&asId(t['id'])==asId(widget.initial?['mesa_id']))))){
      selectedTable=null;seats=1;
     }
    });
@@ -739,11 +773,17 @@ class _ReservaInternaState extends ConsumerState<_ReservaInternaDialog>{
   }
   setState(()=>saving=true);
   try{
-   await ref.read(eventosApiProvider).reservarInterna(widget.eventId,{
+   final body={
     'mesaId':selectedTable,'puestos':seats,
     'nombre':name.text.trim(),'telefono':phone.text.trim(),
     'origen':source,'nota':notes.text.trim(),
-   });
+   };
+   if(editing){
+    await ref.read(eventosApiProvider).editarReservaInterna(
+      bookingId!,{...body,'reactivar':reactivate});
+   }else{
+    await ref.read(eventosApiProvider).reservarInterna(widget.eventId,body);
+   }
    if(mounted)Navigator.of(context).pop(true);
   }catch(e){
    if(mounted){
@@ -774,7 +814,7 @@ class _ReservaInternaState extends ConsumerState<_ReservaInternaDialog>{
        const Icon(Icons.event_seat_outlined,color:EventColors.primary,size:29),
        const SizedBox(width:11),
        Expanded(child:Column(crossAxisAlignment:CrossAxisAlignment.start,children:[
-        const Text('Registrar reserva sin cobro',
+        Text(editing?'Modificar reserva sin cobro':'Registrar reserva sin cobro',
          style:TextStyle(color:EventColors.text,
           fontWeight:FontWeight.w900,fontSize:21)),
         const SizedBox(height:4),
@@ -823,7 +863,8 @@ class _ReservaInternaState extends ConsumerState<_ReservaInternaDialog>{
         itemBuilder:(context,i){
          final table=tables[i];
          final id=asId(table['id']);
-         final free=table['estado']=='DISPONIBLE';
+         final current=editing&&!cancelled&&id==asId(widget.initial?['mesa_id']);
+         final free=table['estado']=='DISPONIBLE'||current;
          final active=id==selectedTable;
          return InkWell(
           onTap:free&&id!=null?()=>setState((){
@@ -875,6 +916,25 @@ class _ReservaInternaState extends ConsumerState<_ReservaInternaDialog>{
           if(value!=null)setState(()=>seats=value);
          }),
        ],
+       if(editing&&cancelled)...[
+        const SizedBox(height:14),
+        EventPanel(background:EventColors.surfaceLight,child:Column(
+         crossAxisAlignment:CrossAxisAlignment.start,children:[
+          const Text('Reserva cancelada',style:TextStyle(
+           color:EventColors.warning,fontWeight:FontWeight.w800)),
+          const SizedBox(height:7),
+          const Text('Puedes corregir los datos sin ocupar la mesa. Para volver a apartarla, activa la opción y confirma que sigue disponible.',
+           style:TextStyle(color:EventColors.muted,fontSize:12)),
+          const SizedBox(height:9),
+          SwitchListTile(
+           value:reactivate,
+           contentPadding:EdgeInsets.zero,
+           title:const Text('Reactivar esta reserva',
+            style:TextStyle(color:EventColors.text)),
+           subtitle:const Text('Vuelve a bloquear la mesa seleccionada'),
+           onChanged:saving?null:(v)=>setState(()=>reactivate=v)),
+         ])),
+       ],
        const SizedBox(height:19),
        const EventSectionHeading(icon:Icons.person_outline,
         title:'Datos del responsable',
@@ -911,7 +971,9 @@ class _ReservaInternaState extends ConsumerState<_ReservaInternaDialog>{
         style:FilledButton.styleFrom(backgroundColor:EventColors.primary,
          foregroundColor:EventColors.onPrimary),
         icon:const Icon(Icons.check_circle_outline,size:18),
-        label:Text(saving?'Guardando...':'Confirmar sin cobro'));
+        label:Text(saving?'Guardando...':editing
+          ?(cancelled&&reactivate?'Guardar y reactivar':'Guardar cambios')
+          :'Confirmar sin cobro'));
        if(box.maxWidth<450)return Column(
         mainAxisSize:MainAxisSize.min,children:[
          SizedBox(width:double.infinity,child:saveButton),
