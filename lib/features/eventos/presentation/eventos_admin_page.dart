@@ -658,6 +658,38 @@ class _EventEditorState extends ConsumerState<EventoEditor>{
     const SizedBox(height:14),
     OutlinedButton.icon(onPressed:_image,icon:const Icon(Icons.upload),label:Text(photo==null?'Cargar afiche o imagen':'Cambiar imagen del evento')),
     if(photo!=null)const Text('Imagen seleccionada · JPG, PNG o WebP',style:TextStyle(color:sea)),
+    const SizedBox(height:13),
+    TextFormField(controller:mapsUrl,
+     decoration:const InputDecoration(labelText:'Ubicación de Google Maps *',
+      prefixIcon:Icon(Icons.location_on_outlined),
+      hintText:'https://maps.app.goo.gl/...',
+      border:OutlineInputBorder()),
+     validator:(v)=>(v?.trim().isEmpty??true)?'Pega la ubicación de Google Maps':null),
+    const SizedBox(height:7),
+    const Text('En Google Maps pulsa Compartir y copia el enlace del lugar.',
+     style:TextStyle(color:eventSecondary,fontSize:12)),
+    const SizedBox(height:15),
+    Row(children:[
+     const Expanded(child:Text('Fotos del establecimiento',
+      style:TextStyle(fontWeight:FontWeight.w700))),
+     TextButton.icon(onPressed:venuePhotos.length>=4?null:_venueImage,
+      icon:const Icon(Icons.add_photo_alternate_outlined),
+      label:const Text('Agregar fotos')),
+    ]),
+    if(venuePhotos.isNotEmpty)SizedBox(height:118,child:ListView.separated(
+     scrollDirection:Axis.horizontal,
+     itemCount:venuePhotos.length,
+     separatorBuilder:(_,__)=>const SizedBox(width:8),
+     itemBuilder:(ctx,i)=>Stack(children:[
+      ClipRRect(borderRadius:BorderRadius.circular(12),
+       child:_photoSource(venuePhotos[i])==null
+        ?const SizedBox(width:150,height:105)
+        :Image(image:_photoSource(venuePhotos[i])!,width:150,height:105,fit:BoxFit.cover)),
+      Positioned(top:2,right:2,child:IconButton.filledTonal(
+       icon:const Icon(Icons.close,size:15),
+       onPressed:()=>setState(()=>venuePhotos.removeAt(i)))),
+     ]),
+    )),
     const SizedBox(height:14),
     DropdownButtonFormField<int>(value:branch,decoration:const InputDecoration(labelText:'Sucursal *',border:OutlineInputBorder()),
      items:branches.where((e)=>e.sucuId!=null).map((b)=>DropdownMenuItem(value:b.sucuId,child:Text(b.sucuNombre??'Sucursal'))).toList(),
@@ -677,11 +709,33 @@ class _EventEditorState extends ConsumerState<EventoEditor>{
     const SizedBox(height:20),
     Text('Mesas habilitadas para este evento',style:Theme.of(context).textTheme.titleMedium),
     const SizedBox(height:7),
-    Wrap(spacing:8,runSpacing:8,children:tables.map((m){
+    const Text('Configura hasta 30 puestos en cada mesa seleccionada (predeterminado: 6).',
+     style:TextStyle(color:eventSecondary,fontSize:12)),
+    const SizedBox(height:9),
+    Wrap(spacing:10,runSpacing:10,children:tables.map((m){
      final id=asId(m['mesaId']);
      if(id==null)return const SizedBox.shrink();
-     return FilterChip(label:Text('Mesa '+(m['mesaNumero']?.toString()??id.toString())),
-      selected:chosen.contains(id),onSelected:(v)=>setState((){if(v)chosen.add(id);else chosen.remove(id);}));
+     final active=chosen.contains(id);
+     return Container(width:163,padding:const EdgeInsets.all(9),
+      decoration:BoxDecoration(
+       color:active?const Color(0xff1c4b5d):const Color(0xff183647),
+       borderRadius:BorderRadius.circular(13),
+       border:Border.all(color:active?sea:eventBorder)),
+      child:Column(mainAxisSize:MainAxisSize.min,children:[
+       FilterChip(label:Text('Mesa '+(m['mesaNumero']?.toString()??id.toString())),
+        selected:active,onSelected:(v)=>setState((){
+         if(v){chosen.add(id);capacities.putIfAbsent(id,()=>6);}
+         else{chosen.remove(id);capacities.remove(id);}
+        })),
+       if(active)...[
+        const Text('Puestos',style:TextStyle(fontSize:11,color:eventSecondary)),
+        DropdownButton<int>(value:capacities[id]??6,
+         items:List.generate(30,(i)=>DropdownMenuItem(
+          value:i+1,child:Text('${i+1} puestos'))),
+         onChanged:(v)=>setState(()=>capacities[id]=v??6)),
+       ],
+      ]),
+     );
     }).toList()),
     if(tables.isEmpty)const Padding(padding:EdgeInsets.all(9),child:Text('No se encontraron mesas para la sucursal seleccionada.')),
     const SizedBox(height:18),
@@ -693,7 +747,12 @@ class _EventEditorState extends ConsumerState<EventoEditor>{
       DropdownMenuItem(value:'MERCADOPAGO',child:Text('Pago electrónico / PSE (Mercado Pago)')),
      ],onChanged:(v)=>setState((){method=v??'GRATIS';if(method=='GRATIS')amount.text='0';})),
     const SizedBox(height:13),
-    TextFormField(controller:amount,keyboardType:TextInputType.number,decoration:const InputDecoration(labelText:'Valor de reserva por mesa (COP)',prefixText:'\$ ',border:OutlineInputBorder())),
+    TextFormField(controller:amount,keyboardType:TextInputType.number,
+     decoration:const InputDecoration(labelText:'Precio por puesto (COP)',
+      prefixText:'\$ ',border:OutlineInputBorder())),
+    const SizedBox(height:6),
+    const Text('El total se calcula multiplicando el valor por la cantidad de puestos reservados.',
+     style:TextStyle(color:eventSecondary,fontSize:12)),
     if(method=='MANUAL')...[
      const SizedBox(height:13),TextFormField(controller:instructions,maxLines:3,
       decoration:const InputDecoration(labelText:'Instrucciones de pago / datos del negocio',border:OutlineInputBorder()))
