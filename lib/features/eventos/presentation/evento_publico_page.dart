@@ -133,7 +133,8 @@ class _PublicState extends ConsumerState<EventoPublicoPage>{
   final tables=(e['mesas'] as List? ??[]).whereType<Map>().map((x)=>Map<String,dynamic>.from(x)).toList();
   final catalog=(e['carta'] as List? ??[]).whereType<Map>().map((x)=>Map<String,dynamic>.from(x)).toList();
   final unitPrice=double.tryParse(e['precio']?.toString()??'')??0;
-  final total=unitPrice*seats;
+  final bySeat=e['precioPorPuesto']==true;
+  final total=bySeat?unitPrice*seats:unitPrice;
   final mapsUrl=e['ubicacionGoogleMaps']?.toString()??'';
   final selectedTables=tables.where((t)=>t['id']==selected).toList();
   final maxSeats=selectedTables.isEmpty?1:((selectedTables.first['capacidad'] as num?)?.toInt()??6);
@@ -168,7 +169,8 @@ class _PublicState extends ConsumerState<EventoPublicoPage>{
          _chip(Icons.location_on_outlined,e['direccion']?.toString()??'')
         ]),
         const SizedBox(height:18),
-        Text(unitPrice==0?'RESERVA GRATUITA':'Precio por puesto · '+money(unitPrice),
+        Text(unitPrice==0?'RESERVA GRATUITA':
+         (bySeat?'Precio por puesto · ':'Precio por mesa · ')+money(unitPrice),
           style:const TextStyle(color:accent,fontWeight:FontWeight.bold,fontSize:19))
        ]))))))),
      SliverToBoxAdapter(child:Center(child:ConstrainedBox(constraints:const BoxConstraints(maxWidth:1100),
