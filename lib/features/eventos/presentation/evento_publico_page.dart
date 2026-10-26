@@ -173,7 +173,17 @@ class _PublicState extends ConsumerState<EventoPublicoPage>{
        ]))))))),
      SliverToBoxAdapter(child:Center(child:ConstrainedBox(constraints:const BoxConstraints(maxWidth:1100),
       child:Padding(padding:const EdgeInsets.all(23),child:Column(crossAxisAlignment:CrossAxisAlignment.start,children:[
-       _h('El evento'),Text(e['descripcion']?.toString()??'',style:const TextStyle(color:muted,height:1.65,fontSize:16)),
+       _h('El evento'),
+       Text(e['descripcion']?.toString()??'',
+        style:const TextStyle(color:muted,height:1.65,fontSize:16)),
+       if(e['imagen']!=null && cover(e['imagen'])!=null)...[
+        const SizedBox(height:19),
+        Center(child:ClipRRect(borderRadius:BorderRadius.circular(20),
+         child:Image(image:cover(e['imagen'])!,
+          width:wide?650:MediaQuery.sizeOf(context).width-46,
+          height:wide?310:210,fit:BoxFit.cover,
+          errorBuilder:(_,__,___)=>const SizedBox.shrink()))),
+       ],
        const SizedBox(height:30),
        if(venue.isNotEmpty)...[
         _h('Conoce el lugar'),
@@ -229,7 +239,7 @@ class _PublicState extends ConsumerState<EventoPublicoPage>{
         return InkWell(
          onTap:free?()=>setState((){
           selected=tableId;
-          seats=seats.clamp(1,seatsAvailable);
+          seats=seats.clamp(1,seatsAvailable).toInt();
          }):null,
          borderRadius:BorderRadius.circular(18),
          child:AnimatedContainer(
