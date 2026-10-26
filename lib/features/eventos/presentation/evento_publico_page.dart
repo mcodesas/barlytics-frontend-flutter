@@ -109,7 +109,7 @@ class _PublicState extends ConsumerState<EventoPublicoPage>{
         const SizedBox(height:18),
         Text((e['precio'] as num).toDouble()==0?'RESERVA GRATUITA':'Reserva por mesa · '+money(e['precio']),
           style:const TextStyle(color:accent,fontWeight:FontWeight.bold,fontSize:19))
-       ])))))),
+       ]))))))),
      SliverToBoxAdapter(child:Center(child:ConstrainedBox(constraints:const BoxConstraints(maxWidth:1100),
       child:Padding(padding:const EdgeInsets.all(23),child:Column(crossAxisAlignment:CrossAxisAlignment.start,children:[
        _h('El evento'),Text(e['descripcion']?.toString()??'',style:const TextStyle(color:muted,height:1.65,fontSize:16)),
@@ -118,10 +118,10 @@ class _PublicState extends ConsumerState<EventoPublicoPage>{
        const Text('Disponibilidad actualizada. Las mesas apartadas aparecen bloqueadas.',style:TextStyle(color:muted)),
        const SizedBox(height:16),
        Wrap(spacing:12,runSpacing:12,children:tables.map((t){
-        final num=(t['id'] as num).toInt();
+        final tableId=(t['id'] as num).toInt();
         final free=t['estado']=='DISPONIBLE';
-        final checked=selected==num;
-        return InkWell(onTap:free?()=>setState(()=>selected=num):null,
+        final checked=selected==tableId;
+        return InkWell(onTap:free?()=>setState(()=>selected=tableId):null,
          child:AnimatedContainer(duration:const Duration(milliseconds:180),width:wide?194:152,padding:const EdgeInsets.all(15),
           decoration:BoxDecoration(color:checked?teal.withOpacity(.19):const Color(0xff192540),
            border:Border.all(color:checked?teal:Colors.white12,width:checked?2:1),borderRadius:BorderRadius.circular(18)),
