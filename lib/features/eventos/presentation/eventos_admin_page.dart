@@ -502,11 +502,13 @@ class EventoEditor extends ConsumerStatefulWidget{
 class _EventEditorState extends ConsumerState<EventoEditor>{
  final form=GlobalKey<FormState>();
  final title=TextEditingController(),description=TextEditingController(),
-       amount=TextEditingController(text:'0'),instructions=TextEditingController();
+       amount=TextEditingController(text:'0'),instructions=TextEditingController(),
+       mapsUrl=TextEditingController();
  DateTime start=DateTime.now().add(const Duration(days:1)).copyWith(hour:20,minute:0),
    finish=DateTime.now().add(const Duration(days:2)).copyWith(hour:2,minute:0);
  String method='GRATIS';String? photo;bool publish=false,busy=false;
  int? branch;Set<int> chosen={};List<Map<String,dynamic>> tables=[];
+ Map<int,int> capacities={};List<String> venuePhotos=[];
  @override void initState(){
   super.initState();
   final i=widget.initial;
@@ -519,10 +521,14 @@ class _EventEditorState extends ConsumerState<EventoEditor>{
    finish=DateTime.tryParse(i['even_fin']?.toString()??'')??finish;
    branch=asId(i['sucu_id']);
    chosen=(i['mesas'] as List? ??[]).map(asId).whereType<int>().toSet();
+   mapsUrl.text=i['even_maps_url']?.toString()??'';
+   capacities=(i['capacidadesMesas'] as Map? ??{}).map((key,value)=>
+    MapEntry(int.tryParse(key.toString())??-1,asId(value)??6))..remove(-1);
+   venuePhotos=(i['fotosLugar'] as List? ??[]).whereType<String>().toList();
   }
   WidgetsBinding.instance.addPostFrameCallback((_){if(mounted)_loadTables();});
  }
- @override void dispose(){title.dispose();description.dispose();amount.dispose();instructions.dispose();super.dispose();}
+ @override void dispose(){title.dispose();description.dispose();amount.dispose();instructions.dispose();mapsUrl.dispose();super.dispose();}
  Future<void> _loadTables()async{
   final branchState=ref.read(branchScopeProvider);
   branch??=branchState.activeBranchId;
@@ -530,6 +536,42 @@ class _EventEditorState extends ConsumerState<EventoEditor>{
   try{final t=await ref.read(eventosApiProvider).mesas(branch!);
     if(mounted)setState(()=>tables=t.where((e)=>e['mesaEstado']?.toString().toUpperCase()!='INACTIVA').toList());
   }catch(e){if(mounted)ScaffoldMessenger.of(context).showSnackBar(SnackBar(content:Text('Mesas: '+niceEventError(e))));}
+ }
+ Future<void> _venueImage()async{
+  final files=await FilePicker.platform.pickFiles(allowMultiple:true,
+   type:FileType.image,withData:true);
+  if(files==null)return;
+  final next=<String>[];
+  for(final file in files.files){
+   if(file.bytes==null||file.size>700000){
+    if(mounted)ScaffoldMessenger.of(context).showSnackBar(
+     const SnackBar(content:Text('Máximo 700 KB por foto')));
+    return;
+   }
+   final ext=file.extension?.toLowerCase();
+   if(!['jpg','jpeg','png','webp'].contains(ext)){
+    if(mounted)ScaffoldMessenger.of(context).showSnackBar(
+     const SnackBar(content:Text('Solo JPG, PNG o WebP')));
+    return;
+   }
+   final mime=ext=='png'?'image/png':ext=='webp'?'image/webp':'image/jpeg';
+   next.add('data:'+mime+';base64,'+base64Encode(file.bytes!));
+  }
+  if(venuePhotos.length+next.length>4){
+   if(mounted)ScaffoldMessenger.of(context).showSnackBar(
+    const SnackBar(content:Text('Se admiten máximo cuatro fotos del establecimiento')));
+   return;
+  }
+  if(mounted)setState(()=>venuePhotos=[...venuePhotos,...next]);
+ }
+ ImageProvider? _photoSource(String raw){
+  try{
+   if(raw.startsWith('data:image/')&&raw.contains(',')){
+    return MemoryImage(base64Decode(raw.substring(raw.indexOf(',')+1)));
+   }
+   if(raw.startsWith('https://'))return NetworkImage(raw);
+  }catch(_){}
+  return null;
  }
  Future<void> _pick(bool beginning,bool date)async{
   final original=beginning?start:finish;
@@ -562,7 +604,13 @@ class _EventEditorState extends ConsumerState<EventoEditor>{
   setState(()=>photo='data:'+mime+';base64,'+base64Encode(file.bytes!));
  }
  Future<void> _save()async{
-  if(!(form.currentState?.validate()??false))return;
+  if(busy||!(form.currentState?.validate()??false))return;
+  final location=Uri.tryParse(mapsUrl.text.trim());
+  if(location==null||location.scheme!='https'||
+   !const ['maps.app.goo.gl','goo.gl','maps.google.com','google.com','www.google.com'].contains(location.host.toLowerCase())){
+   ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+    content:Text('Pega un enlace de ubicación válido de Google Maps')));return;
+  }
   if(branch==null||chosen.isEmpty){ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content:Text('Selecciona sucursal y por lo menos una mesa')));return;}
   if(!finish.isAfter(start)){ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content:Text('La fecha/hora de fin debe ser posterior al inicio')));return;}
   final price=double.tryParse(amount.text.replaceAll(',','.'))??-1;
@@ -574,7 +622,9 @@ class _EventEditorState extends ConsumerState<EventoEditor>{
    final body={'sucursalId':branch,'titulo':title.text.trim(),'descripcion':description.text.trim(),
     'imagen':photo,'inicio':start.toIso8601String(),'fin':finish.toIso8601String(),
     'precio':price,'medioPago':method,'instruccionesPago':instructions.text.trim(),
-    'mesas':chosen.toList(),'publicar':publish};
+    'mesas':chosen.toList(),'publicar':publish,
+    'googleMapsUrl':mapsUrl.text.trim(),'fotosLugar':venuePhotos,
+    'capacidadesMesas':{for(final id in chosen)id.toString():capacities[id]??6}};
    final api=ref.read(eventosApiProvider);
    final result=widget.initial==null
      ?await api.crear(body)
@@ -611,7 +661,7 @@ class _EventEditorState extends ConsumerState<EventoEditor>{
     const SizedBox(height:14),
     DropdownButtonFormField<int>(value:branch,decoration:const InputDecoration(labelText:'Sucursal *',border:OutlineInputBorder()),
      items:branches.where((e)=>e.sucuId!=null).map((b)=>DropdownMenuItem(value:b.sucuId,child:Text(b.sucuNombre??'Sucursal'))).toList(),
-     onChanged:(v){setState((){branch=v;tables=[];chosen={};});_loadTables();}),
+     onChanged:(v){setState((){branch=v;tables=[];chosen={};capacities={};});_loadTables();}),
     const SizedBox(height:15),
     Text('Inicio del evento',style:Theme.of(context).textTheme.titleMedium),
     Wrap(spacing:10,runSpacing:8,children:[
