@@ -3,7 +3,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
-import 'package:qr_flutter/qr_flutter.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../data/eventos_api.dart';
 
@@ -20,7 +19,7 @@ String when(Object? raw){
  final dt=DateTime.tryParse(raw?.toString()??'');
  return dt==null?'Pendiente':DateFormat("EEE d MMM yyyy · h:mm a",'es_CO').format(dt);
 }
-String money(Object? raw)=>NumberFormat.currency(locale:'es_CO',symbol:'$',decimalDigits:0).format(double.tryParse(raw.toString())??0);
+String money(Object? raw)=>NumberFormat.currency(locale:'es_CO',symbol:'\$',decimalDigits:0).format(double.tryParse(raw.toString())??0);
 
 class EventoPublicoPage extends ConsumerStatefulWidget{
  const EventoPublicoPage({super.key,required this.slug});
@@ -199,7 +198,6 @@ class _EntradaState extends ConsumerState<EventoEntradaPublicaPage>{
  }
  @override Widget build(BuildContext context){
   final confirmed=value?['estado']=='CONFIRMADA';
-  final link=ref.read(eventosApiProvider).entradaLink(widget.token);
   return Scaffold(backgroundColor:ink,body:SafeArea(child:Center(child:SingleChildScrollView(
    padding:const EdgeInsets.all(20),child:ConstrainedBox(constraints:const BoxConstraints(maxWidth:460),
     child:Card(color:const Color(0xff1b2945),child:Padding(padding:const EdgeInsets.all(25),
@@ -218,8 +216,28 @@ class _EntradaState extends ConsumerState<EventoEntradaPublicaPage>{
        Text('Fin: '+when(value!['fin']),style:const TextStyle(color:muted)),
       ],
       const SizedBox(height:17),
-      if(confirmed)Container(color:Colors.white,padding:const EdgeInsets.all(12),
-       child:QrImageView(data:link,backgroundColor:Colors.white,size:210))
+      if(confirmed)Container(
+       color: Colors.white,
+       padding: const EdgeInsets.all(12),
+       child: Image.network(
+        ref.read(eventosApiProvider).qrLink(widget.token),
+        width: 210,
+        height: 210,
+        fit: BoxFit.contain,
+        errorBuilder: (context, error, stackTrace) =>
+          const SizedBox(
+            width: 210,
+            height: 210,
+            child: Center(
+              child: Text(
+                'No se pudo cargar el QR. Usa el botón Descargar QR.',
+                style: TextStyle(color: Colors.black87),
+                textAlign: TextAlign.center,
+              ),
+            ),
+          ),
+       ),
+      )
       else const Icon(Icons.pending_actions_rounded,color:accent,size:65),
       const SizedBox(height:13),
       Text(confirmed?'ENTRADA CONFIRMADA':value?['estado']?.toString()??error??'Cargando...',

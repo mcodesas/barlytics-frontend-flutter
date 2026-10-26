@@ -304,7 +304,7 @@ class _EventEditorState extends ConsumerState<EventoEditor>{
       DropdownMenuItem(value:'MERCADOPAGO',child:Text('Pago electrónico / PSE (Mercado Pago)')),
      ],onChanged:(v)=>setState((){method=v??'GRATIS';if(method=='GRATIS')amount.text='0';})),
     const SizedBox(height:13),
-    TextFormField(controller:amount,keyboardType:TextInputType.number,decoration:const InputDecoration(labelText:'Valor de reserva por mesa (COP)',prefixText:'$ ',border:OutlineInputBorder())),
+    TextFormField(controller:amount,keyboardType:TextInputType.number,decoration:const InputDecoration(labelText:'Valor de reserva por mesa (COP)',prefixText:'\$ ',border:OutlineInputBorder())),
     if(method=='MANUAL')...[
      const SizedBox(height:13),TextFormField(controller:instructions,maxLines:3,
       decoration:const InputDecoration(labelText:'Instrucciones de pago / datos del negocio',border:OutlineInputBorder()))

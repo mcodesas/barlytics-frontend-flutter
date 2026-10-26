@@ -154,12 +154,31 @@ class _ManagerHomePageState extends ConsumerState<ManagerHomePage> {
                   ),
                 ),
                 SliverToBoxAdapter(
-                  child: Center(child:ConstrainedBox(constraints: const BoxConstraints(maxWidth: 1440),
-                    child: Padding(padding:const EdgeInsets.symmetric(horizontal:16,vertical:5),
-                      child:Card(child:ListTile(leading:const Icon(Icons.event_available_outlined,color:Color(0xff009da9)),
-                        title:const Text('Eventos y reservas',style:TextStyle(fontWeight:FontWeight.bold)),
-                        subtitle:const Text('Crea eventos con fecha y hora, comparte el enlace y administra las mesas y los pagos'),
-                        trailing:const Icon(Icons.chevron_right),onTap:()=>context.go('/eventos'))))),
+                  child: Center(
+                    child: ConstrainedBox(
+                      constraints: const BoxConstraints(maxWidth: 1440),
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 5),
+                        child: Card(
+                          child: ListTile(
+                            leading: const Icon(
+                              Icons.event_available_outlined,
+                              color: Color(0xff009da9),
+                            ),
+                            title: const Text(
+                              'Eventos y reservas',
+                              style: TextStyle(fontWeight: FontWeight.bold),
+                            ),
+                            subtitle: const Text(
+                              'Crea eventos con fecha y hora, comparte el enlace y administra las mesas y los pagos',
+                            ),
+                            trailing: const Icon(Icons.chevron_right),
+                            onTap: () => context.go('/eventos'),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
                 ),
                 if (showTeamSetupAlert)
                   SliverToBoxAdapter(
