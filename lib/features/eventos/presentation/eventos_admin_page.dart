@@ -960,6 +960,82 @@ class _EventEditorState extends ConsumerState<EventoEditor>{
      ]));
  }
 
+ /// Pie fijo del editor: ocupa todo el ancho, no una franja centrada.
+ Widget _editorFooter(){
+   final cancel=OutlinedButton(
+     onPressed:busy?null:()=>Navigator.pop(context),
+     style:OutlinedButton.styleFrom(
+       foregroundColor:EventColors.text,
+       side:const BorderSide(color:EventColors.border),
+       padding:const EdgeInsets.symmetric(horizontal:20,vertical:17),
+       shape:RoundedRectangleBorder(borderRadius:BorderRadius.circular(12))),
+     child:const Text('Cancelar'),
+   );
+   final draft=OutlinedButton.icon(
+     onPressed:busy?null:(){
+       setState(()=>publish=false);
+       _save();
+     },
+     style:OutlinedButton.styleFrom(
+       foregroundColor:EventColors.primary,
+       side:const BorderSide(color:EventColors.primary),
+       padding:const EdgeInsets.symmetric(horizontal:20,vertical:17),
+       shape:RoundedRectangleBorder(borderRadius:BorderRadius.circular(12))),
+     icon:const Icon(Icons.save_outlined,size:18),
+     label:Text(busy?'Guardando...':'Guardar borrador'),
+   );
+   final publishButton=FilledButton.icon(
+     onPressed:busy?null:(){
+       setState(()=>publish=true);
+       _save();
+     },
+     style:FilledButton.styleFrom(
+       backgroundColor:EventColors.primary,
+       foregroundColor:EventColors.onPrimary,
+       padding:const EdgeInsets.symmetric(horizontal:23,vertical:17),
+       shape:RoundedRectangleBorder(borderRadius:BorderRadius.circular(12))),
+     icon:const Icon(Icons.send_outlined,size:18),
+     label:Text(busy?'Publicando...':'Publicar evento'),
+   );
+   return Container(
+     width:double.infinity,
+     padding:const EdgeInsets.symmetric(horizontal:21,vertical:15),
+     decoration:const BoxDecoration(
+       color:Color(0xFF082532),
+       border:Border(top:BorderSide(color:EventColors.border))),
+     child:LayoutBuilder(builder:(context,available){
+       // En pantallas pequeñas todos los botones son accesibles,
+       // sin solaparse ni desbordarse.
+       if(available.maxWidth<500){
+         return Column(mainAxisSize:MainAxisSize.min,children:[
+           SizedBox(width:double.infinity,child:publishButton),
+           const SizedBox(height:9),
+           SizedBox(width:double.infinity,child:draft),
+           const SizedBox(height:9),
+           SizedBox(width:double.infinity,child:cancel),
+         ]);
+       }
+       if(available.maxWidth<780){
+         return Column(mainAxisSize:MainAxisSize.min,children:[
+           SizedBox(width:double.infinity,child:publishButton),
+           const SizedBox(height:9),
+           Row(children:[
+             Expanded(child:cancel),
+             const SizedBox(width:10),
+             Expanded(child:draft),
+           ]),
+         ]);
+       }
+       return Row(children:[
+         cancel,
+         const Spacer(),
+         draft,
+         const SizedBox(width:12),
+         publishButton,
+       ]);
+     }),
+   );
+ }
  @override Widget build(BuildContext context){
    final branches=ref.watch(branchScopeProvider).branches;
    return Theme(
@@ -1017,26 +1093,7 @@ class _EventEditorState extends ConsumerState<EventoEditor>{
              padding:const EdgeInsets.fromLTRB(0,13,13,13),
              child:SingleChildScrollView(child:_summary()))),
          ])),
-         Container(padding:const EdgeInsets.fromLTRB(14,11,14,13),
-           decoration:const BoxDecoration(color:Color(0xFF082532),
-             border:Border(top:BorderSide(color:EventColors.border))),
-           child:Wrap(alignment:WrapAlignment.end,spacing:9,runSpacing:8,
-             children:[
-               OutlinedButton(onPressed:busy?null:()=>Navigator.pop(context),
-                 child:const Text('Cancelar')),
-               OutlinedButton.icon(onPressed:busy?null:(){
-                 setState(()=>publish=false);_save();
-               },icon:const Icon(Icons.save_outlined,size:17),
-                 label:Text(busy?'Guardando...':'Guardar borrador')),
-               FilledButton.icon(
-                 onPressed:busy?null:(){setState(()=>publish=true);_save();},
-                 style:FilledButton.styleFrom(
-                   backgroundColor:EventColors.primary,
-                   foregroundColor:EventColors.onPrimary,
-                   padding:const EdgeInsets.symmetric(horizontal:20,vertical:14)),
-                 icon:const Icon(Icons.send_outlined,size:17),
-                 label:Text(busy?'Publicando...':'Publicar evento')),
-             ])),
+         _editorFooter(),
        ]);
      })),
    );
