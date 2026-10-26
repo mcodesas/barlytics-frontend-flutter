@@ -169,35 +169,154 @@ class _EventosAdminState extends ConsumerState<EventosAdminPage>{
    final data=await ref.read(eventosApiProvider).detalle(id);
    if(!mounted)return;
    await showDialog<void>(context:context,builder:(dialog)=>Dialog(
-    child:ConstrainedBox(constraints:const BoxConstraints(maxWidth:800,maxHeight:680),
-     child:Padding(padding:const EdgeInsets.all(22),child:Column(crossAxisAlignment:CrossAxisAlignment.start,children:[
-      Text(data['even_titulo']?.toString()??'',style:Theme.of(dialog).textTheme.headlineSmall),
-      const SizedBox(height:6),
-      Text('Inicio: '+(data['even_inicio']?.toString()??'')+'   ·   Final: '+(data['even_fin']?.toString()??'')),
-      const SizedBox(height:13),
-      Expanded(child:ListView(children:[
-       for(final raw in data['reservas'] as List? ??[])
-        Builder(builder:(context){
-         final r=Map<String,dynamic>.from(raw as Map);
-         final status=r['eres_estado']?.toString()??'';
-         return Card(child:ListTile(
-          title:Text(r['eres_nombre']?.toString()??''),
-          subtitle:Text('Mesa '+r['mesa_id'].toString()+' · '+(r['eres_email']?.toString()??'')+
-           '\n'+status+' · Pago: '+(r['eres_pago_id']?.toString()??'Sin pago automático')),
-          isThreeLine:true,
-          trailing:status=='PENDIENTE_REVISION'?FilledButton.icon(
-           onPressed:()async{
-            try{
-             await ref.read(eventosApiProvider).aprobar(asId(r['eres_id'])!);
-             if(dialog.mounted){Navigator.pop(dialog);detail(id);}
-            }catch(e){if(dialog.mounted)ScaffoldMessenger.of(context).showSnackBar(SnackBar(content:Text(niceEventError(e))));}
-           },icon:const Icon(Icons.check),label:const Text('Aprobar')):null,
-         ));
-        }),
+    backgroundColor:EventColors.background,
+    shape:RoundedRectangleBorder(borderRadius:BorderRadius.circular(22)),
+    child:ConstrainedBox(
+     constraints:BoxConstraints(
+      maxWidth:890,maxHeight:MediaQuery.sizeOf(dialog).height*.89),
+     child:Padding(padding:const EdgeInsets.all(19),
+      child:Column(crossAxisAlignment:CrossAxisAlignment.start,children:[
+       Row(children:[
+        const Icon(Icons.groups_outlined,color:EventColors.primary,size:30),
+        const SizedBox(width:10),
+        Expanded(child:Column(crossAxisAlignment:CrossAxisAlignment.start,children:[
+         Text(data['even_titulo']?.toString()??'Evento',
+          style:const TextStyle(color:EventColors.text,
+           fontSize:20,fontWeight:FontWeight.w900)),
+         const SizedBox(height:4),
+         const Text('Reservas del evento · Web, mostrador y teléfono',
+          style:TextStyle(color:EventColors.muted,fontSize:12)),
+        ])),
+        IconButton(onPressed:()=>Navigator.pop(dialog),
+         icon:const Icon(Icons.close,color:EventColors.text)),
+       ]),
+       const SizedBox(height:14),
+       EventPanel(background:EventColors.surfaceLight,
+        child:Wrap(crossAxisAlignment:WrapCrossAlignment.center,
+         spacing:9,runSpacing:8,children:[
+          const Icon(Icons.info_outline,color:EventColors.primary,size:20),
+          const Text('Puedes registrar mesas apartadas directamente en el bar o por llamada, sin cobro.',
+           style:TextStyle(color:EventColors.text,fontSize:12)),
+         ])),
+       const SizedBox(height:13),
+       Align(alignment:Alignment.centerRight,child:FilledButton.icon(
+        onPressed:()async{
+         final added=await showDialog<bool>(context:dialog,
+          builder:(_)=>_ReservaInternaDialog(
+           eventId:id,eventTitle:data['even_titulo']?.toString()??'Evento'));
+         if(added==true&&dialog.mounted){
+          Navigator.of(dialog).pop();
+          if(mounted){
+           ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+            content:Text('Reserva interna registrada sin cobro. La mesa quedó apartada.')));
+           detail(id);
+          }
+         }
+        },
+        style:FilledButton.styleFrom(backgroundColor:EventColors.primary,
+         foregroundColor:EventColors.onPrimary),
+        icon:const Icon(Icons.add_circle_outline),
+        label:const Text('Agregar reserva del bar o llamada'))),
+       const SizedBox(height:12),
+       Expanded(child:ListView(children:[
+        if((data['reservas'] as List? ??[]).isEmpty)
+         const Padding(padding:EdgeInsets.all(30),
+          child:Center(child:Text('Todavía no se han registrado reservas.',
+           style:TextStyle(color:EventColors.muted)))),
+        for(final item in (data['reservas'] as List? ??[]))
+         Builder(builder:(context){
+          final r=Map<String,dynamic>.from(item as Map);
+          final state=r['eres_estado']?.toString()??'';
+          final origin=r['eres_origen']?.toString()??'WEB';
+          final internal=origin=='BAR'||origin=='LLAMADA';
+          final originLabel=origin=='BAR'?'Mostrador':
+            origin=='LLAMADA'?'Llamada':'Reserva web';
+          final paid=(double.tryParse(r['eres_importe']?.toString()??'')??0);
+          final money=NumberFormat.currency(
+           locale:'es_CO',symbol:'COP ',decimalDigits:0).format(paid);
+          return Padding(padding:const EdgeInsets.only(bottom:9),
+           child:EventPanel(background:EventColors.surface,
+            child:Column(crossAxisAlignment:CrossAxisAlignment.start,children:[
+             Wrap(spacing:9,runSpacing:8,
+              crossAxisAlignment:WrapCrossAlignment.center,children:[
+               EventPill(icon:internal?Icons.storefront:Icons.public,
+                label:originLabel,
+                color:internal?EventColors.gold:EventColors.primary),
+               EventPill(icon:Icons.event_seat_outlined,
+                label:'Mesa '+(r['mesa_numero']??r['mesa_id']).toString()),
+               EventPill(icon:Icons.groups_outlined,
+                label:(r['eres_puestos']??1).toString()+' puestos'),
+               EventPill(icon:Icons.check_circle_outline,label:state,
+                color:state=='CONFIRMADA'?EventColors.success:EventColors.warning),
+              ]),
+             const SizedBox(height:10),
+             Text(r['eres_nombre']?.toString()??'Asistente',
+              style:const TextStyle(color:EventColors.text,
+               fontSize:15,fontWeight:FontWeight.w800)),
+             const SizedBox(height:5),
+             Text(
+              [
+               if((r['eres_telefono']?.toString()??'').isNotEmpty)
+                'Tel.: '+r['eres_telefono'].toString(),
+               if((r['eres_email']?.toString()??'').isNotEmpty)
+                r['eres_email'].toString(),
+               internal?'Sin cobro':money,
+              ].join(' · '),
+              style:const TextStyle(color:EventColors.muted,fontSize:12)),
+             if((r['eres_nota']?.toString()??'').isNotEmpty)...[
+              const SizedBox(height:8),
+              Text(r['eres_nota'].toString(),
+               style:const TextStyle(color:EventColors.muted,fontSize:12)),
+             ],
+             if(state=='PENDIENTE_REVISION'||(internal&&state=='CONFIRMADA'))...[
+              const SizedBox(height:10),
+              Wrap(spacing:10,children:[
+               if(state=='PENDIENTE_REVISION')FilledButton.icon(
+                onPressed:()async{
+                 try{
+                  await ref.read(eventosApiProvider).aprobar(asId(r['eres_id'])!);
+                  if(dialog.mounted){Navigator.pop(dialog);detail(id);}
+                 }catch(e){
+                  if(mounted)ScaffoldMessenger.of(context).showSnackBar(
+                   SnackBar(content:Text(niceEventError(e))));
+                 }
+                },icon:const Icon(Icons.check,size:17),
+                label:const Text('Aprobar')),
+               if(internal&&state=='CONFIRMADA')OutlinedButton.icon(
+                onPressed:()async{
+                 final confirm=await showDialog<bool>(
+                  context:dialog,builder:(alert)=>AlertDialog(
+                   title:const Text('Liberar mesa'),
+                   content:const Text('Se cancelará esta reserva interna y la mesa volverá a estar disponible para este evento.'),
+                   actions:[
+                    TextButton(onPressed:()=>Navigator.pop(alert,false),
+                     child:const Text('Volver')),
+                    FilledButton(onPressed:()=>Navigator.pop(alert,true),
+                     child:const Text('Liberar mesa')),
+                   ]));
+                 if(confirm!=true)return;
+                 try{
+                  await ref.read(eventosApiProvider).cancelarReserva(asId(r['eres_id'])!);
+                  if(dialog.mounted){Navigator.pop(dialog);detail(id);}
+                 }catch(e){
+                  if(mounted)ScaffoldMessenger.of(context).showSnackBar(
+                   SnackBar(content:Text(niceEventError(e))));
+                 }
+                },
+                icon:const Icon(Icons.event_busy_outlined,size:17),
+                label:const Text('Liberar mesa')),
+              ]),
+             ],
+            ])));
+         }),
+       ])),
       ])),
-      Align(alignment:Alignment.centerRight,child:TextButton(onPressed:()=>Navigator.pop(dialog),child:const Text('Cerrar')))
-     ])))));
-  }catch(e){if(mounted)ScaffoldMessenger.of(context).showSnackBar(SnackBar(content:Text(niceEventError(e))));}
+    ),
+   ));
+  }catch(e){
+   if(mounted)ScaffoldMessenger.of(context).showSnackBar(
+    SnackBar(content:Text(niceEventError(e))));
+  }
  }
  Future<void> publish(int id)async{
   try{await ref.read(eventosApiProvider).publicar(id);await load();}
@@ -534,6 +653,236 @@ class _EventHint extends StatelessWidget{
    Text(label,style:const TextStyle(color:eventSecondary,fontSize:12)),
   ],
  );
+}
+
+
+/// Registro sin giro o pasarela: aparta la mesa del evento desde el establecimiento.
+class _ReservaInternaDialog extends ConsumerStatefulWidget{
+ const _ReservaInternaDialog({required this.eventId,required this.eventTitle});
+ final int eventId;
+ final String eventTitle;
+ @override ConsumerState<_ReservaInternaDialog> createState()=>_ReservaInternaState();
+}
+class _ReservaInternaState extends ConsumerState<_ReservaInternaDialog>{
+ final form=GlobalKey<FormState>();
+ final name=TextEditingController(),phone=TextEditingController(),
+  notes=TextEditingController();
+ List<Map<String,dynamic>> tables=[];
+ bool loading=true,saving=false;
+ String? error;
+ int? selectedTable;
+ int seats=1;
+ String source='BAR';
+ @override void initState(){super.initState();load();}
+ @override void dispose(){
+  name.dispose();phone.dispose();notes.dispose();super.dispose();
+ }
+ Future<void> load()async{
+  if(mounted)setState((){loading=true;error=null;});
+  try{
+   final values=await ref.read(eventosApiProvider).mesasEvento(widget.eventId);
+   if(!mounted)return;
+   setState((){
+    tables=values;loading=false;
+    if(selectedTable!=null&&!tables.any((t)=>
+      asId(t['id'])==selectedTable&&t['estado']=='DISPONIBLE')){
+     selectedTable=null;seats=1;
+    }
+   });
+  }catch(e){
+   if(mounted)setState((){loading=false;error=niceEventError(e);});
+  }
+ }
+ Future<void> save()async{
+  if(saving||!(form.currentState?.validate()??false))return;
+  if(selectedTable==null){
+   ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+    content:Text('Selecciona una mesa disponible para apartar')));
+   return;
+  }
+  setState(()=>saving=true);
+  try{
+   await ref.read(eventosApiProvider).reservarInterna(widget.eventId,{
+    'mesaId':selectedTable,'puestos':seats,
+    'nombre':name.text.trim(),'telefono':phone.text.trim(),
+    'origen':source,'nota':notes.text.trim(),
+   });
+   if(mounted)Navigator.of(context).pop(true);
+  }catch(e){
+   if(mounted){
+    setState(()=>saving=false);
+    ScaffoldMessenger.of(context).showSnackBar(
+     SnackBar(content:Text(niceEventError(e))));
+    // Recuperar la disponibilidad cuando otra persona reservó al mismo tiempo.
+    await load();
+   }
+  }
+ }
+ @override Widget build(BuildContext context){
+  final capacity=tables.where((t)=>asId(t['id'])==selectedTable)
+   .fold<int>(1,(v,t)=>asId(t['capacidad'])??6);
+  return Dialog(
+   backgroundColor:EventColors.background,
+   shape:RoundedRectangleBorder(borderRadius:BorderRadius.circular(23)),
+   child:ConstrainedBox(
+    constraints:BoxConstraints(maxWidth:760,maxHeight:MediaQuery.sizeOf(context).height*.92),
+    child:Form(key:form,child:Column(children:[
+     Container(width:double.infinity,
+      padding:const EdgeInsets.all(19),
+      decoration:const BoxDecoration(
+       gradient:LinearGradient(colors:[
+        Color(0xFF10475A),Color(0xFF0A2B3D)]),
+       borderRadius:BorderRadius.vertical(top:Radius.circular(23))),
+      child:Row(children:[
+       const Icon(Icons.event_seat_outlined,color:EventColors.primary,size:29),
+       const SizedBox(width:11),
+       Expanded(child:Column(crossAxisAlignment:CrossAxisAlignment.start,children:[
+        const Text('Registrar reserva sin cobro',
+         style:TextStyle(color:EventColors.text,
+          fontWeight:FontWeight.w900,fontSize:21)),
+        const SizedBox(height:4),
+        Text(widget.eventTitle,maxLines:1,overflow:TextOverflow.ellipsis,
+         style:const TextStyle(color:EventColors.muted,fontSize:12)),
+       ])),
+       IconButton(onPressed:saving?null:()=>Navigator.pop(context),
+        icon:const Icon(Icons.close,color:EventColors.text)),
+      ])),
+     Expanded(child:SingleChildScrollView(
+      padding:const EdgeInsets.all(18),
+      child:Column(crossAxisAlignment:CrossAxisAlignment.start,children:[
+       const EventSectionHeading(icon:Icons.call_outlined,
+        title:'Origen de la reserva',
+        subtitle:'Se confirmará de inmediato sin solicitar pago.'),
+       const SizedBox(height:12),
+       SegmentedButton<String>(
+        segments:const [
+         ButtonSegment(value:'BAR',label:Text('En el bar'),
+          icon:Icon(Icons.storefront_outlined)),
+         ButtonSegment(value:'LLAMADA',label:Text('Por llamada'),
+          icon:Icon(Icons.phone_outlined)),
+        ],
+        selected:{source},showSelectedIcon:true,
+        onSelectionChanged:(values)=>setState(()=>source=values.first)),
+       const SizedBox(height:18),
+       const EventSectionHeading(icon:Icons.table_restaurant_outlined,
+        title:'Selecciona la mesa',
+        subtitle:'Las mesas ya reservadas están bloqueadas.'),
+       const SizedBox(height:13),
+       if(loading)const Center(child:Padding(padding:EdgeInsets.all(25),
+        child:CircularProgressIndicator()))
+       else if(error!=null)EventPanel(child:Row(children:[
+        Expanded(child:Text(error!,
+         style:const TextStyle(color:EventColors.muted))),
+        TextButton(onPressed:load,child:const Text('Reintentar')),
+       ]))
+       else if(tables.isEmpty)const Text('El evento no tiene mesas habilitadas.',
+        style:TextStyle(color:EventColors.muted))
+       else GridView.builder(
+        shrinkWrap:true,physics:const NeverScrollableScrollPhysics(),
+        itemCount:tables.length,
+        gridDelegate:const SliverGridDelegateWithMaxCrossAxisExtent(
+         maxCrossAxisExtent:165,mainAxisExtent:145,
+         crossAxisSpacing:9,mainAxisSpacing:9),
+        itemBuilder:(context,i){
+         final table=tables[i];
+         final id=asId(table['id']);
+         final free=table['estado']=='DISPONIBLE';
+         final active=id==selectedTable;
+         return InkWell(
+          onTap:free&&id!=null?()=>setState((){
+           selectedTable=id;seats=1;
+          }):null,
+          borderRadius:BorderRadius.circular(12),
+          child:Container(
+           clipBehavior:Clip.antiAlias,
+           decoration:BoxDecoration(
+            color:active?const Color(0xFF154B5B):EventColors.surface,
+            borderRadius:BorderRadius.circular(12),
+            border:Border.all(color:active?EventColors.primary:EventColors.border,
+             width:active?2:1)),
+           child:Column(crossAxisAlignment:CrossAxisAlignment.stretch,children:[
+            Expanded(child:Stack(children:[
+             Positioned.fill(child:EventArtwork(source:table['foto'],
+              height:92,borderRadius:0)),
+             if(!free)Positioned.fill(child:Container(color:Colors.black54)),
+             if(active)const Positioned(top:6,right:6,
+              child:CircleAvatar(radius:12,backgroundColor:EventColors.primary,
+               child:Icon(Icons.check,size:15,color:EventColors.onPrimary))),
+            ])),
+            Padding(padding:const EdgeInsets.all(8),child:Column(
+             crossAxisAlignment:CrossAxisAlignment.start,children:[
+              Text('Mesa '+(table['numero']??id).toString(),
+               style:const TextStyle(color:EventColors.text,
+                fontWeight:FontWeight.w800,fontSize:12)),
+              Text(free?(table['capacidad']??6).toString()+' puestos':
+               'Ya reservada',
+               style:TextStyle(fontSize:11,
+                color:free?EventColors.success:EventColors.warning)),
+             ])),
+           ]),
+          ),
+         );
+        }),
+       if(selectedTable!=null)...[
+        const SizedBox(height:15),
+        Text('Cantidad de puestos (máximo '+capacity.toString()+')',
+         style:const TextStyle(color:EventColors.text,fontWeight:FontWeight.w700)),
+        const SizedBox(height:7),
+        DropdownButtonFormField<int>(
+         value:seats,
+         decoration:const InputDecoration(
+          labelText:'Puestos a apartar',border:OutlineInputBorder()),
+         items:List.generate(capacity,(i)=>DropdownMenuItem<int>(
+          value:i+1,child:Text((i+1).toString()+' puestos'))),
+         onChanged:saving?null:(value){
+          if(value!=null)setState(()=>seats=value);
+         }),
+       ],
+       const SizedBox(height:19),
+       const EventSectionHeading(icon:Icons.person_outline,
+        title:'Datos del responsable',
+        subtitle:'El teléfono es opcional; no se exige correo ni pago.'),
+       const SizedBox(height:11),
+       TextFormField(controller:name,maxLength:140,
+        decoration:const InputDecoration(labelText:'Nombre o responsable *',
+         border:OutlineInputBorder()),
+        validator:(v)=>(v?.trim().isEmpty??true)?'Escribe el nombre':null),
+       const SizedBox(height:10),
+       TextFormField(controller:phone,maxLength:40,
+        keyboardType:TextInputType.phone,
+        decoration:const InputDecoration(labelText:'Teléfono de contacto',
+         border:OutlineInputBorder())),
+       const SizedBox(height:10),
+       TextFormField(controller:notes,maxLength:600,maxLines:2,
+        decoration:const InputDecoration(labelText:'Observaciones (opcional)',
+         border:OutlineInputBorder())),
+       const SizedBox(height:8),
+       const EventPill(icon:Icons.verified_outlined,
+        label:'Reserva confirmada sin giro de dinero',
+        color:EventColors.success),
+      ]),
+     )),
+     Container(padding:const EdgeInsets.all(15),
+      decoration:const BoxDecoration(color:Color(0xFF082532),
+       border:Border(top:BorderSide(color:EventColors.border))),
+      child:Row(children:[
+       Expanded(child:OutlinedButton(
+        onPressed:saving?null:()=>Navigator.pop(context,false),
+        child:const Text('Cancelar'))),
+       const SizedBox(width:11),
+       Expanded(child:FilledButton.icon(
+        onPressed:saving?null:save,
+        style:FilledButton.styleFrom(
+         backgroundColor:EventColors.primary,
+         foregroundColor:EventColors.onPrimary),
+        icon:const Icon(Icons.check_circle_outline),
+        label:Text(saving?'Guardando...':'Confirmar sin cobro'))),
+      ]),
+     ),
+    ])),
+   ),
+  );
+ }
 }
 
 class EventoEditor extends ConsumerStatefulWidget{
