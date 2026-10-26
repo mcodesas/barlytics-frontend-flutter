@@ -32,9 +32,11 @@ import '../../data/models/productos_response_model.dart';
 import '../providers/productos_provider.dart';
 
 class ProductosFormPage extends ConsumerStatefulWidget {
-  const ProductosFormPage({super.key, this.id});
-
+  const ProductosFormPage({super.key, this.id, this.embedded = false, this.sucursalId});
   final String? id;
+  /// Abre el asistente dentro de Eventos y devuelve el ID creado al diálogo.
+  final bool embedded;
+  final int? sucursalId;
 
   @override
   ConsumerState<ProductosFormPage> createState() => _ProductosFormPageState();
@@ -120,7 +122,7 @@ class _ProductosFormPageState extends ConsumerState<ProductosFormPage> {
         : null;
     if (!mounted) return;
     setState(() {
-      _sucursalId = active ?? int.tryParse(raw ?? '');
+      _sucursalId = widget.sucursalId ?? active ?? int.tryParse(raw ?? '');
       _loadedStorage = true;
     });
     // El listado de productos puede estar paginado o filtrado. Al editar,
@@ -307,7 +309,7 @@ class _ProductosFormPageState extends ConsumerState<ProductosFormPage> {
   Widget build(BuildContext context) {
     final palette = ref.watch(selectedAppPaletteProvider);
     final activeSucursalId = ref.watch(branchScopeProvider).activeBranchId;
-    if (!_editing && activeSucursalId != null && _sucursalId != activeSucursalId) {
+    if (!widget.embedded && !_editing && activeSucursalId != null && _sucursalId != activeSucursalId) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (mounted) setState(() => _sucursalId = activeSucursalId);
       });
@@ -370,7 +372,7 @@ class _ProductosFormPageState extends ConsumerState<ProductosFormPage> {
                     palette: palette,
                     editing: _editing,
                     currentStep: _currentStep,
-                    onBack: () => context.go('/productos'),
+                    onBack: () => widget.embedded?Navigator.of(context).pop():context.go('/productos'),
                   ),
                 ),
                 SliverPadding(
@@ -2049,6 +2051,10 @@ class _ProductosFormPageState extends ConsumerState<ProductosFormPage> {
       }
 
       if (!mounted) return;
+      if (widget.embedded) {
+        Navigator.of(context).pop(savedProductId);
+        return;
+      }
       // No redirigir automáticamente a Inicio ni a una ficha que dependa
       // de un catálogo paginado. Mostrar un resultado claro y dejar que el
       // usuario elija cómo continuar.
