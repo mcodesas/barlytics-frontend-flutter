@@ -27,7 +27,7 @@ class EventoPublicoPage extends ConsumerStatefulWidget{
  @override ConsumerState<EventoPublicoPage> createState()=>_PublicState();
 }
 class _PublicState extends ConsumerState<EventoPublicoPage>{
- Map<String,dynamic>? event;String? error;int? selected;bool busy=false;
+ Map<String,dynamic>? event;String? error;int? selected;int seats=1;bool busy=false;
  final name=TextEditingController(),email=TextEditingController(),phone=TextEditingController();
  @override void initState(){super.initState();refresh();}
  @override void dispose(){name.dispose();email.dispose();phone.dispose();super.dispose();}
@@ -42,7 +42,7 @@ class _PublicState extends ConsumerState<EventoPublicoPage>{
   setState(()=>busy=true);
   try{
    final result=await ref.read(eventosApiProvider).reservar(widget.slug,{
-    'mesaId':selected,'nombre':name.text.trim(),'email':email.text.trim(),'telefono':phone.text.trim()
+    'mesaId':selected,'puestos':seats,'nombre':name.text.trim(),'email':email.text.trim(),'telefono':phone.text.trim()
    });
    if(!mounted)return;
    final token=result['token']?.toString()??'';
@@ -70,9 +70,16 @@ class _PublicState extends ConsumerState<EventoPublicoPage>{
   final e=event;
   if(e==null)return Scaffold(backgroundColor:ink,body:Center(child:Text(error??'Cargando evento...',style:const TextStyle(color:Colors.white))));
   final wide=MediaQuery.sizeOf(context).width>700;
-  final logo=cover(e['logo']),photo=cover(e['imagen']);
+  final venue=(e['fotosLugar'] as List? ??[]).whereType<String>().toList();
+  final logo=cover(e['logo']);
+  final photo=venue.isEmpty?cover(e['imagen']):cover(venue.first)??cover(e['imagen']);
   final tables=(e['mesas'] as List? ??[]).whereType<Map>().map((x)=>Map<String,dynamic>.from(x)).toList();
   final catalog=(e['carta'] as List? ??[]).whereType<Map>().map((x)=>Map<String,dynamic>.from(x)).toList();
+  final unitPrice=double.tryParse(e['precio']?.toString()??'')??0;
+  final total=unitPrice*seats;
+  final mapsUrl=e['ubicacionGoogleMaps']?.toString()??'';
+  final selectedTables=tables.where((t)=>t['id']==selected).toList();
+  final maxSeats=selectedTables.isEmpty?1:((selectedTables.first['capacidad'] as num?)?.toInt()??6);
   return Theme(data:ThemeData.dark(useMaterial3:true).copyWith(colorScheme:const ColorScheme.dark(primary:teal,surface:Color(0xff19243e))),
    child:Scaffold(backgroundColor:ink,body:RefreshIndicator(onRefresh:refresh,
     child:CustomScrollView(slivers:[
@@ -106,13 +113,55 @@ class _PublicState extends ConsumerState<EventoPublicoPage>{
          _chip(Icons.location_on_outlined,e['direccion']?.toString()??'')
         ]),
         const SizedBox(height:18),
-        Text((e['precio'] as num).toDouble()==0?'RESERVA GRATUITA':'Reserva por mesa · '+money(e['precio']),
+        Text(unitPrice==0?'RESERVA GRATUITA':'Precio por puesto · '+money(unitPrice),
           style:const TextStyle(color:accent,fontWeight:FontWeight.bold,fontSize:19))
        ]))))))),
      SliverToBoxAdapter(child:Center(child:ConstrainedBox(constraints:const BoxConstraints(maxWidth:1100),
       child:Padding(padding:const EdgeInsets.all(23),child:Column(crossAxisAlignment:CrossAxisAlignment.start,children:[
        _h('El evento'),Text(e['descripcion']?.toString()??'',style:const TextStyle(color:muted,height:1.65,fontSize:16)),
        const SizedBox(height:30),
+       if(venue.isNotEmpty)...[
+        _h('Conoce el lugar'),
+        const Text('Los espacios para vivir tu próxima experiencia.',
+         style:TextStyle(color:muted)),
+        const SizedBox(height:13),
+        SizedBox(height:210,child:ListView.separated(
+         scrollDirection:Axis.horizontal,itemCount:venue.length,
+         separatorBuilder:(_,__)=>const SizedBox(width:12),
+         itemBuilder:(ctx,i){
+          final img=cover(venue[i]);
+          return Container(width:wide?320:245,clipBehavior:Clip.antiAlias,
+           decoration:BoxDecoration(color:const Color(0xff1c3654),
+            borderRadius:BorderRadius.circular(20)),
+           child:img==null?const Center(child:Icon(Icons.photo_outlined,color:muted))
+            :Image(image:img,fit:BoxFit.cover,
+              errorBuilder:(_,__,___)=>const Center(child:Icon(Icons.photo_outlined))));
+         },
+        )),
+        const SizedBox(height:32),
+       ],
+       if(mapsUrl.isNotEmpty)...[
+        Container(
+         padding:const EdgeInsets.all(19),
+         decoration:BoxDecoration(
+          gradient:const LinearGradient(colors:[Color(0xff12485c),Color(0xff21294c)]),
+          borderRadius:BorderRadius.circular(20)),
+         child:Wrap(spacing:16,runSpacing:12,
+          alignment:WrapAlignment.spaceBetween,
+          crossAxisAlignment:WrapCrossAlignment.center,children:[
+           Column(crossAxisAlignment:CrossAxisAlignment.start,children:[
+            const Text('Encuéntranos',style:TextStyle(fontSize:21,fontWeight:FontWeight.bold)),
+            Text(e['direccion']?.toString()??'Ubicación del evento',
+             style:const TextStyle(color:muted)),
+           ]),
+           FilledButton.icon(onPressed:()=>launchUrl(Uri.parse(mapsUrl),
+             mode:LaunchMode.externalApplication),
+            icon:const Icon(Icons.directions),
+            label:const Text('Cómo llegar · Google Maps')),
+          ]),
+        ),
+        const SizedBox(height:32),
+       ],
        _h('Escoge tu mesa'),
        const Text('Disponibilidad actualizada. Las mesas apartadas aparecen bloqueadas.',style:TextStyle(color:muted)),
        const SizedBox(height:16),
