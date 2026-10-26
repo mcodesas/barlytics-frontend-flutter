@@ -23,6 +23,8 @@ class EventosApi{
  Future<void> cancelarReserva(int id)async{await post('/api/v1/eventos/reservas/$id/cancelar');}
  Future<Map<String,dynamic>> pagoConfig()async=>map(await get('/api/v1/eventos/pasarela'));
  Future<Map<String,dynamic>> configurar(String token,String secret)async=>map(await post('/api/v1/eventos/pasarela',{'accessToken':token,'webhookSecret':secret}));
+ Future<List<Map<String,dynamic>>> productos(int branch)async=>
+   list(await get('/api/v1/eventos/catalogo?sucursalId=$branch'));
  Future<List<Map<String,dynamic>>> mesas(int branch)async{
   final raw=map(await get('/api/v1/mesas/sucursal/$branch'));
   return list(raw['data']??[]);
