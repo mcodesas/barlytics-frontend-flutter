@@ -74,7 +74,7 @@ class _EventosAdminState extends ConsumerState<EventosAdminPage>{
     backgroundColor:eventSurface,
     shape:RoundedRectangleBorder(borderRadius:BorderRadius.circular(22)),
     insetPadding:const EdgeInsets.all(12),
-    child:SizedBox(width:MediaQuery.sizeOf(dialog).width>1450?1360:MediaQuery.sizeOf(dialog).width*.94,
+    child:SizedBox(width:MediaQuery.sizeOf(dialog).width>1450?1360.0:MediaQuery.sizeOf(dialog).width*.94,
       height:MediaQuery.sizeOf(dialog).height*.93,
      child:EventoEditor(initial:event,
       onSaved:(row)=>Navigator.of(dialog).pop(row))),
@@ -711,7 +711,7 @@ class _EventEditorState extends ConsumerState<EventoEditor>{
          const Icon(Icons.expand_more,color:EventColors.muted,size:16),
        ])));
  }
- Widget _general(dynamic branches,double width){
+ Widget _general(List<dynamic> branches,double width){
    final details=Column(children:[
      TextFormField(controller:title,maxLength:180,
        decoration:const InputDecoration(labelText:'Nombre del evento *',
