@@ -1,0 +1,532 @@
+import 'package:flutter/material.dart';
+import 'package:intl/intl.dart';
+import 'package:url_launcher/url_launcher.dart';
+import 'event_visual_kit.dart';
+
+/// Landing pública real (sin datos demostrativos ni dependencias del shell privado).
+/// Toda la información proviene del evento, sucursal, mesas y catálogo del API.
+class EventPublicLanding extends StatefulWidget {
+  const EventPublicLanding({
+    super.key,
+    required this.event,
+    required this.selectedTable,
+    required this.seats,
+    required this.busy,
+    required this.name,
+    required this.email,
+    required this.phone,
+    required this.onSelectTable,
+    required this.onSeatsChanged,
+    required this.onBook,
+    required this.onShare,
+    required this.onRefresh,
+  });
+  final Map<String,dynamic> event;
+  final int? selectedTable;
+  final int seats;
+  final bool busy;
+  final TextEditingController name,email,phone;
+  final ValueChanged<int> onSelectTable,onSeatsChanged;
+  final VoidCallback onBook,onShare;
+  final Future<void> Function() onRefresh;
+
+  @override
+  State<EventPublicLanding> createState()=>_EventPublicLandingState();
+}
+
+class _EventPublicLandingState extends State<EventPublicLanding> {
+  final _bookingKey=GlobalKey();
+  final _menuKey=GlobalKey();
+  final _locationKey=GlobalKey();
+  final _galleryKey=GlobalKey();
+
+  String getText(String key,[String fallback='']) =>
+    widget.event[key]?.toString() ?? fallback;
+
+  List<Map<String,dynamic>> get tables =>
+    (widget.event['mesas'] as List? ?? [])
+      .whereType<Map>().map((e)=>Map<String,dynamic>.from(e)).toList();
+
+  List<Map<String,dynamic>> get products =>
+    (widget.event['carta'] as List? ?? [])
+      .whereType<Map>().map((e)=>Map<String,dynamic>.from(e)).toList();
+
+  List<String> get venue =>
+    (widget.event['fotosLugar'] as List? ?? []).whereType<String>().toList();
+
+  int number(Object? raw) => int.tryParse(raw?.toString()??'')??0;
+  double price(Object? raw) => double.tryParse(raw?.toString()??'')??0;
+  String currency(Object? raw) => NumberFormat.currency(
+    locale:'es_CO',symbol:'COP ',decimalDigits:0).format(price(raw));
+  String time(Object? raw){
+    final v=DateTime.tryParse(raw?.toString()??'');
+    if(v==null)return 'Horario por confirmar';
+    return DateFormat('EEE d MMM yyyy · h:mm a','es_CO').format(v);
+  }
+
+  void jump(GlobalKey key){
+    final c=key.currentContext;
+    if(c!=null)Scrollable.ensureVisible(c,duration:const Duration(milliseconds:450),
+      curve:Curves.easeInOut,alignment:.06);
+  }
+
+  Future<void> openMap()async{
+    final uri=Uri.tryParse(getText('ubicacionGoogleMaps'));
+    if(uri==null||uri.scheme!='https')return;
+    await launchUrl(uri,mode:LaunchMode.externalApplication);
+  }
+
+  @override Widget build(BuildContext context){
+    final wide=MediaQuery.sizeOf(context).width>=940;
+    final bg=venue.isNotEmpty?venue.first:widget.event['imagen'];
+    final content=Column(children:[
+      _hero(bg,wide),
+      Center(child:ConstrainedBox(constraints:const BoxConstraints(maxWidth:1320),
+        child:Padding(padding:EdgeInsets.symmetric(horizontal:wide?24:14,vertical:20),
+          child:Column(crossAxisAlignment:CrossAxisAlignment.stretch,children:[
+            _intro(wide),
+            const SizedBox(height:17),
+            _bookingArea(wide),
+            if(products.isNotEmpty)...[
+              const SizedBox(height:17),
+              _catalog(),
+            ],
+            const SizedBox(height:27),
+            _footer(wide),
+          ])))),
+    ]);
+    return Theme(
+      data:ThemeData.dark(useMaterial3:true).copyWith(
+        colorScheme:const ColorScheme.dark(primary:EventColors.primary,
+          surface:EventColors.surface),
+        inputDecorationTheme:InputDecorationTheme(
+          filled:true,fillColor:EventColors.surfaceLight,
+          border:OutlineInputBorder(borderRadius:BorderRadius.circular(11)),
+          enabledBorder:OutlineInputBorder(
+            borderRadius:BorderRadius.circular(11),
+            borderSide:const BorderSide(color:EventColors.border)),
+        ),
+      ),
+      child:Scaffold(
+        backgroundColor:EventColors.background,
+        body:RefreshIndicator(onRefresh:widget.onRefresh,
+          child:ListView(children:[content])),
+        bottomNavigationBar:wide?null:SafeArea(top:false,
+          child:Container(
+            padding:const EdgeInsets.all(10),
+            decoration:const BoxDecoration(color:EventColors.background,
+              border:Border(top:BorderSide(color:EventColors.border))),
+            child:FilledButton.icon(
+              onPressed:()=>jump(_bookingKey),
+              icon:const Icon(Icons.confirmation_number_outlined),
+              label:const Text('Reservar puestos'),
+              style:FilledButton.styleFrom(backgroundColor:EventColors.primary,
+                foregroundColor:EventColors.onPrimary,
+                padding:const EdgeInsets.all(15))),
+          )),
+      ),
+    );
+  }
+
+  Widget _hero(Object? image,bool wide) => Container(
+    constraints:BoxConstraints(minHeight:wide?490:490),
+    child:Stack(children:[
+      Positioned.fill(child:EventArtwork(source:image,
+        height:520,borderRadius:0,emptyIcon:Icons.nightlife_outlined)),
+      const Positioned.fill(child:DecoratedBox(decoration:BoxDecoration(
+        gradient:LinearGradient(
+          begin:Alignment.centerLeft,end:Alignment.centerRight,
+          colors:[Color(0xFA031520),Color(0xE4061D2C),
+            Color(0xA9072534),Color(0x70041D2A)])))),
+      Center(child:ConstrainedBox(
+        constraints:const BoxConstraints(maxWidth:1320),
+        child:Padding(
+          padding:EdgeInsets.symmetric(horizontal:wide?27:19,vertical:18),
+          child:Column(crossAxisAlignment:CrossAxisAlignment.start,children:[
+            _nav(wide),
+            SizedBox(height:wide?63:48),
+            EventPill(icon:Icons.local_activity_outlined,
+              label:'EVENTO ESPECIAL · RESERVAS ABIERTAS',
+              color:EventColors.gold),
+            const SizedBox(height:14),
+            ConstrainedBox(constraints:BoxConstraints(maxWidth:wide?840:480),
+              child:Text(getText('titulo','Evento especial'),
+                maxLines:3,overflow:TextOverflow.ellipsis,
+                style:TextStyle(
+                  fontWeight:FontWeight.w900,height:1.02,
+                  letterSpacing:-1,
+                  color:EventColors.text,fontSize:wide?56:38))),
+            const SizedBox(height:13),
+            if(getText('descripcion').isNotEmpty)
+              ConstrainedBox(constraints:const BoxConstraints(maxWidth:650),
+                child:Text(getText('descripcion'),
+                  maxLines:3,overflow:TextOverflow.ellipsis,
+                  style:const TextStyle(color:EventColors.text,
+                    fontSize:15,height:1.55))),
+            const SizedBox(height:19),
+            Wrap(spacing:9,runSpacing:9,children:[
+              EventPill(icon:Icons.event_outlined,label:time(widget.event['inicio'])),
+              EventPill(icon:Icons.schedule_outlined,
+                label:'Hasta '+time(widget.event['fin'])),
+              EventPill(icon:Icons.location_on_outlined,
+                label:getText('sucursal','Lugar del evento')),
+              EventPill(icon:Icons.sell_outlined,
+                label:price(widget.event['precio'])==0?'Entrada gratis':
+                  (widget.event['precioPorPuesto']==true?'Por puesto · ':'Por mesa · ')+
+                  currency(widget.event['precio']),color:EventColors.gold),
+            ]),
+            const SizedBox(height:20),
+            Wrap(spacing:10,runSpacing:10,children:[
+              FilledButton.icon(onPressed:()=>jump(_bookingKey),
+                icon:const Icon(Icons.event_seat_outlined),
+                label:const Text('Reservar ahora'),
+                style:FilledButton.styleFrom(backgroundColor:EventColors.primary,
+                  foregroundColor:EventColors.onPrimary,
+                  padding:const EdgeInsets.symmetric(horizontal:25,vertical:17))),
+              OutlinedButton.icon(onPressed:getText('ubicacionGoogleMaps').isEmpty?null:openMap,
+                icon:const Icon(Icons.directions_outlined),
+                label:const Text('Cómo llegar')),
+              OutlinedButton.icon(onPressed:widget.onShare,
+                icon:const Icon(Icons.share_outlined),
+                label:const Text('Compartir')),
+            ]),
+            const SizedBox(height:26),
+          ]),
+        ),
+      )),
+    ]),
+  );
+
+  Widget _nav(bool wide) => Row(children:[
+    Container(width:52,height:52,clipBehavior:Clip.antiAlias,
+      decoration:BoxDecoration(color:Colors.white,
+        borderRadius:BorderRadius.circular(15)),
+      child:widget.event['logo']==null
+        ?const Icon(Icons.local_bar,color:EventColors.background)
+        :EventArtwork(source:widget.event['logo'],height:52,width:52,
+          fit:BoxFit.contain,borderRadius:0)),
+    const SizedBox(width:11),
+    Expanded(child:Column(crossAxisAlignment:CrossAxisAlignment.start,children:[
+      Text(getText('empresa','Tu establecimiento'),
+        style:const TextStyle(color:EventColors.text,
+          fontWeight:FontWeight.w900,fontSize:19)),
+      Text(getText('sucursal'),
+        style:const TextStyle(color:EventColors.muted,fontSize:12)),
+    ])),
+    if(wide)...[
+      TextButton(onPressed:()=>jump(_galleryKey),child:const Text('El lugar')),
+      TextButton(onPressed:()=>jump(_menuKey),child:const Text('La carta')),
+      TextButton(onPressed:()=>jump(_locationKey),child:const Text('Ubicación')),
+      const SizedBox(width:8),
+      OutlinedButton.icon(onPressed:()=>jump(_bookingKey),
+        icon:const Icon(Icons.event_seat_outlined,size:17),
+        label:const Text('Reservar ahora')),
+    ]else IconButton(onPressed:widget.onShare,
+      tooltip:'Compartir evento',
+      icon:const Icon(Icons.share_outlined,color:EventColors.primary)),
+  ]);
+
+ Widget _intro(bool wide) {
+   final about=EventPanel(child:Column(
+     crossAxisAlignment:CrossAxisAlignment.start,children:[
+       const EventSectionHeading(icon:Icons.auto_awesome_outlined,
+         title:'Sobre el evento',
+         subtitle:'Una experiencia preparada para ti'),
+       const SizedBox(height:14),
+       Text(getText('descripcion','Prepárate para disfrutar de una experiencia especial.'),
+         style:const TextStyle(color:EventColors.muted,fontSize:14,height:1.65)),
+       const SizedBox(height:17),
+       Wrap(spacing:8,runSpacing:8,children:[
+         EventPill(icon:Icons.calendar_month_outlined,
+           label:time(widget.event['inicio'])),
+         EventPill(icon:Icons.payments_outlined,
+           label:price(widget.event['precio'])==0?'Sin costo':
+             currency(widget.event['precio']),
+           color:EventColors.gold),
+       ]),
+     ]));
+   final photos=EventPanel(child:Column(
+     key:_galleryKey,crossAxisAlignment:CrossAxisAlignment.start,children:[
+       EventSectionHeading(icon:Icons.collections_outlined,
+         title:'Conoce el lugar',
+         subtitle:'Un vistazo a los espacios del establecimiento',
+         trailing:Text(venue.isEmpty?'':'Fotografías',
+           style:const TextStyle(color:EventColors.primary,fontSize:12))),
+       const SizedBox(height:14),
+       SizedBox(height:170,
+         child:ListView.separated(
+           scrollDirection:Axis.horizontal,
+           itemCount:venue.isEmpty?1:venue.length,
+           separatorBuilder:(_,__)=>const SizedBox(width:10),
+           itemBuilder:(context,i)=>EventArtwork(
+             source:venue.isEmpty?widget.event['imagen']:venue[i],
+             width:210,height:170),
+         )),
+     ]));
+   final place=EventPanel(child:Column(
+     key:_locationKey,crossAxisAlignment:CrossAxisAlignment.start,children:[
+       const EventSectionHeading(icon:Icons.location_on_outlined,
+         title:'Nuestra ubicación'),
+       const SizedBox(height:12),
+       Text(getText('sucursal',getText('empresa')),
+         style:const TextStyle(color:EventColors.text,
+           fontWeight:FontWeight.w800)),
+       const SizedBox(height:5),
+       Text(getText('direccion','Dirección del establecimiento'),
+         style:const TextStyle(color:EventColors.muted,fontSize:12)),
+       const SizedBox(height:14),
+       Container(height:86,
+         decoration:BoxDecoration(
+           gradient:const LinearGradient(colors:[
+             Color(0xFF183C4A),Color(0xFF1B354B)]),
+           borderRadius:BorderRadius.circular(13)),
+         child:const Center(child:Icon(Icons.map_outlined,
+           size:45,color:EventColors.primary))),
+       const SizedBox(height:13),
+       SizedBox(width:double.infinity,child:OutlinedButton.icon(
+         onPressed:getText('ubicacionGoogleMaps').isEmpty?null:openMap,
+         icon:const Icon(Icons.directions_outlined),
+         label:const Text('Abrir en Google Maps'))),
+     ]));
+   if(!wide)return Column(children:[
+     about,const SizedBox(height:12),photos,const SizedBox(height:12),place,
+   ]);
+   return Row(crossAxisAlignment:CrossAxisAlignment.start,children:[
+     Expanded(flex:4,child:about),const SizedBox(width:12),
+     Expanded(flex:5,child:photos),const SizedBox(width:12),
+     Expanded(flex:3,child:place),
+   ]);
+ }
+
+ Widget _bookingArea(bool wide){
+   final content=EventPanel(child:Column(
+     key:_bookingKey,crossAxisAlignment:CrossAxisAlignment.start,children:[
+       const EventSectionHeading(icon:Icons.table_restaurant_outlined,
+         title:'Selecciona tu mesa',
+         subtitle:'Elige una mesa disponible y los puestos que deseas reservar.'),
+       const SizedBox(height:14),
+       Wrap(spacing:12,runSpacing:9,children:[
+         const EventPill(icon:Icons.circle,color:EventColors.success,
+           label:'Disponible'),
+         EventPill(icon:Icons.circle,color:EventColors.warning,label:'Apartada'),
+       ]),
+       const SizedBox(height:14),
+       if(tables.isEmpty)
+         const Padding(padding:EdgeInsets.all(32),
+           child:Center(child:Text('Por ahora no hay mesas habilitadas.',
+             style:TextStyle(color:EventColors.muted))))
+       else GridView.builder(
+         itemCount:tables.length,
+         shrinkWrap:true,physics:const NeverScrollableScrollPhysics(),
+         gridDelegate:const SliverGridDelegateWithMaxCrossAxisExtent(
+           maxCrossAxisExtent:215,mainAxisExtent:184,
+           crossAxisSpacing:10,mainAxisSpacing:10),
+         itemBuilder:(context,index){
+           final t=tables[index],id=number(t['id']);
+           final available=t['estado']=='DISPONIBLE';
+           final chosen=widget.selectedTable==id;
+           final capacity=number(t['capacidad'])>0?number(t['capacidad']):6;
+           return InkWell(
+             onTap:available?()=>widget.onSelectTable(id):null,
+             borderRadius:BorderRadius.circular(14),
+             child:Container(clipBehavior:Clip.antiAlias,
+               decoration:BoxDecoration(
+                 color:chosen?const Color(0xFF185368):EventColors.surfaceLight,
+                 borderRadius:BorderRadius.circular(14),
+                 border:Border.all(
+                   width:chosen?2:1,
+                   color:chosen?EventColors.primary:EventColors.border)),
+               child:Column(crossAxisAlignment:CrossAxisAlignment.stretch,children:[
+                 Expanded(child:Stack(children:[
+                   Positioned.fill(child:EventArtwork(source:t['foto'],
+                     height:115,borderRadius:0,emptyIcon:Icons.table_restaurant)),
+                   if(chosen)const Positioned(right:8,top:8,
+                     child:CircleAvatar(radius:15,backgroundColor:EventColors.primary,
+                       child:Icon(Icons.check,color:EventColors.onPrimary,size:18))),
+                   if(!available)Positioned.fill(child:Container(color:Colors.black45)),
+                 ])),
+                 Padding(padding:const EdgeInsets.fromLTRB(10,8,10,10),
+                   child:Row(children:[
+                     Expanded(child:Column(crossAxisAlignment:CrossAxisAlignment.start,children:[
+                       Text('Mesa '+(t['numero']??id).toString(),
+                         style:const TextStyle(color:EventColors.text,
+                           fontWeight:FontWeight.w800,fontSize:13)),
+                       const SizedBox(height:4),
+                       Text(capacity.toString()+' puestos',
+                         style:const TextStyle(color:EventColors.muted,fontSize:11)),
+                     ])),
+                     Icon(available?Icons.check_circle:Icons.lock_outline,
+                       color:available?EventColors.success:EventColors.warning,size:17),
+                   ])),
+               ]),
+             ),
+           );
+         },
+       ),
+     ]));
+   if(!wide)return Column(children:[
+     content,const SizedBox(height:13),_reservationSummary(),
+   ]);
+   return Row(crossAxisAlignment:CrossAxisAlignment.start,children:[
+     Expanded(flex:7,child:content),
+     const SizedBox(width:13),
+     Expanded(flex:3,child:_reservationSummary()),
+   ]);
+ }
+
+ Widget _reservationSummary(){
+   final selected=tables.where((t)=>number(t['id'])==widget.selectedTable).toList();
+   final t=selected.isEmpty?null:selected.first;
+   final capacity=t==null?0:(number(t['capacidad'])>0?number(t['capacidad']):6);
+   final unit=price(widget.event['precio']);
+   final total=widget.event['precioPorPuesto']==true
+     ?unit*widget.seats:unit;
+   return EventPanel(child:Column(
+     crossAxisAlignment:CrossAxisAlignment.start,children:[
+       const EventSectionHeading(icon:Icons.confirmation_number_outlined,
+         title:'Tu reserva',subtitle:'Completa tus datos para confirmar'),
+       const SizedBox(height:15),
+       if(t!=null)...[
+         Row(children:[
+           EventArtwork(source:t['foto'],width:94,height:74),
+           const SizedBox(width:11),
+           Expanded(child:Column(crossAxisAlignment:CrossAxisAlignment.start,children:[
+             Text('Mesa '+(t['numero']??'').toString(),
+               style:const TextStyle(color:EventColors.text,
+                 fontWeight:FontWeight.w800)),
+             const SizedBox(height:5),
+             Text(capacity.toString()+' puestos disponibles',
+               style:const TextStyle(color:EventColors.success,fontSize:12)),
+           ])),
+         ]),
+       ]else const EventPill(icon:Icons.touch_app_outlined,
+         label:'Selecciona una mesa disponible'),
+       const Divider(color:EventColors.border,height:29),
+       Row(children:[
+         const Expanded(child:Text('Cantidad de puestos',
+           style:TextStyle(color:EventColors.muted,fontSize:12))),
+         IconButton.outlined(
+           onPressed:widget.selectedTable==null||widget.seats<=1
+             ?null:()=>widget.onSeatsChanged(widget.seats-1),
+           icon:const Icon(Icons.remove,size:17)),
+         Padding(padding:const EdgeInsets.symmetric(horizontal:10),
+           child:Text(widget.seats.toString(),
+             style:const TextStyle(color:EventColors.text,
+               fontWeight:FontWeight.w800,fontSize:17))),
+         IconButton.outlined(
+           onPressed:widget.selectedTable==null||widget.seats>=capacity
+             ?null:()=>widget.onSeatsChanged(widget.seats+1),
+           icon:const Icon(Icons.add,size:17)),
+       ]),
+       const SizedBox(height:12),
+       Row(children:[
+         Expanded(child:Text(
+           widget.event['precioPorPuesto']==true?'Precio por puesto':'Precio por mesa',
+           style:const TextStyle(color:EventColors.muted,fontSize:12))),
+         Text(currency(unit),style:const TextStyle(color:EventColors.text)),
+       ]),
+       const Divider(color:EventColors.border,height:23),
+       Row(children:[
+         const Expanded(child:Text('Total a pagar',style:TextStyle(
+           color:EventColors.text,fontWeight:FontWeight.w800))),
+         Text(currency(total),style:const TextStyle(color:EventColors.primary,
+           fontWeight:FontWeight.w900,fontSize:20)),
+       ]),
+       const SizedBox(height:20),
+       const Text('Tus datos',style:TextStyle(
+         color:EventColors.text,fontWeight:FontWeight.w800)),
+       const SizedBox(height:11),
+       TextField(controller:widget.name,
+         textCapitalization:TextCapitalization.words,
+         decoration:const InputDecoration(
+           labelText:'Nombre completo *',prefixIcon:Icon(Icons.person_outline))),
+       const SizedBox(height:10),
+       TextField(controller:widget.email,
+         keyboardType:TextInputType.emailAddress,
+         decoration:const InputDecoration(
+           labelText:'Correo electrónico *',prefixIcon:Icon(Icons.email_outlined))),
+       const SizedBox(height:10),
+       TextField(controller:widget.phone,
+         keyboardType:TextInputType.phone,
+         decoration:const InputDecoration(
+           labelText:'Teléfono / WhatsApp',prefixIcon:Icon(Icons.phone_outlined))),
+       const SizedBox(height:16),
+       if(widget.event['medioPago']=='MANUAL')
+         const Padding(padding:EdgeInsets.only(bottom:12),
+           child:Text('La reserva quedará pendiente de aprobación del establecimiento.',
+             style:TextStyle(color:EventColors.gold,fontSize:12))),
+       SizedBox(width:double.infinity,child:FilledButton.icon(
+         onPressed:widget.busy||widget.selectedTable==null?null:widget.onBook,
+         icon:Icon(widget.event['medioPago']=='MERCADOPAGO'
+           ?Icons.credit_card:Icons.confirmation_number_outlined),
+         label:Text(widget.busy?'Procesando...':
+           widget.event['medioPago']=='MERCADOPAGO'?'Reservar y pagar':'Confirmar reserva'),
+         style:FilledButton.styleFrom(
+           backgroundColor:EventColors.primary,
+           foregroundColor:EventColors.onPrimary,
+           padding:const EdgeInsets.symmetric(vertical:17)))),
+       const SizedBox(height:9),
+       const Center(child:Text('Reserva segura con BarLytics',
+         style:TextStyle(color:EventColors.muted,fontSize:11))),
+     ],
+   ));
+ }
+
+ Widget _catalog()=>EventPanel(child:Column(
+   key:_menuKey,crossAxisAlignment:CrossAxisAlignment.start,children:[
+     const EventSectionHeading(icon:Icons.restaurant_menu_outlined,
+       title:'Nuestra carta destacada',
+       subtitle:'Conoce lo que podrás disfrutar durante el evento.'),
+     const SizedBox(height:16),
+     LayoutBuilder(builder:(context,box){
+       return GridView.builder(
+         itemCount:products.length>12?12:products.length,
+         shrinkWrap:true,physics:const NeverScrollableScrollPhysics(),
+         gridDelegate:SliverGridDelegateWithMaxCrossAxisExtent(
+           maxCrossAxisExtent:220,mainAxisExtent:192,
+           crossAxisSpacing:10,mainAxisSpacing:10),
+         itemBuilder:(context,index){
+           final p=products[index];
+           return Container(clipBehavior:Clip.antiAlias,
+             decoration:BoxDecoration(color:EventColors.surfaceLight,
+               border:Border.all(color:EventColors.border),
+               borderRadius:BorderRadius.circular(13)),
+             child:Column(crossAxisAlignment:CrossAxisAlignment.stretch,children:[
+               Expanded(child:EventArtwork(source:p['imagen'],
+                 height:130,borderRadius:0,emptyIcon:Icons.local_dining_outlined)),
+               Padding(padding:const EdgeInsets.fromLTRB(9,8,9,9),
+                 child:Column(crossAxisAlignment:CrossAxisAlignment.start,children:[
+                   Text(p['nombre']?.toString()??'Producto',
+                     maxLines:1,overflow:TextOverflow.ellipsis,
+                     style:const TextStyle(color:EventColors.text,
+                       fontWeight:FontWeight.w800,fontSize:12)),
+                   const SizedBox(height:4),
+                   Text(currency(p['precio']),style:const TextStyle(
+                     color:EventColors.primary,fontSize:12,
+                     fontWeight:FontWeight.w800)),
+                 ])),
+             ]),
+           );
+         },
+       );
+     }),
+   ]));
+
+ Widget _footer(bool wide)=>Container(
+   padding:const EdgeInsets.symmetric(horizontal:15,vertical:18),
+   decoration:const BoxDecoration(border:Border(
+     top:BorderSide(color:EventColors.border))),
+   child:Wrap(spacing:20,runSpacing:12,
+     alignment:WrapAlignment.spaceBetween,children:[
+       Text(getText('empresa'),style:const TextStyle(color:EventColors.text,
+         fontWeight:FontWeight.w900,fontSize:16)),
+       Text(getText('direccion'),
+         style:const TextStyle(color:EventColors.muted,fontSize:12)),
+       if(getText('telefono').isNotEmpty)
+         Text(getText('telefono'),
+           style:const TextStyle(color:EventColors.muted,fontSize:12)),
+       const Text('Potenciado por BarLytics',
+         style:TextStyle(color:EventColors.primary,fontWeight:FontWeight.w700)),
+     ]),
+ );
+}
