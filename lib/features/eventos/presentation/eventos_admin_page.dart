@@ -935,7 +935,7 @@ class _ReservaInternaState extends ConsumerState<_ReservaInternaDialog>{
     tables=values;loading=false;
     if(selectedTable!=null&&!tables.any((t)=>
       asId(t['id'])==selectedTable&&
-      (t['estado']=='DISPONIBLE'||(!cancelled&&editing&&asId(t['id'])==asId(widget.initial?['mesa_id']))))){
+      (t['estado']=='DISPONIBLE'||(editing&&asId(t['id'])==asId(widget.initial?['mesa_id']))))){
      selectedTable=null;seats=1;
     }
    });
