@@ -169,17 +169,46 @@ class _PublicState extends ConsumerState<EventoPublicoPage>{
         final tableId=(t['id'] as num).toInt();
         final free=t['estado']=='DISPONIBLE';
         final checked=selected==tableId;
-        return InkWell(onTap:free?()=>setState(()=>selected=tableId):null,
-         child:AnimatedContainer(duration:const Duration(milliseconds:180),width:wide?194:152,padding:const EdgeInsets.all(15),
-          decoration:BoxDecoration(color:checked?teal.withOpacity(.19):const Color(0xff192540),
-           border:Border.all(color:checked?teal:Colors.white12,width:checked?2:1),borderRadius:BorderRadius.circular(18)),
+        final seatsAvailable=(t['capacidad'] as num?)?.toInt()??6;
+        final image=cover(t['foto']);
+        return InkWell(
+         onTap:free?()=>setState((){
+          selected=tableId;
+          seats=seats.clamp(1,seatsAvailable);
+         }):null,
+         borderRadius:BorderRadius.circular(18),
+         child:AnimatedContainer(
+          duration:const Duration(milliseconds:180),
+          width:wide?230:166,
+          clipBehavior:Clip.antiAlias,
+          decoration:BoxDecoration(
+           color:checked?teal.withOpacity(.18):const Color(0xff192540),
+           border:Border.all(color:checked?teal:Colors.white12,width:checked?2:1),
+           borderRadius:BorderRadius.circular(18)),
           child:Column(crossAxisAlignment:CrossAxisAlignment.start,children:[
-           Icon(Icons.table_restaurant,color:checked?teal:free?Colors.white:Colors.white38,size:33),
-           const SizedBox(height:10),Text('Mesa '+t['numero'].toString(),style:const TextStyle(fontSize:18,fontWeight:FontWeight.bold)),
-           Text(free?'Disponible':'Apartada',style:TextStyle(color:free?teal:accent)),
-           if((t['descripcion']?.toString()??'').isNotEmpty)
-            Text(t['descripcion'].toString(),maxLines:2,overflow:TextOverflow.ellipsis,style:const TextStyle(fontSize:12,color:muted))
-          ])));}
+           Stack(children:[
+            SizedBox(height:wide?145:110,width:double.infinity,
+             child:image==null
+              ?const Center(child:Icon(Icons.table_restaurant,
+                color:Colors.white60,size:42))
+              :Image(image:image,fit:BoxFit.cover,
+                errorBuilder:(_,__,___)=>const Center(
+                  child:Icon(Icons.table_restaurant,size:39)))),
+            if(checked)const Positioned(top:8,right:8,
+             child:CircleAvatar(radius:14,backgroundColor:teal,
+              child:Icon(Icons.check,color:ink,size:17))),
+           ]),
+           Padding(padding:const EdgeInsets.all(12),
+            child:Column(crossAxisAlignment:CrossAxisAlignment.start,children:[
+             Text('Mesa '+t['numero'].toString(),
+              style:const TextStyle(fontSize:18,fontWeight:FontWeight.bold)),
+             const SizedBox(height:6),
+             Text('${seatsAvailable} puestos · '+(free?'Disponible':'Apartada'),
+              style:TextStyle(fontSize:12,color:free?teal:accent)),
+            ])),
+          ]),
+         ),
+        );}
         ).toList()),
        const SizedBox(height:30),
        Container(padding:const EdgeInsets.all(21),decoration:BoxDecoration(color:const Color(0xff1b2945),
@@ -191,6 +220,28 @@ class _PublicState extends ConsumerState<EventoPublicoPage>{
           'Tienes 20 minutos para completar el pago en línea.',
           style:const TextStyle(color:muted)),
          const SizedBox(height:15),
+         if(selected!=null)...[
+          Container(padding:const EdgeInsets.all(15),
+           decoration:BoxDecoration(color:const Color(0xff132d49),
+            borderRadius:BorderRadius.circular(17)),
+           child:Wrap(spacing:13,runSpacing:12,
+            crossAxisAlignment:WrapCrossAlignment.center,children:[
+             const Text('¿Cuántos puestos quieres reservar?',
+              style:TextStyle(fontWeight:FontWeight.w700)),
+             SizedBox(width:160,child:DropdownButtonFormField<int>(
+              value:seats,decoration:const InputDecoration(
+               labelText:'Puestos',border:OutlineInputBorder(),
+               contentPadding:EdgeInsets.symmetric(horizontal:12,vertical:8)),
+              items:List.generate(maxSeats,(i)=>DropdownMenuItem(
+               value:i+1,child:Text('${i+1} puestos'))),
+              onChanged:(n){if(n!=null)setState(()=>seats=n);},
+             )),
+             Text('Total: '+money(total),
+              style:const TextStyle(color:accent,fontSize:18,fontWeight:FontWeight.bold)),
+            ]),
+          ),
+          const SizedBox(height:16),
+         ],
          Wrap(spacing:12,runSpacing:10,children:[
           SizedBox(width:260,child:TextField(controller:name,decoration:const InputDecoration(labelText:'Nombre completo *',border:OutlineInputBorder()))),
           SizedBox(width:260,child:TextField(controller:email,keyboardType:TextInputType.emailAddress,decoration:const InputDecoration(labelText:'Correo electrónico *',border:OutlineInputBorder()))),
@@ -203,7 +254,7 @@ class _PublicState extends ConsumerState<EventoPublicoPage>{
           style:FilledButton.styleFrom(padding:const EdgeInsets.symmetric(horizontal:25,vertical:19),
            backgroundColor:teal,foregroundColor:ink),
           icon:const Icon(Icons.confirmation_number_outlined),
-          label:Text(busy?'Procesando...':'Reservar · '+money(e['precio'])))
+          label:Text(busy?'Procesando...':'Reservar $seats puesto(s) · '+money(total)))
         ])),
        const SizedBox(height:35),
        if(catalog.isNotEmpty)...[
