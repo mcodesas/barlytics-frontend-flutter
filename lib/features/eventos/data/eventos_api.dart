@@ -27,6 +27,8 @@ class EventosApi{
    list(await get('/api/v1/eventos/$eventId/mesas'));
  Future<Map<String,dynamic>> reservarInterna(int eventId,Map<String,dynamic> values)async=>
    map(await post('/api/v1/eventos/$eventId/reservas-internas',values));
+ Future<Map<String,dynamic>> editarReservaInterna(int reservationId,Map<String,dynamic> values)async=>
+   map(await put('/api/v1/eventos/reservas/$reservationId/editar-interna',values));
  Future<List<Map<String,dynamic>>> productos(int branch)async=>
    list(await get('/api/v1/eventos/catalogo?sucursalId=$branch'));
  Future<List<Map<String,dynamic>>> mesas(int branch)async{
