@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../data/eventos_api.dart';
+import 'widgets/event_public_landing.dart';
 
 const ink=Color(0xff0b1025),teal=Color(0xff34ddcf),muted=Color(0xffb5bed5),accent=Color(0xffffca83);
 ImageProvider? cover(Object? value){
@@ -124,236 +125,43 @@ class _PublicState extends ConsumerState<EventoPublicoPage>{
   }finally{if(mounted)setState(()=>busy=false);}
  }
  @override Widget build(BuildContext context){
-  final e=event;
-  if(e==null)return Scaffold(backgroundColor:ink,body:Center(child:Text(error??'Cargando evento...',style:const TextStyle(color:Colors.white))));
-  final wide=MediaQuery.sizeOf(context).width>700;
-  final venue=(e['fotosLugar'] as List? ??[]).whereType<String>().toList();
-  final logo=cover(e['logo']);
-  final photo=venue.isEmpty?cover(e['imagen']):cover(venue.first)??cover(e['imagen']);
-  final tables=(e['mesas'] as List? ??[]).whereType<Map>().map((x)=>Map<String,dynamic>.from(x)).toList();
-  final catalog=(e['carta'] as List? ??[]).whereType<Map>().map((x)=>Map<String,dynamic>.from(x)).toList();
-  final unitPrice=double.tryParse(e['precio']?.toString()??'')??0;
-  final bySeat=e['precioPorPuesto']==true;
-  final total=bySeat?unitPrice*seats:unitPrice;
-  final mapsUrl=e['ubicacionGoogleMaps']?.toString()??'';
-  final selectedTables=tables.where((t)=>t['id']==selected).toList();
-  final maxSeats=selectedTables.isEmpty?1:((selectedTables.first['capacidad'] as num?)?.toInt()??6);
-  return Theme(data:ThemeData.dark(useMaterial3:true).copyWith(colorScheme:const ColorScheme.dark(primary:teal,surface:Color(0xff19243e))),
-   child:Scaffold(backgroundColor:ink,body:RefreshIndicator(onRefresh:refresh,
-    child:CustomScrollView(slivers:[
-     SliverToBoxAdapter(child:Container(
-      constraints:const BoxConstraints(minHeight:380),
-      decoration:BoxDecoration(gradient:const LinearGradient(colors:[Color(0xff142c4d),Color(0xff282044),ink]),
-       image:photo==null?null:DecorationImage(image:photo,fit:BoxFit.cover,colorFilter:ColorFilter.mode(ink.withOpacity(.6),BlendMode.darken))),
-      child:SafeArea(child:Center(child:ConstrainedBox(constraints:const BoxConstraints(maxWidth:1100),
-       child:Padding(padding:const EdgeInsets.all(24),child:Column(crossAxisAlignment:CrossAxisAlignment.start,children:[
-        Row(children:[
-         CircleAvatar(radius:27,backgroundColor:Colors.white,backgroundImage:logo,
-          child:logo==null?const Icon(Icons.local_bar,color:ink):null),
-         const SizedBox(width:13),
-         Expanded(child:Column(crossAxisAlignment:CrossAxisAlignment.start,children:[
-          Text(e['empresa']?.toString()??'',style:const TextStyle(fontSize:18,fontWeight:FontWeight.bold)),
-          Text(e['sucursal']?.toString()??'',style:const TextStyle(color:muted))
-         ])),
-         IconButton(tooltip:'Compartir evento',onPressed:share,
-          icon:const Icon(Icons.share,color:teal))
-        ]),
-        const SizedBox(height:55),
-        const Text('VIVE UNA NOCHE INOLVIDABLE',style:TextStyle(color:teal,letterSpacing:2,fontWeight:FontWeight.bold)),
-        const SizedBox(height:12),
-        Text(e['titulo']?.toString()??'',style:TextStyle(fontSize:wide?52:34,height:1.05,fontWeight:FontWeight.w900)),
-        const SizedBox(height:20),
-        Wrap(spacing:16,runSpacing:9,children:[
-         _chip(Icons.event_available,'Inicio: '+when(e['inicio'])),
-         _chip(Icons.nights_stay_outlined,'Fin: '+when(e['fin'])),
-         _chip(Icons.location_on_outlined,e['direccion']?.toString()??'')
-        ]),
-        const SizedBox(height:18),
-        Text(unitPrice==0?'RESERVA GRATUITA':
-         (bySeat?'Precio por puesto · ':'Precio por mesa · ')+money(unitPrice),
-          style:const TextStyle(color:accent,fontWeight:FontWeight.bold,fontSize:19)),
-        const SizedBox(height:16),
-        OutlinedButton.icon(onPressed:share,
-         icon:const Icon(Icons.share_outlined),label:const Text('Compartir evento'),
-         style:OutlinedButton.styleFrom(foregroundColor:Colors.white,
-          side:const BorderSide(color:teal)))
-       ]))))))),
-     SliverToBoxAdapter(child:Center(child:ConstrainedBox(constraints:const BoxConstraints(maxWidth:1100),
-      child:Padding(padding:const EdgeInsets.all(23),child:Column(crossAxisAlignment:CrossAxisAlignment.start,children:[
-       _h('El evento'),
-       Text(e['descripcion']?.toString()??'',
-        style:const TextStyle(color:muted,height:1.65,fontSize:16)),
-       if(e['imagen']!=null && cover(e['imagen'])!=null)...[
-        const SizedBox(height:19),
-        Center(child:ClipRRect(borderRadius:BorderRadius.circular(20),
-         child:Image(image:cover(e['imagen'])!,
-          width:wide?650:MediaQuery.sizeOf(context).width-46,
-          height:wide?310:210,fit:BoxFit.cover,
-          errorBuilder:(_,__,___)=>const SizedBox.shrink()))),
-       ],
-       const SizedBox(height:30),
-       if(venue.isNotEmpty)...[
-        _h('Conoce el lugar'),
-        const Text('Los espacios para vivir tu próxima experiencia.',
-         style:TextStyle(color:muted)),
-        const SizedBox(height:13),
-        SizedBox(height:210,child:ListView.separated(
-         scrollDirection:Axis.horizontal,itemCount:venue.length,
-         separatorBuilder:(_,__)=>const SizedBox(width:12),
-         itemBuilder:(ctx,i){
-          final img=cover(venue[i]);
-          return Container(width:wide?320:245,clipBehavior:Clip.antiAlias,
-           decoration:BoxDecoration(color:const Color(0xff1c3654),
-            borderRadius:BorderRadius.circular(20)),
-           child:img==null?const Center(child:Icon(Icons.photo_outlined,color:muted))
-            :Image(image:img,fit:BoxFit.cover,
-              errorBuilder:(_,__,___)=>const Center(child:Icon(Icons.photo_outlined))));
-         },
-        )),
-        const SizedBox(height:32),
-       ],
-       if(mapsUrl.isNotEmpty)...[
-        Container(
-         padding:const EdgeInsets.all(19),
-         decoration:BoxDecoration(
-          gradient:const LinearGradient(colors:[Color(0xff12485c),Color(0xff21294c)]),
-          borderRadius:BorderRadius.circular(20)),
-         child:Wrap(spacing:16,runSpacing:12,
-          alignment:WrapAlignment.spaceBetween,
-          crossAxisAlignment:WrapCrossAlignment.center,children:[
-           Column(crossAxisAlignment:CrossAxisAlignment.start,children:[
-            const Text('Encuéntranos',style:TextStyle(fontSize:21,fontWeight:FontWeight.bold)),
-            Text(e['direccion']?.toString()??'Ubicación del evento',
-             style:const TextStyle(color:muted)),
-           ]),
-           FilledButton.icon(onPressed:()=>launchUrl(Uri.parse(mapsUrl),
-             mode:LaunchMode.externalApplication),
-            icon:const Icon(Icons.directions),
-            label:const Text('Cómo llegar · Google Maps')),
-          ]),
-        ),
-        const SizedBox(height:32),
-       ],
-       _h('Escoge tu mesa'),
-       const Text('Disponibilidad actualizada. Las mesas apartadas aparecen bloqueadas.',style:TextStyle(color:muted)),
-       const SizedBox(height:16),
-       Wrap(spacing:12,runSpacing:12,children:tables.map((t){
-        final tableId=(t['id'] as num).toInt();
-        final free=t['estado']=='DISPONIBLE';
-        final checked=selected==tableId;
-        final seatsAvailable=(t['capacidad'] as num?)?.toInt()??6;
-        final image=cover(t['foto']);
-        return InkWell(
-         onTap:free?()=>setState((){
-          selected=tableId;
-          seats=seats.clamp(1,seatsAvailable).toInt();
-         }):null,
-         borderRadius:BorderRadius.circular(18),
-         child:AnimatedContainer(
-          duration:const Duration(milliseconds:180),
-          width:wide?230:166,
-          clipBehavior:Clip.antiAlias,
-          decoration:BoxDecoration(
-           color:checked?teal.withOpacity(.18):const Color(0xff192540),
-           border:Border.all(color:checked?teal:Colors.white12,width:checked?2:1),
-           borderRadius:BorderRadius.circular(18)),
-          child:Column(crossAxisAlignment:CrossAxisAlignment.start,children:[
-           Stack(children:[
-            SizedBox(height:wide?145:110,width:double.infinity,
-             child:image==null
-              ?const Center(child:Icon(Icons.table_restaurant,
-                color:Colors.white60,size:42))
-              :Image(image:image,fit:BoxFit.cover,
-                errorBuilder:(_,__,___)=>const Center(
-                  child:Icon(Icons.table_restaurant,size:39)))),
-            if(checked)const Positioned(top:8,right:8,
-             child:CircleAvatar(radius:14,backgroundColor:teal,
-              child:Icon(Icons.check,color:ink,size:17))),
-           ]),
-           Padding(padding:const EdgeInsets.all(12),
-            child:Column(crossAxisAlignment:CrossAxisAlignment.start,children:[
-             Text('Mesa '+t['numero'].toString(),
-              style:const TextStyle(fontSize:18,fontWeight:FontWeight.bold)),
-             const SizedBox(height:6),
-             Text('${seatsAvailable} puestos · '+(free?'Disponible':'Apartada'),
-              style:TextStyle(fontSize:12,color:free?teal:accent)),
-            ])),
-          ]),
-         ),
-        );}
-        ).toList()),
-       const SizedBox(height:30),
-       Container(padding:const EdgeInsets.all(21),decoration:BoxDecoration(color:const Color(0xff1b2945),
-        borderRadius:BorderRadius.circular(22)),
-        child:Column(crossAxisAlignment:CrossAxisAlignment.start,children:[
-         _h('Aparta tu lugar'),
-         Text(e['medioPago']=='GRATIS'?'Recibirás tu entrada QR inmediatamente.':
-          e['medioPago']=='MANUAL'?'El establecimiento aprobará el pago antes de emitir tu QR.':
-          'Tienes 20 minutos para completar el pago en línea.',
-          style:const TextStyle(color:muted)),
-         const SizedBox(height:15),
-         if(selected!=null)...[
-          Container(padding:const EdgeInsets.all(15),
-           decoration:BoxDecoration(color:const Color(0xff132d49),
-            borderRadius:BorderRadius.circular(17)),
-           child:Wrap(spacing:13,runSpacing:12,
-            crossAxisAlignment:WrapCrossAlignment.center,children:[
-             const Text('¿Cuántos puestos quieres reservar?',
-              style:TextStyle(fontWeight:FontWeight.w700)),
-             Container(width:165,padding:const EdgeInsets.symmetric(horizontal:12),
-               decoration:BoxDecoration(border:Border.all(color:Colors.white38),
-                 borderRadius:BorderRadius.circular(9)),
-               child:DropdownButton<int>(value:seats,isExpanded:true,
-               items:List.generate(maxSeats,(i)=>DropdownMenuItem(
-               value:i+1,child:Text('${i+1} puestos'))),
-              onChanged:(n){if(n!=null)setState(()=>seats=n);},
-             )),
-             Text('Total: '+money(total),
-              style:const TextStyle(color:accent,fontSize:18,fontWeight:FontWeight.bold)),
-            ]),
-          ),
-          const SizedBox(height:16),
-         ],
-         Wrap(spacing:12,runSpacing:10,children:[
-          SizedBox(width:260,child:TextField(controller:name,decoration:const InputDecoration(labelText:'Nombre completo *',border:OutlineInputBorder()))),
-          SizedBox(width:260,child:TextField(controller:email,keyboardType:TextInputType.emailAddress,decoration:const InputDecoration(labelText:'Correo electrónico *',border:OutlineInputBorder()))),
-          SizedBox(width:190,child:TextField(controller:phone,decoration:const InputDecoration(labelText:'Teléfono',border:OutlineInputBorder()))),
-         ]),
-         if(e['medioPago']=='MANUAL')Padding(padding:const EdgeInsets.only(top:12),
-          child:Text(e['instruccionesPago']?.toString()??'',style:const TextStyle(color:accent))),
-         const SizedBox(height:17),
-         FilledButton.icon(onPressed:selected==null||busy?null:book,
-          style:FilledButton.styleFrom(padding:const EdgeInsets.symmetric(horizontal:25,vertical:19),
-           backgroundColor:teal,foregroundColor:ink),
-          icon:const Icon(Icons.confirmation_number_outlined),
-          label:Text(busy?'Procesando...':'Reservar $seats puesto(s) · '+money(total)))
-        ])),
-       const SizedBox(height:35),
-       if(catalog.isNotEmpty)...[
-        _h('Descubre nuestra carta'),
-        Wrap(spacing:12,runSpacing:12,children:catalog.map((p){
-         final img=cover(p['imagen']);
-         return Container(width:wide?234:156,clipBehavior:Clip.antiAlias,
-          decoration:BoxDecoration(color:const Color(0xff192540),borderRadius:BorderRadius.circular(16)),
-          child:Column(crossAxisAlignment:CrossAxisAlignment.start,children:[
-           if(img!=null)Image(image:img,height:110,width:double.infinity,fit:BoxFit.cover)
-           else const SizedBox(height:90,child:Center(child:Icon(Icons.local_dining,color:accent,size:32))),
-           Padding(padding:const EdgeInsets.all(12),child:Column(crossAxisAlignment:CrossAxisAlignment.start,children:[
-            Text(p['nombre']?.toString()??'',maxLines:2,overflow:TextOverflow.ellipsis,style:const TextStyle(fontWeight:FontWeight.bold)),
-            const SizedBox(height:6),Text(money(p['precio']),style:const TextStyle(color:teal,fontWeight:FontWeight.bold))
-           ]))]));
-        }).toList()),
-       ],
-       const SizedBox(height:50),
-       const Center(child:Text('Experiencias y reservas con BarLytics',style:TextStyle(color:muted,fontSize:12)))
-      ]))))),
-    ]))));}
-  Widget _h(String title)=>Padding(padding:const EdgeInsets.only(bottom:16),
-    child:Text(title,style:const TextStyle(fontSize:27,fontWeight:FontWeight.w800)));
-  Widget _chip(IconData icon,String title)=>Container(padding:const EdgeInsets.symmetric(vertical:9,horizontal:12),
-    decoration:BoxDecoration(color:Colors.black45,borderRadius:BorderRadius.circular(25)),
-    child:Row(mainAxisSize:MainAxisSize.min,children:[Icon(icon,color:teal,size:16),const SizedBox(width:7),
-     Flexible(child:Text(title,style:const TextStyle(color:Colors.white,fontSize:12)))]));
+  final current=event;
+  if(current==null){
+   return Scaffold(
+    backgroundColor:const Color(0xFF061925),
+    body:Center(child:Column(mainAxisSize:MainAxisSize.min,children:[
+     Icon(error==null?Icons.event_available_outlined:Icons.cloud_off_outlined,
+      color:const Color(0xFF23D8D1),size:48),
+     const SizedBox(height:13),
+     Text(error==null?'Preparando tu experiencia...':
+       'No se pudo cargar este evento',
+       textAlign:TextAlign.center,
+       style:const TextStyle(color:Colors.white,fontSize:17)),
+     if(error!=null)...[
+      const SizedBox(height:12),
+      OutlinedButton.icon(onPressed:refresh,
+       icon:const Icon(Icons.refresh),label:const Text('Reintentar')),
+     ]else const Padding(padding:EdgeInsets.only(top:17),
+       child:CircularProgressIndicator()),
+    ])),
+   );
+  }
+  return EventPublicLanding(
+   event:current,
+   selectedTable:selected,
+   seats:seats,
+   busy:busy,
+   name:name,email:email,phone:phone,
+   onSelectTable:(id)=>setState((){
+    selected=id;
+    seats=1;
+   }),
+   onSeatsChanged:(value)=>setState(()=>seats=value),
+   onBook:book,
+   onShare:share,
+   onRefresh:refresh,
+  );
+ }
 }
 class EventoEntradaPublicaPage extends ConsumerStatefulWidget{
  const EventoEntradaPublicaPage({super.key,required this.token});
