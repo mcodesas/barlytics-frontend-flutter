@@ -57,7 +57,13 @@ class _EventosAdminState extends ConsumerState<EventosAdminPage>{
    setState((){entries=rows;loading=false;error=null;});
   }catch(e){
    if(!mounted||seq!=_loadSeq)return;
-   setState((){loading=false;error=niceEventError(e);});
+   if(keepVisible && entries.isNotEmpty){
+    setState((){loading=false;error=null;});
+    ScaffoldMessenger.of(context).showSnackBar(
+     const SnackBar(content:Text('El evento se guardó. No fue posible actualizar la lista desde el servidor.')));
+   }else{
+    setState((){loading=false;error=niceEventError(e);});
+   }
   }
  }
  Future<void> editor([Map<String,dynamic>? event])async{
