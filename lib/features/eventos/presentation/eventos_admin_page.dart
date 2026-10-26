@@ -723,8 +723,9 @@ class _EventPaymentGuideState extends ConsumerState<_EventPaymentGuide>{
    await ref.read(eventosApiProvider).configurar(access,signature);
    if(!mounted)return;
    token.clear();secret.clear();
+   final messenger=ScaffoldMessenger.maybeOf(context);
    Navigator.of(context).pop();
-   ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+   messenger?.showSnackBar(const SnackBar(
     content:Text('Credenciales guardadas de forma cifrada. Realiza una reserva de prueba controlada para verificar las notificaciones.')));
   }catch(e){
    if(mounted)setState(()=>error=niceEventError(e));
