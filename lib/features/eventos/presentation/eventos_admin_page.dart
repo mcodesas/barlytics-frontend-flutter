@@ -646,7 +646,10 @@ class _EventEditorState extends ConsumerState<EventoEditor>{
  }
  @override Widget build(BuildContext context){
   final branches=ref.watch(branchScopeProvider).branches;
-  return Padding(padding:const EdgeInsets.all(20),child:Form(key:form,child:Column(children:[
+  return Theme(
+   data:ThemeData.dark(useMaterial3:true).copyWith(
+    colorScheme:const ColorScheme.dark(primary:sea,surface:eventSurface)),
+   child:Padding(padding:const EdgeInsets.all(20),child:Form(key:form,child:Column(children:[
    Row(children:[Expanded(child:Text(widget.initial==null?'Nuevo evento':'Editar borrador',
       style:Theme.of(context).textTheme.headlineSmall)),IconButton(onPressed:()=>Navigator.pop(context),icon:const Icon(Icons.close))]),
    Expanded(child:ListView(children:[
@@ -765,6 +768,6 @@ class _EventEditorState extends ConsumerState<EventoEditor>{
    const SizedBox(height:10),
    Align(alignment:Alignment.centerRight,child:FilledButton.icon(onPressed:busy?null:_save,
     icon:const Icon(Icons.save),label:Text(busy?'Guardando...':'Guardar evento'))),
-  ])));
+  ]))));
  }
 }
