@@ -1,5 +1,6 @@
 import 'dart:convert';
 import 'package:file_picker/file_picker.dart';
+import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -8,7 +9,29 @@ import 'package:intl/intl.dart';
 import '../../../core/branch/branch_scope_provider.dart';
 import '../data/eventos_api.dart';
 
-const sea=Color(0xff009da9);
+const sea=Color(0xff24d4ce);
+const eventSurface=Color(0xff102e40);
+const eventBorder=Color(0xff365a6a);
+const eventText=Color(0xffeffaff);
+const eventSecondary=Color(0xffb2cad4);
+String niceEventError(Object e){
+ if(e is DioException){
+  final code=e.response?.statusCode;
+  if(code==403)return 'Tu rol no tiene permisos para consultar estos eventos.';
+  if(code==401)return 'La sesión expiró. Ingresa nuevamente.';
+  if(code==404)return 'Esta función todavía no se encuentra disponible en el backend.';
+  if(code==500||code==503)return 'El servidor no puede consultar eventos. Comprueba que las migraciones V43 y V44 se hayan aplicado al backend.';
+  if(code==null)return 'No hay conexión con el servidor. Comprueba tu conexión.';
+  final data=e.response?.data;
+  if(data is Map){
+   final msg=(data['mensaje']??data['message']??data['detail'])?.toString();
+   if(msg!=null&&msg.isNotEmpty&&msg.length<150)return msg;
+  }
+  return 'No se pudo completar la solicitud (código '+code.toString()+').';
+ }
+ return 'No se pudo completar la operación. Inténtalo otra vez.';
+}
+
 String dateLabel(DateTime d)=>DateFormat('dd/MM/yyyy').format(d);
 String hourLabel(DateTime d)=>DateFormat('hh:mm a').format(d);
 int? asId(Object? val)=>val is num?val.toInt():int.tryParse(val?.toString()??'');
@@ -19,17 +42,25 @@ class EventosAdminPage extends ConsumerStatefulWidget {
 }
 class _EventosAdminState extends ConsumerState<EventosAdminPage>{
  List<Map<String,dynamic>> entries=[];bool loading=true;String? error;
+ String filter='TODOS',search='';
  @override void initState(){super.initState();load();}
  Future<void> load()async{
-  try{final rows=await ref.read(eventosApiProvider).eventos();
-    if(mounted)setState((){entries=rows;loading=false;error=null;});
-  }catch(e){if(mounted)setState((){loading=false;error=e.toString();});}
+  if(mounted)setState((){loading=true;error=null;});
+  try{
+   final rows=await ref.read(eventosApiProvider).eventos();
+   if(mounted)setState((){entries=rows;loading=false;error=null;});
+  }catch(e){
+   if(mounted)setState((){loading=false;error=niceEventError(e);});
+  }
  }
  Future<void> editor([Map<String,dynamic>? event])async{
-  await showDialog<void>(context:context,builder:(_)=>Dialog(
-   insetPadding:const EdgeInsets.symmetric(horizontal:14,vertical:20),
-   child:ConstrainedBox(constraints:const BoxConstraints(maxWidth:850),
-    child:EventoEditor(initial:event,onSaved:(){Navigator.of(context).pop();load();}))));
+  await showDialog<void>(context:context,builder:(dialog)=>Dialog(
+   backgroundColor:eventSurface,
+   shape:RoundedRectangleBorder(borderRadius:BorderRadius.circular(22)),
+   insetPadding:const EdgeInsets.all(12),
+   child:SizedBox(width:840,height:MediaQuery.sizeOf(dialog).height*.92,
+    child:EventoEditor(initial:event,onSaved:(){Navigator.of(dialog).pop();load();})),
+  ));
  }
  Future<void> paymentConfig()async{
   final token=TextEditingController(),secret=TextEditingController();
@@ -60,10 +91,10 @@ class _EventosAdminState extends ConsumerState<EventosAdminPage>{
         Navigator.pop(dialog);
         ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content:Text('Cuenta de cobro actualizada')));
        }
-      }catch(e){if(dialog.mounted)ScaffoldMessenger.of(context).showSnackBar(SnackBar(content:Text(e.toString())));}
+      }catch(e){if(dialog.mounted)ScaffoldMessenger.of(context).showSnackBar(SnackBar(content:Text(niceEventError(e))));}
      },child:const Text('Guardar configuración')),
     ]));
-  }catch(e){if(mounted)ScaffoldMessenger.of(context).showSnackBar(SnackBar(content:Text(e.toString())));}
+  }catch(e){if(mounted)ScaffoldMessenger.of(context).showSnackBar(SnackBar(content:Text(niceEventError(e))));}
   finally{token.dispose();secret.dispose();}
  }
  Future<void> detail(int id)async{
@@ -92,18 +123,18 @@ class _EventosAdminState extends ConsumerState<EventosAdminPage>{
             try{
              await ref.read(eventosApiProvider).aprobar(asId(r['eres_id'])!);
              if(dialog.mounted){Navigator.pop(dialog);detail(id);}
-            }catch(e){if(dialog.mounted)ScaffoldMessenger.of(context).showSnackBar(SnackBar(content:Text(e.toString())));}
+            }catch(e){if(dialog.mounted)ScaffoldMessenger.of(context).showSnackBar(SnackBar(content:Text(niceEventError(e))));}
            },icon:const Icon(Icons.check),label:const Text('Aprobar')):null,
          ));
         }),
       ])),
       Align(alignment:Alignment.centerRight,child:TextButton(onPressed:()=>Navigator.pop(dialog),child:const Text('Cerrar')))
      ])))));
-  }catch(e){if(mounted)ScaffoldMessenger.of(context).showSnackBar(SnackBar(content:Text(e.toString())));}
+  }catch(e){if(mounted)ScaffoldMessenger.of(context).showSnackBar(SnackBar(content:Text(niceEventError(e))));}
  }
  Future<void> publish(int id)async{
   try{await ref.read(eventosApiProvider).publicar(id);await load();}
-  catch(e){if(mounted)ScaffoldMessenger.of(context).showSnackBar(SnackBar(content:Text(e.toString())));}
+  catch(e){if(mounted)ScaffoldMessenger.of(context).showSnackBar(SnackBar(content:Text(niceEventError(e))));}
  }
  Future<void> cancel(int id)async{
   final confirmed=await showDialog<bool>(context:context,builder:(ctx)=>AlertDialog(
@@ -112,59 +143,332 @@ class _EventosAdminState extends ConsumerState<EventosAdminPage>{
     TextButton(onPressed:()=>Navigator.pop(ctx,true),child:const Text('Cancelar evento'))]));
   if(confirmed!=true)return;
   try{await ref.read(eventosApiProvider).cancelar(id);await load();}
-  catch(e){if(mounted)ScaffoldMessenger.of(context).showSnackBar(SnackBar(content:Text(e.toString())));}
+  catch(e){if(mounted)ScaffoldMessenger.of(context).showSnackBar(SnackBar(content:Text(niceEventError(e))));}
  }
- @override Widget build(BuildContext context){
-  return Scaffold(backgroundColor:Colors.transparent,body:RefreshIndicator(onRefresh:load,
-   child:Center(child:ConstrainedBox(constraints:const BoxConstraints(maxWidth:1180),
-    child:ListView(padding:const EdgeInsets.all(22),children:[
-     Wrap(alignment:WrapAlignment.spaceBetween,crossAxisAlignment:WrapCrossAlignment.center,spacing:15,runSpacing:12,children:[
-      Column(crossAxisAlignment:CrossAxisAlignment.start,children:[
-       Text('Eventos y reservas',style:Theme.of(context).textTheme.headlineMedium?.copyWith(fontWeight:FontWeight.bold)),
-       const Text('Publica experiencias, comparte enlaces y gestiona las mesas de cada evento.'),
+ String _date(Object? raw){
+  final d=DateTime.tryParse(raw?.toString()??'');
+  return d==null?'Sin definir':DateFormat('d MMM yyyy · h:mm a','es_CO').format(d);
+ }
+ Widget _event(Map<String,dynamic> item){
+  final id=asId(item['even_id']);
+  final status=item['even_estado']?.toString()??'BORRADOR';
+  final published=status=='PUBLICADO',draft=status=='BORRADOR';
+  final start=DateTime.tryParse(item['even_inicio']?.toString()??'');
+  final color=published?const Color(0xff58e2af):
+    draft?const Color(0xffffd186):const Color(0xfff79b9b);
+  final value=double.tryParse(item['even_precio']?.toString()??'')??0;
+  final cost=value==0?'Gratis':NumberFormat.currency(
+    locale:'es_CO',symbol:'COP ',decimalDigits:0).format(value);
+  return Container(
+   margin:const EdgeInsets.only(bottom:14),padding:const EdgeInsets.all(20),
+   decoration:BoxDecoration(color:eventSurface,borderRadius:BorderRadius.circular(20),
+    border:Border.all(color:eventBorder)),
+   child:Column(crossAxisAlignment:CrossAxisAlignment.start,children:[
+    Row(crossAxisAlignment:CrossAxisAlignment.start,children:[
+     Container(width:69,height:76,
+      decoration:BoxDecoration(color:const Color(0xff1a4657),
+       borderRadius:BorderRadius.circular(14)),
+      child:Column(mainAxisAlignment:MainAxisAlignment.center,children:[
+       Text(start==null?'--':DateFormat('dd').format(start),
+        style:const TextStyle(color:eventText,fontSize:28,fontWeight:FontWeight.w900)),
+       Text(start==null?'MES':DateFormat('MMM','es_CO').format(start).toUpperCase(),
+        style:const TextStyle(color:sea,fontSize:11,fontWeight:FontWeight.w800)),
+      ])),
+     const SizedBox(width:16),
+     Expanded(child:Column(crossAxisAlignment:CrossAxisAlignment.start,children:[
+      Text(item['even_titulo']?.toString()??'Evento',
+       style:const TextStyle(color:eventText,fontSize:19,fontWeight:FontWeight.w800),
+       maxLines:2,overflow:TextOverflow.ellipsis),
+      const SizedBox(height:7),
+      Wrap(spacing:8,runSpacing:8,children:[
+       Chip(label:Text(published?'Publicado':draft?'Borrador':'Cancelado',
+         style:TextStyle(color:color,fontWeight:FontWeight.w700,fontSize:12)),
+        backgroundColor:color.withOpacity(.1),
+        side:BorderSide(color:color.withOpacity(.25)),
+        visualDensity:VisualDensity.compact),
+       Chip(label:Text(cost,style:const TextStyle(color:eventSecondary,fontSize:12)),
+        backgroundColor:const Color(0xff1b3a4a),
+        side:const BorderSide(color:eventBorder),visualDensity:VisualDensity.compact),
       ]),
-      Wrap(spacing:8,children:[
-       OutlinedButton.icon(onPressed:paymentConfig,icon:const Icon(Icons.account_balance),label:const Text('Cobros electrónicos')),
-       FilledButton.icon(onPressed:()=>editor(),icon:const Icon(Icons.add),label:const Text('Crear evento')),
-      ])
-     ]),
-     const SizedBox(height:18),
-     if(error!=null)Card(child:ListTile(title:Text(error!),trailing:TextButton(onPressed:load,child:const Text('Reintentar')))),
-     if(loading)const Center(child:CircularProgressIndicator()),
-     if(!loading&&entries.isEmpty)const Card(child:Padding(padding:EdgeInsets.all(35),child:Center(child:Text('Aún no tienes eventos. ¡Crea el primero!')))),
-     for(final item in entries)
-      Card(margin:const EdgeInsets.only(bottom:12),child:Padding(padding:const EdgeInsets.all(15),child:Column(
-       crossAxisAlignment:CrossAxisAlignment.start,children:[
-        Wrap(spacing:9,runSpacing:6,crossAxisAlignment:WrapCrossAlignment.center,children:[
-         Text(item['even_titulo']?.toString()??'',style:Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight:FontWeight.w700)),
-         Chip(label:Text(item['even_estado']?.toString()??'')),
-         Text(item['even_medio_pago']?.toString()??''),
-        ]),
-        const SizedBox(height:6),
-        Text('Inicio: '+(item['even_inicio']?.toString()??'')+'   ·   Finaliza: '+(item['even_fin']?.toString()??'')),
-        const SizedBox(height:12),
-        Wrap(spacing:8,runSpacing:7,children:[
-         OutlinedButton.icon(onPressed:()=>detail(asId(item['even_id'])!),icon:const Icon(Icons.people_outline),label:const Text('Reservas')),
-         if(item['even_estado']=='BORRADOR')...[
-          OutlinedButton.icon(onPressed:()async{
-           try{final e=await ref.read(eventosApiProvider).detalle(asId(item['even_id'])!);if(mounted)editor(e);}
-           catch(err){if(mounted)ScaffoldMessenger.of(context).showSnackBar(SnackBar(content:Text(err.toString())));}
-          },icon:const Icon(Icons.edit),label:const Text('Editar')),
-          FilledButton.tonalIcon(onPressed:()=>publish(asId(item['even_id'])!),icon:const Icon(Icons.public),label:const Text('Publicar')),
-         ],
-         if(item['even_estado']=='PUBLICADO')...[
-          OutlinedButton.icon(onPressed:(){
-           Clipboard.setData(ClipboardData(text:ref.read(eventosApiProvider).link(item['even_slug'].toString())));
-           ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content:Text('Enlace público copiado')));
-          },icon:const Icon(Icons.copy),label:const Text('Copiar enlace')),
-          OutlinedButton.icon(onPressed:()=>context.go('/evento/'+item['even_slug'].toString()),
-           icon:const Icon(Icons.visibility),label:const Text('Ver página pública')),
-          TextButton.icon(onPressed:()=>cancel(asId(item['even_id'])!),icon:const Icon(Icons.cancel_outlined),label:const Text('Cancelar')),
-         ],
-        ]),
-       ]))),
-    ])))));
+     ])),
+    ]),
+    const SizedBox(height:17),
+    Wrap(spacing:10,runSpacing:9,children:[
+     _eventInfo(Icons.calendar_today_outlined,'Inicio: '+_date(item['even_inicio'])),
+     _eventInfo(Icons.schedule_outlined,'Finaliza: '+_date(item['even_fin'])),
+     _eventInfo(Icons.payments_outlined,
+       item['even_medio_pago']=='GRATIS'?'Acceso gratis':
+       item['even_medio_pago']=='MANUAL'?'Pago manual':'Pago electrónico'),
+    ]),
+    const SizedBox(height:16),
+    const Divider(color:eventBorder,height:1),
+    const SizedBox(height:13),
+    Wrap(spacing:8,runSpacing:9,children:[
+     OutlinedButton.icon(onPressed:id==null?null:()=>detail(id),
+      icon:const Icon(Icons.groups_outlined,size:18),label:const Text('Ver reservas'),
+      style:OutlinedButton.styleFrom(foregroundColor:eventText,
+       side:const BorderSide(color:eventBorder))),
+     if(draft)...[
+      OutlinedButton.icon(onPressed:id==null?null:()async{
+       try{
+        final event=await ref.read(eventosApiProvider).detalle(id);
+        if(mounted)editor(event);
+       }catch(e){
+        if(mounted)ScaffoldMessenger.of(context).showSnackBar(
+         SnackBar(content:Text(niceEventError(e))));
+       }
+      },icon:const Icon(Icons.edit_outlined,size:18),label:const Text('Editar'),
+       style:OutlinedButton.styleFrom(foregroundColor:eventText,
+        side:const BorderSide(color:eventBorder))),
+      FilledButton.icon(onPressed:id==null?null:()=>publish(id),
+       icon:const Icon(Icons.public,size:18),label:const Text('Publicar'),
+       style:FilledButton.styleFrom(backgroundColor:sea,
+        foregroundColor:const Color(0xff072532))),
+     ],
+     if(published)...[
+      FilledButton.tonalIcon(onPressed:(){
+       Clipboard.setData(ClipboardData(
+        text:ref.read(eventosApiProvider).link(item['even_slug'].toString())));
+       ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content:Text('Enlace público copiado')));
+      },icon:const Icon(Icons.link,size:18),label:const Text('Copiar enlace')),
+      OutlinedButton.icon(
+       onPressed:()=>context.go('/evento/'+item['even_slug'].toString()),
+       icon:const Icon(Icons.open_in_new,size:18),label:const Text('Ver página'),
+       style:OutlinedButton.styleFrom(foregroundColor:eventText,
+        side:const BorderSide(color:eventBorder))),
+      TextButton.icon(onPressed:id==null?null:()=>cancel(id),
+       icon:const Icon(Icons.cancel_outlined,size:18),label:const Text('Cancelar'),
+       style:TextButton.styleFrom(foregroundColor:const Color(0xffffb4b4))),
+     ],
+    ]),
+   ]),
+  );
  }
+ Widget _eventInfo(IconData icon,String label)=>Container(
+  padding:const EdgeInsets.symmetric(horizontal:12,vertical:10),
+  decoration:BoxDecoration(color:const Color(0xff1b3b4b),
+   borderRadius:BorderRadius.circular(11)),
+  child:Row(mainAxisSize:MainAxisSize.min,children:[
+   Icon(icon,color:eventSecondary,size:17),const SizedBox(width:8),
+   Text(label,style:const TextStyle(color:eventText,fontSize:12)),
+  ]),
+ );
+ Widget _stat(IconData icon,String title,int value,Color color)=>Container(
+  padding:const EdgeInsets.all(19),
+  decoration:BoxDecoration(color:eventSurface,borderRadius:BorderRadius.circular(18),
+   border:Border.all(color:eventBorder)),
+  child:Row(children:[
+   Container(width:44,height:44,
+    decoration:BoxDecoration(color:color.withOpacity(.14),
+     borderRadius:BorderRadius.circular(13)),
+    child:Icon(icon,color:color,size:23)),
+   const SizedBox(width:14),
+   Column(crossAxisAlignment:CrossAxisAlignment.start,children:[
+    Text(title,style:const TextStyle(color:eventSecondary,fontSize:13)),
+    Text(value.toString(),style:const TextStyle(
+     color:eventText,fontSize:25,fontWeight:FontWeight.w800)),
+   ]),
+  ]),
+ );
+ Widget _empty(bool filtered)=>Container(
+  width:double.infinity,
+  padding:const EdgeInsets.symmetric(horizontal:22,vertical:35),
+  decoration:BoxDecoration(color:eventSurface,
+   borderRadius:BorderRadius.circular(22),border:Border.all(color:eventBorder)),
+  child:Column(children:[
+   Container(width:90,height:90,
+    decoration:BoxDecoration(
+     gradient:const LinearGradient(colors:[Color(0xff166071),Color(0xff173a4b)]),
+     borderRadius:BorderRadius.circular(26)),
+    child:Icon(filtered?Icons.search_off_rounded:Icons.celebration_outlined,
+     color:sea,size:46)),
+   const SizedBox(height:19),
+   Text(filtered?'No encontramos eventos con estos filtros':
+    'Tu próximo gran evento comienza aquí',
+    style:const TextStyle(color:eventText,fontSize:21,fontWeight:FontWeight.w800),
+    textAlign:TextAlign.center),
+   const SizedBox(height:10),
+   ConstrainedBox(constraints:const BoxConstraints(maxWidth:480),
+    child:Text(filtered?'Cambia el nombre o el estado del filtro.':
+     'Crea una experiencia, selecciona las mesas disponibles y comparte un enlace para recibir reservas y pagos.',
+     style:const TextStyle(color:eventSecondary,height:1.5),
+     textAlign:TextAlign.center)),
+   const SizedBox(height:20),
+   if(filtered)OutlinedButton.icon(onPressed:()=>setState((){
+    filter='TODOS';search='';
+   }),icon:const Icon(Icons.filter_alt_off_outlined),label:const Text('Limpiar filtros'))
+   else FilledButton.icon(onPressed:()=>editor(),
+    icon:const Icon(Icons.add_circle_outline),
+    label:const Text('Crear mi primer evento'),
+    style:FilledButton.styleFrom(backgroundColor:sea,
+     foregroundColor:const Color(0xff072532),
+     padding:const EdgeInsets.symmetric(horizontal:23,vertical:15))),
+   if(!filtered)...[
+    const SizedBox(height:23),
+    const Wrap(alignment:WrapAlignment.center,spacing:18,runSpacing:9,children:[
+     _EventHint(Icons.calendar_month_outlined,'Fechas y horarios'),
+     _EventHint(Icons.table_restaurant_outlined,'Mesas disponibles'),
+     _EventHint(Icons.qr_code_2,'Reservas con QR'),
+    ]),
+   ],
+  ]),
+ );
+
+ @override Widget build(BuildContext context){
+  final published=entries.where((e)=>e['even_estado']=='PUBLICADO').length;
+  final draft=entries.where((e)=>e['even_estado']=='BORRADOR').length;
+  final query=search.trim().toLowerCase();
+  final items=entries.where((e)=>
+   (filter=='TODOS'||e['even_estado']==filter) &&
+   (query.isEmpty||(e['even_titulo']?.toString().toLowerCase().contains(query)??false))
+  ).toList();
+  return Scaffold(backgroundColor:Colors.transparent,
+   body:RefreshIndicator(onRefresh:load,
+    child:Center(child:ConstrainedBox(
+     constraints:const BoxConstraints(maxWidth:1220),
+     child:ListView(padding:const EdgeInsets.fromLTRB(20,24,20,52),children:[
+      Container(padding:const EdgeInsets.all(27),
+       decoration:BoxDecoration(
+        gradient:const LinearGradient(begin:Alignment.topLeft,
+         end:Alignment.bottomRight,colors:[
+          Color(0xff15475a),Color(0xff0a2638),Color(0xff104052)]),
+        borderRadius:BorderRadius.circular(23),
+        border:Border.all(color:const Color(0xff3a6b7a))),
+       child:Wrap(
+        alignment:WrapAlignment.spaceBetween,spacing:18,runSpacing:20,
+        crossAxisAlignment:WrapCrossAlignment.center,children:[
+         ConstrainedBox(constraints:const BoxConstraints(maxWidth:600),
+          child:Column(crossAxisAlignment:CrossAxisAlignment.start,children:[
+           const Row(mainAxisSize:MainAxisSize.min,children:[
+            Icon(Icons.auto_awesome_outlined,color:sea,size:17),
+            SizedBox(width:8),
+            Text('TU AGENDA DE EXPERIENCIAS',
+             style:TextStyle(color:sea,letterSpacing:1.5,
+              fontSize:11,fontWeight:FontWeight.w800)),
+           ]),
+           const SizedBox(height:12),
+           const Text('Haz que cada evento sea inolvidable',
+            style:TextStyle(color:eventText,fontSize:25,
+             fontWeight:FontWeight.w900,height:1.2)),
+           const SizedBox(height:9),
+           const Text('Organiza fechas especiales, aparta mesas y recibe reservas desde una página pública con la identidad de tu negocio.',
+            style:TextStyle(color:eventSecondary,height:1.5,fontSize:14)),
+          ])),
+         Wrap(spacing:9,runSpacing:9,children:[
+          OutlinedButton.icon(onPressed:paymentConfig,
+           icon:const Icon(Icons.account_balance_wallet_outlined,size:19),
+           label:const Text('Configurar cobros'),
+           style:OutlinedButton.styleFrom(foregroundColor:eventText,
+            side:const BorderSide(color:Color(0xff73909e)),
+            padding:const EdgeInsets.symmetric(horizontal:18,vertical:16))),
+          FilledButton.icon(onPressed:()=>editor(),
+           icon:const Icon(Icons.add_circle_outline,size:19),
+           label:const Text('Nuevo evento'),
+           style:FilledButton.styleFrom(backgroundColor:sea,
+            foregroundColor:const Color(0xff072532),
+            padding:const EdgeInsets.symmetric(horizontal:20,vertical:16))),
+         ]),
+        ])),
+      const SizedBox(height:20),
+      if(loading)const Padding(padding:EdgeInsets.only(top:76),
+       child:Column(children:[
+        CircularProgressIndicator(color:sea),
+        SizedBox(height:16),
+        Text('Cargando tus eventos…',style:TextStyle(color:eventSecondary)),
+       ])),
+      if(error!=null)Container(padding:const EdgeInsets.all(24),
+       decoration:BoxDecoration(color:eventSurface,
+        borderRadius:BorderRadius.circular(20),
+        border:Border.all(color:const Color(0xffb37b60))),
+       child:Wrap(spacing:16,runSpacing:13,
+        crossAxisAlignment:WrapCrossAlignment.center,children:[
+         const Icon(Icons.cloud_off_rounded,size:34,color:Color(0xffffbf9c)),
+         ConstrainedBox(constraints:const BoxConstraints(maxWidth:700),
+          child:Column(crossAxisAlignment:CrossAxisAlignment.start,children:[
+           const Text('No pudimos cargar tus eventos',
+            style:TextStyle(color:eventText,fontSize:17,
+             fontWeight:FontWeight.w800)),
+           const SizedBox(height:6),
+           Text(error!,style:const TextStyle(
+            color:eventSecondary,height:1.5)),
+          ])),
+         OutlinedButton.icon(onPressed:load,
+          icon:const Icon(Icons.refresh),label:const Text('Reintentar'),
+          style:OutlinedButton.styleFrom(foregroundColor:eventText,
+           side:const BorderSide(color:eventBorder))),
+        ])),
+      if(!loading&&error==null)...[
+       LayoutBuilder(builder:(context,box){
+        final width=box.maxWidth<700?box.maxWidth:(box.maxWidth-24)/3;
+        return Wrap(spacing:12,runSpacing:12,children:[
+         SizedBox(width:width,child:_stat(Icons.calendar_month_outlined,
+          'Eventos creados',entries.length,sea)),
+         SizedBox(width:width,child:_stat(Icons.check_circle_outline,
+          'Publicados',published,const Color(0xff58e2af))),
+         SizedBox(width:width,child:_stat(Icons.edit_calendar_outlined,
+          'En preparación',draft,const Color(0xffffd186))),
+        ]);
+       }),
+       const SizedBox(height:25),
+       Row(mainAxisAlignment:MainAxisAlignment.spaceBetween,children:[
+        const Text('Tus eventos',style:TextStyle(
+         color:eventText,fontSize:21,fontWeight:FontWeight.w800)),
+        Text(entries.length.toString()+' registrados',
+         style:const TextStyle(color:eventSecondary,fontSize:13)),
+       ]),
+       const SizedBox(height:14),
+       if(entries.isNotEmpty)...[
+        Wrap(crossAxisAlignment:WrapCrossAlignment.center,
+         spacing:10,runSpacing:10,children:[
+          SizedBox(width:295,child:TextField(
+           onChanged:(v)=>setState(()=>search=v),
+           style:const TextStyle(color:eventText),
+           decoration:InputDecoration(hintText:'Buscar eventos',
+            hintStyle:const TextStyle(color:eventSecondary),
+            prefixIcon:const Icon(Icons.search,color:eventSecondary),
+            filled:true,fillColor:eventSurface,
+            enabledBorder:OutlineInputBorder(
+             borderRadius:BorderRadius.circular(12),
+             borderSide:const BorderSide(color:eventBorder)),
+            border:OutlineInputBorder(
+             borderRadius:BorderRadius.circular(12),
+             borderSide:const BorderSide(color:eventBorder))))),
+          for(final option in const [
+           ('TODOS','Todos'),('PUBLICADO','Publicados'),
+           ('BORRADOR','Borradores'),('CANCELADO','Cancelados')])
+           ChoiceChip(label:Text(option.$2),
+            selected:filter==option.$1,
+            onSelected:(_)=>setState(()=>filter=option.$1),
+            backgroundColor:eventSurface,
+            selectedColor:const Color(0xff196778),
+            side:BorderSide(color:filter==option.$1?sea:eventBorder),
+            labelStyle:TextStyle(color:filter==option.$1?eventText:eventSecondary)),
+         ]),
+        const SizedBox(height:18),
+       ],
+       if(entries.isEmpty)_empty(false)
+       else if(items.isEmpty)_empty(true)
+       else for(final item in items)_event(item),
+      ],
+     ]),
+    )),
+   ),
+  );
+ }
+}
+
+class _EventHint extends StatelessWidget{
+ const _EventHint(this.icon,this.label);
+ final IconData icon;
+ final String label;
+ @override Widget build(BuildContext context)=>Row(
+  mainAxisSize:MainAxisSize.min,children:[
+   Icon(icon,color:sea,size:16),
+   const SizedBox(width:7),
+   Text(label,style:const TextStyle(color:eventSecondary,fontSize:12)),
+  ],
+ );
 }
 
 class EventoEditor extends ConsumerStatefulWidget{
@@ -203,7 +507,7 @@ class _EventEditorState extends ConsumerState<EventoEditor>{
   if(branch==null)return;
   try{final t=await ref.read(eventosApiProvider).mesas(branch!);
     if(mounted)setState(()=>tables=t.where((e)=>e['mesaEstado']?.toString().toUpperCase()!='INACTIVA').toList());
-  }catch(e){if(mounted)ScaffoldMessenger.of(context).showSnackBar(SnackBar(content:Text('Mesas: '+e.toString())));}
+  }catch(e){if(mounted)ScaffoldMessenger.of(context).showSnackBar(SnackBar(content:Text('Mesas: '+niceEventError(e))));}
  }
  Future<void> _pick(bool beginning,bool date)async{
   final original=beginning?start:finish;
@@ -252,7 +556,7 @@ class _EventEditorState extends ConsumerState<EventoEditor>{
    if(widget.initial==null)await ref.read(eventosApiProvider).crear(body);
    else await ref.read(eventosApiProvider).cambiar(asId(widget.initial!['even_id'])!,body);
    if(mounted)widget.onSaved();
-  }catch(e){if(mounted)ScaffoldMessenger.of(context).showSnackBar(SnackBar(content:Text('No se guardó: '+e.toString())));}
+  }catch(e){if(mounted)ScaffoldMessenger.of(context).showSnackBar(SnackBar(content:Text('No se guardó: '+niceEventError(e))));}
   finally{if(mounted)setState(()=>busy=false);}
  }
  @override Widget build(BuildContext context){
