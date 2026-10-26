@@ -35,6 +35,63 @@ class _PublicState extends ConsumerState<EventoPublicoPage>{
   try{final e=await ref.read(eventosApiProvider).eventoPublico(widget.slug);if(mounted)setState((){event=e;error=null;});}
   catch(e){if(mounted)setState(()=>error=e.toString());}
  }
+ Future<void> share()async{
+  final url=event?['enlaceCompartir']?.toString()??
+    ref.read(eventosApiProvider).link(widget.slug);
+  if(!mounted)return;
+  await showModalBottomSheet<void>(
+   context:context,isScrollControlled:true,
+   backgroundColor:const Color(0xff182a43),
+   shape:const RoundedRectangleBorder(
+    borderRadius:BorderRadius.vertical(top:Radius.circular(24))),
+   builder:(sheet)=>SafeArea(
+    child:Padding(padding:const EdgeInsets.all(24),
+     child:Column(mainAxisSize:MainAxisSize.min,
+      crossAxisAlignment:CrossAxisAlignment.start,children:[
+       const Text('Compartir este evento',style:TextStyle(
+        color:Colors.white,fontSize:23,fontWeight:FontWeight.w800)),
+       const SizedBox(height:7),
+       const Text('Invita a otros a reservar sus puestos.',style:TextStyle(color:muted)),
+       const SizedBox(height:15),
+       SelectableText(url,style:const TextStyle(color:teal,fontSize:13)),
+       const SizedBox(height:18),
+       Wrap(spacing:9,runSpacing:9,children:[
+        FilledButton.icon(
+         onPressed:()async{
+          try{
+           await Clipboard.setData(ClipboardData(text:url));
+           if(sheet.mounted)Navigator.pop(sheet);
+           if(mounted)ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content:Text('Enlace del evento copiado')));
+          }catch(_){
+           if(mounted)ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content:Text('Selecciona y copia el enlace mostrado')));
+          }
+         },
+         icon:const Icon(Icons.copy),label:const Text('Copiar enlace')),
+        OutlinedButton.icon(
+         onPressed:()async{
+          final text='Te invito a '+(event?['titulo']?.toString()??'este evento')+'\n'+url;
+          final target=Uri.parse('https://wa.me/?text='+Uri.encodeComponent(text));
+          final ok=await launchUrl(target,mode:LaunchMode.externalApplication);
+          if(!ok&&mounted)ScaffoldMessenger.of(context).showSnackBar(
+           const SnackBar(content:Text('No se pudo abrir WhatsApp')));
+         },icon:const Icon(Icons.message),label:const Text('WhatsApp')),
+        OutlinedButton.icon(
+         onPressed:()async{
+          final target=Uri.parse('https://www.facebook.com/sharer/sharer.php?u='+
+            Uri.encodeComponent(url));
+          final ok=await launchUrl(target,mode:LaunchMode.externalApplication);
+          if(!ok&&mounted)ScaffoldMessenger.of(context).showSnackBar(
+           const SnackBar(content:Text('No se pudo abrir Facebook')));
+         },icon:const Icon(Icons.share_outlined),label:const Text('Facebook')),
+       ]),
+       const SizedBox(height:13),
+      ]),
+    ),
+   ),
+  );
+ }
  Future<void> book()async{
   if(selected==null||name.text.trim().isEmpty||!email.text.contains('@')){
    ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content:Text('Selecciona mesa y completa nombre y correo.')));return;
@@ -97,10 +154,8 @@ class _PublicState extends ConsumerState<EventoPublicoPage>{
           Text(e['empresa']?.toString()??'',style:const TextStyle(fontSize:18,fontWeight:FontWeight.bold)),
           Text(e['sucursal']?.toString()??'',style:const TextStyle(color:muted))
          ])),
-         IconButton(tooltip:'Copiar enlace para redes sociales',onPressed:()async{
-          await Clipboard.setData(ClipboardData(text:ref.read(eventosApiProvider).link(widget.slug)));
-          if(context.mounted)ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content:Text('Enlace copiado')));
-         },icon:const Icon(Icons.share,color:teal))
+         IconButton(tooltip:'Compartir evento',onPressed:share,
+          icon:const Icon(Icons.share,color:teal))
         ]),
         const SizedBox(height:55),
         const Text('VIVE UNA NOCHE INOLVIDABLE',style:TextStyle(color:teal,letterSpacing:2,fontWeight:FontWeight.bold)),
@@ -312,6 +367,8 @@ class _EntradaState extends ConsumerState<EventoEntradaPublicaPage>{
       const SizedBox(height:15),
       if(value!=null)...[
        Text('Mesa '+value!['mesa'].toString(),style:const TextStyle(color:Colors.white,fontSize:21)),
+        Text((value!['puestos']?.toString()??'1')+' puestos',
+         style:const TextStyle(color:teal,fontSize:17)),
        Text('Inicio: '+when(value!['inicio']),style:const TextStyle(color:muted)),
        Text('Fin: '+when(value!['fin']),style:const TextStyle(color:muted)),
       ],
