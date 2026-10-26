@@ -43,7 +43,9 @@ class EventosAdminPage extends ConsumerStatefulWidget {
 class _EventosAdminState extends ConsumerState<EventosAdminPage>{
  List<Map<String,dynamic>> entries=[];bool loading=true;String? error;
  String filter='TODOS',search='';
+ final searchController=TextEditingController();
  @override void initState(){super.initState();load();}
+ @override void dispose(){searchController.dispose();super.dispose();}
  Future<void> load()async{
   if(mounted)setState((){loading=true;error=null;});
   try{
@@ -296,7 +298,7 @@ class _EventosAdminState extends ConsumerState<EventosAdminPage>{
      textAlign:TextAlign.center)),
    const SizedBox(height:20),
    if(filtered)OutlinedButton.icon(onPressed:()=>setState((){
-    filter='TODOS';search='';
+    filter='TODOS';search='';searchController.clear();
    }),icon:const Icon(Icons.filter_alt_off_outlined),label:const Text('Limpiar filtros'))
    else FilledButton.icon(onPressed:()=>editor(),
     icon:const Icon(Icons.add_circle_outline),
@@ -422,6 +424,7 @@ class _EventosAdminState extends ConsumerState<EventosAdminPage>{
         Wrap(crossAxisAlignment:WrapCrossAlignment.center,
          spacing:10,runSpacing:10,children:[
           SizedBox(width:295,child:TextField(
+           controller:searchController,
            onChanged:(v)=>setState(()=>search=v),
            style:const TextStyle(color:eventText),
            decoration:InputDecoration(hintText:'Buscar eventos',
