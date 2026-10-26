@@ -30,7 +30,7 @@ class EventosApi{
  Future<Map<String,dynamic>> eventoPublico(String slug)async=>map(await get('/api/v1/eventos/public/$slug'));
  Future<Map<String,dynamic>> reservar(String slug,dynamic values)async=>map(await post('/api/v1/eventos/public/$slug/reservar',values));
  Future<Map<String,dynamic>> entrada(String token)async=>map(await get('/api/v1/eventos/public/entradas/$token'));
- String link(String slug)=> 'https://www.barlytics.com.co/#/evento/$slug';
+ String link(String slug)=> 'https://www.barlytics.com.co/api/v1/eventos/public/$slug/compartir';
  String entradaLink(String token)=>'https://www.barlytics.com.co/#/evento/entrada/$token';
  String qrLink(String token)=>'$base/api/v1/eventos/public/entradas/$token/qr';
 }
