@@ -10,6 +10,7 @@ import 'package:intl/intl.dart';
 import '../../../core/branch/branch_scope_provider.dart';
 import '../data/eventos_api.dart';
 import 'widgets/event_visual_kit.dart';
+import '../../productos/presentation/pages/productos_form_page.dart';
 
 const sea=Color(0xff24d4ce);
 const eventSurface=Color(0xff102e40);
@@ -18,20 +19,40 @@ const eventText=Color(0xffeffaff);
 const eventSecondary=Color(0xffb2cad4);
 String niceEventError(Object e){
  if(e is DioException){
-  final code=e.response?.statusCode;
-  if(code==403)return 'Tu rol no tiene permisos para consultar estos eventos.';
-  if(code==401)return 'La sesión expiró. Ingresa nuevamente.';
-  if(code==404)return 'Esta función todavía no se encuentra disponible en el backend.';
-  if(code==500||code==503)return 'El servidor no puede consultar eventos. Comprueba que las migraciones V43 y V44 se hayan aplicado al backend.';
-  if(code==null)return 'No hay conexión con el servidor. Comprueba tu conexión.';
+  final status=e.response?.statusCode;
   final data=e.response?.data;
+  String? detail;
   if(data is Map){
-   final msg=(data['mensaje']??data['message']??data['detail'])?.toString();
-   if(msg!=null&&msg.isNotEmpty&&msg.length<150)return msg;
+   final errors=data['errors'];
+   if(errors is List&&errors.isNotEmpty){
+    final first=errors.first;
+    if(first is Map){
+     final message=(first['message']??first['detail'])?.toString();
+     final field=first['field']?.toString();
+     if(message!=null&&message.trim().isNotEmpty){
+      detail=field!=null&&field.isNotEmpty?'$field: $message':message;
+     }
+    }else if(first is String)detail=first;
+   }
+   detail??=(data['detail']??data['mensaje'])?.toString();
+   if(detail==null){
+    final message=data['message']?.toString();
+    if(message!=null&&message.toLowerCase()!='error de validación'){
+     detail=message;
+    }
+   }
   }
-  return 'No se pudo completar la solicitud (código '+code.toString()+').';
+  if(status==401)return 'La sesión expiró. Ingresa nuevamente.';
+  if(status==403)return detail??'No tienes permisos para administrar este evento.';
+  if(status==400||status==409||status==422){
+   return detail??'Revisa sucursal, mesas, fechas, precio y productos seleccionados.';
+  }
+  if(status==404)return detail??'El recurso solicitado no está disponible.';
+  if(status==500||status==503)return detail??'El servidor no pudo completar la operación. Revisa el backend.';
+  if(status==null)return 'No hay conexión con el servidor.';
+  return detail??'Operación rechazada (HTTP $status)';
  }
- return 'No se pudo completar la operación. Inténtalo otra vez.';
+ return 'No se pudo completar la operación: $e';
 }
 
 String dateLabel(DateTime d)=>DateFormat('dd/MM/yyyy').format(d);
@@ -930,6 +951,7 @@ class _EventEditorState extends ConsumerState<EventoEditor>{
  List<Map<String,dynamic>> availableProducts=[];
  Set<int> selectedProducts={};
  bool loadingProducts=false,onlySelected=false;
+ String typeFilter='TODOS',brandFilter='TODAS',controlFilter='TODOS';
  String? productError;
  int productRequest=0;
  @override void initState(){
@@ -969,6 +991,37 @@ class _EventEditorState extends ConsumerState<EventoEditor>{
   }catch(e){
    if(mounted&&branch==branchId)ScaffoldMessenger.of(context).showSnackBar(
     SnackBar(content:Text('Mesas: '+niceEventError(e))));
+  }
+ }
+ Future<void> _createProduct()async{
+  final branchId=branch;
+  if(branchId==null){
+   ScaffoldMessenger.of(context).showSnackBar(
+    const SnackBar(content:Text('Selecciona la sucursal primero')));
+   return;
+  }
+  final created=await showDialog<int>(
+   context:context,barrierDismissible:false,
+   builder:(dialog)=>Dialog(
+    backgroundColor:EventColors.background,
+    insetPadding:const EdgeInsets.all(12),
+    shape:RoundedRectangleBorder(borderRadius:BorderRadius.circular(18)),
+    child:SizedBox(
+     width:MediaQuery.sizeOf(dialog).width>1320?1180.0:MediaQuery.sizeOf(dialog).width*.95,
+     height:MediaQuery.sizeOf(dialog).height*.92,
+     child:ProductosFormPage(embedded:true,sucursalId:branchId)),
+   ),
+  );
+  if(!mounted||branch!=branchId||created==null)return;
+  await _loadProducts(branchId);
+  if(!mounted)return;
+  if(availableProducts.any((p)=>asId(p['id'])==created)){
+   setState(()=>selectedProducts.add(created));
+   ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+    content:Text('Producto creado y agregado al evento')));
+  }else{
+   ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+    content:Text('Producto creado. Comprueba que tenga precio vigente en esta sucursal.')));
   }
  }
  Future<void> _loadProducts(int branchId)async{
@@ -1149,6 +1202,7 @@ class _EventEditorState extends ConsumerState<EventoEditor>{
          productRequest++;
          branch=v;tables=[];chosen={};capacities={};
          availableProducts=[];selectedProducts={};onlySelected=false;
+         typeFilter='TODOS';brandFilter='TODAS';controlFilter='TODOS';
          productSearch.clear();productError=null;
        });_loadTables();}),
    ]);
@@ -1333,7 +1387,58 @@ class _EventEditorState extends ConsumerState<EventoEditor>{
      onPressed:loadingProducts||branch==null?null:()=>_loadProducts(branch!),
      icon:const Icon(Icons.refresh,size:18),
      label:const Text('Actualizar')),
+    FilledButton.icon(
+     onPressed:busy?null:_createProduct,
+     style:FilledButton.styleFrom(backgroundColor:EventColors.primary,
+       foregroundColor:EventColors.onPrimary),
+     icon:const Icon(Icons.add_circle_outline,size:18),
+     label:const Text('Crear producto')),
    ]),
+   const SizedBox(height:12),
+   if(availableProducts.isNotEmpty)
+    LayoutBuilder(builder:(context,box){
+     final types=<String,String>{'TODOS':'Todos los tipos'};
+     final brands=<String,String>{'TODAS':'Todas las marcas'};
+     for(final item in availableProducts){
+      final typeKey=item['tipoId']?.toString()??'SIN_TIPO';
+      types[typeKey]=item['tipo']?.toString()??'Sin tipo';
+      final brandKey=item['marcaId']?.toString()??'SIN_MARCA';
+      brands[brandKey]=item['marca']?.toString()??'Sin marca';
+     }
+     final controls=<String,String>{
+      'TODOS':'Todos los controles',
+      'NORMAL':'Normal',
+      'PREPARADO':'Preparado',
+      'ADICIONAL':'Adicional'
+     };
+     final w=box.maxWidth>630?(box.maxWidth-18)/3:box.maxWidth;
+     return Wrap(spacing:9,runSpacing:9,children:[
+      SizedBox(width:w,child:DropdownButtonFormField<String>(
+       value:types.containsKey(typeFilter)?typeFilter:'TODOS',
+       isExpanded:true,
+       decoration:const InputDecoration(
+        labelText:'Tipo de producto',isDense:true),
+       items:types.entries.map((x)=>DropdownMenuItem<String>(
+        value:x.key,child:Text(x.value,overflow:TextOverflow.ellipsis))).toList(),
+       onChanged:(v)=>setState(()=>typeFilter=v??'TODOS'))),
+      SizedBox(width:w,child:DropdownButtonFormField<String>(
+       value:brands.containsKey(brandFilter)?brandFilter:'TODAS',
+       isExpanded:true,
+       decoration:const InputDecoration(
+        labelText:'Marca',isDense:true),
+       items:brands.entries.map((x)=>DropdownMenuItem<String>(
+        value:x.key,child:Text(x.value,overflow:TextOverflow.ellipsis))).toList(),
+       onChanged:(v)=>setState(()=>brandFilter=v??'TODAS'))),
+      SizedBox(width:w,child:DropdownButtonFormField<String>(
+       value:controls.containsKey(controlFilter)?controlFilter:'TODOS',
+       isExpanded:true,
+       decoration:const InputDecoration(
+        labelText:'Tipo de control',isDense:true),
+       items:controls.entries.map((x)=>DropdownMenuItem<String>(
+        value:x.key,child:Text(x.value))).toList(),
+       onChanged:(v)=>setState(()=>controlFilter=v??'TODOS'))),
+     ]);
+    }),
    const SizedBox(height:12),
    if(loadingProducts)const Padding(
     padding:EdgeInsets.all(25),child:Center(child:CircularProgressIndicator()))
@@ -1355,6 +1460,9 @@ class _EventEditorState extends ConsumerState<EventoEditor>{
     final filtered=availableProducts.where((item){
      final id=asId(item['id']);
      if(id==null||(onlySelected&&!selectedProducts.contains(id)))return false;
+     if(typeFilter!='TODOS'&&(item['tipoId']?.toString()??'SIN_TIPO')!=typeFilter)return false;
+     if(brandFilter!='TODAS'&&(item['marcaId']?.toString()??'SIN_MARCA')!=brandFilter)return false;
+     if(controlFilter!='TODOS'&&(item['tipoControl']?.toString()??'NORMAL')!=controlFilter)return false;
      if(query.isEmpty)return true;
      return (item['nombre']?.toString().toLowerCase().contains(query)??false)||
             (item['descripcion']?.toString().toLowerCase().contains(query)??false);
