@@ -394,6 +394,22 @@ class _EventosAdminState extends ConsumerState<EventosAdminPage>{
       icon:const Icon(Icons.groups_outlined,size:18),label:const Text('Ver reservas'),
       style:OutlinedButton.styleFrom(foregroundColor:eventText,
        side:const BorderSide(color:eventBorder))),
+     if(status!='CANCELADO')OutlinedButton.icon(
+      onPressed:id==null?null:()async{
+       final added=await showDialog<bool>(context:context,
+        builder:(_)=>_ReservaInternaDialog(
+         eventId:id,eventTitle:item['even_titulo']?.toString()??'Evento'));
+       if(added==true&&mounted){
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+         content:Text('Mesa apartada sin cobro en el evento')));
+        detail(id);
+       }
+      },
+      icon:const Icon(Icons.add_call,size:18),
+      label:const Text('Reserva interna'),
+      style:OutlinedButton.styleFrom(
+       foregroundColor:EventColors.gold,
+       side:const BorderSide(color:EventColors.border))),
      if(draft)...[
       OutlinedButton.icon(onPressed:id==null?null:()async{
        try{
@@ -862,22 +878,31 @@ class _ReservaInternaState extends ConsumerState<_ReservaInternaDialog>{
         color:EventColors.success),
       ]),
      )),
-     Container(padding:const EdgeInsets.all(15),
+     Container(width:double.infinity,padding:const EdgeInsets.all(15),
       decoration:const BoxDecoration(color:Color(0xFF082532),
        border:Border(top:BorderSide(color:EventColors.border))),
-      child:Row(children:[
-       Expanded(child:OutlinedButton(
+      child:LayoutBuilder(builder:(context,box){
+       final cancel=OutlinedButton(
         onPressed:saving?null:()=>Navigator.pop(context,false),
-        child:const Text('Cancelar'))),
-       const SizedBox(width:11),
-       Expanded(child:FilledButton.icon(
+        child:const Text('Cancelar'));
+       final saveButton=FilledButton.icon(
         onPressed:saving?null:save,
-        style:FilledButton.styleFrom(
-         backgroundColor:EventColors.primary,
+        style:FilledButton.styleFrom(backgroundColor:EventColors.primary,
          foregroundColor:EventColors.onPrimary),
-        icon:const Icon(Icons.check_circle_outline),
-        label:Text(saving?'Guardando...':'Confirmar sin cobro'))),
-      ]),
+        icon:const Icon(Icons.check_circle_outline,size:18),
+        label:Text(saving?'Guardando...':'Confirmar sin cobro'));
+       if(box.maxWidth<450)return Column(
+        mainAxisSize:MainAxisSize.min,children:[
+         SizedBox(width:double.infinity,child:saveButton),
+         const SizedBox(height:9),
+         SizedBox(width:double.infinity,child:cancel),
+        ]);
+       return Row(children:[
+        Expanded(child:cancel),
+        const SizedBox(width:11),
+        Expanded(child:saveButton),
+       ]);
+      }),
      ),
     ])),
    ),
