@@ -171,7 +171,12 @@ class _PublicState extends ConsumerState<EventoPublicoPage>{
         const SizedBox(height:18),
         Text(unitPrice==0?'RESERVA GRATUITA':
          (bySeat?'Precio por puesto · ':'Precio por mesa · ')+money(unitPrice),
-          style:const TextStyle(color:accent,fontWeight:FontWeight.bold,fontSize:19))
+          style:const TextStyle(color:accent,fontWeight:FontWeight.bold,fontSize:19)),
+        const SizedBox(height:16),
+        OutlinedButton.icon(onPressed:share,
+         icon:const Icon(Icons.share_outlined),label:const Text('Compartir evento'),
+         style:OutlinedButton.styleFrom(foregroundColor:Colors.white,
+          side:const BorderSide(color:teal)))
        ]))))))),
      SliverToBoxAdapter(child:Center(child:ConstrainedBox(constraints:const BoxConstraints(maxWidth:1100),
       child:Padding(padding:const EdgeInsets.all(23),child:Column(crossAxisAlignment:CrossAxisAlignment.start,children:[
@@ -295,11 +300,11 @@ class _PublicState extends ConsumerState<EventoPublicoPage>{
             crossAxisAlignment:WrapCrossAlignment.center,children:[
              const Text('¿Cuántos puestos quieres reservar?',
               style:TextStyle(fontWeight:FontWeight.w700)),
-             SizedBox(width:160,child:DropdownButtonFormField<int>(
-              value:seats,decoration:const InputDecoration(
-               labelText:'Puestos',border:OutlineInputBorder(),
-               contentPadding:EdgeInsets.symmetric(horizontal:12,vertical:8)),
-              items:List.generate(maxSeats,(i)=>DropdownMenuItem(
+             Container(width:165,padding:const EdgeInsets.symmetric(horizontal:12),
+               decoration:BoxDecoration(border:Border.all(color:Colors.white38),
+                 borderRadius:BorderRadius.circular(9)),
+               child:DropdownButton<int>(value:seats,isExpanded:true,
+               items:List.generate(maxSeats,(i)=>DropdownMenuItem(
                value:i+1,child:Text('${i+1} puestos'))),
               onChanged:(n){if(n!=null)setState(()=>seats=n);},
              )),
