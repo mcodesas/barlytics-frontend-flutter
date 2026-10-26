@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:url_launcher/url_launcher.dart';
 import 'package:intl/intl.dart';
 import '../../../core/branch/branch_scope_provider.dart';
 import '../data/eventos_api.dart';
@@ -82,6 +83,43 @@ class _EventosAdminState extends ConsumerState<EventosAdminPage>{
    content:Text(event==null?'Evento creado correctamente':'Evento actualizado correctamente'),
   ));
   await load(keepVisible:true);
+ }
+ Future<void> shareEvent(Map<String,dynamic> item)async{
+  final slug=item['even_slug']?.toString()??'';
+  if(slug.isEmpty)return;
+  final url=ref.read(eventosApiProvider).link(slug);
+  await showDialog<void>(context:context,builder:(dialog)=>AlertDialog(
+   title:const Text('Compartir evento'),
+   content:ConstrainedBox(constraints:const BoxConstraints(maxWidth:570),
+    child:Column(mainAxisSize:MainAxisSize.min,
+     crossAxisAlignment:CrossAxisAlignment.start,children:[
+      Text(item['even_titulo']?.toString()??''),
+      const SizedBox(height:11),
+      SelectableText(url),
+      const SizedBox(height:12),
+      const Text('Envía el enlace a tus clientes. Podrán ver el evento y reservar sus puestos.',
+       style:TextStyle(fontSize:13)),
+     ])),
+   actions:[
+    TextButton(onPressed:()=>Navigator.pop(dialog),child:const Text('Cerrar')),
+    OutlinedButton.icon(onPressed:()async{
+     final link=Uri.parse('https://wa.me/?text='+Uri.encodeComponent(
+      (item['even_titulo']?.toString()??'Evento')+'\n'+url));
+     await launchUrl(link,mode:LaunchMode.externalApplication);
+    },icon:const Icon(Icons.message),label:const Text('WhatsApp')),
+    FilledButton.icon(onPressed:()async{
+     try{
+      await Clipboard.setData(ClipboardData(text:url));
+      if(dialog.mounted)Navigator.pop(dialog);
+      if(mounted)ScaffoldMessenger.of(context).showSnackBar(
+       const SnackBar(content:Text('Enlace copiado correctamente')));
+     }catch(_){
+      if(mounted)ScaffoldMessenger.of(context).showSnackBar(
+       const SnackBar(content:Text('Copia manualmente el enlace de la ventana')));
+     }
+    },icon:const Icon(Icons.copy),label:const Text('Copiar enlace')),
+   ],
+  ));
  }
  Future<void> paymentConfig()async{
   final token=TextEditingController(),secret=TextEditingController();
@@ -247,12 +285,9 @@ class _EventosAdminState extends ConsumerState<EventosAdminPage>{
         foregroundColor:const Color(0xff072532))),
      ],
      if(published)...[
-      FilledButton.tonalIcon(onPressed:(){
-       Clipboard.setData(ClipboardData(
-        text:ref.read(eventosApiProvider).link(item['even_slug'].toString())));
-       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content:Text('Enlace público copiado')));
-      },icon:const Icon(Icons.link,size:18),label:const Text('Copiar enlace')),
+      FilledButton.tonalIcon(
+       onPressed:()=>shareEvent(item),
+       icon:const Icon(Icons.share_outlined,size:18),label:const Text('Compartir')),
       OutlinedButton.icon(
        onPressed:()=>context.go('/evento/'+item['even_slug'].toString()),
        icon:const Icon(Icons.open_in_new,size:18),label:const Text('Ver página'),
