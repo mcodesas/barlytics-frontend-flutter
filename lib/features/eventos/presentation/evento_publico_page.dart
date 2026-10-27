@@ -70,16 +70,32 @@ class _PublicState extends ConsumerState<EventoPublicoPage>{
     // abrir Mercado Pago sin un segundo diálogo redundante.
     final directPayment=event?['modoReserva']=='PUESTOS' &&
       event?['seleccionarMesa']==false;
+    final palette=EventPagePalette.fromHex(
+      event?['colorPrimario']?.toString(),event?['colorFondo']?.toString(),
+      event?['colorTexto']?.toString(),event?['colorTarjeta']?.toString(),
+      event?['colorBorde']?.toString(),event?['colorCarta']?.toString());
+    final readable=EventPagePalette.contrast(palette.text,palette.surface)>=4.5
+      ?palette.text:(EventPagePalette.contrast(Colors.black,palette.surface)>
+        EventPagePalette.contrast(Colors.white,palette.surface)
+        ?Colors.black:Colors.white);
     final shouldPay=directPayment?true:await showDialog<bool>(
       context:context,builder:(ctx)=>AlertDialog(
-      title:const Text('Reserva pendiente de pago'),
-      content:Text('La mesa se aparta provisionalmente durante $minutes minutos. '
+      backgroundColor:palette.surface,
+      shape:RoundedRectangleBorder(borderRadius:BorderRadius.circular(18),
+        side:BorderSide(color:palette.border)),
+      title:Text('Reserva pendiente de pago',style:TextStyle(
+        color:readable,fontWeight:FontWeight.w900)),
+      content:Text('Los puestos quedan apartados provisionalmente durante $minutes minutos. '
        'Solo un pago aprobado por Mercado Pago confirma tu reserva. '
-       'Si termina el plazo sin aprobación, la mesa volverá a estar disponible.'),
+       'Si termina el plazo sin aprobación, los puestos volverán a estar disponibles.',
+       style:TextStyle(color:readable)),
       actions:[
-       TextButton(onPressed:()=>Navigator.pop(ctx,false),
+       TextButton(style:TextButton.styleFrom(foregroundColor:readable),
+         onPressed:()=>Navigator.pop(ctx,false),
          child:const Text('Consultar estado')),
        if(checkout.isNotEmpty)FilledButton(
+         style:FilledButton.styleFrom(backgroundColor:palette.accent,
+           foregroundColor:palette.onAccent),
          onPressed:()=>Navigator.pop(ctx,true),
          child:const Text('Pagar ahora')),
       ]));
