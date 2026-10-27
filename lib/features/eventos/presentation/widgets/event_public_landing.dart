@@ -238,7 +238,7 @@ class _EventPublicLandingState extends State<EventPublicLanding> {
 
   Widget _nav(bool wide) => Row(children:[
     Container(width:82,height:82,clipBehavior:Clip.antiAlias,
-      decoration:BoxDecoration(color:EventColors.surfaceLight,
+      decoration:BoxDecoration(color:palette.surfaceSoft,
         borderRadius:BorderRadius.circular(15),
         border:Border.all(color:EventColors.border)),
       child:eventPhoto(widget.event['logo'])==null
@@ -298,11 +298,11 @@ class _EventPublicLandingState extends State<EventPublicLanding> {
                   fit:BoxFit.contain)),
              Positioned(bottom:12,right:12,child:Container(
                padding:const EdgeInsets.all(9),
-               decoration:BoxDecoration(color:EventColors.background,
-                 borderRadius:BorderRadius.circular(11)),
+               decoration:BoxDecoration(color:palette.surface,
+                  borderRadius:BorderRadius.circular(11)),
                child:const Row(mainAxisSize:MainAxisSize.min,children:[
-                 Icon(Icons.zoom_in,color:EventColors.primary),
-                 SizedBox(width:6),
+                 Icon(Icons.zoom_in,color:brand),
+                  SizedBox(width:6),
                  Text('Ampliar afiche',
                    style:TextStyle(color:EventColors.text,fontSize:12)),
                ]))),
@@ -333,8 +333,8 @@ class _EventPublicLandingState extends State<EventPublicLanding> {
                FilledButton.icon(onPressed:expand,
                  icon:const Icon(Icons.fullscreen_outlined),
                  style:FilledButton.styleFrom(
-                   backgroundColor:EventColors.primary,
-                   foregroundColor:EventColors.onPrimary),
+                   backgroundColor:brand,
+                    foregroundColor:onBrand),
                  label:const Text('Abrir afiche')),
              ],
            )),
@@ -378,11 +378,11 @@ class _EventPublicLandingState extends State<EventPublicLanding> {
          title:'Conoce el lugar',
          subtitle:'Fotografías reales del establecimiento',
          trailing:venue.isEmpty?null:
-           const Icon(Icons.zoom_in,color:EventColors.primary)),
+           Icon(Icons.zoom_in,color:brand)),
        const SizedBox(height:15),
        if(venue.isEmpty)Container(height:220,alignment:Alignment.center,
-         decoration:BoxDecoration(color:EventColors.surfaceLight,
-           borderRadius:BorderRadius.circular(12)),
+         decoration:BoxDecoration(color:palette.surfaceSoft,
+            borderRadius:BorderRadius.circular(12)),
          child:const Text('Próximamente: fotos del lugar',
            style:TextStyle(color:EventColors.muted)))
        else LayoutBuilder(builder:(context,layout){
@@ -453,7 +453,7 @@ class _EventPublicLandingState extends State<EventPublicLanding> {
            begin:Alignment.bottomCenter,end:Alignment.topCenter,
            colors:[Color(0xE3061925),Colors.transparent])))),
      Positioned(left:12,bottom:12,right:12,child:Row(children:[
-       const Icon(Icons.location_on,color:EventColors.primary),
+       Icon(Icons.location_on,color:brand),
        const SizedBox(width:7),
        const Expanded(child:Text('Vista del lugar · Abrir en Google Maps',
          style:TextStyle(color:EventColors.text,
@@ -560,7 +560,7 @@ class _EventPublicLandingState extends State<EventPublicLanding> {
              borderRadius:BorderRadius.circular(14),
              child:Container(clipBehavior:Clip.antiAlias,
                decoration:BoxDecoration(
-                 color:chosen?const Color(0xFF185368):EventColors.surfaceLight,
+                 color:chosen?brand.withOpacity(.20):palette.surfaceSoft,
                  borderRadius:BorderRadius.circular(14),
                  border:Border.all(
                    width:chosen?2:1,
@@ -578,7 +578,7 @@ class _EventPublicLandingState extends State<EventPublicLanding> {
                        icon:const Icon(Icons.zoom_in,size:19))),
                    if(chosen)Positioned(right:8,top:8,
                      child:CircleAvatar(radius:15,backgroundColor:brand,
-                       child:Icon(Icons.check,color:EventColors.onPrimary,size:18))),
+                       child:Icon(Icons.check,color:onBrand,size:18))),
                    if(!available)Positioned.fill(child:Container(color:Colors.black45)),
                  ])),
                  Padding(padding:const EdgeInsets.fromLTRB(10,8,10,10),
