@@ -78,7 +78,7 @@ class _EventPublicLandingState extends State<EventPublicLanding> {
         const SnackBar(content:Text('No hay puestos disponibles para este evento.')));
       return;
     }
-    var quantity=widget.seats.clamp(1,limit);
+    var quantity=widget.seats.clamp(1,limit).toInt();
     final quantityInput=TextEditingController(text:quantity.toString());
     final formKey=GlobalKey<FormState>();
     final unit=price(widget.event['precio']);
