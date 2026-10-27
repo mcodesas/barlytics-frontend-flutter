@@ -1560,7 +1560,7 @@ class _EventEditorState extends ConsumerState<EventoEditor>{
        menuHex=TextEditingController();
  final instagramUrl=TextEditingController(),facebookUrl=TextEditingController(),
        tiktokUrl=TextEditingController(),whatsappUrl=TextEditingController();
- String bookingMode='MESA';bool sharing=false,selectChairs=false;
+ String bookingMode='MESA';bool sharing=false,selectChairs=false,selectTable=true;
  bool get bookingLocked=>(asId(widget.initial?['reservasRegistradas'])??0)>0;
  String? customLogo;
  DateTime start=DateTime.now().add(const Duration(days:1)).copyWith(hour:20,minute:0),
@@ -1593,6 +1593,7 @@ class _EventEditorState extends ConsumerState<EventoEditor>{
    selectedProducts=(i['productos'] as List? ??[]).map(asId).whereType<int>().toSet();
    bookingMode=i['modoReserva']?.toString()??'MESA';
    sharing=i['compartirMesa']==true;selectChairs=i['seleccionarSillas']==true;
+   selectTable=i['seleccionarMesa']!=false;
    primaryHex.text=i['colorPrimario']?.toString()??'#23D8D1';
    backgroundHex.text=i['colorFondo']?.toString()??'#061925';
    textHex.text=i['colorTexto']?.toString()??'#F2FBFF';
@@ -1791,7 +1792,8 @@ class _EventEditorState extends ConsumerState<EventoEditor>{
     'productos':selectedProducts.toList(),
     'modoReserva':bookingMode,
     'compartirMesa':bookingMode=='PUESTOS'&&sharing,
-    'seleccionarSillas':bookingMode=='PUESTOS'&&selectChairs,
+    'seleccionarSillas':bookingMode=='PUESTOS'&&selectTable&&selectChairs,
+    'seleccionarMesa':bookingMode!='PUESTOS'||selectTable,
     'colorPrimario':primaryHex.text.trim(),
     'colorFondo':backgroundHex.text.trim(),
     'colorTexto':textHex.text.trim(),'logo':customLogo,
@@ -1963,7 +1965,7 @@ class _EventEditorState extends ConsumerState<EventoEditor>{
     ],selected:{bookingMode},
     onSelectionChanged:bookingLocked?null:(v)=>setState((){
      bookingMode=v.first;
-     if(bookingMode=='MESA'){sharing=false;selectChairs=false;}
+     if(bookingMode=='MESA'){sharing=false;selectChairs=false;selectTable=true;}
     })),
    const SizedBox(height:12),
    Text(bookingMode=='MESA'
@@ -1972,6 +1974,15 @@ class _EventEditorState extends ConsumerState<EventoEditor>{
      style:const TextStyle(color:EventColors.muted,fontSize:12)),
    if(bookingMode=='PUESTOS')...[
     const SizedBox(height:12),
+    SwitchListTile.adaptive(
+     contentPadding:EdgeInsets.zero,value:selectTable,
+     title:const Text('Permitir que el cliente elija la mesa',
+      style:TextStyle(color:EventColors.text,fontWeight:FontWeight.w700)),
+     subtitle:const Text('Si está desactivado, solo se elige la cantidad de puestos. BarLytics asigna automáticamente una mesa con disponibilidad.'),
+     onChanged:bookingLocked?null:(v)=>setState((){
+      selectTable=v;
+      if(!v)selectChairs=false;
+     })),
     SwitchListTile.adaptive(
      contentPadding:EdgeInsets.zero,value:sharing,
      title:const Text('Permitir compartir mesa',
@@ -1983,7 +1994,7 @@ class _EventEditorState extends ConsumerState<EventoEditor>{
      title:const Text('El cliente puede elegir sus sillas',
       style:TextStyle(color:EventColors.text,fontWeight:FontWeight.w700)),
      subtitle:const Text('Si está apagado, BarLytics asigna los asientos automáticamente.'),
-     onChanged:bookingLocked?null:(v)=>setState(()=>selectChairs=v)),
+     onChanged:bookingLocked||!selectTable?null:(v)=>setState(()=>selectChairs=v)),
    ],
    const SizedBox(height:8),
    if(bookingLocked)Container(
