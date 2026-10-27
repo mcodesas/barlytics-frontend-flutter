@@ -695,6 +695,7 @@ class _EventPaymentGuide extends ConsumerStatefulWidget{
 class _EventPaymentGuideState extends ConsumerState<_EventPaymentGuide>{
  final token=TextEditingController(),secret=TextEditingController();
  bool tokenVisible=false,secretVisible=false,saving=false;
+ bool showCreateGuide=true;
  String? error;
  bool get configured=>widget.initial['configurada']==true;
  String get webhook=>widget.initial['webhook']?.toString()??'';
@@ -751,6 +752,95 @@ class _EventPaymentGuideState extends ConsumerState<_EventPaymentGuide>{
    ])),
   ]),
  );
+
+ /// Guía integrada para quienes aún no tienen una app en Mercado Pago.
+ /// No recibe claves ni crea cuentas automáticamente: enlaza al panel oficial.
+ Widget _createApplicationGuide() {
+  return EventPanel(
+   background:EventColors.surface,
+   borderColor:EventColors.primary.withOpacity(.45),
+   child:Column(crossAxisAlignment:CrossAxisAlignment.start,children:[
+    Row(children:[
+     Container(
+      height:42,width:42,
+      decoration:BoxDecoration(
+       gradient:const LinearGradient(colors:[
+        Color(0xFF20D8CE),Color(0xFF0C9BAD)]),
+       borderRadius:BorderRadius.circular(12)),
+      child:const Icon(Icons.add_to_home_screen_outlined,
+       color:EventColors.onPrimary,size:23)),
+     const SizedBox(width:11),
+     const Expanded(child:Column(
+      crossAxisAlignment:CrossAxisAlignment.start,children:[
+       Text('¿No tienes una aplicación de Mercado Pago?',
+        style:TextStyle(fontSize:16,fontWeight:FontWeight.w900,
+         color:EventColors.text)),
+       SizedBox(height:4),
+       Text('Crea una para tu establecimiento antes de copiar las credenciales.',
+        style:TextStyle(color:EventColors.muted,fontSize:12)),
+      ])),
+     IconButton(
+      tooltip:showCreateGuide?'Ocultar guía':'Mostrar guía',
+      onPressed:()=>setState(()=>showCreateGuide=!showCreateGuide),
+      icon:Icon(showCreateGuide?Icons.keyboard_arrow_up:
+       Icons.keyboard_arrow_down,color:EventColors.primary)),
+    ]),
+    if(showCreateGuide)...[
+     const SizedBox(height:18),
+     _step(1,'Inicia sesión en la cuenta que recibirá los pagos',
+      'Entra a Mercado Pago Developers con la cuenta del negocio. '
+      'Abre Tus integraciones y pulsa Crear aplicación. '
+      'Si te pregunta cómo crearla, elige Crear manualmente.'),
+     _step(2,'Nombra la aplicación',
+      'Escribe un nombre reconocible, por ejemplo: '
+      '«Mi gastrobar - Reservas BarLytics». '
+      'Es un nombre para identificar la integración dentro de Mercado Pago.'),
+     _step(3,'Selecciona la solución correcta',
+      'Selecciona Pagos online y luego Checkout Pro. '
+      'BarLytics genera una preferencia de pago y el cliente paga '
+      'en el sitio seguro de Mercado Pago.',
+      child:const Wrap(spacing:8,runSpacing:8,children:[
+       EventPill(icon:Icons.language_outlined,label:'Pagos online'),
+       EventPill(icon:Icons.shopping_bag_outlined,label:'Checkout Pro'),
+      ])),
+     _step(4,'Indica para quién es la aplicación',
+      'Esta integración recibe cobros del propio establecimiento. '
+      'Si Mercado Pago pregunta por el modelo de integración, '
+      'selecciona tu propio negocio o vendedor directo, no Marketplace. '
+      'Si pregunta por una plataforma de comercio electrónico, '
+      'indica que es una integración propia, no una tienda de otra plataforma.'),
+     _step(5,'Confirma la creación',
+      'Completa los datos adicionales que solicite Mercado Pago '
+      '(como categoría o sitio web, si aplica), acepta sus condiciones '
+      'y pulsa Crear aplicación. Al terminar, abre las '
+      'credenciales de Producción en la aplicación nueva.'),
+     const SizedBox(height:2),
+     LayoutBuilder(builder:(context,box){
+      return Wrap(spacing:9,runSpacing:9,children:[
+       FilledButton.icon(
+        onPressed:()=>_open('https://www.mercadopago.com.co/developers/panel/app'),
+        style:FilledButton.styleFrom(
+         backgroundColor:EventColors.primary,
+         foregroundColor:EventColors.onPrimary),
+        icon:const Icon(Icons.open_in_new,size:18),
+        label:const Text('Crear aplicación en Mercado Pago')),
+       OutlinedButton.icon(
+        onPressed:()=>_open(
+         'https://www.mercadopago.com.co/developers/es/docs/checkout-pro-preferences/create-application'),
+        icon:const Icon(Icons.menu_book_outlined,size:18),
+        label:const Text('Ver guía oficial')),
+      ]);
+     }),
+     const SizedBox(height:12),
+     const Text(
+      'Mercado Pago puede variar los nombres de las opciones. '
+      'La creación se hace siempre en el sitio oficial; '
+      'BarLytics nunca solicita tu contraseña de Mercado Pago.',
+      style:TextStyle(fontSize:11,color:EventColors.muted,height:1.5)),
+    ],
+   ]),
+  );
+ }
  @override Widget build(BuildContext context){
   return Dialog(
    backgroundColor:EventColors.background,
@@ -798,8 +888,14 @@ class _EventPaymentGuideState extends ConsumerState<_EventPaymentGuide>{
           color:configured?EventColors.success:EventColors.warning),
         ])),
        const SizedBox(height:19),
+       _createApplicationGuide(),
+       const SizedBox(height:19),
+       const EventSectionHeading(icon:Icons.key_outlined,
+        title:'Conecta tu aplicación a BarLytics',
+        subtitle:'Si ya tienes una aplicación Checkout Pro, continúa con estos pasos.'),
+       const SizedBox(height:16),
        _step(1,'Abre Mercado Pago Developers',
-        'Entra con la cuenta de Mercado Pago que recibirá el dinero del negocio. Ve a Tus integraciones y selecciona tu aplicación; si no existe, crea una nueva.',
+        'Entra con la cuenta de Mercado Pago que recibirá el dinero del negocio. Ve a Tus integraciones y abre la aplicación Checkout Pro creada para tu establecimiento.',
         child:OutlinedButton.icon(
          onPressed:()=>_open('https://www.mercadopago.com.co/developers/panel/app'),
          icon:const Icon(Icons.open_in_new,size:17),
