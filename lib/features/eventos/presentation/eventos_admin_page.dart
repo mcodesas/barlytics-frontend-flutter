@@ -65,6 +65,7 @@ class EventosAdminPage extends ConsumerStatefulWidget {
 }
 class _EventosAdminState extends ConsumerState<EventosAdminPage>{
  List<Map<String,dynamic>> entries=[];bool loading=true;String? error;
+ bool _sucursalDialogOpen=false;
  String filter='TODOS',search='';
  final searchController=TextEditingController();
  @override void initState(){super.initState();load();}
@@ -72,13 +73,21 @@ class _EventosAdminState extends ConsumerState<EventosAdminPage>{
  int _loadSeq=0;
  Future<void> load({bool keepVisible=false})async{
   final seq=++_loadSeq;
+  final branchId=ref.read(branchScopeProvider).activeBranchId;
   if(mounted)setState((){loading=!keepVisible;error=null;});
   try{
    final rows=await ref.read(eventosApiProvider).eventos();
-   if(!mounted||seq!=_loadSeq)return;
-   setState((){entries=rows;loading=false;error=null;});
+   if(!mounted||seq!=_loadSeq||
+      branchId!=ref.read(branchScopeProvider).activeBranchId)return;
+   setState((){
+     // Segunda barrera visual: nunca presentar filas de otra sucursal,
+     // ni siquiera si el servidor entrega datos anteriores por error.
+     entries=rows.where((r)=>asId(r['sucu_id'])==branchId).toList();
+     loading=false;error=null;
+   });
   }catch(e){
-   if(!mounted||seq!=_loadSeq)return;
+   if(!mounted||seq!=_loadSeq||
+     branchId!=ref.read(branchScopeProvider).activeBranchId)return;
    if(keepVisible && entries.isNotEmpty){
     setState((){loading=false;error=null;});
     ScaffoldMessenger.of(context).showSnackBar(
@@ -164,9 +173,13 @@ class _EventosAdminState extends ConsumerState<EventosAdminPage>{
   }
  }
  Future<void> detail(int id)async{
+  final branchId=ref.read(branchScopeProvider).activeBranchId;
+  if(branchId==null)return;
   try{
    final data=await ref.read(eventosApiProvider).detalle(id);
-   if(!mounted)return;
+   if(!mounted||branchId!=ref.read(branchScopeProvider).activeBranchId
+      ||asId(data['sucu_id'])!=branchId)return;
+   _sucursalDialogOpen=true;
    await showDialog<void>(context:context,builder:(dialog)=>Dialog(
     backgroundColor:EventColors.background,
     shape:RoundedRectangleBorder(borderRadius:BorderRadius.circular(22)),
@@ -331,7 +344,7 @@ class _EventosAdminState extends ConsumerState<EventosAdminPage>{
   }catch(e){
    if(mounted)ScaffoldMessenger.of(context).showSnackBar(
     SnackBar(content:Text(niceEventError(e))));
-  }
+  }finally{_sucursalDialogOpen=false;}
  }
  Future<void> publish(int id)async{
   try{await ref.read(eventosApiProvider).publicar(id);await load();}
@@ -529,10 +542,26 @@ class _EventosAdminState extends ConsumerState<EventosAdminPage>{
  );
 
  @override Widget build(BuildContext context){
-  final published=entries.where((e)=>e['even_estado']=='PUBLICADO').length;
-  final draft=entries.where((e)=>e['even_estado']=='BORRADOR').length;
+  final branchId=ref.watch(branchScopeProvider).activeBranchId;
+  ref.listen<BranchScopeState>(branchScopeProvider,(old,next){
+    if(old?.activeBranchId==next.activeBranchId)return;
+    // Cerrar el detalle anterior al cambiar de sucursal.
+    if(_sucursalDialogOpen){
+      _sucursalDialogOpen=false;
+      Navigator.of(context,rootNavigator:true).maybePop();
+    }
+    ++_loadSeq;
+    WidgetsBinding.instance.addPostFrameCallback((_){
+      if(!mounted)return;
+      setState((){entries=[];loading=true;error=null;});
+      load();
+    });
+  });
+  final visibleEntries=entries.where((e)=>asId(e['sucu_id'])==branchId).toList();
+  final published=visibleEntries.where((e)=>e['even_estado']=='PUBLICADO').length;
+  final draft=visibleEntries.where((e)=>e['even_estado']=='BORRADOR').length;
   final query=search.trim().toLowerCase();
-  final items=entries.where((e)=>
+  final items=visibleEntries.where((e)=>
    (filter=='TODOS'||e['even_estado']==filter) &&
    (query.isEmpty||(e['even_titulo']?.toString().toLowerCase().contains(query)??false))
   ).toList();
@@ -616,7 +645,7 @@ class _EventosAdminState extends ConsumerState<EventosAdminPage>{
         final width=box.maxWidth<700?box.maxWidth:(box.maxWidth-24)/3;
         return Wrap(spacing:12,runSpacing:12,children:[
          SizedBox(width:width,child:_stat(Icons.calendar_month_outlined,
-          'Eventos creados',entries.length,sea)),
+          'Eventos creados',visibleEntries.length,sea)),
          SizedBox(width:width,child:_stat(Icons.check_circle_outline,
           'Publicados',published,const Color(0xff58e2af))),
          SizedBox(width:width,child:_stat(Icons.edit_calendar_outlined,
@@ -627,11 +656,11 @@ class _EventosAdminState extends ConsumerState<EventosAdminPage>{
        Row(mainAxisAlignment:MainAxisAlignment.spaceBetween,children:[
         const Text('Tus eventos',style:TextStyle(
          color:eventText,fontSize:21,fontWeight:FontWeight.w800)),
-        Text(entries.length.toString()+' registrados',
+        Text(visibleEntries.length.toString()+' registrados',
          style:const TextStyle(color:eventSecondary,fontSize:13)),
        ]),
        const SizedBox(height:14),
-       if(entries.isNotEmpty)...[
+       if(visibleEntries.isNotEmpty)...[
         Wrap(crossAxisAlignment:WrapCrossAlignment.center,
          spacing:10,runSpacing:10,children:[
           SizedBox(width:295,child:TextField(
@@ -661,7 +690,7 @@ class _EventosAdminState extends ConsumerState<EventosAdminPage>{
          ]),
         const SizedBox(height:18),
        ],
-       if(entries.isEmpty)_empty(false)
+       if(visibleEntries.isEmpty)_empty(false)
        else if(items.isEmpty)_empty(true)
        else for(final item in items)_event(item),
       ],
@@ -1872,13 +1901,14 @@ class _EventEditorState extends ConsumerState<EventoEditor>{
          prefixIcon:Icon(Icons.storefront_outlined)),
        items:branches.where((e)=>e.sucuId!=null).map<DropdownMenuItem<int>>((v)=>
          DropdownMenuItem<int>(value:v.sucuId,child:Text(v.sucuNombre??'Sucursal'))).toList(),
-       onChanged:(v){setState((){
+       onChanged:null, // La sede se cambia desde el selector principal.
+       /* onChanged:(v){setState((){
          productRequest++;
          branch=v;tables=[];chosen={};capacities={};
          availableProducts=[];selectedProducts={};onlySelected=false;
          typeFilter='TODOS';brandFilter='TODAS';controlFilter='TODOS';
          productSearch.clear();productError=null;
-       });_loadTables();}),
+       });_loadTables();}), */
    ]);
    final media=Column(crossAxisAlignment:CrossAxisAlignment.start,children:[
      const Text('Afiche o portada del evento',
@@ -2893,7 +2923,8 @@ class _EventEditorState extends ConsumerState<EventoEditor>{
    );
  }
  @override Widget build(BuildContext context){
-   final branches=ref.watch(branchScopeProvider).branches;
+   final current=ref.watch(branchScopeProvider);
+   final branches=current.branches.where((b)=>b.sucuId==current.activeBranchId).toList();
    return Theme(
      data:ThemeData.dark(useMaterial3:true).copyWith(
        colorScheme:const ColorScheme.dark(
