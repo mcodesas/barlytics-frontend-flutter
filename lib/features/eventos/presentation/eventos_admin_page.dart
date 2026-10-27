@@ -1979,7 +1979,7 @@ class _EventEditorState extends ConsumerState<EventoEditor>{
      title:const Text('Permitir que el cliente elija la mesa',
       style:TextStyle(color:EventColors.text,fontWeight:FontWeight.w700)),
      subtitle:const Text('Si está desactivado, solo se elige la cantidad de puestos. BarLytics asigna automáticamente una mesa con disponibilidad.'),
-     onChanged:bookingLocked?null:(v)=>setState((){
+     onChanged:(v)=>setState((){
       selectTable=v;
       if(!v)selectChairs=false;
      })),
