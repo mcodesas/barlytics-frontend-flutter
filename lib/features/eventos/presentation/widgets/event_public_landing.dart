@@ -777,11 +777,8 @@ class _EventPublicLandingState extends State<EventPublicLanding> {
          decoration:BoxDecoration(
            color:paper,
            borderRadius:BorderRadius.circular(13),
-           border:Border(
-             left:const BorderSide(color:Color(0xFFAC885E),width:5),
-             top:const BorderSide(color:Color(0xFFE3D3BA)),
-             right:const BorderSide(color:Color(0xFFD6BE9F)),
-             bottom:const BorderSide(color:Color(0xFFD6BE9F))),
+           // El lomo decorativo no forma parte del BoxBorder redondeado.
+           border:Border.all(color:const Color(0xFFD6BE9F)),
            boxShadow:const [BoxShadow(color:Color(0x38000000),
              blurRadius:20,offset:Offset(0,10))]),
          child:Column(crossAxisAlignment:CrossAxisAlignment.stretch,
@@ -865,6 +862,15 @@ class _EventPublicLandingState extends State<EventPublicLanding> {
                fontFamily:'Georgia',fontStyle:FontStyle.italic)),
          ]),
        )),
+       // Dibujar lomo separado para conservar esquinas redondeadas válidas.
+       const Positioned(left:0,top:0,bottom:7,
+         child:IgnorePointer(child:DecoratedBox(
+           decoration:BoxDecoration(
+             color:Color(0xFFAC885E),
+             borderRadius:BorderRadius.only(
+               topLeft:Radius.circular(13),
+               bottomLeft:Radius.circular(13))),
+           child:SizedBox(width:5)))),
      ]));
    }
    return EventPanel(child:Column(
