@@ -2277,7 +2277,9 @@ class _EventEditorState extends ConsumerState<EventoEditor>{
   ]));
 
  Widget _payments()=>_block(7,'Reservas y pagos',
-   'Configura cómo reservar y el precio por cada puesto.',
+   bookingMode=='PUESTOS'
+     ?'Configura el precio por asistente y el método de pago.'
+     :'Configura el precio por mesa completa y el método de pago.',
    Column(crossAxisAlignment:CrossAxisAlignment.start,children:[
      LayoutBuilder(builder:(context,box){
        final columns=box.maxWidth>485?3:1;
@@ -2296,8 +2298,11 @@ class _EventEditorState extends ConsumerState<EventoEditor>{
        keyboardType:const TextInputType.numberWithOptions(decimal:true),
        onChanged:(_)=>setState((){}),
        decoration:const InputDecoration(
-         labelText:'Precio por puesto (COP)',prefixIcon:Icon(Icons.attach_money),
-         helperText:'Total = precio por puesto × cantidad de puestos reservados')),
+         labelText:bookingMode=='PUESTOS'?'Precio por puesto (COP)':'Precio por mesa (COP)',
+         prefixIcon:const Icon(Icons.attach_money),
+         helperText:bookingMode=='PUESTOS'
+          ?'Total = precio × cantidad de puestos'
+          :'La reserva ocupa la mesa y se cobra una sola vez')),
      if(method=='MANUAL')...[
        const SizedBox(height:13),
        TextFormField(controller:instructions,maxLines:3,
@@ -2320,7 +2325,8 @@ class _EventEditorState extends ConsumerState<EventoEditor>{
        EventMetric(icon:Icons.groups_outlined,
          label:'Capacidad total',value:capacity.toString()+' puestos'),
        const Divider(color:EventColors.border,height:28),
-       EventMetric(icon:Icons.payments_outlined,label:'Precio por puesto',
+       EventMetric(icon:Icons.payments_outlined,
+          label:bookingMode=='PUESTOS'?'Precio por puesto':'Precio por mesa',
          value:method=='GRATIS'?'Gratis':
            NumberFormat.currency(locale:'es_CO',symbol:'COP ',decimalDigits:0).format(unit)),
        const Divider(color:EventColors.border,height:28),
