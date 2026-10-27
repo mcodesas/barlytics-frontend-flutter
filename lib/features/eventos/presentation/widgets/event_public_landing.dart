@@ -104,7 +104,7 @@ class _EventPublicLandingState extends State<EventPublicLanding> {
                 Text('Reservar puestos',
                   style:TextStyle(color:palette.text,fontWeight:FontWeight.w900)),
                 const SizedBox(height:6),
-                Text('Selecciona cuántos puestos necesitas. La mesa se asigna automáticamente.',
+                Text('Selecciona tus puestos. Pueden distribuirse entre varias mesas.',
                   style:TextStyle(color:palette.muted,fontSize:12,fontWeight:FontWeight.normal)),
               ]),
               content:SizedBox(width:430,child:SingleChildScrollView(
@@ -346,8 +346,18 @@ class _EventPublicLandingState extends State<EventPublicLanding> {
               surface:palette.surface,onSurface:palette.text)
           :ColorScheme.dark(primary:brand,onPrimary:onBrand,
               surface:palette.surface,onSurface:palette.text),
+        scaffoldBackgroundColor:palette.canvas,
+        canvasColor:palette.surface,
+        textTheme:Theme.of(context).textTheme.apply(
+          bodyColor:palette.text,displayColor:palette.text),
         inputDecorationTheme:InputDecorationTheme(
           filled:true,fillColor:palette.surfaceSoft,
+          prefixIconColor:palette.muted,
+          suffixIconColor:palette.muted,
+          floatingLabelStyle:TextStyle(color:palette.accent),
+          focusedBorder:OutlineInputBorder(
+            borderRadius:BorderRadius.circular(11),
+            borderSide:BorderSide(color:palette.accent,width:2)),
           labelStyle:TextStyle(color:palette.muted),
           hintStyle:TextStyle(color:palette.muted),
           border:OutlineInputBorder(borderRadius:BorderRadius.circular(11)),
@@ -712,6 +722,16 @@ class _EventPublicLandingState extends State<EventPublicLanding> {
         fontWeight:FontWeight.w800,fontSize:14)),
      SizedBox(height:11),
      _socialLinks(),
+     if(helpWhatsappLink(getText('whatsapp'),getText('titulo'),
+       getText('sucursal'))!=null)...[
+       SizedBox(height:15),
+       OutlinedButton.icon(
+         onPressed:openSupport,
+         icon:Icon(Icons.support_agent_outlined),
+         label:Text('¿Dudas? Escríbenos por WhatsApp'),
+         style:OutlinedButton.styleFrom(foregroundColor:palette.text,
+           side:BorderSide(color:palette.border))),
+     ],
    ],
  );
 
