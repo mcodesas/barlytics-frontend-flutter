@@ -1284,7 +1284,8 @@ class _ReservaInternaState extends ConsumerState<_ReservaInternaDialog>{
     'mesaId':selectedTable,'puestos':seats,
     'nombre':name.text.trim(),'telefono':phone.text.trim(),
     'origen':source,'nota':notes.text.trim(),
-    'sillas':chosenChairs.toList()..sort(),
+    'sillas':(tables.any((t)=>asId(t['id'])==selectedTable&&
+      t['seleccionarSillas']==true)?chosenChairs.toList()..sort():<int>[]),
    };
    if(editing){
     await ref.read(eventosApiProvider).editarReservaInterna(
@@ -1380,7 +1381,7 @@ class _ReservaInternaState extends ConsumerState<_ReservaInternaDialog>{
         itemBuilder:(context,i){
          final table=tables[i];
          final id=asId(table['id']);
-         final current=editing&&!cancelled&&id==asId(widget.initial?['mesa_id']);
+         final current=editing&&id==asId(widget.initial?['mesa_id']);
          final free=table['estado']=='DISPONIBLE'||current;
          final active=id==selectedTable;
          return InkWell(
