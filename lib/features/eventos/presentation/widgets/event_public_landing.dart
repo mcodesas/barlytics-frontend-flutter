@@ -47,7 +47,7 @@ class _EventPublicLandingState extends State<EventPublicLanding> {
   bool get bySeat=>widget.event['modoReserva']=='PUESTOS';
   bool get selectSeats=>bySeat&&widget.event['seleccionarSillas']==true;
   EventPagePalette get palette=>EventPagePalette.fromHex(
-    getText('colorPrimario'),getText('colorFondo'));
+    getText('colorPrimario'),getText('colorFondo'),getText('colorTexto'));
   Color get brand=>palette.accent;
   Color get onBrand=>palette.onAccent;
   Color get backdrop=>palette.canvas;
@@ -216,13 +216,13 @@ class _EventPublicLandingState extends State<EventPublicLanding> {
                 style:TextStyle(
                   fontWeight:FontWeight.w900,height:1.02,
                   letterSpacing:-1,
-                  color:EventColors.text,fontSize:wide?56:38))),
+                  color:palette.text,fontSize:wide?56:38))),
             const SizedBox(height:13),
             if(getText('descripcion').isNotEmpty)
               ConstrainedBox(constraints:const BoxConstraints(maxWidth:650),
                 child:Text(getText('descripcion'),
                   maxLines:3,overflow:TextOverflow.ellipsis,
-                  style:const TextStyle(color:EventColors.text,
+                  style:TextStyle(color:palette.text,
                     fontSize:15,height:1.55))),
             const SizedBox(height:19),
             Wrap(spacing:9,runSpacing:9,children:[
