@@ -1989,6 +1989,50 @@ class _EventEditorState extends ConsumerState<EventoEditor>{
     style:TextStyle(color:EventColors.muted,fontSize:11)),
   ]));
 
+ Future<void> _pickThemeColor(
+   TextEditingController controller,String heading) async {
+  var hsv=HSVColor.fromColor(EventPagePalette.parse(
+    controller.text,EventColors.primary));
+  final selected=await showDialog<Color>(
+   context:context,
+   builder:(dialogContext)=>StatefulBuilder(
+    builder:(dialogContext,update)=>AlertDialog(
+     backgroundColor:EventColors.surface,
+     title:Text(heading,style:const TextStyle(color:EventColors.text)),
+     content:SizedBox(width:380,child:Column(
+      mainAxisSize:MainAxisSize.min,
+      crossAxisAlignment:CrossAxisAlignment.stretch,children:[
+       Container(height:68,decoration:BoxDecoration(
+        color:hsv.toColor(),
+        borderRadius:BorderRadius.circular(13),
+        border:Border.all(color:EventColors.border))),
+       const SizedBox(height:16),
+       const Text('Tono',style:TextStyle(color:EventColors.muted)),
+       Slider(value:hsv.hue,min:0,max:360,
+        onChanged:(v)=>update(()=>hsv=hsv.withHue(v))),
+       const Text('Intensidad',style:TextStyle(color:EventColors.muted)),
+       Slider(value:hsv.saturation,min:0,max:1,
+        onChanged:(v)=>update(()=>hsv=hsv.withSaturation(v))),
+       const Text('Luminosidad',style:TextStyle(color:EventColors.muted)),
+       Slider(value:hsv.value,min:0,max:1,
+        onChanged:(v)=>update(()=>hsv=hsv.withValue(v))),
+      ],
+     )),
+     actions:[
+      TextButton(onPressed:()=>Navigator.pop(dialogContext),
+       child:const Text('Cancelar')),
+      FilledButton(onPressed:()=>Navigator.pop(dialogContext,hsv.toColor()),
+       child:const Text('Aplicar color')),
+     ],
+    ),
+   ),
+  );
+  if(selected==null||!mounted)return;
+  final rgb=(selected.toARGB32()&0xFFFFFF)
+    .toRadixString(16).padLeft(6,'0').toUpperCase();
+  setState(()=>controller.text='#'+rgb);
+ }
+
  Widget _visualTheme(){
   final selected=EventPagePalette.fromHex(
     primaryHex.text.trim(),backgroundHex.text.trim());
@@ -2126,6 +2170,17 @@ class _EventEditorState extends ConsumerState<EventoEditor>{
       Expanded(child:backgroundInput),
      ]);
     }),
+    const SizedBox(height:10),
+    Wrap(spacing:12,runSpacing:9,children:[
+     OutlinedButton.icon(
+      onPressed:()=>_pickThemeColor(primaryHex,'Elegir color de acento'),
+      icon:const Icon(Icons.color_lens_outlined),
+      label:const Text('Elegir acento visualmente')),
+     OutlinedButton.icon(
+      onPressed:()=>_pickThemeColor(backgroundHex,'Elegir tono de ambiente'),
+      icon:const Icon(Icons.format_color_fill_outlined),
+      label:const Text('Elegir ambiente visualmente')),
+    ]),
     if(!validAccent||!validBase)
      const Padding(padding:EdgeInsets.only(top:7),child:Text(
       'Escribe seis dígitos hexadecimales por color, por ejemplo #E6BE83.',
