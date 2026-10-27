@@ -209,7 +209,7 @@ class _EventPublicLandingState extends State<EventPublicLanding> {
                       style:TextStyle(color:palette.muted,fontSize:12)),
                   ],
                 ]))),
-              )),
+              ),
               actions:[
                 TextButton(
                   onPressed:()=>Navigator.pop(dialogContext,false),
