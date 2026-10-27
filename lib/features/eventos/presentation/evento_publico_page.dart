@@ -175,7 +175,7 @@ class _PublicState extends ConsumerState<EventoPublicoPage>{
    busy:busy,
    name:name,email:email,phone:phone,
    onSelectTable:(id)=>setState((){
-    selected=id;
+    selected=id>0?id:null;
     seats=1;
    }),
    onSeatsChanged:(value)=>setState(()=>seats=value),
