@@ -155,7 +155,7 @@ class _EventPublicLandingState extends State<EventPublicLanding> {
               onPressed:()=>jump(_bookingKey),
               icon:const Icon(Icons.confirmation_number_outlined),
               label:const Text('Reservar puestos'),
-              style:FilledButton.styleFrom(backgroundColor:EventColors.primary,
+              style:FilledButton.styleFrom(backgroundColor:brand,
                 foregroundColor:EventColors.onPrimary,
                 padding:const EdgeInsets.all(15))),
           )),
@@ -215,7 +215,7 @@ class _EventPublicLandingState extends State<EventPublicLanding> {
               FilledButton.icon(onPressed:()=>jump(_bookingKey),
                 icon:const Icon(Icons.event_seat_outlined),
                 label:const Text('Reservar ahora'),
-                style:FilledButton.styleFrom(backgroundColor:EventColors.primary,
+                style:FilledButton.styleFrom(backgroundColor:brand,
                   foregroundColor:EventColors.onPrimary,
                   padding:const EdgeInsets.symmetric(horizontal:25,vertical:17))),
               OutlinedButton.icon(onPressed:getText('ubicacionGoogleMaps').isEmpty?null:openMap,
@@ -238,7 +238,7 @@ class _EventPublicLandingState extends State<EventPublicLanding> {
         borderRadius:BorderRadius.circular(15),
         border:Border.all(color:EventColors.border)),
       child:eventPhoto(widget.event['logo'])==null
-        ?const Icon(Icons.storefront_outlined,color:EventColors.primary,size:40)
+        ?Icon(Icons.storefront_outlined,color:brand,size:40)
         :EventArtwork(source:widget.event['logo'],height:82,width:82,
           fit:BoxFit.cover,borderRadius:0)),
     const SizedBox(width:11),
@@ -262,7 +262,7 @@ class _EventPublicLandingState extends State<EventPublicLanding> {
         label:const Text('Reservar ahora')),
     ]else IconButton(onPressed:widget.onShare,
       tooltip:'Compartir evento',
-      icon:const Icon(Icons.share_outlined,color:EventColors.primary)),
+      icon:Icon(Icons.share_outlined,color:brand)),
   ]);
 
 
@@ -582,7 +582,7 @@ class _EventPublicLandingState extends State<EventPublicLanding> {
                  borderRadius:BorderRadius.circular(14),
                  border:Border.all(
                    width:chosen?2:1,
-                   color:chosen?EventColors.primary:EventColors.border)),
+                   color:chosen?brand:EventColors.border)),
                child:Column(crossAxisAlignment:CrossAxisAlignment.stretch,children:[
                  Expanded(child:Stack(children:[
                    Positioned.fill(child:EventArtwork(source:t['foto'],
@@ -595,7 +595,7 @@ class _EventPublicLandingState extends State<EventPublicLanding> {
                          labels:['Mesa '+(t['numero']??id).toString()]),
                        icon:const Icon(Icons.zoom_in,size:19))),
                    if(chosen)const Positioned(right:8,top:8,
-                     child:CircleAvatar(radius:15,backgroundColor:EventColors.primary,
+                     child:CircleAvatar(radius:15,backgroundColor:brand,
                        child:Icon(Icons.check,color:EventColors.onPrimary,size:18))),
                    if(!available)Positioned.fill(child:Container(color:Colors.black45)),
                  ])),
@@ -729,7 +729,7 @@ class _EventPublicLandingState extends State<EventPublicLanding> {
        Row(children:[
          const Expanded(child:Text('Total a pagar',style:TextStyle(
            color:EventColors.text,fontWeight:FontWeight.w800))),
-         Text(currency(total),style:const TextStyle(color:EventColors.primary,
+         Text(currency(total),style:TextStyle(color:brand,
            fontWeight:FontWeight.w900,fontSize:20)),
        ]),
        const SizedBox(height:20),
@@ -764,7 +764,7 @@ class _EventPublicLandingState extends State<EventPublicLanding> {
          label:Text(widget.busy?'Procesando...':
            widget.event['medioPago']=='MERCADOPAGO'?'Reservar y pagar':'Confirmar reserva'),
          style:FilledButton.styleFrom(
-           backgroundColor:EventColors.primary,
+           backgroundColor:brand,
            foregroundColor:EventColors.onPrimary,
            padding:const EdgeInsets.symmetric(vertical:17)))),
        const SizedBox(height:9),
