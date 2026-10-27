@@ -6,6 +6,14 @@ import 'event_visual_kit.dart';
 import 'event_photo_viewer.dart';
 import 'event_share_sheet.dart';
 
+/// Cupo real total del evento; las mesas ocupadas devuelven cero desde el API.
+int eventAvailableSeats(Iterable<Map<String,dynamic>> tables){
+  return tables.fold<int>(0,(sum,table){
+    final raw=int.tryParse(table['disponibles']?.toString()??'0')??0;
+    return sum+(raw>0?raw:0);
+  });
+}
+
 /// Landing pública real (sin datos demostrativos ni dependencias del shell privado).
 /// Toda la información proviene del evento, sucursal, mesas y catálogo del API.
 class EventPublicLanding extends StatefulWidget {
@@ -60,9 +68,8 @@ class _EventPublicLandingState extends State<EventPublicLanding> {
    if(list.isEmpty)return [];
    return (list.first['sillasOcupadas'] as List? ??[]).map(number).toList();
   }
-  // El límite es la suma de los puestos habilitados de todas las mesas.
-  int get automaticMax=>tables.fold<int>(0,(sum,t)=>
-    sum+number(t['disponibles']));
+  // El cliente puede reservar el cupo total, no sólo el de una mesa.
+  int get automaticMax=>eventAvailableSeats(tables);
   void startReservation(){
     if(autoAssignOnly){
       _openAutomaticBooking();
