@@ -1125,7 +1125,7 @@ class _EventPaymentGuideState extends ConsumerState<_EventPaymentGuide>{
           replaceToken=!replaceToken;token.clear();tokenVisible=false;
          }),
          description:configured?'Si no lo reemplazas, sigue activo el token guardado.':
-          'Credencial privada de producción de tu negocio.'),
+          'Credencial privada de producción de tu negocio.')),
        _step(3,'Configura las notificaciones Webhook',
         'En la misma aplicación abre Webhooks. En Modo productivo pega esta URL HTTPS y activa las notificaciones de Pagos (payment). Guarda la configuración.',
         child:EventPanel(background:EventColors.surfaceLight,
@@ -1153,7 +1153,7 @@ class _EventPaymentGuideState extends ConsumerState<_EventPaymentGuide>{
           replaceSecret=!replaceSecret;secret.clear();secretVisible=false;
          }),
          description:configured?'Mantén el valor anterior salvo que hayas cambiado el Webhook.':
-          'Firma privada de las notificaciones productivas.'),
+          'Firma privada de las notificaciones productivas.')),
        _step(5,configured?'Actualizar solo lo necesario':'Guarda y verifica una transacción',
         configured
          ?'Tus credenciales anteriores siguen activas. Si cambiaste una de ellas, usa Reemplazar en ese campo y guarda. Después verifica un pago aprobado. Guardar no comprueba automáticamente las credenciales.'
