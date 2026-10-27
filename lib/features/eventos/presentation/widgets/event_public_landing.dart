@@ -758,101 +758,128 @@ class _EventPublicLandingState extends State<EventPublicLanding> {
 
 
  Widget _catalog(){
+   const paper=Color(0xFFF3EBDC);
+   const ink=Color(0xFF38291F);
+   const detail=Color(0xFF916F4D);
+   // Cuatro productos por hoja evitan páginas gigantes vacías.
    final pages=<List<Map<String,dynamic>>>[];
-   for(var i=0;i<products.length;i+=8)
-     pages.add(products.skip(i).take(8).toList());
+   for(var i=0;i<products.length;i+=4){
+     pages.add(products.skip(i).take(4).toList());
+   }
+   Widget menuPage(List<Map<String,dynamic>> items,int index,double width){
+     return SizedBox(width:width,child:Stack(children:[
+       Positioned.fill(left:6,top:7,right:0,bottom:0,child:DecoratedBox(
+         decoration:BoxDecoration(
+           color:const Color(0xFFCBB89A),
+           borderRadius:BorderRadius.circular(13)))),
+       Padding(padding:const EdgeInsets.only(right:6,bottom:7),child:Container(
+         padding:const EdgeInsets.fromLTRB(17,18,18,17),
+         decoration:BoxDecoration(
+           color:paper,
+           borderRadius:BorderRadius.circular(13),
+           border:Border(
+             left:const BorderSide(color:Color(0xFFAC885E),width:5),
+             top:const BorderSide(color:Color(0xFFE3D3BA)),
+             right:const BorderSide(color:Color(0xFFD6BE9F)),
+             bottom:const BorderSide(color:Color(0xFFD6BE9F))),
+           boxShadow:const [BoxShadow(color:Color(0x38000000),
+             blurRadius:20,offset:Offset(0,10))]),
+         child:Column(crossAxisAlignment:CrossAxisAlignment.stretch,
+           mainAxisSize:MainAxisSize.min,children:[
+           Row(children:[
+             const Icon(Icons.auto_stories_outlined,
+               color:detail,size:21),
+             const SizedBox(width:8),
+             Expanded(child:Text(getText('sucursal','Nuestra carta'),
+               maxLines:1,overflow:TextOverflow.ellipsis,
+               style:const TextStyle(color:ink,
+                 fontWeight:FontWeight.w800,fontSize:12))),
+             Text((index+1).toString()+' / '+pages.length.toString(),
+               style:const TextStyle(color:detail,fontSize:11)),
+           ]),
+           const SizedBox(height:11),
+           const Text('LA CARTA',
+             textAlign:TextAlign.center,
+             style:TextStyle(color:ink,fontFamily:'Georgia',
+               fontWeight:FontWeight.w900,fontSize:23,letterSpacing:3)),
+           const SizedBox(height:3),
+           const Text('Una selección para disfrutar',
+             textAlign:TextAlign.center,
+             style:TextStyle(color:detail,fontSize:12,
+               fontStyle:FontStyle.italic)),
+           const SizedBox(height:12),
+           const Divider(height:1,thickness:1,color:Color(0xFFC9AF8D)),
+           const SizedBox(height:7),
+           for(final product in items)...[
+             Padding(padding:const EdgeInsets.symmetric(vertical:9),
+               child:Row(crossAxisAlignment:CrossAxisAlignment.start,children:[
+                 InkWell(
+                   onTap:eventPhoto(product['imagen'])==null?null:
+                     ()=>showEventPhotoViewer(context,
+                       images:[product['imagen']],
+                       labels:[product['nombre']?.toString()??'Producto']),
+                   borderRadius:BorderRadius.circular(10),
+                   child:Stack(children:[
+                     EventArtwork(source:product['imagen'],
+                       width:88,height:82,borderRadius:9,
+                       emptyIcon:Icons.restaurant_menu_outlined),
+                     if(eventPhoto(product['imagen'])!=null)
+                       const Positioned(right:4,bottom:4,
+                         child:Icon(Icons.zoom_in,
+                           color:Colors.white,size:22)),
+                   ]),
+                 ),
+                 const SizedBox(width:12),
+                 Expanded(child:Column(
+                   crossAxisAlignment:CrossAxisAlignment.start,children:[
+                     Text(product['nombre']?.toString()??'Producto',
+                       maxLines:2,overflow:TextOverflow.ellipsis,
+                       style:const TextStyle(color:ink,
+                         fontFamily:'Georgia',
+                         fontWeight:FontWeight.w800,fontSize:15)),
+                     if((product['descripcion']?.toString()??'').trim().isNotEmpty)...[
+                       const SizedBox(height:4),
+                       Text(product['descripcion'].toString(),
+                         maxLines:2,overflow:TextOverflow.ellipsis,
+                         style:const TextStyle(color:Color(0xFF735E4A),
+                           fontSize:11,height:1.45)),
+                     ],
+                     const SizedBox(height:6),
+                     Text(currency(product['precio']),
+                       style:const TextStyle(color:Color(0xFF966336),
+                         fontSize:13,fontWeight:FontWeight.w900)),
+                   ],
+                 )),
+               ]),
+             ),
+             if(product!=items.last)
+               const Divider(height:1,color:Color(0x55BDA487)),
+           ],
+           const SizedBox(height:10),
+           const Divider(height:1,thickness:1,color:Color(0xFFC9AF8D)),
+           const SizedBox(height:12),
+           Text(getText('sucursal','Buen provecho'),
+             maxLines:1,overflow:TextOverflow.ellipsis,
+             textAlign:TextAlign.center,
+             style:const TextStyle(color:detail,fontSize:11,
+               fontFamily:'Georgia',fontStyle:FontStyle.italic)),
+         ]),
+       )),
+     ]));
+   }
    return EventPanel(child:Column(
      key:_menuKey,crossAxisAlignment:CrossAxisAlignment.start,children:[
        const EventSectionHeading(icon:Icons.menu_book_outlined,
          title:'La carta del evento',
-         subtitle:'Explora nuestro menú como un libro. Pulsa las fotografías para ampliarlas.'),
+         subtitle:'Hojas de menú con fotografías, descripciones y precios. Toca una foto para ampliarla.'),
        const SizedBox(height:19),
        LayoutBuilder(builder:(context,box){
-         final double width=box.maxWidth>=850
-           ?(box.maxWidth-17)/2:box.maxWidth;
-         return Wrap(spacing:17,runSpacing:22,children:[
-           for(var page=0;page<pages.length;page++)
-            SizedBox(width:width,child:Container(
-             padding:const EdgeInsets.fromLTRB(18,22,18,16),
-             decoration:BoxDecoration(
-              color:const Color(0xFFFFF8E8),
-              borderRadius:BorderRadius.circular(5),
-              border:Border(
-               left:const BorderSide(color:Color(0xFFCCAE76),width:6),
-               top:const BorderSide(color:Color(0xFFD8C6A3)),
-               right:const BorderSide(color:Color(0xFFD8C6A3)),
-               bottom:const BorderSide(color:Color(0xFFD8C6A3))),
-              boxShadow:const [
-               BoxShadow(color:Color(0x7A000000),blurRadius:15,offset:Offset(5,9)),
-               BoxShadow(color:Color(0x44C3B39B),blurRadius:0,offset:Offset(3,4)),
-              ]),
-             child:Column(crossAxisAlignment:CrossAxisAlignment.stretch,children:[
-              Row(mainAxisAlignment:MainAxisAlignment.spaceBetween,children:[
-               const Icon(Icons.auto_stories_outlined,
-                color:Color(0xFF98774B),size:23),
-               Expanded(child:Text(getText('sucursal','Nuestra carta'),
-                maxLines:1,overflow:TextOverflow.ellipsis,textAlign:TextAlign.center,
-                style:const TextStyle(color:Color(0xFF57432F),
-                 fontSize:13,fontWeight:FontWeight.w800))),
-               Text('Pág. '+(page+1).toString(),
-                style:const TextStyle(color:Color(0xFF94764D),fontSize:11)),
-              ]),
-              const SizedBox(height:12),
-              Text(page==0?'SABORES PARA COMPARTIR':'MÁS DE NUESTRA CARTA',
-               textAlign:TextAlign.center,
-               style:const TextStyle(fontFamily:'Georgia',
-                color:Color(0xFF422C22),
-                fontSize:21,fontWeight:FontWeight.w900,letterSpacing:1.1)),
-              const SizedBox(height:6),
-              const Divider(color:Color(0xFFBFA881),thickness:1),
-              const SizedBox(height:10),
-              for(final product in pages[page])...[
-               Row(crossAxisAlignment:CrossAxisAlignment.center,children:[
-                InkWell(
-                 borderRadius:BorderRadius.circular(10),
-                 onTap:eventPhoto(product['imagen'])==null?null:
-                  ()=>showEventPhotoViewer(context,
-                    images:[product['imagen']],
-                    labels:[product['nombre']?.toString()??'Producto']),
-                 child:Stack(children:[
-                  EventArtwork(source:product['imagen'],
-                    width:91,height:88,borderRadius:9,
-                    emptyIcon:Icons.local_dining_outlined),
-                  if(eventPhoto(product['imagen'])!=null)
-                    const Positioned(bottom:5,right:5,
-                     child:Icon(Icons.zoom_in,color:Colors.white,size:22)),
-                 ]),
-                ),
-                const SizedBox(width:13),
-                Expanded(child:Column(
-                 crossAxisAlignment:CrossAxisAlignment.start,children:[
-                  Text(product['nombre']?.toString()??'Producto',
-                   maxLines:2,overflow:TextOverflow.ellipsis,
-                   style:const TextStyle(
-                    color:Color(0xFF34251B),fontFamily:'Georgia',
-                    fontWeight:FontWeight.w800,fontSize:15)),
-                  if((product['descripcion']?.toString()??'').trim().isNotEmpty)...[
-                   const SizedBox(height:4),
-                   Text(product['descripcion'].toString(),
-                    maxLines:2,overflow:TextOverflow.ellipsis,
-                    style:const TextStyle(
-                     color:Color(0xFF76624C),fontSize:11,height:1.4)),
-                  ],
-                  const SizedBox(height:6),
-                  Text(currency(product['precio']),
-                   style:const TextStyle(color:Color(0xFF865625),
-                    fontSize:14,fontWeight:FontWeight.w900)),
-                 ])),
-                ]),
-               const Divider(color:Color(0x33A98B60),height:20),
-              ],
-              const SizedBox(height:7),
-              Text('★ '+getText('sucursal')+' ★',
-               textAlign:TextAlign.center,
-               style:const TextStyle(color:Color(0xFF98764F),
-                fontFamily:'Georgia',fontSize:12,letterSpacing:.7)),
-             ]),
-            )),
+         final sideBySide=box.maxWidth>=830;
+         final width=sideBySide
+           ?(box.maxWidth-18)/2:box.maxWidth;
+         return Wrap(spacing:18,runSpacing:19,children:[
+           for(var i=0;i<pages.length;i++)
+             menuPage(pages[i],i,width),
          ]);
        }),
      ],
