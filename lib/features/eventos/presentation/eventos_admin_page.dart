@@ -425,23 +425,22 @@ class _EventosAdminState extends ConsumerState<EventosAdminPage>{
       style:OutlinedButton.styleFrom(
        foregroundColor:EventColors.gold,
        side:const BorderSide(color:EventColors.border))),
-     if(draft)...[
-      OutlinedButton.icon(onPressed:id==null?null:()async{
-       try{
-        final event=await ref.read(eventosApiProvider).detalle(id);
-        if(mounted)editor(event);
-       }catch(e){
-        if(mounted)ScaffoldMessenger.of(context).showSnackBar(
-         SnackBar(content:Text(niceEventError(e))));
-       }
-      },icon:const Icon(Icons.edit_outlined,size:18),label:const Text('Editar'),
-       style:OutlinedButton.styleFrom(foregroundColor:eventText,
-        side:const BorderSide(color:eventBorder))),
-      FilledButton.icon(onPressed:id==null?null:()=>publish(id),
-       icon:const Icon(Icons.public,size:18),label:const Text('Publicar'),
-       style:FilledButton.styleFrom(backgroundColor:sea,
-        foregroundColor:const Color(0xff072532))),
-     ],
+     // Permitir editar los eventos independientemente del estado.
+     OutlinedButton.icon(onPressed:id==null?null:()async{
+      try{
+       final event=await ref.read(eventosApiProvider).detalle(id);
+       if(mounted)editor(event);
+      }catch(e){
+       if(mounted)ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content:Text(niceEventError(e))));
+      }
+     },icon:const Icon(Icons.edit_outlined,size:18),label:const Text('Editar'),
+      style:OutlinedButton.styleFrom(foregroundColor:eventText,
+       side:const BorderSide(color:eventBorder))),
+     if(draft)FilledButton.icon(onPressed:id==null?null:()=>publish(id),
+      icon:const Icon(Icons.public,size:18),label:const Text('Publicar'),
+      style:FilledButton.styleFrom(backgroundColor:sea,
+       foregroundColor:const Color(0xff072532))),
      if(published)...[
       FilledButton.tonalIcon(
        onPressed:()=>shareEvent(item),
@@ -1382,7 +1381,7 @@ class _EventEditorState extends ConsumerState<EventoEditor>{
     'even_titulo':title.text.trim(),
     'even_inicio':start.toIso8601String(),
     'even_fin':finish.toIso8601String(),
-    'even_estado':publish?'PUBLICADO':'BORRADOR',
+    'even_estado':result['estado']??widget.initial?['even_estado']??(publish?'PUBLICADO':'BORRADOR'),
     'even_precio':price,
     'even_medio_pago':method,
     'sucu_id':branch,
@@ -1840,7 +1839,11 @@ class _EventEditorState extends ConsumerState<EventoEditor>{
      ]));
  }
 
- /// Pie fijo del editor: ocupa todo el ancho, no una franja centrada.
+ bool get editingNonDraft=>
+   widget.initial!=null&&(widget.initial?['even_estado']?.toString()??'BORRADOR')!='BORRADOR';
+ String get eventStatus=>widget.initial?['even_estado']?.toString()??'BORRADOR';
+
+ /// Botones responsivos: un evento publicado o cancelado se guarda sin cambiar su estado.
  Widget _editorFooter(){
    final cancel=OutlinedButton(
      onPressed:busy?null:()=>Navigator.pop(context),
@@ -1864,9 +1867,9 @@ class _EventEditorState extends ConsumerState<EventoEditor>{
      icon:const Icon(Icons.save_outlined,size:18),
      label:Text(busy?'Guardando...':'Guardar borrador'),
    );
-   final publishButton=FilledButton.icon(
+   final primary=FilledButton.icon(
      onPressed:busy?null:(){
-       setState(()=>publish=true);
+       setState(()=>publish=!editingNonDraft);
        _save();
      },
      style:FilledButton.styleFrom(
@@ -1874,8 +1877,8 @@ class _EventEditorState extends ConsumerState<EventoEditor>{
        foregroundColor:EventColors.onPrimary,
        padding:const EdgeInsets.symmetric(horizontal:23,vertical:17),
        shape:RoundedRectangleBorder(borderRadius:BorderRadius.circular(12))),
-     icon:const Icon(Icons.send_outlined,size:18),
-     label:Text(busy?'Publicando...':'Publicar evento'),
+     icon:Icon(editingNonDraft?Icons.save_outlined:Icons.send_outlined,size:18),
+     label:Text(busy?'Guardando...':editingNonDraft?'Guardar cambios':'Publicar evento'),
    );
    return Container(
      width:double.infinity,
@@ -1884,20 +1887,20 @@ class _EventEditorState extends ConsumerState<EventoEditor>{
        color:Color(0xFF082532),
        border:Border(top:BorderSide(color:EventColors.border))),
      child:LayoutBuilder(builder:(context,available){
-       // En pantallas pequeñas todos los botones son accesibles,
-       // sin solaparse ni desbordarse.
        if(available.maxWidth<500){
          return Column(mainAxisSize:MainAxisSize.min,children:[
-           SizedBox(width:double.infinity,child:publishButton),
-           const SizedBox(height:9),
-           SizedBox(width:double.infinity,child:draft),
+           SizedBox(width:double.infinity,child:primary),
+           if(!editingNonDraft)...[
+             const SizedBox(height:9),
+             SizedBox(width:double.infinity,child:draft),
+           ],
            const SizedBox(height:9),
            SizedBox(width:double.infinity,child:cancel),
          ]);
        }
-       if(available.maxWidth<780){
+       if(available.maxWidth<780&&!editingNonDraft){
          return Column(mainAxisSize:MainAxisSize.min,children:[
-           SizedBox(width:double.infinity,child:publishButton),
+           SizedBox(width:double.infinity,child:primary),
            const SizedBox(height:9),
            Row(children:[
              Expanded(child:cancel),
@@ -1909,9 +1912,8 @@ class _EventEditorState extends ConsumerState<EventoEditor>{
        return Row(children:[
          cancel,
          const Spacer(),
-         draft,
-         const SizedBox(width:12),
-         publishButton,
+         if(!editingNonDraft)...[draft,const SizedBox(width:12)],
+         primary,
        ]);
      }),
    );
@@ -1951,10 +1953,19 @@ class _EventEditorState extends ConsumerState<EventoEditor>{
                  style:const TextStyle(color:EventColors.text,
                    fontSize:21,fontWeight:FontWeight.w900)),
                const SizedBox(height:3),
-               const Text('Crea una experiencia única y recibe reservas en línea desde tu página pública.',
+               Text(editingNonDraft
+                 ?'Puedes modificar el evento sin cambiar su estado ni afectar reservas.'
+                 :'Crea una experiencia única y recibe reservas en línea desde tu página pública.',
                  maxLines:2,style:TextStyle(color:EventColors.muted,fontSize:12)),
              ])),
-             if(wide)const EventPill(icon:Icons.edit_note_outlined,label:'Borrador'),
+             if(wide)EventPill(
+               icon:eventStatus=='CANCELADO'?Icons.cancel_outlined:
+                eventStatus=='PUBLICADO'?Icons.public_outlined:Icons.edit_note_outlined,
+               label:widget.initial==null?'Nuevo evento':
+                eventStatus=='CANCELADO'?'Cancelado · se conserva':
+                eventStatus=='PUBLICADO'?'Publicado · se conserva':'Borrador',
+               color:eventStatus=='CANCELADO'?EventColors.warning:
+                eventStatus=='PUBLICADO'?EventColors.success:EventColors.primary),
              const SizedBox(width:7),
              IconButton(onPressed:busy?null:()=>Navigator.pop(context),
                icon:const Icon(Icons.close,color:EventColors.text)),
