@@ -1554,7 +1554,8 @@ class _EventEditorState extends ConsumerState<EventoEditor>{
        amount=TextEditingController(text:'0'),instructions=TextEditingController(),
        mapsUrl=TextEditingController();
  final primaryHex=TextEditingController(text:'#35D0C5'),
-       backgroundHex=TextEditingController(text:'#102735');
+       backgroundHex=TextEditingController(text:'#102735'),
+       textHex=TextEditingController(text:'#F2FBFF');
  final instagramUrl=TextEditingController(),facebookUrl=TextEditingController(),
        tiktokUrl=TextEditingController(),whatsappUrl=TextEditingController();
  String bookingMode='MESA';bool sharing=false,selectChairs=false;
@@ -1592,6 +1593,7 @@ class _EventEditorState extends ConsumerState<EventoEditor>{
    sharing=i['compartirMesa']==true;selectChairs=i['seleccionarSillas']==true;
    primaryHex.text=i['colorPrimario']?.toString()??'#23D8D1';
    backgroundHex.text=i['colorFondo']?.toString()??'#061925';
+   textHex.text=i['colorTexto']?.toString()??'#F2FBFF';
    customLogo=i['logoEvento']?.toString();
    instagramUrl.text=i['instagram']?.toString()??'';
    facebookUrl.text=i['facebook']?.toString()??'';
@@ -1603,7 +1605,7 @@ class _EventEditorState extends ConsumerState<EventoEditor>{
  @override void dispose(){
   productSearch.dispose();title.dispose();description.dispose();amount.dispose();
   instructions.dispose();mapsUrl.dispose();
-  primaryHex.dispose();backgroundHex.dispose();
+  primaryHex.dispose();backgroundHex.dispose();textHex.dispose();
   instagramUrl.dispose();facebookUrl.dispose();tiktokUrl.dispose();
   whatsappUrl.dispose();super.dispose();
  }
@@ -1782,7 +1784,8 @@ class _EventEditorState extends ConsumerState<EventoEditor>{
     'compartirMesa':bookingMode=='PUESTOS'&&sharing,
     'seleccionarSillas':bookingMode=='PUESTOS'&&selectChairs,
     'colorPrimario':primaryHex.text.trim(),
-    'colorFondo':backgroundHex.text.trim(),'logo':customLogo,
+    'colorFondo':backgroundHex.text.trim(),
+    'colorTexto':textHex.text.trim(),'logo':customLogo,
     'instagram':instagramUrl.text.trim(),
     'facebook':facebookUrl.text.trim(),
     'tiktok':tiktokUrl.text.trim(),'whatsapp':whatsappUrl.text.trim()};
@@ -2180,6 +2183,10 @@ class _EventEditorState extends ConsumerState<EventoEditor>{
       onPressed:()=>_pickThemeColor(backgroundHex,'Elegir tono de ambiente'),
       icon:const Icon(Icons.format_color_fill_outlined),
       label:const Text('Elegir ambiente visualmente')),
+     OutlinedButton.icon(
+      onPressed:()=>_pickThemeColor(textHex,'Elegir color del texto'),
+      icon:const Icon(Icons.format_color_text_outlined),
+      label:const Text('Elegir color del texto')),
     ]),
     if(!validAccent||!validBase)
      const Padding(padding:EdgeInsets.only(top:7),child:Text(
