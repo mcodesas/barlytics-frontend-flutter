@@ -17,7 +17,7 @@ String shareLabel(ShareNetwork n) => switch(n) {
 IconData shareIcon(ShareNetwork n) => switch(n) {
   ShareNetwork.whatsapp=>Icons.chat_outlined, ShareNetwork.facebook=>Icons.people_outline,
   ShareNetwork.instagram=>Icons.camera_alt_outlined, ShareNetwork.tiktok=>Icons.music_note_outlined,
-  ShareNetwork.x=>Icons.alternate_email_outlined, ShareNetwork.threads=>Icons.forum_outlined,
+  ShareNetwork.x=>Icons.alternate_email, ShareNetwork.threads=>Icons.forum_outlined,
   ShareNetwork.telegram=>Icons.send_outlined, ShareNetwork.linkedin=>Icons.work_outline,
   ShareNetwork.pinterest=>Icons.push_pin_outlined, ShareNetwork.reddit=>Icons.groups_outlined,
   ShareNetwork.email=>Icons.email_outlined,
