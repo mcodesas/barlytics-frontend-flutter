@@ -906,7 +906,8 @@ class _EventPublicLandingState extends State<EventPublicLanding> {
                    Expanded(child:Container(height:1,color:rule)),
                  ]),
                  SizedBox(height:9),
-                 if(sections.length>1&&section.value.length<=4&&!compact)
+                 if(sections.length>1&&section!=sections.first&&
+                    section.value.length<=4&&!compact)
                LayoutBuilder(builder:(context,bounds){
                  final widthItem=(bounds.maxWidth-14)/2;
                  return Wrap(spacing:14,runSpacing:5,children:[
