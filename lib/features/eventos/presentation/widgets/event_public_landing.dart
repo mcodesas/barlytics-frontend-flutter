@@ -141,11 +141,18 @@ class _EventPublicLandingState extends State<EventPublicLanding> {
     return EventPaletteScope(
       palette:palette,
       child:Theme(
-      data:ThemeData.dark(useMaterial3:true).copyWith(
-        colorScheme:ColorScheme.dark(primary:brand,
-          onPrimary:onBrand,surface:palette.surface),
+      data:(palette.canvas.computeLuminance()>.38
+        ?ThemeData.light(useMaterial3:true)
+        :ThemeData.dark(useMaterial3:true)).copyWith(
+        colorScheme:palette.canvas.computeLuminance()>.38
+          ?ColorScheme.light(primary:brand,onPrimary:onBrand,
+              surface:palette.surface,onSurface:palette.text)
+          :ColorScheme.dark(primary:brand,onPrimary:onBrand,
+              surface:palette.surface,onSurface:palette.text),
         inputDecorationTheme:InputDecorationTheme(
           filled:true,fillColor:palette.surfaceSoft,
+          labelStyle:TextStyle(color:palette.muted),
+          hintStyle:TextStyle(color:palette.muted),
           border:OutlineInputBorder(borderRadius:BorderRadius.circular(11)),
           enabledBorder:OutlineInputBorder(
             borderRadius:BorderRadius.circular(11),
@@ -805,12 +812,12 @@ class _EventPublicLandingState extends State<EventPublicLanding> {
    for(final category in categories.entries){
      var position=0;
      while(position<category.value.length){
-       if(count==6){
+       if(count==8){
          pages.add(current);
          current=<MapEntry<String,List<Map<String,dynamic>>>>[];
          count=0;
        }
-       final portion=category.value.skip(position).take(6-count).toList();
+       final portion=category.value.skip(position).take(8-count).toList();
        current.add(MapEntry(category.key,portion));
        count+=portion.length;
        position+=portion.length;
@@ -822,8 +829,7 @@ class _EventPublicLandingState extends State<EventPublicLanding> {
    final rule=palette.menuBorder;
    final venueName=getText('sucursal',getText('empresa','Establecimiento')).trim();
    final company=getText('empresa').trim();
-   final subtitle=company.isNotEmpty&&company.toLowerCase()!=venueName.toLowerCase()
-       ?company:getText('titulo','Carta del evento');
+   final subtitle=getText('titulo',company.isNotEmpty?company:'Carta del evento');
    final label=venueName.isEmpty?'Establecimiento':venueName;
 
    Widget productRow(Map<String,dynamic> product,double width){
@@ -900,10 +906,18 @@ class _EventPublicLandingState extends State<EventPublicLanding> {
                    Expanded(child:Container(height:1,color:rule)),
                  ]),
                  SizedBox(height:9),
-                 for(final product in section.value)...[
-                   productRow(product,width),
-                   Divider(height:1,thickness:.55,color:rule),
-                 ],
+                 if(sections.length>1&&section.value.length<=4&&!compact)
+               LayoutBuilder(builder:(context,bounds){
+                 final widthItem=(bounds.maxWidth-14)/2;
+                 return Wrap(spacing:14,runSpacing:5,children:[
+                   for(final product in section.value)
+                     SizedBox(width:widthItem,child:productRow(product,widthItem)),
+                 ]);
+               })
+             else for(final product in section.value)...[
+               productRow(product,width),
+               Divider(height:1,thickness:.55,color:rule),
+             ],
                  SizedBox(height:25),
                ],
                SizedBox(height:22),
