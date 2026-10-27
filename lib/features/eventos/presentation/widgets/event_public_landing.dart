@@ -300,8 +300,8 @@ class _EventPublicLandingState extends State<EventPublicLanding> {
                padding:const EdgeInsets.all(9),
                decoration:BoxDecoration(color:palette.surface,
                   borderRadius:BorderRadius.circular(11)),
-               child:const Row(mainAxisSize:MainAxisSize.min,children:[
-                 Icon(Icons.zoom_in,color:brand),
+               child:Row(mainAxisSize:MainAxisSize.min,children:[
+                  Icon(Icons.zoom_in,color:brand),
                   SizedBox(width:6),
                  Text('Ampliar afiche',
                    style:TextStyle(color:EventColors.text,fontSize:12)),
