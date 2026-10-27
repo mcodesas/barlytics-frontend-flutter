@@ -47,7 +47,8 @@ class _EventPublicLandingState extends State<EventPublicLanding> {
   bool get bySeat=>widget.event['modoReserva']=='PUESTOS';
   bool get selectSeats=>bySeat&&widget.event['seleccionarSillas']==true;
   EventPagePalette get palette=>EventPagePalette.fromHex(
-    getText('colorPrimario'),getText('colorFondo'),getText('colorTexto'));
+    getText('colorPrimario'),getText('colorFondo'),getText('colorTexto'),
+    getText('colorTarjeta'),getText('colorBorde'),getText('colorCarta'));
   Color get brand=>palette.accent;
   Color get onBrand=>palette.onAccent;
   Color get backdrop=>palette.canvas;
