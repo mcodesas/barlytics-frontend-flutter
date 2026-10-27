@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:intl/intl.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'event_visual_kit.dart';
@@ -46,6 +47,7 @@ class _EventPublicLandingState extends State<EventPublicLanding> {
   bool automatic=false;
   bool get bySeat=>widget.event['modoReserva']=='PUESTOS';
   bool get selectSeats=>bySeat&&widget.event['seleccionarSillas']==true;
+  bool get autoAssignOnly=>bySeat&&widget.event['seleccionarMesa']==false;
   EventPagePalette get palette=>EventPagePalette.fromHex(
     getText('colorPrimario'),getText('colorFondo'),getText('colorTexto'),
     getText('colorTarjeta'),getText('colorBorde'),getText('colorCarta'));
@@ -61,6 +63,182 @@ class _EventPublicLandingState extends State<EventPublicLanding> {
    final free=number(t['disponibles']);
    return free>n?free:n;
   });
+  void startReservation(){
+    if(autoAssignOnly){
+      _openAutomaticBooking();
+    }else{
+      jump(_bookingKey);
+    }
+  }
+
+  Future<void> _openAutomaticBooking()async{
+    final limit=automaticMax;
+    if(limit<1){
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content:Text('No hay puestos disponibles para este evento.')));
+      return;
+    }
+    var quantity=widget.seats.clamp(1,limit);
+    final quantityInput=TextEditingController(text:quantity.toString());
+    final formKey=GlobalKey<FormState>();
+    final unit=price(widget.event['precio']);
+    final pricePerSeat=widget.event['precioPorPuesto']==true;
+    final payment=widget.event['medioPago']=='MERCADOPAGO';
+    try{
+      final accepted=await showDialog<bool>(
+        context:context,
+        builder:(dialogContext)=>StatefulBuilder(
+          builder:(dialogContext,rebuild){
+            void changeQuantity(int next){
+              if(next<1||next>limit)return;
+              rebuild((){
+                quantity=next;
+                quantityInput.text=next.toString();
+              });
+            }
+            return AlertDialog(
+              backgroundColor:palette.surface,
+              shape:RoundedRectangleBorder(
+                borderRadius:BorderRadius.circular(19)),
+              title:Column(crossAxisAlignment:CrossAxisAlignment.start,children:[
+                Text('Reservar puestos',
+                  style:TextStyle(color:palette.text,fontWeight:FontWeight.w900)),
+                const SizedBox(height:6),
+                Text('Selecciona cuántos puestos necesitas. La mesa se asigna automáticamente.',
+                  style:TextStyle(color:palette.muted,fontSize:12,fontWeight:FontWeight.normal)),
+              ]),
+              content:SizedBox(width:430,child:SingleChildScrollView(
+                child:Form(key:formKey,child:Column(
+                  mainAxisSize:MainAxisSize.min,
+                  crossAxisAlignment:CrossAxisAlignment.stretch,children:[
+                  Text('Cantidad de puestos',style:TextStyle(
+                    color:palette.text,fontWeight:FontWeight.w800)),
+                  const SizedBox(height:11),
+                  Row(mainAxisAlignment:MainAxisAlignment.center,children:[
+                    IconButton.outlined(
+                      tooltip:'Quitar un puesto',
+                      onPressed:quantity<=1?null:()=>changeQuantity(quantity-1),
+                      icon:const Icon(Icons.remove)),
+                    const SizedBox(width:12),
+                    SizedBox(width:96,child:TextFormField(
+                      controller:quantityInput,
+                      textAlign:TextAlign.center,
+                      keyboardType:TextInputType.number,
+                      inputFormatters:[FilteringTextInputFormatter.digitsOnly],
+                      style:TextStyle(color:palette.text,fontSize:23,
+                        fontWeight:FontWeight.w900),
+                      onChanged:(value){
+                        final parsed=int.tryParse(value);
+                        if(parsed!=null)rebuild(()=>quantity=parsed);
+                      },
+                      validator:(value){
+                        final n=int.tryParse(value??'');
+                        if(n==null||n<1||n>limit){
+                          return 'De 1 a $limit';
+                        }
+                        return null;
+                      },
+                    )),
+                    const SizedBox(width:12),
+                    IconButton.outlined(
+                      tooltip:'Agregar un puesto',
+                      onPressed:quantity>=limit?null:()=>changeQuantity(quantity+1),
+                      icon:const Icon(Icons.add)),
+                  ]),
+                  const SizedBox(height:9),
+                  Text('Hasta $limit puestos en una mesa disponible.',
+                    textAlign:TextAlign.center,
+                    style:TextStyle(color:palette.muted,fontSize:12)),
+                  const SizedBox(height:16),
+                  Container(
+                    padding:const EdgeInsets.all(14),
+                    decoration:BoxDecoration(color:palette.surfaceSoft,
+                      borderRadius:BorderRadius.circular(12),
+                      border:Border.all(color:palette.border)),
+                    child:Column(children:[
+                      Row(children:[
+                        Expanded(child:Text(pricePerSeat?'Precio por puesto':'Precio de reserva',
+                          style:TextStyle(color:palette.muted))),
+                        Text(currency(unit),style:TextStyle(color:palette.text)),
+                      ]),
+                      const SizedBox(height:9),
+                      Row(children:[
+                        Expanded(child:Text('Total a pagar',
+                          style:TextStyle(color:palette.text,fontWeight:FontWeight.w800))),
+                        Text(currency(pricePerSeat?unit*quantity:unit),
+                          style:TextStyle(color:brand,fontSize:19,fontWeight:FontWeight.w900)),
+                      ]),
+                    ]),
+                  ),
+                  const SizedBox(height:17),
+                  Text('Datos para la reserva',style:TextStyle(
+                    color:palette.text,fontWeight:FontWeight.w800)),
+                  const SizedBox(height:10),
+                  TextFormField(
+                    controller:widget.name,
+                    maxLength:140,
+                    textCapitalization:TextCapitalization.words,
+                    decoration:const InputDecoration(labelText:'Nombre completo *',
+                      prefixIcon:Icon(Icons.person_outline)),
+                    validator:(v)=>(v?.trim().isEmpty??true)?'Ingresa tu nombre':null,
+                  ),
+                  const SizedBox(height:8),
+                  TextFormField(
+                    controller:widget.email,
+                    maxLength:220,
+                    keyboardType:TextInputType.emailAddress,
+                    decoration:const InputDecoration(labelText:'Correo electrónico *',
+                      prefixIcon:Icon(Icons.email_outlined)),
+                    validator:(v){
+                      final text=v?.trim()??'';
+                      return RegExp(r'^[^@\s]+@[^@\s]+\.[^@\s]+$').hasMatch(text)
+                        ?null:'Ingresa un correo válido';
+                    },
+                  ),
+                  const SizedBox(height:8),
+                  TextFormField(
+                    controller:widget.phone,
+                    maxLength:40,
+                    keyboardType:TextInputType.phone,
+                    decoration:const InputDecoration(labelText:'Teléfono / WhatsApp',
+                      prefixIcon:Icon(Icons.phone_outlined)),
+                  ),
+                  if(widget.event['medioPago']=='MANUAL')...[
+                    const SizedBox(height:9),
+                    Text('La reserva quedará pendiente de revisión del establecimiento.',
+                      style:TextStyle(color:palette.muted,fontSize:12)),
+                  ],
+                ]))),
+              )),
+              actions:[
+                TextButton(
+                  onPressed:()=>Navigator.pop(dialogContext,false),
+                  child:const Text('Cancelar')),
+                FilledButton.icon(
+                  onPressed:widget.busy?null:(){
+                    if(!(formKey.currentState?.validate()??false))return;
+                    final count=int.tryParse(quantityInput.text);
+                    if(count==null||count<1||count>limit)return;
+                    widget.onSelectTable(-1);
+                    widget.onSeatsChanged(count);
+                    Navigator.pop(dialogContext,true);
+                  },
+                  icon:Icon(payment?Icons.payment_outlined:Icons.check_circle_outline),
+                  label:Text(payment?'Continuar al pago':'Confirmar reserva'),
+                  style:FilledButton.styleFrom(
+                    backgroundColor:brand,foregroundColor:onBrand),
+                ),
+              ],
+            );
+          },
+        ),
+      );
+      if(accepted==true&&mounted)widget.onBook([]);
+    }finally{
+      quantityInput.dispose();
+    }
+  }
+
   void reserve(){
    if(selectSeats&&!automatic&&widget.selectedTable!=null &&
      chosenChairs.length!=widget.seats){
@@ -182,7 +360,7 @@ class _EventPublicLandingState extends State<EventPublicLanding> {
             decoration:BoxDecoration(color:palette.surface,
               border:Border(top:BorderSide(color:palette.border))),
             child:FilledButton.icon(
-              onPressed:()=>jump(_bookingKey),
+              onPressed:startReservation,
               icon:Icon(Icons.confirmation_number_outlined),
               label:Text(bySeat?'Reservar puestos':'Reservar mesa'),
               style:FilledButton.styleFrom(backgroundColor:brand,
@@ -246,7 +424,7 @@ class _EventPublicLandingState extends State<EventPublicLanding> {
             ]),
             SizedBox(height:20),
             Wrap(spacing:10,runSpacing:10,children:[
-              FilledButton.icon(onPressed:()=>jump(_bookingKey),
+              FilledButton.icon(onPressed:startReservation,
                 icon:Icon(Icons.event_seat_outlined),
                 label:Text('Reservar ahora'),
                 style:FilledButton.styleFrom(backgroundColor:brand,
@@ -291,7 +469,7 @@ class _EventPublicLandingState extends State<EventPublicLanding> {
       TextButton(onPressed:()=>jump(_menuKey),child:Text('La carta')),
       TextButton(onPressed:()=>jump(_locationKey),child:Text('Ubicación')),
       SizedBox(width:8),
-      OutlinedButton.icon(onPressed:()=>jump(_bookingKey),
+      OutlinedButton.icon(onPressed:startReservation,
         icon:Icon(Icons.event_seat_outlined,size:17),
         label:Text('Reservar ahora')),
     ]else IconButton(onPressed:widget.onShare,
@@ -543,6 +721,31 @@ class _EventPublicLandingState extends State<EventPublicLanding> {
  }
 
  Widget _bookingArea(bool wide){
+   if(autoAssignOnly){
+     return EventPanel(child:Column(
+       key:_bookingKey,crossAxisAlignment:CrossAxisAlignment.start,children:[
+         EventSectionHeading(icon:Icons.event_seat_outlined,
+           title:'Reserva tus puestos',
+           subtitle:'Selecciona la cantidad y continúa al pago sin elegir mesa'),
+         const SizedBox(height:14),
+         Text('BarLytics encontrará automáticamente una mesa con suficientes puestos libres.',
+           style:TextStyle(color:palette.muted,fontSize:14)),
+         const SizedBox(height:15),
+         EventPill(icon:Icons.event_seat_outlined,
+           label:automaticMax>0?
+             'Hasta $automaticMax puestos disponibles en una mesa':
+             'Sin puestos disponibles'),
+         const SizedBox(height:17),
+         FilledButton.icon(
+           onPressed:automaticMax<1||widget.busy?null:startReservation,
+           icon:const Icon(Icons.add_circle_outline),
+           label:const Text('Reservar puestos'),
+           style:FilledButton.styleFrom(backgroundColor:brand,
+             foregroundColor:onBrand,padding:const EdgeInsets.symmetric(
+               horizontal:22,vertical:16))),
+       ],
+     ));
+   }
    final content=EventPanel(child:Column(
      key:_bookingKey,crossAxisAlignment:CrossAxisAlignment.start,children:[
        EventSectionHeading(icon:Icons.table_restaurant_outlined,
