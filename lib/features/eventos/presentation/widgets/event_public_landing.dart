@@ -204,12 +204,13 @@ class _EventPublicLandingState extends State<EventPublicLanding> {
 
   Widget _nav(bool wide) => Row(children:[
     Container(width:52,height:52,clipBehavior:Clip.antiAlias,
-      decoration:BoxDecoration(color:Colors.white,
-        borderRadius:BorderRadius.circular(15)),
-      child:widget.event['logo']==null
-        ?const Icon(Icons.local_bar,color:EventColors.background)
-        :EventArtwork(source:widget.event['logo'],height:52,width:52,
-          fit:BoxFit.contain,borderRadius:0)),
+      decoration:BoxDecoration(color:EventColors.surfaceLight,
+        borderRadius:BorderRadius.circular(15),
+        border:Border.all(color:EventColors.border)),
+      child:venue.isEmpty
+        ?const Icon(Icons.storefront_outlined,color:EventColors.primary)
+        :EventArtwork(source:venue.first,height:52,width:52,
+          fit:BoxFit.cover,borderRadius:0)),
     const SizedBox(width:11),
     Expanded(child:Column(crossAxisAlignment:CrossAxisAlignment.start,children:[
       Text(getText('sucursal','Establecimiento'),
