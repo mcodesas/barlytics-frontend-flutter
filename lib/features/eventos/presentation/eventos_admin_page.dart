@@ -2297,7 +2297,7 @@ class _EventEditorState extends ConsumerState<EventoEditor>{
      TextFormField(controller:amount,readOnly:method=='GRATIS',
        keyboardType:const TextInputType.numberWithOptions(decimal:true),
        onChanged:(_)=>setState((){}),
-       decoration:const InputDecoration(
+       decoration:InputDecoration(
          labelText:bookingMode=='PUESTOS'?'Precio por puesto (COP)':'Precio por mesa (COP)',
          prefixIcon:const Icon(Icons.attach_money),
          helperText:bookingMode=='PUESTOS'
