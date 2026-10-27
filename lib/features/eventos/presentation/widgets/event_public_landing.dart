@@ -781,171 +781,124 @@ class _EventPublicLandingState extends State<EventPublicLanding> {
 
  Widget _catalog(){
    final selected=products;
-   if(selected.isEmpty){
-     return EventPanel(child:Column(
-       key:_menuKey,
-       crossAxisAlignment:CrossAxisAlignment.start,children:[
-         const EventSectionHeading(icon:Icons.menu_book_outlined,
-           title:'La carta del evento',
-           subtitle:'El menú se construye con los productos seleccionados por el establecimiento.'),
-         const SizedBox(height:16),
-         Container(
-           width:double.infinity,
-           padding:const EdgeInsets.symmetric(horizontal:18,vertical:24),
-           decoration:BoxDecoration(
-             color:palette.surfaceSoft,
-             borderRadius:BorderRadius.circular(13)),
-           child:const Row(children:[
-             Icon(Icons.restaurant_menu_outlined,color:EventColors.muted,size:26),
-             SizedBox(width:13),
-             Expanded(child:Text(
-               'Todavía no se han seleccionado productos para esta carta.',
-               style:TextStyle(color:EventColors.muted,fontSize:13))),
-           ]),
-         ),
-       ],
-     ));
-   }
-   const paper=Color(0xFFF3EBDC);
-   const ink=Color(0xFF38291F);
-   const detail=Color(0xFF916F4D);
-   // Cuatro productos por hoja evitan páginas gigantes vacías.
-   final pages=<List<Map<String,dynamic>>>[];
-   for(var i=0;i<selected.length;i+=4){
-     pages.add(selected.skip(i).take(4).toList());
-   }
-   Widget menuPage(List<Map<String,dynamic>> items,int index,double width){
-     return SizedBox(width:width,child:Stack(children:[
-       Positioned.fill(left:6,top:7,right:0,bottom:0,child:DecoratedBox(
-         decoration:BoxDecoration(
-           color:const Color(0xFFCBB89A),
-           borderRadius:BorderRadius.circular(13)))),
-       Padding(padding:const EdgeInsets.only(right:6,bottom:7),child:Container(
-         padding:const EdgeInsets.fromLTRB(17,18,18,17),
-         decoration:BoxDecoration(
-           color:paper,
-           borderRadius:BorderRadius.circular(13),
-           // El lomo decorativo no forma parte del BoxBorder redondeado.
-           border:Border.all(color:const Color(0xFFD6BE9F)),
-           boxShadow:const [BoxShadow(color:Color(0x38000000),
-             blurRadius:20,offset:Offset(0,10))]),
-         child:Column(crossAxisAlignment:CrossAxisAlignment.stretch,
-           mainAxisSize:MainAxisSize.min,children:[
-           Row(children:[
-             const Icon(Icons.auto_stories_outlined,
-               color:detail,size:21),
-             const SizedBox(width:8),
-             Expanded(child:Text(getText('sucursal','Nuestra carta'),
-               maxLines:1,overflow:TextOverflow.ellipsis,
-               style:const TextStyle(color:ink,
-                 fontWeight:FontWeight.w800,fontSize:12))),
-             Text((index+1).toString()+' / '+pages.length.toString(),
-               style:const TextStyle(color:detail,fontSize:11)),
-           ]),
-           const SizedBox(height:11),
-           const Text('LA CARTA',
-             textAlign:TextAlign.center,
-             style:TextStyle(color:ink,fontFamily:'Georgia',
-               fontWeight:FontWeight.w900,fontSize:23,letterSpacing:3)),
-           const SizedBox(height:3),
-           const Text('Una selección para disfrutar',
-             textAlign:TextAlign.center,
-             style:TextStyle(color:detail,fontSize:12,
-               fontStyle:FontStyle.italic)),
-           const SizedBox(height:12),
-           const Divider(height:1,thickness:1,color:Color(0xFFC9AF8D)),
-           const SizedBox(height:7),
-           for(final product in items)...[
-             Padding(padding:const EdgeInsets.symmetric(vertical:9),
-               child:Row(crossAxisAlignment:CrossAxisAlignment.start,children:[
-                 InkWell(
-                   onTap:eventPhoto(product['imagen'])==null?null:
-                     ()=>showEventPhotoViewer(context,
-                       images:[product['imagen']],
-                       labels:[product['nombre']?.toString()??'Producto']),
-                   borderRadius:BorderRadius.circular(10),
-                   child:Stack(children:[
-                     EventArtwork(source:product['imagen'],
-                       width:88,height:82,borderRadius:9,
-                       emptyIcon:Icons.restaurant_menu_outlined),
-                     if(eventPhoto(product['imagen'])!=null)
-                       const Positioned(right:4,bottom:4,
-                         child:Icon(Icons.zoom_in,
-                           color:Colors.white,size:22)),
-                   ]),
-                 ),
-                 const SizedBox(width:12),
-                 Expanded(child:Column(
-                   crossAxisAlignment:CrossAxisAlignment.start,children:[
-                     Text(product['nombre']?.toString()??'Producto',
-                       maxLines:2,overflow:TextOverflow.ellipsis,
-                       style:const TextStyle(color:ink,
-                         fontFamily:'Georgia',
-                         fontWeight:FontWeight.w800,fontSize:15)),
-                     if((product['tipo']?.toString()??'').trim().isNotEmpty)
-                       Text(product['tipo'].toString(),
-                         maxLines:1,overflow:TextOverflow.ellipsis,
-                         style:const TextStyle(color:detail,
-                           fontSize:10,fontStyle:FontStyle.italic)),
-                     if((product['descripcion']?.toString()??'').trim().isNotEmpty)...[
-                       const SizedBox(height:4),
-                       Text(product['descripcion'].toString(),
-                         maxLines:2,overflow:TextOverflow.ellipsis,
-                         style:const TextStyle(color:Color(0xFF735E4A),
-                           fontSize:11,height:1.45)),
-                     ],
-                     const SizedBox(height:6),
-                     Text(product['precio']==null?'Consultar precio':
-                      currency(product['precio']),
-                       style:const TextStyle(color:Color(0xFF966336),
-                         fontSize:13,fontWeight:FontWeight.w900)),
-                   ],
-                 )),
-               ]),
-             ),
-             if(product!=items.last)
-               const Divider(height:1,color:Color(0x55BDA487)),
-           ],
-           const SizedBox(height:10),
-           const Divider(height:1,thickness:1,color:Color(0xFFC9AF8D)),
-           const SizedBox(height:12),
-           Text(getText('sucursal','Buen provecho'),
-             maxLines:1,overflow:TextOverflow.ellipsis,
-             textAlign:TextAlign.center,
-             style:const TextStyle(color:detail,fontSize:11,
-               fontFamily:'Georgia',fontStyle:FontStyle.italic)),
-         ]),
-       )),
-       // Dibujar lomo separado para conservar esquinas redondeadas válidas.
-       const Positioned(left:0,top:0,bottom:7,
-         child:IgnorePointer(child:DecoratedBox(
-           decoration:BoxDecoration(
-             color:Color(0xFFAC885E),
-             borderRadius:BorderRadius.only(
-               topLeft:Radius.circular(13),
-               bottomLeft:Radius.circular(13))),
-           child:SizedBox(width:5)))),
+   if(selected.isEmpty)return EventPanel(child:Column(
+     key:_menuKey,crossAxisAlignment:CrossAxisAlignment.start,children:[
+       const EventSectionHeading(icon:Icons.menu_book_outlined,title:'La carta del evento',
+         subtitle:'Los productos se eligen desde el catálogo del establecimiento.'),
+       const SizedBox(height:15),
+       Text('Aún no hay productos seleccionados.',
+         style:TextStyle(color:palette.muted)),
      ]));
+   // Carta editorial inspirada en el documento de La Barra.
+   // No usa productos ficticios: todos los elementos llegan del API público.
+   final groups=<String,List<Map<String,dynamic>>>{};
+   for(final product in selected){
+     final category=product['tipo']?.toString().trim()??'';
+     groups.putIfAbsent(category.isEmpty?'Nuestra selección':category,()=>[]).add(product);
    }
+   final pages=<List<MapEntry<String,List<Map<String,dynamic>>>>>[];
+   var pageSections=<MapEntry<String,List<Map<String,dynamic>>>>[];
+   var itemsOnPage=0;
+   for(final group in groups.entries){
+     for(var i=0;i<group.value.length;i+=6){
+       final remaining=6-itemsOnPage;
+       if(remaining==0){pages.add(pageSections);pageSections=[];itemsOnPage=0;}
+       final maxItems=6-itemsOnPage;
+       final slice=group.value.skip(i).take(maxItems).toList();
+       pageSections.add(MapEntry(group.key,slice));
+       itemsOnPage+=slice.length;
+       i+=slice.length-6;
+     }
+   }
+   if(pageSections.isNotEmpty)pages.add(pageSections);
+   const paper=Color(0xFFF3EAD6),ink=Color(0xFF211B18),
+     line=Color(0xFFB89A70),frame=Color(0xFF814D49);
+   final venueName=getText('sucursal','LA BARRA').toUpperCase();
+   Widget article(Map<String,dynamic> product)=>Padding(
+     padding:const EdgeInsets.symmetric(vertical:12,horizontal:3),
+     child:Column(crossAxisAlignment:CrossAxisAlignment.stretch,children:[
+       Row(crossAxisAlignment:CrossAxisAlignment.start,children:[
+         Expanded(child:Text((product['nombre']??'Producto').toString().toUpperCase(),
+           style:const TextStyle(fontFamily:'Georgia',fontSize:14,
+             fontWeight:FontWeight.w800,color:ink))),
+         const SizedBox(width:9),
+         Text(product['precio']==null?'Consultar':
+           currency(product['precio']).replaceFirst('COP ',''),
+           style:const TextStyle(fontFamily:'Georgia',fontSize:14,
+             fontWeight:FontWeight.w900,color:ink)),
+       ]),
+       if((product['descripcion']?.toString().trim()??'').isNotEmpty)...[
+         const SizedBox(height:5),
+         Text(product['descripcion'].toString(),maxLines:4,
+           overflow:TextOverflow.ellipsis,
+           style:const TextStyle(fontFamily:'Georgia',fontSize:12,
+             color:ink,height:1.45)),
+       ],
+     ]));
+   Widget sheet(List<MapEntry<String,List<Map<String,dynamic>>>> sections,
+     int index,double width)=>SizedBox(width:width,child:Container(
+       decoration:BoxDecoration(color:paper,border:Border.all(color:frame,width:1.3),
+         boxShadow:const [BoxShadow(color:Color(0x44000000),blurRadius:19,
+           offset:Offset(0,9))]),
+       padding:const EdgeInsets.all(7),
+       child:Container(
+         constraints:const BoxConstraints(minHeight:690),
+         decoration:BoxDecoration(border:Border.all(color:frame.withOpacity(.7))),
+         padding:const EdgeInsets.fromLTRB(20,24,20,20),
+         child:Column(crossAxisAlignment:CrossAxisAlignment.stretch,children:[
+           Text(venueName,maxLines:2,overflow:TextOverflow.ellipsis,
+             textAlign:TextAlign.center,
+             style:const TextStyle(fontFamily:'Georgia',fontSize:28,
+               letterSpacing:4,color:ink)),
+           const SizedBox(height:3),
+           const Text('G A S T R O  B A R',textAlign:TextAlign.center,
+             style:TextStyle(fontFamily:'Georgia',fontSize:10,letterSpacing:2,color:ink)),
+           const SizedBox(height:18),
+           Center(child:SizedBox(width:190,child:Divider(color:line,thickness:1))),
+           const SizedBox(height:22),
+           for(final section in sections)...[
+             Text(section.key,textAlign:TextAlign.center,
+               style:const TextStyle(fontFamily:'Georgia',fontSize:23,
+                 color:ink,fontStyle:FontStyle.italic)),
+             const SizedBox(height:10),
+             Row(children:[
+               Expanded(child:Container(height:1,color:line)),
+               const Padding(padding:EdgeInsets.symmetric(horizontal:7),
+                 child:Icon(Icons.diamond,color:line,size:12)),
+               Expanded(child:Container(height:1,color:line)),
+             ]),
+             const SizedBox(height:9),
+             for(final product in section.value)...[
+               article(product),
+               const Divider(color:line,height:1,thickness:.7),
+             ],
+             const SizedBox(height:21),
+           ],
+           const SizedBox(height:34),
+           const Divider(color:line),
+           const Text('UNA EXPERIENCIA PARA COMPARTIR',textAlign:TextAlign.center,
+             style:TextStyle(fontFamily:'Georgia',fontSize:10,color:ink)),
+           const SizedBox(height:6),
+           Text(venueName+' · '+(index+1).toString()+' / '+pages.length.toString(),
+             maxLines:1,overflow:TextOverflow.ellipsis,textAlign:TextAlign.center,
+             style:const TextStyle(fontFamily:'Georgia',fontSize:10,color:ink)),
+         ]),
+       ),
+     ));
    return EventPanel(child:Column(
      key:_menuKey,crossAxisAlignment:CrossAxisAlignment.start,children:[
-       EventSectionHeading(icon:Icons.menu_book_outlined,
-         title:'La carta del evento',
-         subtitle:selected.length.toString()+
-          ' productos elegidos por el establecimiento · '+
-          pages.length.toString()+' hojas generadas desde su catálogo'),
+       EventSectionHeading(icon:Icons.menu_book_outlined,title:'La carta del evento',
+         subtitle:selected.length.toString()+' productos del catálogo · '+
+           pages.length.toString()+' hojas'),
        const SizedBox(height:19),
        LayoutBuilder(builder:(context,box){
-         final sideBySide=box.maxWidth>=830;
-         final width=sideBySide
-           ?(box.maxWidth-18)/2:box.maxWidth;
-         return Wrap(spacing:18,runSpacing:19,children:[
-           for(var i=0;i<pages.length;i++)
-             menuPage(pages[i],i,width),
+         final two=box.maxWidth>=910;
+         final width=two?(box.maxWidth-20)/2:box.maxWidth;
+         return Wrap(spacing:20,runSpacing:20,children:[
+           for(var i=0;i<pages.length;i++)sheet(pages[i],i,width),
          ]);
        }),
-     ],
-   ));
+     ]));
  }
 
  Widget _footer(bool wide)=>Container(
