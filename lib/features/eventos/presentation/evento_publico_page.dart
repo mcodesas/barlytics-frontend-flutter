@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -108,13 +109,31 @@ class _PublicState extends ConsumerState<EventoPublicoPage>{
    final state=result['estado']?.toString()??'';
    await refresh();
    if(!mounted)return;
-   if(state=='PENDIENTE_PAGO'&&checkout.isNotEmpty){
-    await showDialog<void>(context:context,builder:(ctx)=>AlertDialog(
-      title:const Text('Tu mesa se apartó por 20 minutos'),
-      content:const Text('Completa el pago en la plataforma segura. La confirmación se enviará únicamente después de verificarlo con la entidad financiera.'),
-      actions:[TextButton(onPressed:()=>Navigator.pop(ctx),child:const Text('Cerrar')),
-       FilledButton(onPressed:(){Navigator.pop(ctx);launchUrl(Uri.parse(checkout),mode:LaunchMode.externalApplication);},
-        child:const Text('Pagar ahora'))]));
+   if(state=='PENDIENTE_PAGO'){
+    final minutes=(result['plazoPagoMinutos'] as num?)?.toInt()??20;
+    final shouldPay=await showDialog<bool>(context:context,builder:(ctx)=>AlertDialog(
+      title:const Text('Reserva pendiente de pago'),
+      content:Text('La mesa se aparta provisionalmente durante $minutes minutos. '
+       'Solo un pago aprobado por Mercado Pago confirma tu reserva. '
+       'Si termina el plazo sin aprobación, la mesa volverá a estar disponible.'),
+      actions:[
+       TextButton(onPressed:()=>Navigator.pop(ctx,false),
+         child:const Text('Consultar estado')),
+       if(checkout.isNotEmpty)FilledButton(
+         onPressed:()=>Navigator.pop(ctx,true),
+         child:const Text('Pagar ahora')),
+      ]));
+    if(!mounted)return;
+    Navigator.of(context).push(MaterialPageRoute<void>(
+      builder:(_)=>EventoEntradaPublicaPage(token:token)));
+    if(shouldPay==true&&checkout.isNotEmpty){
+      final url=Uri.tryParse(checkout);
+      if(url!=null&&url.scheme=='https'){
+        final ok=await launchUrl(url,mode:LaunchMode.externalApplication);
+        if(!ok&&mounted)ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content:Text('No se pudo abrir Mercado Pago. Consulta el estado de la reserva.')));
+      }
+    }
    }else if(state=='CONFIRMADA'){
     if(mounted)Navigator.of(context).push(MaterialPageRoute<void>(builder:(_)=>EventoEntradaPublicaPage(token:token)));
    }else{
@@ -170,11 +189,24 @@ class EventoEntradaPublicaPage extends ConsumerStatefulWidget{
 }
 class _EntradaState extends ConsumerState<EventoEntradaPublicaPage>{
  Map<String,dynamic>? value;String? error;
- @override void initState(){super.initState();refresh();}
+ Timer? _refreshTimer;
+ bool _requestInProgress=false;
+ @override void initState(){
+  super.initState();
+  refresh();
+  _refreshTimer=Timer.periodic(const Duration(seconds:15),(_){
+   if(mounted&&value?['estado']=='PENDIENTE_PAGO')refresh();
+  });
+ }
+ @override void dispose(){_refreshTimer?.cancel();super.dispose();}
  Future<void> refresh()async{
-  try{final x=await ref.read(eventosApiProvider).entrada(widget.token);
+  if(_requestInProgress)return;
+  _requestInProgress=true;
+  try{
+   final x=await ref.read(eventosApiProvider).entrada(widget.token);
    if(mounted)setState((){value=x;error=null;});
   }catch(e){if(mounted)setState(()=>error=e.toString());}
+  finally{_requestInProgress=false;}
  }
  @override Widget build(BuildContext context){
   final confirmed=value?['estado']=='CONFIRMADA';
@@ -220,10 +252,31 @@ class _EntradaState extends ConsumerState<EventoEntradaPublicaPage>{
           ),
        ),
       )
-      else const Icon(Icons.pending_actions_rounded,color:accent,size:65),
+      else Icon(
+       value?['estado']=='EXPIRADA'?Icons.event_busy_outlined:
+       value?['estado']=='REEMBOLSO_PENDIENTE'?Icons.support_agent_outlined:
+       Icons.pending_actions_rounded,color:accent,size:65),
       const SizedBox(height:13),
-      Text(confirmed?'ENTRADA CONFIRMADA':value?['estado']?.toString()??error??'Cargando...',
+      Text(confirmed?'ENTRADA CONFIRMADA':
+       value?['estado']=='PENDIENTE_PAGO'?'PAGO PENDIENTE':
+       value?['estado']=='EXPIRADA'?'RESERVA VENCIDA':
+       value?['estado']=='REEMBOLSO_PENDIENTE'?'REVISIÓN DE DEVOLUCIÓN':
+       value?['estado']?.toString()??error??'Cargando...',
        style:TextStyle(color:confirmed?teal:accent,fontWeight:FontWeight.bold)),
+      if(value?['mensajeEstado']!=null)...[
+       const SizedBox(height:8),
+       Text(value!['mensajeEstado'].toString(),textAlign:TextAlign.center,
+        style:const TextStyle(color:muted,fontSize:13,height:1.5)),
+      ],
+      if(value?['estado']=='PENDIENTE_PAGO'&&value?['vencePago']!=null)...[
+       const SizedBox(height:9),
+       Text('Plazo para pagar hasta: '+when(value!['vencePago']),
+        textAlign:TextAlign.center,
+        style:const TextStyle(color:accent,fontSize:12)),
+       const SizedBox(height:5),
+       const Text('Comprobando automáticamente cada 15 segundos',
+        style:TextStyle(color:muted,fontSize:11)),
+      ],
       const SizedBox(height:18),
       if(confirmed)FilledButton.icon(onPressed:()=>launchUrl(Uri.parse(ref.read(eventosApiProvider).qrLink(widget.token)),
        mode:LaunchMode.externalApplication),icon:const Icon(Icons.download),label:const Text('Descargar QR')),
