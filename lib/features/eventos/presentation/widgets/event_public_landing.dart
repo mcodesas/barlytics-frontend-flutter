@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'event_visual_kit.dart';
+import 'event_photo_viewer.dart';
 
 /// Landing pública real (sin datos demostrativos ni dependencias del shell privado).
 /// Toda la información proviene del evento, sucursal, mesas y catálogo del API.
@@ -39,6 +40,7 @@ class _EventPublicLandingState extends State<EventPublicLanding> {
   final _menuKey=GlobalKey();
   final _locationKey=GlobalKey();
   final _galleryKey=GlobalKey();
+  final _posterKey=GlobalKey();
 
   String getText(String key,[String fallback='']) =>
     widget.event[key]?.toString() ?? fallback;
@@ -84,6 +86,9 @@ class _EventPublicLandingState extends State<EventPublicLanding> {
       Center(child:ConstrainedBox(constraints:const BoxConstraints(maxWidth:1320),
         child:Padding(padding:EdgeInsets.symmetric(horizontal:wide?24:14,vertical:20),
           child:Column(crossAxisAlignment:CrossAxisAlignment.stretch,children:[
+            if(eventPhoto(widget.event['imagen'])!=null)...[
+              _poster(wide),const SizedBox(height:17),
+            ],
             _intro(wide),
             const SizedBox(height:17),
             _bookingArea(wide),
@@ -207,13 +212,16 @@ class _EventPublicLandingState extends State<EventPublicLanding> {
           fit:BoxFit.contain,borderRadius:0)),
     const SizedBox(width:11),
     Expanded(child:Column(crossAxisAlignment:CrossAxisAlignment.start,children:[
-      Text(getText('empresa','Tu establecimiento'),
+      Text(getText('sucursal','Establecimiento'),
+        maxLines:2,overflow:TextOverflow.ellipsis,
         style:const TextStyle(color:EventColors.text,
           fontWeight:FontWeight.w900,fontSize:19)),
-      Text(getText('sucursal'),
-        style:const TextStyle(color:EventColors.muted,fontSize:12)),
+      const Text('Eventos y reservas',
+        style:TextStyle(color:EventColors.muted,fontSize:12)),
     ])),
     if(wide)...[
+      if(eventPhoto(widget.event['imagen'])!=null)
+        TextButton(onPressed:()=>jump(_posterKey),child:const Text('Afiche')),
       TextButton(onPressed:()=>jump(_galleryKey),child:const Text('El lugar')),
       TextButton(onPressed:()=>jump(_menuKey),child:const Text('La carta')),
       TextButton(onPressed:()=>jump(_locationKey),child:const Text('Ubicación')),
@@ -225,6 +233,80 @@ class _EventPublicLandingState extends State<EventPublicLanding> {
       tooltip:'Compartir evento',
       icon:const Icon(Icons.share_outlined,color:EventColors.primary)),
   ]);
+
+
+ Widget _poster(bool wide){
+   final image=widget.event['imagen'];
+   final expand=()=>showEventPhotoViewer(context,
+     images:[image],labels:['Afiche oficial · '+getText('titulo')]);
+   return EventPanel(child:Column(
+     key:_posterKey,crossAxisAlignment:CrossAxisAlignment.start,children:[
+       EventSectionHeading(icon:Icons.campaign_outlined,
+         title:'Afiche oficial del evento',
+         subtitle:'La portada principal del evento, también en redes sociales.',
+         trailing:wide?OutlinedButton.icon(
+           onPressed:expand,icon:const Icon(Icons.fullscreen),
+           label:const Text('Ver completo')):null),
+       const SizedBox(height:16),
+       LayoutBuilder(builder:(context,layout){
+         final photo=InkWell(
+           onTap:expand,borderRadius:BorderRadius.circular(15),
+           child:Stack(children:[
+             Container(
+               decoration:BoxDecoration(
+                 color:EventColors.background,
+                 border:Border.all(color:EventColors.border),
+                 borderRadius:BorderRadius.circular(15)),
+               child:EventArtwork(
+                 source:image,width:double.infinity,
+                 height:wide?535:425,fit:BoxFit.contain)),
+             Positioned(bottom:12,right:12,child:Container(
+               padding:const EdgeInsets.all(9),
+               decoration:BoxDecoration(color:EventColors.background,
+                 borderRadius:BorderRadius.circular(11)),
+               child:const Row(mainAxisSize:MainAxisSize.min,children:[
+                 Icon(Icons.zoom_in,color:EventColors.primary),
+                 SizedBox(width:6),
+                 Text('Ampliar afiche',
+                   style:TextStyle(color:EventColors.text,fontSize:12)),
+               ]))),
+           ]),
+         );
+         if(!wide)return photo;
+         return Row(crossAxisAlignment:CrossAxisAlignment.center,children:[
+           Expanded(flex:6,child:photo),const SizedBox(width:23),
+           Expanded(flex:4,child:Column(
+             crossAxisAlignment:CrossAxisAlignment.start,children:[
+               const EventPill(icon:Icons.star_outline,
+                 label:'AFICHE OFICIAL',color:EventColors.gold),
+               const SizedBox(height:16),
+               Text(getText('titulo'),style:const TextStyle(
+                 color:EventColors.text,fontWeight:FontWeight.w900,
+                 fontSize:29,height:1.1)),
+               const SizedBox(height:17),
+               EventMetric(icon:Icons.calendar_month_outlined,
+                 label:'Fecha',value:time(widget.event['inicio'])),
+               const SizedBox(height:13),
+               EventMetric(icon:Icons.location_on_outlined,
+                 label:'Lugar',value:getText('sucursal')),
+               const SizedBox(height:19),
+               const Text('Acércate para leer todos los detalles del afiche.',
+                 style:TextStyle(color:EventColors.muted,
+                   fontSize:13,height:1.5)),
+               const SizedBox(height:13),
+               FilledButton.icon(onPressed:expand,
+                 icon:const Icon(Icons.fullscreen_outlined),
+                 style:FilledButton.styleFrom(
+                   backgroundColor:EventColors.primary,
+                   foregroundColor:EventColors.onPrimary),
+                 label:const Text('Abrir afiche')),
+             ],
+           )),
+         ]);
+       }),
+     ],
+   ));
+ }
 
  Widget _intro(bool wide) {
    final about=EventPanel(child:Column(
@@ -518,7 +600,7 @@ class _EventPublicLandingState extends State<EventPublicLanding> {
      top:BorderSide(color:EventColors.border))),
    child:Wrap(spacing:20,runSpacing:12,
      alignment:WrapAlignment.spaceBetween,children:[
-       Text(getText('empresa'),style:const TextStyle(color:EventColors.text,
+       Text(getText('sucursal'),style:const TextStyle(color:EventColors.text,
          fontWeight:FontWeight.w900,fontSize:16)),
        Text(getText('direccion'),
          style:const TextStyle(color:EventColors.muted,fontSize:12)),
