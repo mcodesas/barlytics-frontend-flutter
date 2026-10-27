@@ -7,6 +7,7 @@ import 'package:intl/intl.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../data/eventos_api.dart';
 import 'widgets/event_public_landing.dart';
+import 'widgets/event_share_sheet.dart';
 
 const ink=Color(0xff0b1025),teal=Color(0xff34ddcf),muted=Color(0xffb5bed5),accent=Color(0xffffca83);
 ImageProvider? cover(Object? value){
@@ -38,61 +39,11 @@ class _PublicState extends ConsumerState<EventoPublicoPage>{
   catch(e){if(mounted)setState(()=>error=e.toString());}
  }
  Future<void> share()async{
-  final url=event?['enlaceCompartir']?.toString()??
+  final current=event;
+  if(current==null||!mounted)return;
+  final url=current['enlaceCompartir']?.toString()??
     ref.read(eventosApiProvider).link(widget.slug);
-  if(!mounted)return;
-  await showModalBottomSheet<void>(
-   context:context,isScrollControlled:true,
-   backgroundColor:const Color(0xff182a43),
-   shape:const RoundedRectangleBorder(
-    borderRadius:BorderRadius.vertical(top:Radius.circular(24))),
-   builder:(sheet)=>SafeArea(
-    child:Padding(padding:const EdgeInsets.all(24),
-     child:Column(mainAxisSize:MainAxisSize.min,
-      crossAxisAlignment:CrossAxisAlignment.start,children:[
-       const Text('Compartir este evento',style:TextStyle(
-        color:Colors.white,fontSize:23,fontWeight:FontWeight.w800)),
-       const SizedBox(height:7),
-       const Text('Invita a otros a reservar sus puestos.',style:TextStyle(color:muted)),
-       const SizedBox(height:15),
-       SelectableText(url,style:const TextStyle(color:teal,fontSize:13)),
-       const SizedBox(height:18),
-       Wrap(spacing:9,runSpacing:9,children:[
-        FilledButton.icon(
-         onPressed:()async{
-          try{
-           await Clipboard.setData(ClipboardData(text:url));
-           if(sheet.mounted)Navigator.pop(sheet);
-           if(mounted)ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content:Text('Enlace del evento copiado')));
-          }catch(_){
-           if(mounted)ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content:Text('Selecciona y copia el enlace mostrado')));
-          }
-         },
-         icon:const Icon(Icons.copy),label:const Text('Copiar enlace')),
-        OutlinedButton.icon(
-         onPressed:()async{
-          final text='Te invito a '+(event?['titulo']?.toString()??'este evento')+'\n'+url;
-          final target=Uri.parse('https://wa.me/?text='+Uri.encodeComponent(text));
-          final ok=await launchUrl(target,mode:LaunchMode.externalApplication);
-          if(!ok&&mounted)ScaffoldMessenger.of(context).showSnackBar(
-           const SnackBar(content:Text('No se pudo abrir WhatsApp')));
-         },icon:const Icon(Icons.message),label:const Text('WhatsApp')),
-        OutlinedButton.icon(
-         onPressed:()async{
-          final target=Uri.parse('https://www.facebook.com/sharer/sharer.php?u='+
-            Uri.encodeComponent(url));
-          final ok=await launchUrl(target,mode:LaunchMode.externalApplication);
-          if(!ok&&mounted)ScaffoldMessenger.of(context).showSnackBar(
-           const SnackBar(content:Text('No se pudo abrir Facebook')));
-         },icon:const Icon(Icons.share_outlined),label:const Text('Facebook')),
-       ]),
-       const SizedBox(height:13),
-      ]),
-    ),
-   ),
-  );
+  await showEventShareSheet(context,current,url);
  }
  Future<void> book(List<int> chairs)async{
   if((selected==null&&event?['modoReserva']!='PUESTOS')||
