@@ -1766,7 +1766,8 @@ class _EventEditorState extends ConsumerState<EventoEditor>{
    ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content:Text('Verifica el precio y el medio de pago')));return;
   }
   if(!RegExp(r'^#[0-9A-Fa-f]{6}$').hasMatch(primaryHex.text.trim())||
-     !RegExp(r'^#[0-9A-Fa-f]{6}$').hasMatch(backgroundHex.text.trim())){
+     !RegExp(r'^#[0-9A-Fa-f]{6}$').hasMatch(backgroundHex.text.trim())||
+     !RegExp(r'^#[0-9A-Fa-f]{6}$').hasMatch(textHex.text.trim())){
     ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
       content:Text('Usa colores con el formato #RRGGBB')));
     return;
@@ -2038,14 +2039,16 @@ class _EventEditorState extends ConsumerState<EventoEditor>{
 
  Widget _visualTheme(){
   final selected=EventPagePalette.fromHex(
-    primaryHex.text.trim(),backgroundHex.text.trim());
+    primaryHex.text.trim(),backgroundHex.text.trim(),textHex.text.trim());
   final validAccent=RegExp(r'^#[0-9a-fA-F]{6}$').hasMatch(primaryHex.text.trim());
   final validBase=RegExp(r'^#[0-9a-fA-F]{6}$').hasMatch(backgroundHex.text.trim());
+  final validText=RegExp(r'^#[0-9a-fA-F]{6}$').hasMatch(textHex.text.trim());
 
   Widget presetCard(EventPalettePreset p){
-   final scheme=EventPagePalette.fromHex(p.accent,p.background);
+   final scheme=EventPagePalette.fromHex(p.accent,p.background,p.text);
    final active=primaryHex.text.toUpperCase()==p.accent &&
-     backgroundHex.text.toUpperCase()==p.background;
+     backgroundHex.text.toUpperCase()==p.background &&
+     textHex.text.toUpperCase()==p.text;
    return Container(
     width:225,padding:const EdgeInsets.all(11),
     decoration:BoxDecoration(
@@ -2059,6 +2062,7 @@ class _EventEditorState extends ConsumerState<EventoEditor>{
       onTap:()=>setState((){
        primaryHex.text=p.accent;
        backgroundHex.text=p.background;
+       textHex.text=p.text;
       }),
       borderRadius:BorderRadius.circular(11),
       child:Container(
@@ -2075,17 +2079,24 @@ class _EventEditorState extends ConsumerState<EventoEditor>{
         Expanded(child:Column(
          crossAxisAlignment:CrossAxisAlignment.start,children:[
           Text(p.name,maxLines:1,overflow:TextOverflow.ellipsis,
-           style:const TextStyle(color:Colors.white,
+           style:TextStyle(color:scheme.text,
             fontWeight:FontWeight.w800,fontSize:13)),
           Text(p.description,maxLines:1,overflow:TextOverflow.ellipsis,
-           style:const TextStyle(color:Color(0xFFAEC1CC),fontSize:10)),
+           style:TextStyle(color:scheme.muted,fontSize:10)),
          ])),
-        if(active)const Icon(Icons.check_circle,
-          color:EventColors.primary,size:17),
+        if(active)Icon(Icons.check_circle,
+          color:scheme.accent,size:17),
        ]),
       ),
      ),
      const SizedBox(height:8),
+     Row(mainAxisAlignment:MainAxisAlignment.center,children:[
+      for(final color in [scheme.canvas,scheme.surface,scheme.text,scheme.accent])
+       Container(width:25,height:13,margin:const EdgeInsets.symmetric(horizontal:3),
+        decoration:BoxDecoration(color:color,borderRadius:BorderRadius.circular(3),
+         border:Border.all(color:EventColors.border))),
+     ]),
+     const SizedBox(height:6),
      Row(children:[
       Expanded(child:TextButton(
        onPressed:()=>setState(()=>primaryHex.text=p.accent),
@@ -2098,6 +2109,9 @@ class _EventEditorState extends ConsumerState<EventoEditor>{
         padding:const EdgeInsets.symmetric(horizontal:4)),
        child:const Text('Solo fondo',style:TextStyle(fontSize:11)))),
      ]),
+     SizedBox(width:double.infinity,child:TextButton(
+      onPressed:()=>setState(()=>textHex.text=p.text),
+      child:const Text('Solo texto',style:TextStyle(fontSize:11)))),
     ]),
    );
   }
@@ -2123,7 +2137,7 @@ class _EventEditorState extends ConsumerState<EventoEditor>{
     const Text('Paletas prediseñadas',
      style:TextStyle(color:EventColors.text,fontWeight:FontWeight.w800,fontSize:15)),
     const SizedBox(height:5),
-    const Text('Toca una tarjeta para usar ambos colores. O combina el acento de una paleta con el fondo de otra.',
+    const Text('Selecciona una combinación completa de fondo, texto y acento. O mezcla los colores a tu gusto.',
      style:TextStyle(color:EventColors.muted,fontSize:12,height:1.5)),
     const SizedBox(height:13),
     Wrap(spacing:10,runSpacing:10,children:[
@@ -2138,6 +2152,7 @@ class _EventEditorState extends ConsumerState<EventoEditor>{
       onPressed:()=>setState((){
        primaryHex.text='#35D0C5';
        backgroundHex.text='#102735';
+       textHex.text='#F2FBFF';
       }),
       icon:const Icon(Icons.restart_alt_outlined,size:17),
       label:const Text('Restablecer')),
@@ -2163,14 +2178,18 @@ class _EventEditorState extends ConsumerState<EventoEditor>{
      }
      final accentInput=input(primaryHex,'Color de acento · #RRGGBB',
       'Botones, destacados e iconos',selected.accent);
-     final backgroundInput=input(backgroundHex,'Tono de ambiente · #RRGGBB',
-      'Determina la atmósfera, sin saturar el fondo',selected.canvas);
+     final backgroundInput=input(backgroundHex,'Color del fondo · #RRGGBB',
+      'Determina el fondo y las tarjetas',selected.canvas);
+     final textInput=input(textHex,'Color del texto · #RRGGBB',
+      'Títulos, descripciones y carta',selected.text);
      if(space.maxWidth<560)return Column(children:[
       accentInput,const SizedBox(height:10),backgroundInput,
+      const SizedBox(height:10),textInput,
      ]);
      return Row(children:[
       Expanded(child:accentInput),const SizedBox(width:14),
-      Expanded(child:backgroundInput),
+      Expanded(child:backgroundInput),const SizedBox(width:14),
+      Expanded(child:textInput),
      ]);
     }),
     const SizedBox(height:10),
@@ -2188,7 +2207,7 @@ class _EventEditorState extends ConsumerState<EventoEditor>{
       icon:const Icon(Icons.format_color_text_outlined),
       label:const Text('Elegir color del texto')),
     ]),
-    if(!validAccent||!validBase)
+    if(!validAccent||!validBase||!validText)
      const Padding(padding:EdgeInsets.only(top:7),child:Text(
       'Escribe seis dígitos hexadecimales por color, por ejemplo #E6BE83.',
       style:TextStyle(color:EventColors.warning,fontSize:12))),
@@ -2214,11 +2233,11 @@ class _EventEditorState extends ConsumerState<EventoEditor>{
         Column(crossAxisAlignment:CrossAxisAlignment.start,children:[
          Text(title.text.trim().isEmpty?'Tu próximo gran evento':title.text,
           maxLines:2,overflow:TextOverflow.ellipsis,
-          style:const TextStyle(color:EventColors.text,
+          style:TextStyle(color:selected.text,
            fontSize:21,fontWeight:FontWeight.w900)),
          const SizedBox(height:6),
-         const Text('Un diseño exclusivo para tu sucursal',
-          style:TextStyle(color:EventColors.muted,fontSize:11)),
+         Text('Presentación del establecimiento',
+          style:TextStyle(color:selected.muted,fontSize:11)),
         ]),
         Container(
          padding:const EdgeInsets.symmetric(horizontal:16,vertical:11),
@@ -2240,11 +2259,11 @@ class _EventEditorState extends ConsumerState<EventoEditor>{
          child:Column(crossAxisAlignment:CrossAxisAlignment.start,children:[
           Icon(Icons.image_outlined,color:selected.accent),
           const SizedBox(height:8),
-          const Text('Afiche oficial',
-           style:TextStyle(color:EventColors.text,fontWeight:FontWeight.w800)),
+          Text('Afiche oficial',
+           style:TextStyle(color:selected.text,fontWeight:FontWeight.w800)),
           const SizedBox(height:3),
-          const Text('Superficie contrastada',
-           style:TextStyle(color:EventColors.muted,fontSize:10)),
+          Text('Superficie personalizable',
+           style:TextStyle(color:selected.muted,fontSize:10)),
          ]))),
         const SizedBox(width:10),
         Expanded(child:Container(
@@ -2255,19 +2274,23 @@ class _EventEditorState extends ConsumerState<EventoEditor>{
          child:Column(crossAxisAlignment:CrossAxisAlignment.start,children:[
           Icon(Icons.restaurant_menu,color:selected.accent),
           const SizedBox(height:8),
-          const Text('Nuestra carta',
-           style:TextStyle(color:EventColors.text,fontWeight:FontWeight.w800)),
+          Text('Nuestra carta',
+           style:TextStyle(color:selected.text,fontWeight:FontWeight.w800)),
           const SizedBox(height:3),
-          const Text('Tarjetas y detalles',
-           style:TextStyle(color:EventColors.muted,fontSize:10)),
+          Text('Tarjetas y detalles',
+           style:TextStyle(color:selected.muted,fontSize:10)),
          ]))),
        ]),
       ),
      ]),
     ),
     const SizedBox(height:10),
-    const Text('Los fondos y las tarjetas se equilibran automáticamente para mantener la lectura, incluso si eliges un color muy claro o intenso.',
+    const Text('La carta, fondos y tarjetas siguen los colores elegidos. Ajusta el contraste para lograr una lectura cómoda.',
      style:TextStyle(color:EventColors.muted,fontSize:11,height:1.5)),
+    if(EventPagePalette.contrast(selected.text,selected.surface)<4.5)
+     const Padding(padding:EdgeInsets.symmetric(vertical:5),
+      child:Text('El texto contrasta poco con las tarjetas: cambia la letra o el fondo.',
+       style:TextStyle(color:EventColors.warning,fontWeight:FontWeight.w700,fontSize:12))),
     const SizedBox(height:20),
     const Text('Redes sociales para la página pública',
      style:TextStyle(color:EventColors.text,fontWeight:FontWeight.w800)),
