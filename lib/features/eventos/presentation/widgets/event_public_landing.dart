@@ -244,7 +244,7 @@ class _EventPublicLandingState extends State<EventPublicLanding> {
     const SizedBox(width:11),
     Expanded(child:Column(crossAxisAlignment:CrossAxisAlignment.start,children:[
       Text(getText('sucursal','Establecimiento'),
-        maxLines:2,overflow:TextOverflow.ellipsis,
+        softWrap:true,
         style:TextStyle(color:EventColors.text,
           fontWeight:FontWeight.w900,fontSize:wide?28:22)),
       const Text('Eventos y reservas',
