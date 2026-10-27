@@ -69,19 +69,23 @@ class EventPagePalette {
     return l1>l2?l1/l2:l2/l1;
   }
 
-  factory EventPagePalette.fromHex(String? accentHex,String? backgroundHex,[String? textHex]){
+  factory EventPagePalette.fromHex(String? accentHex,String? backgroundHex,
+    [String? textHex,String? surfaceHex,String? borderHex,String? menuHex]){
     final base=parse(backgroundHex,EventColors.background);
     final foreground=parse(textHex,
       base.computeLuminance()>.38?const Color(0xFF211B18):EventColors.text);
     final accent=parse(accentHex,EventColors.primary);
     final light=base.computeLuminance()>.38;
-    final surface=Color.lerp(base,light?Colors.white:Colors.white,light?.36:.11)!;
-    final surfaceSoft=Color.lerp(base,light?Colors.white:Colors.white,light?.57:.18)!;
-    final border=Color.lerp(base,foreground,light?.28:.31)!;
+    final surface= parse(surfaceHex,
+      Color.lerp(base,Colors.white,light?.36:.11)!);
+    final surfaceSoft=Color.lerp(surface,Colors.white,
+      surface.computeLuminance()>.38?.24:.08)!;
+    final border=parse(borderHex,Color.lerp(base,foreground,light?.28:.31)!);
     final muted=Color.lerp(foreground,surface,.31)!;
     final onAccent=contrast(accent,const Color(0xFF171717))>=
         contrast(accent,Colors.white)?const Color(0xFF171717):Colors.white;
-    final page=Color.lerp(base,Colors.white,light?.17:.12)!;
+    final page=parse(menuHex,
+      Color.lerp(base,Colors.white,light?.17:.12)!);
     return EventPagePalette._(
       accent:accent,onAccent:onAccent,canvas:base,surface:surface,
       surfaceSoft:surfaceSoft,border:border,
