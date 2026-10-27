@@ -242,7 +242,7 @@ class _EventosAdminState extends ConsumerState<EventosAdminPage>{
                 label:originLabel,
                 color:internal?EventColors.gold:EventColors.primary),
                EventPill(icon:Icons.event_seat_outlined,
-                label:'Mesa '+(r['mesa_numero']??r['mesa_id']).toString()),
+                label:r['mesas_reserva']?.toString()??'Mesa '+(r['mesa_numero']??r['mesa_id']).toString()),
                EventPill(icon:Icons.groups_outlined,
                 label:(r['eres_puestos']??1).toString()+' puestos'),
                EventPill(icon:Icons.check_circle_outline,label:state,
