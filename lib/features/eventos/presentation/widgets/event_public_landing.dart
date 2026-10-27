@@ -837,7 +837,7 @@ class _EventPublicLandingState extends State<EventPublicLanding> {
      final description=product['descripcion']?.toString().trim()??'';
      final name=(product['nombre']??'').toString().trim();
      final shownPrice=product['precio']==null
-       ?'Consultar precio':'$'+currency(product['precio']).replaceFirst('COP ','');
+       ?'Consultar precio':'\$'+currency(product['precio']).replaceFirst('COP ','');
      return Padding(
        padding:EdgeInsets.symmetric(vertical:width<390?9:11,horizontal:3),
        child:Column(crossAxisAlignment:CrossAxisAlignment.stretch,children:[
