@@ -515,7 +515,7 @@ class _EventPublicLandingState extends State<EventPublicLanding> {
  Widget _bookingArea(bool wide){
    final content=EventPanel(child:Column(
      key:_bookingKey,crossAxisAlignment:CrossAxisAlignment.start,children:[
-       const EventSectionHeading(icon:Icons.table_restaurant_outlined,
+       EventSectionHeading(icon:Icons.table_restaurant_outlined,
          title:bySeat?'Reserva por puestos':'Reserva tu mesa',
          subtitle:bySeat?'Reserva varios puestos o asigna mesa automáticamente.':'La mesa se reserva completa.'),
        const SizedBox(height:14),
