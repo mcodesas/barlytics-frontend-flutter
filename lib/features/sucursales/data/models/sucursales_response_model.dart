@@ -11,6 +11,7 @@ class SucursalesResponseModel {
     this.sucuCodigoInterno,
     this.sucuDireccion,
     this.sucuTelefono,
+    this.sucuFoto,
     this.sucuEstado,
     this.sucuRegistradoPor,
     this.sucuFechaCambio,
@@ -26,6 +27,7 @@ class SucursalesResponseModel {
   final String? sucuCodigoInterno;
   final String? sucuDireccion;
   final String? sucuTelefono;
+  final String? sucuFoto;
   final int? sucuEstado;
   final String? sucuRegistradoPor;
   final String? sucuFechaCambio;
@@ -41,6 +43,7 @@ class SucursalesResponseModel {
       sucuCodigoInterno: json['sucuCodigoInterno']?.toString(),
       sucuDireccion: json['sucuDireccion']?.toString(),
       sucuTelefono: json['sucuTelefono']?.toString(),
+      sucuFoto: json['sucuFoto']?.toString(),
       sucuEstado: (json['sucuEstado'] as num?)?.toInt(),
       sucuRegistradoPor: json['sucuRegistradoPor']?.toString(),
       sucuFechaCambio: json['sucuFechaCambio']?.toString(),
@@ -57,6 +60,7 @@ class SucursalesResponseModel {
       'sucuCodigoInterno': sucuCodigoInterno,
       'sucuDireccion': sucuDireccion,
       'sucuTelefono': sucuTelefono,
+      'sucuFoto': sucuFoto,
       'sucuEstado': sucuEstado,
       'sucuRegistradoPor': sucuRegistradoPor,
       'sucuFechaCambio': sucuFechaCambio,
