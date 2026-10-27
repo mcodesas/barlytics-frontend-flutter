@@ -2418,7 +2418,7 @@ class _EventEditorState extends ConsumerState<EventoEditor>{
         Divider(color:selected.menuBorder),
        ],
       ]),
-     )),
+     ),
     ),
     const SizedBox(height:10),
     const Text('La carta, fondos y tarjetas siguen los colores elegidos. Ajusta el contraste para lograr una lectura cómoda.',
