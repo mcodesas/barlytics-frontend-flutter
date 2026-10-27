@@ -2038,6 +2038,8 @@ class _EventEditorState extends ConsumerState<EventoEditor>{
  }
 
  Widget _visualTheme(){
+  final previewProducts=availableProducts.where(
+    (p)=>selectedProducts.contains(asId(p['id']))).take(2).toList();
   final selected=EventPagePalette.fromHex(
     primaryHex.text.trim(),backgroundHex.text.trim(),textHex.text.trim());
   final validAccent=RegExp(r'^#[0-9a-fA-F]{6}$').hasMatch(primaryHex.text.trim());
@@ -2104,7 +2106,14 @@ class _EventEditorState extends ConsumerState<EventoEditor>{
         padding:const EdgeInsets.symmetric(horizontal:4)),
        child:const Text('Solo acento',style:TextStyle(fontSize:11)))),
       Expanded(child:TextButton(
-       onPressed:()=>setState(()=>backgroundHex.text=p.background),
+       onPressed:()=>setState((){
+        backgroundHex.text=p.background;
+        if(EventPagePalette.contrast(
+          EventPagePalette.parse(textHex.text,EventColors.text),
+          EventPagePalette.parse(p.background,EventColors.background))<4.5){
+          textHex.text=p.text;
+        }
+       }),
        style:TextButton.styleFrom(
         padding:const EdgeInsets.symmetric(horizontal:4)),
        child:const Text('Solo fondo',style:TextStyle(fontSize:11)))),
@@ -2283,6 +2292,50 @@ class _EventEditorState extends ConsumerState<EventoEditor>{
        ]),
       ),
      ]),
+    ),
+    const SizedBox(height:13),
+    Container(
+     width:double.infinity,padding:const EdgeInsets.all(8),
+     decoration:BoxDecoration(color:selected.menuPaper,
+      border:Border.all(color:selected.menuBorder,width:2)),
+     child:Container(padding:const EdgeInsets.all(13),
+      decoration:BoxDecoration(border:Border.all(
+       color:selected.menuBorder.withOpacity(.7))),
+      child:Column(children:[
+       Text('CARTA DEL EVENTO',textAlign:TextAlign.center,
+        style:TextStyle(fontFamily:'Georgia',fontSize:20,
+         letterSpacing:2,color:selected.menuInk)),
+       const SizedBox(height:6),
+       Text(title.text.trim().isEmpty?'Vista previa del evento':title.text.trim(),
+        textAlign:TextAlign.center,maxLines:2,
+        style:TextStyle(fontFamily:'Georgia',
+          color:selected.menuInk,fontSize:11)),
+       const SizedBox(height:12),
+       Divider(color:selected.menuBorder),
+       if(previewProducts.isEmpty)
+        Text('Selecciona productos del catálogo para previsualizarlos',
+         textAlign:TextAlign.center,
+         style:TextStyle(color:selected.menuInk,fontSize:11))
+       else for(final p in previewProducts)...[
+        Row(children:[
+         Expanded(child:Text((p['nombre']??'').toString(),
+          maxLines:2,style:TextStyle(fontFamily:'Georgia',
+           color:selected.menuInk,fontWeight:FontWeight.bold))),
+         const SizedBox(width:10),
+         Text(p['precio']==null?'Consultar':'$'+p['precio'].toString(),
+          style:TextStyle(fontFamily:'Georgia',
+           fontWeight:FontWeight.bold,color:selected.menuInk)),
+        ]),
+        if((p['descripcion']?.toString()??'').isNotEmpty)
+         Align(alignment:Alignment.centerLeft,
+          child:Text(p['descripcion'].toString(),maxLines:2,
+           overflow:TextOverflow.ellipsis,
+           style:TextStyle(fontFamily:'Georgia',
+            color:selected.menuInk,fontSize:11))),
+        Divider(color:selected.menuBorder),
+       ],
+      ]),
+     )),
     ),
     const SizedBox(height:10),
     const Text('La carta, fondos y tarjetas siguen los colores elegidos. Ajusta el contraste para lograr una lectura cómoda.',
