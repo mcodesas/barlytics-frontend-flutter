@@ -2404,7 +2404,7 @@ class _EventEditorState extends ConsumerState<EventoEditor>{
            color:selected.menuInk,fontWeight:FontWeight.bold))),
          const SizedBox(width:10),
          Text(p['precio']==null?'Consultar':
-          NumberFormat.currency(locale:'es_CO',symbol:'$',decimalDigits:0).format(
+          NumberFormat.currency(locale:'es_CO',symbol:'\$',decimalDigits:0).format(
             double.tryParse(p['precio'].toString())??0),
           style:TextStyle(fontFamily:'Georgia',
            fontWeight:FontWeight.bold,color:selected.menuInk)),
