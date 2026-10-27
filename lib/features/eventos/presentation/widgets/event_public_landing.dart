@@ -426,17 +426,13 @@ class _EventPublicLandingState extends State<EventPublicLanding> {
        ],
      ]));
    if(!wide)return Column(children:[
-     about,const SizedBox(height:12),photos,const SizedBox(height:12),place,
+     photos,const SizedBox(height:12),place,
    ]);
-   // Ambas secciones ocupan columnas amplias. No usar IntrinsicHeight con
-   // LayoutBuilder: Flutter no permite medir sus dimensiones intrínsecas.
-   return Column(children:[
-     Row(crossAxisAlignment:CrossAxisAlignment.start,children:[
-       Expanded(flex:5,child:about),
-       const SizedBox(width:13),
-       Expanded(flex:7,child:photos),
-     ]),
-     const SizedBox(height:13),place,
+   // Galería y mapa con enlaces sociales en columnas equilibradas.
+   return Row(crossAxisAlignment:CrossAxisAlignment.start,children:[
+     Expanded(flex:6,child:photos),
+     const SizedBox(width:13),
+     Expanded(flex:5,child:place),
    ]);
  }
 
@@ -476,8 +472,41 @@ class _EventPublicLandingState extends State<EventPublicLanding> {
        onPressed:getText('ubicacionGoogleMaps').isEmpty?null:openMap,
        icon:const Icon(Icons.directions_outlined),
        label:const Text('Ver ubicación en Google Maps')),
+     const SizedBox(height:23),
+     const Text('Síguenos en redes sociales',
+       style:TextStyle(color:EventColors.text,
+        fontWeight:FontWeight.w800,fontSize:14)),
+     const SizedBox(height:11),
+     _socialLinks(),
    ],
  );
+
+
+ Widget _socialLinks(){
+  final items=<({String label,String url,IconData icon})>[
+   if(getText('instagram').isNotEmpty)
+    (label:'Instagram',url:getText('instagram'),icon:Icons.camera_alt_outlined),
+   if(getText('facebook').isNotEmpty)
+    (label:'Facebook',url:getText('facebook'),icon:Icons.people_alt_outlined),
+   if(getText('tiktok').isNotEmpty)
+    (label:'TikTok',url:getText('tiktok'),icon:Icons.music_note_outlined),
+   if(getText('whatsapp').isNotEmpty)
+    (label:'WhatsApp',url:getText('whatsapp'),icon:Icons.chat_outlined),
+  ];
+  if(items.isEmpty)return const Text('Próximamente enlaces sociales del lugar',
+   style:TextStyle(color:EventColors.muted,fontSize:12));
+  return Wrap(spacing:9,runSpacing:9,children:[
+   for(final item in items)
+    OutlinedButton.icon(
+     onPressed:()async{
+      final link=Uri.tryParse(item.url);
+      if(link!=null&&link.scheme=='https')
+       await launchUrl(link,mode:LaunchMode.externalApplication);
+     },
+     icon:Icon(item.icon,size:17,color:brand),
+     label:Text(item.label)),
+  ]);
+ }
 
  Widget _bookingArea(bool wide){
    final content=EventPanel(child:Column(
