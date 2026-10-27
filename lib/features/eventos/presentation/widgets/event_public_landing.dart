@@ -331,54 +331,116 @@ class _EventPublicLandingState extends State<EventPublicLanding> {
      key:_galleryKey,crossAxisAlignment:CrossAxisAlignment.start,children:[
        EventSectionHeading(icon:Icons.collections_outlined,
          title:'Conoce el lugar',
-         subtitle:'Un vistazo a los espacios del establecimiento',
-         trailing:Text(venue.isEmpty?'':'Fotografías',
-           style:const TextStyle(color:EventColors.primary,fontSize:12))),
-       const SizedBox(height:14),
-       SizedBox(height:170,
-         child:ListView.separated(
-           scrollDirection:Axis.horizontal,
-           itemCount:venue.isEmpty?1:venue.length,
-           separatorBuilder:(_,__)=>const SizedBox(width:10),
-           itemBuilder:(context,i)=>EventArtwork(
-             source:venue.isEmpty?widget.event['imagen']:venue[i],
-             width:210,height:170),
-         )),
+         subtitle:'Fotografías reales del establecimiento',
+         trailing:venue.isEmpty?null:
+           const Icon(Icons.zoom_in,color:EventColors.primary)),
+       const SizedBox(height:15),
+       if(venue.isEmpty)Container(height:220,alignment:Alignment.center,
+         decoration:BoxDecoration(color:EventColors.surfaceLight,
+           borderRadius:BorderRadius.circular(12)),
+         child:const Text('Próximamente: fotos del lugar',
+           style:TextStyle(color:EventColors.muted)))
+       else LayoutBuilder(builder:(context,layout){
+         final columns=layout.maxWidth>=350?2:1;
+         final width=(layout.maxWidth-(columns-1)*10)/columns;
+         return Wrap(spacing:10,runSpacing:10,children:[
+           for(var i=0;i<venue.length;i++)
+             SizedBox(width:width,child:InkWell(
+               borderRadius:BorderRadius.circular(12),
+               onTap:()=>showEventPhotoViewer(context,
+                 images:venue.cast<Object?>(),
+                 labels:List.generate(venue.length,
+                   (j)=>'Fotografía del lugar '+(j+1).toString()),
+                 initialIndex:i),
+               child:Stack(children:[
+                 EventArtwork(source:venue[i],width:width,
+                   height:venue.length==1?325:215),
+                 const Positioned(bottom:9,right:9,
+                   child:Icon(Icons.zoom_in,color:EventColors.text,size:27)),
+               ]),
+             )),
+         ]);
+       }),
+       if(venue.isNotEmpty)...[
+         const SizedBox(height:14),
+         OutlinedButton.icon(
+           onPressed:()=>showEventPhotoViewer(context,
+             images:venue.cast<Object?>(),
+             labels:List.generate(venue.length,
+               (i)=>'Fotografía del lugar '+(i+1).toString())),
+           icon:const Icon(Icons.fullscreen_outlined),
+           label:const Text('Ver galería en pantalla completa')),
+       ],
      ]));
+   final mapPreview=venue.isNotEmpty?venue.first:widget.event['imagen'];
    final place=EventPanel(child:Column(
      key:_locationKey,crossAxisAlignment:CrossAxisAlignment.start,children:[
        const EventSectionHeading(icon:Icons.location_on_outlined,
-         title:'Nuestra ubicación'),
-       const SizedBox(height:12),
-       Text(getText('sucursal',getText('empresa')),
-         style:const TextStyle(color:EventColors.text,
-           fontWeight:FontWeight.w800)),
-       const SizedBox(height:5),
-       Text(getText('direccion','Dirección del establecimiento'),
-         style:const TextStyle(color:EventColors.muted,fontSize:12)),
+         title:'Nuestra ubicación',
+         subtitle:'Encuentra cómo llegar al establecimiento.'),
        const SizedBox(height:14),
-       Container(height:86,
-         decoration:BoxDecoration(
-           gradient:const LinearGradient(colors:[
-             Color(0xFF183C4A),Color(0xFF1B354B)]),
-           borderRadius:BorderRadius.circular(13)),
-         child:const Center(child:Icon(Icons.map_outlined,
-           size:45,color:EventColors.primary))),
-       const SizedBox(height:13),
-       SizedBox(width:double.infinity,child:OutlinedButton.icon(
-         onPressed:getText('ubicacionGoogleMaps').isEmpty?null:openMap,
-         icon:const Icon(Icons.directions_outlined),
-         label:const Text('Abrir en Google Maps'))),
+       if(wide)Row(crossAxisAlignment:CrossAxisAlignment.center,children:[
+         Expanded(flex:5,child:_locationPhoto(mapPreview)),
+         const SizedBox(width:23),
+         Expanded(flex:7,child:_locationInfo()),
+       ])else...[
+         _locationPhoto(mapPreview),
+         const SizedBox(height:14),
+         _locationInfo(),
+       ],
      ]));
    if(!wide)return Column(children:[
      about,const SizedBox(height:12),photos,const SizedBox(height:12),place,
    ]);
-   return Row(crossAxisAlignment:CrossAxisAlignment.start,children:[
-     Expanded(flex:4,child:about),const SizedBox(width:12),
-     Expanded(flex:5,child:photos),const SizedBox(width:12),
-     Expanded(flex:3,child:place),
+   return Column(children:[
+     IntrinsicHeight(child:Row(
+       crossAxisAlignment:CrossAxisAlignment.stretch,children:[
+         Expanded(flex:5,child:about),
+         const SizedBox(width:13),
+         Expanded(flex:7,child:photos),
+       ])),
+     const SizedBox(height:13),place,
    ]);
  }
+
+ Widget _locationPhoto(Object? image) => InkWell(
+   onTap:getText('ubicacionGoogleMaps').isEmpty?null:openMap,
+   borderRadius:BorderRadius.circular(13),
+   child:Stack(children:[
+     EventArtwork(source:image,width:double.infinity,height:186,
+       emptyIcon:Icons.map_outlined),
+     Positioned.fill(child:Container(
+       decoration:BoxDecoration(
+         borderRadius:BorderRadius.circular(13),
+         gradient:const LinearGradient(
+           begin:Alignment.bottomCenter,end:Alignment.topCenter,
+           colors:[Color(0xE3061925),Colors.transparent])))),
+     Positioned(left:12,bottom:12,right:12,child:Row(children:[
+       const Icon(Icons.location_on,color:EventColors.primary),
+       const SizedBox(width:7),
+       const Expanded(child:Text('Vista del lugar · Abrir en Google Maps',
+         style:TextStyle(color:EventColors.text,
+           fontWeight:FontWeight.w800,fontSize:12))),
+       const Icon(Icons.open_in_new,color:EventColors.text,size:17),
+     ])),
+   ]),
+ );
+
+ Widget _locationInfo()=>Column(
+   crossAxisAlignment:CrossAxisAlignment.start,children:[
+     Text(getText('sucursal','Lugar del evento'),
+       style:const TextStyle(color:EventColors.text,
+         fontWeight:FontWeight.w800,fontSize:18)),
+     const SizedBox(height:7),
+     Text(getText('direccion','Dirección del lugar'),
+       style:const TextStyle(color:EventColors.muted,fontSize:13)),
+     const SizedBox(height:16),
+     OutlinedButton.icon(
+       onPressed:getText('ubicacionGoogleMaps').isEmpty?null:openMap,
+       icon:const Icon(Icons.directions_outlined),
+       label:const Text('Ver ubicación en Google Maps')),
+   ],
+ );
 
  Widget _bookingArea(bool wide){
    final content=EventPanel(child:Column(
