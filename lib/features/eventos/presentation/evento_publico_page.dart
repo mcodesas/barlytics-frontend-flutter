@@ -182,7 +182,16 @@ class _EntradaState extends ConsumerState<EventoEntradaPublicaPage>{
        style:const TextStyle(color:Colors.white,fontSize:25,fontWeight:FontWeight.w900)),
       const SizedBox(height:15),
       if(value!=null)...[
-       Text('Mesa '+value!['mesa'].toString(),style:const TextStyle(color:Colors.white,fontSize:21)),
+       if((value!['mesas'] as List? ??[]).length>1)...[
+         Text('Mesas asignadas',style:const TextStyle(
+           color:Colors.white,fontSize:20,fontWeight:FontWeight.w800)),
+         const SizedBox(height:7),
+         for(final table in (value!['mesas'] as List? ??[]))
+           Text('Mesa '+(table['numero']??'').toString()+' · '+
+             (table['puestos']??'').toString()+' puestos',
+             style:const TextStyle(color:teal,fontSize:15)),
+       ]else
+         Text('Mesa '+value!['mesa'].toString(),style:const TextStyle(color:Colors.white,fontSize:21)),
         Text((value!['puestos']?.toString()??'1')+' puestos',
          style:const TextStyle(color:teal,fontSize:17)),
        Text('Inicio: '+when(value!['inicio']),style:const TextStyle(color:muted)),
