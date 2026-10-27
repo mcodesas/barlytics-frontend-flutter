@@ -4,6 +4,7 @@ import 'package:intl/intl.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'event_visual_kit.dart';
 import 'event_photo_viewer.dart';
+import 'event_share_sheet.dart';
 
 /// Landing pública real (sin datos demostrativos ni dependencias del shell privado).
 /// Toda la información proviene del evento, sucursal, mesas y catálogo del API.
@@ -59,10 +60,9 @@ class _EventPublicLandingState extends State<EventPublicLanding> {
    if(list.isEmpty)return [];
    return (list.first['sillasOcupadas'] as List? ??[]).map(number).toList();
   }
-  int get automaticMax=>tables.fold<int>(0,(n,t){
-   final free=number(t['disponibles']);
-   return free>n?free:n;
-  });
+  // El límite es la suma de los puestos habilitados de todas las mesas.
+  int get automaticMax=>tables.fold<int>(0,(sum,t)=>
+    sum+number(t['disponibles']));
   void startReservation(){
     if(autoAssignOnly){
       _openAutomaticBooking();
@@ -146,7 +146,7 @@ class _EventPublicLandingState extends State<EventPublicLanding> {
                       icon:const Icon(Icons.add)),
                   ]),
                   const SizedBox(height:9),
-                  Text('Hasta $limit puestos en una mesa disponible.',
+                  Text('Hasta $limit puestos disponibles en el evento; se asignan entre mesas.',
                     textAlign:TextAlign.center,
                     style:TextStyle(color:palette.muted,fontSize:12)),
                   const SizedBox(height:16),
@@ -175,6 +175,7 @@ class _EventPublicLandingState extends State<EventPublicLanding> {
                     color:palette.text,fontWeight:FontWeight.w800)),
                   const SizedBox(height:10),
                   TextFormField(
+                    style:TextStyle(color:palette.text),cursorColor:palette.accent,
                     controller:widget.name,
                     maxLength:140,
                     textCapitalization:TextCapitalization.words,
@@ -184,6 +185,7 @@ class _EventPublicLandingState extends State<EventPublicLanding> {
                   ),
                   const SizedBox(height:8),
                   TextFormField(
+                    style:TextStyle(color:palette.text),cursorColor:palette.accent,
                     controller:widget.email,
                     maxLength:220,
                     keyboardType:TextInputType.emailAddress,
@@ -197,6 +199,7 @@ class _EventPublicLandingState extends State<EventPublicLanding> {
                   ),
                   const SizedBox(height:8),
                   TextFormField(
+                    style:TextStyle(color:palette.text),cursorColor:palette.accent,
                     controller:widget.phone,
                     maxLength:40,
                     keyboardType:TextInputType.phone,
@@ -290,6 +293,21 @@ class _EventPublicLandingState extends State<EventPublicLanding> {
     final c=key.currentContext;
     if(c!=null)Scrollable.ensureVisible(c,duration:Duration(milliseconds:450),
       curve:Curves.easeInOut,alignment:.06);
+  }
+
+  Future<void> openSupport()async{
+    final url=helpWhatsappLink(getText('whatsapp'),
+      getText('titulo','Evento'),getText('sucursal'));
+    if(url==null)return;
+    try{
+      if(!await launchUrl(url,mode:LaunchMode.externalApplication)&&mounted){
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+          content:Text('No fue posible abrir WhatsApp')));
+      }
+    }catch(_){
+      if(mounted)ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+        content:Text('No fue posible abrir WhatsApp')));
+    }
   }
 
   Future<void> openMap()async{
@@ -436,6 +454,10 @@ class _EventPublicLandingState extends State<EventPublicLanding> {
               OutlinedButton.icon(onPressed:widget.onShare,
                 icon:Icon(Icons.share_outlined),
                 label:Text('Compartir')),
+              if(helpWhatsappLink(getText('whatsapp'),getText('titulo'),getText('sucursal'))!=null)
+                OutlinedButton.icon(onPressed:openSupport,
+                  icon:Icon(Icons.support_agent_outlined),
+                  label:Text('¿Dudas? WhatsApp')),
             ]),
             SizedBox(height:26),
           ]),
@@ -728,12 +750,12 @@ class _EventPublicLandingState extends State<EventPublicLanding> {
            title:'Reserva tus puestos',
            subtitle:'Selecciona la cantidad y continúa al pago sin elegir mesa'),
          const SizedBox(height:14),
-         Text('BarLytics encontrará automáticamente una mesa con suficientes puestos libres.',
+         Text('El establecimiento asignará los puestos entre las mesas disponibles.',
            style:TextStyle(color:palette.muted,fontSize:14)),
          const SizedBox(height:15),
          EventPill(icon:Icons.event_seat_outlined,
            label:automaticMax>0?
-             'Hasta $automaticMax puestos disponibles en una mesa':
+             'Hasta $automaticMax puestos disponibles en el evento':
              'Sin puestos disponibles'),
          const SizedBox(height:17),
          FilledButton.icon(
@@ -763,7 +785,7 @@ class _EventPublicLandingState extends State<EventPublicLanding> {
           value:automatic,contentPadding:EdgeInsets.zero,
           title:Text('Asignar mesa automáticamente',
            style:TextStyle(color:palette.text,fontWeight:FontWeight.w800)),
-          subtitle:Text('Elige cuántos puestos quieres; encontraremos mesa disponible.'),
+          subtitle:Text('Elige la cantidad; podemos asignar varias mesas.'),
           onChanged:(v)=>setState((){
            automatic=v;chosenChairs.clear();
            if(v)widget.onSelectTable(-1);
@@ -885,7 +907,7 @@ class _EventPublicLandingState extends State<EventPublicLanding> {
          ]),
        ]else if(automatic&&bySeat)
          EventPill(icon:Icons.auto_awesome,
-          label:'La mesa se asignará automáticamente')
+          label:'Se asignarán los puestos entre mesas disponibles')
        else EventPill(icon:Icons.touch_app_outlined,
          label:'Selecciona una mesa o asignación automática'),
        Divider(color:palette.border,height:29),
@@ -952,16 +974,19 @@ class _EventPublicLandingState extends State<EventPublicLanding> {
          color:palette.text,fontWeight:FontWeight.w800)),
        SizedBox(height:11),
        TextField(controller:widget.name,
+         style:TextStyle(color:palette.text),cursorColor:palette.accent,
          textCapitalization:TextCapitalization.words,
          decoration:InputDecoration(
            labelText:'Nombre completo *',prefixIcon:Icon(Icons.person_outline))),
        SizedBox(height:10),
        TextField(controller:widget.email,
+         style:TextStyle(color:palette.text),cursorColor:palette.accent,
          keyboardType:TextInputType.emailAddress,
          decoration:InputDecoration(
            labelText:'Correo electrónico *',prefixIcon:Icon(Icons.email_outlined))),
        SizedBox(height:10),
        TextField(controller:widget.phone,
+         style:TextStyle(color:palette.text),cursorColor:palette.accent,
          keyboardType:TextInputType.phone,
          decoration:InputDecoration(
            labelText:'Teléfono / WhatsApp',prefixIcon:Icon(Icons.phone_outlined))),
