@@ -1284,8 +1284,9 @@ class _ReservaInternaState extends ConsumerState<_ReservaInternaDialog>{
     'mesaId':selectedTable,'puestos':seats,
     'nombre':name.text.trim(),'telefono':phone.text.trim(),
     'origen':source,'nota':notes.text.trim(),
-    'sillas':(tables.any((t)=>asId(t['id'])==selectedTable&&
-      t['seleccionarSillas']==true)?chosenChairs.toList()..sort():<int>[]),
+    'sillas':tables.any((t)=>asId(t['id'])==selectedTable&&
+      t['seleccionarSillas']==true)
+      ?(chosenChairs.toList()..sort()):<int>[],
    };
    if(editing){
     await ref.read(eventosApiProvider).editarReservaInterna(
