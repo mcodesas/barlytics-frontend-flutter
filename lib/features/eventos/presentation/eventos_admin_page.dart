@@ -1220,6 +1220,8 @@ class _ReservaInternaState extends ConsumerState<_ReservaInternaDialog>{
  String? error;
  int? selectedTable;
  int seats=1;
+ final chosenChairs=<int>{};
+ final originalChairs=<int>{};
  String source='BAR';
  bool reactivate=false;
  bool get editing=>widget.initial!=null;
@@ -1235,6 +1237,10 @@ class _ReservaInternaState extends ConsumerState<_ReservaInternaDialog>{
    selectedTable=asId(i['mesa_id']);
    seats=asId(i['eres_puestos'])??1;
    source=i['eres_origen']?.toString()??'BAR';
+   final original=i['eres_sillas']?.toString()??'';
+   originalChairs.addAll(RegExp(r'[0-9]+').allMatches(original)
+     .map((m)=>int.tryParse(m.group(0)??'')??0).where((v)=>v>0));
+   chosenChairs.addAll(originalChairs);
   }
   load();
  }
@@ -1265,12 +1271,20 @@ class _ReservaInternaState extends ConsumerState<_ReservaInternaDialog>{
     content:Text('Selecciona una mesa disponible para apartar')));
    return;
   }
+  final selectedRow=tables.where((t)=>asId(t['id'])==selectedTable).toList();
+  if(selectedRow.isNotEmpty&&selectedRow.first['seleccionarSillas']==true
+    && !(editing&&cancelled&&!reactivate)&&chosenChairs.length!=seats){
+   ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+    content:Text('Selecciona exactamente '+seats.toString()+' sillas')));
+   return;
+  }
   setState(()=>saving=true);
   try{
    final body={
     'mesaId':selectedTable,'puestos':seats,
     'nombre':name.text.trim(),'telefono':phone.text.trim(),
     'origen':source,'nota':notes.text.trim(),
+    'sillas':chosenChairs.toList()..sort(),
    };
    if(editing){
     await ref.read(eventosApiProvider).editarReservaInterna(
@@ -1290,8 +1304,17 @@ class _ReservaInternaState extends ConsumerState<_ReservaInternaDialog>{
   }
  }
  @override Widget build(BuildContext context){
-  final capacity=tables.where((t)=>asId(t['id'])==selectedTable)
-   .fold<int>(1,(v,t)=>asId(t['disponibles'])??asId(t['capacidad'])??6);
+  final selectedRows=tables.where((t)=>asId(t['id'])==selectedTable).toList();
+  final selectedInfo=selectedRows.isEmpty?null:selectedRows.first;
+  final fullCapacity=asId(selectedInfo?['capacidad'])??6;
+  final self=editing&&!cancelled&&selectedTable==asId(widget.initial?['mesa_id']);
+  final remaining=asId(selectedInfo?['disponibles'])??fullCapacity;
+  final capacity=(remaining+(self?(asId(widget.initial?['eres_puestos'])??0):0))
+     .clamp(1,fullCapacity);
+  final manual=selectedInfo?['seleccionarSillas']==true;
+  final unavailable=(selectedInfo?['sillasOcupadas'] as List? ??[])
+    .map(asId).whereType<int>().toSet()
+    .difference(self?originalChairs:<int>{});
   return Dialog(
    backgroundColor:EventColors.background,
    shape:RoundedRectangleBorder(borderRadius:BorderRadius.circular(23)),
@@ -1362,7 +1385,7 @@ class _ReservaInternaState extends ConsumerState<_ReservaInternaDialog>{
          final active=id==selectedTable;
          return InkWell(
           onTap:free&&id!=null?()=>setState((){
-           selectedTable=id;seats=1;
+           selectedTable=id;seats=1;chosenChairs.clear();
           }):null,
           borderRadius:BorderRadius.circular(12),
           child:Container(
@@ -1407,8 +1430,29 @@ class _ReservaInternaState extends ConsumerState<_ReservaInternaDialog>{
          items:List.generate(capacity,(i)=>DropdownMenuItem<int>(
           value:i+1,child:Text((i+1).toString()+' puestos'))),
          onChanged:saving?null:(value){
-          if(value!=null)setState(()=>seats=value);
+          if(value!=null)setState((){
+           seats=value;chosenChairs.clear();
+          });
          }),
+        if(manual&&selectedInfo!=null)...[
+         const SizedBox(height:13),
+         const Text('Selecciona las sillas de esta mesa',
+          style:TextStyle(color:EventColors.text,fontWeight:FontWeight.w800)),
+         const SizedBox(height:8),
+         Wrap(spacing:7,runSpacing:7,children:[
+          for(var n=1;n<=fullCapacity;n++)
+           FilterChip(
+            label:Text('Silla '+n.toString()),
+            selected:chosenChairs.contains(n),
+            onSelected:unavailable.contains(n)?null:(chosen)=>setState((){
+             if(chosen){if(chosenChairs.length<seats)chosenChairs.add(n);}
+             else{chosenChairs.remove(n);}
+            })),
+         ]),
+         const SizedBox(height:6),
+         Text(chosenChairs.length.toString()+' de '+seats.toString()+' sillas seleccionadas',
+          style:const TextStyle(color:EventColors.muted,fontSize:12)),
+        ],
        ],
        if(editing&&cancelled)...[
         const SizedBox(height:14),
