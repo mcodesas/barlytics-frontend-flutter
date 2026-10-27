@@ -154,8 +154,20 @@ class _EventPublicLandingState extends State<EventPublicLanding> {
       ),
       child:Scaffold(
         backgroundColor:backdrop,
-        body:RefreshIndicator(onRefresh:widget.onRefresh,
-          child:ListView(children:[content])),
+        // La fotografía permanece anclada al viewport; únicamente se
+        // desplaza el contenido del evento, incluso en pantallas móviles.
+        body:Stack(children:[
+          Positioned.fill(child:RepaintBoundary(
+            child:eventPhoto(bg)==null
+              ?ColoredBox(color:backdrop)
+              :Image(image:eventPhoto(bg)!,fit:BoxFit.cover,
+                  errorBuilder:(_,__,___)=>ColoredBox(color:backdrop)),
+          )),
+          Positioned.fill(child:ColoredBox(
+            color:palette.heroShade.withOpacity(.73))),
+          RefreshIndicator(onRefresh:widget.onRefresh,
+            child:ListView(children:[content])),
+        ]),
         bottomNavigationBar:wide?null:SafeArea(top:false,
           child:Container(
             padding:const EdgeInsets.all(10),
@@ -177,15 +189,16 @@ class _EventPublicLandingState extends State<EventPublicLanding> {
   Widget _hero(Object? image,bool wide) => Container(
     constraints:BoxConstraints(minHeight:wide?490:490),
     child:Stack(children:[
-      Positioned.fill(child:EventArtwork(source:image,
-        height:520,borderRadius:0,emptyIcon:Icons.nightlife_outlined)),
+      // La fotografía está en el fondo fijo de toda la pantalla.
+      // El encabezado deja verla sin duplicarla ni desplazarla.
+      const Positioned.fill(child:ColoredBox(color:Colors.transparent)),
       Positioned.fill(child:DecoratedBox(decoration:BoxDecoration(
         gradient:LinearGradient(
           begin:Alignment.centerLeft,end:Alignment.centerRight,
-          colors:[palette.heroShade.withOpacity(.98),
-            palette.heroShade.withOpacity(.92),
-            palette.heroShade.withOpacity(.67),
-            const Color(0x7006141C)])))),
+          colors:[palette.heroShade.withOpacity(.57),
+            palette.heroShade.withOpacity(.35),
+            palette.heroShade.withOpacity(.16),
+            Colors.transparent])))),
       Center(child:ConstrainedBox(
         constraints:const BoxConstraints(maxWidth:1320),
         child:Padding(
