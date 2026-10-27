@@ -1558,6 +1558,7 @@ class _EventEditorState extends ConsumerState<EventoEditor>{
  final instagramUrl=TextEditingController(),facebookUrl=TextEditingController(),
        tiktokUrl=TextEditingController(),whatsappUrl=TextEditingController();
  String bookingMode='MESA';bool sharing=false,selectChairs=false;
+ bool get bookingLocked=>(asId(widget.initial?['reservasRegistradas'])??0)>0;
  String? customLogo;
  DateTime start=DateTime.now().add(const Duration(days:1)).copyWith(hour:20,minute:0),
    finish=DateTime.now().add(const Duration(days:2)).copyWith(hour:2,minute:0);
@@ -1945,7 +1946,7 @@ class _EventEditorState extends ConsumerState<EventoEditor>{
      ButtonSegment(value:'PUESTOS',label:Text('Por puestos'),
       icon:Icon(Icons.event_seat_outlined)),
     ],selected:{bookingMode},
-    onSelectionChanged:(v)=>setState((){
+    onSelectionChanged:bookingLocked?null:(v)=>setState((){
      bookingMode=v.first;
      if(bookingMode=='MESA'){sharing=false;selectChairs=false;}
     })),
@@ -1961,16 +1962,30 @@ class _EventEditorState extends ConsumerState<EventoEditor>{
      title:const Text('Permitir compartir mesa',
       style:TextStyle(color:EventColors.text,fontWeight:FontWeight.w700)),
      subtitle:const Text('Admite reservas independientes en distintos puestos de una mesa.'),
-     onChanged:(v)=>setState(()=>sharing=v)),
+     onChanged:bookingLocked?null:(v)=>setState(()=>sharing=v)),
     SwitchListTile.adaptive(
      contentPadding:EdgeInsets.zero,value:selectChairs,
      title:const Text('El cliente puede elegir sus sillas',
       style:TextStyle(color:EventColors.text,fontWeight:FontWeight.w700)),
      subtitle:const Text('Si está apagado, BarLytics asigna los asientos automáticamente.'),
-     onChanged:(v)=>setState(()=>selectChairs=v)),
+     onChanged:bookingLocked?null:(v)=>setState(()=>selectChairs=v)),
    ],
    const SizedBox(height:8),
-   const Text('Para proteger reservas existentes, no se puede cambiar esta modalidad si el evento ya tiene reservas.',
+   if(bookingLocked)Container(
+     padding:const EdgeInsets.all(12),
+     decoration:BoxDecoration(
+       borderRadius:BorderRadius.circular(11),
+       color:EventColors.surfaceLight,
+       border:Border.all(color:EventColors.border)),
+     child:const Row(children:[
+       Icon(Icons.lock_outline,color:EventColors.warning,size:20),
+       SizedBox(width:10),
+       Expanded(child:Text(
+         'Este evento ya tiene reservas. Para proteger sus puestos, la modalidad y las sillas quedan bloqueadas; puedes seguir editando el diseño, colores, fotos y carta.',
+         style:TextStyle(color:EventColors.muted,fontSize:12,height:1.5))),
+     ]),
+   )else const Text(
+    'Puedes cambiar la modalidad mientras no haya reservas registradas.',
     style:TextStyle(color:EventColors.muted,fontSize:11)),
   ]));
 
