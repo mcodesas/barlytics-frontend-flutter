@@ -10,6 +10,7 @@ class SucursalesRequestModel {
     this.sucuEstado,
     this.sucuNombre,
     this.sucuTelefono,
+    this.sucuFoto,
     this.zohoId,
   });
 
@@ -22,6 +23,7 @@ class SucursalesRequestModel {
   final int? sucuEstado;
   final String? sucuNombre;
   final String? sucuTelefono;
+  final String? sucuFoto;
   final int? zohoId;
 
   factory SucursalesRequestModel.fromJson(Map<String, dynamic> json) => SucursalesRequestModel(
@@ -34,6 +36,7 @@ class SucursalesRequestModel {
       sucuEstado: (json['sucuEstado'] as num?)?.toInt(),
       sucuNombre: json['sucuNombre']?.toString(),
       sucuTelefono: json['sucuTelefono']?.toString(),
+      sucuFoto: json['sucuFoto']?.toString(),
       zohoId: (json['zohoId'] as num?)?.toInt(),
   );
 
@@ -47,6 +50,7 @@ class SucursalesRequestModel {
       if (sucuEstado != null) 'sucuEstado': sucuEstado,
       if (sucuNombre != null) 'sucuNombre': sucuNombre,
       if (sucuTelefono != null) 'sucuTelefono': sucuTelefono,
+      if (sucuFoto != null) 'sucuFoto': sucuFoto,
       if (zohoId != null) 'zohoId': zohoId,
   };
 }
