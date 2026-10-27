@@ -8,6 +8,7 @@ import 'package:url_launcher/url_launcher.dart';
 import '../data/eventos_api.dart';
 import 'widgets/event_public_landing.dart';
 import 'widgets/event_share_sheet.dart';
+import 'widgets/event_visual_kit.dart';
 
 const ink=Color(0xff0b1025),teal=Color(0xff34ddcf),muted=Color(0xffb5bed5),accent=Color(0xffffca83);
 ImageProvider? cover(Object? value){
@@ -169,33 +170,42 @@ class _EntradaState extends ConsumerState<EventoEntradaPublicaPage>{
  }
  @override Widget build(BuildContext context){
   final confirmed=value?['estado']=='CONFIRMADA';
-  return Scaffold(backgroundColor:ink,body:SafeArea(child:Center(child:SingleChildScrollView(
+  final palette=EventPagePalette.fromHex(
+    value?['colorPrimario']?.toString(),value?['colorFondo']?.toString(),
+    value?['colorTexto']?.toString(),value?['colorTarjeta']?.toString(),
+    value?['colorBorde']?.toString(),value?['colorCarta']?.toString());
+  final base=palette.canvas, surface=palette.surface;
+  final foreground=EventPagePalette.contrast(palette.text,surface)>=4.5
+    ?palette.text:(EventPagePalette.contrast(Colors.black,surface)>
+      EventPagePalette.contrast(Colors.white,surface)?Colors.black:Colors.white);
+  final subtle=Color.lerp(foreground,surface,.26)!;
+  return Scaffold(backgroundColor:base,body:SafeArea(child:Center(child:SingleChildScrollView(
    padding:const EdgeInsets.all(20),child:ConstrainedBox(constraints:const BoxConstraints(maxWidth:460),
-    child:Card(color:const Color(0xff1b2945),child:Padding(padding:const EdgeInsets.all(25),
+    child:Card(color:surface,child:Padding(padding:const EdgeInsets.all(25),
      child:Column(mainAxisSize:MainAxisSize.min,children:[
-      const Icon(Icons.celebration,color:accent,size:42),
+      Icon(Icons.celebration,color:palette.accent,size:42),
       const SizedBox(height:12),
       Text(value?['sucursal']?.toString()??'Entrada digital',textAlign:TextAlign.center,
-       style:const TextStyle(color:teal,fontSize:19,fontWeight:FontWeight.bold)),
+       style:TextStyle(color:foreground,fontSize:19,fontWeight:FontWeight.bold)),
       const SizedBox(height:12),
       Text(value?['evento']?.toString()??'Consultando...',textAlign:TextAlign.center,
-       style:const TextStyle(color:Colors.white,fontSize:25,fontWeight:FontWeight.w900)),
+       style:TextStyle(color:foreground,fontSize:25,fontWeight:FontWeight.w900)),
       const SizedBox(height:15),
       if(value!=null)...[
        if((value!['mesas'] as List? ??[]).length>1)...[
-         Text('Mesas asignadas',style:const TextStyle(
-           color:Colors.white,fontSize:20,fontWeight:FontWeight.w800)),
+         Text('Mesas asignadas',style:TextStyle(
+           color:foreground,fontSize:20,fontWeight:FontWeight.w800)),
          const SizedBox(height:7),
          for(final table in (value!['mesas'] as List? ??[]))
            Text('Mesa '+(table['numero']??'').toString()+' · '+
              (table['puestos']??'').toString()+' puestos',
-             style:const TextStyle(color:teal,fontSize:15)),
+             style:TextStyle(color:foreground,fontSize:15)),
        ]else
-         Text('Mesa '+value!['mesa'].toString(),style:const TextStyle(color:Colors.white,fontSize:21)),
+         Text('Mesa '+value!['mesa'].toString(),style:TextStyle(color:foreground,fontSize:21)),
         Text((value!['puestos']?.toString()??'1')+' puestos',
-         style:const TextStyle(color:teal,fontSize:17)),
-       Text('Inicio: '+when(value!['inicio']),style:const TextStyle(color:muted)),
-       Text('Fin: '+when(value!['fin']),style:const TextStyle(color:muted)),
+         style:TextStyle(color:foreground,fontSize:17)),
+       Text('Inicio: '+when(value!['inicio']),style:TextStyle(color:subtle)),
+       Text('Fin: '+when(value!['fin']),style:TextStyle(color:subtle)),
       ],
       const SizedBox(height:17),
       if(confirmed)Container(
@@ -223,32 +233,32 @@ class _EntradaState extends ConsumerState<EventoEntradaPublicaPage>{
       else Icon(
        value?['estado']=='EXPIRADA'?Icons.event_busy_outlined:
        value?['estado']=='REEMBOLSO_PENDIENTE'?Icons.support_agent_outlined:
-       Icons.pending_actions_rounded,color:accent,size:65),
+       Icons.pending_actions_rounded,color:palette.accent,size:65),
       const SizedBox(height:13),
       Text(confirmed?'ENTRADA CONFIRMADA':
        value?['estado']=='PENDIENTE_PAGO'?'PAGO PENDIENTE':
        value?['estado']=='EXPIRADA'?'RESERVA VENCIDA':
        value?['estado']=='REEMBOLSO_PENDIENTE'?'REVISIÓN DE DEVOLUCIÓN':
        value?['estado']?.toString()??error??'Cargando...',
-       style:TextStyle(color:confirmed?teal:accent,fontWeight:FontWeight.bold)),
+       style:TextStyle(color:foreground,fontWeight:FontWeight.bold)),
       if(value?['mensajeEstado']!=null)...[
        const SizedBox(height:8),
        Text(value!['mensajeEstado'].toString(),textAlign:TextAlign.center,
-        style:const TextStyle(color:muted,fontSize:13,height:1.5)),
+        style:TextStyle(color:subtle,fontSize:13,height:1.5)),
       ],
       if(value?['estado']=='PENDIENTE_PAGO'&&value?['vencePago']!=null)...[
        const SizedBox(height:9),
        Text('Plazo para pagar hasta: '+when(value!['vencePago']),
         textAlign:TextAlign.center,
-        style:const TextStyle(color:accent,fontSize:12)),
+        style:TextStyle(color:foreground,fontSize:12)),
        const SizedBox(height:5),
        const Text('Comprobando automáticamente cada 15 segundos',
         style:TextStyle(color:muted,fontSize:11)),
       ],
       const SizedBox(height:18),
-      if(confirmed)FilledButton.icon(onPressed:()=>launchUrl(Uri.parse(ref.read(eventosApiProvider).qrLink(widget.token)),
+      if(confirmed)FilledButton.icon(style:FilledButton.styleFrom(backgroundColor:palette.accent,foregroundColor:palette.onAccent),onPressed:()=>launchUrl(Uri.parse(ref.read(eventosApiProvider).qrLink(widget.token)),
        mode:LaunchMode.externalApplication),icon:const Icon(Icons.download),label:const Text('Descargar QR')),
-      TextButton.icon(onPressed:refresh,icon:const Icon(Icons.refresh),label:const Text('Consultar estado')),
+      TextButton.icon(style:TextButton.styleFrom(foregroundColor:foreground),onPressed:refresh,icon:const Icon(Icons.refresh),label:const Text('Consultar estado')),
      ]))))))));
  }
 }
