@@ -1310,7 +1310,7 @@ class _ReservaInternaState extends ConsumerState<_ReservaInternaDialog>{
   final self=editing&&!cancelled&&selectedTable==asId(widget.initial?['mesa_id']);
   final remaining=asId(selectedInfo?['disponibles'])??fullCapacity;
   final capacity=(remaining+(self?(asId(widget.initial?['eres_puestos'])??0):0))
-     .clamp(1,fullCapacity);
+     .clamp(1,fullCapacity).toInt();
   final manual=selectedInfo?['seleccionarSillas']==true;
   final unavailable=(selectedInfo?['sillasOcupadas'] as List? ??[])
     .map(asId).whereType<int>().toSet()
