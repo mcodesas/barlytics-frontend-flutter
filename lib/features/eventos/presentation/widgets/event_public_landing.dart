@@ -354,7 +354,7 @@ class _EventPublicLandingState extends State<EventPublicLanding> {
                  initialIndex:i),
                child:Stack(children:[
                  EventArtwork(source:venue[i],width:width,
-                   height:venue.length==1?325:215),
+                   height:venue.length<=2?335:215),
                  const Positioned(bottom:9,right:9,
                    child:Icon(Icons.zoom_in,color:EventColors.text,size:27)),
                ]),
@@ -392,13 +392,14 @@ class _EventPublicLandingState extends State<EventPublicLanding> {
    if(!wide)return Column(children:[
      about,const SizedBox(height:12),photos,const SizedBox(height:12),place,
    ]);
+   // Ambas secciones ocupan columnas amplias. No usar IntrinsicHeight con
+   // LayoutBuilder: Flutter no permite medir sus dimensiones intrínsecas.
    return Column(children:[
-     IntrinsicHeight(child:Row(
-       crossAxisAlignment:CrossAxisAlignment.stretch,children:[
-         Expanded(flex:5,child:about),
-         const SizedBox(width:13),
-         Expanded(flex:7,child:photos),
-       ])),
+     Row(crossAxisAlignment:CrossAxisAlignment.start,children:[
+       Expanded(flex:5,child:about),
+       const SizedBox(width:13),
+       Expanded(flex:7,child:photos),
+     ]),
      const SizedBox(height:13),place,
    ]);
  }
@@ -484,6 +485,13 @@ class _EventPublicLandingState extends State<EventPublicLanding> {
                  Expanded(child:Stack(children:[
                    Positioned.fill(child:EventArtwork(source:t['foto'],
                      height:115,borderRadius:0,emptyIcon:Icons.table_restaurant)),
+                   if(eventPhoto(t['foto'])!=null)
+                     Positioned(bottom:6,right:6,child:IconButton.filledTonal(
+                       tooltip:'Ampliar foto de la mesa',
+                       onPressed:()=>showEventPhotoViewer(context,
+                         images:[t['foto']],
+                         labels:['Mesa '+(t['numero']??id).toString()]),
+                       icon:const Icon(Icons.zoom_in,size:19))),
                    if(chosen)const Positioned(right:8,top:8,
                      child:CircleAvatar(radius:15,backgroundColor:EventColors.primary,
                        child:Icon(Icons.check,color:EventColors.onPrimary,size:18))),
@@ -532,7 +540,18 @@ class _EventPublicLandingState extends State<EventPublicLanding> {
        const SizedBox(height:15),
        if(t!=null)...[
          Row(children:[
-           EventArtwork(source:t['foto'],width:94,height:74),
+           InkWell(
+             onTap:eventPhoto(t['foto'])==null?null:
+               ()=>showEventPhotoViewer(context,
+                 images:[t['foto']],
+                 labels:['Mesa '+(t['numero']??'').toString()]),
+             child:Stack(children:[
+               EventArtwork(source:t['foto'],width:94,height:74),
+               if(eventPhoto(t['foto'])!=null)
+                 const Positioned(right:3,bottom:3,child:Icon(
+                   Icons.zoom_in,color:EventColors.text,size:18)),
+             ]),
+           ),
            const SizedBox(width:11),
            Expanded(child:Column(crossAxisAlignment:CrossAxisAlignment.start,children:[
              Text('Mesa '+(t['numero']??'').toString(),
