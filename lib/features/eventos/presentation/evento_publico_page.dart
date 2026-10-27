@@ -94,14 +94,17 @@ class _PublicState extends ConsumerState<EventoPublicoPage>{
    ),
   );
  }
- Future<void> book()async{
-  if(selected==null||name.text.trim().isEmpty||!email.text.contains('@')){
-   ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content:Text('Selecciona mesa y completa nombre y correo.')));return;
+ Future<void> book(List<int> chairs)async{
+  if((selected==null&&event?['modoReserva']!='PUESTOS')||
+      name.text.trim().isEmpty||!email.text.contains('@')){
+   ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+    content:Text('Completa el nombre y correo para reservar.')));return;
   }
   setState(()=>busy=true);
   try{
    final result=await ref.read(eventosApiProvider).reservar(widget.slug,{
-    'mesaId':selected,'puestos':seats,'nombre':name.text.trim(),'email':email.text.trim(),'telefono':phone.text.trim()
+    'mesaId':selected,'puestos':seats,'sillas':chairs,
+    'nombre':name.text.trim(),'email':email.text.trim(),'telefono':phone.text.trim()
    });
    if(!mounted)return;
    final token=result['token']?.toString()??'';
