@@ -698,6 +698,9 @@ class _EventPaymentGuideState extends ConsumerState<_EventPaymentGuide>{
  bool showCreateGuide=true;
  String? error;
  bool get configured=>widget.initial['configurada']==true;
+ bool get cipherStatusKnown=>widget.initial.containsKey('cifradoDisponible');
+ bool get cipherReady=>widget.initial['cifradoDisponible']==true;
+ bool showTechnicalHelp=false;
  String get webhook=>widget.initial['webhook']?.toString()??'';
  @override void dispose(){token.dispose();secret.dispose();super.dispose();}
  Future<void> _open(String url)async{
@@ -709,6 +712,10 @@ class _EventPaymentGuideState extends ConsumerState<_EventPaymentGuide>{
  }
  Future<void> _save()async{
   if(saving)return;
+  if(cipherStatusKnown&&!cipherReady){
+   setState(()=>error='El cifrado de pagos todavía no está configurado en el servidor BarLytics. Contacta al administrador de la plataforma.');
+   return;
+  }
   final access=token.text.trim(),signature=secret.text.trim();
   if(access.isEmpty||signature.isEmpty){
    setState(()=>error='Debes completar el Access Token y la clave secreta del webhook.');
@@ -753,6 +760,87 @@ class _EventPaymentGuideState extends ConsumerState<_EventPaymentGuide>{
   ]),
  );
 
+
+ Widget _cipherStatus(){
+   if(!cipherStatusKnown){
+     return EventPanel(
+       borderColor:EventColors.warning,
+       background:const Color(0xFF3C302B),
+       child:const Row(crossAxisAlignment:CrossAxisAlignment.start,children:[
+         Icon(Icons.info_outline,color:EventColors.warning),
+         SizedBox(width:11),
+         Expanded(child:Text(
+           'No se pudo verificar si el servidor tiene el cifrado habilitado. '
+           'Asegúrate de actualizar el backend antes de configurar cobros.',
+           style:TextStyle(color:EventColors.text,fontSize:12,height:1.5))),
+       ]),
+     );
+   }
+   if(cipherReady){
+     return EventPanel(
+       borderColor:EventColors.success.withOpacity(.5),
+       background:const Color(0xFF153C39),
+       child:const Row(children:[
+         Icon(Icons.verified_user_outlined,color:EventColors.success,size:25),
+         SizedBox(width:12),
+         Expanded(child:Column(
+           crossAxisAlignment:CrossAxisAlignment.start,children:[
+             Text('Cifrado habilitado en BarLytics',
+               style:TextStyle(color:EventColors.text,fontWeight:FontWeight.w800)),
+             SizedBox(height:4),
+             Text('Puedes guardar las credenciales del negocio.',
+               style:TextStyle(color:EventColors.muted,fontSize:12)),
+           ])),
+       ]),
+     );
+   }
+   return EventPanel(
+     background:const Color(0xFF4B2D34),
+     borderColor:EventColors.warning,
+     child:Column(crossAxisAlignment:CrossAxisAlignment.start,children:[
+       const Row(crossAxisAlignment:CrossAxisAlignment.start,children:[
+         Icon(Icons.gpp_bad_outlined,color:EventColors.warning,size:26),
+         SizedBox(width:12),
+         Expanded(child:Column(crossAxisAlignment:CrossAxisAlignment.start,children:[
+           Text('BarLytics necesita activar el cifrado del servidor',
+             style:TextStyle(color:EventColors.text,
+               fontWeight:FontWeight.w900,fontSize:14)),
+           SizedBox(height:5),
+           Text('No es un error de tus credenciales de Mercado Pago. '
+             'El administrador de BarLytics debe terminar la configuración '
+             'de seguridad antes de que puedas guardarlas.',
+             style:TextStyle(color:EventColors.text,fontSize:12,height:1.5)),
+         ])),
+       ]),
+       const SizedBox(height:12),
+       TextButton.icon(
+         onPressed:()=>setState(()=>showTechnicalHelp=!showTechnicalHelp),
+         icon:Icon(showTechnicalHelp?Icons.expand_less:Icons.expand_more,
+           color:EventColors.primary),
+         label:const Text('Instrucciones para el administrador técnico',
+           style:TextStyle(color:EventColors.primary)),
+       ),
+       if(showTechnicalHelp) ...[
+         const SizedBox(height:8),
+         const SelectableText(
+           'Variable: BARLYTICS_EVENT_AES_KEY_BASE64',
+           style:TextStyle(color:EventColors.text,fontFamily:'monospace',
+             fontSize:12)),
+         const SizedBox(height:7),
+         const Text(
+           'Generar una única clave AES aleatoria de 32 bytes '
+           'con «openssl rand -base64 32». '
+           'Guardarla como variable de entorno del servicio backend '
+           'en el gestor de secretos o en su configuración privada '
+           'de despliegue, y reiniciar el backend. '
+           'Si ya había una clave, conservarla: cambiarla impediría '
+           'descifrar los pagos anteriormente configurados. '
+           'Nunca incluir la clave en el código, el navegador o capturas.',
+           style:TextStyle(color:EventColors.text,height:1.5,fontSize:12)),
+       ],
+     ]),
+   );
+ }
  /// Guía integrada para quienes aún no tienen una app en Mercado Pago.
  /// No recibe claves ni crea cuentas automáticamente: enlaza al panel oficial.
  Widget _createApplicationGuide() {
@@ -887,6 +975,8 @@ class _EventPaymentGuideState extends ConsumerState<_EventPaymentGuide>{
           label:configured?'Guardada en BarLytics (sin comprobar pagos)':'Configuración pendiente',
           color:configured?EventColors.success:EventColors.warning),
         ])),
+       const SizedBox(height:14),
+       _cipherStatus(),
        const SizedBox(height:19),
        _createApplicationGuide(),
        const SizedBox(height:19),
@@ -962,7 +1052,7 @@ class _EventPaymentGuideState extends ConsumerState<_EventPaymentGuide>{
         onPressed:saving?null:()=>Navigator.pop(context),
         child:const Text('Cerrar'));
        final save=FilledButton.icon(
-        onPressed:saving?null:_save,
+        onPressed:saving||(cipherStatusKnown&&!cipherReady)?null:_save,
         style:FilledButton.styleFrom(backgroundColor:EventColors.primary,
          foregroundColor:EventColors.onPrimary),
         icon:const Icon(Icons.lock_outline),
