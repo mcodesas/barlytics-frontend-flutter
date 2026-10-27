@@ -28,6 +28,17 @@ void main() {
     expect(light.menuPaper, isNot(night.menuPaper));
   });
 
+  test('Las tarjetas, bordes y carta admiten colores independientes', () {
+    final custom = EventPagePalette.fromHex(
+        '#D6A85F', '#281D18', '#F7F3E9',
+        '#473329', '#D9AC7B', '#FAF1DA');
+    expect(custom.canvas, const Color(0xFF281D18));
+    expect(custom.surface, const Color(0xFF473329));
+    expect(custom.border, const Color(0xFFD9AC7B));
+    expect(custom.menuPaper, const Color(0xFFFAF1DA));
+    expect(custom.menuInk, const Color(0xFFF7F3E9));
+  });
+
   test('La carta hereda la tipografía y el color del evento', () {
     final palette = EventPagePalette.fromHex(
         '#D6A85F', '#EFE4D4', '#30211B');
