@@ -695,13 +695,19 @@ class _EventPaymentGuide extends ConsumerStatefulWidget{
 class _EventPaymentGuideState extends ConsumerState<_EventPaymentGuide>{
  final token=TextEditingController(),secret=TextEditingController();
  bool tokenVisible=false,secretVisible=false,saving=false;
- bool showCreateGuide=true;
+ bool replaceToken=false,replaceSecret=false;
+ bool showCreateGuide=false;
  String? error;
  bool get configured=>widget.initial['configurada']==true;
  bool get cipherStatusKnown=>widget.initial.containsKey('cifradoDisponible');
  bool get cipherReady=>widget.initial['cifradoDisponible']==true;
  bool showTechnicalHelp=false;
  String get webhook=>widget.initial['webhook']?.toString()??'';
+ String get lastUpdated=>widget.initial['ultimaActualizacion']?.toString()??'';
+ @override void initState(){
+  super.initState();
+  showCreateGuide=!configured;
+ }
  @override void dispose(){token.dispose();secret.dispose();super.dispose();}
  Future<void> _open(String url)async{
   final uri=Uri.tryParse(url);
@@ -716,9 +722,17 @@ class _EventPaymentGuideState extends ConsumerState<_EventPaymentGuide>{
    setState(()=>error='El cifrado de pagos todavía no está configurado en el servidor BarLytics. Contacta al administrador de la plataforma.');
    return;
   }
-  final access=token.text.trim(),signature=secret.text.trim();
-  if(access.isEmpty||signature.isEmpty){
-   setState(()=>error='Debes completar el Access Token y la clave secreta del webhook.');
+  final access=(!configured||replaceToken)?token.text.trim():'';
+  final signature=(!configured||replaceSecret)?secret.text.trim():'';
+  if(configured&&!replaceToken&&!replaceSecret){
+   setState(()=>error='Las credenciales anteriores ya están guardadas. Selecciona Reemplazar si necesitas cambiar alguna.');
+   return;
+  }
+  if((!configured&&(access.isEmpty||signature.isEmpty)) ||
+     (configured&&((replaceToken&&access.isEmpty)||(replaceSecret&&signature.isEmpty)))){
+   setState(()=>error=configured
+    ?'Introduce el nuevo valor de cada credencial que deseas reemplazar.'
+    :'Para la primera configuración ingresa el Access Token y la firma del Webhook.');
    return;
   }
   if(access.startsWith('TEST-')||access.startsWith('TEST_')){
@@ -761,6 +775,113 @@ class _EventPaymentGuideState extends ConsumerState<_EventPaymentGuide>{
  );
 
 
+
+ Widget _savedCredentials(){
+  if(!configured)return EventPanel(
+   borderColor:EventColors.border,
+   background:EventColors.surfaceLight,
+   child:const Row(children:[
+    Icon(Icons.account_balance_wallet_outlined,color:EventColors.primary),
+    SizedBox(width:12),
+    Expanded(child:Text(
+     'Este establecimiento aún no tiene credenciales registradas. '
+     'Introduce las dos claves para conectarlo con Mercado Pago.',
+     style:TextStyle(color:EventColors.muted,fontSize:12,height:1.5))),
+   ]),
+  );
+  return EventPanel(
+   borderColor:EventColors.success.withOpacity(.55),
+   background:const Color(0xFF103B3B),
+   child:Column(crossAxisAlignment:CrossAxisAlignment.start,children:[
+    const Row(children:[
+     Icon(Icons.verified_user_outlined,color:EventColors.success,size:27),
+     SizedBox(width:11),
+     Expanded(child:Text('Credenciales de Mercado Pago guardadas',
+      style:TextStyle(color:EventColors.text,
+       fontSize:15,fontWeight:FontWeight.w900))),
+    ]),
+    const SizedBox(height:13),
+    const Row(children:[
+     Icon(Icons.lock_outline,color:EventColors.primary,size:19),
+     SizedBox(width:10),
+     Expanded(child:Text('Access Token de producción',
+      style:TextStyle(color:EventColors.text,fontSize:12))),
+     Text('••••••••  Guardado',style:TextStyle(
+      color:EventColors.success,fontWeight:FontWeight.w700,fontSize:12)),
+    ]),
+    const SizedBox(height:11),
+    const Row(children:[
+     Icon(Icons.shield_outlined,color:EventColors.primary,size:19),
+     SizedBox(width:10),
+     Expanded(child:Text('Firma secreta del Webhook',
+      style:TextStyle(color:EventColors.text,fontSize:12))),
+     Text('••••••••  Guardada',style:TextStyle(
+      color:EventColors.success,fontWeight:FontWeight.w700,fontSize:12)),
+    ]),
+    if(lastUpdated.isNotEmpty)...[
+     const SizedBox(height:12),
+     Text('Última actualización: $lastUpdated',
+      style:const TextStyle(color:EventColors.muted,fontSize:11)),
+    ],
+    const SizedBox(height:11),
+    const Text('Los valores completos nunca se muestran de nuevo por seguridad. '
+      'No necesitas reingresarlos para seguir cobrando. '
+      'Puedes reemplazar solo el dato que cambió.',
+      style:TextStyle(color:EventColors.muted,fontSize:12,height:1.5)),
+   ]),
+  );
+ }
+
+ Widget _credentialField({
+  required TextEditingController controller,
+  required bool selected,
+  required IconData icon,
+  required String label,
+  required bool visible,
+  required VoidCallback toggleVisible,
+  required VoidCallback toggleReplacement,
+  required String description,
+ }){
+  final editable=!configured||selected;
+  return Column(crossAxisAlignment:CrossAxisAlignment.start,children:[
+   if(configured)...[
+    Row(children:[
+     const Icon(Icons.check_circle_outline,
+      color:EventColors.success,size:17),
+     const SizedBox(width:7),
+     Expanded(child:Text(
+      selected?'Introduce el nuevo valor':'Valor actual protegido y guardado',
+      style:const TextStyle(color:EventColors.muted,fontSize:12))),
+     OutlinedButton.icon(
+      onPressed:saving?null:toggleReplacement,
+      icon:Icon(selected?Icons.close:Icons.edit_outlined,size:16),
+      label:Text(selected?'Conservar el anterior':'Reemplazar'),
+     ),
+    ]),
+    const SizedBox(height:8),
+   ],
+   TextField(
+    controller:controller,
+    enabled:editable&&!saving,
+    obscureText:!visible,
+    enableSuggestions:false,
+    autocorrect:false,
+    onChanged:(_)=>setState((){}),
+    decoration:InputDecoration(
+     labelText:label,
+     hintText:configured?'•••••••• (guardado; no es necesario escribir)':
+      'Pega aquí el valor de producción',
+     prefixIcon:Icon(icon),
+     helperText:description,
+     helperMaxLines:3,
+     suffixIcon:editable?IconButton(
+      tooltip:visible?'Ocultar nuevo valor':'Mostrar nuevo valor',
+      onPressed:toggleVisible,
+      icon:Icon(visible?Icons.visibility_off:Icons.visibility)):null,
+    ),
+   ),
+  ]);
+ }
  Widget _cipherStatus(){
    if(!cipherStatusKnown){
      return EventPanel(
@@ -952,7 +1073,7 @@ class _EventPaymentGuideState extends ConsumerState<_EventPaymentGuide>{
           fontSize:21,fontWeight:FontWeight.w900)),
         const SizedBox(height:4),
         Text(configured
-         ?'Credenciales almacenadas · Si quieres cambiarlas, completa nuevamente ambos campos.'
+         ?'Cuenta conectada. Tus claves siguen guardadas; cámbialas solo si es necesario.'
          :'Conecta tu propia cuenta para recibir pagos directamente en tu establecimiento.',
          style:const TextStyle(color:EventColors.muted,fontSize:12)),
        ])),
@@ -977,6 +1098,8 @@ class _EventPaymentGuideState extends ConsumerState<_EventPaymentGuide>{
         ])),
        const SizedBox(height:14),
        _cipherStatus(),
+       const SizedBox(height:14),
+       _savedCredentials(),
        const SizedBox(height:19),
        _createApplicationGuide(),
        const SizedBox(height:19),
@@ -992,16 +1115,17 @@ class _EventPaymentGuideState extends ConsumerState<_EventPaymentGuide>{
          label:const Text('Abrir Mis integraciones'))),
        _step(2,'Copia el Access Token de producción',
         'Dentro de la aplicación abre Credenciales → Producción y activa el entorno productivo si aún no lo hiciste. Copia Access Token, NO Public Key ni credenciales de prueba.',
-        child:TextField(controller:token,obscureText:!tokenVisible,
-         enableSuggestions:false,autocorrect:false,
-         decoration:InputDecoration(
-          labelText:'Access Token de PRODUCCIÓN',
-          hintText:'Pega aquí el token privado',
-          prefixIcon:const Icon(Icons.key_outlined),
-          suffixIcon:IconButton(
-           tooltip:tokenVisible?'Ocultar token':'Mostrar token',
-           onPressed:()=>setState(()=>tokenVisible=!tokenVisible),
-           icon:Icon(tokenVisible?Icons.visibility_off:Icons.visibility))))),
+        child:_credentialField(
+         controller:token,selected:replaceToken,
+         icon:Icons.key_outlined,
+         label:'Access Token de PRODUCCIÓN',
+         visible:tokenVisible,
+         toggleVisible:()=>setState(()=>tokenVisible=!tokenVisible),
+         toggleReplacement:()=>setState((){
+          replaceToken=!replaceToken;token.clear();tokenVisible=false;
+         }),
+         description:configured?'Si no lo reemplazas, sigue activo el token guardado.':
+          'Credencial privada de producción de tu negocio.'),
        _step(3,'Configura las notificaciones Webhook',
         'En la misma aplicación abre Webhooks. En Modo productivo pega esta URL HTTPS y activa las notificaciones de Pagos (payment). Guarda la configuración.',
         child:EventPanel(background:EventColors.surfaceLight,
@@ -1019,17 +1143,21 @@ class _EventPaymentGuideState extends ConsumerState<_EventPaymentGuide>{
          ]))),
        _step(4,'Copia la clave secreta del Webhook',
         'En la configuración de Webhooks de Mercado Pago copia la firma secreta generada para el modo productivo. No es el Client Secret ni el Access Token.',
-        child:TextField(controller:secret,obscureText:!secretVisible,
-         enableSuggestions:false,autocorrect:false,
-         decoration:InputDecoration(
-          labelText:'Clave secreta de firma Webhook',
-          prefixIcon:const Icon(Icons.password_outlined),
-          suffixIcon:IconButton(
-           tooltip:secretVisible?'Ocultar firma':'Mostrar firma',
-           onPressed:()=>setState(()=>secretVisible=!secretVisible),
-           icon:Icon(secretVisible?Icons.visibility_off:Icons.visibility))))),
-       _step(5,'Guarda y verifica una transacción',
-        'Guarda ambas credenciales. Después comprueba desde la página pública de un evento que un pago aprobado llegue a la cuenta del negocio y la reserva quede confirmada. Guardar no valida automáticamente las credenciales.'),
+        child:_credentialField(
+         controller:secret,selected:replaceSecret,
+         icon:Icons.password_outlined,
+         label:'Clave secreta de firma Webhook',
+         visible:secretVisible,
+         toggleVisible:()=>setState(()=>secretVisible=!secretVisible),
+         toggleReplacement:()=>setState((){
+          replaceSecret=!replaceSecret;secret.clear();secretVisible=false;
+         }),
+         description:configured?'Mantén el valor anterior salvo que hayas cambiado el Webhook.':
+          'Firma privada de las notificaciones productivas.'),
+       _step(5,configured?'Actualizar solo lo necesario':'Guarda y verifica una transacción',
+        configured
+         ?'Tus credenciales anteriores siguen activas. Si cambiaste una de ellas, usa Reemplazar en ese campo y guarda. Después verifica un pago aprobado. Guardar no comprueba automáticamente las credenciales.'
+         :'Guarda ambas credenciales. Después comprueba desde la página pública de un evento que un pago aprobado llegue a la cuenta del negocio y la reserva quede confirmada. Guardar no valida automáticamente las credenciales.'),
        if(error!=null)EventPanel(background:const Color(0xFF4A2730),
         borderColor:EventColors.warning,
         child:Row(children:[
@@ -1052,11 +1180,12 @@ class _EventPaymentGuideState extends ConsumerState<_EventPaymentGuide>{
         onPressed:saving?null:()=>Navigator.pop(context),
         child:const Text('Cerrar'));
        final save=FilledButton.icon(
-        onPressed:saving||(cipherStatusKnown&&!cipherReady)?null:_save,
+        onPressed:saving||(cipherStatusKnown&&!cipherReady)||
+         (configured&&!replaceToken&&!replaceSecret)?null:_save,
         style:FilledButton.styleFrom(backgroundColor:EventColors.primary,
          foregroundColor:EventColors.onPrimary),
         icon:const Icon(Icons.lock_outline),
-        label:Text(saving?'Guardando...':'Guardar credenciales'));
+        label:Text(saving?'Guardando...':configured?'Actualizar credenciales':'Guardar credenciales'));
        if(box.maxWidth<480)return Column(
         mainAxisSize:MainAxisSize.min,children:[
          SizedBox(width:double.infinity,child:save),
