@@ -114,7 +114,12 @@ class _PublicState extends ConsumerState<EventoPublicoPage>{
    if(!mounted)return;
    if(state=='PENDIENTE_PAGO'){
     final minutes=(result['plazoPagoMinutos'] as num?)?.toInt()??20;
-    final shouldPay=await showDialog<bool>(context:context,builder:(ctx)=>AlertDialog(
+    // La persona ya confirmó puestos y datos en el diálogo principal:
+    // abrir Mercado Pago sin un segundo diálogo redundante.
+    final directPayment=event?['modoReserva']=='PUESTOS' &&
+      event?['seleccionarMesa']==false;
+    final shouldPay=directPayment?true:await showDialog<bool>(
+      context:context,builder:(ctx)=>AlertDialog(
       title:const Text('Reserva pendiente de pago'),
       content:Text('La mesa se aparta provisionalmente durante $minutes minutos. '
        'Solo un pago aprobado por Mercado Pago confirma tu reserva. '
