@@ -1291,7 +1291,7 @@ class _ReservaInternaState extends ConsumerState<_ReservaInternaDialog>{
  }
  @override Widget build(BuildContext context){
   final capacity=tables.where((t)=>asId(t['id'])==selectedTable)
-   .fold<int>(1,(v,t)=>asId(t['capacidad'])??6);
+   .fold<int>(1,(v,t)=>asId(t['disponibles'])??asId(t['capacidad'])??6);
   return Dialog(
    backgroundColor:EventColors.background,
    shape:RoundedRectangleBorder(borderRadius:BorderRadius.circular(23)),
@@ -1337,7 +1337,7 @@ class _ReservaInternaState extends ConsumerState<_ReservaInternaDialog>{
        const SizedBox(height:18),
        const EventSectionHeading(icon:Icons.table_restaurant_outlined,
         title:'Selecciona la mesa',
-        subtitle:'Las mesas ya reservadas están bloqueadas.'),
+        subtitle:'Las mesas completas están bloqueadas; las compartidas permiten reservar puestos libres.'),
        const SizedBox(height:13),
        if(loading)const Center(child:Padding(padding:EdgeInsets.all(25),
         child:CircularProgressIndicator()))
@@ -1386,8 +1386,8 @@ class _ReservaInternaState extends ConsumerState<_ReservaInternaDialog>{
               Text('Mesa '+(table['numero']??id).toString(),
                style:const TextStyle(color:EventColors.text,
                 fontWeight:FontWeight.w800,fontSize:12)),
-              Text(free?(table['capacidad']??6).toString()+' puestos':
-               'Ya reservada',
+              Text(free?(table['disponibles']??table['capacidad']??6).toString()+' puestos libres':
+               'Sin disponibilidad',
                style:TextStyle(fontSize:11,
                 color:free?EventColors.success:EventColors.warning)),
              ])),
