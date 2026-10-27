@@ -394,13 +394,24 @@ class _EventPublicLandingState extends State<EventPublicLanding> {
             padding:EdgeInsets.all(10),
             decoration:BoxDecoration(color:palette.surface,
               border:Border(top:BorderSide(color:palette.border))),
-            child:FilledButton.icon(
-              onPressed:startReservation,
-              icon:Icon(Icons.confirmation_number_outlined),
-              label:Text(bySeat?'Reservar puestos':'Reservar mesa'),
-              style:FilledButton.styleFrom(backgroundColor:brand,
-                foregroundColor:onBrand,
-                padding:EdgeInsets.all(15))),
+            child:Row(children:[
+              if(helpWhatsappLink(getText('whatsapp'),getText('titulo'),getText('sucursal'))!=null)...[
+                IconButton.outlined(
+                  tooltip:'¿Dudas? Escríbenos por WhatsApp',
+                  onPressed:openSupport,
+                  style:IconButton.styleFrom(
+                    foregroundColor:palette.text,
+                    side:BorderSide(color:palette.border)),
+                  icon:Icon(Icons.support_agent_outlined)),
+                SizedBox(width:10),
+              ],
+              Expanded(child:FilledButton.icon(
+                onPressed:startReservation,
+                icon:Icon(Icons.confirmation_number_outlined),
+                label:Text(bySeat?'Reservar puestos':'Reservar mesa'),
+                style:FilledButton.styleFrom(backgroundColor:brand,
+                  foregroundColor:onBrand,padding:EdgeInsets.all(15)))),
+            ]),
           )),
       ),
       ),
