@@ -246,14 +246,17 @@ class EventMetric extends StatelessWidget {
   final Color color;
 
   @override
-  Widget build(BuildContext context) => Row(children: [
+  Widget build(BuildContext context) {
+    final palette=EventPagePalette.of(context);
+    final activeColor=color==EventColors.primary?palette.accent:color;
+    return Row(children: [
     Container(
       width: 40, height: 40,
       decoration: BoxDecoration(
-        color: color.withOpacity(.13),
+        color: activeColor.withOpacity(.13),
         borderRadius: BorderRadius.circular(11),
       ),
-      child: Icon(icon, color: color, size: 19),
+      child: Icon(icon, color: activeColor, size: 19),
     ),
     const SizedBox(width: 12),
     Expanded(child: Column(
@@ -267,6 +270,7 @@ class EventMetric extends StatelessWidget {
       ],
     )),
   ]);
+  }
 }
 
 class EventPill extends StatelessWidget {
