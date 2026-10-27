@@ -219,7 +219,7 @@ class _EntradaState extends ConsumerState<EventoEntradaPublicaPage>{
      child:Column(mainAxisSize:MainAxisSize.min,children:[
       const Icon(Icons.celebration,color:accent,size:42),
       const SizedBox(height:12),
-      Text(value?['empresa']?.toString()??'Entrada digital',textAlign:TextAlign.center,
+      Text(value?['sucursal']?.toString()??'Entrada digital',textAlign:TextAlign.center,
        style:const TextStyle(color:teal,fontSize:19,fontWeight:FontWeight.bold)),
       const SizedBox(height:12),
       Text(value?['evento']?.toString()??'Consultando...',textAlign:TextAlign.center,
