@@ -2540,8 +2540,31 @@ class _EventEditorState extends ConsumerState<EventoEditor>{
      ));
    }),
    const SizedBox(height:12),
-   Text(selectedProducts.length.toString()+' producto(s) en la página del evento.',
-    style:const TextStyle(color:EventColors.muted,fontSize:12)),
+   Container(
+    padding:const EdgeInsets.all(14),
+    decoration:BoxDecoration(color:EventColors.surfaceLight,
+      borderRadius:BorderRadius.circular(12),
+      border:Border.all(color:EventColors.border)),
+    child:Row(crossAxisAlignment:CrossAxisAlignment.start,children:[
+     const Icon(Icons.auto_stories_outlined,color:EventColors.primary,size:23),
+     const SizedBox(width:12),
+     Expanded(child:Column(
+      crossAxisAlignment:CrossAxisAlignment.start,children:[
+       Text(selectedProducts.isEmpty
+         ?'No has seleccionado productos para la carta'
+         :'Se crearán '+((selectedProducts.length+3)~/4).toString()+
+           ' hoja(s) con '+selectedProducts.length.toString()+' producto(s)',
+        style:const TextStyle(color:EventColors.text,
+          fontWeight:FontWeight.w800,fontSize:13)),
+       const SizedBox(height:6),
+       const Text('Las hojas se crean automáticamente desde los productos '
+        'seleccionados y guardados en la base de datos, con hasta cuatro '
+        'productos por hoja. Mostrarán sus imágenes, nombres, descripciones y precios.',
+        style:TextStyle(color:EventColors.muted,fontSize:11,height:1.5)),
+      ],
+     )),
+    ]),
+   ),
   ]));
 
  Widget _payments()=>_block(7,'Reservas y pagos',
