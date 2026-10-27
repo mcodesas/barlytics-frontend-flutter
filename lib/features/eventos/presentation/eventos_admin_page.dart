@@ -2006,8 +2006,14 @@ class _EventEditorState extends ConsumerState<EventoEditor>{
 
  Future<void> _pickThemeColor(
    TextEditingController controller,String heading) async {
-  var hsv=HSVColor.fromColor(EventPagePalette.parse(
-    controller.text,EventColors.primary));
+  final paletteNow=EventPagePalette.fromHex(
+    primaryHex.text,backgroundHex.text,textHex.text,
+    cardHex.text,borderHex.text,menuHex.text);
+  final fallback=identical(controller,cardHex)?paletteNow.surface:
+    identical(controller,borderHex)?paletteNow.border:
+    identical(controller,menuHex)?paletteNow.menuPaper:
+    EventColors.primary;
+  var hsv=HSVColor.fromColor(EventPagePalette.parse(controller.text,fallback));
   final selected=await showDialog<Color>(
    context:context,
    builder:(dialogContext)=>StatefulBuilder(
@@ -2397,7 +2403,9 @@ class _EventEditorState extends ConsumerState<EventoEditor>{
           maxLines:2,style:TextStyle(fontFamily:'Georgia',
            color:selected.menuInk,fontWeight:FontWeight.bold))),
          const SizedBox(width:10),
-         Text(p['precio']==null?'Consultar':'$'+p['precio'].toString(),
+         Text(p['precio']==null?'Consultar':
+          NumberFormat.currency(locale:'es_CO',symbol:'$',decimalDigits:0).format(
+            double.tryParse(p['precio'].toString())??0),
           style:TextStyle(fontFamily:'Georgia',
            fontWeight:FontWeight.bold,color:selected.menuInk)),
         ]),
@@ -2418,6 +2426,10 @@ class _EventEditorState extends ConsumerState<EventoEditor>{
     if(EventPagePalette.contrast(selected.text,selected.surface)<4.5)
      const Padding(padding:EdgeInsets.symmetric(vertical:5),
       child:Text('El texto contrasta poco con las tarjetas: cambia la letra o el fondo.',
+       style:TextStyle(color:EventColors.warning,fontWeight:FontWeight.w700,fontSize:12))),
+    if(EventPagePalette.contrast(selected.menuInk,selected.menuPaper)<4.5)
+     const Padding(padding:EdgeInsets.symmetric(vertical:5),
+      child:Text('El color de las hojas de carta tiene poco contraste con el texto.',
        style:TextStyle(color:EventColors.warning,fontWeight:FontWeight.w700,fontSize:12))),
     const SizedBox(height:20),
     const Text('Redes sociales para la página pública',
