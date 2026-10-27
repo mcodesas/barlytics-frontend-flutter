@@ -1553,8 +1553,8 @@ class _EventEditorState extends ConsumerState<EventoEditor>{
  final title=TextEditingController(),description=TextEditingController(),
        amount=TextEditingController(text:'0'),instructions=TextEditingController(),
        mapsUrl=TextEditingController();
- final primaryHex=TextEditingController(text:'#23D8D1'),
-       backgroundHex=TextEditingController(text:'#061925');
+ final primaryHex=TextEditingController(text:'#35D0C5'),
+       backgroundHex=TextEditingController(text:'#102735');
  final instagramUrl=TextEditingController(),facebookUrl=TextEditingController(),
        tiktokUrl=TextEditingController(),whatsappUrl=TextEditingController();
  String bookingMode='MESA';bool sharing=false,selectChairs=false;
