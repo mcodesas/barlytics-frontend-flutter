@@ -39,10 +39,10 @@ class EventPagePalette {
   EventPagePalette._({
     required this.accent,required this.onAccent,required this.canvas,
     required this.surface,required this.surfaceSoft,required this.border,
-    required this.heroShade,
+    required this.heroShade,required this.text,required this.muted,
   });
 
-  final Color accent,onAccent,canvas,surface,surfaceSoft,border,heroShade;
+  final Color accent,onAccent,canvas,surface,surfaceSoft,border,heroShade,text,muted;
 
   static Color parse(String? hex,Color fallback){
     final text=(hex??'').trim();
@@ -50,14 +50,15 @@ class EventPagePalette {
     return Color(int.parse('FF'+text.substring(1),radix:16));
   }
 
-  factory EventPagePalette.fromHex(String? accentHex,String? backgroundHex){
+  factory EventPagePalette.fromHex(String? accentHex,String? backgroundHex,[String? textHex]){
     final rawAccent=parse(accentHex,EventColors.primary);
     final rawBase=parse(backgroundHex,EventColors.background);
+    final rawText=parse(textHex,EventColors.text);
     final hsl=HSLColor.fromColor(rawBase);
     final hue=hsl.hue;
     final normalized=HSLColor.fromAHSL(1,hue,.27,.11).toColor();
     const neutral=Color(0xFF07151F);
-    final canvas=Color.lerp(neutral,normalized,.43)!;
+    final canvas=rawBase;
     final surface=Color.lerp(const Color(0xFF102B3A),
       HSLColor.fromAHSL(1,hue,.22,.15).toColor(),.34)!;
     final surfaceSoft=Color.lerp(const Color(0xFF183A49),
@@ -73,6 +74,7 @@ class EventPagePalette {
     return EventPagePalette._(
       accent:safeAccent,onAccent:onAccent,canvas:canvas,
       surface:surface,surfaceSoft:surfaceSoft,border:border,
+      text:rawText,muted:Color.lerp(rawText,canvas,.32)!,
       heroShade:Color.lerp(canvas,const Color(0xFF000A12),.45)!,
     );
   }
@@ -170,12 +172,12 @@ class EventSectionHeading extends StatelessWidget {
       Expanded(child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(title, style: const TextStyle(
-            fontWeight: FontWeight.w800, color: EventColors.text, fontSize: 17)),
+          Text(title, style: TextStyle(
+            fontWeight: FontWeight.w800, color: EventPagePalette.of(context).text, fontSize: 17)),
           if (subtitle != null) ...[
             const SizedBox(height: 3),
-            Text(subtitle!, style: const TextStyle(
-              color: EventColors.muted, fontSize: 12, height: 1.35)),
+            Text(subtitle!, style: TextStyle(
+              color: EventPagePalette.of(context).muted, fontSize: 12, height: 1.35)),
           ],
         ],
       )),
