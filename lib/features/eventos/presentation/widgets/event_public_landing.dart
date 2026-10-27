@@ -46,12 +46,11 @@ class _EventPublicLandingState extends State<EventPublicLanding> {
   bool automatic=false;
   bool get bySeat=>widget.event['modoReserva']=='PUESTOS';
   bool get selectSeats=>bySeat&&widget.event['seleccionarSillas']==true;
-  Color get brand=>_color(getText('colorPrimario'),EventColors.primary);
-  Color get backdrop=>_color(getText('colorFondo'),EventColors.background);
-  Color _color(String hex,Color fallback){
-   if(!RegExp(r'^#[A-Fa-f0-9]{6}$').hasMatch(hex))return fallback;
-   return Color(int.parse('FF'+hex.substring(1),radix:16));
-  }
+  EventPagePalette get palette=>EventPagePalette.fromHex(
+    getText('colorPrimario'),getText('colorFondo'));
+  Color get brand=>palette.accent;
+  Color get onBrand=>palette.onAccent;
+  Color get backdrop=>palette.canvas;
   List<int> get usedSeats{
    final list=tables.where((t)=>number(t['id'])==widget.selectedTable);
    if(list.isEmpty)return [];
@@ -130,16 +129,18 @@ class _EventPublicLandingState extends State<EventPublicLanding> {
             _footer(wide),
           ])))),
     ]);
-    return Theme(
+    return EventPaletteScope(
+      palette:palette,
+      child:Theme(
       data:ThemeData.dark(useMaterial3:true).copyWith(
         colorScheme:ColorScheme.dark(primary:brand,
-          surface:EventColors.surface),
+          onPrimary:onBrand,surface:palette.surface),
         inputDecorationTheme:InputDecorationTheme(
-          filled:true,fillColor:EventColors.surfaceLight,
+          filled:true,fillColor:palette.surfaceSoft,
           border:OutlineInputBorder(borderRadius:BorderRadius.circular(11)),
           enabledBorder:OutlineInputBorder(
             borderRadius:BorderRadius.circular(11),
-            borderSide:const BorderSide(color:EventColors.border)),
+            borderSide:BorderSide(color:palette.border)),
         ),
       ),
       child:Scaffold(
@@ -149,16 +150,17 @@ class _EventPublicLandingState extends State<EventPublicLanding> {
         bottomNavigationBar:wide?null:SafeArea(top:false,
           child:Container(
             padding:const EdgeInsets.all(10),
-            decoration:const BoxDecoration(color:EventColors.background,
-              border:Border(top:BorderSide(color:EventColors.border))),
+            decoration:BoxDecoration(color:palette.surface,
+              border:Border(top:BorderSide(color:palette.border))),
             child:FilledButton.icon(
               onPressed:()=>jump(_bookingKey),
               icon:const Icon(Icons.confirmation_number_outlined),
-              label:const Text('Reservar puestos'),
+              label:Text(bySeat?'Reservar puestos':'Reservar mesa'),
               style:FilledButton.styleFrom(backgroundColor:brand,
-                foregroundColor:EventColors.onPrimary,
+                foregroundColor:onBrand,
                 padding:const EdgeInsets.all(15))),
           )),
+      ),
       ),
     );
   }
@@ -168,11 +170,13 @@ class _EventPublicLandingState extends State<EventPublicLanding> {
     child:Stack(children:[
       Positioned.fill(child:EventArtwork(source:image,
         height:520,borderRadius:0,emptyIcon:Icons.nightlife_outlined)),
-      const Positioned.fill(child:DecoratedBox(decoration:BoxDecoration(
+      Positioned.fill(child:DecoratedBox(decoration:BoxDecoration(
         gradient:LinearGradient(
           begin:Alignment.centerLeft,end:Alignment.centerRight,
-          colors:[Color(0xFA031520),Color(0xE4061D2C),
-            Color(0xA9072534),Color(0x70041D2A)])))),
+          colors:[palette.heroShade.withOpacity(.98),
+            palette.heroShade.withOpacity(.92),
+            palette.heroShade.withOpacity(.67),
+            const Color(0x7006141C)])))),
       Center(child:ConstrainedBox(
         constraints:const BoxConstraints(maxWidth:1320),
         child:Padding(
@@ -216,7 +220,7 @@ class _EventPublicLandingState extends State<EventPublicLanding> {
                 icon:const Icon(Icons.event_seat_outlined),
                 label:const Text('Reservar ahora'),
                 style:FilledButton.styleFrom(backgroundColor:brand,
-                  foregroundColor:EventColors.onPrimary,
+                  foregroundColor:onBrand,
                   padding:const EdgeInsets.symmetric(horizontal:25,vertical:17))),
               OutlinedButton.icon(onPressed:getText('ubicacionGoogleMaps').isEmpty?null:openMap,
                 icon:const Icon(Icons.directions_outlined),
@@ -285,12 +289,13 @@ class _EventPublicLandingState extends State<EventPublicLanding> {
            child:Stack(children:[
              Container(
                decoration:BoxDecoration(
-                 color:EventColors.background,
-                 border:Border.all(color:EventColors.border),
+                 color:palette.canvas,
+                  border:Border.all(color:palette.border),
                  borderRadius:BorderRadius.circular(15)),
                child:EventArtwork(
                  source:image,width:double.infinity,
-                 height:wide?535:425,fit:BoxFit.contain)),
+                 height:MediaQuery.sizeOf(context).width>=940?690:500,
+                  fit:BoxFit.contain)),
              Positioned(bottom:12,right:12,child:Container(
                padding:const EdgeInsets.all(9),
                decoration:BoxDecoration(color:EventColors.background,
@@ -360,8 +365,8 @@ class _EventPublicLandingState extends State<EventPublicLanding> {
   if(poster==null)return intro;
   if(!wide)return Column(children:[poster,const SizedBox(height:13),intro]);
   return Row(crossAxisAlignment:CrossAxisAlignment.start,children:[
-    Expanded(flex:6,child:poster),
-    const SizedBox(width:13),
+    Expanded(flex:7,child:poster),
+    const SizedBox(width:16),
     Expanded(flex:5,child:intro),
   ]);
  }
@@ -381,7 +386,7 @@ class _EventPublicLandingState extends State<EventPublicLanding> {
          child:const Text('Próximamente: fotos del lugar',
            style:TextStyle(color:EventColors.muted)))
        else LayoutBuilder(builder:(context,layout){
-         final columns=layout.maxWidth>=350?2:1;
+         final columns=venue.length>1&&layout.maxWidth>=500?2:1;
          final width=(layout.maxWidth-(columns-1)*10)/columns;
          return Wrap(spacing:10,runSpacing:10,children:[
            for(var i=0;i<venue.length;i++)
@@ -394,7 +399,7 @@ class _EventPublicLandingState extends State<EventPublicLanding> {
                  initialIndex:i),
                child:Stack(children:[
                  EventArtwork(source:venue[i],width:width,
-                   height:venue.length<=2?335:215),
+                   height:venue.length==1?405:venue.length==2?320:215),
                  const Positioned(bottom:9,right:9,
                    child:Icon(Icons.zoom_in,color:EventColors.text,size:27)),
                ]),
@@ -419,23 +424,17 @@ class _EventPublicLandingState extends State<EventPublicLanding> {
          title:'Nuestra ubicación',
          subtitle:'Encuentra cómo llegar al establecimiento.'),
        const SizedBox(height:14),
-       if(wide)Row(crossAxisAlignment:CrossAxisAlignment.center,children:[
-         Expanded(flex:5,child:_locationPhoto(mapPreview)),
-         const SizedBox(width:23),
-         Expanded(flex:7,child:_locationInfo()),
-       ])else...[
-         _locationPhoto(mapPreview),
-         const SizedBox(height:14),
-         _locationInfo(),
-       ],
+       _locationPhoto(mapPreview),
+       const SizedBox(height:17),
+       _locationInfo(),
      ]));
    if(!wide)return Column(children:[
      photos,const SizedBox(height:12),place,
    ]);
    // Galería y mapa con enlaces sociales en columnas equilibradas.
    return Row(crossAxisAlignment:CrossAxisAlignment.start,children:[
-     Expanded(flex:6,child:photos),
-     const SizedBox(width:13),
+     Expanded(flex:7,child:photos),
+     const SizedBox(width:16),
      Expanded(flex:5,child:place),
    ]);
  }
@@ -444,7 +443,8 @@ class _EventPublicLandingState extends State<EventPublicLanding> {
    onTap:getText('ubicacionGoogleMaps').isEmpty?null:openMap,
    borderRadius:BorderRadius.circular(13),
    child:Stack(children:[
-     EventArtwork(source:image,width:double.infinity,height:186,
+     EventArtwork(source:image,width:double.infinity,
+       height:MediaQuery.sizeOf(context).width>=940?250:200,
        emptyIcon:Icons.map_outlined),
      Positioned.fill(child:Container(
        decoration:BoxDecoration(
@@ -747,7 +747,7 @@ class _EventPublicLandingState extends State<EventPublicLanding> {
            widget.event['medioPago']=='MERCADOPAGO'?'Reservar y pagar':'Confirmar reserva'),
          style:FilledButton.styleFrom(
            backgroundColor:brand,
-           foregroundColor:EventColors.onPrimary,
+           foregroundColor:onBrand,
            padding:const EdgeInsets.symmetric(vertical:17)))),
        const SizedBox(height:9),
        const Center(child:Text('Reserva segura y protegida',
