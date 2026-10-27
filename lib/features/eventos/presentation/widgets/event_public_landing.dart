@@ -79,9 +79,20 @@ class _EventPublicLandingState extends State<EventPublicLanding> {
     (widget.event['mesas'] as List? ?? [])
       .whereType<Map>().map((e)=>Map<String,dynamic>.from(e)).toList();
 
-  List<Map<String,dynamic>> get products =>
-    (widget.event['carta'] as List? ?? [])
-      .whereType<Map>().map((e)=>Map<String,dynamic>.from(e)).toList();
+  /// La API publica devuelve exclusivamente los productos asociados en
+  /// commerce.evento_productos. Las hojas no contienen datos demostrativos.
+  List<Map<String,dynamic>> get products {
+    final rows=(widget.event['carta'] as List? ?? [])
+      .whereType<Map>().map((e)=>Map<String,dynamic>.from(e))
+      .where((p)=>number(p['id'])>0 &&
+        (p['nombre']?.toString().trim().isNotEmpty??false)).toList();
+    rows.sort((a,b){
+      final orderA=number(a['orden']),orderB=number(b['orden']);
+      final compare=orderA.compareTo(orderB);
+      return compare!=0?compare:number(a['id']).compareTo(number(b['id']));
+    });
+    return rows;
+  }
 
   List<String> get venue =>
     (widget.event['fotosLugar'] as List? ?? []).whereType<String>().toList();
@@ -121,10 +132,8 @@ class _EventPublicLandingState extends State<EventPublicLanding> {
             _intro(wide),
             const SizedBox(height:17),
             _bookingArea(wide),
-            if(products.isNotEmpty)...[
-              const SizedBox(height:17),
-              _catalog(),
-            ],
+            const SizedBox(height:17),
+            _catalog(),
             const SizedBox(height:27),
             _footer(wide),
           ])))),
@@ -758,13 +767,39 @@ class _EventPublicLandingState extends State<EventPublicLanding> {
 
 
  Widget _catalog(){
+   final selected=products;
+   if(selected.isEmpty){
+     return EventPanel(child:Column(
+       key:_menuKey,
+       crossAxisAlignment:CrossAxisAlignment.start,children:[
+         const EventSectionHeading(icon:Icons.menu_book_outlined,
+           title:'La carta del evento',
+           subtitle:'El menú se construye con los productos seleccionados por el establecimiento.'),
+         const SizedBox(height:16),
+         Container(
+           width:double.infinity,
+           padding:const EdgeInsets.symmetric(horizontal:18,vertical:24),
+           decoration:BoxDecoration(
+             color:palette.surfaceSoft,
+             borderRadius:BorderRadius.circular(13)),
+           child:const Row(children:[
+             Icon(Icons.restaurant_menu_outlined,color:EventColors.muted,size:26),
+             SizedBox(width:13),
+             Expanded(child:Text(
+               'Todavía no se han seleccionado productos para esta carta.',
+               style:TextStyle(color:EventColors.muted,fontSize:13))),
+           ]),
+         ),
+       ],
+     ));
+   }
    const paper=Color(0xFFF3EBDC);
    const ink=Color(0xFF38291F);
    const detail=Color(0xFF916F4D);
    // Cuatro productos por hoja evitan páginas gigantes vacías.
    final pages=<List<Map<String,dynamic>>>[];
-   for(var i=0;i<products.length;i+=4){
-     pages.add(products.skip(i).take(4).toList());
+   for(var i=0;i<selected.length;i+=4){
+     pages.add(selected.skip(i).take(4).toList());
    }
    Widget menuPage(List<Map<String,dynamic>> items,int index,double width){
      return SizedBox(width:width,child:Stack(children:[
@@ -834,6 +869,11 @@ class _EventPublicLandingState extends State<EventPublicLanding> {
                        style:const TextStyle(color:ink,
                          fontFamily:'Georgia',
                          fontWeight:FontWeight.w800,fontSize:15)),
+                     if((product['tipo']?.toString()??'').trim().isNotEmpty)
+                       Text(product['tipo'].toString(),
+                         maxLines:1,overflow:TextOverflow.ellipsis,
+                         style:const TextStyle(color:detail,
+                           fontSize:10,fontStyle:FontStyle.italic)),
                      if((product['descripcion']?.toString()??'').trim().isNotEmpty)...[
                        const SizedBox(height:4),
                        Text(product['descripcion'].toString(),
@@ -842,7 +882,8 @@ class _EventPublicLandingState extends State<EventPublicLanding> {
                            fontSize:11,height:1.45)),
                      ],
                      const SizedBox(height:6),
-                     Text(currency(product['precio']),
+                     Text(product['precio']==null?'Consultar precio':
+                      currency(product['precio']),
                        style:const TextStyle(color:Color(0xFF966336),
                          fontSize:13,fontWeight:FontWeight.w900)),
                    ],
@@ -875,9 +916,11 @@ class _EventPublicLandingState extends State<EventPublicLanding> {
    }
    return EventPanel(child:Column(
      key:_menuKey,crossAxisAlignment:CrossAxisAlignment.start,children:[
-       const EventSectionHeading(icon:Icons.menu_book_outlined,
+       EventSectionHeading(icon:Icons.menu_book_outlined,
          title:'La carta del evento',
-         subtitle:'Hojas de menú con fotografías, descripciones y precios. Toca una foto para ampliarla.'),
+         subtitle:selected.length.toString()+
+          ' productos elegidos por el establecimiento · '+
+          pages.length.toString()+' hojas generadas desde su catálogo'),
        const SizedBox(height:19),
        LayoutBuilder(builder:(context,box){
          final sideBySide=box.maxWidth>=830;
