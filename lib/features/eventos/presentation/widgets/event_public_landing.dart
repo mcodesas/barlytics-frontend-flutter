@@ -752,45 +752,109 @@ class _EventPublicLandingState extends State<EventPublicLanding> {
    ));
  }
 
- Widget _catalog()=>EventPanel(child:Column(
-   key:_menuKey,crossAxisAlignment:CrossAxisAlignment.start,children:[
-     const EventSectionHeading(icon:Icons.restaurant_menu_outlined,
-       title:'Nuestra carta destacada',
-       subtitle:'Conoce lo que podrás disfrutar durante el evento.'),
-     const SizedBox(height:16),
-     LayoutBuilder(builder:(context,box){
-       return GridView.builder(
-         itemCount:products.length>12?12:products.length,
-         shrinkWrap:true,physics:const NeverScrollableScrollPhysics(),
-         gridDelegate:SliverGridDelegateWithMaxCrossAxisExtent(
-           maxCrossAxisExtent:220,mainAxisExtent:192,
-           crossAxisSpacing:10,mainAxisSpacing:10),
-         itemBuilder:(context,index){
-           final p=products[index];
-           return Container(clipBehavior:Clip.antiAlias,
-             decoration:BoxDecoration(color:EventColors.surfaceLight,
-               border:Border.all(color:EventColors.border),
-               borderRadius:BorderRadius.circular(13)),
+
+ Widget _catalog(){
+   final pages=<List<Map<String,dynamic>>>[];
+   for(var i=0;i<products.length;i+=8)
+     pages.add(products.skip(i).take(8).toList());
+   return EventPanel(child:Column(
+     key:_menuKey,crossAxisAlignment:CrossAxisAlignment.start,children:[
+       const EventSectionHeading(icon:Icons.menu_book_outlined,
+         title:'La carta del evento',
+         subtitle:'Explora nuestro menú como un libro. Pulsa las fotografías para ampliarlas.'),
+       const SizedBox(height:19),
+       LayoutBuilder(builder:(context,box){
+         final double width=box.maxWidth>=850
+           ?(box.maxWidth-17)/2:box.maxWidth;
+         return Wrap(spacing:17,runSpacing:22,children:[
+           for(var page=0;page<pages.length;page++)
+            SizedBox(width:width,child:Container(
+             padding:const EdgeInsets.fromLTRB(18,22,18,16),
+             decoration:BoxDecoration(
+              color:const Color(0xFFFFF8E8),
+              borderRadius:BorderRadius.circular(5),
+              border:Border(
+               left:const BorderSide(color:Color(0xFFCCAE76),width:6),
+               top:const BorderSide(color:Color(0xFFD8C6A3)),
+               right:const BorderSide(color:Color(0xFFD8C6A3)),
+               bottom:const BorderSide(color:Color(0xFFD8C6A3))),
+              boxShadow:const [
+               BoxShadow(color:Color(0x7A000000),blurRadius:15,offset:Offset(5,9)),
+               BoxShadow(color:Color(0x44C3B39B),blurRadius:0,offset:Offset(3,4)),
+              ]),
              child:Column(crossAxisAlignment:CrossAxisAlignment.stretch,children:[
-               Expanded(child:EventArtwork(source:p['imagen'],
-                 height:130,borderRadius:0,emptyIcon:Icons.local_dining_outlined)),
-               Padding(padding:const EdgeInsets.fromLTRB(9,8,9,9),
-                 child:Column(crossAxisAlignment:CrossAxisAlignment.start,children:[
-                   Text(p['nombre']?.toString()??'Producto',
-                     maxLines:1,overflow:TextOverflow.ellipsis,
-                     style:const TextStyle(color:EventColors.text,
-                       fontWeight:FontWeight.w800,fontSize:12)),
+              Row(mainAxisAlignment:MainAxisAlignment.spaceBetween,children:[
+               const Icon(Icons.auto_stories_outlined,
+                color:Color(0xFF98774B),size:23),
+               Text(getText('sucursal','Nuestra carta'),
+                overflow:TextOverflow.ellipsis,
+                style:const TextStyle(color:Color(0xFF57432F),
+                 fontSize:13,fontWeight:FontWeight.w800)),
+               Text('Pág. '+(page+1).toString(),
+                style:const TextStyle(color:Color(0xFF94764D),fontSize:11)),
+              ]),
+              const SizedBox(height:12),
+              Text(page==0?'SABORES PARA COMPARTIR':'MÁS DE NUESTRA CARTA',
+               textAlign:TextAlign.center,
+               style:const TextStyle(fontFamily:'Georgia',
+                color:Color(0xFF422C22),
+                fontSize:21,fontWeight:FontWeight.w900,letterSpacing:1.1)),
+              const SizedBox(height:6),
+              const Divider(color:Color(0xFFBFA881),thickness:1),
+              const SizedBox(height:10),
+              for(final product in pages[page])...[
+               Row(crossAxisAlignment:CrossAxisAlignment.center,children:[
+                InkWell(
+                 borderRadius:BorderRadius.circular(10),
+                 onTap:eventPhoto(product['imagen'])==null?null:
+                  ()=>showEventPhotoViewer(context,
+                    images:[product['imagen']],
+                    labels:[product['nombre']?.toString()??'Producto']),
+                 child:Stack(children:[
+                  EventArtwork(source:product['imagen'],
+                    width:91,height:88,borderRadius:9,
+                    emptyIcon:Icons.local_dining_outlined),
+                  if(eventPhoto(product['imagen'])!=null)
+                    const Positioned(bottom:5,right:5,
+                     child:Icon(Icons.zoom_in,color:Colors.white,size:22)),
+                 ]),
+                ),
+                const SizedBox(width:13),
+                Expanded(child:Column(
+                 crossAxisAlignment:CrossAxisAlignment.start,children:[
+                  Text(product['nombre']?.toString()??'Producto',
+                   maxLines:2,overflow:TextOverflow.ellipsis,
+                   style:const TextStyle(
+                    color:Color(0xFF34251B),fontFamily:'Georgia',
+                    fontWeight:FontWeight.w800,fontSize:15)),
+                  if((product['descripcion']?.toString()??'').trim().isNotEmpty)...[
                    const SizedBox(height:4),
-                   Text(currency(p['precio']),style:const TextStyle(
-                     color:EventColors.primary,fontSize:12,
-                     fontWeight:FontWeight.w800)),
-                 ])),
+                   Text(product['descripcion'].toString(),
+                    maxLines:2,overflow:TextOverflow.ellipsis,
+                    style:const TextStyle(
+                     color:Color(0xFF76624C),fontSize:11,height:1.4)),
+                  ],
+                  const SizedBox(height:6),
+                  Text(currency(product['precio']),
+                   style:const TextStyle(color:Color(0xFF865625),
+                    fontSize:14,fontWeight:FontWeight.w900)),
+                 ]),
+                )),
+               ]),
+               const Divider(color:Color(0x33A98B60),height:20),
+              ],
+              const SizedBox(height:7),
+              Text('★ '+getText('sucursal')+' ★',
+               textAlign:TextAlign.center,
+               style:const TextStyle(color:Color(0xFF98764F),
+                fontFamily:'Georgia',fontSize:12,letterSpacing:.7)),
              ]),
-           );
-         },
-       );
-     }),
-   ]));
+            )),
+         ]);
+       }),
+     ],
+   ));
+ }
 
  Widget _footer(bool wide)=>Container(
    padding:const EdgeInsets.symmetric(horizontal:15,vertical:18),
