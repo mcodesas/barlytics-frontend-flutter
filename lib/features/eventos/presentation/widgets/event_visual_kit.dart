@@ -162,7 +162,7 @@ class EventSectionHeading extends StatelessWidget {
           borderRadius: BorderRadius.circular(12),
         ),
         child: number != null
-          ? Text('$number', style: const TextStyle(
+          ? Text('$number', style: TextStyle(
               color: EventPagePalette.of(context).accent, fontWeight: FontWeight.w900, fontSize: 17))
           : Icon(icon ?? Icons.auto_awesome, color: EventPagePalette.of(context).accent, size: 19),
       ),
