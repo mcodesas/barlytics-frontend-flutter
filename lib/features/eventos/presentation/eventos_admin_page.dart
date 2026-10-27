@@ -1499,6 +1499,10 @@ class _EventEditorState extends ConsumerState<EventoEditor>{
  final title=TextEditingController(),description=TextEditingController(),
        amount=TextEditingController(text:'0'),instructions=TextEditingController(),
        mapsUrl=TextEditingController();
+ final primaryHex=TextEditingController(text:'#23D8D1'),
+       backgroundHex=TextEditingController(text:'#061925');
+ String bookingMode='MESA';bool sharing=false,selectChairs=false;
+ String? customLogo;
  DateTime start=DateTime.now().add(const Duration(days:1)).copyWith(hour:20,minute:0),
    finish=DateTime.now().add(const Duration(days:2)).copyWith(hour:2,minute:0);
  String method='GRATIS';String? photo;bool publish=false,busy=false;
@@ -1527,12 +1531,18 @@ class _EventEditorState extends ConsumerState<EventoEditor>{
     MapEntry(int.tryParse(key.toString())??-1,asId(value)??6))..remove(-1);
    venuePhotos=(i['fotosLugar'] as List? ??[]).whereType<String>().toList();
    selectedProducts=(i['productos'] as List? ??[]).map(asId).whereType<int>().toSet();
+   bookingMode=i['modoReserva']?.toString()??'MESA';
+   sharing=i['compartirMesa']==true;selectChairs=i['seleccionarSillas']==true;
+   primaryHex.text=i['colorPrimario']?.toString()??'#23D8D1';
+   backgroundHex.text=i['colorFondo']?.toString()??'#061925';
+   customLogo=i['logoEvento']?.toString();
   }
   WidgetsBinding.instance.addPostFrameCallback((_){if(mounted)_loadTables();});
  }
  @override void dispose(){
   productSearch.dispose();title.dispose();description.dispose();amount.dispose();
-  instructions.dispose();mapsUrl.dispose();super.dispose();
+  instructions.dispose();mapsUrl.dispose();
+  primaryHex.dispose();backgroundHex.dispose();super.dispose();
  }
  Future<void> _loadTables()async{
   branch??=ref.read(branchScopeProvider).activeBranchId;
@@ -1595,6 +1605,20 @@ class _EventEditorState extends ConsumerState<EventoEditor>{
     loadingProducts=false;productError=niceEventError(e);
    });
   }
+ }
+ Future<void> _pickLogo()async{
+  final selected=await FilePicker.platform.pickFiles(type:FileType.image,withData:true);
+  final image=selected?.files.singleOrNull;
+  if(image==null||image.bytes==null)return;
+  if(image.size>1700000){if(mounted)ScaffoldMessenger.of(context).showSnackBar(
+   const SnackBar(content:Text('El logo no debe superar 1.7 MB')));return;}
+  final ext=image.extension?.toLowerCase();
+  if(!['jpg','jpeg','png','webp'].contains(ext)){
+   if(mounted)ScaffoldMessenger.of(context).showSnackBar(
+    const SnackBar(content:Text('Formatos admitidos: JPG, PNG o WebP')));return;
+  }
+  final mime=ext=='png'?'image/png':ext=='webp'?'image/webp':'image/jpeg';
+  if(mounted)setState(()=>customLogo='data:'+mime+';base64,'+base64Encode(image.bytes!));
  }
  Future<void> _venueImage()async{
   final files=await FilePicker.platform.pickFiles(allowMultiple:true,
@@ -1676,6 +1700,12 @@ class _EventEditorState extends ConsumerState<EventoEditor>{
   if(price<0||(method=='GRATIS'&&price!=0)||(method!='GRATIS'&&price<=0)){
    ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content:Text('Verifica el precio y el medio de pago')));return;
   }
+  if(!RegExp(r'^#[0-9A-Fa-f]{6}$').hasMatch(primaryHex.text.trim())||
+     !RegExp(r'^#[0-9A-Fa-f]{6}$').hasMatch(backgroundHex.text.trim())){
+    ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+      content:Text('Usa colores con el formato #RRGGBB')));
+    return;
+  }
   setState(()=>busy=true);
   try{
    final body={'sucursalId':branch,'titulo':title.text.trim(),'descripcion':description.text.trim(),
@@ -1684,7 +1714,12 @@ class _EventEditorState extends ConsumerState<EventoEditor>{
     'mesas':chosen.toList(),'publicar':publish,
     'googleMapsUrl':mapsUrl.text.trim(),'fotosLugar':venuePhotos,
     'capacidadesMesas':{for(final id in chosen)id.toString():capacities[id]??6},
-    'productos':selectedProducts.toList()};
+    'productos':selectedProducts.toList(),
+    'modoReserva':bookingMode,
+    'compartirMesa':bookingMode=='PUESTOS'&&sharing,
+    'seleccionarSillas':bookingMode=='PUESTOS'&&selectChairs,
+    'colorPrimario':primaryHex.text.trim(),
+    'colorFondo':backgroundHex.text.trim(),'logo':customLogo};
    final api=ref.read(eventosApiProvider);
    final result=widget.initial==null
      ?await api.crear(body)
@@ -1834,7 +1869,123 @@ class _EventEditorState extends ConsumerState<EventoEditor>{
          Icons.nights_stay_outlined,()=>_pick(false,false))),
      ]);
    }));
- Widget _tables()=>_block(3,'Mesas habilitadas',
+
+ Widget _bookingPreferences()=>_block(3,'Modalidad de reservas',
+  'Decide si vendes mesas completas o puestos individuales y cómo se eligen las sillas.',
+  Column(crossAxisAlignment:CrossAxisAlignment.start,children:[
+   SegmentedButton<String>(
+    segments:const [
+     ButtonSegment(value:'MESA',label:Text('Mesa completa'),
+      icon:Icon(Icons.table_restaurant_outlined)),
+     ButtonSegment(value:'PUESTOS',label:Text('Por puestos'),
+      icon:Icon(Icons.event_seat_outlined)),
+    ],selected:{bookingMode},
+    onSelectionChanged:(v)=>setState((){
+     bookingMode=v.first;
+     if(bookingMode=='MESA'){sharing=false;selectChairs=false;}
+    })),
+   const SizedBox(height:12),
+   Text(bookingMode=='MESA'
+     ?'Una reserva ocupa la mesa entera, incluso si hay menos asistentes.'
+     :'La persona puede reservar uno o varios puestos de la misma mesa.',
+     style:const TextStyle(color:EventColors.muted,fontSize:12)),
+   if(bookingMode=='PUESTOS')...[
+    const SizedBox(height:12),
+    SwitchListTile.adaptive(
+     contentPadding:EdgeInsets.zero,value:sharing,
+     title:const Text('Permitir compartir mesa',
+      style:TextStyle(color:EventColors.text,fontWeight:FontWeight.w700)),
+     subtitle:const Text('Admite reservas independientes en distintos puestos de una mesa.'),
+     onChanged:(v)=>setState(()=>sharing=v)),
+    SwitchListTile.adaptive(
+     contentPadding:EdgeInsets.zero,value:selectChairs,
+     title:const Text('El cliente puede elegir sus sillas',
+      style:TextStyle(color:EventColors.text,fontWeight:FontWeight.w700)),
+     subtitle:const Text('Si está apagado, BarLytics asigna los asientos automáticamente.'),
+     onChanged:(v)=>setState(()=>selectChairs=v)),
+   ],
+   const SizedBox(height:8),
+   const Text('Para proteger reservas existentes, no se puede cambiar esta modalidad si el evento ya tiene reservas.',
+    style:TextStyle(color:EventColors.muted,fontSize:11)),
+  ]));
+
+ Widget _visualTheme()=>_block(4,'Diseño personalizado',
+  'Ajusta logo y colores para la página pública, según tu afiche.',
+  Column(crossAxisAlignment:CrossAxisAlignment.start,children:[
+   const Text('Identidad del evento',style:TextStyle(
+    color:EventColors.text,fontWeight:FontWeight.w800)),
+   const SizedBox(height:10),
+   Wrap(spacing:12,runSpacing:10,crossAxisAlignment:WrapCrossAlignment.center,children:[
+    EventArtwork(source:customLogo,width:84,height:84,
+     emptyIcon:Icons.storefront_outlined),
+    OutlinedButton.icon(
+     onPressed:_pickLogo,icon:const Icon(Icons.add_photo_alternate_outlined),
+     label:const Text('Subir logo')),
+    if(customLogo!=null)TextButton(
+     onPressed:()=>setState(()=>customLogo=null),
+     child:const Text('Quitar logo')),
+   ]),
+   const SizedBox(height:16),
+   const Text('Elige una paleta',style:TextStyle(
+    color:EventColors.text,fontWeight:FontWeight.w800)),
+   const SizedBox(height:9),
+   Wrap(spacing:10,runSpacing:10,children:[
+    for(final option in <(String,String,String)>[
+     ('Turquesa','#23D8D1','#061925'),
+     ('Elegancia dorada','#D5AD68','#171412'),
+     ('Rosa nocturno','#ED95B9','#201327'),
+     ('Esmeralda','#72D9B4','#102620'),
+     ('Cobre','#E6A270','#231914'),
+    ])
+     InkWell(onTap:()=>setState((){
+      primaryHex.text=option.$2;backgroundHex.text=option.$3;
+     }),child:Container(
+      padding:const EdgeInsets.symmetric(horizontal:12,vertical:10),
+      decoration:BoxDecoration(color:EventColors.surfaceLight,
+       borderRadius:BorderRadius.circular(10),
+       border:Border.all(color:EventColors.border)),
+      child:Row(mainAxisSize:MainAxisSize.min,children:[
+       CircleAvatar(radius:11,backgroundColor:Color(int.parse(
+        'FF'+option.$2.substring(1),radix:16))),
+       const SizedBox(width:8),
+       Text(option.$1,style:const TextStyle(
+        color:EventColors.text,fontSize:12)),
+      ]))),
+   ]),
+   const SizedBox(height:13),
+   LayoutBuilder(builder:(context,box){
+    final first=TextField(controller:primaryHex,
+     onChanged:(_)=>setState((){}),
+     decoration:const InputDecoration(labelText:'Color principal · #RRGGBB'));
+    final last=TextField(controller:backgroundHex,
+     onChanged:(_)=>setState((){}),
+     decoration:const InputDecoration(labelText:'Color de fondo · #RRGGBB'));
+    if(box.maxWidth<500)return Column(children:[
+     first,const SizedBox(height:10),last]);
+    return Row(children:[Expanded(child:first),
+     const SizedBox(width:10),Expanded(child:last)]);
+   }),
+   const SizedBox(height:13),
+   if(RegExp(r'^#[0-9A-Fa-f]{6}$').hasMatch(primaryHex.text)&&
+      RegExp(r'^#[0-9A-Fa-f]{6}$').hasMatch(backgroundHex.text))
+    Container(width:double.infinity,padding:const EdgeInsets.all(18),
+     decoration:BoxDecoration(borderRadius:BorderRadius.circular(13),
+      color:Color(int.parse('FF'+backgroundHex.text.substring(1),radix:16))),
+     child:Row(children:[
+      EventArtwork(source:customLogo,width:65,height:65,
+       emptyIcon:Icons.storefront_outlined),
+      const SizedBox(width:14),
+      Expanded(child:Text(title.text.isEmpty?'Nombre de la sucursal':title.text,
+       style:const TextStyle(color:Colors.white,
+        fontSize:19,fontWeight:FontWeight.w900))),
+      Icon(Icons.auto_awesome,color:Color(int.parse(
+       'FF'+primaryHex.text.substring(1),radix:16))),
+     ])),
+   const SizedBox(height:8),
+   const Text('El color se aplica a botones, títulos, acentos y fondo de la página pública.',
+    style:TextStyle(color:EventColors.muted,fontSize:11)),
+  ]));
+ Widget _tables()=>_block(5,'Mesas habilitadas',
    'Selecciona las mesas y define su capacidad de puestos.',
    Column(crossAxisAlignment:CrossAxisAlignment.start,children:[
      Align(alignment:Alignment.centerRight,child:TextButton.icon(
@@ -1926,7 +2077,7 @@ class _EventEditorState extends ConsumerState<EventoEditor>{
    ));
  }
 
- Widget _products()=>_block(4,'Productos destacados del evento',
+ Widget _products()=>_block(6,'Productos destacados del evento',
   'Selecciona de la carta de esta sucursal lo que verán tus asistentes.',
   Column(crossAxisAlignment:CrossAxisAlignment.start,children:[
    Wrap(spacing:10,runSpacing:10,crossAxisAlignment:WrapCrossAlignment.center,children:[
@@ -2095,7 +2246,7 @@ class _EventEditorState extends ConsumerState<EventoEditor>{
     style:const TextStyle(color:EventColors.muted,fontSize:12)),
   ]));
 
- Widget _payments()=>_block(5,'Reservas y pagos',
+ Widget _payments()=>_block(7,'Reservas y pagos',
    'Configura cómo reservar y el precio por cada puesto.',
    Column(crossAxisAlignment:CrossAxisAlignment.start,children:[
      LayoutBuilder(builder:(context,box){
@@ -2290,6 +2441,8 @@ class _EventEditorState extends ConsumerState<EventoEditor>{
              LayoutBuilder(builder:(context,inner)=>
                _general(branches,inner.maxWidth)),
              const SizedBox(height:12),_dates(),
+             const SizedBox(height:12),_bookingPreferences(),
+             const SizedBox(height:12),_visualTheme(),
              const SizedBox(height:12),_tables(),
              const SizedBox(height:12),_products(),
              const SizedBox(height:12),_payments(),
