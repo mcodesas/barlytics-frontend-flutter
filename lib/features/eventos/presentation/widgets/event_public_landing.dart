@@ -512,8 +512,8 @@ class _EventPublicLandingState extends State<EventPublicLanding> {
    final content=EventPanel(child:Column(
      key:_bookingKey,crossAxisAlignment:CrossAxisAlignment.start,children:[
        const EventSectionHeading(icon:Icons.table_restaurant_outlined,
-         title:'Selecciona tu mesa',
-         subtitle:'Elige una mesa disponible y los puestos que deseas reservar.'),
+         title:bySeat?'Reserva por puestos':'Reserva tu mesa',
+         subtitle:bySeat?'Reserva varios puestos o asigna mesa automáticamente.':'La mesa se reserva completa.'),
        const SizedBox(height:14),
        Wrap(spacing:12,runSpacing:9,children:[
          const EventPill(icon:Icons.circle,color:EventColors.success,
@@ -521,6 +521,18 @@ class _EventPublicLandingState extends State<EventPublicLanding> {
          EventPill(icon:Icons.circle,color:EventColors.warning,label:'Apartada'),
        ]),
        const SizedBox(height:14),
+       if(bySeat&&automaticMax>0)...[
+         SwitchListTile.adaptive(
+          value:automatic,contentPadding:EdgeInsets.zero,
+          title:const Text('Asignar mesa automáticamente',
+           style:TextStyle(color:EventColors.text,fontWeight:FontWeight.w800)),
+          subtitle:const Text('Elige cuántos puestos quieres; encontraremos mesa disponible.'),
+          onChanged:(v)=>setState((){
+           automatic=v;chosenChairs.clear();
+           if(v)widget.onSelectTable(-1);
+          })),
+         const SizedBox(height:8),
+       ],
        if(tables.isEmpty)
          const Padding(padding:EdgeInsets.all(32),
            child:Center(child:Text('Por ahora no hay mesas habilitadas.',
@@ -534,10 +546,13 @@ class _EventPublicLandingState extends State<EventPublicLanding> {
          itemBuilder:(context,index){
            final t=tables[index],id=number(t['id']);
            final available=t['estado']=='DISPONIBLE';
-           final chosen=widget.selectedTable==id;
+           final chosen=widget.selectedTable==id&&!automatic;
            final capacity=number(t['capacidad'])>0?number(t['capacidad']):6;
+           final free=number(t['disponibles']);
            return InkWell(
-             onTap:available?()=>widget.onSelectTable(id):null,
+             onTap:available?()=>setState((){
+              automatic=false;chosenChairs.clear();widget.onSelectTable(id);
+             }):null,
              borderRadius:BorderRadius.circular(14),
              child:Container(clipBehavior:Clip.antiAlias,
                decoration:BoxDecoration(
@@ -569,7 +584,9 @@ class _EventPublicLandingState extends State<EventPublicLanding> {
                          style:const TextStyle(color:EventColors.text,
                            fontWeight:FontWeight.w800,fontSize:13)),
                        const SizedBox(height:4),
-                       Text(capacity.toString()+' puestos',
+                       Text(bySeat?
+                         free.toString()+' de '+capacity.toString()+' puestos libres':
+                         capacity.toString()+' puestos',
                          style:const TextStyle(color:EventColors.muted,fontSize:11)),
                      ])),
                      Icon(available?Icons.check_circle:Icons.lock_outline,
@@ -594,7 +611,9 @@ class _EventPublicLandingState extends State<EventPublicLanding> {
  Widget _reservationSummary(){
    final selected=tables.where((t)=>number(t['id'])==widget.selectedTable).toList();
    final t=selected.isEmpty?null:selected.first;
-   final capacity=t==null?0:(number(t['capacidad'])>0?number(t['capacidad']):6);
+   final capacity=automatic?automaticMax:
+     t==null?0:bySeat?number(t['disponibles']):
+     number(t['capacidad'])>0?number(t['capacidad']):6;
    final unit=price(widget.event['precio']);
    final total=widget.event['precioPorPuesto']==true
      ?unit*widget.seats:unit;
@@ -627,25 +646,56 @@ class _EventPublicLandingState extends State<EventPublicLanding> {
                style:const TextStyle(color:EventColors.success,fontSize:12)),
            ])),
          ]),
-       ]else const EventPill(icon:Icons.touch_app_outlined,
-         label:'Selecciona una mesa disponible'),
+       ]else if(automatic&&bySeat)
+         const EventPill(icon:Icons.auto_awesome,
+          label:'La mesa se asignará automáticamente')
+       else const EventPill(icon:Icons.touch_app_outlined,
+         label:'Selecciona una mesa o asignación automática'),
        const Divider(color:EventColors.border,height:29),
        Row(children:[
          const Expanded(child:Text('Cantidad de puestos',
            style:TextStyle(color:EventColors.muted,fontSize:12))),
          IconButton.outlined(
-           onPressed:widget.selectedTable==null||widget.seats<=1
-             ?null:()=>widget.onSeatsChanged(widget.seats-1),
+           onPressed:(widget.selectedTable==null&&!automatic)||widget.seats<=1
+             ?null:()=>setState((){
+              chosenChairs.clear();widget.onSeatsChanged(widget.seats-1);
+             }),
            icon:const Icon(Icons.remove,size:17)),
          Padding(padding:const EdgeInsets.symmetric(horizontal:10),
            child:Text(widget.seats.toString(),
              style:const TextStyle(color:EventColors.text,
                fontWeight:FontWeight.w800,fontSize:17))),
          IconButton.outlined(
-           onPressed:widget.selectedTable==null||widget.seats>=capacity
-             ?null:()=>widget.onSeatsChanged(widget.seats+1),
+           onPressed:(widget.selectedTable==null&&!automatic)||widget.seats>=capacity
+             ?null:()=>setState((){
+              chosenChairs.clear();widget.onSeatsChanged(widget.seats+1);
+             }),
            icon:const Icon(Icons.add,size:17)),
        ]),
+       if(selectSeats&&!automatic&&t!=null)...[
+         const SizedBox(height:13),
+         const Text('Selecciona tus sillas',
+           style:TextStyle(color:EventColors.text,fontWeight:FontWeight.w800)),
+         const SizedBox(height:10),
+         Wrap(spacing:7,runSpacing:8,children:[
+           for(var n=1;n<=number(t['capacidad']);n++)
+             FilterChip(
+               label:Text('Silla '+n.toString()),
+               selected:chosenChairs.contains(n),
+               avatar:Icon(chosenChairs.contains(n)?Icons.check:
+                 Icons.event_seat_outlined,size:16),
+               onSelected:usedSeats.contains(n)?null:(isChosen)=>setState((){
+                 if(isChosen){
+                   if(chosenChairs.length<widget.seats)chosenChairs.add(n);
+                 }else{chosenChairs.remove(n);}
+               }),
+             ),
+         ]),
+         const SizedBox(height:7),
+         Text(chosenChairs.length.toString()+' de '+widget.seats.toString()+' sillas',
+           style:TextStyle(color:chosenChairs.length==widget.seats?
+             EventColors.success:EventColors.warning,fontSize:12)),
+       ],
        const SizedBox(height:12),
        Row(children:[
          Expanded(child:Text(
@@ -684,7 +734,9 @@ class _EventPublicLandingState extends State<EventPublicLanding> {
            child:Text('La reserva quedará pendiente de aprobación del establecimiento.',
              style:TextStyle(color:EventColors.gold,fontSize:12))),
        SizedBox(width:double.infinity,child:FilledButton.icon(
-         onPressed:widget.busy||widget.selectedTable==null?null:widget.onBook,
+         onPressed:widget.busy||
+            (widget.selectedTable==null&&!automatic)||
+            (automatic&&automaticMax<widget.seats)?null:reserve,
          icon:Icon(widget.event['medioPago']=='MERCADOPAGO'
            ?Icons.credit_card:Icons.confirmation_number_outlined),
          label:Text(widget.busy?'Procesando...':
