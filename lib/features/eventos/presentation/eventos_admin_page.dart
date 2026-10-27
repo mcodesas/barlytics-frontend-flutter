@@ -1974,101 +1974,245 @@ class _EventEditorState extends ConsumerState<EventoEditor>{
     style:TextStyle(color:EventColors.muted,fontSize:11)),
   ]));
 
- Widget _visualTheme()=>_block(4,'Diseño personalizado',
-  'Ajusta logo y colores para la página pública, según tu afiche.',
-  Column(crossAxisAlignment:CrossAxisAlignment.start,children:[
-   const Text('Identidad del evento',style:TextStyle(
-    color:EventColors.text,fontWeight:FontWeight.w800)),
-   const SizedBox(height:10),
-   Wrap(spacing:12,runSpacing:10,crossAxisAlignment:WrapCrossAlignment.center,children:[
-    EventArtwork(source:customLogo,width:84,height:84,
-     emptyIcon:Icons.storefront_outlined),
-    OutlinedButton.icon(
-     onPressed:_pickLogo,icon:const Icon(Icons.add_photo_alternate_outlined),
-     label:const Text('Subir logo')),
-    if(customLogo!=null)TextButton(
-     onPressed:()=>setState(()=>customLogo=null),
-     child:const Text('Quitar logo')),
-   ]),
-   const SizedBox(height:16),
-   const Text('Elige una paleta',style:TextStyle(
-    color:EventColors.text,fontWeight:FontWeight.w800)),
-   const SizedBox(height:9),
-   Wrap(spacing:10,runSpacing:10,children:[
-    for(final option in <(String,String,String)>[
-     ('Turquesa','#23D8D1','#061925'),
-     ('Elegancia dorada','#D5AD68','#171412'),
-     ('Rosa nocturno','#ED95B9','#201327'),
-     ('Esmeralda','#72D9B4','#102620'),
-     ('Cobre','#E6A270','#231914'),
-    ])
-     InkWell(onTap:()=>setState((){
-      primaryHex.text=option.$2;backgroundHex.text=option.$3;
-     }),child:Container(
-      padding:const EdgeInsets.symmetric(horizontal:12,vertical:10),
-      decoration:BoxDecoration(color:EventColors.surfaceLight,
-       borderRadius:BorderRadius.circular(10),
-       border:Border.all(color:EventColors.border)),
-      child:Row(mainAxisSize:MainAxisSize.min,children:[
-       CircleAvatar(radius:11,backgroundColor:Color(int.parse(
-        'FF'+option.$2.substring(1),radix:16))),
-       const SizedBox(width:8),
-       Text(option.$1,style:const TextStyle(
-        color:EventColors.text,fontSize:12)),
-      ]))),
-   ]),
-   const SizedBox(height:13),
-   LayoutBuilder(builder:(context,box){
-    final first=TextField(controller:primaryHex,
-     onChanged:(_)=>setState((){}),
-     decoration:const InputDecoration(labelText:'Color principal · #RRGGBB'));
-    final last=TextField(controller:backgroundHex,
-     onChanged:(_)=>setState((){}),
-     decoration:const InputDecoration(labelText:'Color de fondo · #RRGGBB'));
-    if(box.maxWidth<500)return Column(children:[
-     first,const SizedBox(height:10),last]);
-    return Row(children:[Expanded(child:first),
-     const SizedBox(width:10),Expanded(child:last)]);
-   }),
-   const SizedBox(height:13),
-   if(RegExp(r'^#[0-9A-Fa-f]{6}$').hasMatch(primaryHex.text)&&
-      RegExp(r'^#[0-9A-Fa-f]{6}$').hasMatch(backgroundHex.text))
-    Container(width:double.infinity,padding:const EdgeInsets.all(18),
-     decoration:BoxDecoration(borderRadius:BorderRadius.circular(13),
-      color:Color(int.parse('FF'+backgroundHex.text.substring(1),radix:16))),
-     child:Row(children:[
-      EventArtwork(source:customLogo,width:65,height:65,
-       emptyIcon:Icons.storefront_outlined),
-      const SizedBox(width:14),
-      Expanded(child:Text(title.text.isEmpty?'Nombre de la sucursal':title.text,
-       style:const TextStyle(color:Colors.white,
-        fontSize:19,fontWeight:FontWeight.w900))),
-      Icon(Icons.auto_awesome,color:Color(int.parse(
-       'FF'+primaryHex.text.substring(1),radix:16))),
-     ])),
-   const SizedBox(height:19),
-   const Text('Redes sociales para la página pública',
+ Widget _visualTheme(){
+  final selected=EventPagePalette.fromHex(
+    primaryHex.text.trim(),backgroundHex.text.trim());
+  final validAccent=RegExp(r'^#[0-9a-fA-F]{6}$').hasMatch(primaryHex.text.trim());
+  final validBase=RegExp(r'^#[0-9a-fA-F]{6}$').hasMatch(backgroundHex.text.trim());
+
+  Widget presetCard(EventPalettePreset p){
+   final scheme=EventPagePalette.fromHex(p.accent,p.background);
+   final active=primaryHex.text.toUpperCase()==p.accent &&
+     backgroundHex.text.toUpperCase()==p.background;
+   return Container(
+    width:225,padding:const EdgeInsets.all(11),
+    decoration:BoxDecoration(
+     color:EventColors.surfaceLight,
+     borderRadius:BorderRadius.circular(15),
+     border:Border.all(
+      color:active?EventColors.primary:EventColors.border,
+      width:active?2:1)),
+    child:Column(crossAxisAlignment:CrossAxisAlignment.stretch,children:[
+     InkWell(
+      onTap:()=>setState((){
+       primaryHex.text=p.accent;
+       backgroundHex.text=p.background;
+      }),
+      borderRadius:BorderRadius.circular(11),
+      child:Container(
+       padding:const EdgeInsets.all(12),
+       decoration:BoxDecoration(
+        color:scheme.canvas,borderRadius:BorderRadius.circular(11)),
+       child:Row(children:[
+        Container(width:34,height:34,
+         decoration:BoxDecoration(
+          shape:BoxShape.circle,
+          color:scheme.accent,
+          border:Border.all(color:Colors.white24,width:2))),
+        const SizedBox(width:11),
+        Expanded(child:Column(
+         crossAxisAlignment:CrossAxisAlignment.start,children:[
+          Text(p.name,maxLines:1,overflow:TextOverflow.ellipsis,
+           style:const TextStyle(color:Colors.white,
+            fontWeight:FontWeight.w800,fontSize:13)),
+          Text(p.description,maxLines:1,overflow:TextOverflow.ellipsis,
+           style:const TextStyle(color:Color(0xFFAEC1CC),fontSize:10)),
+         ])),
+        if(active)const Icon(Icons.check_circle,
+          color:EventColors.primary,size:17),
+       ]),
+      ),
+     ),
+     const SizedBox(height:8),
+     Row(children:[
+      Expanded(child:TextButton(
+       onPressed:()=>setState(()=>primaryHex.text=p.accent),
+       style:TextButton.styleFrom(
+        padding:const EdgeInsets.symmetric(horizontal:4)),
+       child:const Text('Solo acento',style:TextStyle(fontSize:11)))),
+      Expanded(child:TextButton(
+       onPressed:()=>setState(()=>backgroundHex.text=p.background),
+       style:TextButton.styleFrom(
+        padding:const EdgeInsets.symmetric(horizontal:4)),
+       child:const Text('Solo fondo',style:TextStyle(fontSize:11)))),
+     ]),
+    ]),
+   );
+  }
+
+  return _block(4,'Identidad y paleta de colores',
+   'Combinaciones profesionales con fondos armonizados. Puedes mezclarlas y ajustar cada color a tu gusto.',
+   Column(crossAxisAlignment:CrossAxisAlignment.start,children:[
+    const Text('Logo del evento o establecimiento',
      style:TextStyle(color:EventColors.text,fontWeight:FontWeight.w800)),
-   const SizedBox(height:9),
-   TextField(controller:instagramUrl,
-     decoration:const InputDecoration(prefixIcon:Icon(Icons.camera_alt_outlined),
-       labelText:'Instagram · enlace HTTPS')),
-   const SizedBox(height:9),
-   TextField(controller:facebookUrl,
-     decoration:const InputDecoration(prefixIcon:Icon(Icons.people_alt_outlined),
-       labelText:'Facebook · enlace HTTPS')),
-   const SizedBox(height:9),
-   TextField(controller:tiktokUrl,
-     decoration:const InputDecoration(prefixIcon:Icon(Icons.smart_display_outlined),
-       labelText:'TikTok · enlace HTTPS')),
-   const SizedBox(height:9),
-   TextField(controller:whatsappUrl,
-     decoration:const InputDecoration(prefixIcon:Icon(Icons.chat_outlined),
-       labelText:'WhatsApp · enlace wa.me HTTPS')),
-   const SizedBox(height:8),
-   const Text('El color se aplica a botones, títulos, acentos y fondo de la página pública.',
-    style:TextStyle(color:EventColors.muted,fontSize:11)),
-  ]));
+    const SizedBox(height:9),
+    Wrap(spacing:13,runSpacing:9,crossAxisAlignment:WrapCrossAlignment.center,children:[
+     EventArtwork(source:customLogo,width:76,height:76,
+      emptyIcon:Icons.storefront_outlined),
+     OutlinedButton.icon(onPressed:_pickLogo,
+      icon:const Icon(Icons.add_photo_alternate_outlined),
+      label:const Text('Cargar logo')),
+     if(customLogo!=null)TextButton.icon(
+      onPressed:()=>setState(()=>customLogo=null),
+      icon:const Icon(Icons.close,size:17),
+      label:const Text('Quitar')),
+    ]),
+    const SizedBox(height:20),
+    const Text('Paletas prediseñadas',
+     style:TextStyle(color:EventColors.text,fontWeight:FontWeight.w800,fontSize:15)),
+    const SizedBox(height:5),
+    const Text('Toca una tarjeta para usar ambos colores. O combina el acento de una paleta con el fondo de otra.',
+     style:TextStyle(color:EventColors.muted,fontSize:12,height:1.5)),
+    const SizedBox(height:13),
+    Wrap(spacing:10,runSpacing:10,children:[
+     for(final preset in eventPalettePresets)presetCard(preset),
+    ]),
+    const SizedBox(height:20),
+    Row(children:[
+     const Expanded(child:Text('Personaliza tus propios tonos',
+      style:TextStyle(color:EventColors.text,
+       fontWeight:FontWeight.w800,fontSize:15))),
+     TextButton.icon(
+      onPressed:()=>setState((){
+       primaryHex.text='#35D0C5';
+       backgroundHex.text='#102735';
+      }),
+      icon:const Icon(Icons.restart_alt_outlined,size:17),
+      label:const Text('Restablecer')),
+    ]),
+    const SizedBox(height:7),
+    LayoutBuilder(builder:(context,space){
+     Widget input(TextEditingController controller,String label,
+        String helper,Color swatch){
+      return TextField(
+       controller:controller,
+       maxLength:7,
+       onChanged:(_)=>setState((){}),
+       decoration:InputDecoration(
+        labelText:label,counterText:'',
+        helperText:helper,helperMaxLines:2,
+        prefixIcon:Padding(padding:const EdgeInsets.all(12),
+         child:Container(width:20,height:20,
+          decoration:BoxDecoration(
+           color:swatch,borderRadius:BorderRadius.circular(7),
+           border:Border.all(color:Colors.white54)))),
+       ),
+      );
+     }
+     final accentInput=input(primaryHex,'Color de acento · #RRGGBB',
+      'Botones, destacados e iconos',selected.accent);
+     final backgroundInput=input(backgroundHex,'Tono de ambiente · #RRGGBB',
+      'Determina la atmósfera, sin saturar el fondo',selected.canvas);
+     if(space.maxWidth<560)return Column(children:[
+      accentInput,const SizedBox(height:10),backgroundInput,
+     ]);
+     return Row(children:[
+      Expanded(child:accentInput),const SizedBox(width:14),
+      Expanded(child:backgroundInput),
+     ]);
+    }),
+    if(!validAccent||!validBase)
+     const Padding(padding:EdgeInsets.only(top:7),child:Text(
+      'Escribe seis dígitos hexadecimales por color, por ejemplo #E6BE83.',
+      style:TextStyle(color:EventColors.warning,fontSize:12))),
+    const SizedBox(height:18),
+    const Text('Vista previa en vivo',
+     style:TextStyle(color:EventColors.text,
+      fontWeight:FontWeight.w800,fontSize:15)),
+    const SizedBox(height:11),
+    Container(
+     clipBehavior:Clip.antiAlias,
+     decoration:BoxDecoration(color:selected.canvas,
+      borderRadius:BorderRadius.circular(16),
+      border:Border.all(color:selected.border)),
+     child:Column(crossAxisAlignment:CrossAxisAlignment.stretch,children:[
+      Container(padding:const EdgeInsets.all(18),
+       decoration:BoxDecoration(gradient:LinearGradient(
+        begin:Alignment.centerLeft,end:Alignment.centerRight,
+        colors:[selected.heroShade,selected.canvas])),
+       child:Wrap(spacing:16,runSpacing:12,
+        crossAxisAlignment:WrapCrossAlignment.center,children:[
+        EventArtwork(source:customLogo??photo,width:66,height:66,
+         emptyIcon:Icons.event_outlined),
+        Column(crossAxisAlignment:CrossAxisAlignment.start,children:[
+         Text(title.text.trim().isEmpty?'Tu próximo gran evento':title.text,
+          maxLines:2,overflow:TextOverflow.ellipsis,
+          style:const TextStyle(color:EventColors.text,
+           fontSize:21,fontWeight:FontWeight.w900)),
+         const SizedBox(height:6),
+         const Text('Un diseño exclusivo para tu sucursal',
+          style:TextStyle(color:EventColors.muted,fontSize:11)),
+        ]),
+        Container(
+         padding:const EdgeInsets.symmetric(horizontal:16,vertical:11),
+         decoration:BoxDecoration(color:selected.accent,
+          borderRadius:BorderRadius.circular(11)),
+         child:Text('Reservar ahora',
+          style:TextStyle(color:selected.onAccent,
+           fontWeight:FontWeight.w800,fontSize:12)),
+        ),
+       ]),
+      ),
+      Padding(padding:const EdgeInsets.all(15),
+       child:Row(children:[
+        Expanded(child:Container(
+         padding:const EdgeInsets.all(14),
+         decoration:BoxDecoration(color:selected.surface,
+          border:Border.all(color:selected.border),
+          borderRadius:BorderRadius.circular(12)),
+         child:Column(crossAxisAlignment:CrossAxisAlignment.start,children:[
+          Icon(Icons.image_outlined,color:selected.accent),
+          const SizedBox(height:8),
+          const Text('Afiche oficial',
+           style:TextStyle(color:EventColors.text,fontWeight:FontWeight.w800)),
+          const SizedBox(height:3),
+          const Text('Superficie contrastada',
+           style:TextStyle(color:EventColors.muted,fontSize:10)),
+         ]))),
+        const SizedBox(width:10),
+        Expanded(child:Container(
+         padding:const EdgeInsets.all(14),
+         decoration:BoxDecoration(color:selected.surfaceSoft,
+          border:Border.all(color:selected.border),
+          borderRadius:BorderRadius.circular(12)),
+         child:Column(crossAxisAlignment:CrossAxisAlignment.start,children:[
+          Icon(Icons.restaurant_menu,color:selected.accent),
+          const SizedBox(height:8),
+          const Text('Nuestra carta',
+           style:TextStyle(color:EventColors.text,fontWeight:FontWeight.w800)),
+          const SizedBox(height:3),
+          const Text('Tarjetas y detalles',
+           style:TextStyle(color:EventColors.muted,fontSize:10)),
+         ]))),
+       ]),
+      ),
+     ]),
+    ),
+    const SizedBox(height:10),
+    const Text('Los fondos y las tarjetas se equilibran automáticamente para mantener la lectura, incluso si eliges un color muy claro o intenso.',
+     style:TextStyle(color:EventColors.muted,fontSize:11,height:1.5)),
+    const SizedBox(height:20),
+    const Text('Redes sociales para la página pública',
+     style:TextStyle(color:EventColors.text,fontWeight:FontWeight.w800)),
+    const SizedBox(height:9),
+    TextField(controller:instagramUrl,
+      decoration:const InputDecoration(prefixIcon:Icon(Icons.camera_alt_outlined),
+        labelText:'Instagram · enlace HTTPS')),
+    const SizedBox(height:9),
+    TextField(controller:facebookUrl,
+      decoration:const InputDecoration(prefixIcon:Icon(Icons.people_alt_outlined),
+        labelText:'Facebook · enlace HTTPS')),
+    const SizedBox(height:9),
+    TextField(controller:tiktokUrl,
+      decoration:const InputDecoration(prefixIcon:Icon(Icons.smart_display_outlined),
+        labelText:'TikTok · enlace HTTPS')),
+    const SizedBox(height:9),
+    TextField(controller:whatsappUrl,
+      decoration:const InputDecoration(prefixIcon:Icon(Icons.chat_outlined),
+        labelText:'WhatsApp · enlace wa.me HTTPS')),
+   ]));
+ }
+
  Widget _tables()=>_block(5,'Mesas habilitadas',
    'Selecciona las mesas y define su capacidad de puestos.',
    Column(crossAxisAlignment:CrossAxisAlignment.start,children:[
