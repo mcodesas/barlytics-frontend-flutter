@@ -1501,6 +1501,8 @@ class _EventEditorState extends ConsumerState<EventoEditor>{
        mapsUrl=TextEditingController();
  final primaryHex=TextEditingController(text:'#23D8D1'),
        backgroundHex=TextEditingController(text:'#061925');
+ final instagramUrl=TextEditingController(),facebookUrl=TextEditingController(),
+       tiktokUrl=TextEditingController(),whatsappUrl=TextEditingController();
  String bookingMode='MESA';bool sharing=false,selectChairs=false;
  String? customLogo;
  DateTime start=DateTime.now().add(const Duration(days:1)).copyWith(hour:20,minute:0),
@@ -1536,13 +1538,19 @@ class _EventEditorState extends ConsumerState<EventoEditor>{
    primaryHex.text=i['colorPrimario']?.toString()??'#23D8D1';
    backgroundHex.text=i['colorFondo']?.toString()??'#061925';
    customLogo=i['logoEvento']?.toString();
+   instagramUrl.text=i['instagram']?.toString()??'';
+   facebookUrl.text=i['facebook']?.toString()??'';
+   tiktokUrl.text=i['tiktok']?.toString()??'';
+   whatsappUrl.text=i['whatsapp']?.toString()??'';
   }
   WidgetsBinding.instance.addPostFrameCallback((_){if(mounted)_loadTables();});
  }
  @override void dispose(){
   productSearch.dispose();title.dispose();description.dispose();amount.dispose();
   instructions.dispose();mapsUrl.dispose();
-  primaryHex.dispose();backgroundHex.dispose();super.dispose();
+  primaryHex.dispose();backgroundHex.dispose();
+  instagramUrl.dispose();facebookUrl.dispose();tiktokUrl.dispose();
+  whatsappUrl.dispose();super.dispose();
  }
  Future<void> _loadTables()async{
   branch??=ref.read(branchScopeProvider).activeBranchId;
@@ -1719,7 +1727,10 @@ class _EventEditorState extends ConsumerState<EventoEditor>{
     'compartirMesa':bookingMode=='PUESTOS'&&sharing,
     'seleccionarSillas':bookingMode=='PUESTOS'&&selectChairs,
     'colorPrimario':primaryHex.text.trim(),
-    'colorFondo':backgroundHex.text.trim(),'logo':customLogo};
+    'colorFondo':backgroundHex.text.trim(),'logo':customLogo,
+    'instagram':instagramUrl.text.trim(),
+    'facebook':facebookUrl.text.trim(),
+    'tiktok':tiktokUrl.text.trim(),'whatsapp':whatsappUrl.text.trim()};
    final api=ref.read(eventosApiProvider);
    final result=widget.initial==null
      ?await api.crear(body)
@@ -1981,6 +1992,25 @@ class _EventEditorState extends ConsumerState<EventoEditor>{
       Icon(Icons.auto_awesome,color:Color(int.parse(
        'FF'+primaryHex.text.substring(1),radix:16))),
      ])),
+   const SizedBox(height:19),
+   const Text('Redes sociales para la página pública',
+     style:TextStyle(color:EventColors.text,fontWeight:FontWeight.w800)),
+   const SizedBox(height:9),
+   TextField(controller:instagramUrl,
+     decoration:const InputDecoration(prefixIcon:Icon(Icons.camera_alt_outlined),
+       labelText:'Instagram · enlace HTTPS')),
+   const SizedBox(height:9),
+   TextField(controller:facebookUrl,
+     decoration:const InputDecoration(prefixIcon:Icon(Icons.people_alt_outlined),
+       labelText:'Facebook · enlace HTTPS')),
+   const SizedBox(height:9),
+   TextField(controller:tiktokUrl,
+     decoration:const InputDecoration(prefixIcon:Icon(Icons.smart_display_outlined),
+       labelText:'TikTok · enlace HTTPS')),
+   const SizedBox(height:9),
+   TextField(controller:whatsappUrl,
+     decoration:const InputDecoration(prefixIcon:Icon(Icons.chat_outlined),
+       labelText:'WhatsApp · enlace wa.me HTTPS')),
    const SizedBox(height:8),
    const Text('El color se aplica a botones, títulos, acentos y fondo de la página pública.',
     style:TextStyle(color:EventColors.muted,fontSize:11)),
