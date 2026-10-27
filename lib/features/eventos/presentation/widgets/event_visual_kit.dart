@@ -16,6 +16,82 @@ abstract final class EventColors {
   static const warning = Color(0xFFFFB96B);
 }
 
+/// Combinaciones curadas: se pueden aplicar completas o mezclar sus colores.
+class EventPalettePreset {
+  const EventPalettePreset(this.name,this.accent,this.background,this.description);
+  final String name,accent,background,description;
+}
+
+const eventPalettePresets=<EventPalettePreset>[
+  EventPalettePreset('Nocturno turquesa','#35D0C5','#102735','Fresco y sofisticado'),
+  EventPalettePreset('Champán elegante','#E6BE83','#29221E','Cálido y premium'),
+  EventPalettePreset('Cobre & carbón','#EBA374','#292026','Gastronomía y noche'),
+  EventPalettePreset('Esmeralda','#8DDBB5','#14362F','Natural y refinado'),
+  EventPalettePreset('Rosa ópalo','#FFACCB','#362435','Moderno y delicado'),
+  EventPalettePreset('Azul imperial','#8BACFF','#1A2947','Eventos nocturnos'),
+  EventPalettePreset('Lavanda','#C2B0FF','#30253D','Creativo y especial'),
+  EventPalettePreset('Coral','#FFAA8C','#362A2A','Cercano y vibrante'),
+];
+
+/// El fondo se armoniza con una base oscura legible. El usuario puede elegir
+/// cualquier hexadecimal sin convertir las tarjetas en masas de color brillante.
+class EventPagePalette {
+  EventPagePalette._({
+    required this.accent,required this.onAccent,required this.canvas,
+    required this.surface,required this.surfaceSoft,required this.border,
+    required this.heroShade,
+  });
+
+  final Color accent,onAccent,canvas,surface,surfaceSoft,border,heroShade;
+
+  static Color parse(String? hex,Color fallback){
+    final text=(hex??'').trim();
+    if(!RegExp(r'^#[0-9a-fA-F]{6}$').hasMatch(text))return fallback;
+    return Color(int.parse('FF'+text.substring(1),radix:16));
+  }
+
+  factory EventPagePalette.fromHex(String? accentHex,String? backgroundHex){
+    final rawAccent=parse(accentHex,EventColors.primary);
+    final rawBase=parse(backgroundHex,EventColors.background);
+    final hsl=HSLColor.fromColor(rawBase);
+    final hue=hsl.hue;
+    final normalized=HSLColor.fromAHSL(1,hue,.27,.11).toColor();
+    const neutral=Color(0xFF07151F);
+    final canvas=Color.lerp(neutral,normalized,.43)!;
+    final surface=Color.lerp(const Color(0xFF102B3A),
+      HSLColor.fromAHSL(1,hue,.22,.15).toColor(),.34)!;
+    final surfaceSoft=Color.lerp(const Color(0xFF183A49),
+      HSLColor.fromAHSL(1,hue,.20,.20).toColor(),.30)!;
+    final border=Color.lerp(const Color(0xFF315260),
+      HSLColor.fromAHSL(1,hue,.19,.30).toColor(),.27)!;
+    // Aclarar colores muy oscuros para que funcionen sobre superficies oscuras.
+    final safeAccent=rawAccent.computeLuminance()<.18
+      ?Color.lerp(rawAccent,Colors.white,.40)!
+      :rawAccent;
+    final onAccent=safeAccent.computeLuminance()>.37
+      ?const Color(0xFF0B1721):Colors.white;
+    return EventPagePalette._(
+      accent:safeAccent,onAccent:onAccent,canvas:canvas,
+      surface:surface,surfaceSoft:surfaceSoft,border:border,
+      heroShade:Color.lerp(canvas,const Color(0xFF000A12),.45)!,
+    );
+  }
+
+  static EventPagePalette of(BuildContext context){
+    return context.dependOnInheritedWidgetOfExactType<EventPaletteScope>()
+      ?.palette ?? EventPagePalette.fromHex(null,null);
+  }
+}
+
+/// La tematización afecta solo a la página pública; el editor conserva
+/// sus propios colores para que los controles administrativos sean legibles.
+class EventPaletteScope extends InheritedWidget {
+  const EventPaletteScope({super.key,required this.palette,required super.child});
+  final EventPagePalette palette;
+  @override bool updateShouldNotify(EventPaletteScope oldWidget) =>
+    oldWidget.palette != palette;
+}
+
 ImageProvider? eventPhoto(Object? raw) {
   final value = raw?.toString().trim() ?? '';
   if (value.isEmpty) return null;
@@ -45,18 +121,21 @@ class EventPanel extends StatelessWidget {
   final double radius;
 
   @override
-  Widget build(BuildContext context) => Container(
-    padding: padding,
-    decoration: BoxDecoration(
-      color: background ?? EventColors.surface,
-      borderRadius: BorderRadius.circular(radius),
-      border: Border.all(color: borderColor ?? EventColors.border),
-      boxShadow: const [
-        BoxShadow(color: Color(0x18000000), blurRadius: 20, offset: Offset(0, 8)),
-      ],
-    ),
-    child: child,
-  );
+  Widget build(BuildContext context) {
+    final palette=EventPagePalette.of(context);
+    return Container(
+      padding:padding,
+      decoration:BoxDecoration(
+        color:background??palette.surface,
+        borderRadius:BorderRadius.circular(radius),
+        border:Border.all(color:borderColor??palette.border.withOpacity(.75)),
+        boxShadow:const [
+          BoxShadow(color:Color(0x38000000),blurRadius:25,offset:Offset(0,10)),
+        ],
+      ),
+      child:child,
+    );
+  }
 }
 
 class EventSectionHeading extends StatelessWidget {
@@ -78,15 +157,14 @@ class EventSectionHeading extends StatelessWidget {
         width: 37, height: 37,
         alignment: Alignment.center,
         decoration: BoxDecoration(
-          gradient: const LinearGradient(
-            colors: [Color(0xFF20D6CF), Color(0xFF088B9F)],
-          ),
+          color:EventPagePalette.of(context).accent.withOpacity(.15),
+          border:Border.all(color:EventPagePalette.of(context).accent.withOpacity(.20)),
           borderRadius: BorderRadius.circular(12),
         ),
         child: number != null
           ? Text('$number', style: const TextStyle(
-              color: EventColors.onPrimary, fontWeight: FontWeight.w900, fontSize: 17))
-          : Icon(icon ?? Icons.auto_awesome, color: EventColors.onPrimary, size: 19),
+              color: EventPagePalette.of(context).accent, fontWeight: FontWeight.w900, fontSize: 17))
+          : Icon(icon ?? Icons.auto_awesome, color: EventPagePalette.of(context).accent, size: 19),
       ),
       const SizedBox(width: 12),
       Expanded(child: Column(
@@ -185,18 +263,22 @@ class EventPill extends StatelessWidget {
   final Color color;
 
   @override
-  Widget build(BuildContext context) => Container(
-    padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 8),
-    decoration: BoxDecoration(
-      color: EventColors.surface.withOpacity(.85),
-      borderRadius: BorderRadius.circular(30),
-      border: Border.all(color: color.withOpacity(.35)),
-    ),
-    child: Row(mainAxisSize: MainAxisSize.min, children: [
-      Icon(icon, color: color, size: 15),
-      const SizedBox(width: 7),
-      Flexible(child: Text(label, style: const TextStyle(
-        color: EventColors.text, fontSize: 12, fontWeight: FontWeight.w600))),
-    ]),
-  );
+  Widget build(BuildContext context){
+    final palette=EventPagePalette.of(context);
+    final accent=color==EventColors.primary?palette.accent:color;
+    return Container(
+      padding:const EdgeInsets.symmetric(horizontal:11,vertical:8),
+      decoration:BoxDecoration(
+        color:palette.surface.withOpacity(.90),
+        borderRadius:BorderRadius.circular(30),
+        border:Border.all(color:accent.withOpacity(.36)),
+      ),
+      child:Row(mainAxisSize:MainAxisSize.min,children:[
+        Icon(icon,color:accent,size:15),
+        const SizedBox(width:7),
+        Flexible(child:Text(label,style:const TextStyle(
+          color:EventColors.text,fontSize:12,fontWeight:FontWeight.w600))),
+      ]),
+    );
+  }
 }
