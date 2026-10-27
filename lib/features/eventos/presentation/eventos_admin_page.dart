@@ -1555,7 +1555,9 @@ class _EventEditorState extends ConsumerState<EventoEditor>{
        mapsUrl=TextEditingController();
  final primaryHex=TextEditingController(text:'#35D0C5'),
        backgroundHex=TextEditingController(text:'#102735'),
-       textHex=TextEditingController(text:'#F2FBFF');
+       textHex=TextEditingController(text:'#F2FBFF'),
+       cardHex=TextEditingController(),borderHex=TextEditingController(),
+       menuHex=TextEditingController();
  final instagramUrl=TextEditingController(),facebookUrl=TextEditingController(),
        tiktokUrl=TextEditingController(),whatsappUrl=TextEditingController();
  String bookingMode='MESA';bool sharing=false,selectChairs=false;
@@ -1594,6 +1596,9 @@ class _EventEditorState extends ConsumerState<EventoEditor>{
    primaryHex.text=i['colorPrimario']?.toString()??'#23D8D1';
    backgroundHex.text=i['colorFondo']?.toString()??'#061925';
    textHex.text=i['colorTexto']?.toString()??'#F2FBFF';
+   cardHex.text=i['colorTarjeta']?.toString()??'';
+   borderHex.text=i['colorBorde']?.toString()??'';
+   menuHex.text=i['colorCarta']?.toString()??'';
    customLogo=i['logoEvento']?.toString();
    instagramUrl.text=i['instagram']?.toString()??'';
    facebookUrl.text=i['facebook']?.toString()??'';
@@ -1606,6 +1611,7 @@ class _EventEditorState extends ConsumerState<EventoEditor>{
   productSearch.dispose();title.dispose();description.dispose();amount.dispose();
   instructions.dispose();mapsUrl.dispose();
   primaryHex.dispose();backgroundHex.dispose();textHex.dispose();
+  cardHex.dispose();borderHex.dispose();menuHex.dispose();
   instagramUrl.dispose();facebookUrl.dispose();tiktokUrl.dispose();
   whatsappUrl.dispose();super.dispose();
  }
@@ -1767,7 +1773,9 @@ class _EventEditorState extends ConsumerState<EventoEditor>{
   }
   if(!RegExp(r'^#[0-9A-Fa-f]{6}$').hasMatch(primaryHex.text.trim())||
      !RegExp(r'^#[0-9A-Fa-f]{6}$').hasMatch(backgroundHex.text.trim())||
-     !RegExp(r'^#[0-9A-Fa-f]{6}$').hasMatch(textHex.text.trim())){
+     !RegExp(r'^#[0-9A-Fa-f]{6}$').hasMatch(textHex.text.trim())||
+     [cardHex,borderHex,menuHex].any((controller)=>controller.text.trim().isNotEmpty&&
+       !RegExp(r'^#[0-9A-Fa-f]{6}$').hasMatch(controller.text.trim()))){
     ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
       content:Text('Usa colores con el formato #RRGGBB')));
     return;
@@ -1787,6 +1795,9 @@ class _EventEditorState extends ConsumerState<EventoEditor>{
     'colorPrimario':primaryHex.text.trim(),
     'colorFondo':backgroundHex.text.trim(),
     'colorTexto':textHex.text.trim(),'logo':customLogo,
+    'colorTarjeta':cardHex.text.trim(),
+    'colorBorde':borderHex.text.trim(),
+    'colorCarta':menuHex.text.trim(),
     'instagram':instagramUrl.text.trim(),
     'facebook':facebookUrl.text.trim(),
     'tiktok':tiktokUrl.text.trim(),'whatsapp':whatsappUrl.text.trim()};
@@ -2041,16 +2052,21 @@ class _EventEditorState extends ConsumerState<EventoEditor>{
   final previewProducts=availableProducts.where(
     (p)=>selectedProducts.contains(asId(p['id']))).take(2).toList();
   final selected=EventPagePalette.fromHex(
-    primaryHex.text.trim(),backgroundHex.text.trim(),textHex.text.trim());
+    primaryHex.text.trim(),backgroundHex.text.trim(),textHex.text.trim(),
+    cardHex.text.trim(),borderHex.text.trim(),menuHex.text.trim());
   final validAccent=RegExp(r'^#[0-9a-fA-F]{6}$').hasMatch(primaryHex.text.trim());
   final validBase=RegExp(r'^#[0-9a-fA-F]{6}$').hasMatch(backgroundHex.text.trim());
   final validText=RegExp(r'^#[0-9a-fA-F]{6}$').hasMatch(textHex.text.trim());
+  final validAdvanced=[cardHex,borderHex,menuHex].every(
+    (c)=>c.text.trim().isEmpty||RegExp(r'^#[0-9a-fA-F]{6}$').hasMatch(c.text.trim()));
 
   Widget presetCard(EventPalettePreset p){
    final scheme=EventPagePalette.fromHex(p.accent,p.background,p.text);
    final active=primaryHex.text.toUpperCase()==p.accent &&
      backgroundHex.text.toUpperCase()==p.background &&
-     textHex.text.toUpperCase()==p.text;
+     textHex.text.toUpperCase()==p.text &&
+     cardHex.text.trim().isEmpty&&borderHex.text.trim().isEmpty&&
+     menuHex.text.trim().isEmpty;
    return Container(
     width:225,padding:const EdgeInsets.all(11),
     decoration:BoxDecoration(
@@ -2065,6 +2081,7 @@ class _EventEditorState extends ConsumerState<EventoEditor>{
        primaryHex.text=p.accent;
        backgroundHex.text=p.background;
        textHex.text=p.text;
+       cardHex.clear();borderHex.clear();menuHex.clear();
       }),
       borderRadius:BorderRadius.circular(11),
       child:Container(
@@ -2162,6 +2179,7 @@ class _EventEditorState extends ConsumerState<EventoEditor>{
        primaryHex.text='#35D0C5';
        backgroundHex.text='#102735';
        textHex.text='#F2FBFF';
+       cardHex.clear();borderHex.clear();menuHex.clear();
       }),
       icon:const Icon(Icons.restart_alt_outlined,size:17),
       label:const Text('Restablecer')),
@@ -2216,10 +2234,67 @@ class _EventEditorState extends ConsumerState<EventoEditor>{
       icon:const Icon(Icons.format_color_text_outlined),
       label:const Text('Elegir color del texto')),
     ]),
-    if(!validAccent||!validBase||!validText)
+    if(!validAccent||!validBase||!validText||!validAdvanced)
      const Padding(padding:EdgeInsets.only(top:7),child:Text(
       'Escribe seis dígitos hexadecimales por color, por ejemplo #E6BE83.',
       style:TextStyle(color:EventColors.warning,fontSize:12))),
+    const SizedBox(height:19),
+    Row(children:[
+     const Expanded(child:Text('Opciones avanzadas',
+       style:TextStyle(color:EventColors.text,fontWeight:FontWeight.w800,fontSize:15))),
+     TextButton.icon(
+      onPressed:()=>setState((){
+       cardHex.clear();borderHex.clear();menuHex.clear();
+      }),
+      icon:const Icon(Icons.auto_awesome_outlined,size:17),
+      label:const Text('Colores automáticos')),
+    ]),
+    const Text('Deja vacío cualquier campo para heredar el color de la paleta. Puedes personalizar cada superficie sin afectar a otros eventos.',
+     style:TextStyle(color:EventColors.muted,fontSize:12,height:1.45)),
+    const SizedBox(height:10),
+    LayoutBuilder(builder:(context,space){
+     Widget field(TextEditingController controller,String name,Color sample){
+      return TextField(controller:controller,maxLength:7,
+       onChanged:(_)=>setState((){}),
+       decoration:InputDecoration(labelText:name,counterText:'',
+        hintText:'Automático',
+        prefixIcon:Padding(padding:const EdgeInsets.all(12),
+         child:Container(width:20,height:20,decoration:BoxDecoration(
+          color:sample,borderRadius:BorderRadius.circular(6))))));
+     }
+     final controls=<Widget>[
+      field(cardHex,'Fondo de las tarjetas',selected.surface),
+      field(borderHex,'Color de los bordes',selected.border),
+      field(menuHex,'Color de las hojas de carta',selected.menuPaper),
+     ];
+     if(space.maxWidth<570)return Column(children:[
+      controls[0],const SizedBox(height:9),controls[1],
+      const SizedBox(height:9),controls[2],
+     ]);
+     return Row(children:[
+      Expanded(child:controls[0]),const SizedBox(width:12),
+      Expanded(child:controls[1]),const SizedBox(width:12),
+      Expanded(child:controls[2]),
+     ]);
+    }),
+    const SizedBox(height:8),
+    Wrap(spacing:10,runSpacing:9,children:[
+     OutlinedButton.icon(
+      onPressed:()=>_pickThemeColor(cardHex,'Color de tarjetas'),
+      icon:const Icon(Icons.dashboard_customize_outlined),
+      label:const Text('Tarjetas')),
+     OutlinedButton.icon(
+      onPressed:()=>_pickThemeColor(borderHex,'Color de bordes'),
+      icon:const Icon(Icons.border_outer_outlined),
+      label:const Text('Bordes')),
+     OutlinedButton.icon(
+      onPressed:()=>_pickThemeColor(menuHex,'Color de carta'),
+      icon:const Icon(Icons.menu_book_outlined),
+      label:const Text('Hojas de carta')),
+    ]),
+    if(!validAdvanced)
+     const Text('Los colores personalizados deben tener formato #RRGGBB.',
+       style:TextStyle(color:EventColors.warning,fontSize:12)),
     const SizedBox(height:18),
     const Text('Vista previa en vivo',
      style:TextStyle(color:EventColors.text,
