@@ -1308,10 +1308,15 @@ class _ReservaInternaState extends ConsumerState<_ReservaInternaDialog>{
   final selectedRows=tables.where((t)=>asId(t['id'])==selectedTable).toList();
   final selectedInfo=selectedRows.isEmpty?null:selectedRows.first;
   final fullCapacity=asId(selectedInfo?['capacidad'])??6;
-  final self=editing&&!cancelled&&selectedTable==asId(widget.initial?['mesa_id']);
+  final originalTable=editing&&selectedTable==asId(widget.initial?['mesa_id']);
+  final self=originalTable&&!cancelled;
   final remaining=asId(selectedInfo?['disponibles'])??fullCapacity;
+  // Editar una cancelada sin reactivarla no requiere una silla libre:
+  // conserva el aforo registrado aunque la mesa ya haya sido reutilizada.
+  final protectedSeats=originalTable&&cancelled&&!reactivate
+    ?(asId(widget.initial?['eres_puestos'])??0):0;
   final capacity=(remaining+(self?(asId(widget.initial?['eres_puestos'])??0):0))
-     .clamp(1,fullCapacity).toInt();
+     .clamp(protectedSeats>0?protectedSeats:1,fullCapacity).toInt();
   final manual=selectedInfo?['seleccionarSillas']==true;
   final unavailable=(selectedInfo?['sillasOcupadas'] as List? ??[])
     .map(asId).whereType<int>().toSet()
@@ -1471,7 +1476,10 @@ class _ReservaInternaState extends ConsumerState<_ReservaInternaDialog>{
            title:const Text('Reactivar esta reserva',
             style:TextStyle(color:EventColors.text)),
            subtitle:const Text('Vuelve a bloquear la mesa seleccionada'),
-           onChanged:saving?null:(v)=>setState(()=>reactivate=v)),
+           onChanged:saving?null:(v)=>setState((){
+              reactivate=v;
+              if(v && chosenChairs.any(unavailable.contains))chosenChairs.clear();
+            })),
          ])),
        ],
        const SizedBox(height:19),
