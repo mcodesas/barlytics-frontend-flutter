@@ -340,7 +340,7 @@ class _EventPublicLandingState extends State<EventPublicLanding> {
  }
 
  Widget _opening(bool wide){
-  final poster=eventPhoto(widget.event['imagen'])==null?null:_poster(wide);
+  final poster=eventPhoto(widget.event['imagen'])==null?null:_poster(false);
   final intro=EventPanel(child:Column(
    crossAxisAlignment:CrossAxisAlignment.start,children:[
     const EventSectionHeading(icon:Icons.auto_awesome_outlined,
@@ -367,24 +367,6 @@ class _EventPublicLandingState extends State<EventPublicLanding> {
  }
 
  Widget _intro(bool wide) {
-   final about=EventPanel(child:Column(
-     crossAxisAlignment:CrossAxisAlignment.start,children:[
-       const EventSectionHeading(icon:Icons.auto_awesome_outlined,
-         title:'Sobre el evento',
-         subtitle:'Una experiencia preparada para ti'),
-       const SizedBox(height:14),
-       Text(getText('descripcion','Prepárate para disfrutar de una experiencia especial.'),
-         style:const TextStyle(color:EventColors.muted,fontSize:14,height:1.65)),
-       const SizedBox(height:17),
-       Wrap(spacing:8,runSpacing:8,children:[
-         EventPill(icon:Icons.calendar_month_outlined,
-           label:time(widget.event['inicio'])),
-         EventPill(icon:Icons.payments_outlined,
-           label:price(widget.event['precio'])==0?'Sin costo':
-             currency(widget.event['precio']),
-           color:EventColors.gold),
-       ]),
-     ]));
    final photos=EventPanel(child:Column(
      key:_galleryKey,crossAxisAlignment:CrossAxisAlignment.start,children:[
        EventSectionHeading(icon:Icons.collections_outlined,
