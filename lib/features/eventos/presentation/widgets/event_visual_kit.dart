@@ -77,15 +77,15 @@ class EventPagePalette {
     final accent=parse(accentHex,EventColors.primary);
     final light=base.computeLuminance()>.38;
     final surface= parse(surfaceHex,
-      Color.lerp(base,Colors.white,light?.36:.11)!);
+      Color.lerp(base,Colors.white,light ? .36 : .11)!);
     final surfaceSoft=Color.lerp(surface,Colors.white,
-      surface.computeLuminance()>.38?.24:.08)!;
-    final border=parse(borderHex,Color.lerp(base,foreground,light?.28:.31)!);
+      surface.computeLuminance() > .38 ? .24 : .08)!;
+    final border=parse(borderHex,Color.lerp(base,foreground,light ? .28 : .31)!);
     final muted=Color.lerp(foreground,surface,.31)!;
     final onAccent=contrast(accent,const Color(0xFF171717))>=
         contrast(accent,Colors.white)?const Color(0xFF171717):Colors.white;
     final page=parse(menuHex,
-      Color.lerp(base,Colors.white,light?.17:.12)!);
+      Color.lerp(base,Colors.white,light ? .17 : .12)!);
     return EventPagePalette._(
       accent:accent,onAccent:onAccent,canvas:base,surface:surface,
       surfaceSoft:surfaceSoft,border:border,
