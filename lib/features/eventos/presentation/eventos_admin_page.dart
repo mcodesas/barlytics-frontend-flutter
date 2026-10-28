@@ -276,6 +276,7 @@ class _EventosAdminState extends ConsumerState<EventosAdminPage>{
  Future<void> detail(int id)async{
   final branchId=ref.read(branchScopeProvider).activeBranchId;
   if(branchId==null)return;
+  final showRetired=ValueNotifier<bool>(false);
   try{
    final data=await ref.read(eventosApiProvider).detalle(id);
    if(!mounted||branchId!=ref.read(branchScopeProvider).activeBranchId
@@ -331,17 +332,36 @@ class _EventosAdminState extends ConsumerState<EventosAdminPage>{
         icon:const Icon(Icons.add_circle_outline),
         label:const Text('Agregar reserva del bar o llamada'))),
        const SizedBox(height:12),
-       Expanded(child:ListView(children:[
-        if((data['reservas'] as List? ??[]).isEmpty)
-         const Padding(padding:EdgeInsets.all(30),
-          child:Center(child:Text('Todavía no se han registrado reservas.',
-           style:TextStyle(color:EventColors.muted)))),
-        for(final item in (data['reservas'] as List? ??[]))
+       ValueListenableBuilder<bool>(
+        valueListenable:showRetired,
+        builder:(context,history,_)=>Row(children:[
+         Expanded(child:Text(history?'Historial de reservas retiradas':'Reservas activas',
+          style:const TextStyle(color:EventColors.text,
+           fontWeight:FontWeight.w800,fontSize:13))),
+         TextButton.icon(onPressed:()=>showRetired.value=!history,
+          icon:Icon(history?Icons.event_available_outlined:Icons.history),
+          label:Text(history?'Ver activas':'Ver retiradas / devoluciones')),
+        ]),
+       ),
+       const SizedBox(height:8),
+       Expanded(child:ValueListenableBuilder<bool>(
+        valueListenable:showRetired,
+        builder:(context,showHistory,_)=>ListView(children:[
+        if((data['reservas'] as List? ??[])
+          .where((raw)=>(Map<String,dynamic>.from(raw as Map)['eres_retirada']==true)==showHistory).isEmpty)
+         Padding(padding:const EdgeInsets.all(30),
+          child:Center(child:Text(showHistory?
+           'No hay reservas retiradas en esta sucursal y evento.':
+           'No hay reservas activas para este evento.',
+           style:const TextStyle(color:EventColors.muted)))),
+        for(final item in (data['reservas'] as List? ??[])
+          .where((raw)=>(Map<String,dynamic>.from(raw as Map)['eres_retirada']==true)==showHistory))
          Builder(builder:(context){
           final r=Map<String,dynamic>.from(item as Map);
           final state=r['eres_estado']?.toString()??'';
           final origin=r['eres_origen']?.toString()??'WEB';
           final internal=origin=='BAR'||origin=='LLAMADA';
+          final retired=r['eres_retirada']==true;
           final originLabel=origin=='BAR'?'Mostrador':
             origin=='LLAMADA'?'Llamada':'Reserva web';
           final paid=(double.tryParse(r['eres_importe']?.toString()??'')??0);
@@ -395,7 +415,7 @@ class _EventosAdminState extends ConsumerState<EventosAdminPage>{
                  }
                 },icon:const Icon(Icons.check,size:17),
                 label:const Text('Aprobar')),
-               if(internal&&['CONFIRMADA','CANCELADA'].contains(state))
+               if(internal&&!retired&&['CONFIRMADA','CANCELADA'].contains(state))
                 OutlinedButton.icon(
                  onPressed:()async{
                   final edited=await showDialog<bool>(
@@ -411,7 +431,7 @@ class _EventosAdminState extends ConsumerState<EventosAdminPage>{
                  icon:const Icon(Icons.edit_note_outlined,size:17),
                  label:Text(state=='CANCELADA'?'Modificar / reactivar':'Modificar'),
                 ),
-               if(internal&&state=='CONFIRMADA')OutlinedButton.icon(
+               if(internal&&!retired&&state=='CONFIRMADA')OutlinedButton.icon(
                 onPressed:()async{
                  final confirm=await showDialog<bool>(
                   context:dialog,builder:(alert)=>AlertDialog(
@@ -436,16 +456,33 @@ class _EventosAdminState extends ConsumerState<EventosAdminPage>{
                 label:const Text('Liberar mesa')),
               ]),
              ],
+             if(retired)...[
+              const SizedBox(height:9),
+              Text('Motivo del retiro: '+
+                (r['eres_retiro_motivo']?.toString()??'No especificado'),
+                style:const TextStyle(color:EventColors.muted,fontSize:12)),
+              if((r['eres_devolucion_referencia']?.toString()??'').isNotEmpty)
+               Text('Referencia de devolución: '+r['eres_devolucion_referencia'].toString(),
+                style:const TextStyle(color:EventColors.muted,fontSize:12)),
+             ],
+             if(!retired||state=='REEMBOLSO_PENDIENTE')...[
+              const SizedBox(height:10),
+              OutlinedButton.icon(
+               onPressed:()=>_retirarReserva(id,r,dialog),
+               icon:Icon(retired?Icons.receipt_long_outlined:Icons.archive_outlined,size:18),
+               label:Text(retired?'Registrar devolución':'Retirar reserva'),
+              ),
+             ],
             ])));
          }),
-       ])),
+       ]))),
       ])),
     ),
    ));
   }catch(e){
    if(mounted)ScaffoldMessenger.of(context).showSnackBar(
     SnackBar(content:Text(niceEventError(e))));
-  }finally{_sucursalDialogOpen=false;}
+  }finally{_sucursalDialogOpen=false;showRetired.dispose();}
  }
  Future<void> publish(int id)async{
   try{await ref.read(eventosApiProvider).publicar(id);await load();}
