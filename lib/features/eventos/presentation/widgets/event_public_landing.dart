@@ -765,8 +765,10 @@ class _EventPublicLandingState extends State<EventPublicLanding> {
            label:Text('Ver galería en pantalla completa')),
        ],
      ]));
-   // No repetir exactamente la misma imagen de la galería como falso mapa.
-   final mapPreview=venue.length>1?venue.last:null;
+   // La imagen de ubicación es una fotografía real de la sucursal.
+   // Si existe una sola foto, también debe aparecer aquí: no mostrar
+   // una tarjeta gris solo por no tener una segunda fotografía.
+   final mapPreview=venue.isNotEmpty?venue.last:null;
    final place=EventPanel(child:Column(
      key:_locationKey,crossAxisAlignment:CrossAxisAlignment.start,children:[
        EventSectionHeading(icon:Icons.location_on_outlined,
@@ -811,7 +813,7 @@ class _EventPublicLandingState extends State<EventPublicLanding> {
            Positioned.fill(child:DecoratedBox(decoration:BoxDecoration(
              gradient:LinearGradient(begin:Alignment.bottomCenter,
                end:Alignment.topCenter,colors:[
-                 palette.heroShade.withOpacity(.93),Colors.transparent])))),
+                 palette.heroShade.withOpacity(.68),Colors.transparent])))),
          if(!hasPhoto)
            Center(child:Column(mainAxisSize:MainAxisSize.min,children:[
              Icon(Icons.place_outlined,color:brand,size:37),
@@ -828,7 +830,7 @@ class _EventPublicLandingState extends State<EventPublicLanding> {
          Positioned(left:12,right:12,bottom:12,child:Row(children:[
            Icon(Icons.directions_outlined,color:hasPhoto?Colors.white:brand,size:20),
            const SizedBox(width:8),
-           Expanded(child:Text('Abrir ubicación en Google Maps',
+           Expanded(child:Text('Cómo llegar · Abrir en Google Maps',
              style:TextStyle(color:hasPhoto?Colors.white:palette.text,
                fontWeight:FontWeight.w800,fontSize:12))),
            Icon(Icons.open_in_new_outlined,
