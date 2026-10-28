@@ -1305,27 +1305,29 @@ class _EventPublicLandingState extends State<EventPublicLanding> {
      );
    }
 
-   return EventPanel(
-     padding:const EdgeInsets.all(21),
-     child:Column(
-       key:_menuKey,crossAxisAlignment:CrossAxisAlignment.start,children:[
-         EventSectionHeading(icon:Icons.menu_book_outlined,
-           title:'Nuestra carta',
-           subtitle:'Selección especial del establecimiento · '+
-             selected.length.toString()+' productos'),
-         const SizedBox(height:10),
-         Text('Explora los sabores elegidos para este evento',
-           style:TextStyle(color:palette.muted,fontSize:13,height:1.45)),
-         const SizedBox(height:20),
-         LayoutBuilder(builder:(context,space){
-           final paired=space.maxWidth>=930;
-           final width=paired?(space.maxWidth-20)/2:space.maxWidth;
-           return Wrap(spacing:20,runSpacing:20,children:[
-             for(var i=0;i<pages.length;i++)menuSheet(pages[i],i,width),
-           ]);
-         }),
-       ],
-     ),
+   return Column(
+     key:_menuKey,crossAxisAlignment:CrossAxisAlignment.stretch,children:[
+       EventPanel(padding:const EdgeInsets.symmetric(
+         horizontal:23,vertical:21),child:Column(
+         crossAxisAlignment:CrossAxisAlignment.start,children:[
+           EventSectionHeading(icon:Icons.menu_book_outlined,
+             title:'Nuestra carta',
+             subtitle:'Selección del establecimiento · '+
+               selected.length.toString()+' productos'),
+           const SizedBox(height:8),
+           Text('Sabores elegidos especialmente para este evento',
+             style:TextStyle(color:palette.muted,fontSize:13,height:1.45)),
+         ],
+       )),
+       const SizedBox(height:18),
+       LayoutBuilder(builder:(context,space){
+         final paired=space.maxWidth>=930;
+         final width=paired?(space.maxWidth-20)/2:space.maxWidth;
+         return Wrap(spacing:20,runSpacing:20,children:[
+           for(var i=0;i<pages.length;i++)menuSheet(pages[i],i,width),
+         ]);
+       }),
+     ],
    );
  }
 
