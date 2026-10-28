@@ -1492,7 +1492,8 @@ class _ReservaInternaState extends ConsumerState<_ReservaInternaDialog>{
  int get autoLimit{
   final available=tables.fold<int>(0,(sum,t)=>sum+
     (asId(t['disponibles'])??0).clamp(0,100000).toInt());
-  return available+(editing&&!cancelled?(asId(widget.initial?['eres_puestos'])??0):0);
+  return available+(editing&&(!cancelled||!reactivate)
+    ?(asId(widget.initial?['eres_puestos'])??0):0);
  }
  void setAutoSeats(int value){
   if(value<1||value>autoLimit)return;
