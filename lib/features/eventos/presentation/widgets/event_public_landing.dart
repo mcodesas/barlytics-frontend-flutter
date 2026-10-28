@@ -846,9 +846,9 @@ class _EventPublicLandingState extends State<EventPublicLanding> {
                    child:Container(
                      padding:const EdgeInsets.all(4),
                      decoration:BoxDecoration(
-                       color:Colors.black.withOpacity(.65),
+                       color:palette.surface.withOpacity(.94),
                        borderRadius:BorderRadius.circular(30)),
-                     child:const Icon(Icons.zoom_in,color:Colors.white,size:24))),
+                     child:Icon(Icons.zoom_in,color:palette.accentOnSurface,size:24))),
                ]),
              )),
          ]);
@@ -926,15 +926,23 @@ class _EventPublicLandingState extends State<EventPublicLanding> {
                  overflow:TextOverflow.ellipsis,
                  style:TextStyle(color:palette.muted,fontSize:12))),
            ])),
-         Positioned(left:12,right:12,bottom:12,child:Row(children:[
-           Icon(Icons.directions_outlined,color:hasPhoto?Colors.white:brand,size:20),
-           const SizedBox(width:8),
-           Expanded(child:Text('Cómo llegar · Abrir en Google Maps',
-             style:TextStyle(color:hasPhoto?Colors.white:palette.text,
-               fontWeight:FontWeight.w800,fontSize:12))),
-           Icon(Icons.open_in_new_outlined,
-             color:hasPhoto?Colors.white:palette.text,size:17),
-         ])),
+         Positioned(left:12,right:12,bottom:12,child:Container(
+           padding:const EdgeInsets.symmetric(horizontal:12,vertical:10),
+           decoration:BoxDecoration(
+             color:palette.surface.withOpacity(.94),
+             borderRadius:BorderRadius.circular(10),
+             border:Border.all(color:palette.border)),
+           child:Row(children:[
+             Icon(Icons.directions_outlined,
+               color:palette.accentOnSurface,size:20),
+             const SizedBox(width:8),
+             Expanded(child:Text('Cómo llegar · Abrir en Google Maps',
+               style:TextStyle(color:palette.onSurface,
+                 fontWeight:FontWeight.w800,fontSize:12))),
+             Icon(Icons.open_in_new_outlined,
+               color:palette.onSurface,size:17),
+           ]),
+         )),
        ]),
      ),
    );
@@ -1122,7 +1130,8 @@ class _EventPublicLandingState extends State<EventPublicLanding> {
                    if(chosen)Positioned(right:8,top:8,
                      child:CircleAvatar(radius:15,backgroundColor:brand,
                        child:Icon(Icons.check,color:onBrand,size:18))),
-                   if(!available)Positioned.fill(child:Container(color:Colors.black45)),
+                   if(!available)Positioned.fill(child:Container(
+                       color:palette.heroShade.withOpacity(.60))),
                  ])),
                  Padding(padding:EdgeInsets.fromLTRB(10,8,10,10),
                    child:Row(children:[
