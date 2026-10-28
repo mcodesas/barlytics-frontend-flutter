@@ -181,10 +181,8 @@ class _EventosAdminState extends ConsumerState<EventosAdminPage>{
   final id=asId(row['eres_id']);
   if(id==null||branchId==null)return;
   final status=row['eres_estado']?.toString()??'';
-  final hasPayment=(row['eres_pago_id']?.toString().isNotEmpty??false)&&
-    (double.tryParse(row['eres_importe']?.toString()??'0')??0)>0;
-  final needsRefund=hasPayment&&
-    (status=='CONFIRMADA'||status=='REEMBOLSO_PENDIENTE');
+  final needsRefund=(double.tryParse(row['eres_importe']?.toString()??'0')??0)>0
+    &&(status=='CONFIRMADA'||status=='REEMBOLSO_PENDIENTE');
   final alreadyRetired=row['eres_retirada']==true;
   final reason=TextEditingController(
     text:row['eres_retiro_motivo']?.toString()??'');
