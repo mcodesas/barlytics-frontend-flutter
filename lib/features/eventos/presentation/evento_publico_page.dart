@@ -210,6 +210,13 @@ class _EntradaState extends ConsumerState<EventoEntradaPublicaPage>{
        style:TextStyle(color:foreground,fontSize:25,fontWeight:FontWeight.w900)),
       const SizedBox(height:15),
       if(value!=null)...[
+       if(individual)...[
+        Text('Entrada '+(value?['numeroEntrada']??'').toString()+
+          ' de '+(value?['totalEntradas']??'').toString(),
+          style:TextStyle(color:foreground,fontSize:18,
+            fontWeight:FontWeight.w900)),
+        const SizedBox(height:8),
+       ],
        if((value!['mesas'] as List? ??[]).length>1)...[
          Text('Mesas asignadas',style:TextStyle(
            color:foreground,fontSize:20,fontWeight:FontWeight.w800)),
@@ -304,7 +311,7 @@ class _EntradaState extends ConsumerState<EventoEntradaPublicaPage>{
         ),
       ],
       const SizedBox(height:13),
-      Text(confirmed?'ENTRADA CONFIRMADA':
+      Text(confirmed?(individual?'ENTRADA INDIVIDUAL CONFIRMADA':'RESERVA CONFIRMADA'):
        value?['estado']=='PENDIENTE_PAGO'?'PAGO PENDIENTE':
        value?['estado']=='EXPIRADA'?'RESERVA VENCIDA':
        value?['estado']=='REEMBOLSO_PENDIENTE'?'REVISIÓN DE DEVOLUCIÓN':
