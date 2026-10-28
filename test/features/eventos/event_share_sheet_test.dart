@@ -11,6 +11,35 @@ void main(){
     expect(uri.queryParameters['text'],contains('Brunch'));
     expect(uri.queryParameters['text'],contains('Sucursal Centro'));
   });
+  test('WhatsApp del evento es prioritario frente al teléfono de la sucursal',(){
+    final uri=eventWhatsappHelpLink({
+      'titulo':'Brunch','sucursal':'Sucursal Norte',
+      'whatsapp':'https://wa.me/573111112222',
+      'telefono':'3001234567'
+    });
+    expect(uri?.path,'/573111112222');
+  });
+  test('Si falta el WhatsApp del evento usa el móvil de su sucursal',(){
+    final uri=eventWhatsappHelpLink({
+      'titulo':'Concierto','sucursal':'Sucursal Sur',
+      'whatsapp':null,'telefono':'314 257 1739'
+    });
+    expect(uri?.host,'wa.me');
+    expect(uri?.path,'/573142571739');
+    expect(uri?.queryParameters['text'],contains('Sucursal Sur'));
+  });
+  test('No utiliza teléfonos fijos ni contactos de otras sucursales',(){
+    expect(eventWhatsappHelpLink({
+      'titulo':'Evento','sucursal':'Centro','telefono':'6015555555'
+    }),isNull);
+    expect(eventWhatsappHelpLink({
+      'titulo':'Evento','sucursal':'Centro','telefono':null
+    }),isNull);
+    expect(eventWhatsappHelpLink({
+      'titulo':'Evento','sucursal':'Centro','whatsapp':'https://sitio-falso.com',
+      'telefono':'300 123 4567'
+    })?.path,'/573001234567');
+  });
   test('No permite dirigir las consultas a URLs ajenas a WhatsApp',(){
     expect(helpWhatsappLink('https://example.com/3001234567','Evento',''),isNull);
     expect(helpWhatsappLink('javascript:alert(1)','Evento',''),isNull);
