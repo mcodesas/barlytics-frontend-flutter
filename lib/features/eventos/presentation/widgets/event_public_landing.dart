@@ -14,6 +14,36 @@ int eventAvailableSeats(Iterable<Map<String,dynamic>> tables){
   });
 }
 
+/// Páginas para la carta pública conservando el orden real de la selección.
+/// Prioriza categorías completas y solo corta las que no caben en una hoja.
+List<List<MapEntry<String,List<T>>>> eventMenuPages<T>(
+    Map<String,List<T>> categories,{int pageSize=8}){
+  if(pageSize<1)throw ArgumentError.value(pageSize,'pageSize');
+  final pages=<List<MapEntry<String,List<T>>>>[];
+  var current=<MapEntry<String,List<T>>>[];
+  var count=0;
+  void finishPage(){
+    if(current.isEmpty)return;
+    pages.add(current);
+    current=<MapEntry<String,List<T>>>[];
+    count=0;
+  }
+  for(final category in categories.entries){
+    if(current.isNotEmpty&&category.value.length<=pageSize&&
+       count+category.value.length>pageSize)finishPage();
+    var position=0;
+    while(position<category.value.length){
+      if(count>=pageSize)finishPage();
+      final portion=category.value.skip(position).take(pageSize-count).toList();
+      current.add(MapEntry(category.key,portion));
+      count+=portion.length;
+      position+=portion.length;
+    }
+  }
+  finishPage();
+  return pages;
+}
+
 /// Landing pública real (sin datos demostrativos ni dependencias del shell privado).
 /// Toda la información proviene del evento, sucursal, mesas y catálogo del API.
 class EventPublicLanding extends StatefulWidget {
@@ -1189,29 +1219,7 @@ class _EventPublicLandingState extends State<EventPublicLanding> {
      final type=product['tipo']?.toString().trim()??'';
      categories.putIfAbsent(type.isEmpty?'Nuestra selección':type,()=>[]).add(product);
    }
-   // Mantener juntas las categorías que caben en una hoja.
-   final pages=<List<MapEntry<String,List<Map<String,dynamic>>>>>[];
-   var current=<MapEntry<String,List<Map<String,dynamic>>>>[];
-   var count=0;
-   void finishPage(){
-     if(current.isEmpty)return;
-     pages.add(current);
-     current=<MapEntry<String,List<Map<String,dynamic>>>>[];
-     count=0;
-   }
-   for(final category in categories.entries){
-     if(current.isNotEmpty&&category.value.length<=8&&
-        count+category.value.length>8)finishPage();
-     var position=0;
-     while(position<category.value.length){
-       if(count>=8)finishPage();
-       final portion=category.value.skip(position).take(8-count).toList();
-       current.add(MapEntry(category.key,portion));
-       count+=portion.length;
-       position+=portion.length;
-     }
-   }
-   finishPage();
+   final pages=eventMenuPages<Map<String,dynamic>>(categories);
 
    final paper=palette.menuPaper;
    final rawInk=palette.menuInk;
