@@ -1586,6 +1586,114 @@ class _LaborDialogState extends State<_LaborDialog> {
     }
   }
 
+
+  Future<void> _editRate(Map<String, dynamic> rate) async {
+    if (saving || selected == null) return;
+    final cargoId = selected!['gafcId'];
+    final tarifaId = rate['gafdId'];
+    if (tarifaId == null) return;
+
+    final update = await showDialog<Map<String, dynamic>>(
+      context: context,
+      builder: (_) => _EditLaborRateDialog(
+        rate: rate,
+        palette: widget.palette,
+      ),
+    );
+    if (update == null || !mounted) return;
+
+    setState(() => saving = true);
+    try {
+      await widget.api.put<Object?>(
+        '/api/v1/gastos-fijos/cargos/$cargoId/tarifas/$tarifaId',
+        update,
+        (json) => json,
+      );
+      await _load(keepSelectedId: cargoId);
+      _message('Tarifa actualizada. Los demás días no se modificaron.');
+    } catch (error) {
+      _message('No fue posible modificar la tarifa: $error', error: true);
+    } finally {
+      if (mounted) setState(() => saving = false);
+    }
+  }
+
+  Future<void> _deleteRate(Map<String, dynamic> rate) async {
+    if (saving || selected == null) return;
+    final cargoId = selected!['gafcId'];
+    final tarifaId = rate['gafdId'];
+    if (tarifaId == null) return;
+    final mode = (rate['gafdModo'] ?? 'RECURRENTE').toString().toUpperCase();
+    final weekday = (rate['gafdDiaSemana'] as num?)?.toInt() ??
+        int.tryParse(rate['gafdDiaSemana']?.toString() ?? '') ?? 0;
+    const names = <String>['', 'lunes', 'martes', 'miércoles',
+        'jueves', 'viernes', 'sábado', 'domingo'];
+    final dayLabel = weekday >= 1 && weekday <= 7
+        ? names[weekday] : 'día seleccionado';
+    final until = DateTime.tryParse(
+        rate['gafdVigenciaHasta']?.toString() ?? '');
+    final currentTime = DateTime.now();
+    final today = DateTime(currentTime.year, currentTime.month, currentTime.day);
+    final historicalOnly = until != null && until.isBefore(today);
+    final description = switch (mode) {
+      'RECURRENTE' =>
+        historicalOnly
+            ? 'Esta tarifa de $dayLabel ya terminó. Eliminarla definitivamente '
+                'cambiará los costos históricos de ese día y podría '
+                'recalcular reportes anteriores. Las demás tarifas no cambian.'
+            : 'Se dejará de aplicar la tarifa de $dayLabel desde hoy. '
+                'Los demás días del cargo seguirán iguales y se conservarán '
+                'los costos de jornadas anteriores.',
+      'DIA' =>
+        'Se eliminará la tarifa de esta fecha específica. '
+        'Si corresponde a un día pasado, se recalcularán los reportes '
+        'históricos de ganancias que incluyen esa fecha.',
+      _ =>
+        'Se eliminará el período completo, no los demás períodos ni las '
+        'tarifas semanales. La parte histórica del período se conserva '
+        'si todavía está vigente. Eliminar un período ya terminado '
+        'puede recalcular reportes históricos.',
+    };
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Row(
+          children: [
+            Icon(Icons.event_busy_outlined),
+            SizedBox(width: 10),
+            Expanded(child: Text('Eliminar tarifa de mano de obra')),
+          ],
+        ),
+        content: Text(description),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext, false),
+            child: const Text('Cancelar'),
+          ),
+          FilledButton.icon(
+            onPressed: () => Navigator.pop(dialogContext, true),
+            icon: const Icon(Icons.delete_outline),
+            label: const Text('Confirmar eliminación'),
+          ),
+        ],
+      ),
+    );
+    if (ok != true || !mounted) return;
+    setState(() => saving = true);
+    try {
+      await widget.api.delete<Object?>(
+        '/api/v1/gastos-fijos/cargos/$cargoId/tarifas/$tarifaId',
+        (json) => json,
+      );
+      await _load(keepSelectedId: cargoId);
+      _message('Tarifa eliminada o finalizada. Los demás días se conservaron.');
+    } catch (error) {
+      _message('No fue posible eliminar la tarifa: $error', error: true);
+    } finally {
+      if (mounted) setState(() => saving = false);
+    }
+  }
+
   Future<void> _saveRate() async {
     if (selected == null || (rateMode == 'RECURRENTE' && days.isEmpty) || saving) return;
 
@@ -1702,7 +1810,16 @@ class _LaborDialogState extends State<_LaborDialog> {
                       final cargo = cargos[index];
                       final cargoId = cargo['gafcId'].toString();
                       final active = selected?['gafcId'].toString() == cargoId;
-                      final configuredRates = rates[cargoId]?.length ?? 0;
+                      final allRates = rates[cargoId] ?? const <Map<String, dynamic>>[];
+                       final now = DateTime.now();
+                       final today = DateTime(now.year, now.month, now.day);
+                       final configuredRates = allRates.where((rate) {
+                         final from = DateTime.tryParse(rate['gafdVigenciaDesde']?.toString() ?? '');
+                         final until = DateTime.tryParse(rate['gafdVigenciaHasta']?.toString() ?? '');
+                         return from != null && !from.isAfter(today) &&
+                             (until == null || !until.isBefore(today));
+                       }).length;
+                       final otherRates = allRates.length - configuredRates;
 
                       return Material(
                         color: active
@@ -1757,7 +1874,7 @@ class _LaborDialogState extends State<_LaborDialog> {
                                       Text(
                                         configuredRates == 0
                                             ? 'Sin tarifas configuradas'
-                                            : '$configuredRates tarifa${configuredRates == 1 ? '' : 's'} registrada${configuredRates == 1 ? '' : 's'}',
+                                            : '$configuredRates vigentes · $otherRates históricas/programadas',
                                         style: TextStyle(
                                           color: configuredRates == 0
                                               ? widget.palette.warning
@@ -2016,11 +2133,29 @@ class _LaborDialogState extends State<_LaborDialog> {
           },
         ),
         const SizedBox(height: 16),
+        Row(
+          children: [
+            Expanded(
+              child: Text(
+                'Tarifas e histórico',
+                style: TextStyle(
+                  color: widget.palette.textPrimary,
+                  fontWeight: FontWeight.w900,
+                ),
+              ),
+            ),
+            Tooltip(
+              message: 'Edita o elimina una tarifa por día sin tocar el cargo',
+              child: Icon(Icons.info_outline_rounded,
+                  size: 18, color: widget.palette.textSecondary),
+            ),
+          ],
+        ),
         Text(
-          'Tarifas e histórico',
+          'Usa los iconos de cada fila para cambiar o quitar solo ese día.',
           style: TextStyle(
-            color: widget.palette.textPrimary,
-            fontWeight: FontWeight.w900,
+            color: widget.palette.textSecondary,
+            fontSize: 11,
           ),
         ),
         const SizedBox(height: 8),
@@ -2029,6 +2164,9 @@ class _LaborDialogState extends State<_LaborDialog> {
             rates: selectedRates,
             palette: widget.palette,
             money: money,
+            busy: saving,
+            onEdit: _editRate,
+            onDelete: _deleteRate,
           ),
         ),
       ],
@@ -2139,15 +2277,220 @@ class _LaborDialogState extends State<_LaborDialog> {
   }
 }
 
+/// Edita una sola tarifa ya registrada; nunca modifica ni elimina el cargo.
+class _EditLaborRateDialog extends StatefulWidget {
+  const _EditLaborRateDialog({
+    required this.rate,
+    required this.palette,
+  });
+
+  final Map<String, dynamic> rate;
+  final AppPalette palette;
+
+  @override
+  State<_EditLaborRateDialog> createState() => _EditLaborRateDialogState();
+}
+
+class _EditLaborRateDialogState extends State<_EditLaborRateDialog> {
+  late final TextEditingController amountController;
+  late DateTime from;
+  DateTime? until;
+  late final String mode;
+  String? error;
+
+  @override
+  void initState() {
+    super.initState();
+    mode = (widget.rate['gafdModo'] ?? 'RECURRENTE').toString().toUpperCase();
+    final amount = (widget.rate['gafdValor'] as num?)?.toDouble() ??
+        double.tryParse(widget.rate['gafdValor']?.toString() ?? '') ?? 0;
+    amountController = TextEditingController(
+      text: amount == amount.roundToDouble()
+          ? amount.toInt().toString()
+          : amount.toString(),
+    );
+    final started = DateTime.tryParse(
+            widget.rate['gafdVigenciaDesde']?.toString() ?? '') ??
+        DateTime.now();
+    until = DateTime.tryParse(
+        widget.rate['gafdVigenciaHasta']?.toString() ?? '');
+    final now = DateTime.now();
+    final today = DateTime(now.year, now.month, now.day);
+    // Una recurrencia abierta puede cambiar desde hoy sin reescribir meses
+    // históricos. Se permite elegir su inicio para una corrección retroactiva.
+    from = mode == 'RECURRENTE' && until == null && started.isBefore(today)
+        ? today
+        : started;
+  }
+
+  @override
+  void dispose() {
+    amountController.dispose();
+    super.dispose();
+  }
+
+  Future<void> _pickFrom() async {
+    final selected = await showDatePicker(
+      context: context,
+      initialDate: from,
+      firstDate: DateTime(2020),
+      lastDate: DateTime(2100),
+      helpText: 'Desde qué fecha tendrá efecto la tarifa',
+    );
+    if (selected == null || !mounted) return;
+    setState(() {
+      from = selected;
+      if (mode == 'PERIODO' && until != null && until!.isBefore(from)) {
+        until = from;
+      }
+    });
+  }
+
+  Future<void> _pickUntil() async {
+    final selected = await showDatePicker(
+      context: context,
+      initialDate: until != null && !until!.isBefore(from) ? until! : from,
+      firstDate: from,
+      lastDate: DateTime(2100),
+      helpText: 'Hasta cuándo se aplica esta tarifa',
+    );
+    if (selected != null && mounted) setState(() => until = selected);
+  }
+
+  void _submit() {
+    final raw = amountController.text.trim().replaceAll('.', '').replaceAll(',', '.');
+    final amount = double.tryParse(raw);
+    if (amount == null || amount < 0) {
+      setState(() => error = 'Ingresa un costo diario válido.');
+      return;
+    }
+    if (mode == 'PERIODO' && (until == null || until!.isBefore(from))) {
+      setState(() => error = 'La fecha final no puede ser anterior a la inicial.');
+      return;
+    }
+    Navigator.pop(context, <String, dynamic>{
+      'valor': amount,
+      'vigenciaDesde': DateFormat('yyyy-MM-dd').format(from),
+      if (mode == 'PERIODO')
+        'vigenciaHasta': DateFormat('yyyy-MM-dd').format(until!),
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final weekday = (widget.rate['gafdDiaSemana'] as num?)?.toInt() ??
+        int.tryParse(widget.rate['gafdDiaSemana']?.toString() ?? '') ?? 0;
+    const labels = ['', 'Lunes', 'Martes', 'Miércoles',
+        'Jueves', 'Viernes', 'Sábado', 'Domingo'];
+    final dayName = weekday >= 1 && weekday <= 7 ? labels[weekday] : 'día';
+    final subtitle = switch (mode) {
+      'DIA' => 'Corrige la fecha y el costo de este día específico.',
+      'PERIODO' => 'Corrige el período completo y su costo diario.',
+      _ => 'Corrige solo $dayName. Si eliges una fecha posterior al inicio, '
+          'se conserva el precio anterior hasta el día previo.',
+    };
+
+    Widget dateField(String label, DateTime date, VoidCallback onTap) =>
+        OutlinedButton.icon(
+          onPressed: onTap,
+          icon: const Icon(Icons.calendar_month_outlined, size: 18),
+          label: Text('$label: ${DateFormat('dd/MM/yyyy').format(date)}'),
+        );
+
+    return AlertDialog(
+      title: Row(
+        children: [
+          Icon(Icons.edit_calendar_outlined, color: widget.palette.secondary),
+          const SizedBox(width: 10),
+          const Expanded(child: Text('Modificar tarifa')),
+        ],
+      ),
+      content: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: 450),
+        child: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Text(
+                subtitle,
+                style: TextStyle(
+                  color: widget.palette.textSecondary,
+                  fontSize: 12.5,
+                  height: 1.35,
+                ),
+              ),
+              const SizedBox(height: 16),
+              TextField(
+                controller: amountController,
+                autofocus: true,
+                keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                decoration: const InputDecoration(
+                  labelText: 'Costo diario en pesos',
+                  prefixIcon: Icon(Icons.payments_outlined),
+                ),
+              ),
+              const SizedBox(height: 12),
+              dateField(
+                mode == 'DIA' ? 'Fecha de trabajo' :
+                mode == 'PERIODO' ? 'Inicio' : 'Vigente desde',
+                from,
+                _pickFrom,
+              ),
+              if (mode == 'PERIODO') ...[
+                const SizedBox(height: 8),
+                dateField('Hasta', until ?? from, _pickUntil),
+              ],
+              if (error != null) ...[
+                const SizedBox(height: 8),
+                Text(error!, style: const TextStyle(color: Colors.redAccent)),
+              ],
+              if (mode == 'DIA' || mode == 'PERIODO') ...[
+                const SizedBox(height: 10),
+                Text(
+                  'Atención: modificar una tarifa ya aplicada puede '
+                  'recalcular la mano de obra de reportes anteriores.',
+                  style: TextStyle(
+                    color: widget.palette.warning,
+                    fontSize: 11,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+              ],
+            ],
+          ),
+        ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(context),
+          child: const Text('Cancelar'),
+        ),
+        FilledButton.icon(
+          onPressed: _submit,
+          icon: const Icon(Icons.save_outlined),
+          label: const Text('Guardar cambios'),
+        ),
+      ],
+    );
+  }
+}
+
 class _RatesList extends StatelessWidget {
   final List<Map<String, dynamic>> rates;
   final AppPalette palette;
   final NumberFormat money;
+  final bool busy;
+  final ValueChanged<Map<String, dynamic>> onEdit;
+  final ValueChanged<Map<String, dynamic>> onDelete;
 
   const _RatesList({
     required this.rates,
     required this.palette,
     required this.money,
+    required this.busy,
+    required this.onEdit,
+    required this.onDelete,
   });
 
   @override
@@ -2182,7 +2525,23 @@ class _RatesList extends StatelessWidget {
           : 'TARIFA|${rate['gafdId']}';
       unique.putIfAbsent(key, () => rate);
     }
-    final visibleRates = unique.values.toList(growable: false);
+    final visibleRates = unique.values.toList(growable: true);
+    final now = DateTime.now();
+    final today = DateTime(now.year, now.month, now.day);
+    int rateRank(Map<String, dynamic> rate) {
+      final start = DateTime.tryParse(rate['gafdVigenciaDesde']?.toString() ?? '');
+      final end = DateTime.tryParse(rate['gafdVigenciaHasta']?.toString() ?? '');
+      if (start != null && start.isAfter(today)) return 1;
+      if (end != null && end.isBefore(today)) return 2;
+      return 0;
+    }
+    visibleRates.sort((a, b) {
+      final priority = rateRank(a).compareTo(rateRank(b));
+      if (priority != 0) return priority;
+      final firstDay = (a['gafdDiaSemana'] as num?)?.toInt() ?? 0;
+      final secondDay = (b['gafdDiaSemana'] as num?)?.toInt() ?? 0;
+      return firstDay.compareTo(secondDay);
+    });
 
     return ListView.separated(
       itemCount: visibleRates.length,
@@ -2199,46 +2558,96 @@ class _RatesList extends StatelessWidget {
         final until = rate['gafdVigenciaHasta']?.toString();
         final modo = rate['gafdModo']?.toString() ?? 'RECURRENTE';
 
+        final status = rateRank(rate);
+        final statusColor = status == 0 ? palette.success
+            : status == 1 ? palette.secondary : palette.textSecondary;
+        final statusLabel = status == 0 ? 'Vigente'
+            : status == 1 ? 'Programada' : 'Histórica';
         return Container(
-          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 9),
           decoration: BoxDecoration(
-            color: palette.background.withOpacity(.35),
-            borderRadius: BorderRadius.circular(12),
+            color: status == 0
+                ? palette.secondary.withOpacity(.05)
+                : palette.background.withOpacity(.28),
+            borderRadius: BorderRadius.circular(13),
+            border: Border.all(
+              color: status == 0
+                  ? palette.secondary.withOpacity(.21)
+                  : palette.cardBorder.withOpacity(.45),
+            ),
           ),
-          child: Row(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Expanded(
-                child: Text(
-                  modo == 'DIA'
-                      ? 'Día único'
-                      : modo == 'PERIODO'
-                          ? 'Período'
+              Row(
+                children: [
+                  Expanded(
+                    child: Text(
+                      modo == 'DIA' ? 'Día único'
+                          : modo == 'PERIODO' ? 'Período'
                           : (day >= 1 && day <= 7 ? names[day] : 'Día $day'),
-                  style: TextStyle(
-                    color: palette.textPrimary,
-                    fontWeight: FontWeight.w700,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        color: palette.textPrimary,
+                        fontWeight: FontWeight.w800,
+                        fontSize: 13,
+                      ),
+                    ),
                   ),
-                ),
-              ),
-              Text(
-                money.format(amount),
-                style: TextStyle(
-                  color: palette.textPrimary,
-                  fontWeight: FontWeight.w900,
-                ),
-              ),
-              const SizedBox(width: 12),
-              Flexible(
-                child: Text(
-                  until == null || until.isEmpty
-                      ? 'Desde $from'
-                      : '$from → $until',
-                  overflow: TextOverflow.ellipsis,
-                  style: TextStyle(
-                    color: palette.textSecondary,
-                    fontSize: 11,
+                  const SizedBox(width: 5),
+                  Text(money.format(amount),
+                      style: TextStyle(
+                        color: palette.textPrimary,
+                        fontWeight: FontWeight.w900,
+                        fontSize: 13,
+                      )),
+                  const SizedBox(width: 7),
+                  IconButton(
+                    tooltip: 'Modificar únicamente esta tarifa',
+                    onPressed: busy ? null : () => onEdit(rate),
+                    visualDensity: VisualDensity.compact,
+                    constraints: const BoxConstraints(minWidth: 38, minHeight: 38),
+                    icon: Icon(Icons.edit_outlined,
+                        size: 19, color: palette.secondary),
                   ),
-                ),
+                  IconButton(
+                    tooltip: 'Eliminar únicamente esta tarifa',
+                    onPressed: busy ? null : () => onDelete(rate),
+                    visualDensity: VisualDensity.compact,
+                    constraints: const BoxConstraints(minWidth: 38, minHeight: 38),
+                    icon: const Icon(Icons.delete_outline_rounded,
+                        size: 19, color: Colors.redAccent),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 3),
+              Wrap(
+                spacing: 7,
+                runSpacing: 4,
+                crossAxisAlignment: WrapCrossAlignment.center,
+                children: [
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 7, vertical: 3),
+                    decoration: BoxDecoration(
+                      color: statusColor.withOpacity(.11),
+                      borderRadius: BorderRadius.circular(7),
+                    ),
+                    child: Text(statusLabel,
+                        style: TextStyle(color: statusColor,
+                            fontSize: 10, fontWeight: FontWeight.w800)),
+                  ),
+                  Text(
+                    until == null || until.isEmpty
+                        ? 'Desde $from'
+                        : '$from → $until',
+                    style: TextStyle(
+                      color: palette.textSecondary,
+                      fontSize: 11,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ],
               ),
             ],
           ),

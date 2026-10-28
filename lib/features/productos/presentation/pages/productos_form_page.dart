@@ -13,7 +13,10 @@ import '../../../../core/constants/storage_keys.dart';
 import '../../../../core/providers/core_providers.dart';
 import '../../../../core/utils/input_constraints.dart';
 import '../../../../core/widgets/app_loader.dart';
+import '../../../../core/widgets/app_error_view.dart';
 import '../../../../core/widgets/tech_background.dart';
+import '../widgets/product_wizard_viewport.dart';
+import '../utils/product_save_verification.dart';
 import '../../../business_setup/presentation/providers/business_setup_provider.dart';
 import '../../../inventario/data/models/inventario_response_model.dart';
 import '../../../inventario/presentation/providers/inventario_provider.dart';
@@ -29,9 +32,11 @@ import '../../data/models/productos_response_model.dart';
 import '../providers/productos_provider.dart';
 
 class ProductosFormPage extends ConsumerStatefulWidget {
-  const ProductosFormPage({super.key, this.id});
-
+  const ProductosFormPage({super.key, this.id, this.embedded = false, this.sucursalId});
   final String? id;
+  /// Abre el asistente dentro de Eventos y devuelve el ID creado al diálogo.
+  final bool embedded;
+  final int? sucursalId;
 
   @override
   ConsumerState<ProductosFormPage> createState() => _ProductosFormPageState();
@@ -68,6 +73,9 @@ class _ProductosFormPageState extends ConsumerState<ProductosFormPage> {
   bool _loadedStorage = false;
   bool _hydratedProduct = false;
   bool _hydratedPrice = false;
+  bool _loadingEditingProduct = false;
+  ProductosResponseModel? _editingProduct;
+  String? _editingLoadError;
   bool _gastroLoaded = false;
   bool _gastroLoading = false;
   String? _gastroError;
@@ -114,11 +122,74 @@ class _ProductosFormPageState extends ConsumerState<ProductosFormPage> {
         : null;
     if (!mounted) return;
     setState(() {
-      _sucursalId = active ?? int.tryParse(raw ?? '');
+      _sucursalId = widget.sucursalId ?? active ?? int.tryParse(raw ?? '');
       _loadedStorage = true;
     });
-    // Esperar a cargar el producto; su sucursal es la fuente de verdad
-    // y puede diferir del valor guardado previamente en el dispositivo.
+    // El listado de productos puede estar paginado o filtrado. Al editar,
+    // consultar el registro concreto; no depender de que esté en esa lista.
+    if (_editing) await _loadEditingProduct();
+  }
+
+  Future<void> _loadEditingProduct() async {
+    final id = _editingId;
+    if (id == null) {
+      if (mounted) setState(() => _editingLoadError = 'El identificador del producto no es válido.');
+      return;
+    }
+    setState(() {
+      _loadingEditingProduct = true;
+      _editingLoadError = null;
+    });
+    try {
+      final client = ref.read(apiClientProvider);
+      final response = await client.get<ProductosResponseModel>(
+        '/api/v1/productos/$id',
+        (json) => ProductosResponseModel.fromJson(Map<String, dynamic>.from(json as Map)),
+      );
+      final product = response.data;
+      if (product == null || product.prodId != id || product.sucuId == null) {
+        throw StateError('No se encontró el producto solicitado.');
+      }
+      final activeBranch = ref.read(branchScopeProvider).activeBranchId ?? _sucursalId;
+      if (activeBranch != null && product.sucuId != activeBranch) {
+        throw StateError('El producto pertenece a otra sucursal. Selecciona su sucursal para editarlo.');
+      }
+
+      // Recuperar el precio real del producto, no un subconjunto del proveedor
+      // global (que puede traer solo la primera página de resultados).
+      final priceResponse = await client.get<List<PreciosResponseModel>>(
+        '/api/v1/precios/producto/$id/sucursal/${product.sucuId}/historial',
+        (json) => (json is List ? json : const <Object?>[])
+            .whereType<Map>()
+            .map((item) => PreciosResponseModel.fromJson(Map<String, dynamic>.from(item)))
+            .toList(growable: false),
+      );
+      if (!mounted) return;
+      final currentBranch = ref.read(branchScopeProvider).activeBranchId ?? _sucursalId;
+      if (currentBranch != activeBranch) {
+        setState(() {
+          _loadingEditingProduct = false;
+          _editingLoadError = 'La sucursal cambió mientras cargábamos el producto. Vuelve a intentarlo.';
+        });
+        return;
+      }
+
+      setState(() {
+        _editingProduct = product;
+        _hydratedProduct = false;
+        _hydratedPrice = false;
+        _hydrateProduct(product);
+        _hydratePrice(priceResponse.data ?? const <PreciosResponseModel>[]);
+        _editingLoadError = null;
+        _loadingEditingProduct = false;
+      });
+    } catch (error) {
+      if (!mounted) return;
+      setState(() {
+        _editingLoadError = 'No fue posible cargar los datos del producto. $error';
+        _loadingEditingProduct = false;
+      });
+    }
   }
 
   Future<void> _loadGastroConfig() async {
@@ -238,7 +309,7 @@ class _ProductosFormPageState extends ConsumerState<ProductosFormPage> {
   Widget build(BuildContext context) {
     final palette = ref.watch(selectedAppPaletteProvider);
     final activeSucursalId = ref.watch(branchScopeProvider).activeBranchId;
-    if (!_editing && activeSucursalId != null && _sucursalId != activeSucursalId) {
+    if (!widget.embedded && !_editing && activeSucursalId != null && _sucursalId != activeSucursalId) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (mounted) setState(() => _sucursalId = activeSucursalId);
       });
@@ -250,20 +321,24 @@ class _ProductosFormPageState extends ConsumerState<ProductosFormPage> {
     final tiposState = ref.watch(tiposproductoProvider);
     final sucursalesState = ref.watch(sucursalesProvider);
 
-    final producto = _editingId == null
-        ? null
-        : _firstOrNull(productosState.items.where((item) =>
-            item.prodId == _editingId && item.sucuId == activeSucursalId));
-
-    if (_editing && producto != null) {
-      _hydrateProduct(producto);
-    }
-    _hydratePrice(preciosState.items);
-
-    if (!_loadedStorage || (_editing && productosState.loading && producto == null)) {
+    if (!_loadedStorage || (_editing && _loadingEditingProduct)) {
       return const Scaffold(
         backgroundColor: Colors.transparent,
         body: Stack(children: [Positioned.fill(child: AppPageBackground()), AppLoader()]),
+      );
+    }
+    if (_editing && (_editingProduct == null || _editingLoadError != null)) {
+      return Scaffold(
+        backgroundColor: Colors.transparent,
+        body: Stack(
+          children: [
+            const Positioned.fill(child: AppPageBackground()),
+            AppErrorView(
+              message: _editingLoadError ?? 'No fue posible recuperar el producto.',
+              onRetry: _loadEditingProduct,
+            ),
+          ],
+        ),
       );
     }
 
@@ -279,34 +354,11 @@ class _ProductosFormPageState extends ConsumerState<ProductosFormPage> {
             .where((item) => item.prodId == _editingId && item.sucuId == _sucursalId)
             .fold<double>(0, (total, item) => total + (item.invtCantidad ?? 0));
 
-    return Scaffold(
-      backgroundColor: Colors.transparent,
-      // La navegación permanece visible aunque el paso tenga muchos campos.
-      bottomNavigationBar: SafeArea(
-        top: false,
-        child: Container(
-          decoration: BoxDecoration(
-            color: palette.background.withOpacity(0.97),
-            border: Border(top: BorderSide(color: palette.cardBorder)),
-          ),
-          padding: const EdgeInsets.fromLTRB(12, 10, 12, 12),
-          child: Center(
-            heightFactor: 1,
-            child: ConstrainedBox(
-              constraints: const BoxConstraints(maxWidth: 1120),
-              child: _NavigationButtons(
-                palette: palette,
-                saving: _saving,
-                currentStep: _currentStep,
-                onPrevious: _currentStep == 0 ? null : () => setState(() => _currentStep--),
-                onNext: _goNext,
-                onSave: () => _confirmAndSave(context, palette),
-              ),
-            ),
-          ),
-        ),
-      ),
-      body: Stack(
+    // AppScaffold ya posee su propio Scaffold y barra inferior. El asistente
+    // utiliza un viewport de altura acotada para que en iOS los campos siempre
+    // ocupen la pantalla y la navegación quede al pie, fuera del scroll.
+    return ProductWizardViewport(
+      content: Stack(
         children: [
           const Positioned.fill(child: AppPageBackground()),
           SafeArea(
@@ -320,7 +372,7 @@ class _ProductosFormPageState extends ConsumerState<ProductosFormPage> {
                     palette: palette,
                     editing: _editing,
                     currentStep: _currentStep,
-                    onBack: () => context.go('/productos'),
+                    onBack: () => widget.embedded?Navigator.of(context).pop():context.go('/productos'),
                   ),
                 ),
                 SliverPadding(
@@ -408,6 +460,30 @@ class _ProductosFormPageState extends ConsumerState<ProductosFormPage> {
             ),
           ),
         ],
+      ),
+      navigation: SafeArea(
+        top: false,
+        child: Container(
+          decoration: BoxDecoration(
+            color: palette.background.withOpacity(0.97),
+            border: Border(top: BorderSide(color: palette.cardBorder)),
+          ),
+          padding: const EdgeInsets.fromLTRB(12, 10, 12, 12),
+          child: Center(
+            heightFactor: 1,
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 1120),
+              child: _NavigationButtons(
+                palette: palette,
+                saving: _saving,
+                currentStep: _currentStep,
+                onPrevious: _currentStep == 0 ? null : () => setState(() => _currentStep--),
+                onNext: _goNext,
+                onSave: () => _confirmAndSave(context, palette),
+              ),
+            ),
+          ),
+        ),
       ),
     );
   }
@@ -1709,11 +1785,8 @@ class _ProductosFormPageState extends ConsumerState<ProductosFormPage> {
 
   void _goNext() {
     if (_currentStep == 0 && !_validateGeneral()) return;
-    if (_currentStep == 1) {
-      if (!(_priceFormKey.currentState?.validate() ?? false)) return;
-      if (!_validatePriceRelationship()) return;
-    }
-    if (_currentStep == 2 && !(_inventoryFormKey.currentState?.validate() ?? false)) return;
+    if (_currentStep == 1 && !_validatePriceStep()) return;
+    if (_currentStep == 2 && !_validateInventoryStep()) return;
     setState(() => _currentStep = math.min(3, _currentStep + 1));
   }
 
@@ -1722,14 +1795,58 @@ class _ProductosFormPageState extends ConsumerState<ProductosFormPage> {
       _showError('Debes cargar la receta antes de guardar para conservar los ingredientes y adiciones.');
       return false;
     }
-    final validForm = _generalFormKey.currentState?.validate() ?? false;
-    if (!validForm) return false;
+    // Solo se construye el paso activo. Al confirmar, el Form general ya
+    // está desmontado y currentState es null, pero los controladores siguen
+    // teniendo los datos. Validarlos siempre evita bloquear el guardado.
+    if (_generalFormKey.currentState?.validate() == false) return false;
+    if (_required(_nombreController.text) != null ||
+        _required(_descripcionController.text) != null) {
+      _showError('Completa el nombre y la descripción del producto.');
+      return false;
+    }
     if (_sucursalId == null) {
       _showError('No se encontró la sucursal asignada al usuario.');
       return false;
     }
     if (_tipoId == null) {
       _showError('Selecciona un tipo de producto.');
+      return false;
+    }
+    return true;
+  }
+
+  bool _validatePriceStep() {
+    if (_priceFormKey.currentState?.validate() == false) return false;
+    if (_requiredPositive(_valorCompraController.text) != null ||
+        _requiredPositiveOrZero(_valorVentaController.text) != null) {
+      _showError('Revisa los valores de compra y venta del producto.');
+      return false;
+    }
+    if (_compraPorCantidad &&
+        (_required(_presentacionCompraController.text) != null ||
+            _requiredPositive(_cantidadCompraController.text) != null)) {
+      _showError('Indica la presentación de compra y cuántas unidades contiene.');
+      return false;
+    }
+    if (_aplicaImpuesto &&
+        _requiredPositiveOrZero(_porcentajeImpuestoController.text) != null) {
+      _showError('Revisa el porcentaje de impuesto.');
+      return false;
+    }
+    return _validatePriceRelationship();
+  }
+
+  bool _validateInventoryStep() {
+    if (_inventoryFormKey.currentState?.validate() == false) return false;
+    final minimum = _requiredPositiveOrZero(_stockMinimoController.text);
+    final maximum = _validateStockMaximo(_stockMaximoController.text);
+    if (minimum != null || maximum != null) {
+      _showError('Revisa los límites mínimo y máximo de inventario.');
+      return false;
+    }
+    if (_registrarInventario &&
+        _requiredPositive(_inventarioCantidadController.text) != null) {
+      _showError('Indica una cantidad válida para agregar al inventario.');
       return false;
     }
     return true;
@@ -1771,12 +1888,11 @@ class _ProductosFormPageState extends ConsumerState<ProductosFormPage> {
       setState(() => _currentStep = 0);
       return;
     }
-    if (!(_priceFormKey.currentState?.validate() ?? false) ||
-        !_validatePriceRelationship()) {
+    if (!_validatePriceStep()) {
       setState(() => _currentStep = 1);
       return;
     }
-    if (!(_inventoryFormKey.currentState?.validate() ?? false)) {
+    if (!_validateInventoryStep()) {
       setState(() => _currentStep = 2);
       return;
     }
@@ -1785,7 +1901,10 @@ class _ProductosFormPageState extends ConsumerState<ProductosFormPage> {
   }
 
   Future<void> _save() async {
+    if (_saving) return;
     setState(() => _saving = true);
+    var productWriteConfirmed = false;
+    var currentOperation = 'datos básicos';
     try {
       final apiClient = ref.read(apiClientProvider);
       final compra = _parseDouble(_valorCompraController.text)!;
@@ -1831,7 +1950,9 @@ class _ProductosFormPageState extends ConsumerState<ProductosFormPage> {
       if (savedProductId == null || savedSucursalId == null) {
         throw Exception('No fue posible obtener el producto guardado.');
       }
+      productWriteConfirmed = true;
 
+      currentOperation = 'precio de compra y venta';
       final shouldCreatePrice = _shouldCreatePrice(
         compra: compra,
         venta: venta,
@@ -1857,6 +1978,7 @@ class _ProductosFormPageState extends ConsumerState<ProductosFormPage> {
         );
       }
 
+      currentOperation = 'receta e ingredientes';
       await apiClient.put<Map<String, dynamic>>(
         '/api/v1/productos/$savedProductId/gastro?sucursalId=$savedSucursalId',
         <String, dynamic>{
@@ -1874,6 +1996,7 @@ class _ProductosFormPageState extends ConsumerState<ProductosFormPage> {
         (json) => Map<String, dynamic>.from(json as Map),
       );
 
+      currentOperation = 'entrada de inventario';
       if (_registrarInventario) {
         final cantidad = _parseDouble(_inventarioCantidadController.text);
         if (cantidad != null && cantidad > 0) {
@@ -1890,27 +2013,91 @@ class _ProductosFormPageState extends ConsumerState<ProductosFormPage> {
         }
       }
 
-      await Future.wait([
-        ref.read(productosProvider.notifier).load(),
-        ref.read(preciosProvider.notifier).load(),
-        ref.read(inventarioProvider.notifier).load(),
-      ]);
+      // Comprobar con un GET independiente que el registro está persistido.
+      // De este modo, una respuesta positiva de PUT/POST no se confunde con
+      // la actualización de la vista local ni con una navegación de GoRouter.
+      currentOperation = 'verificación de guardado';
+      final persisted = await apiClient.get<ProductosResponseModel>(
+        '/api/v1/productos/$savedProductId',
+        (json) => ProductosResponseModel.fromJson(Map<String, dynamic>.from(json as Map)),
+      );
+      final verified = persisted.data;
+      if (verified == null ||
+          !productSaveVerified(
+            verified,
+            expectedId: savedProductId,
+            request: productBody,
+          )) {
+        throw StateError(
+          'La lectura posterior no coincide con los datos enviados. '
+          'Confirma el producto en el listado antes de repetir el guardado.',
+        );
+      }
 
-      // Si el producto se está registrando dentro de la puesta en marcha,
-      // dejamos invalidado el estado del asistente para que al regresar se
-      // reevalúe contra los datos recién guardados.
+      // Una falla al actualizar la caché visual no deshace el guardado exitoso.
+      // Es importante no decir que el producto no se guardó por este motivo.
+      try {
+        await Future.wait([
+          ref.read(productosProvider.notifier).load(),
+          ref.read(preciosProvider.notifier).load(),
+          ref.read(inventarioProvider.notifier).load(),
+        ]);
+      } catch (_) {
+        // La verificación GET ya confirmó la escritura en el servidor.
+      }
+
       if (ref.read(businessSetupGuidedModeProvider)) {
         ref.invalidate(businessSetupStatusProvider);
       }
 
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(_editing ? 'Producto modificado correctamente' : 'Producto creado correctamente')),
+      if (widget.embedded) {
+        Navigator.of(context).pop(savedProductId);
+        return;
+      }
+      // No redirigir automáticamente a Inicio ni a una ficha que dependa
+      // de un catálogo paginado. Mostrar un resultado claro y dejar que el
+      // usuario elija cómo continuar.
+      final nextAction = await showDialog<String>(
+        context: context,
+        barrierDismissible: false,
+        builder: (dialogContext) => AlertDialog(
+          title: Row(
+            children: [
+              const Icon(Icons.check_circle_rounded, color: Colors.green),
+              const SizedBox(width: 9),
+              Expanded(
+                child: Text(_editing ? 'Producto actualizado' : 'Producto creado'),
+              ),
+            ],
+          ),
+          content: Text(
+            'El producto "${verified.prodNombre ?? _nombreController.text.trim()}" '
+            'se guardó correctamente y se comprobó en el servidor. '
+            'Código: $savedProductId.',
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(dialogContext).pop('stay'),
+              child: const Text('Seguir editando'),
+            ),
+            FilledButton.icon(
+              onPressed: () => Navigator.of(dialogContext).pop('list'),
+              icon: const Icon(Icons.inventory_2_outlined),
+              label: const Text('Volver a productos'),
+            ),
+          ],
+        ),
       );
-      context.go('/productos/$savedProductId');
+      if (!mounted) return;
+      if (nextAction == 'list') context.go('/productos');
     } catch (error) {
       if (!mounted) return;
-      _showError('No fue posible guardar el producto: $error');
+      _showError(productWriteConfirmed
+          ? 'Los datos básicos del producto fueron aceptados, pero no se completó '
+              'la operación de $currentOperation: $error. '
+              'El producto puede haberse guardado parcialmente; revísalo antes de repetir.'
+          : 'No fue posible guardar el producto: $error');
     } finally {
       if (mounted) setState(() => _saving = false);
     }

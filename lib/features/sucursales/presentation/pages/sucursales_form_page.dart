@@ -1,3 +1,5 @@
+import 'dart:convert';
+import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -77,6 +79,7 @@ class _SucursalesFormPageState extends ConsumerState<SucursalesFormPage> {
   bool _saving = false;
   String? _error;
   String? _managerEmpresaId;
+  String? _sucursalFoto;
 
   bool get _editing => widget.id != null;
   bool get _isManager {
@@ -159,6 +162,7 @@ class _SucursalesFormPageState extends ConsumerState<SucursalesFormPage> {
           _codigo.text = item.sucuCodigoInterno ?? '';
           _direccion.text = item.sucuDireccion ?? '';
           _telefono.text = item.sucuTelefono ?? '';
+          _sucursalFoto = item.sucuFoto;
           _empresa.text = _isManager ? (_managerEmpresaId ?? '') : (item.emprId?.toString() ?? '');
           _ciudad.text = item.ciudId?.toString() ?? '';
           _moneda.text = item.moneId?.toString() ?? '';
@@ -194,6 +198,64 @@ class _SucursalesFormPageState extends ConsumerState<SucursalesFormPage> {
     return 'SUC-${number.substring(number.length - 4)}';
   }
 
+  Future<void> _pickBranchPhoto() async {
+    final result=await FilePicker.platform.pickFiles(
+      type:FileType.image,withData:true);
+    final image=result?.files.singleOrNull;
+    if(image==null)return;
+    final extension=image.extension?.toLowerCase();
+    if(image.bytes==null||image.size>800000||
+        !['jpg','jpeg','png','webp'].contains(extension)){
+      if(mounted)ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+        content:Text('Selecciona JPG, PNG o WebP de máximo 800 KB.')));
+      return;
+    }
+    final mime=extension=='png'?'image/png':
+      extension=='webp'?'image/webp':'image/jpeg';
+    setState(()=>_sucursalFoto='data:'+mime+';base64,'+
+      base64Encode(image.bytes!));
+  }
+
+  Widget _photoEditor(AppPalette palette){
+    return Container(
+      padding:const EdgeInsets.all(18),
+      decoration:palette.panelDecoration(baseRadius:27,elevated:false),
+      child:Column(crossAxisAlignment:CrossAxisAlignment.start,children:[
+        Text('Imagen de la sucursal',style:TextStyle(
+          color:palette.textPrimary,fontWeight:FontWeight.w900,fontSize:16)),
+        const SizedBox(height:5),
+        Text('Identidad propia de esta sede; aparece en eventos y reservas. No reemplaza el logo de la empresa.',
+          style:TextStyle(color:palette.textSecondary,fontSize:12)),
+        const SizedBox(height:14),
+        Wrap(spacing:14,runSpacing:10,
+          crossAxisAlignment:WrapCrossAlignment.center,children:[
+          Container(
+            width:98,height:98,clipBehavior:Clip.antiAlias,
+            decoration:BoxDecoration(
+              color:palette.secondary.withOpacity(.1),
+              borderRadius:BorderRadius.circular(17),
+              border:Border.all(color:palette.cardBorder)),
+            child:_branchImage(_sucursalFoto) ??
+              Icon(Icons.storefront_outlined,size:38,color:palette.secondary),
+          ),
+          Column(crossAxisAlignment:CrossAxisAlignment.start,children:[
+            OutlinedButton.icon(
+              onPressed:_saving?null:_pickBranchPhoto,
+              icon:const Icon(Icons.add_photo_alternate_outlined),
+              label:const Text('Elegir fotografía o logo')),
+            if(_sucursalFoto?.isNotEmpty==true)
+              TextButton.icon(
+                onPressed:_saving?null:()=>setState(()=>_sucursalFoto=null),
+                icon:const Icon(Icons.delete_outline),
+                label:const Text('Quitar imagen')),
+            Text('JPG, PNG o WebP · máximo 800 KB',
+              style:TextStyle(fontSize:11,color:palette.textSecondary)),
+          ]),
+        ]),
+      ]),
+    );
+  }
+
   Future<void> _save() async {
     if (!_formKey.currentState!.validate()) return;
     setState(() {
@@ -211,6 +273,7 @@ class _SucursalesFormPageState extends ConsumerState<SucursalesFormPage> {
       'sucuCodigoInterno': _codigo.text.trim().toUpperCase(),
       'sucuDireccion': _direccion.text.trim(),
       'sucuTelefono': _telefono.text.trim(),
+      'sucuFoto': _sucursalFoto ?? '',
       'sucuEstado': _active ? 1 : 0,
     };
 
@@ -357,6 +420,7 @@ class _SucursalesFormPageState extends ConsumerState<SucursalesFormPage> {
                             final desktop = constraints.maxWidth >= 900;
                             final preview = _BranchPreview(
                               palette: palette,
+                              photo: _sucursalFoto,
                               name: _nombre.text.trim(),
                               code: _codigo.text.trim(),
                               company: _catalogs.empresa(int.tryParse(_empresa.text)),
@@ -369,6 +433,7 @@ class _SucursalesFormPageState extends ConsumerState<SucursalesFormPage> {
                             );
                             final form = _FormSections(
                               palette: palette,
+                              photoEditor: _photoEditor(palette),
                               nombre: _nombre,
                               codigo: _codigo,
                               direccion: _direccion,
@@ -563,9 +628,28 @@ class _FormHeader extends StatelessWidget {
   }
 }
 
+/// Imágenes de la sucursal almacenadas como base64 o alojadas en HTTPS.
+Widget? _branchImage(String? source) {
+  final value=source?.trim()??'';
+  if(value.isEmpty)return null;
+  try{
+    if(value.startsWith('data:image/')&&value.contains(',')){
+      final bytes=base64Decode(value.substring(value.indexOf(',')+1));
+      return Image.memory(bytes,fit:BoxFit.cover,
+        errorBuilder:(_,__,___)=>const Icon(Icons.broken_image_outlined));
+    }
+    if(value.startsWith('https://')){
+      return Image.network(value,fit:BoxFit.cover,
+        errorBuilder:(_,__,___)=>const Icon(Icons.broken_image_outlined));
+    }
+  }catch(_){}
+  return null;
+}
+
 class _BranchPreview extends StatelessWidget {
   const _BranchPreview({
     required this.palette,
+    required this.photo,
     required this.name,
     required this.code,
     required this.company,
@@ -578,6 +662,7 @@ class _BranchPreview extends StatelessWidget {
   });
 
   final AppPalette palette;
+  final String? photo;
   final String name;
   final String code;
   final String company;
@@ -618,7 +703,9 @@ class _BranchPreview extends StatelessWidget {
                   ),
                 ],
               ),
-              child: const Icon(Icons.storefront_rounded, color: Colors.white, size: 45),
+              clipBehavior: Clip.antiAlias,
+              child: _branchImage(photo) ??
+                const Icon(Icons.storefront_rounded, color: Colors.white, size: 45),
             ),
           ),
           const SizedBox(height: 16),
@@ -750,6 +837,7 @@ class _PreviewLine extends StatelessWidget {
 class _FormSections extends StatelessWidget {
   const _FormSections({
     required this.palette,
+    required this.photoEditor,
     required this.nombre,
     required this.codigo,
     required this.direccion,
@@ -764,6 +852,7 @@ class _FormSections extends StatelessWidget {
   });
 
   final AppPalette palette;
+  final Widget photoEditor;
   final TextEditingController nombre;
   final TextEditingController codigo;
   final TextEditingController direccion;
@@ -780,6 +869,8 @@ class _FormSections extends StatelessWidget {
   Widget build(BuildContext context) {
     return Column(
       children: [
+        photoEditor,
+        const SizedBox(height: 14),
         _SectionCard(
           palette: palette,
           icon: Icons.badge_rounded,

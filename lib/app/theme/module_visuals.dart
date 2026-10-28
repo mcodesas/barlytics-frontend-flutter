@@ -75,6 +75,8 @@ class ModuleVisuals {
         return const ModuleVisual(icon: Icons.point_of_sale_rounded, color: Color(0xFF2563EB), description: 'Consumos y ventas por mesa');
       case 'mesero':
         return const ModuleVisual(icon: Icons.room_service_rounded, color: Color(0xFFF59E0B), description: 'Operación rápida de mesas y cuentas');
+      case 'eventos':
+        return const ModuleVisual(icon: Icons.event_available_rounded, color: Color(0xFF0D9488), description: 'Eventos, reservas de mesas, pagos y entradas QR');
       case 'comandas':
         return const ModuleVisual(icon: Icons.room_service_rounded, color: Color(0xFF0D9488), description: 'Pedidos de cocina y barra por mesa');
       case 'cuentas_venta':

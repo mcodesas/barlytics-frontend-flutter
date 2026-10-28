@@ -22,6 +22,7 @@ import '../../services/reporte_pdf_service.dart';
 import '../widgets/profit_expense_breakdown.dart';
 import '../utils/order_whatsapp_message_formatter.dart';
 import '../utils/order_destination_resolver.dart';
+import '../utils/order_product_visibility.dart';
 import '../widgets/manual_purchase_order_dialog.dart';
 import '../widgets/order_inventory_diagnostic_table.dart';
 import '../widgets/order_history_card.dart';
@@ -4056,6 +4057,8 @@ class _NextOrderContentState extends ConsumerState<_NextOrderContent> {
   _ProfitOrderFilter _filter = _ProfitOrderFilter.pedirAhora;
   _OrderWorkspaceFilter _workspaceFilter = _OrderWorkspaceFilter.sugeridos;
   final Map<int, int> _selectedPresentations = <int, int>{};
+  // Cantidad física exacta solicitada, independientemente de cajas o canastas.
+  final Map<int, double> _selectedUnits = <int, double>{};
   final TextEditingController _searchController = TextEditingController();
   final TextEditingController _observationController = TextEditingController();
   bool _showInventoryDetail = false;
@@ -4110,8 +4113,9 @@ class _NextOrderContentState extends ConsumerState<_NextOrderContent> {
 
   void _initializeSelection() {
     _selectedPresentations.clear();
+    _selectedUnits.clear();
     var hasSuggested = false;
-    for (final row in widget.payload.rows) {
+    for (final row in activePurchaseCatalog(widget.payload.rows)) {
       final productId = _productId(row);
       final suggested = _toDouble(row['presentaciones_pedir']).ceil();
       if (productId != null &&
@@ -4140,7 +4144,7 @@ class _NextOrderContentState extends ConsumerState<_NextOrderContent> {
       _orderPresentationCost(row);
 
   List<Map<String, dynamic>> get _orderRows {
-    final rows = widget.payload.rows
+    final rows = activePurchaseCatalog(widget.payload.rows)
         .where((row) => _productId(row) != null)
         .toList(growable: false)
       ..sort((a, b) {
@@ -4172,16 +4176,19 @@ class _NextOrderContentState extends ConsumerState<_NextOrderContent> {
         continue;
       }
       final factor = math.max(1.0, _toDouble(source['unidades_por_presentacion']));
-      final units = presentations * factor;
+      final exactUnits = _selectedUnits[productId];
+      final units = exactUnits ?? presentations * factor;
+      final equivalent = units / factor;
       final current = _toDouble(source['stock_actual']);
       final cost = _purchasePresentationCost(source);
       final subtotal = _orderSubtotal(
         source,
-        presentations: presentations.toDouble(),
+        presentations: equivalent,
       );
       rows.add(<String, dynamic>{
         ...source,
-        'presentaciones_pedir': presentations,
+        'presentaciones_pedir': equivalent,
+        'pedido_por_unidades': exactUnits != null,
         'unidades_pedir': units,
         'stock_proyectado': current + units,
         'costo_presentacion_actual': cost,
@@ -4192,7 +4199,7 @@ class _NextOrderContentState extends ConsumerState<_NextOrderContent> {
   }
 
   List<Map<String, dynamic>> get _filteredRows {
-    return widget.payload.rows.where((row) {
+    return activePurchaseCatalog(widget.payload.rows).where((row) {
       final status = (row['estado_reposicion'] ?? '').toString().toUpperCase();
       return switch (_filter) {
         _ProfitOrderFilter.pedirAhora =>
@@ -4288,6 +4295,7 @@ class _NextOrderContentState extends ConsumerState<_NextOrderContent> {
       return;
     }
     _selectionChanged(() {
+      _selectedUnits.remove(productId);
       if (selected) {
         _selectedPresentations[productId] =
             math.max(1, _toDouble(row['presentaciones_pedir']).ceil());
@@ -4301,6 +4309,7 @@ class _NextOrderContentState extends ConsumerState<_NextOrderContent> {
     final productId = _productId(row);
     if (productId == null) return;
     _selectionChanged(() {
+      _selectedUnits.remove(productId);
       final current = _selectedPresentations[productId] ?? 1;
       _selectedPresentations[productId] = math.max(1, current + delta);
     });
@@ -4319,7 +4328,85 @@ class _NextOrderContentState extends ConsumerState<_NextOrderContent> {
   }
 
   void _clearSelection() {
-    _selectionChanged(_selectedPresentations.clear);
+    _selectionChanged(() {
+      _selectedPresentations.clear();
+      _selectedUnits.clear();
+    });
+  }
+
+  Future<void> _editExactUnits(Map<String, dynamic> row) async {
+    final productId = _productId(row);
+    if (productId == null || !_selectedPresentations.containsKey(productId)) return;
+    final factor = math.max(1.0, _toDouble(row['unidades_por_presentacion']));
+    final currentUnits = _selectedUnits[productId] ??
+        (_selectedPresentations[productId] ?? 1) * factor;
+    final input = TextEditingController(
+      text: currentUnits.toStringAsFixed(
+        currentUnits == currentUnits.roundToDouble() ? 0 : 2,
+      ),
+    );
+    final chosen = await showDialog<double>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Pedir unidades exactas'),
+        content: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 420),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Text(
+                '${row['producto'] ?? 'Producto'} · La presentación habitual '
+                'contiene ${_displayValue(factor)} unidades. '
+                'Puedes escribir 15 para media canasta de 30, o 7 unidades '
+                'sueltas. El stock se recibe en unidades exactas.',
+              ),
+              const SizedBox(height: 14),
+              TextField(
+                controller: input,
+                autofocus: true,
+                keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                decoration: const InputDecoration(
+                  labelText: 'Unidades a pedir',
+                  helperText: 'Cantidad positiva, máximo 2 decimales',
+                  prefixIcon: Icon(Icons.inventory_2_outlined),
+                ),
+              ),
+              const SizedBox(height: 8),
+              Text(
+                'El valor estimado será proporcional a la presentación. '
+                'Verifica con el proveedor si el precio por unidades sueltas cambia.',
+                style: TextStyle(
+                  color: Theme.of(dialogContext).colorScheme.onSurfaceVariant,
+                  fontSize: 11,
+                ),
+              ),
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext),
+            child: const Text('Cancelar'),
+          ),
+          FilledButton.icon(
+            onPressed: () {
+              final units = double.tryParse(input.text.trim().replaceAll(',', '.'));
+              if (units == null || units <= 0 ||
+                  units > 999999 || ((units * 100) - (units * 100).round()).abs() > .0001) {
+                return;
+              }
+              Navigator.pop(dialogContext, units);
+            },
+            icon: const Icon(Icons.check),
+            label: const Text('Usar unidades'),
+          ),
+        ],
+      ),
+    );
+    input.dispose();
+    if (chosen == null || !mounted) return;
+    _selectionChanged(() => _selectedUnits[productId] = chosen);
   }
 
   Future<void> _openManualOrder() async {
@@ -4337,6 +4424,7 @@ class _NextOrderContentState extends ConsumerState<_NextOrderContent> {
       _selectedPresentations
         ..clear()
         ..addAll(result);
+      _selectedUnits.clear();
       _workspaceFilter = _OrderWorkspaceFilter.seleccionados;
     });
     _showMessage(
@@ -4807,8 +4895,12 @@ class _NextOrderContentState extends ConsumerState<_NextOrderContent> {
                       .map(
                         (row) => <String, dynamic>{
                           'prodId': _productId(row),
-                          'presentaciones':
-                              _toDouble(row['presentaciones_pedir']).round(),
+                          // Con unidades exactas, el backend recalcula la fracción
+                          // sin perder la cantidad física registrada.
+                          'presentaciones': row['pedido_por_unidades'] == true
+                              ? 1 : _toDouble(row['presentaciones_pedir']).round(),
+                          if (row['pedido_por_unidades'] == true)
+                            'unidades': row['unidades_pedir'],
                         },
                       )
                       .toList(growable: false),
@@ -5114,7 +5206,7 @@ class _NextOrderContentState extends ConsumerState<_NextOrderContent> {
 
   @override
   Widget build(BuildContext context) {
-    final allRows = widget.payload.rows;
+    final allRows = activePurchaseCatalog(widget.payload.rows);
     final orderRows = _orderRows;
     final suggestedRows = _suggestedOrderRows;
     final selectedRows = _selectedRows;
@@ -5259,6 +5351,7 @@ class _NextOrderContentState extends ConsumerState<_NextOrderContent> {
                                     rows: visibleRows,
                                     selectedPresentations:
                                         _selectedPresentations,
+                                    selectedUnits: _selectedUnits,
                                     palette: widget.palette,
                                     busy: _confirming ||
                                         _exportingSelection ||
@@ -5266,6 +5359,7 @@ class _NextOrderContentState extends ConsumerState<_NextOrderContent> {
                                     onToggle: _toggleProduct,
                                     onChangePresentations:
                                         _changePresentations,
+                                    onEditUnits: _editExactUnits,
                                   );
                                   final summary = _OrderCartSummary(
                                     selectedRows: selectedRows,
@@ -5889,18 +5983,22 @@ class _OrderProductList extends StatelessWidget {
   const _OrderProductList({
     required this.rows,
     required this.selectedPresentations,
+    required this.selectedUnits,
     required this.palette,
     required this.busy,
     required this.onToggle,
     required this.onChangePresentations,
+    required this.onEditUnits,
   });
 
   final List<Map<String, dynamic>> rows;
   final Map<int, int> selectedPresentations;
+  final Map<int, double> selectedUnits;
   final AppPalette palette;
   final bool busy;
   final void Function(Map<String, dynamic>, bool) onToggle;
   final void Function(Map<String, dynamic>, int) onChangePresentations;
+  final ValueChanged<Map<String, dynamic>> onEditUnits;
 
   @override
   Widget build(BuildContext context) {
@@ -5963,10 +6061,12 @@ class _OrderProductList extends StatelessWidget {
               itemBuilder: (context, index) => _OrderProductRow(
                 row: rows[index],
                 selectedPresentations: selectedPresentations,
+                selectedUnits: selectedUnits,
                 palette: palette,
                 busy: busy,
                 onToggle: onToggle,
                 onChangePresentations: onChangePresentations,
+                onEditUnits: onEditUnits,
               ),
             ),
         ],
@@ -5979,18 +6079,22 @@ class _OrderProductRow extends StatelessWidget {
   const _OrderProductRow({
     required this.row,
     required this.selectedPresentations,
+    required this.selectedUnits,
     required this.palette,
     required this.busy,
     required this.onToggle,
     required this.onChangePresentations,
+    required this.onEditUnits,
   });
 
   final Map<String, dynamic> row;
   final Map<int, int> selectedPresentations;
+  final Map<int, double> selectedUnits;
   final AppPalette palette;
   final bool busy;
   final void Function(Map<String, dynamic>, bool) onToggle;
   final void Function(Map<String, dynamic>, int) onChangePresentations;
+  final ValueChanged<Map<String, dynamic>> onEditUnits;
 
   @override
   Widget build(BuildContext context) {
@@ -6005,13 +6109,20 @@ class _OrderProductRow extends StatelessWidget {
     final suggestedPurchase = OrderWhatsappMessageFormatter.purchaseQuantityLabel(
       row, presentations: suggested, units: suggested * factor,
     );
+    final unitOverride = productId == null ? null : selectedUnits[productId];
+    final units = unitOverride ?? count * factor;
+    final equivalent = units / factor;
     final selectedPurchase = OrderWhatsappMessageFormatter.purchaseQuantityLabel(
-      row, presentations: count, units: count * factor,
+      {
+        ...row,
+        if (unitOverride != null) 'pedido_por_unidades': true,
+      },
+      presentations: equivalent,
+      units: units,
     );
     final cost = _orderPresentationCost(row);
     final hasCost = cost > 0;
-    final subtotal = _orderSubtotal(row, presentations: count.toDouble());
-    final units = count * factor;
+    final subtotal = _orderSubtotal(row, presentations: equivalent);
     final stock = _toDouble(row['stock_actual']);
     final minimum = _toDouble(row['stock_minimo']);
     final maximum = row['stock_maximo'] == null
@@ -6078,6 +6189,23 @@ class _OrderProductRow extends StatelessWidget {
             fontWeight: FontWeight.w800,
           ),
         ),
+        if (selected && hasCost)
+          Align(
+            alignment: Alignment.centerLeft,
+            child: TextButton.icon(
+              onPressed: busy ? null : () => onEditUnits(row),
+              icon: const Icon(Icons.edit_note_rounded, size: 17),
+              label: Text(
+                unitOverride == null
+                    ? 'Pedir por unidades / media canasta'
+                    : 'Cambiar unidades exactas',
+              ),
+              style: TextButton.styleFrom(
+                visualDensity: VisualDensity.compact,
+                padding: const EdgeInsets.symmetric(horizontal: 4),
+              ),
+            ),
+          ),
       ],
     );
 
@@ -6116,13 +6244,21 @@ class _OrderProductRow extends StatelessWidget {
       ],
     );
 
-    final quantity = _CompactOrderStepper(
-      enabled: selected && !busy,
-      value: count,
-      onDecrease: count <= 1 ? null : () => onChangePresentations(row, -1),
-      onIncrease: () => onChangePresentations(row, 1),
-      palette: palette,
-    );
+    final quantity = unitOverride != null
+        ? Tooltip(
+            message: 'Usando cantidad exacta de unidades; vuelve al modo de presentaciones completas',
+            child: TextButton(
+              onPressed: busy ? null : () => onChangePresentations(row, 0),
+              child: const Text('Usar paquetes'),
+            ),
+          )
+        : _CompactOrderStepper(
+            enabled: selected && !busy,
+            value: count,
+            onDecrease: count <= 1 ? null : () => onChangePresentations(row, -1),
+            onIncrease: () => onChangePresentations(row, 1),
+            palette: palette,
+          );
 
     final amount = Column(
       crossAxisAlignment: CrossAxisAlignment.end,
@@ -11009,7 +11145,8 @@ Map<String, dynamic> _buildMetrics(
     };
   }
   if (definition.kind == _ReportKind.nextOrder) {
-    final pedidos = rows
+    final activos = activePurchaseCatalog(rows);
+    final pedidos = activos
         .where((row) => _toDouble(row['unidades_pedir']) > 0)
         .toList(growable: false);
     return {
@@ -11017,10 +11154,10 @@ Map<String, dynamic> _buildMetrics(
       'unidades_pedir': _sum(pedidos, 'unidades_pedir'),
       'presentaciones_pedir': _sum(pedidos, 'presentaciones_pedir'),
       'costo_pedido_estimado': _sum(pedidos, 'costo_pedido_estimado'),
-      'productos_sin_configurar': rows
+      'productos_sin_configurar': activos
           .where((row) => row['estado_reposicion'] == 'SIN_CONFIGURAR')
           .length,
-      'productos_sobrestock': rows
+      'productos_sobrestock': activos
           .where((row) => row['estado_reposicion'] == 'SOBRESTOCK')
           .length,
     };

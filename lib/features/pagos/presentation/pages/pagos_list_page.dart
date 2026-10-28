@@ -648,14 +648,14 @@ class _PagosListPageState extends ConsumerState<PagosListPage> {
                   FilledButton.icon(
                     onPressed: () {
                       Navigator.pop(sheetContext);
-                      Future.microtask(() => _showCorrectPaymentMethod(payment));
+                      Future.microtask(() => _showEditPaymentDistribution(payment));
                     },
                     icon: const Icon(Icons.edit_rounded),
-                    label: const Text('Corregir medio de pago'),
+                    label: const Text('Modificar importe o dividir pagos'),
                   ),
                   const SizedBox(height: 6),
                   Text(
-                    'Solo cambia el medio utilizado. El valor, la cuenta, los productos y la propina permanecen iguales.',
+                    'Corrige el medio, edita los importes o divide esta cuenta entre varios medios. El total cobrado, los productos y la propina no cambian. La modificación queda auditada.',
                     textAlign: TextAlign.center,
                     style: TextStyle(color: palette.textSecondary, fontSize: 11, fontWeight: FontWeight.w600),
                   ),
@@ -666,6 +666,59 @@ class _PagosListPageState extends ConsumerState<PagosListPage> {
         );
       },
     );
+  }
+
+  Future<void> _showEditPaymentDistribution(_PaymentAdmin payment) async {
+    final accountId = payment.accountId;
+    if (accountId == null || !mounted) return;
+    try {
+      final response = await ref.read(apiClientProvider).get<List<Map<String, dynamic>>>(
+        '${ApiPaths.pagos}/cuentas/$accountId/distribucion',
+        (json) => (json as List? ?? const [])
+            .whereType<Map>()
+            .map((value) => Map<String, dynamic>.from(value))
+            .toList(growable: false),
+      );
+      if (!mounted) return;
+      final lines = response.data ?? const <Map<String, dynamic>>[];
+      if (lines.isEmpty) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('La cuenta no tiene pagos para corregir.')),
+        );
+        return;
+      }
+      final decision = await showDialog<_PaymentSplitDecision>(
+        context: context,
+        builder: (_) => _PaymentSplitDialog(
+          accountId: accountId,
+          total: payment.accountTotal,
+          methods: _methods,
+          existing: lines,
+        ),
+      );
+      if (decision == null || !mounted) return;
+      await ref.read(apiClientProvider).put<Map<String, dynamic>>(
+        '${ApiPaths.pagos}/cuentas/$accountId/distribucion',
+        {
+          'pagos': decision.payments,
+          'justificacion': decision.reason,
+        },
+        (json) => Map<String, dynamic>.from(json as Map),
+      );
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Distribución actualizada: '
+            '${decision.payments.length} pagos. '
+            'Verifica nuevamente el cierre de caja de ese día.')),
+      );
+      await _loadData();
+    } catch (error) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(
+            'No se pudo actualizar el pago: ${ErrorMapper.map(error).message}')),
+      );
+    }
   }
 
   Future<void> _showCorrectPaymentMethod(_PaymentAdmin payment) async {
@@ -1223,6 +1276,223 @@ class _PeriodSheetState extends State<_PeriodSheet> {
 
   void _apply() {
     Navigator.pop(context, _PeriodResult(_start, _end.add(const Duration(days: 1)), _label));
+  }
+}
+
+class _PaymentSplitDecision {
+  const _PaymentSplitDecision(this.payments, this.reason);
+  final List<Map<String, dynamic>> payments;
+  final String reason;
+}
+
+class _PaymentSplitEntry {
+  _PaymentSplitEntry(this.methodId, double value)
+      : controller = TextEditingController(text: value == value.roundToDouble()
+            ? value.toStringAsFixed(0)
+            : value.toStringAsFixed(2));
+  int? methodId;
+  final TextEditingController controller;
+  void dispose() => controller.dispose();
+}
+
+class _PaymentSplitDialog extends StatefulWidget {
+  const _PaymentSplitDialog({
+    required this.accountId,
+    required this.total,
+    required this.methods,
+    required this.existing,
+  });
+  final int accountId;
+  final double total;
+  final List<_PaymentMethod> methods;
+  final List<Map<String, dynamic>> existing;
+
+  @override
+  State<_PaymentSplitDialog> createState() => _PaymentSplitDialogState();
+}
+
+class _PaymentSplitDialogState extends State<_PaymentSplitDialog> {
+  final TextEditingController _reason = TextEditingController();
+  final List<_PaymentSplitEntry> _entries = [];
+
+  @override
+  void initState() {
+    super.initState();
+    for (final raw in widget.existing) {
+      final amount = (raw['valor'] as num?)?.toDouble() ?? 0;
+      _entries.add(_PaymentSplitEntry((raw['medioPagoId'] as num?)?.toInt(), amount));
+    }
+    if (_entries.isEmpty) _entries.add(_PaymentSplitEntry(null, widget.total));
+  }
+
+  @override
+  void dispose() {
+    _reason.dispose();
+    for (final row in _entries) {
+      row.dispose();
+    }
+    super.dispose();
+  }
+
+  double _parse(String raw) {
+    String normalized = raw.trim().replaceAll(RegExp(r'[^0-9,.-]'), '');
+    if (normalized.contains(',') && normalized.contains('.')) {
+      normalized = normalized.replaceAll('.', '').replaceAll(',', '.');
+    } else if (normalized.contains(',')) {
+      normalized = normalized.replaceAll(',', '.');
+    } else if (RegExp(r'^\d{1,3}(\.\d{3})+$').hasMatch(normalized)) {
+      normalized = normalized.replaceAll('.', '');
+    }
+    return double.tryParse(normalized) ?? double.nan;
+  }
+
+  void _confirm() {
+    if (_reason.text.trim().isEmpty || _reason.text.trim().length > 300) {
+      ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Indica una justificación de máximo 300 caracteres.')));
+      return;
+    }
+    final payments = <Map<String, dynamic>>[];
+    var totalCents = 0;
+    for (final entry in _entries) {
+      final amount = _parse(entry.controller.text);
+      if (entry.methodId == null || !amount.isFinite || amount <= 0 ||
+          (amount * 100 - (amount * 100).round()).abs() > 0.001) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Todos los pagos deben tener medio e importe válido.')),
+        );
+        return;
+      }
+      totalCents += (amount * 100).round();
+      payments.add({
+        'medioPagoId': entry.methodId,
+        'valor': double.parse(amount.toStringAsFixed(2)),
+      });
+    }
+    if (totalCents != (widget.total * 100).round()) {
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+        content: Text('La suma debe ser igual a la cuenta: '
+            '${widget.total.toStringAsFixed(2)}. '
+            'Suma ingresada: ${(totalCents / 100).toStringAsFixed(2)}.'),
+      ));
+      return;
+    }
+    Navigator.of(context).pop(_PaymentSplitDecision(payments, _reason.text.trim()));
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final amount = _entries.fold<double>(0, (sum, row) {
+      final value = _parse(row.controller.text);
+      return sum + (value.isFinite ? value : 0);
+    });
+    final matched = (amount - widget.total).abs() < .005;
+    return AlertDialog(
+      title: Text('Editar pagos · Cuenta #${widget.accountId}'),
+      content: SizedBox(
+        width: 540,
+        child: ConstrainedBox(
+          constraints: BoxConstraints(
+            maxHeight: MediaQuery.sizeOf(context).height * 0.65,
+          ),
+          child: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                const Text('Puedes modificar el medio, cambiar la cantidad '
+                    'de cada abono o dividir el pago entre Nequi, DaviPlata, '
+                    'efectivo, tarjeta o transferencia.'),
+                const SizedBox(height: 8),
+                const Text('Se conserva el valor total de la venta y la propina. '
+                    'Se registra un historial de cambios y se recalcula el cierre '
+                    'si esta venta ya estaba incluida en uno.'),
+                const SizedBox(height: 14),
+                for (var i = 0; i < _entries.length; i++) ...[
+                  Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Expanded(
+                        flex: 3,
+                        child: DropdownButtonFormField<int>(
+                          value: widget.methods.any((m) => m.id == _entries[i].methodId)
+                              ? _entries[i].methodId : null,
+                          isExpanded: true,
+                          decoration: const InputDecoration(labelText: 'Medio de pago'),
+                          items: [
+                            for (final method in widget.methods)
+                              if (method.id != null)
+                                DropdownMenuItem(value: method.id, child: Text(method.name)),
+                          ],
+                          onChanged: (value) => setState(() => _entries[i].methodId = value),
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        flex: 2,
+                        child: TextFormField(
+                          controller: _entries[i].controller,
+                          keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                          decoration: const InputDecoration(
+                            labelText: 'Valor',
+                            prefixText: r'$ ',
+                          ),
+                          onChanged: (_) => setState(() {}),
+                        ),
+                      ),
+                      IconButton(
+                        tooltip: 'Eliminar esta división',
+                        onPressed: _entries.length > 1 ? () => setState(() {
+                          _entries.removeAt(i).dispose();
+                        }) : null,
+                        icon: const Icon(Icons.remove_circle_outline),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 10),
+                ],
+                OutlinedButton.icon(
+                  onPressed: _entries.length >= 20 ? null : () => setState(() {
+                    _entries.add(_PaymentSplitEntry(null, 0));
+                  }),
+                  icon: const Icon(Icons.add_rounded),
+                  label: const Text('Agregar otro medio de pago'),
+                ),
+                const SizedBox(height: 12),
+                Text(
+                  'Suma: ${amount.toStringAsFixed(2)} / '
+                  '${widget.total.toStringAsFixed(2)}',
+                  style: TextStyle(
+                    fontWeight: FontWeight.w800,
+                    color: matched ? Colors.green : Colors.orange,
+                  ),
+                ),
+                const SizedBox(height: 12),
+                TextField(
+                  controller: _reason,
+                  maxLength: 300,
+                  minLines: 2,
+                  maxLines: 3,
+                  decoration: const InputDecoration(
+                    labelText: 'Motivo obligatorio de la corrección',
+                    hintText: 'Ejemplo: el cliente pagó una parte por Nequi y otra en efectivo',
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+      actions: [
+        TextButton(onPressed: () => Navigator.of(context).pop(),
+            child: const Text('Cancelar')),
+        FilledButton.icon(
+          onPressed: matched ? _confirm : null,
+          icon: const Icon(Icons.save_rounded),
+          label: const Text('Guardar distribución'),
+        ),
+      ],
+    );
   }
 }
 

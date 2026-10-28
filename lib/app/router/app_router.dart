@@ -6,6 +6,8 @@ import '../../features/auth/presentation/pages/login_page.dart';
 import '../../features/auth/presentation/pages/forgot_password_page.dart';
 import '../../features/auth/presentation/pages/reset_password_page.dart';
 import '../../features/public/presentation/pages/public_landing_page.dart';
+import '../../features/eventos/presentation/evento_publico_page.dart';
+import '../../features/eventos/presentation/eventos_admin_page.dart';
 import '../../features/public/presentation/pages/public_registration_page.dart';
 import '../../features/subscription/presentation/pages/subscription_activation_page.dart';
 import '../../features/subscription/presentation/pages/subscription_plans_admin_page.dart';
@@ -145,7 +147,8 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       // En Android, iOS, Windows, macOS y Linux la aplicación instalada
       // comienza en autenticación y solo conserva las rutas públicas
       // necesarias para acceso, registro y recuperación de contraseña.
-      final isPublicRoute = (kIsWeb && isLandingRoute) ||
+      final isEventPublic = path.startsWith('/evento/');
+      final isPublicRoute = isEventPublic || (kIsWeb && isLandingRoute) ||
           isRegistrationRoute ||
           isLoginRoute ||
           isForgotPasswordRoute ||
@@ -162,7 +165,7 @@ final appRouterProvider = Provider<GoRouter>((ref) {
 
       // Una sesión con suscripción pendiente solo puede entrar a la activación.
       // El backend aplica la misma regla para impedir saltarse este control.
-      if (authState.authenticated && !authState.subscriptionActive && !isSubscriptionRoute && !isResetPasswordRoute && !(isSubscriptionPlanAdminRoute && isGlobalAdmin)) {
+      if (authState.authenticated && !authState.subscriptionActive && !isEventPublic && !isSubscriptionRoute && !isResetPasswordRoute && !(isSubscriptionPlanAdminRoute && isGlobalAdmin)) {
         return '/activar-suscripcion';
       }
 
@@ -172,7 +175,7 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       if (authState.authenticated &&
           authState.subscriptionActive &&
           !authState.businessSetupComplete &&
-          !isBusinessSetupRoute &&
+          !isEventPublic && !isBusinessSetupRoute &&
           !isSetupConfigurationRoute &&
           !isResetPasswordRoute) {
         return '/configurar-negocio';
@@ -271,6 +274,9 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       return null;
     },
     routes: [
+      GoRoute(path: '/evento/entrada/:token', builder: (context,state) => EventoEntradaPublicaPage(token: state.pathParameters['token']!)),
+      GoRoute(path: '/evento/:slug', builder: (context,state) => EventoPublicoPage(slug: state.pathParameters['slug']!)),
+      GoRoute(path: '/eventos', builder: (context,state) => const AppScaffold(child: EventosAdminPage())),
       GoRoute(
         path: '/',
         builder: (context, state) =>

@@ -10,10 +10,14 @@ import '../../../../core/constants/api_paths.dart';
 import '../../../../core/errors/error_mapper.dart';
 import '../../../../core/providers/core_providers.dart';
 import '../../../../core/utils/currency_utils.dart';
+import '../../../../core/utils/file_download_helper.dart';
 import '../../../../core/widgets/app_error_view.dart';
 import '../../../../core/widgets/app_loader.dart';
 import '../../../../core/widgets/tech_background.dart';
 import '../../../sucursales/data/models/sucursales_response_model.dart';
+import '../../../auth/presentation/providers/auth_provider.dart';
+
+enum _InventoryHistoryView { cards, table }
 
 enum _InventoryAdminFilter {
   todos,
@@ -37,9 +41,23 @@ class _InventarioAdminPageState extends ConsumerState<InventarioAdminPage> {
   late DateTimeRange _range;
   int? _branchId;
   bool _loading = true;
+  bool _exportingExcel = false;
+  _InventoryHistoryView _historyView = _InventoryHistoryView.cards;
   String? _error;
   _InventoryAdminFilter _filter = _InventoryAdminFilter.todos;
   List<_InventoryAuditRow> _rows = const [];
+  List<Map<String, dynamic>> _synchronizations = const [];
+  String? _synchronizationWarning;
+  bool _undoingSynchronization = false;
+  bool _allSynchronizationHistory = false;
+
+  bool get _canUndoSynchronization => ref.read(authControllerProvider).roles.any(
+        (role) {
+          final code = role.toUpperCase().replaceFirst('ROLE_', '');
+          return const {'ADMINISTRADOR', 'GERENTE', 'ADMIN', 'SUPERADMIN',
+              'SUPER_ADMIN', 'MANAGER'}.contains(code);
+        },
+      );
 
   @override
   void initState() {
@@ -97,9 +115,35 @@ class _InventarioAdminPageState extends ConsumerState<InventarioAdminPage> {
           .map(_InventoryAuditRow.fromJson)
           .toList(growable: false);
 
+      List<Map<String, dynamic>> syncRows = const [];
+      String? warning;
+      try {
+        final history = await ref.read(apiClientProvider).get<List<Map<String, dynamic>>>(
+          '${ApiPaths.inventario}/administracion/sincronizaciones',
+          (json) => (json as List? ?? const <Object>[])
+              .whereType<Map>()
+              .map((row) => Map<String, dynamic>.from(row))
+              .toList(),
+          queryParameters: {
+            'sucursalId': branchId,
+            if (!_allSynchronizationHistory)
+              'desde': DateFormat('yyyy-MM-dd').format(_range.start),
+            if (!_allSynchronizationHistory)
+              'hasta': DateFormat('yyyy-MM-dd').format(_range.end),
+          },
+        );
+        syncRows = history.data ?? const [];
+      } catch (error) {
+        debugPrint('No fue posible consultar auditoría de sincronizaciones: $error');
+        warning = 'La bitácora de sincronizaciones no está disponible. '
+            'Revisa la conexión o la versión del backend y reintenta.';
+      }
+
       if (!mounted) return;
       setState(() {
         _rows = rows;
+        _synchronizations = syncRows;
+        _synchronizationWarning = warning;
         _branchId = branchId;
         _loading = false;
       });
@@ -153,6 +197,245 @@ class _InventarioAdminPageState extends ConsumerState<InventarioAdminPage> {
                 '${row.countId}'.contains(query),
           );
     }).toList(growable: false);
+  }
+
+  Future<void> _exportExcel({DateTime? onlyDay}) async {
+    if (_exportingExcel || _loading || _rows.isEmpty) return;
+    final branchId = _branchId;
+    if (branchId == null) return;
+    setState(() => _exportingExcel = true);
+    try {
+      final start = onlyDay ?? _range.start;
+      final end = onlyDay ?? _range.end;
+      final dateStart = DateFormat('yyyy-MM-dd').format(start);
+      final dateEnd = DateFormat('yyyy-MM-dd').format(end);
+      final filter = onlyDay == null
+          ? switch (_filter) {
+              _InventoryAdminFilter.todos => 'TODOS',
+              _InventoryAdminFilter.pendientes => 'PENDIENTES',
+              _InventoryAdminFilter.conDiferencias => 'CON_DIFERENCIAS',
+              _InventoryAdminFilter.sincronizados => 'SINCRONIZADOS',
+              _InventoryAdminFilter.cuadrados => 'CUADRADOS',
+            }
+          : 'TODOS';
+      final bytes = await ref.read(apiClientProvider).getBytes(
+        '${ApiPaths.inventario}/administracion/excel',
+        queryParameters: {
+          'sucursalId': branchId,
+          'desde': dateStart,
+          'hasta': dateEnd,
+          'filtro': filter,
+          if (onlyDay == null && _searchController.text.trim().isNotEmpty)
+            'buscar': _searchController.text.trim(),
+        },
+      );
+      final saved = await downloadBytesFile(
+        fileName: 'BarLytics_Conteos_${branchId}_${dateStart}_${dateEnd}.xlsx',
+        bytes: bytes,
+        mimeType:
+            'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+      );
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(saved
+              ? 'Historial de conteos exportado a Excel con todos los productos.'
+              : 'Se canceló la descarga del Excel.'),
+        ),
+      );
+    } catch (error) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('No fue posible descargar Excel: ${ErrorMapper.map(error).message}'),
+        ),
+      );
+    } finally {
+      if (mounted) setState(() => _exportingExcel = false);
+    }
+  }
+
+  Future<void> _undoSynchronization(Map<String, dynamic> audit) async {
+    if (_undoingSynchronization || !_canUndoSynchronization) return;
+    final countId = audit['conteo_id'];
+    final movementId = audit['movimiento_id'];
+    if (countId == null || movementId == null) return;
+    final controller = TextEditingController();
+    final justification = await showDialog<String>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Row(children: [
+          Icon(Icons.restore_outlined, color: Colors.orangeAccent),
+          SizedBox(width: 10),
+          Expanded(child: Text('Anular sincronización')),
+        ]),
+        content: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 460),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(
+                'Se anulará la conciliación del producto '
+                '${audit['producto'] ?? 'seleccionado'} (conteo #$countId). '
+                'El movimiento original seguirá en el historial y no se '
+                'borrarán ventas ni compras posteriores.',
+              ),
+              const SizedBox(height: 14),
+              TextField(
+                controller: controller,
+                autofocus: true,
+                minLines: 2,
+                maxLines: 4,
+                maxLength: 300,
+                decoration: const InputDecoration(
+                  labelText: 'Motivo obligatorio de anulación',
+                  hintText: 'Por ejemplo: conciliación sin autorización o conteo equivocado',
+                ),
+              ),
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext),
+            child: const Text('Cancelar'),
+          ),
+          FilledButton.icon(
+            onPressed: () {
+              if (controller.text.trim().isEmpty) return;
+              Navigator.pop(dialogContext, controller.text.trim());
+            },
+            icon: const Icon(Icons.restore),
+            label: const Text('Confirmar anulación'),
+          ),
+        ],
+      ),
+    );
+    // El diálogo ya devolvió su resultado; el controlador no se utiliza después.
+    controller.dispose();
+    if (justification == null || !mounted) return;
+    setState(() => _undoingSynchronization = true);
+    try {
+      await ref.read(apiClientProvider).post<Object?>(
+        '${ApiPaths.inventario}/administracion/sincronizaciones/anular-lote',
+        {'movimientoIds': [movementId], 'justificacion': justification},
+        (json) => json,
+      );
+      await _load();
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text(
+            'Sincronización anulada con trazabilidad. '
+            'Se conservó el inventario operativo.',
+          )),
+        );
+      }
+    } catch (error) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('No fue posible anular: ${ErrorMapper.map(error).message}')),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _undoingSynchronization = false);
+    }
+  }
+
+
+  /// Anula en una única transacción los movimientos marcados, incluso si
+  /// pertenecen a distintas fechas de conteo dentro de la sucursal actual.
+  Future<void> _undoSelectedSynchronizations(List<int> movementIds) async {
+    if (_undoingSynchronization || !_canUndoSynchronization || movementIds.isEmpty) return;
+    if (movementIds.length > 1000) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+        content: Text('Puedes anular hasta 1000 sincronizaciones por operación.'),
+      ));
+      return;
+    }
+    final selectedIds = movementIds.toSet();
+    final preview = _synchronizations.where((row) {
+      final raw = row['movimiento_id'];
+      final id = raw is num ? raw.toInt() : int.tryParse(raw?.toString() ?? '');
+      return id != null && selectedIds.contains(id);
+    }).take(6).map((row) => '• ${row['producto'] ?? 'Producto'} '
+        '(movimiento #${row['movimiento_id']}, conteo #${row['conteo_id']})')
+        .join('\n');
+    final controller = TextEditingController();
+    final justification = await showDialog<String>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Anular sincronizaciones seleccionadas'),
+        content: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 480),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text('Has seleccionado ${movementIds.length} sincronizaciones. '
+                  'Se anularán todas en una sola operación, aunque sean de '
+                  'distintas fechas. Los movimientos originales se conservarán '
+                  'en la bitácora y no se modificarán las ventas ni el stock.'),
+              const SizedBox(height: 10),
+              if (preview.isNotEmpty)
+                Text(preview, maxLines: 6, overflow: TextOverflow.ellipsis),
+              if (movementIds.length > 6)
+                Text('Y ${movementIds.length - 6} movimientos más incluidos '
+                    'en la selección.'),
+              const SizedBox(height: 14),
+              TextField(
+                controller: controller,
+                autofocus: true,
+                maxLength: 300,
+                minLines: 2,
+                maxLines: 4,
+                decoration: const InputDecoration(
+                  labelText: 'Justificación obligatoria para todo el lote',
+                  hintText: 'Por ejemplo: conciliaciones realizadas por error',
+                ),
+              ),
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext),
+            child: const Text('Cancelar'),
+          ),
+          FilledButton.icon(
+            onPressed: () {
+              if (controller.text.trim().isEmpty) return;
+              Navigator.pop(dialogContext, controller.text.trim());
+            },
+            icon: const Icon(Icons.undo_rounded),
+            label: Text('Anular ${movementIds.length} seleccionadas'),
+          ),
+        ],
+      ),
+    );
+    controller.dispose();
+    if (justification == null || !mounted) return;
+    setState(() => _undoingSynchronization = true);
+    try {
+      await ref.read(apiClientProvider).post<Object?>(
+        '${ApiPaths.inventario}/administracion/sincronizaciones/anular-lote',
+        {'movimientoIds': movementIds, 'justificacion': justification},
+        (json) => json,
+      );
+      await _load();
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+          content: Text('${movementIds.length} sincronizaciones anuladas '
+              'con justificación y trazabilidad.'),
+        ));
+      }
+    } catch (error) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+          content: Text('No se pudo anular el lote: ${ErrorMapper.map(error).message}'),
+        ));
+      }
+    } finally {
+      if (mounted) setState(() => _undoingSynchronization = false);
+    }
   }
 
   Future<void> _pickRange() async {
@@ -352,6 +635,44 @@ class _InventarioAdminPageState extends ConsumerState<InventarioAdminPage> {
                     ),
                   ),
                 ),
+                SliverToBoxAdapter(
+                  child: _PageWidth(
+                    child: _InventoryHistoryActions(
+                      palette: palette,
+                      view: _historyView,
+                      count: days.fold<int>(0, (sum, day) => sum + day.rows.length),
+                      exporting: _exportingExcel,
+                      canExport: days.isNotEmpty && !_loading,
+                      onViewChanged: (value) => setState(() => _historyView = value),
+                      onExport: () => _exportExcel(),
+                    ),
+                  ),
+                ),
+                SliverToBoxAdapter(
+                    child: _PageWidth(
+                      child: _SynchronizationHistoryPanel(
+                        rows: _synchronizations,
+                        palette: palette,
+                        canUndo: _canUndoSynchronization && !_undoingSynchronization,
+                        onUndo: _undoSynchronization,
+                        onUndoSelected: _undoSelectedSynchronizations,
+                        allHistorical: _allSynchronizationHistory,
+                        onAllHistoricalChanged: (all) {
+                          setState(() => _allSynchronizationHistory = all);
+                          _load();
+                        },
+                      ),
+                    ),
+                  ),
+                if (_synchronizationWarning != null)
+                  SliverToBoxAdapter(
+                    child: _PageWidth(
+                      child: _InlineError(
+                        palette: palette,
+                        message: _synchronizationWarning!,
+                      ),
+                    ),
+                  ),
                 if (_error != null)
                   SliverToBoxAdapter(
                     child: _PageWidth(
@@ -387,8 +708,13 @@ class _InventarioAdminPageState extends ConsumerState<InventarioAdminPage> {
                               bottom: index == days.length - 1 ? 0 : 12,
                             ),
                             child: _CountDayCard(
+                              key: ValueKey('conteo-${days[index].date.toIso8601String()}'),
                               day: days[index],
                               palette: palette,
+                              tableView: _historyView == _InventoryHistoryView.table,
+                              onExportExcel: !_loading && !_exportingExcel
+                                  ? () => _exportExcel(onlyDay: days[index].date)
+                                  : null,
                               onReview: days[index].reconciliableCount == 0 ||
                                       _loading
                                   ? null
@@ -429,6 +755,9 @@ class _InventoryAuditRow {
     required this.expected,
     required this.counted,
     required this.difference,
+    required this.currentSystemStock,
+    required this.hasCurrentSystemStock,
+    required this.currentSystemStockDate,
     required this.unitPurchaseCost,
     required this.purchasePresentationCost,
     required this.unitsPerPresentation,
@@ -459,6 +788,9 @@ class _InventoryAuditRow {
   final double expected;
   final double counted;
   final double difference;
+  final double currentSystemStock;
+  final bool hasCurrentSystemStock;
+  final DateTime? currentSystemStockDate;
   final double unitPurchaseCost;
   final double purchasePresentationCost;
   final double unitsPerPresentation;
@@ -481,7 +813,10 @@ class _InventoryAuditRow {
   final String attendedBy;
 
   bool get hasDifference => difference.abs() > .0001;
-  bool get reconciliable => status == 'PENDIENTE' && latestCount;
+  // Un conteo cuya sincronización fue anulada puede reconciliarse otra vez
+  // si sigue siendo el último conteo físico de ese producto.
+  bool get reconciliable =>
+      (status == 'PENDIENTE' || status == 'ANULADO') && latestCount;
 
   factory _InventoryAuditRow.fromJson(Map<String, dynamic> json) {
     return _InventoryAuditRow(
@@ -495,6 +830,11 @@ class _InventoryAuditRow {
       expected: _num(json['esperado']),
       counted: _num(json['contado']),
       difference: _num(json['diferencia_unidades']),
+      currentSystemStock: _num(json['stock_actual_sistema']),
+      hasCurrentSystemStock: json['stock_actual_disponible'] == true ||
+          json['stock_actual_disponible']?.toString() == 'true',
+      currentSystemStockDate:
+          DateTime.tryParse(json['stock_actual_fecha']?.toString() ?? ''),
       unitPurchaseCost: _num(json['costo_unitario_compra']),
       purchasePresentationCost:
           _num(json['costo_presentacion_compra']),
@@ -554,7 +894,8 @@ class _InventoryCountDay {
   int get salesDay => rows.isEmpty ? 0 : rows.first.salesDay;
   double get totalSoldDay => rows.isEmpty ? 0 : rows.first.totalSoldDay;
   int get differenceCount => rows.where((row) => row.hasDifference).length;
-  int get pendingCount => rows.where((row) => row.status == 'PENDIENTE').length;
+  int get pendingCount =>
+      rows.where((row) => row.reconciliable).length;
   int get reconciliableCount => rows.where((row) => row.reconciliable).length;
   int get syncedCount =>
       rows.where((row) => row.status == 'SINCRONIZADO').length;
@@ -2033,19 +2374,630 @@ class _AdminToolbar extends StatelessWidget {
   }
 }
 
-class _CountDayCard extends StatelessWidget {
+/// Bitácora de conciliaciones. Permite elegir movimientos vigentes individuales,
+/// todos los del período consultado o consultar jornadas históricas anteriores.
+class _SynchronizationHistoryPanel extends StatefulWidget {
+  const _SynchronizationHistoryPanel({
+    required this.rows,
+    required this.palette,
+    required this.canUndo,
+    required this.onUndo,
+    required this.onUndoSelected,
+    required this.allHistorical,
+    required this.onAllHistoricalChanged,
+  });
+
+  final List<Map<String, dynamic>> rows;
+  final AppPalette palette;
+  final bool canUndo;
+  final ValueChanged<Map<String, dynamic>> onUndo;
+  final ValueChanged<List<int>> onUndoSelected;
+  final bool allHistorical;
+  final ValueChanged<bool> onAllHistoricalChanged;
+
+  @override
+  State<_SynchronizationHistoryPanel> createState() =>
+      _SynchronizationHistoryPanelState();
+}
+
+class _SynchronizationHistoryPanelState
+    extends State<_SynchronizationHistoryPanel> {
+  bool showAll = false;
+  final Set<int> _selectedMovements = <int>{};
+
+  static int? _movementId(Map<String, dynamic> row) {
+    final value = row['movimiento_id'];
+    if (value is num) return value.toInt();
+    return int.tryParse(value?.toString() ?? '');
+  }
+
+  bool _isSelectable(Map<String, dynamic> row) =>
+      row['anulado'] != true && _movementId(row) != null;
+
+  @override
+  void didUpdateWidget(covariant _SynchronizationHistoryPanel oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    // Cuando cambie sucursal, período o estado de anulaciones, descartar
+    // selecciones que ya no estén disponibles para evitar lotes inesperados.
+    final available = widget.rows
+        .where(_isSelectable)
+        .map(_movementId)
+        .whereType<int>()
+        .toSet();
+    _selectedMovements.removeWhere((id) => !available.contains(id));
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final palette = widget.palette;
+    final ordered = widget.rows;
+    final shown = showAll ? ordered : ordered.take(20).toList(growable: false);
+    final available = ordered.where(_isSelectable)
+        .map(_movementId).whereType<int>().toSet();
+    final selectedCount = _selectedMovements.length;
+    final selectedAll = available.isNotEmpty &&
+        _selectedMovements.containsAll(available);
+
+    String date(Object? raw) {
+      final parsed = DateTime.tryParse(raw?.toString() ?? '');
+      return parsed == null
+          ? 'Sin fecha' : DateFormat('dd/MM/yyyy HH:mm').format(parsed);
+    }
+    String observation(Object? raw) {
+      final reference = raw?.toString() ?? '';
+      final separator = reference.indexOf(' - ');
+      return separator < 0 ? reference : reference.substring(separator + 3);
+    }
+    Widget head(String title) => Text(
+          title,
+          style: TextStyle(color: palette.textPrimary,
+              fontSize: 11, fontWeight: FontWeight.w900),
+        );
+    Widget content(String value) => Text(
+          value,
+          maxLines: 3,
+          overflow: TextOverflow.ellipsis,
+          style: TextStyle(color: palette.textPrimary,
+              fontSize: 11.5, fontWeight: FontWeight.w600),
+        );
+    return Container(
+      padding: const EdgeInsets.all(13),
+      decoration: palette.panelDecoration(baseRadius: 20, elevated: false),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(children: [
+            Icon(Icons.history_toggle_off_rounded,
+                color: palette.secondary, size: 23),
+            const SizedBox(width: 8),
+            Expanded(child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text('Historial de sincronizaciones',
+                    style: TextStyle(color: palette.textPrimary,
+                        fontWeight: FontWeight.w900, fontSize: 16)),
+                Text(
+                  '${ordered.length} movimientos de conciliación · '
+                  '${available.length} vigentes · '
+                  'incluye anotaciones, responsables y anulaciones.',
+                  style: TextStyle(color: palette.textSecondary, fontSize: 11),
+                ),
+              ],
+            )),
+          ]),
+          const SizedBox(height: 8),
+          SwitchListTile.adaptive(
+            contentPadding: EdgeInsets.zero,
+            dense: true,
+            title: const Text('Consultar sincronizaciones de todos los períodos'),
+            subtitle: Text(widget.allHistorical
+                ? 'Mostrando todos los registros históricos de esta sucursal.'
+                : 'Por defecto se muestra únicamente el rango de fechas elegido.'),
+            value: widget.allHistorical,
+            onChanged: widget.onAllHistoricalChanged,
+          ),
+          if (widget.canUndo && available.isNotEmpty) ...[
+            const SizedBox(height: 8),
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              crossAxisAlignment: WrapCrossAlignment.center,
+              children: [
+                OutlinedButton.icon(
+                  onPressed: () => setState(() {
+                    if (selectedAll) {
+                      _selectedMovements.clear();
+                    } else {
+                      _selectedMovements
+                        ..clear()
+                        ..addAll(available);
+                    }
+                  }),
+                  icon: Icon(selectedAll
+                      ? Icons.deselect_rounded : Icons.select_all_rounded),
+                  label: Text(selectedAll
+                      ? 'Deseleccionar todas'
+                      : 'Seleccionar todas las vigentes (${available.length})'),
+                ),
+                if (selectedCount > 0)
+                  OutlinedButton.icon(
+                    onPressed: () => setState(_selectedMovements.clear),
+                    icon: const Icon(Icons.clear_rounded),
+                    label: const Text('Limpiar selección'),
+                  ),
+                FilledButton.icon(
+                  onPressed: selectedCount > 0 && selectedCount <= 1000
+                      ? () => widget.onUndoSelected(
+                          _selectedMovements.toList()..sort())
+                      : null,
+                  icon: const Icon(Icons.undo_rounded),
+                  label: Text('Anular seleccionadas ($selectedCount)'),
+                ),
+                Text('$selectedCount seleccionadas',
+                    style: TextStyle(color: palette.textSecondary,
+                        fontSize: 12, fontWeight: FontWeight.w700)),
+              ],
+            ),
+            if (selectedCount > 1000)
+              const Padding(
+                padding: EdgeInsets.only(top: 8),
+                child: Text('Para anular más de 1000 registros, reduce la '
+                    'selección o filtra las fechas y haz varias operaciones.'),
+              ),
+          ],
+          const SizedBox(height: 12),
+          if (ordered.isEmpty)
+            Padding(
+              padding: const EdgeInsets.symmetric(vertical: 12),
+              child: Text(
+                'Todavía no hay sincronizaciones registradas en el período '
+                'y la sucursal seleccionados.',
+                style: TextStyle(
+                  color: palette.textSecondary,
+                  fontWeight: FontWeight.w700,
+                  fontSize: 12,
+                ),
+              ),
+            ),
+          if (ordered.isNotEmpty)
+            ClipRRect(
+              borderRadius: BorderRadius.circular(12),
+              child: SingleChildScrollView(
+                scrollDirection: Axis.horizontal,
+                child: DataTable(
+                  showCheckboxColumn: widget.canUndo,
+                  onSelectAll: widget.canUndo ? (selected) {
+                    setState(() {
+                      final ids = shown
+                          .where(_isSelectable)
+                          .map(_movementId)
+                          .whereType<int>();
+                      if (selected == true) {
+                        _selectedMovements.addAll(ids);
+                      } else {
+                        _selectedMovements.removeAll(ids);
+                      }
+                    });
+                  } : null,
+                  headingRowHeight: 46,
+                  dataRowMinHeight: 54,
+                  dataRowMaxHeight: 100,
+                  columnSpacing: 19,
+                  headingRowColor: MaterialStateProperty.all(
+                      palette.secondary.withOpacity(.09)),
+                  columns: [
+                    DataColumn(label: head('Fecha')),
+                    DataColumn(label: head('Producto')),
+                    DataColumn(label: head('Diferencia')),
+                    DataColumn(label: head('Sincronizó')),
+                    DataColumn(label: head('Motivo y observación')),
+                    DataColumn(label: head('Estado')),
+                    DataColumn(label: head('Anulación / responsable')),
+                    DataColumn(label: head('Acciones')),
+                  ],
+                  rows: [
+                    for (final row in shown)
+                      DataRow(
+                        selected: _selectedMovements.contains(_movementId(row)),
+                        onSelectChanged: widget.canUndo && _isSelectable(row)
+                            ? (selected) {
+                                final id = _movementId(row)!;
+                                setState(() {
+                                  if (selected == true) {
+                                    _selectedMovements.add(id);
+                                  } else {
+                                    _selectedMovements.remove(id);
+                                  }
+                                });
+                              }
+                            : null,
+                        cells: [
+                          DataCell(content(date(row['sincronizado_en']))),
+                          DataCell(SizedBox(
+                            width: 155,
+                            child: content(row['producto']?.toString() ?? 'Producto'),
+                          )),
+                          DataCell(content(
+                            '${row['operacion'] ?? ''} '
+                            '${_qty(_num(row['unidades_ajuste']))}',
+                          )),
+                          DataCell(content(
+                              row['sincronizado_por']?.toString() ?? '—')),
+                          DataCell(SizedBox(
+                            width: 220,
+                            child: content(
+                              '${row['motivo'] ?? 'Sin motivo'} · '
+                              '${observation(row['referencia_observacion'])}',
+                            ),
+                          )),
+                          DataCell(Text(
+                            row['anulado'] == true ? 'Anulada' : 'Vigente',
+                            style: TextStyle(
+                              color: row['anulado'] == true
+                                  ? palette.warning : palette.success,
+                              fontWeight: FontWeight.w800,
+                            ),
+                          )),
+                          DataCell(SizedBox(
+                            width: 230,
+                            child: content(
+                              row['anulado'] == true
+                                  ? '${row['anulado_por'] ?? '—'} · '
+                                    '${date(row['anulado_en'])} · '
+                                    '${row['motivo_anulacion'] ?? ''}'
+                                  : 'Sin anulación',
+                            ),
+                          )),
+                          DataCell(
+                            row['anulado'] == true
+                                ? const Icon(Icons.history_rounded, size: 18)
+                                : widget.canUndo
+                                    ? TextButton.icon(
+                                        onPressed: () => widget.onUndo(row),
+                                        icon: const Icon(Icons.undo_rounded, size: 17),
+                                        label: const Text('Anular'),
+                                      )
+                                    : const Text('Solo lectura'),
+                          ),
+                        ],
+                      ),
+                  ],
+                ),
+              ),
+            ),
+          if (ordered.length > 20) ...[
+            const SizedBox(height: 8),
+            Align(
+              alignment: Alignment.centerRight,
+              child: TextButton.icon(
+                onPressed: () => setState(() => showAll = !showAll),
+                icon: Icon(showAll ? Icons.expand_less : Icons.expand_more),
+                label: Text(showAll
+                    ? 'Mostrar solo los últimos 20'
+                    : 'Mostrar todos (${ordered.length})'),
+              ),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
+/// Control de presentación del historial y exportación del período visible.
+class _InventoryHistoryActions extends StatelessWidget {
+  const _InventoryHistoryActions({
+    required this.palette,
+    required this.view,
+    required this.count,
+    required this.exporting,
+    required this.canExport,
+    required this.onViewChanged,
+    required this.onExport,
+  });
+
+  final AppPalette palette;
+  final _InventoryHistoryView view;
+  final int count;
+  final bool exporting;
+  final bool canExport;
+  final ValueChanged<_InventoryHistoryView> onViewChanged;
+  final VoidCallback onExport;
+
+  @override
+  Widget build(BuildContext context) => Container(
+        padding: const EdgeInsets.all(15),
+        decoration: palette.panelDecoration(baseRadius: 19, elevated: false),
+        child: LayoutBuilder(
+          builder: (context, constraints) {
+            final compact = constraints.maxWidth < 720;
+            final heading = Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Historial detallado de conteos',
+                  style: TextStyle(
+                    color: palette.textPrimary,
+                    fontSize: 16,
+                    fontWeight: FontWeight.w900,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  '$count productos contados en las jornadas visibles. '
+                  'El stock actual del sistema se consulta por separado '
+                  'sin usar los conteos físicos.',
+                  style: TextStyle(
+                    color: palette.textSecondary,
+                    fontSize: 11.5,
+                    height: 1.35,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ],
+            );
+            final actions = Wrap(
+              alignment: WrapAlignment.end,
+              crossAxisAlignment: WrapCrossAlignment.center,
+              spacing: 8,
+              runSpacing: 8,
+              children: [
+                ChoiceChip(
+                  avatar: const Icon(Icons.view_agenda_outlined, size: 17),
+                  label: const Text('Tarjetas'),
+                  selected: view == _InventoryHistoryView.cards,
+                  onSelected: (_) => onViewChanged(_InventoryHistoryView.cards),
+                ),
+                ChoiceChip(
+                  avatar: const Icon(Icons.table_rows_rounded, size: 17),
+                  label: const Text('Tabla'),
+                  selected: view == _InventoryHistoryView.table,
+                  onSelected: (_) => onViewChanged(_InventoryHistoryView.table),
+                ),
+                FilledButton.icon(
+                  onPressed: canExport && !exporting ? onExport : null,
+                  icon: exporting
+                      ? const SizedBox(
+                          width: 17,
+                          height: 17,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        )
+                      : const Icon(Icons.table_view_rounded, size: 18),
+                  label: Text(exporting ? 'Generando Excel' : 'Descargar Excel'),
+                ),
+              ],
+            );
+            if (compact) {
+              return Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  heading,
+                  const SizedBox(height: 12),
+                  actions,
+                ],
+              );
+            }
+            return Row(
+              crossAxisAlignment: CrossAxisAlignment.center,
+              children: [
+                Expanded(child: heading),
+                const SizedBox(width: 10),
+                Flexible(child: actions),
+              ],
+            );
+          },
+        ),
+      );
+}
+
+/// Tabla completa: horizontal en móvil, encabezados claros y valores numéricos
+/// comparables para cada producto, incluso cuando diferencia = 0.
+class _InventoryAuditTable extends StatelessWidget {
+  const _InventoryAuditTable({
+    required this.rows,
+    required this.palette,
+  });
+
+  final List<_InventoryAuditRow> rows;
+  final AppPalette palette;
+
+  @override
+  Widget build(BuildContext context) {
+    Text number(String text, {Color? color, bool bold = false}) => Text(
+          text,
+          textAlign: TextAlign.right,
+          maxLines: 2,
+          style: TextStyle(
+            color: color ?? palette.textPrimary,
+            fontSize: 12.5,
+            fontWeight: bold ? FontWeight.w800 : FontWeight.w600,
+          ),
+        );
+
+    DataColumn column(String label, {bool numeric = true}) => DataColumn(
+          numeric: numeric,
+          label: Text(
+            label,
+            style: TextStyle(
+              color: palette.textPrimary,
+              fontWeight: FontWeight.w900,
+              fontSize: 12,
+            ),
+          ),
+        );
+
+    return Container(
+      decoration: BoxDecoration(
+        color: palette.background.withOpacity(.32),
+        borderRadius: BorderRadius.circular(15),
+        border: Border.all(color: palette.cardBorder.withOpacity(.65)),
+      ),
+      clipBehavior: Clip.antiAlias,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Padding(
+            padding: const EdgeInsets.fromLTRB(12, 10, 12, 7),
+            child: Row(
+              children: [
+                Icon(Icons.swipe_rounded,
+                    color: palette.textSecondary, size: 18),
+                const SizedBox(width: 7),
+                Expanded(
+                  child: Text(
+                    'Tabla de productos: desliza horizontalmente para ver '
+                    'cantidades, stock del sistema y valores históricos.',
+                    style: TextStyle(
+                      color: palette.textSecondary,
+                      fontSize: 11,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          SingleChildScrollView(
+            scrollDirection: Axis.horizontal,
+            child: DataTable(
+              headingRowHeight: 50,
+              dataRowMinHeight: 48,
+              dataRowMaxHeight: 64,
+              horizontalMargin: 14,
+              columnSpacing: 24,
+              dividerThickness: .6,
+              headingRowColor:
+                  MaterialStateProperty.all(palette.secondary.withOpacity(.08)),
+              columns: [
+                column('Producto', numeric: false),
+                column('Esperado'),
+                column('Contado'),
+                column('Diferencia'),
+                column('Stock actual sistema'),
+                column('Costo unidad'),
+                column('Valor esperado'),
+                column('Valor contado'),
+                column('Impacto'),
+                column('Estado', numeric: false),
+              ],
+              rows: [
+                for (var i = 0; i < rows.length; i++)
+                  DataRow(
+                    key: ValueKey('producto-conteo-${rows[i].countId}'),
+                    color: MaterialStateProperty.all(
+                      i.isEven
+                          ? palette.background.withOpacity(.08)
+                          : palette.secondary.withOpacity(.035),
+                    ),
+                    cells: [
+                      DataCell(
+                        SizedBox(
+                          width: 205,
+                          child: Text(
+                            rows[i].product,
+                            maxLines: 2,
+                            overflow: TextOverflow.ellipsis,
+                            style: TextStyle(
+                              color: palette.textPrimary,
+                              fontSize: 12.5,
+                              fontWeight: FontWeight.w800,
+                            ),
+                          ),
+                        ),
+                      ),
+                      DataCell(number(_qty(rows[i].expected))),
+                      DataCell(number(_qty(rows[i].counted), bold: true)),
+                      DataCell(number(
+                        _signedQty(rows[i].difference),
+                        color: rows[i].hasDifference
+                            ? rows[i].difference < 0
+                                ? Colors.redAccent
+                                : palette.success
+                            : palette.textSecondary,
+                        bold: rows[i].hasDifference,
+                      )),
+                      DataCell(
+                        Tooltip(
+                          message: rows[i].hasCurrentSystemStock
+                              ? 'Existencia operativa sin registros de conteo físico'
+                              : 'No existen movimientos operativos para este producto',
+                          child: number(
+                            rows[i].hasCurrentSystemStock
+                                ? _qty(rows[i].currentSystemStock)
+                                : 'Sin movimientos',
+                            color: palette.secondary,
+                            bold: true,
+                          ),
+                        ),
+                      ),
+                      DataCell(number(CurrencyUtils.format(rows[i].unitPurchaseCost))),
+                      DataCell(number(CurrencyUtils.format(rows[i].expectedValue))),
+                      DataCell(number(CurrencyUtils.format(rows[i].countedValue), bold: true)),
+                      DataCell(number(
+                        CurrencyUtils.format(rows[i].netImpact),
+                        color: rows[i].netImpact < 0
+                            ? Colors.redAccent
+                            : rows[i].netImpact > 0
+                                ? palette.success
+                                : palette.textSecondary,
+                      )),
+                      DataCell(
+                        Text(
+                          _statusLabel(rows[i].status),
+                          style: TextStyle(
+                            color: rows[i].hasDifference
+                                ? palette.warning
+                                : palette.success,
+                            fontSize: 11,
+                            fontWeight: FontWeight.w800,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _CountDayCard extends StatefulWidget {
   const _CountDayCard({
+    super.key,
     required this.day,
     required this.palette,
+    required this.tableView,
     required this.onReview,
+    required this.onExportExcel,
   });
 
   final _InventoryCountDay day;
   final AppPalette palette;
+  final bool tableView;
   final VoidCallback? onReview;
+  final VoidCallback? onExportExcel;
+
+  @override
+  State<_CountDayCard> createState() => _CountDayCardState();
+}
+
+class _CountDayCardState extends State<_CountDayCard> {
+  // El historial debe mostrar por defecto todos los productos contados,
+  // incluidos los que coinciden exactamente con el stock esperado.
+  bool _onlyDifferences = false;
 
   @override
   Widget build(BuildContext context) {
+    final day = widget.day;
+    final palette = widget.palette;
+    final onReview = widget.onReview;
+    final visibleRows = _onlyDifferences
+        ? day.rows.where((row) => row.hasDifference).toList(growable: false)
+        : day.rows;
+
     final risky = day.missingValue > 0 || day.pendingCount > 0;
     final tone = risky ? palette.warning : palette.success;
 
@@ -2170,7 +3122,7 @@ class _CountDayCard extends StatelessWidget {
                         const SizedBox(height: 4),
                         _Meta(
                           icon: Icons.inventory_outlined,
-                          text: '${day.rows.length} productos contados',
+                          text: '${day.rows.length} productos contados · ${day.exactCount} sin diferencia · Abrir detalle',
                           palette: palette,
                         ),
                       ],
@@ -2199,7 +3151,7 @@ class _CountDayCard extends StatelessWidget {
                         ),
                         _Meta(
                           icon: Icons.inventory_outlined,
-                          text: '${day.rows.length} productos contados',
+                          text: '${day.rows.length} productos contados · ${day.exactCount} sin diferencia · Abrir detalle',
                           palette: palette,
                         ),
                       ],
@@ -2224,14 +3176,68 @@ class _CountDayCard extends StatelessWidget {
               const SizedBox(height: 12),
               _ProductAuditHeader(palette: palette),
               const SizedBox(height: 6),
-              for (var index = 0; index < day.rows.length; index++) ...[
-                _ProductAuditRow(
-                  row: day.rows[index],
-                  palette: palette,
+              Text(
+                'Historial completo de productos registrados en la jornada, '
+                'incluyendo los que coinciden con el inventario esperado.',
+                style: TextStyle(
+                  color: palette.textSecondary,
+                  fontWeight: FontWeight.w600,
+                  fontSize: 11,
                 ),
-                if (index != day.rows.length - 1)
-                  const SizedBox(height: 6),
-              ],
+              ),
+              const SizedBox(height: 8),
+              Wrap(
+                spacing: 8,
+                runSpacing: 6,
+                children: [
+                  ChoiceChip(
+                    label: Text('Todos los contados (${day.rows.length})'),
+                    selected: !_onlyDifferences,
+                    onSelected: (selected) {
+                      if (selected) setState(() => _onlyDifferences = false);
+                    },
+                  ),
+                  ChoiceChip(
+                    label: Text('Solo diferencias (${day.differenceCount})'),
+                    selected: _onlyDifferences,
+                    onSelected: (selected) {
+                      if (selected) setState(() => _onlyDifferences = true);
+                    },
+                  ),
+                  OutlinedButton.icon(
+                    onPressed: widget.onExportExcel,
+                    icon: const Icon(Icons.file_download_outlined, size: 17),
+                    label: const Text('Excel de esta jornada'),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 9),
+              if (visibleRows.isEmpty)
+                Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 14),
+                  child: Text(
+                    'Todos los productos de esta jornada coincidieron '
+                    'con el inventario esperado.',
+                    style: TextStyle(
+                      color: palette.textSecondary,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                ),
+              if (widget.tableView && visibleRows.isNotEmpty)
+                _InventoryAuditTable(
+                  rows: visibleRows,
+                  palette: palette,
+                )
+              else if (!widget.tableView)
+                for (var index = 0; index < visibleRows.length; index++) ...[
+                  _ProductAuditRow(
+                    row: visibleRows[index],
+                    palette: palette,
+                  ),
+                  if (index != visibleRows.length - 1)
+                    const SizedBox(height: 6),
+                ],
             ],
           ),
         );
@@ -2367,6 +3373,7 @@ class _ProductAuditRow extends StatelessWidget {
     final statusColor = switch (row.status) {
       'PENDIENTE' => palette.warning,
       'SINCRONIZADO' => palette.success,
+      'ANULADO' => palette.warning,
       'SUPERADO' => palette.textSecondary,
       _ => palette.secondary,
     };
@@ -2437,9 +3444,36 @@ class _ProductAuditRow extends StatelessWidget {
                     : palette.secondary,
               ),
               _AuditValue(
+                label: 'Stock actual del sistema',
+                value: row.hasCurrentSystemStock
+                    ? _qty(row.currentSystemStock)
+                    : 'Sin movimientos',
+                palette: palette,
+                color: palette.secondary,
+              ),
+              _AuditValue(
                 label: 'Costo unitario',
                 value: CurrencyUtils.format(row.unitPurchaseCost),
                 palette: palette,
+              ),
+              _AuditValue(
+                label: 'Valor esperado',
+                value: CurrencyUtils.format(row.expectedValue),
+                palette: palette,
+              ),
+              _AuditValue(
+                label: 'Valor contado',
+                value: CurrencyUtils.format(row.countedValue),
+                palette: palette,
+                color: palette.secondary,
+              ),
+              _AuditValue(
+                label: 'Impacto en valor',
+                value: CurrencyUtils.format(row.netImpact),
+                palette: palette,
+                color: row.hasDifference
+                    ? (row.netImpact < 0 ? Colors.redAccent : palette.success)
+                    : palette.textSecondary,
               ),
               _AuditValue(
                 label: 'Valor faltante',
@@ -2455,6 +3489,19 @@ class _ProductAuditRow extends StatelessWidget {
                 color: row.surplusValue > 0 ? palette.success : null,
               ),
             ],
+          ),
+          const SizedBox(height: 7),
+          Text(
+            row.hasCurrentSystemStock
+                ? 'Stock actual sin incluir conteos físicos'
+                    '${row.currentSystemStockDate == null ? '' : ' · Actualizado ${DateFormat('dd/MM/yyyy HH:mm').format(row.currentSystemStockDate!)}'}'
+                : 'Sin movimientos operativos para calcular stock '
+                    'actual excluyendo conteos físicos.',
+            style: TextStyle(
+              color: palette.textSecondary,
+              fontWeight: FontWeight.w600,
+              fontSize: 10.5,
+            ),
           ),
           if (row.unitsPerPresentation > 1) ...[
             const SizedBox(height: 7),
@@ -2736,6 +3783,7 @@ String _signedQty(num value) {
 String _statusLabel(String value) => switch (value) {
       'PENDIENTE' => 'POR ADMINISTRAR',
       'SINCRONIZADO' => 'CONCILIADO',
+      'ANULADO' => 'ANULADO · PUEDE REVISARSE',
       'SUPERADO' => 'HISTÓRICO',
       _ => 'CUADRA',
     };
