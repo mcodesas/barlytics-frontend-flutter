@@ -10,7 +10,6 @@ import 'widgets/event_public_landing.dart';
 import 'widgets/event_share_sheet.dart';
 import 'widgets/event_visual_kit.dart';
 
-const ink=Color(0xff0b1025),teal=Color(0xff34ddcf),muted=Color(0xffb5bed5),accent=Color(0xffffca83);
 ImageProvider? cover(Object? value){
  final v=value?.toString()??'';
  try{
@@ -122,16 +121,18 @@ class _PublicState extends ConsumerState<EventoPublicoPage>{
  @override Widget build(BuildContext context){
   final current=event;
   if(current==null){
+   // Aún no se conoce la paleta de BD: usar el tema neutral predefinido.
+   final loadingPalette=EventPagePalette.fromHex(null,null);
    return Scaffold(
-    backgroundColor:const Color(0xFF061925),
+    backgroundColor:loadingPalette.canvas,
     body:Center(child:Column(mainAxisSize:MainAxisSize.min,children:[
      Icon(error==null?Icons.event_available_outlined:Icons.cloud_off_outlined,
-      color:const Color(0xFF23D8D1),size:48),
+      color:loadingPalette.accentOnSurface,size:48),
      const SizedBox(height:13),
      Text(error==null?'Preparando tu experiencia...':
        'No se pudo cargar este evento',
        textAlign:TextAlign.center,
-       style:const TextStyle(color:Colors.white,fontSize:17)),
+       style:TextStyle(color:loadingPalette.onSurface,fontSize:17)),
      if(error!=null)...[
       const SizedBox(height:12),
       OutlinedButton.icon(onPressed:refresh,
