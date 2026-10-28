@@ -2039,14 +2039,8 @@ class _EventEditorState extends ConsumerState<EventoEditor>{
          prefixIcon:Icon(Icons.storefront_outlined)),
        items:branches.where((e)=>e.sucuId!=null).map<DropdownMenuItem<int>>((v)=>
          DropdownMenuItem<int>(value:v.sucuId,child:Text(v.sucuNombre??'Sucursal'))).toList(),
-       onChanged:null, // La sede se cambia desde el selector principal.
-       /* onChanged:(v){setState((){
-         productRequest++;
-         branch=v;tables=[];chosen={};capacities={};
-         availableProducts=[];selectedProducts={};onlySelected=false;
-         typeFilter='TODOS';brandFilter='TODAS';controlFilter='TODOS';
-         productSearch.clear();productError=null;
-       });_loadTables();}), */
+       onChanged:null, // Cambia la sede desde el selector principal.
+      ),
    ]);
    final media=Column(crossAxisAlignment:CrossAxisAlignment.start,children:[
      const Text('Afiche o portada del evento',
