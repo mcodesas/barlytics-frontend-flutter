@@ -684,28 +684,42 @@ class _EventPublicLandingState extends State<EventPublicLanding> {
         _descriptionBody(getText('descripcion',
           'Una experiencia especial para compartir.')),
         SizedBox(height:10),
-        Container(
-          padding:EdgeInsets.symmetric(horizontal:14,vertical:15),
-          decoration:BoxDecoration(
-            borderRadius:BorderRadius.circular(13),
+        Semantics(
+          button:true,
+          label:'Abrir reserva del evento',
+          child:Material(
             color:palette.surfaceSoft,
-            border:Border.all(color:palette.border.withOpacity(.55))),
-          child:Row(children:[
-            Icon(Icons.local_activity_outlined,color:brand,size:22),
-            SizedBox(width:11),
-            Expanded(child:Column(crossAxisAlignment:CrossAxisAlignment.start,
-              children:[
-                Text(widget.event['precioPorPuesto']==true
-                    ?'Valor por persona':'Valor de la reserva',
-                  style:TextStyle(color:palette.muted,fontSize:12)),
-                SizedBox(height:3),
-                Text(price(widget.event['precio'])==0?'Entrada gratuita':
-                  currency(widget.event['precio']),
-                  style:TextStyle(color:palette.text,
-                    fontSize:19,fontWeight:FontWeight.w800)),
-              ])),
-            Icon(Icons.arrow_forward_ios_rounded,color:brand,size:15),
-          ]),
+            shape:RoundedRectangleBorder(
+              borderRadius:BorderRadius.circular(13),
+              side:BorderSide(color:palette.border.withOpacity(.55))),
+            clipBehavior:Clip.antiAlias,
+            child:InkWell(
+              onTap:widget.busy?null:startReservation,
+              child:Padding(
+                padding:EdgeInsets.symmetric(horizontal:14,vertical:15),
+                child:Row(children:[
+                  Icon(Icons.local_activity_outlined,color:brand,size:22),
+                  SizedBox(width:11),
+                  Expanded(child:Column(
+                    crossAxisAlignment:CrossAxisAlignment.start,
+                    children:[
+                      Text(widget.event['precioPorPuesto']==true
+                          ?'Valor por persona':'Valor de la reserva',
+                        style:TextStyle(color:palette.muted,fontSize:12)),
+                      SizedBox(height:3),
+                      Text(price(widget.event['precio'])==0
+                          ?'Entrada gratuita':currency(widget.event['precio']),
+                        style:TextStyle(color:palette.text,
+                          fontSize:19,fontWeight:FontWeight.w800)),
+                    ])),
+                  Text('Reservar',style:TextStyle(
+                    color:brand,fontSize:12,fontWeight:FontWeight.w800)),
+                  SizedBox(width:6),
+                  Icon(Icons.arrow_forward_ios_rounded,color:brand,size:15),
+                ]),
+              ),
+            ),
+          ),
         ),
       ],
     ),
