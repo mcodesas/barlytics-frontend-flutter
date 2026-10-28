@@ -327,7 +327,7 @@ class _EventPublicLandingState extends State<EventPublicLanding> {
   /// Limpia los marcadores usados al escribir la descripción en el editor
   /// para mostrar un adelanto legible en la portada.
   String get _shortDescription{
-    final content=getText('descripcion').replaceAll('**','').trim();
+    final content=getText('descripcion').replaceAll('*','').trim();
     final lines=content.split(RegExp(r'\n+'))
       .map((line)=>line.trim()).where((line)=>line.isNotEmpty).toList();
     if(lines.isEmpty)return '';
@@ -339,16 +339,18 @@ class _EventPublicLandingState extends State<EventPublicLanding> {
   Widget _descriptionBody(String description){
     final lines=description.replaceAll('\r\n','\n').split('\n');
     final paragraphs=<Widget>[];
-    final strong=RegExp(r'\*\*([^*]+)\*\*');
+    final emphasis=RegExp(r'\*\*([^*]+)\*\*|\*([^*]+)\*');
     for(final raw in lines){
       final value=raw.trim();
       if(value.isEmpty)continue;
       final spans=<InlineSpan>[];
       var end=0;
-      for(final match in strong.allMatches(value)){
+      for(final match in emphasis.allMatches(value)){
         if(match.start>end)spans.add(TextSpan(text:value.substring(end,match.start)));
-        spans.add(TextSpan(text:match.group(1),
-          style:const TextStyle(fontWeight:FontWeight.w800)));
+        final bold=match.group(1)!=null;
+        spans.add(TextSpan(text:match.group(bold?1:2),
+          style:TextStyle(fontWeight:bold?FontWeight.w800:FontWeight.w500,
+            fontStyle:bold?FontStyle.normal:FontStyle.italic)));
         end=match.end;
       }
       if(end<value.length)spans.add(TextSpan(text:value.substring(end)));
