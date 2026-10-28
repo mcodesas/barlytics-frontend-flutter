@@ -556,9 +556,9 @@ class _EventPublicLandingState extends State<EventPublicLanding> {
       Positioned.fill(child:DecoratedBox(decoration:BoxDecoration(
         gradient:LinearGradient(
           begin:Alignment.centerLeft,end:Alignment.centerRight,
-          colors:[palette.heroShade.withOpacity(.74),
-            palette.heroShade.withOpacity(.40),
-            palette.heroShade.withOpacity(.09),
+          colors:[palette.heroShade.withOpacity(.92),
+            palette.heroShade.withOpacity(.66),
+            palette.heroShade.withOpacity(.18),
             Colors.transparent])))),
       Center(child:ConstrainedBox(
         constraints:BoxConstraints(maxWidth:1320),
@@ -577,13 +577,13 @@ class _EventPublicLandingState extends State<EventPublicLanding> {
                 style:TextStyle(
                   fontWeight:FontWeight.w900,height:1.02,
                   letterSpacing:-1,
-                  color:palette.text,fontSize:wide?56:38))),
+                  color:palette.heroInk,fontSize:wide?56:38))),
             SizedBox(height:13),
             if(_shortDescription.isNotEmpty)
               ConstrainedBox(constraints:BoxConstraints(maxWidth:680),
                 child:Text(_shortDescription,
                   maxLines:2,overflow:TextOverflow.ellipsis,
-                  style:TextStyle(color:palette.text,
+                  style:TextStyle(color:palette.heroInk,
                     fontSize:wide?16:14,height:1.55))),
             SizedBox(height:19),
             Wrap(spacing:9,runSpacing:9,children:[
@@ -605,14 +605,26 @@ class _EventPublicLandingState extends State<EventPublicLanding> {
                 style:FilledButton.styleFrom(backgroundColor:brand,
                   foregroundColor:onBrand,
                   padding:EdgeInsets.symmetric(horizontal:25,vertical:17))),
-              OutlinedButton.icon(onPressed:getText('ubicacionGoogleMaps').isEmpty?null:openMap,
+              OutlinedButton.icon(
+              style:OutlinedButton.styleFrom(
+                foregroundColor:palette.heroInk,
+                side:BorderSide(color:palette.heroInk.withOpacity(.72))),
+              onPressed:getText('ubicacionGoogleMaps').isEmpty?null:openMap,
                 icon:Icon(Icons.directions_outlined),
                 label:Text('Cómo llegar')),
-              OutlinedButton.icon(onPressed:widget.onShare,
+              OutlinedButton.icon(
+              style:OutlinedButton.styleFrom(
+                foregroundColor:palette.heroInk,
+                side:BorderSide(color:palette.heroInk.withOpacity(.72))),
+              onPressed:widget.onShare,
                 icon:Icon(Icons.share_outlined),
                 label:Text('Compartir')),
               if(helpWhatsappLink(getText('whatsapp'),getText('titulo'),getText('sucursal'))!=null)
-                OutlinedButton.icon(onPressed:openSupport,
+                OutlinedButton.icon(
+              style:OutlinedButton.styleFrom(
+                foregroundColor:palette.heroInk,
+                side:BorderSide(color:palette.heroInk.withOpacity(.72))),
+              onPressed:openSupport,
                   icon:Icon(Icons.support_agent_outlined),
                   label:Text('¿Dudas? WhatsApp')),
             ]),
@@ -636,19 +648,28 @@ class _EventPublicLandingState extends State<EventPublicLanding> {
     Expanded(child:Column(crossAxisAlignment:CrossAxisAlignment.start,children:[
       Text(getText('sucursal','Establecimiento'),
         softWrap:true,
-        style:TextStyle(color:palette.text,
+        style:TextStyle(color:palette.heroInk,
           fontWeight:FontWeight.w900,fontSize:wide?28:22)),
       Text('Eventos y reservas',
-        style:TextStyle(color:palette.muted,fontSize:12)),
+        style:TextStyle(color:palette.heroInk,
+          fontSize:13,fontWeight:FontWeight.w600)),
     ])),
     if(wide)...[
       if(eventPhoto(widget.event['imagen'])!=null)
-        TextButton(onPressed:()=>jump(_posterKey),child:Text('Afiche')),
-      TextButton(onPressed:()=>jump(_galleryKey),child:Text('El lugar')),
-      TextButton(onPressed:()=>jump(_menuKey),child:Text('La carta')),
-      TextButton(onPressed:()=>jump(_locationKey),child:Text('Ubicación')),
+        TextButton(style:TextButton.styleFrom(foregroundColor:palette.heroInk),
+        onPressed:()=>jump(_posterKey),child:Text('Afiche')),
+      TextButton(style:TextButton.styleFrom(foregroundColor:palette.heroInk),
+        onPressed:()=>jump(_galleryKey),child:Text('El lugar')),
+      TextButton(style:TextButton.styleFrom(foregroundColor:palette.heroInk),
+        onPressed:()=>jump(_menuKey),child:Text('La carta')),
+      TextButton(style:TextButton.styleFrom(foregroundColor:palette.heroInk),
+        onPressed:()=>jump(_locationKey),child:Text('Ubicación')),
       SizedBox(width:8),
-      OutlinedButton.icon(onPressed:startReservation,
+      OutlinedButton.icon(
+          style:OutlinedButton.styleFrom(
+            foregroundColor:palette.heroInk,
+            side:BorderSide(color:palette.heroInk.withOpacity(.72))),
+          onPressed:startReservation,
         icon:Icon(Icons.event_seat_outlined,size:17),
         label:Text('Reservar ahora')),
     ]else IconButton(onPressed:widget.onShare,
@@ -757,7 +778,7 @@ class _EventPublicLandingState extends State<EventPublicLanding> {
               child:Padding(
                 padding:EdgeInsets.symmetric(horizontal:14,vertical:15),
                 child:Row(children:[
-                  Icon(Icons.local_activity_outlined,color:brand,size:22),
+                  Icon(Icons.local_activity_outlined,color:palette.accentOnSoft,size:22),
                   SizedBox(width:11),
                   Expanded(child:Column(
                     crossAxisAlignment:CrossAxisAlignment.start,
@@ -772,9 +793,9 @@ class _EventPublicLandingState extends State<EventPublicLanding> {
                           fontSize:19,fontWeight:FontWeight.w800)),
                     ])),
                   Text('Reservar',style:TextStyle(
-                    color:brand,fontSize:12,fontWeight:FontWeight.w800)),
+                    color:palette.accentOnSoft,fontSize:12,fontWeight:FontWeight.w800)),
                   SizedBox(width:6),
-                  Icon(Icons.arrow_forward_ios_rounded,color:brand,size:15),
+                  Icon(Icons.arrow_forward_ios_rounded,color:palette.accentOnSoft,size:15),
                 ]),
               ),
             ),
@@ -822,7 +843,12 @@ class _EventPublicLandingState extends State<EventPublicLanding> {
                  EventArtwork(source:venue[i],width:width,
                    height:venue.length==1?360:venue.length==2?290:220),
                  Positioned(bottom:9,right:9,
-                   child:Icon(Icons.zoom_in,color:palette.text,size:27)),
+                   child:Container(
+                     padding:const EdgeInsets.all(4),
+                     decoration:BoxDecoration(
+                       color:Colors.black.withOpacity(.65),
+                       borderRadius:BorderRadius.circular(30)),
+                     child:const Icon(Icons.zoom_in,color:Colors.white,size:24))),
                ]),
              )),
          ]);
@@ -1228,7 +1254,7 @@ class _EventPublicLandingState extends State<EventPublicLanding> {
        Row(children:[
          Expanded(child:Text('Total a pagar',style:TextStyle(
            color:palette.text,fontWeight:FontWeight.w800))),
-         Text(currency(total),style:TextStyle(color:brand,
+         Text(currency(total),style:TextStyle(color:palette.accentOnSurface,
            fontWeight:FontWeight.w900,fontSize:20)),
        ]),
        SizedBox(height:20),
@@ -1303,7 +1329,8 @@ class _EventPublicLandingState extends State<EventPublicLanding> {
      :(EventPagePalette.contrast(Colors.black,paper)>
        EventPagePalette.contrast(Colors.white,paper)
          ?Colors.black:Colors.white);
-   final secondary=Color.lerp(ink,paper,.26)!;
+   final secondary=EventPagePalette.readable(
+      Color.lerp(ink,paper,.18)!,paper);
    final rule=palette.menuBorder;
    final label=getText('sucursal',getText('empresa','Establecimiento')).trim();
    final subtitle=getText('titulo','Carta del evento');
@@ -1386,7 +1413,7 @@ class _EventPublicLandingState extends State<EventPublicLanding> {
                Expanded(child:Container(height:1,color:rule.withOpacity(.52))),
                Padding(padding:const EdgeInsets.symmetric(horizontal:13),
                  child:Icon(Icons.auto_awesome_outlined,
-                   color:palette.accent,size:15)),
+                   color:EventPagePalette.readable(palette.accent,paper),size:15)),
                Expanded(child:Container(height:1,color:rule.withOpacity(.52))),
              ]),
              const SizedBox(height:13),
@@ -1445,9 +1472,11 @@ class _EventPublicLandingState extends State<EventPublicLanding> {
  }
 
  Widget _footer(bool wide)=>Container(
-   padding:EdgeInsets.symmetric(horizontal:15,vertical:18),
-   decoration:BoxDecoration(border:Border(
-     top:BorderSide(color:palette.border))),
+   padding:EdgeInsets.symmetric(horizontal:17,vertical:19),
+   decoration:BoxDecoration(
+     color:palette.surface.withOpacity(.95),
+     borderRadius:BorderRadius.circular(16),
+     border:Border.all(color:palette.border)),
    child:Wrap(spacing:20,runSpacing:12,
      alignment:WrapAlignment.spaceBetween,children:[
        Text(getText('sucursal'),style:TextStyle(color:palette.text,
