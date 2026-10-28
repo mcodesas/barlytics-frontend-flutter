@@ -98,6 +98,8 @@ class _EventosAdminState extends ConsumerState<EventosAdminPage>{
   }
  }
  Future<void> editor([Map<String,dynamic>? event])async{
+  _sucursalDialogOpen=true;
+  final branchAtOpen=ref.read(branchScopeProvider).activeBranchId;
   final saved=await showDialog<Map<String,dynamic>>(
    context:context,
    builder:(dialog)=>Dialog(
@@ -110,7 +112,8 @@ class _EventosAdminState extends ConsumerState<EventosAdminPage>{
       onSaved:(row)=>Navigator.of(dialog).pop(row))),
    ),
   );
-  if(!mounted||saved==null)return;
+  _sucursalDialogOpen=false;
+  if(!mounted||saved==null||branchAtOpen!=ref.read(branchScopeProvider).activeBranchId)return;
   setState((){
     filter='TODOS';search='';searchController.clear();
     final id=asId(saved['even_id']);
@@ -686,7 +689,7 @@ class _EventosAdminState extends ConsumerState<EventosAdminPage>{
     // Cerrar el detalle anterior al cambiar de sucursal.
     if(_sucursalDialogOpen){
       _sucursalDialogOpen=false;
-      Navigator.of(context,rootNavigator:true).maybePop();
+      Navigator.of(context,rootNavigator:true).popUntil((route)=>route is PageRoute);
     }
     ++_loadSeq;
     WidgetsBinding.instance.addPostFrameCallback((_){
