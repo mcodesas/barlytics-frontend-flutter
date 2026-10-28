@@ -108,6 +108,90 @@ class _EventPublicLandingState extends State<EventPublicLanding> {
     }
   }
 
+  ThemeData _pageTheme(BuildContext context){
+    final p=palette;
+    final light=p.surface.computeLuminance()>.18;
+    final fg=p.onSurface;
+    final fieldFg=p.onSurfaceSoft;
+    final actionFg=p.accentOnSurface;
+    final fieldAccent=p.accentOnSoft;
+    final line=EventPagePalette.contrast(p.border,p.surfaceSoft)>=1.55
+      ?p.border:Color.lerp(p.surfaceSoft,fieldFg,.38)!;
+    final scheme=(light
+      ?ColorScheme.light(primary:p.accent,onPrimary:p.onAccent,
+        surface:p.surface,onSurface:fg)
+      :ColorScheme.dark(primary:p.accent,onPrimary:p.onAccent,
+        surface:p.surface,onSurface:fg))
+      .copyWith(
+        onSurfaceVariant:fieldFg,
+        outline:line,
+        secondary:p.accent,onSecondary:p.onAccent,
+      );
+    return (light?ThemeData.light(useMaterial3:true)
+                 :ThemeData.dark(useMaterial3:true)).copyWith(
+      colorScheme:scheme,
+      scaffoldBackgroundColor:p.canvas,
+      canvasColor:p.surface,
+      textTheme:Theme.of(context).textTheme.apply(
+        bodyColor:fg,displayColor:fg),
+      iconTheme:IconThemeData(color:fg),
+      dialogTheme:DialogThemeData(
+        backgroundColor:p.surface,
+        surfaceTintColor:Colors.transparent,
+        titleTextStyle:TextStyle(color:fg,fontSize:20,
+          fontWeight:FontWeight.w900),
+        contentTextStyle:TextStyle(color:fg,fontSize:14)),
+      textSelectionTheme:TextSelectionThemeData(
+        cursorColor:fieldAccent,
+        selectionColor:fieldAccent.withOpacity(.24),
+        selectionHandleColor:fieldAccent),
+      inputDecorationTheme:InputDecorationTheme(
+        filled:true,fillColor:p.surfaceSoft,
+        labelStyle:TextStyle(color:fieldFg,fontSize:15,
+          fontWeight:FontWeight.w500),
+        hintStyle:TextStyle(color:fieldFg,fontSize:15),
+        helperStyle:TextStyle(color:fieldFg,fontSize:12),
+        counterStyle:TextStyle(color:fieldFg,fontSize:12),
+        floatingLabelStyle:TextStyle(color:fieldAccent,fontSize:14,
+          fontWeight:FontWeight.w800),
+        prefixIconColor:fieldAccent,
+        suffixIconColor:fieldAccent,
+        border:OutlineInputBorder(borderRadius:BorderRadius.circular(12)),
+        enabledBorder:OutlineInputBorder(
+          borderRadius:BorderRadius.circular(12),
+          borderSide:BorderSide(color:line,width:1.2)),
+        focusedBorder:OutlineInputBorder(
+          borderRadius:BorderRadius.circular(12),
+          borderSide:BorderSide(color:fieldAccent,width:2)),
+        errorBorder:OutlineInputBorder(
+          borderRadius:BorderRadius.circular(12),
+          borderSide:BorderSide(color:scheme.error)),
+        focusedErrorBorder:OutlineInputBorder(
+          borderRadius:BorderRadius.circular(12),
+          borderSide:BorderSide(color:scheme.error,width:2)),
+      ),
+      filledButtonTheme:FilledButtonThemeData(
+        style:FilledButton.styleFrom(
+          backgroundColor:p.accent,foregroundColor:p.onAccent,
+          disabledBackgroundColor:p.surfaceSoft,
+          disabledForegroundColor:fieldFg)),
+      textButtonTheme:TextButtonThemeData(
+        style:TextButton.styleFrom(foregroundColor:actionFg)),
+      outlinedButtonTheme:OutlinedButtonThemeData(
+        style:OutlinedButton.styleFrom(
+          foregroundColor:fg,side:BorderSide(color:p.border))),
+      iconButtonTheme:IconButtonThemeData(
+        style:IconButton.styleFrom(
+          foregroundColor:fieldAccent,
+          disabledForegroundColor:fieldFg.withOpacity(.6))),
+      switchTheme:SwitchThemeData(
+        thumbColor:WidgetStateProperty.resolveWith(
+          (states)=>states.contains(WidgetState.selected)?p.onAccent:fg),
+        trackColor:WidgetStateProperty.resolveWith(
+          (states)=>states.contains(WidgetState.selected)?p.accent:p.surfaceSoft)),
+    );
+  }
+
   Future<void> _openAutomaticBooking()async{
     final limit=automaticMax;
     if(limit<1){
@@ -124,7 +208,9 @@ class _EventPublicLandingState extends State<EventPublicLanding> {
     try{
       final accepted=await showDialog<bool>(
         context:context,
-        builder:(dialogContext)=>StatefulBuilder(
+        builder:(dialogContext)=>Theme(
+          data:_pageTheme(dialogContext),
+          child:StatefulBuilder(
           builder:(dialogContext,rebuild){
             void changeQuantity(int next){
               if(next<1||next>limit)return;
@@ -162,7 +248,7 @@ class _EventPublicLandingState extends State<EventPublicLanding> {
                       textAlign:TextAlign.center,
                       keyboardType:TextInputType.number,
                       inputFormatters:[FilteringTextInputFormatter.digitsOnly],
-                      style:TextStyle(color:palette.text,fontSize:23,
+                      style:TextStyle(color:palette.onSurfaceSoft,fontSize:23,
                         fontWeight:FontWeight.w900),
                       onChanged:(value){
                         final parsed=int.tryParse(value);
@@ -203,7 +289,7 @@ class _EventPublicLandingState extends State<EventPublicLanding> {
                         Expanded(child:Text('Total a pagar',
                           style:TextStyle(color:palette.text,fontWeight:FontWeight.w800))),
                         Text(currency(pricePerSeat?unit*quantity:unit),
-                          style:TextStyle(color:brand,fontSize:19,fontWeight:FontWeight.w900)),
+                          style:TextStyle(color:palette.accentOnSoft,fontSize:19,fontWeight:FontWeight.w900)),
                       ]),
                     ]),
                   ),
@@ -212,7 +298,7 @@ class _EventPublicLandingState extends State<EventPublicLanding> {
                     color:palette.text,fontWeight:FontWeight.w800)),
                   const SizedBox(height:10),
                   TextFormField(
-                    style:TextStyle(color:palette.text),cursorColor:palette.accent,
+                    style:TextStyle(color:palette.onSurfaceSoft),cursorColor:palette.accentOnSoft,
                     controller:widget.name,
                     maxLength:140,
                     textCapitalization:TextCapitalization.words,
@@ -222,7 +308,7 @@ class _EventPublicLandingState extends State<EventPublicLanding> {
                   ),
                   const SizedBox(height:8),
                   TextFormField(
-                    style:TextStyle(color:palette.text),cursorColor:palette.accent,
+                    style:TextStyle(color:palette.onSurfaceSoft),cursorColor:palette.accentOnSoft,
                     controller:widget.email,
                     maxLength:220,
                     keyboardType:TextInputType.emailAddress,
@@ -236,7 +322,7 @@ class _EventPublicLandingState extends State<EventPublicLanding> {
                   ),
                   const SizedBox(height:8),
                   TextFormField(
-                    style:TextStyle(color:palette.text),cursorColor:palette.accent,
+                    style:TextStyle(color:palette.onSurfaceSoft),cursorColor:palette.accentOnSoft,
                     controller:widget.phone,
                     maxLength:40,
                     keyboardType:TextInputType.phone,
@@ -271,7 +357,7 @@ class _EventPublicLandingState extends State<EventPublicLanding> {
               ],
             );
           },
-        ),
+        )),
       );
       if(accepted==true&&mounted)widget.onBook([]);
     }finally{
@@ -415,34 +501,7 @@ class _EventPublicLandingState extends State<EventPublicLanding> {
     return EventPaletteScope(
       palette:palette,
       child:Theme(
-      data:(palette.canvas.computeLuminance()>.38
-        ?ThemeData.light(useMaterial3:true)
-        :ThemeData.dark(useMaterial3:true)).copyWith(
-        colorScheme:palette.canvas.computeLuminance()>.38
-          ?ColorScheme.light(primary:brand,onPrimary:onBrand,
-              surface:palette.surface,onSurface:palette.text)
-          :ColorScheme.dark(primary:brand,onPrimary:onBrand,
-              surface:palette.surface,onSurface:palette.text),
-        scaffoldBackgroundColor:palette.canvas,
-        canvasColor:palette.surface,
-        textTheme:Theme.of(context).textTheme.apply(
-          bodyColor:palette.text,displayColor:palette.text),
-        inputDecorationTheme:InputDecorationTheme(
-          filled:true,fillColor:palette.surfaceSoft,
-          prefixIconColor:palette.muted,
-          suffixIconColor:palette.muted,
-          floatingLabelStyle:TextStyle(color:palette.accent),
-          focusedBorder:OutlineInputBorder(
-            borderRadius:BorderRadius.circular(11),
-            borderSide:BorderSide(color:palette.accent,width:2)),
-          labelStyle:TextStyle(color:palette.muted),
-          hintStyle:TextStyle(color:palette.muted),
-          border:OutlineInputBorder(borderRadius:BorderRadius.circular(11)),
-          enabledBorder:OutlineInputBorder(
-            borderRadius:BorderRadius.circular(11),
-            borderSide:BorderSide(color:palette.border)),
-        ),
-      ),
+      data:_pageTheme(context),
       child:Scaffold(
         backgroundColor:backdrop,
         // La fotografía permanece anclada al viewport; únicamente se
@@ -1177,19 +1236,19 @@ class _EventPublicLandingState extends State<EventPublicLanding> {
          color:palette.text,fontWeight:FontWeight.w800)),
        SizedBox(height:11),
        TextField(controller:widget.name,
-         style:TextStyle(color:palette.text),cursorColor:palette.accent,
+         style:TextStyle(color:palette.onSurfaceSoft),cursorColor:palette.accentOnSoft,
          textCapitalization:TextCapitalization.words,
          decoration:InputDecoration(
            labelText:'Nombre completo *',prefixIcon:Icon(Icons.person_outline))),
        SizedBox(height:10),
        TextField(controller:widget.email,
-         style:TextStyle(color:palette.text),cursorColor:palette.accent,
+         style:TextStyle(color:palette.onSurfaceSoft),cursorColor:palette.accentOnSoft,
          keyboardType:TextInputType.emailAddress,
          decoration:InputDecoration(
            labelText:'Correo electrónico *',prefixIcon:Icon(Icons.email_outlined))),
        SizedBox(height:10),
        TextField(controller:widget.phone,
-         style:TextStyle(color:palette.text),cursorColor:palette.accent,
+         style:TextStyle(color:palette.onSurfaceSoft),cursorColor:palette.accentOnSoft,
          keyboardType:TextInputType.phone,
          decoration:InputDecoration(
            labelText:'Teléfono / WhatsApp',prefixIcon:Icon(Icons.phone_outlined))),
