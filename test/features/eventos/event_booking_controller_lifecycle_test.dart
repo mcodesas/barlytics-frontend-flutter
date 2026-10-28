@@ -63,12 +63,18 @@ void main(){
 
     await open();
     await tester.enterText(find.byType(TextFormField).first,'3');
+    await tester.enterText(find.widgetWithText(TextFormField,'Nombre completo *'),
+      'Cliente actualizado');
+    await tester.enterText(find.widgetWithText(TextFormField,'Correo electrónico *'),
+      'cliente.actualizado@example.com');
     await tester.pumpAndSettle();
     await tester.tap(find.text('Continuar al pago'));
     await tester.pumpAndSettle();
     expect(tester.takeException(),isNull);
     expect(selectedSeats,3);
     expect(bookings,1);
+    expect(name.text,'Cliente actualizado');
+    expect(email.text,'cliente.actualizado@example.com');
 
     // El widget original y los controladores de nombre/correo siguen vivos;
     // el campo numérico anterior pertenece únicamente al diálogo anterior.
