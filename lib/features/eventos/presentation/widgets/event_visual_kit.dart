@@ -107,8 +107,10 @@ class EventPagePalette {
     final muted=readable(Color.lerp(surfaceInk,surface,.24)!,surface);
     final safeBorder=contrast(border,surface)>=1.45?border:
       Color.lerp(surface,surfaceInk,.33)!;
-    final onAccent=contrast(accent,const Color(0xFF171717))>=
-        contrast(accent,Colors.white)?const Color(0xFF171717):Colors.white;
+    // Negro/blanco puro garantizan AA para texto sobre cualquier botón.
+    // Un gris casi negro falla en algunas paletas intermedias.
+    final onAccent=contrast(accent,Colors.black)>=
+        contrast(accent,Colors.white)?Colors.black:Colors.white;
     final page=parse(menuHex,
       Color.lerp(base,Colors.white,light ? .17 : .12)!);
     return EventPagePalette._(
