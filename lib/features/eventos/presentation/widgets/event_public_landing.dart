@@ -715,7 +715,7 @@ class _EventPublicLandingState extends State<EventPublicLanding> {
                  initialIndex:i),
                child:Stack(children:[
                  EventArtwork(source:venue[i],width:width,
-                   height:venue.length==1?405:venue.length==2?320:215),
+                   height:venue.length==1?360:venue.length==2?290:220),
                  Positioned(bottom:9,right:9,
                    child:Icon(Icons.zoom_in,color:palette.text,size:27)),
                ]),
@@ -741,7 +741,7 @@ class _EventPublicLandingState extends State<EventPublicLanding> {
          subtitle:'Encuentra cómo llegar al establecimiento.'),
        SizedBox(height:14),
        _locationPhoto(mapPreview),
-       SizedBox(height:17),
+       SizedBox(height:19),
        _locationInfo(),
      ]));
    if(!wide)return Column(children:[
@@ -792,12 +792,19 @@ class _EventPublicLandingState extends State<EventPublicLanding> {
        onPressed:getText('ubicacionGoogleMaps').isEmpty?null:openMap,
        icon:Icon(Icons.directions_outlined),
        label:Text('Ver ubicación en Google Maps')),
-     SizedBox(height:23),
-     Text('Síguenos en redes sociales',
-       style:TextStyle(color:palette.text,
-        fontWeight:FontWeight.w800,fontSize:14)),
-     SizedBox(height:11),
-     _socialLinks(),
+     if(getText('instagram').isNotEmpty||
+       getText('facebook').isNotEmpty||
+       getText('tiktok').isNotEmpty||
+       getText('whatsapp').isNotEmpty)...[
+       SizedBox(height:22),
+       Divider(height:1,color:palette.border.withOpacity(.6)),
+       SizedBox(height:19),
+       Text('Conecta con el establecimiento',
+         style:TextStyle(color:palette.text,
+          fontWeight:FontWeight.w800,fontSize:14)),
+       SizedBox(height:11),
+       _socialLinks(),
+     ],
      if(helpWhatsappLink(getText('whatsapp'),getText('titulo'),
        getText('sucursal'))!=null)...[
        SizedBox(height:15),
@@ -823,13 +830,14 @@ class _EventPublicLandingState extends State<EventPublicLanding> {
    if(getText('whatsapp').isNotEmpty)
     (label:'WhatsApp',url:getText('whatsapp'),icon:Icons.chat_outlined),
   ];
-  if(items.isEmpty)return Text('Próximamente enlaces sociales del lugar',
-   style:TextStyle(color:palette.muted,fontSize:12));
+  if(items.isEmpty)return const SizedBox.shrink();
   return Wrap(spacing:9,runSpacing:9,children:[
    for(final item in items)
     OutlinedButton.icon(
      onPressed:()async{
-      final link=Uri.tryParse(item.url);
+      final link=item.label=='WhatsApp'
+        ?helpWhatsappLink(item.url,getText('titulo'),getText('sucursal'))
+        :Uri.tryParse(item.url);
       if(link!=null&&link.scheme=='https')
        await launchUrl(link,mode:LaunchMode.externalApplication);
      },
@@ -840,29 +848,52 @@ class _EventPublicLandingState extends State<EventPublicLanding> {
 
  Widget _bookingArea(bool wide){
    if(autoAssignOnly){
-     return EventPanel(child:Column(
-       key:_bookingKey,crossAxisAlignment:CrossAxisAlignment.start,children:[
-         EventSectionHeading(icon:Icons.event_seat_outlined,
-           title:'Reserva tus puestos',
-           subtitle:'Selecciona la cantidad y continúa al pago sin elegir mesa'),
-         const SizedBox(height:14),
-         Text('El establecimiento asignará los puestos entre las mesas disponibles.',
-           style:TextStyle(color:palette.muted,fontSize:14)),
-         const SizedBox(height:15),
-         EventPill(icon:Icons.event_seat_outlined,
-           label:automaticMax>0?
-             'Hasta $automaticMax puestos disponibles en el evento':
-             'Sin puestos disponibles'),
-         const SizedBox(height:17),
-         FilledButton.icon(
-           onPressed:automaticMax<1||widget.busy?null:startReservation,
-           icon:const Icon(Icons.add_circle_outline),
-           label:const Text('Reservar puestos'),
-           style:FilledButton.styleFrom(backgroundColor:brand,
-             foregroundColor:onBrand,padding:const EdgeInsets.symmetric(
-               horizontal:22,vertical:16))),
-       ],
-     ));
+     final seats=automaticMax;
+     final action=FilledButton.icon(
+       onPressed:seats<1||widget.busy?null:startReservation,
+       icon:const Icon(Icons.confirmation_number_outlined),
+       label:const Text('Elegir mis puestos'),
+       style:FilledButton.styleFrom(backgroundColor:brand,
+         foregroundColor:onBrand,padding:const EdgeInsets.symmetric(
+           horizontal:24,vertical:17)),
+     );
+     return EventPanel(
+       padding:EdgeInsets.symmetric(horizontal:wide?27:20,vertical:wide?25:22),
+       child:Container(key:_bookingKey,
+         child:wide?Row(crossAxisAlignment:CrossAxisAlignment.center,children:[
+           Expanded(child:Column(
+             crossAxisAlignment:CrossAxisAlignment.start,children:[
+               EventSectionHeading(icon:Icons.event_seat_outlined,
+                 title:'Reserva tu lugar',
+                 subtitle:'Elige cuántos asistentes van a disfrutar el evento'),
+               const SizedBox(height:13),
+               Row(children:[
+                 Icon(Icons.check_circle_outline,color:brand,size:18),
+                 const SizedBox(width:8),
+                 Flexible(child:Text(seats>0
+                   ?'$seats puestos disponibles · Asignación automática'
+                   :'No quedan puestos disponibles',
+                   style:TextStyle(color:palette.text,
+                     fontSize:13,fontWeight:FontWeight.w600))),
+               ]),
+             ],
+           )),
+           const SizedBox(width:26),
+           action,
+         ]):Column(crossAxisAlignment:CrossAxisAlignment.stretch,children:[
+           EventSectionHeading(icon:Icons.event_seat_outlined,
+             title:'Reserva tu lugar',
+             subtitle:'Selecciona cuántos asistentes van a disfrutar el evento'),
+           const SizedBox(height:13),
+           Text(seats>0
+             ?'$seats puestos disponibles · Asignación automática'
+             :'No quedan puestos disponibles',
+             style:TextStyle(color:palette.muted,fontSize:13)),
+           const SizedBox(height:17),
+           action,
+         ]),
+       ),
+     );
    }
    final content=EventPanel(child:Column(
      key:_bookingKey,crossAxisAlignment:CrossAxisAlignment.start,children:[
