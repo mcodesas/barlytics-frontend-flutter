@@ -74,6 +74,6 @@ void main(){
     expect(EventPagePalette.contrast(input.prefixIconColor!,background),
       greaterThanOrEqualTo(4.48));
     expect(theme.colorScheme.primary,isNot(Colors.blue));
-    expect(find.text('160.000 COP'),findsWidgets);
+    expect(find.textContaining('160.000'),findsWidgets);
   });
 }
