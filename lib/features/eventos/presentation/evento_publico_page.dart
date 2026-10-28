@@ -3,11 +3,13 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
+import 'package:go_router/go_router.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../data/eventos_api.dart';
 import 'widgets/event_public_landing.dart';
+import 'widgets/event_digital_ticket_view.dart';
 import 'widgets/event_share_sheet.dart';
 import 'widgets/event_visual_kit.dart';
 
@@ -213,182 +215,37 @@ class _EntradaState extends ConsumerState<EventoEntradaPublicaPage>{
   finally{_requestInProgress=false;}
  }
  @override Widget build(BuildContext context){
-  final confirmed=value?['estado']=='CONFIRMADA';
   final palette=EventPagePalette.fromHex(
     value?['colorPrimario']?.toString(),value?['colorFondo']?.toString(),
     value?['colorTexto']?.toString(),value?['colorTarjeta']?.toString(),
     value?['colorBorde']?.toString(),value?['colorCarta']?.toString());
-  final base=palette.canvas, surface=palette.surface;
-  final foreground=palette.onSurface;
-  final itemForeground=palette.onSurfaceSoft;
-  final subtle=EventPagePalette.readable(
-    Color.lerp(foreground,surface,.23)!,surface);
-  final ticketList=value?['entradas'] is List?value!['entradas'] as List:<dynamic>[];
-  final individual=value?['entradaIndividual']==true;
-  return Scaffold(backgroundColor:base,body:SafeArea(child:Center(child:SingleChildScrollView(
-   padding:const EdgeInsets.all(20),child:ConstrainedBox(constraints:const BoxConstraints(maxWidth:460),
-    child:Card(color:surface,child:Padding(padding:const EdgeInsets.all(25),
-     child:Column(mainAxisSize:MainAxisSize.min,children:[
-      Icon(Icons.celebration,color:palette.accentOnSurface,size:42),
-      const SizedBox(height:12),
-      Text(value?['sucursal']?.toString()??'Entrada digital',textAlign:TextAlign.center,
-       style:TextStyle(color:foreground,fontSize:19,fontWeight:FontWeight.bold)),
-      const SizedBox(height:12),
-      Text(value?['evento']?.toString()??'Consultando...',textAlign:TextAlign.center,
-       style:TextStyle(color:foreground,fontSize:25,fontWeight:FontWeight.w900)),
-      const SizedBox(height:15),
-      if(value!=null)...[
-       if(individual)...[
-        Text('Entrada '+(value?['numeroEntrada']??'').toString()+
-          ' de '+(value?['totalEntradas']??'').toString(),
-          style:TextStyle(color:foreground,fontSize:18,
-            fontWeight:FontWeight.w900)),
-        const SizedBox(height:8),
-       ],
-       if((value!['mesas'] as List? ??[]).length>1)...[
-         Text('Mesas asignadas',style:TextStyle(
-           color:foreground,fontSize:20,fontWeight:FontWeight.w800)),
-         const SizedBox(height:7),
-         for(final table in (value!['mesas'] as List? ??[]))
-           Text('Mesa '+(table['numero']??'').toString()+' · '+
-             (table['puestos']??'').toString()+' puestos',
-             style:TextStyle(color:foreground,fontSize:15)),
-       ]else
-         Text('Mesa '+value!['mesa'].toString(),style:TextStyle(color:foreground,fontSize:21)),
-        Text((value!['puestos']?.toString()??'1')+' puestos',
-         style:TextStyle(color:foreground,fontSize:17)),
-       Text('Inicio: '+when(value!['inicio']),style:TextStyle(color:subtle)),
-       Text('Fin: '+when(value!['fin']),style:TextStyle(color:subtle)),
-      ],
-      const SizedBox(height:17),
-      if(confirmed&&(individual||ticketList.isEmpty))Container(
-       color: Colors.white,
-       padding: const EdgeInsets.all(12),
-       child: Image.network(
-        ref.read(eventosApiProvider).qrLink(widget.token),
-        width: 210,
-        height: 210,
-        fit: BoxFit.contain,
-        errorBuilder: (context, error, stackTrace) =>
-          const SizedBox(
-            width: 210,
-            height: 210,
-            child: Center(
-              child: Text(
-                'No se pudo cargar el QR. Usa el botón Descargar QR.',
-                style: TextStyle(color: Colors.black87),
-                textAlign: TextAlign.center,
-              ),
-            ),
-          ),
-       ),
-      )
-      else Icon(
-       value?['estado']=='EXPIRADA'?Icons.event_busy_outlined:
-       value?['estado']=='REEMBOLSO_PENDIENTE'?Icons.support_agent_outlined:
-       Icons.pending_actions_rounded,color:palette.accentOnSurface,size:65),
-      if(confirmed&&ticketList.isNotEmpty&&!individual)...[
-       const SizedBox(height:13),
-       Text('Tus entradas individuales',style:TextStyle(
-        color:foreground,fontWeight:FontWeight.w900,fontSize:18)),
-       const SizedBox(height:7),
-       Text('Cada asistente dispone de un QR propio.',
-        textAlign:TextAlign.center,
-        style:TextStyle(color:subtle,fontSize:12)),
-       const SizedBox(height:13),
-       for(final raw in ticketList)
-        if(raw is Map)Container(
-         padding:const EdgeInsets.all(13),
-         margin:const EdgeInsets.only(bottom:12),
-         decoration:BoxDecoration(color:palette.surfaceSoft,
-          borderRadius:BorderRadius.circular(14),
-          border:Border.all(color:palette.border)),
-         child:Column(children:[
-          Text('Entrada '+(raw['numero']??'').toString()+
-            ' de '+ticketList.length.toString(),
-            style:TextStyle(color:itemForeground,
-              fontWeight:FontWeight.w900,fontSize:16)),
-          const SizedBox(height:5),
-          Text('Mesa '+(raw['mesa']??'').toString()+
-           (raw['silla']==null?'':' · Puesto '+raw['silla'].toString()),
-           style:TextStyle(color:EventPagePalette.readable(
-            subtle,palette.surfaceSoft))),
-          const SizedBox(height:10),
-          Container(color:Colors.white,padding:const EdgeInsets.all(8),
-           child:Image.network(
-            ref.read(eventosApiProvider).qrLink(raw['token'].toString()),
-            width:175,height:175,fit:BoxFit.contain,
-            errorBuilder:(_,__,___)=>const Text(
-              'QR no disponible. Abre la entrada digital.',
-              style:TextStyle(color:Colors.black87)))),
-          const SizedBox(height:7),
-          TextButton.icon(
-           onPressed:()=>launchUrl(Uri.parse(raw['url'].toString()),
-             mode:LaunchMode.externalApplication),
-           icon:const Icon(Icons.open_in_new_outlined),
-           style:TextButton.styleFrom(foregroundColor:
-             EventPagePalette.readable(palette.accent,palette.surfaceSoft)),
-           label:const Text('Ver entrada digital')),
-          OutlinedButton.icon(
-           onPressed:()=>launchUrl(Uri.parse(ref.read(eventosApiProvider)
-             .qrLink(raw['token'].toString())),
-             mode:LaunchMode.externalApplication),
-           icon:const Icon(Icons.download_outlined),
-           style:OutlinedButton.styleFrom(foregroundColor:itemForeground,
-             side:BorderSide(color:palette.border)),
-           label:const Text('Descargar QR')),
-         ]),
-        ),
-      ],
-      const SizedBox(height:13),
-      Text(confirmed?(individual?'ENTRADA INDIVIDUAL CONFIRMADA':'RESERVA CONFIRMADA'):
-       value?['estado']=='PENDIENTE_PAGO'?'PAGO PENDIENTE':
-       value?['estado']=='EXPIRADA'?'RESERVA VENCIDA':
-       value?['estado']=='REEMBOLSO_PENDIENTE'?'REVISIÓN DE DEVOLUCIÓN':
-       value?['estado']?.toString()??error??'Cargando...',
-       style:TextStyle(color:foreground,fontWeight:FontWeight.bold)),
-      if(value?['mensajeEstado']!=null)...[
-       const SizedBox(height:8),
-       Text(value!['mensajeEstado'].toString(),textAlign:TextAlign.center,
-        style:TextStyle(color:subtle,fontSize:13,height:1.5)),
-      ],
-      if(value?['estado']=='PENDIENTE_PAGO'&&value?['checkoutUrl']!=null)...[
-       const SizedBox(height:14),
-       SizedBox(width:double.infinity,child:FilledButton.icon(
-         style:FilledButton.styleFrom(
-           backgroundColor:palette.accent,
-           foregroundColor:palette.onAccent,
-           padding:const EdgeInsets.symmetric(vertical:15)),
-         onPressed:()async{
-           final ok=await openEventCheckout(
-             value!['checkoutUrl'].toString()).catchError((Object _)=>false);
-           if(!ok&&context.mounted){
-             ScaffoldMessenger.of(context).showSnackBar(
-               const SnackBar(content:Text(
-                 'No se pudo abrir Mercado Pago. Comprueba el enlace o intenta de nuevo.')));
-           }
-         },
-         icon:const Icon(Icons.payment_outlined),
-         label:const Text('Pagar ahora con Mercado Pago'),
-       )),
-       const SizedBox(height:8),
-       Text('Puedes volver a intentar el pago mientras la reserva esté vigente.',
-         textAlign:TextAlign.center,
-         style:TextStyle(color:subtle,fontSize:12)),
-      ],
-      if(value?['estado']=='PENDIENTE_PAGO'&&value?['vencePago']!=null)...[
-       const SizedBox(height:9),
-       Text('Plazo para pagar hasta: '+when(value!['vencePago']),
-        textAlign:TextAlign.center,
-        style:TextStyle(color:foreground,fontSize:12)),
-       const SizedBox(height:5),
-       Text('Comprobando automáticamente cada 15 segundos',
-        style:TextStyle(color:subtle,fontSize:11)),
-      ],
-      const SizedBox(height:18),
-      if(confirmed&&(individual||ticketList.isEmpty))FilledButton.icon(style:FilledButton.styleFrom(backgroundColor:palette.accent,foregroundColor:palette.onAccent),onPressed:()=>launchUrl(Uri.parse(ref.read(eventosApiProvider).qrLink(widget.token)),
-       mode:LaunchMode.externalApplication),icon:const Icon(Icons.download),label:const Text('Descargar QR')),
-      TextButton.icon(style:TextButton.styleFrom(foregroundColor:foreground),onPressed:refresh,icon:const Icon(Icons.refresh),label:const Text('Consultar estado')),
-     ]))))))));
+  return EventDigitalTicketView(
+    token:widget.token,
+    value:value,
+    error:error,
+    palette:palette,
+    qrUrl:(entryToken)=>ref.read(eventosApiProvider).qrLink(entryToken),
+    onRefresh:refresh,
+    onFinish:(){
+      final slug=(value?['slug']??'').toString().trim();
+      if(slug.isNotEmpty){
+        // Usar GoRouter permite volver al evento incluso desde un QR
+        // abierto directamente en una pestaña, sin historial de navegacion.
+        context.go('/evento/'+Uri.encodeComponent(slug));
+      }else if(Navigator.of(context).canPop()){
+        Navigator.of(context).pop();
+      }else{
+        context.go('/');
+      }
+    },
+    onPay:(checkout)async{
+      final ok=await openEventCheckout(checkout)
+        .catchError((Object _)=>false);
+      if(!ok&&mounted){
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+          content:Text('No se pudo abrir Mercado Pago. Comprueba el enlace o intenta de nuevo.')));
+      }
+    },
+  );
  }
 }
