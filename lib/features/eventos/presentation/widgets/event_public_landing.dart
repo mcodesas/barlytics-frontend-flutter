@@ -281,13 +281,13 @@ class _EventPublicLandingState extends State<EventPublicLanding> {
                     child:Column(children:[
                       Row(children:[
                         Expanded(child:Text(pricePerSeat?'Precio por puesto':'Precio de reserva',
-                          style:TextStyle(color:palette.muted))),
-                        Text(currency(unit),style:TextStyle(color:palette.text)),
+                          style:TextStyle(color:palette.onSurfaceSoft))),
+                        Text(currency(unit),style:TextStyle(color:palette.onSurfaceSoft)),
                       ]),
                       const SizedBox(height:9),
                       Row(children:[
                         Expanded(child:Text('Total a pagar',
-                          style:TextStyle(color:palette.text,fontWeight:FontWeight.w800))),
+                          style:TextStyle(color:palette.onSurfaceSoft,fontWeight:FontWeight.w800))),
                         Text(currency(pricePerSeat?unit*quantity:unit),
                           style:TextStyle(color:palette.accentOnSoft,fontSize:19,fontWeight:FontWeight.w900)),
                       ]),
