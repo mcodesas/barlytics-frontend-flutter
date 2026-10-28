@@ -68,4 +68,41 @@ void main() {
     expect(find.text('2 puestos'), findsOneWidget);
     expect(tester.takeException(), isNull);
   });
+  testWidgets('Reserva confirmada muestra QR y acceso individual',
+      (tester) async {
+    await tester.pumpWidget(MaterialApp(
+      home: EventDigitalTicketView(
+        token: 'reserva-principal',
+        value: const <String, dynamic>{
+          'evento': 'Festival de apertura',
+          'sucursal': 'La barra reserva',
+          'estado': 'CONFIRMADA',
+          'mesa': 1,
+          'puestos': 1,
+          'mesas': <dynamic>[],
+          'entradas': <dynamic>[
+            <String, dynamic>{
+              'numero': 1,
+              'mesa': 1,
+              'silla': 2,
+              'token': 'entrada-individual',
+              'url': 'https://example.com/entrada',
+            },
+          ],
+        },
+        error: null,
+        palette: EventPagePalette.fromHex('#35D0C5', '#102735'),
+        qrUrl: (token) => 'https://example.com/qr',
+        onRefresh: () {},
+        onFinish: () {},
+        onPay: (url) async {},
+      ),
+    ));
+    expect(find.text('Reserva confirmada'), findsWidgets);
+    expect(find.text('Tus entradas individuales'), findsOneWidget);
+    expect(find.text('Entrada 1 de 1'), findsOneWidget);
+    expect(find.text('Mesa 1 · Puesto 2'), findsOneWidget);
+    expect(find.byKey(const Key('event-ticket-finish')), findsOneWidget);
+  });
+
 }
