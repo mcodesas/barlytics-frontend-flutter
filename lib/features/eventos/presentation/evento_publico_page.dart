@@ -195,6 +195,8 @@ class _EntradaState extends ConsumerState<EventoEntradaPublicaPage>{
     ?palette.text:(EventPagePalette.contrast(Colors.black,surface)>
       EventPagePalette.contrast(Colors.white,surface)?Colors.black:Colors.white);
   final subtle=Color.lerp(foreground,surface,.26)!;
+  final ticketList=value?['entradas'] is List?value!['entradas'] as List:<dynamic>[];
+  final individual=value?['entradaIndividual']==true;
   return Scaffold(backgroundColor:base,body:SafeArea(child:Center(child:SingleChildScrollView(
    padding:const EdgeInsets.all(20),child:ConstrainedBox(constraints:const BoxConstraints(maxWidth:460),
     child:Card(color:surface,child:Padding(padding:const EdgeInsets.all(25),
@@ -224,7 +226,7 @@ class _EntradaState extends ConsumerState<EventoEntradaPublicaPage>{
        Text('Fin: '+when(value!['fin']),style:TextStyle(color:subtle)),
       ],
       const SizedBox(height:17),
-      if(confirmed)Container(
+      if(confirmed&&(individual||ticketList.isEmpty))Container(
        color: Colors.white,
        padding: const EdgeInsets.all(12),
        child: Image.network(
@@ -250,6 +252,57 @@ class _EntradaState extends ConsumerState<EventoEntradaPublicaPage>{
        value?['estado']=='EXPIRADA'?Icons.event_busy_outlined:
        value?['estado']=='REEMBOLSO_PENDIENTE'?Icons.support_agent_outlined:
        Icons.pending_actions_rounded,color:palette.accent,size:65),
+      if(confirmed&&ticketList.isNotEmpty&&!individual)...[
+       const SizedBox(height:13),
+       Text('Tus entradas individuales',style:TextStyle(
+        color:foreground,fontWeight:FontWeight.w900,fontSize:18)),
+       const SizedBox(height:7),
+       Text('Cada asistente dispone de un QR propio.',
+        textAlign:TextAlign.center,
+        style:TextStyle(color:subtle,fontSize:12)),
+       const SizedBox(height:13),
+       for(final raw in ticketList)
+        if(raw is Map)Container(
+         padding:const EdgeInsets.all(13),
+         margin:const EdgeInsets.only(bottom:12),
+         decoration:BoxDecoration(color:palette.surfaceSoft,
+          borderRadius:BorderRadius.circular(14),
+          border:Border.all(color:palette.border)),
+         child:Column(children:[
+          Text('Entrada '+(raw['numero']??'').toString()+
+            ' de '+ticketList.length.toString(),
+            style:TextStyle(color:foreground,
+              fontWeight:FontWeight.w900,fontSize:16)),
+          const SizedBox(height:5),
+          Text('Mesa '+(raw['mesa']??'').toString()+
+           (raw['silla']==null?'':' · Puesto '+raw['silla'].toString()),
+           style:TextStyle(color:subtle)),
+          const SizedBox(height:10),
+          Container(color:Colors.white,padding:const EdgeInsets.all(8),
+           child:Image.network(
+            ref.read(eventosApiProvider).qrLink(raw['token'].toString()),
+            width:175,height:175,fit:BoxFit.contain,
+            errorBuilder:(_,__,___)=>const Text(
+              'QR no disponible. Abre la entrada digital.',
+              style:TextStyle(color:Colors.black87)))),
+          const SizedBox(height:7),
+          TextButton.icon(
+           onPressed:()=>launchUrl(Uri.parse(raw['url'].toString()),
+             mode:LaunchMode.externalApplication),
+           icon:const Icon(Icons.open_in_new_outlined),
+           style:TextButton.styleFrom(foregroundColor:foreground),
+           label:const Text('Ver entrada digital')),
+          OutlinedButton.icon(
+           onPressed:()=>launchUrl(Uri.parse(ref.read(eventosApiProvider)
+             .qrLink(raw['token'].toString())),
+             mode:LaunchMode.externalApplication),
+           icon:const Icon(Icons.download_outlined),
+           style:OutlinedButton.styleFrom(foregroundColor:foreground,
+             side:BorderSide(color:palette.border)),
+           label:const Text('Descargar QR')),
+         ]),
+        ),
+      ],
       const SizedBox(height:13),
       Text(confirmed?'ENTRADA CONFIRMADA':
        value?['estado']=='PENDIENTE_PAGO'?'PAGO PENDIENTE':
@@ -272,7 +325,7 @@ class _EntradaState extends ConsumerState<EventoEntradaPublicaPage>{
         style:TextStyle(color:subtle,fontSize:11)),
       ],
       const SizedBox(height:18),
-      if(confirmed)FilledButton.icon(style:FilledButton.styleFrom(backgroundColor:palette.accent,foregroundColor:palette.onAccent),onPressed:()=>launchUrl(Uri.parse(ref.read(eventosApiProvider).qrLink(widget.token)),
+      if(confirmed&&(individual||ticketList.isEmpty))FilledButton.icon(style:FilledButton.styleFrom(backgroundColor:palette.accent,foregroundColor:palette.onAccent),onPressed:()=>launchUrl(Uri.parse(ref.read(eventosApiProvider).qrLink(widget.token)),
        mode:LaunchMode.externalApplication),icon:const Icon(Icons.download),label:const Text('Descargar QR')),
       TextButton.icon(style:TextButton.styleFrom(foregroundColor:foreground),onPressed:refresh,icon:const Icon(Icons.refresh),label:const Text('Consultar estado')),
      ]))))))));
