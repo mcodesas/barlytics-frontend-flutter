@@ -63,7 +63,7 @@ class _EventPhotoLightboxState extends State<_EventPhotoLightbox> {
     final label = current < widget.labels.length
       ? widget.labels[current] : 'Fotografía ' + (current + 1).toString();
     final buttonStyle=IconButton.styleFrom(
-      foregroundColor:iconColor,
+      foregroundColor:p.accentOnSoft,
       disabledForegroundColor:muted.withOpacity(.6),
       backgroundColor:p.surfaceSoft,
     );
@@ -106,13 +106,13 @@ class _EventPhotoLightboxState extends State<_EventPhotoLightbox> {
                 tooltip: 'Restablecer zoom',
                 style:buttonStyle,
                 onPressed: () => zoomController.value = Matrix4.identity(),
-                icon:Icon(Icons.center_focus_strong,color:iconColor)),
+                icon:Icon(Icons.center_focus_strong,color:p.accentOnSoft)),
               const SizedBox(width: 6),
               IconButton(
                 tooltip: 'Cerrar visor',
                 style:buttonStyle,
                 onPressed: () => Navigator.of(context).pop(),
-                icon:Icon(Icons.close,color:iconColor)),
+                icon:Icon(Icons.close,color:p.accentOnSoft)),
             ]),
           ),
           Expanded(child: LayoutBuilder(builder: (context, bounds) => Stack(
