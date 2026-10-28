@@ -559,6 +559,26 @@ class _EventPublicLandingState extends State<EventPublicLanding> {
     );
   }
 
+  // Los botones de la portada se muestran encima de una fotografía.
+  // Su superficie debe ser opaca: calcular el contraste contra heroShade
+  // no garantiza legibilidad cuando el fondo tiene zonas claras u oscuras.
+  ButtonStyle _heroActionStyle()=>OutlinedButton.styleFrom(
+    foregroundColor:palette.onSurface,
+    backgroundColor:palette.surface,
+    side:BorderSide(color:palette.border,width:1.1),
+    minimumSize:const Size(0,44),
+    padding:const EdgeInsets.symmetric(horizontal:18,vertical:13),
+    shape:RoundedRectangleBorder(borderRadius:BorderRadius.circular(28)),
+  );
+
+  ButtonStyle _heroNavStyle()=>TextButton.styleFrom(
+    foregroundColor:palette.onSurface,
+    backgroundColor:palette.surface,
+    padding:const EdgeInsets.symmetric(horizontal:13,vertical:12),
+    minimumSize:const Size(0,44),
+    shape:RoundedRectangleBorder(borderRadius:BorderRadius.circular(24)),
+  );
+
   Widget _hero(Object? image,bool wide) => Container(
     constraints:BoxConstraints(minHeight:wide?475:455),
     child:Stack(children:[
@@ -618,27 +638,17 @@ class _EventPublicLandingState extends State<EventPublicLanding> {
                   foregroundColor:onBrand,
                   padding:EdgeInsets.symmetric(horizontal:25,vertical:17))),
               OutlinedButton.icon(
-              style:OutlinedButton.styleFrom(
-                foregroundColor:palette.heroInk,
-                side:BorderSide(color:palette.heroInk.withOpacity(.72))),
-              onPressed:getText('ubicacionGoogleMaps').isEmpty?null:openMap,
-                icon:Icon(Icons.directions_outlined),
-                label:Text('Cómo llegar')),
+                style:_heroActionStyle(),
+                onPressed:getText('ubicacionGoogleMaps').isEmpty?null:openMap,
+                icon:const Icon(Icons.directions_outlined),
+                label:const Text('Cómo llegar')),
               OutlinedButton.icon(
-              style:OutlinedButton.styleFrom(
-                foregroundColor:palette.heroInk,
-                side:BorderSide(color:palette.heroInk.withOpacity(.72))),
-              onPressed:widget.onShare,
-                icon:Icon(Icons.share_outlined),
-                label:Text('Compartir')),
-              if(whatsappUrl!=null)
-                OutlinedButton.icon(
-              style:OutlinedButton.styleFrom(
-                foregroundColor:palette.heroInk,
-                side:BorderSide(color:palette.heroInk.withOpacity(.72))),
-              onPressed:openSupport,
-                  icon:Icon(Icons.support_agent_outlined),
-                  label:Text('¿Dudas? WhatsApp')),
+                style:_heroActionStyle(),
+                onPressed:widget.onShare,
+                icon:const Icon(Icons.share_outlined),
+                label:const Text('Compartir')),
+              // WhatsApp vive en un botón flotante propio, independiente
+              // de la reserva en escritorio y móvil.
             ]),
             SizedBox(height:26),
           ]),
@@ -668,25 +678,32 @@ class _EventPublicLandingState extends State<EventPublicLanding> {
     ])),
     if(wide)...[
       if(eventPhoto(widget.event['imagen'])!=null)
-        TextButton(style:TextButton.styleFrom(foregroundColor:palette.heroInk),
-        onPressed:()=>jump(_posterKey),child:Text('Afiche')),
-      TextButton(style:TextButton.styleFrom(foregroundColor:palette.heroInk),
-        onPressed:()=>jump(_galleryKey),child:Text('El lugar')),
-      TextButton(style:TextButton.styleFrom(foregroundColor:palette.heroInk),
-        onPressed:()=>jump(_menuKey),child:Text('La carta')),
-      TextButton(style:TextButton.styleFrom(foregroundColor:palette.heroInk),
-        onPressed:()=>jump(_locationKey),child:Text('Ubicación')),
-      SizedBox(width:8),
+        TextButton(style:_heroNavStyle(),
+          onPressed:()=>jump(_posterKey),child:const Text('Afiche')),
+      const SizedBox(width:5),
+      TextButton(style:_heroNavStyle(),
+        onPressed:()=>jump(_galleryKey),child:const Text('El lugar')),
+      const SizedBox(width:5),
+      TextButton(style:_heroNavStyle(),
+        onPressed:()=>jump(_menuKey),child:const Text('La carta')),
+      const SizedBox(width:5),
+      TextButton(style:_heroNavStyle(),
+        onPressed:()=>jump(_locationKey),child:const Text('Ubicación')),
+      const SizedBox(width:8),
       OutlinedButton.icon(
-          style:OutlinedButton.styleFrom(
-            foregroundColor:palette.heroInk,
-            side:BorderSide(color:palette.heroInk.withOpacity(.72))),
-          onPressed:startReservation,
-        icon:Icon(Icons.event_seat_outlined,size:17),
-        label:Text('Reservar ahora')),
-    ]else IconButton(onPressed:widget.onShare,
+        style:_heroActionStyle(),
+        onPressed:startReservation,
+        icon:const Icon(Icons.event_seat_outlined,size:17),
+        label:const Text('Reservar ahora')),
+    ]else IconButton(
+      onPressed:widget.onShare,
       tooltip:'Compartir evento',
-      icon:Icon(Icons.share_outlined,color:palette.heroInk)),
+      style:IconButton.styleFrom(
+        backgroundColor:palette.surface,
+        foregroundColor:palette.onSurface,
+        minimumSize:const Size(44,44),
+        side:BorderSide(color:palette.border)),
+      icon:const Icon(Icons.share_outlined)),
   ]);
 
 
