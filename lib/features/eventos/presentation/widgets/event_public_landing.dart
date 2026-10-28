@@ -641,7 +641,7 @@ class _EventPublicLandingState extends State<EventPublicLanding> {
         borderRadius:BorderRadius.circular(15),
         border:Border.all(color:palette.border)),
       child:eventPhoto(widget.event['logo'])==null
-        ?Icon(Icons.storefront_outlined,color:brand,size:40)
+        ?Icon(Icons.storefront_outlined,color:palette.accentOnSoft,size:40)
         :EventArtwork(source:widget.event['logo'],height:82,width:82,
           fit:BoxFit.cover,borderRadius:0)),
     SizedBox(width:11),
@@ -674,7 +674,7 @@ class _EventPublicLandingState extends State<EventPublicLanding> {
         label:Text('Reservar ahora')),
     ]else IconButton(onPressed:widget.onShare,
       tooltip:'Compartir evento',
-      icon:Icon(Icons.share_outlined,color:brand)),
+      icon:Icon(Icons.share_outlined,color:palette.heroInk)),
   ]);
 
 
@@ -709,7 +709,7 @@ class _EventPublicLandingState extends State<EventPublicLanding> {
                decoration:BoxDecoration(color:palette.surface,
                   borderRadius:BorderRadius.circular(11)),
                child:Row(mainAxisSize:MainAxisSize.min,children:[
-                  Icon(Icons.zoom_in,color:brand),
+                  Icon(Icons.zoom_in,color:palette.accentOnSurface),
                   SizedBox(width:6),
                  Text('Ampliar afiche',
                    style:TextStyle(color:palette.text,fontSize:12)),
@@ -820,7 +820,7 @@ class _EventPublicLandingState extends State<EventPublicLanding> {
          title:'Conoce el lugar',
          subtitle:'Fotografías reales del establecimiento',
          trailing:venue.isEmpty?null:
-           Icon(Icons.zoom_in,color:brand)),
+           Icon(Icons.zoom_in,color:palette.accentOnSurface)),
        SizedBox(height:15),
        if(venue.isEmpty)Container(height:220,alignment:Alignment.center,
          decoration:BoxDecoration(color:palette.surfaceSoft,
@@ -915,7 +915,7 @@ class _EventPublicLandingState extends State<EventPublicLanding> {
                  palette.heroShade.withOpacity(.68),Colors.transparent])))),
          if(!hasPhoto)
            Center(child:Column(mainAxisSize:MainAxisSize.min,children:[
-             Icon(Icons.place_outlined,color:brand,size:37),
+             Icon(Icons.place_outlined,color:palette.accentOnSoft,size:37),
              const SizedBox(height:8),
              Text('Encuéntranos',style:TextStyle(color:palette.text,
                fontSize:18,fontWeight:FontWeight.w900)),
@@ -1002,7 +1002,7 @@ class _EventPublicLandingState extends State<EventPublicLanding> {
       if(link!=null&&link.scheme=='https')
        await launchUrl(link,mode:LaunchMode.externalApplication);
      },
-     icon:Icon(item.icon,size:17,color:brand),
+     icon:Icon(item.icon,size:17,color:palette.accentOnSurface),
      label:Text(item.label)),
   ]);
  }
@@ -1029,7 +1029,7 @@ class _EventPublicLandingState extends State<EventPublicLanding> {
                  subtitle:'Elige cuántos asistentes van a disfrutar el evento'),
                const SizedBox(height:13),
                Row(children:[
-                 Icon(Icons.check_circle_outline,color:brand,size:18),
+                 Icon(Icons.check_circle_outline,color:palette.accentOnSurface,size:18),
                  const SizedBox(width:8),
                  Flexible(child:Text(seats>0
                    ?'$seats puestos disponibles · Asignación automática'
@@ -1137,7 +1137,9 @@ class _EventPublicLandingState extends State<EventPublicLanding> {
                          style:TextStyle(color:palette.muted,fontSize:11)),
                      ])),
                      Icon(available?Icons.check_circle:Icons.lock_outline,
-                       color:available?EventColors.success:EventColors.warning,size:17),
+                       color:EventPagePalette.readable(
+                       available?EventColors.success:EventColors.warning,
+                       palette.surfaceSoft),size:17),
                    ])),
                ]),
              ),
@@ -1190,7 +1192,8 @@ class _EventPublicLandingState extends State<EventPublicLanding> {
                  fontWeight:FontWeight.w800)),
              SizedBox(height:5),
              Text(capacity.toString()+' puestos disponibles',
-               style:TextStyle(color:EventColors.success,fontSize:12)),
+               style:TextStyle(color:EventPagePalette.readable(
+                 EventColors.success,palette.surface),fontSize:12)),
            ])),
          ]),
        ]else if(automatic&&bySeat)
@@ -1240,8 +1243,9 @@ class _EventPublicLandingState extends State<EventPublicLanding> {
          ]),
          SizedBox(height:7),
          Text(chosenChairs.length.toString()+' de '+widget.seats.toString()+' sillas',
-           style:TextStyle(color:chosenChairs.length==widget.seats?
-             EventColors.success:EventColors.warning,fontSize:12)),
+           style:TextStyle(color:EventPagePalette.readable(
+             chosenChairs.length==widget.seats?
+               EventColors.success:EventColors.warning,palette.surface),fontSize:12)),
        ],
        SizedBox(height:12),
        Row(children:[
@@ -1282,7 +1286,7 @@ class _EventPublicLandingState extends State<EventPublicLanding> {
        if(widget.event['medioPago']=='MANUAL')
          Padding(padding:EdgeInsets.only(bottom:12),
            child:Text('La reserva quedará pendiente de aprobación del establecimiento.',
-             style:TextStyle(color:brand,fontSize:12))),
+             style:TextStyle(color:palette.accentOnSurface,fontSize:12))),
        SizedBox(width:double.infinity,child:FilledButton.icon(
          onPressed:widget.busy||
             (widget.selectedTable==null&&!automatic)||
