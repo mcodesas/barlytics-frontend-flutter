@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'dart:async';
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
@@ -9,6 +10,21 @@ import '../data/eventos_api.dart';
 import 'widgets/event_public_landing.dart';
 import 'widgets/event_share_sheet.dart';
 import 'widgets/event_visual_kit.dart';
+
+/// En la web la navegación al checkout reemplaza la pestaña actual.
+/// Abrir otra pestaña después de una petición HTTP puede ser bloqueado por
+/// el navegador al perderse el gesto inicial del usuario.
+Uri? eventCheckoutUri(String raw){
+  final uri=Uri.tryParse(raw.trim());
+  return uri!=null&&uri.scheme=='https'&&uri.host.isNotEmpty?uri:null;
+}
+Future<bool> openEventCheckout(String raw)async{
+  final uri=eventCheckoutUri(raw);
+  if(uri==null)return false;
+  return launchUrl(uri,
+    mode:kIsWeb?LaunchMode.platformDefault:LaunchMode.externalApplication,
+    webOnlyWindowName:kIsWeb?'_self':null);
+}
 
 ImageProvider? cover(Object? value){
  final v=value?.toString()??'';
@@ -99,23 +115,33 @@ class _PublicState extends ConsumerState<EventoPublicoPage>{
          child:const Text('Pagar ahora')),
       ]));
     if(!mounted)return;
-    Navigator.of(context).push(MaterialPageRoute<void>(
-      builder:(_)=>EventoEntradaPublicaPage(token:token)));
-    if(shouldPay==true&&checkout.isNotEmpty){
-      final url=Uri.tryParse(checkout);
-      if(url!=null&&url.scheme=='https'){
-        final ok=await launchUrl(url,mode:LaunchMode.externalApplication);
-        if(!ok&&mounted)ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content:Text('No se pudo abrir Mercado Pago. Consulta el estado de la reserva.')));
+    if(shouldPay==true){
+      bool opened=false;
+      try{
+        opened=await openEventCheckout(checkout);
+      }catch(_){opened=false;}
+      if(opened){
+        // En web la pestaña cambia al checkout; Mercado Pago regresa al
+        // enlace de la reserva. En móvil dejamos la consulta accesible.
+        if(!kIsWeb&&mounted){
+          Navigator.of(context).push(MaterialPageRoute<void>(
+            builder:(_)=>EventoEntradaPublicaPage(token:token)));
+        }
+        return;
       }
+      if(mounted)ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+        content:Text('No se pudo abrir Mercado Pago. Usa el botón Pagar ahora en la reserva.')));
     }
+    if(mounted)Navigator.of(context).push(MaterialPageRoute<void>(
+      builder:(_)=>EventoEntradaPublicaPage(token:token)));
    }else if(state=='CONFIRMADA'){
     if(mounted)Navigator.of(context).push(MaterialPageRoute<void>(builder:(_)=>EventoEntradaPublicaPage(token:token)));
    }else{
     ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content:Text('Reserva solicitada. El negocio revisará el pago y enviará tu entrada QR por correo.')));
    }
   }catch(e){
-   if(mounted)ScaffoldMessenger.of(context).showSnackBar(SnackBar(content:Text('Reserva no realizada: '+e.toString())));
+   if(mounted)ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+    content:Text('Reserva no realizada: '+e.toString())));
   }finally{if(mounted)setState(()=>busy=false);}
  }
  @override Widget build(BuildContext context){
@@ -324,6 +350,30 @@ class _EntradaState extends ConsumerState<EventoEntradaPublicaPage>{
        const SizedBox(height:8),
        Text(value!['mensajeEstado'].toString(),textAlign:TextAlign.center,
         style:TextStyle(color:subtle,fontSize:13,height:1.5)),
+      ],
+      if(value?['estado']=='PENDIENTE_PAGO'&&value?['checkoutUrl']!=null)...[
+       const SizedBox(height:14),
+       SizedBox(width:double.infinity,child:FilledButton.icon(
+         style:FilledButton.styleFrom(
+           backgroundColor:palette.accent,
+           foregroundColor:palette.onAccent,
+           padding:const EdgeInsets.symmetric(vertical:15)),
+         onPressed:()async{
+           final ok=await openEventCheckout(
+             value!['checkoutUrl'].toString()).catchError((Object _)=>false);
+           if(!ok&&context.mounted){
+             ScaffoldMessenger.of(context).showSnackBar(
+               const SnackBar(content:Text(
+                 'No se pudo abrir Mercado Pago. Comprueba el enlace o intenta de nuevo.')));
+           }
+         },
+         icon:const Icon(Icons.payment_outlined),
+         label:const Text('Pagar ahora con Mercado Pago'),
+       )),
+       const SizedBox(height:8),
+       Text('Puedes volver a intentar el pago mientras la reserva esté vigente.',
+         textAlign:TextAlign.center,
+         style:TextStyle(color:subtle,fontSize:12)),
       ],
       if(value?['estado']=='PENDIENTE_PAGO'&&value?['vencePago']!=null)...[
        const SizedBox(height:9),
