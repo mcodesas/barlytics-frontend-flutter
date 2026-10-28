@@ -3,6 +3,21 @@ import 'package:flutter/services.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'event_visual_kit.dart';
 
+/// En las redes se debe compartir el HTML público con metadatos del afiche,
+/// nunca la raíz del sitio ni la ruta Flutter con información genérica.
+String eventSocialPreviewUrl(Map<String,dynamic> event,String fallback){
+  final supplied=event['enlaceCompartir']?.toString().trim()??'';
+  final parsed=Uri.tryParse(supplied);
+  if(parsed!=null && parsed.scheme=='https' && parsed.host.isNotEmpty &&
+     parsed.pathSegments.length>=6 &&
+     parsed.pathSegments.last=='compartir' &&
+     parsed.pathSegments.contains('eventos') &&
+     parsed.pathSegments.contains('public')){
+    return supplied;
+  }
+  return fallback;
+}
+
 enum ShareNetwork { whatsapp, facebook, instagram, tiktok, x, threads, telegram, linkedin, pinterest, reddit, email }
 
 String shareLabel(ShareNetwork n) => switch(n) {
