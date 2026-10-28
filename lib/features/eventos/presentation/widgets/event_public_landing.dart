@@ -1143,15 +1143,14 @@ class _EventPublicLandingState extends State<EventPublicLanding> {
 
 
  Widget _catalog(){
-   // Productos, nombres, categorías, fotos y precios vienen exclusivamente de
-   // widget.event['carta'], construido desde commerce.evento_productos.
+   // La carta usa exclusivamente los productos vinculados al evento en BD.
    final selected=products;
    if(selected.isEmpty)return EventPanel(child:Column(
      key:_menuKey,crossAxisAlignment:CrossAxisAlignment.start,children:[
-       EventSectionHeading(icon:Icons.menu_book_outlined,title:'La carta del evento',
-         subtitle:'Productos seleccionados del catálogo del establecimiento'),
-       SizedBox(height:15),
-       Text('Todavía no hay productos seleccionados para este evento.',
+       EventSectionHeading(icon:Icons.menu_book_outlined,title:'Nuestra carta',
+         subtitle:'Selección del establecimiento para esta experiencia'),
+       const SizedBox(height:14),
+       Text('Este evento todavía no tiene productos seleccionados.',
          style:TextStyle(color:palette.muted)),
      ]));
 
@@ -1160,156 +1159,174 @@ class _EventPublicLandingState extends State<EventPublicLanding> {
      final type=product['tipo']?.toString().trim()??'';
      categories.putIfAbsent(type.isEmpty?'Nuestra selección':type,()=>[]).add(product);
    }
-   // Conservar orden de selección. Repetir el título cuando una categoría
-   // continúa en la siguiente hoja; nunca intercalar productos inventados.
+   // Mantener juntas las categorías que caben en una hoja.
    final pages=<List<MapEntry<String,List<Map<String,dynamic>>>>>[];
    var current=<MapEntry<String,List<Map<String,dynamic>>>>[];
    var count=0;
+   void finishPage(){
+     if(current.isEmpty)return;
+     pages.add(current);
+     current=<MapEntry<String,List<Map<String,dynamic>>>>[];
+     count=0;
+   }
    for(final category in categories.entries){
+     if(current.isNotEmpty&&category.value.length<=8&&
+        count+category.value.length>8)finishPage();
      var position=0;
      while(position<category.value.length){
-       if(count==8){
-         pages.add(current);
-         current=<MapEntry<String,List<Map<String,dynamic>>>>[];
-         count=0;
-       }
+       if(count>=8)finishPage();
        final portion=category.value.skip(position).take(8-count).toList();
        current.add(MapEntry(category.key,portion));
        count+=portion.length;
        position+=portion.length;
      }
    }
-   if(current.isNotEmpty)pages.add(current);
+   finishPage();
 
-   final paper=palette.menuPaper,ink=palette.menuInk;
+   final paper=palette.menuPaper;
+   final rawInk=palette.menuInk;
+   final ink=EventPagePalette.contrast(rawInk,paper)>=4.5
+     ?rawInk
+     :(EventPagePalette.contrast(Colors.black,paper)>
+       EventPagePalette.contrast(Colors.white,paper)
+         ?Colors.black:Colors.white);
+   final secondary=Color.lerp(ink,paper,.26)!;
    final rule=palette.menuBorder;
-   final venueName=getText('sucursal',getText('empresa','Establecimiento')).trim();
-   final company=getText('empresa').trim();
-   final subtitle=getText('titulo',company.isNotEmpty?company:'Carta del evento');
-   final label=venueName.isEmpty?'Establecimiento':venueName;
+   final label=getText('sucursal',getText('empresa','Establecimiento')).trim();
+   final subtitle=getText('titulo','Carta del evento');
 
    Widget productRow(Map<String,dynamic> product,double width){
      final description=product['descripcion']?.toString().trim()??'';
-     final name=(product['nombre']??'').toString().trim();
+     final name=product['nombre']?.toString().trim()??'';
      final shownPrice=product['precio']==null
        ?'Consultar precio':'\$'+currency(product['precio']).replaceFirst('COP ','');
+     final hasPhoto=width>=490&&eventPhoto(product['imagen'])!=null;
      return Padding(
-       padding:EdgeInsets.symmetric(vertical:width<390?9:11,horizontal:3),
-       child:Column(crossAxisAlignment:CrossAxisAlignment.stretch,children:[
-         Row(crossAxisAlignment:CrossAxisAlignment.start,children:[
-           Expanded(child:Text(name.toUpperCase(),maxLines:2,
-             overflow:TextOverflow.ellipsis,
-             style:TextStyle(fontFamily:'Georgia',fontSize:width<390?12:14,
-               fontWeight:FontWeight.w900,color:ink,height:1.32))),
-           SizedBox(width:10),
-           Text(shownPrice,textAlign:TextAlign.end,
-             style:TextStyle(fontFamily:'Georgia',fontSize:width<390?12:14,
-               fontWeight:FontWeight.w900,color:ink)),
-         ]),
-         if(description.isNotEmpty)...[
-           SizedBox(height:6),
-           Text(description,maxLines:5,overflow:TextOverflow.ellipsis,
-             style:TextStyle(fontFamily:'Georgia',
-               fontSize:width<390?11:12,color:ink,height:1.45)),
+       padding:const EdgeInsets.symmetric(horizontal:3,vertical:11),
+       child:Row(crossAxisAlignment:CrossAxisAlignment.start,children:[
+         if(hasPhoto)...[
+           EventArtwork(source:product['imagen'],width:72,height:72,
+             borderRadius:11),
+           const SizedBox(width:13),
          ],
+         Expanded(child:Column(
+           crossAxisAlignment:CrossAxisAlignment.start,children:[
+             Row(crossAxisAlignment:CrossAxisAlignment.start,children:[
+               Expanded(child:Text(name,maxLines:3,
+                 overflow:TextOverflow.ellipsis,
+                 style:TextStyle(fontFamily:'Georgia',
+                   fontSize:width<410?14:15,fontWeight:FontWeight.w800,
+                   height:1.3,color:ink))),
+               const SizedBox(width:8),
+               Text(shownPrice,textAlign:TextAlign.end,
+                 style:TextStyle(fontSize:width<410?13:14,
+                   fontWeight:FontWeight.w800,color:ink)),
+             ]),
+             if(description.isNotEmpty)...[
+               const SizedBox(height:5),
+               Text(description,maxLines:4,overflow:TextOverflow.ellipsis,
+                 style:TextStyle(fontSize:width<410?12:13,
+                   color:secondary,height:1.48)),
+             ],
+           ],
+         )),
        ]),
      );
    }
 
    Widget menuSheet(List<MapEntry<String,List<Map<String,dynamic>>>> sections,
      int index,double width){
-     final compact=width<410;
-     return SizedBox(width:width,child:DecoratedBox(
-       decoration:BoxDecoration(color:paper,
-         border:Border.all(color:rule,width:1.5),
-         boxShadow:[BoxShadow(color:Colors.black.withOpacity(.24),
-           blurRadius:17,offset:Offset(0,7))]),
-       child:Padding(padding:EdgeInsets.all(compact?6:10),
-         child:DecoratedBox(
-           decoration:BoxDecoration(border:Border.all(
-             color:rule.withOpacity(.74),width:.85)),
-           child:Padding(
-             padding:EdgeInsets.fromLTRB(compact?14:27,compact?22:31,
-               compact?14:27,20),
-             child:Column(crossAxisAlignment:CrossAxisAlignment.stretch,children:[
-               Text(label.toUpperCase(),textAlign:TextAlign.center,
-                 maxLines:2,overflow:TextOverflow.ellipsis,
-                 style:TextStyle(fontFamily:'Georgia',
-                   fontWeight:FontWeight.w500,fontSize:compact?23:31,
-                   letterSpacing:compact?2:4,color:ink)),
-               SizedBox(height:6),
-               Text(subtitle.toUpperCase(),maxLines:2,
-                 textAlign:TextAlign.center,overflow:TextOverflow.ellipsis,
-                 style:TextStyle(fontFamily:'Georgia',
-                   fontSize:compact?9:10,letterSpacing:1.8,color:ink)),
-               SizedBox(height:16),
-               Center(child:SizedBox(width:175,
-                 child:Divider(color:rule,thickness:1))),
-               SizedBox(height:24),
-               for(final section in sections)...[
-                 Text('NUESTRA SELECCIÓN',textAlign:TextAlign.center,
-                   style:TextStyle(fontFamily:'Georgia',fontSize:10,
-                     letterSpacing:.8,color:ink)),
-                 SizedBox(height:5),
-                 Text(section.key,textAlign:TextAlign.center,
-                   style:TextStyle(fontFamily:'Georgia',
-                     fontStyle:FontStyle.italic,fontSize:compact?22:27,color:ink)),
-                 SizedBox(height:12),
-                 Row(children:[
-                   Expanded(child:Container(height:1,color:rule)),
-                   Padding(padding:EdgeInsets.symmetric(horizontal:7),
-                     child:Icon(Icons.diamond_outlined,color:rule,size:12)),
-                   Expanded(child:Container(height:1,color:rule)),
-                 ]),
-                 SizedBox(height:9),
-                 if(sections.length>1&&section!=sections.first&&
-                    section.value.length<=4&&!compact)
-               LayoutBuilder(builder:(context,bounds){
-                 final widthItem=(bounds.maxWidth-14)/2;
-                 return Wrap(spacing:14,runSpacing:5,children:[
-                   for(final product in section.value)
-                     SizedBox(width:widthItem,child:productRow(product,widthItem)),
-                 ]);
-               })
-             else for(final product in section.value)...[
-               productRow(product,width),
-               Divider(height:1,thickness:.55,color:rule),
-             ],
-                 SizedBox(height:25),
-               ],
-               SizedBox(height:22),
-               Divider(color:rule,height:12),
-               Text(getText('titulo','Carta del evento'),
-                 textAlign:TextAlign.center,maxLines:2,
-                 overflow:TextOverflow.ellipsis,
-                 style:TextStyle(fontFamily:'Georgia',color:ink,fontSize:11)),
-               SizedBox(height:6),
-               Text(label+' · '+(index+1).toString()+' / '+pages.length.toString(),
-                 textAlign:TextAlign.center,maxLines:2,
-                 overflow:TextOverflow.ellipsis,
-                 style:TextStyle(fontFamily:'Georgia',fontSize:10,color:ink)),
+     final compact=width<450;
+     return Container(
+       width:width,
+       decoration:BoxDecoration(
+         color:paper,borderRadius:BorderRadius.circular(17),
+         border:Border.all(color:rule.withOpacity(.75),width:1.1),
+         boxShadow:[BoxShadow(color:Colors.black.withOpacity(.22),
+           blurRadius:22,offset:const Offset(0,10))]),
+       child:Padding(
+         padding:EdgeInsets.fromLTRB(compact?20:28,compact?23:30,
+           compact?20:28,20),
+         child:Column(crossAxisAlignment:CrossAxisAlignment.stretch,children:[
+           Center(child:Container(width:44,height:3,
+             decoration:BoxDecoration(color:palette.accent,
+               borderRadius:BorderRadius.circular(4)))),
+           const SizedBox(height:17),
+           Text(label.isEmpty?'Establecimiento':label,
+             maxLines:2,overflow:TextOverflow.ellipsis,
+             textAlign:TextAlign.center,
+             style:TextStyle(fontFamily:'Georgia',
+               fontSize:compact?22:27,fontWeight:FontWeight.w700,
+               letterSpacing:.6,color:ink)),
+           const SizedBox(height:5),
+           Text(subtitle,maxLines:2,overflow:TextOverflow.ellipsis,
+             textAlign:TextAlign.center,
+             style:TextStyle(color:secondary,fontSize:compact?12:13,
+               fontWeight:FontWeight.w600)),
+           const SizedBox(height:7),
+           Text('MENÚ DEL EVENTO',textAlign:TextAlign.center,
+             style:TextStyle(fontSize:10,fontWeight:FontWeight.w700,
+               letterSpacing:2,color:secondary)),
+           const SizedBox(height:23),
+           for(final section in sections)...[
+             Row(children:[
+               Expanded(child:Container(height:1,color:rule.withOpacity(.52))),
+               Padding(padding:const EdgeInsets.symmetric(horizontal:13),
+                 child:Icon(Icons.auto_awesome_outlined,
+                   color:palette.accent,size:15)),
+               Expanded(child:Container(height:1,color:rule.withOpacity(.52))),
              ]),
-           ),
-         ),
+             const SizedBox(height:13),
+             Text(section.key,textAlign:TextAlign.center,
+               maxLines:2,overflow:TextOverflow.ellipsis,
+               style:TextStyle(fontFamily:'Georgia',
+                 fontSize:compact?23:26,
+                 fontWeight:FontWeight.w700,color:ink,height:1.18)),
+             const SizedBox(height:12),
+             LayoutBuilder(builder:(context,bounds){
+               final columns=section.value.length>=3&&bounds.maxWidth>=535?2:1;
+               final w=(bounds.maxWidth-(columns-1)*18)/columns;
+               return Wrap(spacing:18,runSpacing:2,children:[
+                 for(final product in section.value)
+                   SizedBox(width:w,child:productRow(product,w)),
+               ]);
+             }),
+             const SizedBox(height:18),
+           ],
+           const SizedBox(height:4),
+           Container(height:1,color:rule.withOpacity(.5)),
+           const SizedBox(height:13),
+           Text((index+1).toString()+' / '+pages.length.toString(),
+             textAlign:TextAlign.center,
+             style:TextStyle(color:secondary,fontSize:11,
+               letterSpacing:1.7,fontWeight:FontWeight.w700)),
+         ]),
        ),
-     ));
+     );
    }
 
-   return EventPanel(child:Column(
-     key:_menuKey,crossAxisAlignment:CrossAxisAlignment.start,children:[
-       EventSectionHeading(icon:Icons.menu_book_outlined,
-         title:'La carta del evento',
-         subtitle:selected.length.toString()+' productos seleccionados · '+
-           pages.length.toString()+' hojas generadas desde el catálogo'),
-       SizedBox(height:18),
-       LayoutBuilder(builder:(context,space){
-         final paired=space.maxWidth>=910;
-         final width=paired?(space.maxWidth-20)/2:space.maxWidth;
-         return Wrap(spacing:20,runSpacing:20,children:[
-           for(var i=0;i<pages.length;i++)menuSheet(pages[i],i,width),
-         ]);
-       }),
-     ]));
+   return EventPanel(
+     padding:const EdgeInsets.all(21),
+     child:Column(
+       key:_menuKey,crossAxisAlignment:CrossAxisAlignment.start,children:[
+         EventSectionHeading(icon:Icons.menu_book_outlined,
+           title:'Nuestra carta',
+           subtitle:'Selección especial del establecimiento · '+
+             selected.length.toString()+' productos'),
+         const SizedBox(height:10),
+         Text('Explora los sabores elegidos para este evento',
+           style:TextStyle(color:palette.muted,fontSize:13,height:1.45)),
+         const SizedBox(height:20),
+         LayoutBuilder(builder:(context,space){
+           final paired=space.maxWidth>=930;
+           final width=paired?(space.maxWidth-20)/2:space.maxWidth;
+           return Wrap(spacing:20,runSpacing:20,children:[
+             for(var i=0;i<pages.length;i++)menuSheet(pages[i],i,width),
+           ]);
+         }),
+       ],
+     ),
+   );
  }
 
  Widget _footer(bool wide)=>Container(
