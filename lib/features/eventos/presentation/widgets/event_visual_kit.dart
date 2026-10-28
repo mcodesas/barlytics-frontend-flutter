@@ -208,19 +208,19 @@ class EventSectionHeading extends StatelessWidget {
         ),
         child: number != null
           ? Text('$number', style: TextStyle(
-              color: EventPagePalette.of(context).accent, fontWeight: FontWeight.w900, fontSize: 17))
-          : Icon(icon ?? Icons.auto_awesome, color: EventPagePalette.of(context).accent, size: 19),
+              color: EventPagePalette.of(context).accentOnSurface, fontWeight: FontWeight.w900, fontSize: 17))
+          : Icon(icon ?? Icons.auto_awesome, color: EventPagePalette.of(context).accentOnSurface, size: 19),
       ),
       const SizedBox(width: 12),
       Expanded(child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(title, style: TextStyle(
-            fontWeight: FontWeight.w800, color: EventPagePalette.of(context).text, fontSize: 17)),
+            fontWeight: FontWeight.w800, color: EventPagePalette.of(context).onSurface, fontSize: 17)),
           if (subtitle != null) ...[
             const SizedBox(height: 3),
             Text(subtitle!, style: TextStyle(
-              color: EventPagePalette.of(context).muted, fontSize: 12, height: 1.35)),
+              color: EventPagePalette.of(context).muted, fontSize: 13, height: 1.45)),
           ],
         ],
       )),
@@ -277,7 +277,8 @@ class EventMetric extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final palette=EventPagePalette.of(context);
-    final activeColor=color==EventColors.primary?palette.accent:color;
+    final activeColor=EventPagePalette.readable(
+      color==EventColors.primary?palette.accent:color,palette.surface);
     return Row(children: [
     Container(
       width: 40, height: 40,
@@ -314,7 +315,8 @@ class EventPill extends StatelessWidget {
   @override
   Widget build(BuildContext context){
     final palette=EventPagePalette.of(context);
-    final accent=color==EventColors.primary?palette.accent:color;
+    final accent=EventPagePalette.readable(
+      color==EventColors.primary?palette.accent:color,palette.surface);
     return Container(
       padding:const EdgeInsets.symmetric(horizontal:11,vertical:8),
       decoration:BoxDecoration(
@@ -326,7 +328,7 @@ class EventPill extends StatelessWidget {
         Icon(icon,color:accent,size:15),
         const SizedBox(width:7),
         Flexible(child:Text(label,style:TextStyle(
-          color:palette.text,fontSize:12,fontWeight:FontWeight.w600))),
+          color:palette.onSurface,fontSize:12,fontWeight:FontWeight.w700))),
       ]),
     );
   }
