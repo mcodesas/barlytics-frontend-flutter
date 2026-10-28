@@ -5,17 +5,28 @@ import 'event_visual_kit.dart';
 
 /// En las redes se debe compartir el HTML público con metadatos del afiche,
 /// nunca la raíz del sitio ni la ruta Flutter con información genérica.
-String eventSocialPreviewUrl(Map<String,dynamic> event,String fallback){
+String eventSocialPreviewUrl(Map<String,dynamic> event,String fallback,
+    {Uri? websiteUri}){
   final supplied=event['enlaceCompartir']?.toString().trim()??'';
-  final parsed=Uri.tryParse(supplied);
-  if(parsed!=null && parsed.scheme=='https' && parsed.host.isNotEmpty &&
-     parsed.pathSegments.length>=6 &&
-     parsed.pathSegments.last=='compartir' &&
-     parsed.pathSegments.contains('eventos') &&
-     parsed.pathSegments.contains('public')){
-    return supplied;
+  final candidate=Uri.tryParse(supplied);
+  final fallbackUri=Uri.tryParse(fallback);
+  final valid=candidate!=null && candidate.scheme=='https' &&
+      candidate.host.isNotEmpty && candidate.pathSegments.length>=6 &&
+      candidate.pathSegments.last=='compartir' &&
+      candidate.pathSegments.contains('eventos') &&
+      candidate.pathSegments.contains('public');
+  final target=valid?candidate:fallbackUri;
+  if(target==null)return fallback;
+  // La web puede servirse en el dominio sin www, mientras el backend
+  // construye URLs con www. Mantener exactamente el host real de la
+  // página evita enviar al bot a otro sitio con metadatos genéricos.
+  if(websiteUri!=null && websiteUri.scheme=='https' &&
+     websiteUri.host.replaceFirst(RegExp(r'^www\\.'),'')==
+       target.host.replaceFirst(RegExp(r'^www\\.'),'')){
+    return websiteUri.replace(path:target.path,query:target.query,
+      fragment:'').toString();
   }
-  return fallback;
+  return target.toString();
 }
 
 enum ShareNetwork { whatsapp, facebook, instagram, tiktok, x, threads, telegram, linkedin, pinterest, reddit, email }
