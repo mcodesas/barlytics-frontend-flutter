@@ -519,42 +519,40 @@ class _EventPublicLandingState extends State<EventPublicLanding> {
           RefreshIndicator(onRefresh:widget.onRefresh,
             child:ListView(children:[content])),
         ]),
-        floatingActionButton:wide&&whatsappUrl!=null
-          ?FloatingActionButton.extended(
-            heroTag:'evento-whatsapp-ayuda',
-            backgroundColor:palette.accent,
-            foregroundColor:palette.onAccent,
-            onPressed:openSupport,
-            tooltip:'Consultar por WhatsApp a '+getText('sucursal'),
-            icon:const Icon(Icons.chat_outlined),
-            label:const Text('¿Dudas? WhatsApp'))
-          :null,
+        // WhatsApp es una acción flotante independiente del botón de reserva.
+        // En móvil Scaffold sitúa el FAB por encima de bottomNavigationBar.
+        floatingActionButton:whatsappUrl==null
+          ?null
+          :wide
+            ?FloatingActionButton.extended(
+              heroTag:'evento-whatsapp-ayuda',
+              backgroundColor:palette.accent,
+              foregroundColor:palette.onAccent,
+              onPressed:openSupport,
+              tooltip:'Consultar por WhatsApp a '+getText('sucursal'),
+              icon:const Icon(Icons.chat_outlined),
+              label:const Text('¿Dudas? WhatsApp'))
+            :FloatingActionButton(
+              heroTag:'evento-whatsapp-ayuda-movil',
+              backgroundColor:palette.accent,
+              foregroundColor:palette.onAccent,
+              onPressed:openSupport,
+              tooltip:'¿Dudas? Escríbenos por WhatsApp',
+              child:const Icon(Icons.chat_bubble_outline_rounded,size:26)),
         floatingActionButtonLocation:FloatingActionButtonLocation.endFloat,
         bottomNavigationBar:wide?null:SafeArea(top:false,
           child:Container(
-            padding:EdgeInsets.all(10),
+            padding:const EdgeInsets.all(10),
             decoration:BoxDecoration(color:palette.surface,
               border:Border(top:BorderSide(color:palette.border))),
-            child:Row(children:[
-              if(whatsappUrl!=null)...[
-                OutlinedButton.icon(
-                  onPressed:openSupport,
-                  icon:const Icon(Icons.chat_outlined,size:19),
-                  label:MediaQuery.sizeOf(context).width>=390
-                    ?const Text('WhatsApp'):const SizedBox.shrink(),
-                  style:OutlinedButton.styleFrom(
-                    foregroundColor:palette.onSurface,
-                    side:BorderSide(color:palette.border),
-                    padding:const EdgeInsets.symmetric(horizontal:12,vertical:12))),
-                const SizedBox(width:9),
-              ],
-              Expanded(child:FilledButton.icon(
+            child:SizedBox(width:double.infinity,
+              child:FilledButton.icon(
                 onPressed:startReservation,
-                icon:Icon(Icons.confirmation_number_outlined),
+                icon:const Icon(Icons.confirmation_number_outlined),
                 label:Text(bySeat?'Reservar puestos':'Reservar mesa'),
                 style:FilledButton.styleFrom(backgroundColor:brand,
-                  foregroundColor:onBrand,padding:EdgeInsets.all(15)))),
-            ]),
+                  foregroundColor:onBrand,
+                  padding:const EdgeInsets.all(15)))),
           )),
       ),
       ),
