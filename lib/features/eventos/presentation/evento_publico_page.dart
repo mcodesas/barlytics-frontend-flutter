@@ -191,17 +191,17 @@ class _EntradaState extends ConsumerState<EventoEntradaPublicaPage>{
     value?['colorTexto']?.toString(),value?['colorTarjeta']?.toString(),
     value?['colorBorde']?.toString(),value?['colorCarta']?.toString());
   final base=palette.canvas, surface=palette.surface;
-  final foreground=EventPagePalette.contrast(palette.text,surface)>=4.5
-    ?palette.text:(EventPagePalette.contrast(Colors.black,surface)>
-      EventPagePalette.contrast(Colors.white,surface)?Colors.black:Colors.white);
-  final subtle=Color.lerp(foreground,surface,.26)!;
+  final foreground=palette.onSurface;
+  final itemForeground=palette.onSurfaceSoft;
+  final subtle=EventPagePalette.readable(
+    Color.lerp(foreground,surface,.23)!,surface);
   final ticketList=value?['entradas'] is List?value!['entradas'] as List:<dynamic>[];
   final individual=value?['entradaIndividual']==true;
   return Scaffold(backgroundColor:base,body:SafeArea(child:Center(child:SingleChildScrollView(
    padding:const EdgeInsets.all(20),child:ConstrainedBox(constraints:const BoxConstraints(maxWidth:460),
     child:Card(color:surface,child:Padding(padding:const EdgeInsets.all(25),
      child:Column(mainAxisSize:MainAxisSize.min,children:[
-      Icon(Icons.celebration,color:palette.accent,size:42),
+      Icon(Icons.celebration,color:palette.accentOnSurface,size:42),
       const SizedBox(height:12),
       Text(value?['sucursal']?.toString()??'Entrada digital',textAlign:TextAlign.center,
        style:TextStyle(color:foreground,fontSize:19,fontWeight:FontWeight.bold)),
@@ -258,7 +258,7 @@ class _EntradaState extends ConsumerState<EventoEntradaPublicaPage>{
       else Icon(
        value?['estado']=='EXPIRADA'?Icons.event_busy_outlined:
        value?['estado']=='REEMBOLSO_PENDIENTE'?Icons.support_agent_outlined:
-       Icons.pending_actions_rounded,color:palette.accent,size:65),
+       Icons.pending_actions_rounded,color:palette.accentOnSurface,size:65),
       if(confirmed&&ticketList.isNotEmpty&&!individual)...[
        const SizedBox(height:13),
        Text('Tus entradas individuales',style:TextStyle(
@@ -278,12 +278,13 @@ class _EntradaState extends ConsumerState<EventoEntradaPublicaPage>{
          child:Column(children:[
           Text('Entrada '+(raw['numero']??'').toString()+
             ' de '+ticketList.length.toString(),
-            style:TextStyle(color:foreground,
+            style:TextStyle(color:itemForeground,
               fontWeight:FontWeight.w900,fontSize:16)),
           const SizedBox(height:5),
           Text('Mesa '+(raw['mesa']??'').toString()+
            (raw['silla']==null?'':' · Puesto '+raw['silla'].toString()),
-           style:TextStyle(color:subtle)),
+           style:TextStyle(color:EventPagePalette.readable(
+            subtle,palette.surfaceSoft))),
           const SizedBox(height:10),
           Container(color:Colors.white,padding:const EdgeInsets.all(8),
            child:Image.network(
@@ -297,14 +298,15 @@ class _EntradaState extends ConsumerState<EventoEntradaPublicaPage>{
            onPressed:()=>launchUrl(Uri.parse(raw['url'].toString()),
              mode:LaunchMode.externalApplication),
            icon:const Icon(Icons.open_in_new_outlined),
-           style:TextButton.styleFrom(foregroundColor:foreground),
+           style:TextButton.styleFrom(foregroundColor:
+             EventPagePalette.readable(palette.accent,palette.surfaceSoft)),
            label:const Text('Ver entrada digital')),
           OutlinedButton.icon(
            onPressed:()=>launchUrl(Uri.parse(ref.read(eventosApiProvider)
              .qrLink(raw['token'].toString())),
              mode:LaunchMode.externalApplication),
            icon:const Icon(Icons.download_outlined),
-           style:OutlinedButton.styleFrom(foregroundColor:foreground,
+           style:OutlinedButton.styleFrom(foregroundColor:itemForeground,
              side:BorderSide(color:palette.border)),
            label:const Text('Descargar QR')),
          ]),
