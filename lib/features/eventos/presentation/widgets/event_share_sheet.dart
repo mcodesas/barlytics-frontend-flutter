@@ -20,9 +20,9 @@ String eventSocialPreviewUrl(Map<String,dynamic> event,String fallback,
   // La web puede servirse en el dominio sin www, mientras el backend
   // construye URLs con www. Mantener exactamente el host real de la
   // página evita enviar al bot a otro sitio con metadatos genéricos.
+  String rootDomain(String h)=>h.startsWith('www.')?h.substring(4):h;
   if(websiteUri!=null && websiteUri.scheme=='https' &&
-     websiteUri.host.replaceFirst(RegExp(r'^www\\.'),'')==
-       target.host.replaceFirst(RegExp(r'^www\\.'),'')){
+     rootDomain(websiteUri.host)==rootDomain(target.host)){
     return websiteUri.replace(path:target.path,query:target.query,
       fragment:'').toString();
   }
