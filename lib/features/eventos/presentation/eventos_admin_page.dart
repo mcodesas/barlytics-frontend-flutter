@@ -172,6 +172,107 @@ class _EventosAdminState extends ConsumerState<EventosAdminPage>{
     SnackBar(content:Text(niceEventError(e))));
   }
  }
+ Future<void> _retirarReserva(
+   int eventId,Map<String,dynamic> row,BuildContext parentDialog)async{
+  final branchId=ref.read(branchScopeProvider).activeBranchId;
+  final id=asId(row['eres_id']);
+  if(id==null||branchId==null)return;
+  final status=row['eres_estado']?.toString()??'';
+  final hasPayment=(row['eres_pago_id']?.toString().isNotEmpty??false)&&
+    (double.tryParse(row['eres_importe']?.toString()??'0')??0)>0;
+  final needsRefund=hasPayment&&
+    (status=='CONFIRMADA'||status=='REEMBOLSO_PENDIENTE');
+  final alreadyRetired=row['eres_retirada']==true;
+  final reason=TextEditingController(
+    text:row['eres_retiro_motivo']?.toString()??'');
+  final reference=TextEditingController();
+  bool refundRegistered=false;
+  Map<String,dynamic>? result;
+  try{
+   result=await showDialog<Map<String,dynamic>>(
+    context:parentDialog,builder:(ctx)=>StatefulBuilder(
+     builder:(ctx,update)=>AlertDialog(
+      backgroundColor:EventColors.surface,
+      title:Text(alreadyRetired?'Gestionar devolución':'Retirar reserva',
+       style:const TextStyle(color:EventColors.text,fontWeight:FontWeight.w900)),
+      content:ConstrainedBox(
+       constraints:const BoxConstraints(maxWidth:500),
+       child:SingleChildScrollView(child:Column(
+        mainAxisSize:MainAxisSize.min,crossAxisAlignment:CrossAxisAlignment.start,
+        children:[
+         const Text('La reserva dejará de figurar como activa, pero conservará su historial, QR, pago y trazabilidad.',
+          style:TextStyle(color:EventColors.text)),
+         const SizedBox(height:12),
+         TextField(controller:reason,maxLength:500,maxLines:3,
+          style:const TextStyle(color:EventColors.text),
+          decoration:const InputDecoration(
+           labelText:'Motivo del retiro *',
+           hintText:'Cancelación solicitada por el cliente, devolución, etc.')),
+         if(needsRefund)...[
+          const SizedBox(height:8),
+          const Text('Esta reserva tiene un pago registrado. Retirarla no genera automáticamente una devolución en Mercado Pago.',
+           style:TextStyle(color:EventColors.warning,fontWeight:FontWeight.w700)),
+          CheckboxListTile.adaptive(
+           contentPadding:EdgeInsets.zero,
+           value:refundRegistered,
+           onChanged:(v)=>update(()=>refundRegistered=v==true),
+           title:const Text('Ya realicé la devolución del dinero',
+            style:TextStyle(color:EventColors.text)),
+           subtitle:const Text('Marca únicamente si comprobaste la devolución real.'),
+          ),
+          if(refundRegistered)TextField(
+           controller:reference,maxLength:220,
+           style:const TextStyle(color:EventColors.text),
+           decoration:const InputDecoration(
+            labelText:'Referencia o soporte de devolución *')),
+         ],
+         if(needsRefund&&!refundRegistered)
+          const Text('Quedará en REEMBOLSO PENDIENTE hasta registrar el soporte.',
+           style:TextStyle(color:EventColors.muted,fontSize:12)),
+        ],
+       ))),
+      actions:[
+       TextButton(onPressed:()=>Navigator.pop(ctx),
+        child:const Text('Volver')),
+       FilledButton.icon(
+        onPressed:(){
+         if(reason.text.trim().length<5||
+           (refundRegistered&&reference.text.trim().length<4)){
+          ScaffoldMessenger.of(ctx).showSnackBar(const SnackBar(
+           content:Text('Escribe el motivo y, si hubo devolución, su referencia.')));
+          return;
+         }
+         Navigator.pop(ctx,<String,dynamic>{
+          'motivo':reason.text.trim(),
+          'devolucionRealizada':refundRegistered,
+          'referenciaDevolucion':refundRegistered?reference.text.trim():null,
+         });
+        },
+        icon:const Icon(Icons.archive_outlined),
+        label:Text(refundRegistered?'Registrar devolución y retirar':
+          needsRefund?'Retirar y marcar devolución pendiente':'Retirar reserva'),
+       ),
+      ],
+     )));
+  }finally{reason.dispose();reference.dispose();}
+  if(result==null||!mounted||
+     branchId!=ref.read(branchScopeProvider).activeBranchId)return;
+  try{
+   final updated=await ref.read(eventosApiProvider).retirarReserva(id,result);
+   if(!mounted||branchId!=ref.read(branchScopeProvider).activeBranchId)return;
+   ScaffoldMessenger.of(context).showSnackBar(SnackBar(content:Text(
+     updated['requiereDevolucion']==true
+       ?'Reserva retirada. La devolución está pendiente de realizarse o verificarse.'
+       :'Reserva retirada y registrada en el historial.')));
+   if(parentDialog.mounted){
+    Navigator.of(parentDialog).pop();
+    detail(eventId);
+   }
+  }catch(e){
+   if(mounted)ScaffoldMessenger.of(context).showSnackBar(
+    SnackBar(content:Text(niceEventError(e))));
+  }
+ }
  Future<void> detail(int id)async{
   final branchId=ref.read(branchScopeProvider).activeBranchId;
   if(branchId==null)return;
