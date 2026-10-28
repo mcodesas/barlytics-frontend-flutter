@@ -197,21 +197,23 @@ class EventSectionHeading extends StatelessWidget {
   final Widget? trailing;
 
   @override
-  Widget build(BuildContext context) => Row(
+  Widget build(BuildContext context) {
+    final p=EventPagePalette.of(context);
+    return Row(
     crossAxisAlignment: CrossAxisAlignment.start,
     children: [
       Container(
         width: 37, height: 37,
         alignment: Alignment.center,
         decoration: BoxDecoration(
-          color:EventPagePalette.of(context).accent.withOpacity(.15),
-          border:Border.all(color:EventPagePalette.of(context).accent.withOpacity(.20)),
+          color:p.surfaceSoft,
+          border:Border.all(color:p.border),
           borderRadius: BorderRadius.circular(12),
         ),
         child: number != null
           ? Text('$number', style: TextStyle(
-              color: EventPagePalette.of(context).accentOnSurface, fontWeight: FontWeight.w900, fontSize: 17))
-          : Icon(icon ?? Icons.auto_awesome, color: EventPagePalette.of(context).accentOnSurface, size: 19),
+              color: p.accentOnSoft, fontWeight: FontWeight.w900, fontSize: 17))
+          : Icon(icon ?? Icons.auto_awesome, color: p.accentOnSoft, size: 19),
       ),
       const SizedBox(width: 12),
       Expanded(child: Column(
@@ -229,6 +231,7 @@ class EventSectionHeading extends StatelessWidget {
       if (trailing != null) trailing!,
     ],
   );
+  }
 }
 
 class EventArtwork extends StatelessWidget {
