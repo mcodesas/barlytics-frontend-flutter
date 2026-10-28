@@ -57,8 +57,9 @@ class _PublicState extends ConsumerState<EventoPublicoPage>{
  Future<void> share()async{
   final current=event;
   if(current==null||!mounted)return;
-  final url=current['enlaceCompartir']?.toString()??
-    ref.read(eventosApiProvider).link(widget.slug);
+  final url=eventSocialPreviewUrl(current,
+    ref.read(eventosApiProvider).link(widget.slug),
+    websiteUri:kIsWeb?Uri.base:null);
   await showEventShareSheet(context,current,url);
  }
  Future<void> book(List<int> chairs)async{

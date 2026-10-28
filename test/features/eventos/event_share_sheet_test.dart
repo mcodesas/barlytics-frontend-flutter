@@ -52,6 +52,32 @@ void main(){
     expect(shareDestination(ShareNetwork.whatsapp,url,'Evento')
       .queryParameters['text'],contains(url));
   });
+  test('WhatsApp comparte siempre el enlace de la vista previa del evento',(){
+    const preview='https://www.barlytics.com.co/api/v1/eventos/public/brunch/compartir?v=imagen7';
+    const defaultLink='https://www.barlytics.com.co/api/v1/eventos/public/brunch/compartir';
+    expect(eventSocialPreviewUrl({'enlaceCompartir':preview},defaultLink),preview);
+    expect(shareDestination(ShareNetwork.whatsapp,preview,'Brunch')
+       .queryParameters['text'],contains(preview));
+  });
+  test('Usa el dominio real sin www cuando el evento fue abierto allí',(){
+    const fallback='https://www.barlytics.com.co/api/v1/eventos/public/brunch/compartir';
+    const preview='https://www.barlytics.com.co/api/v1/eventos/public/brunch/compartir?v=afiche2';
+    final shared=eventSocialPreviewUrl({'enlaceCompartir':preview},fallback,
+      websiteUri:Uri.parse('https://barlytics.com.co/#/evento/brunch'));
+    expect(shared,
+      'https://barlytics.com.co/api/v1/eventos/public/brunch/compartir?v=afiche2');
+  });
+  test('No reescribe enlaces de otro dominio o de la aplicación móvil',(){
+    const preview='https://api.ejemplo.com/api/v1/eventos/public/brunch/compartir?v=2';
+    expect(eventSocialPreviewUrl({'enlaceCompartir':preview},preview,
+      websiteUri:Uri.parse('https://barlytics.com.co/')),preview);
+  });
+  test('La raíz genérica de BarLytics nunca sustituye la vista previa',(){
+    const fallback='https://www.barlytics.com.co/api/v1/eventos/public/brunch/compartir';
+    expect(eventSocialPreviewUrl({'enlaceCompartir':'https://www.barlytics.com.co'},fallback),fallback);
+    expect(eventSocialPreviewUrl({'enlaceCompartir':''},fallback),fallback);
+    expect(eventSocialPreviewUrl({'enlaceCompartir':'javascript:alert(1)'},fallback),fallback);
+  });
   test('Instagram y TikTok copian enlace en vez de fingir publicación',(){
     expect(shareByCopy(ShareNetwork.instagram),isTrue);
     expect(shareByCopy(ShareNetwork.tiktok),isTrue);

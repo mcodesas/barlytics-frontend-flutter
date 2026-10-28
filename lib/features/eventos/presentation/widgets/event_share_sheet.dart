@@ -3,6 +3,32 @@ import 'package:flutter/services.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'event_visual_kit.dart';
 
+/// En las redes se debe compartir el HTML público con metadatos del afiche,
+/// nunca la raíz del sitio ni la ruta Flutter con información genérica.
+String eventSocialPreviewUrl(Map<String,dynamic> event,String fallback,
+    {Uri? websiteUri}){
+  final supplied=event['enlaceCompartir']?.toString().trim()??'';
+  final candidate=Uri.tryParse(supplied);
+  final fallbackUri=Uri.tryParse(fallback);
+  final valid=candidate!=null && candidate.scheme=='https' &&
+      candidate.host.isNotEmpty && candidate.pathSegments.length>=6 &&
+      candidate.pathSegments.last=='compartir' &&
+      candidate.pathSegments.contains('eventos') &&
+      candidate.pathSegments.contains('public');
+  final target=valid?candidate:fallbackUri;
+  if(target==null)return fallback;
+  // La web puede servirse en el dominio sin www, mientras el backend
+  // construye URLs con www. Mantener exactamente el host real de la
+  // página evita enviar al bot a otro sitio con metadatos genéricos.
+  String rootDomain(String h)=>h.startsWith('www.')?h.substring(4):h;
+  if(websiteUri!=null && websiteUri.scheme=='https' &&
+     rootDomain(websiteUri.host)==rootDomain(target.host)){
+    return websiteUri.replace(path:target.path,query:target.query,
+      fragment:'').toString();
+  }
+  return target.toString();
+}
+
 enum ShareNetwork { whatsapp, facebook, instagram, tiktok, x, threads, telegram, linkedin, pinterest, reddit, email }
 
 String shareLabel(ShareNetwork n) => switch(n) {

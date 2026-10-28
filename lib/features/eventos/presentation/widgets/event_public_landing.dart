@@ -200,13 +200,21 @@ class _EventPublicLandingState extends State<EventPublicLanding> {
       return;
     }
     var quantity=widget.seats.clamp(1,limit).toInt();
-    final quantityInput=TextEditingController(text:quantity.toString());
+    // El TextFormField administra su propio controlador hasta que la ruta
+    // del diálogo termina de animar y se desmonta. No disponer de un
+    // TextEditingController local al retornar showDialog: aún hay widgets
+    // escuchándolo durante la animación de cierre.
+    final quantityFieldKey=GlobalKey<FormFieldState<String>>();
     final formKey=GlobalKey<FormState>();
+    // Copias del formulario para que el Overlay no retenga los controladores
+    // de la página si esta se destruye mientras se cierra el diálogo.
+    var bookingName=widget.name.text;
+    var bookingEmail=widget.email.text;
+    var bookingPhone=widget.phone.text;
     final unit=price(widget.event['precio']);
     final pricePerSeat=widget.event['precioPorPuesto']==true;
     final payment=widget.event['medioPago']=='MERCADOPAGO';
-    try{
-      final accepted=await showDialog<bool>(
+    final accepted=await showDialog<bool>(
         context:context,
         builder:(dialogContext)=>Theme(
           data:_pageTheme(dialogContext),
@@ -214,10 +222,8 @@ class _EventPublicLandingState extends State<EventPublicLanding> {
           builder:(dialogContext,rebuild){
             void changeQuantity(int next){
               if(next<1||next>limit)return;
-              rebuild((){
-                quantity=next;
-                quantityInput.text=next.toString();
-              });
+              quantityFieldKey.currentState?.didChange(next.toString());
+              rebuild(()=>quantity=next);
             }
             return AlertDialog(
               backgroundColor:palette.surface,
@@ -244,7 +250,8 @@ class _EventPublicLandingState extends State<EventPublicLanding> {
                       icon:const Icon(Icons.remove)),
                     const SizedBox(width:12),
                     SizedBox(width:96,child:TextFormField(
-                      controller:quantityInput,
+                      key:quantityFieldKey,
+                      initialValue:quantity.toString(),
                       textAlign:TextAlign.center,
                       keyboardType:TextInputType.number,
                       inputFormatters:[FilteringTextInputFormatter.digitsOnly],
@@ -299,7 +306,8 @@ class _EventPublicLandingState extends State<EventPublicLanding> {
                   const SizedBox(height:10),
                   TextFormField(
                     style:TextStyle(color:palette.onSurfaceSoft),cursorColor:palette.accentOnSoft,
-                    controller:widget.name,
+                    initialValue:bookingName,
+                    onChanged:(value)=>bookingName=value,
                     maxLength:140,
                     textCapitalization:TextCapitalization.words,
                     decoration:const InputDecoration(labelText:'Nombre completo *',
@@ -309,7 +317,8 @@ class _EventPublicLandingState extends State<EventPublicLanding> {
                   const SizedBox(height:8),
                   TextFormField(
                     style:TextStyle(color:palette.onSurfaceSoft),cursorColor:palette.accentOnSoft,
-                    controller:widget.email,
+                    initialValue:bookingEmail,
+                    onChanged:(value)=>bookingEmail=value,
                     maxLength:220,
                     keyboardType:TextInputType.emailAddress,
                     decoration:const InputDecoration(labelText:'Correo electrónico *',
@@ -323,7 +332,8 @@ class _EventPublicLandingState extends State<EventPublicLanding> {
                   const SizedBox(height:8),
                   TextFormField(
                     style:TextStyle(color:palette.onSurfaceSoft),cursorColor:palette.accentOnSoft,
-                    controller:widget.phone,
+                    initialValue:bookingPhone,
+                    onChanged:(value)=>bookingPhone=value,
                     maxLength:40,
                     keyboardType:TextInputType.phone,
                     decoration:const InputDecoration(labelText:'Teléfono / WhatsApp',
@@ -343,10 +353,12 @@ class _EventPublicLandingState extends State<EventPublicLanding> {
                 FilledButton.icon(
                   onPressed:widget.busy?null:(){
                     if(!(formKey.currentState?.validate()??false))return;
-                    final count=int.tryParse(quantityInput.text);
+                    final count=int.tryParse(
+                      quantityFieldKey.currentState?.value??'');
                     if(count==null||count<1||count>limit)return;
-                    widget.onSelectTable(-1);
-                    widget.onSeatsChanged(count);
+                    quantity=count;
+                    // Primero cerrar la ruta; los cambios del padre van
+                    // después de showDialog y no mientras reconstruye.
                     Navigator.pop(dialogContext,true);
                   },
                   icon:Icon(payment?Icons.payment_outlined:Icons.check_circle_outline),
@@ -359,9 +371,13 @@ class _EventPublicLandingState extends State<EventPublicLanding> {
           },
         )),
       );
-      if(accepted==true&&mounted)widget.onBook([]);
-    }finally{
-      quantityInput.dispose();
+    if(accepted==true&&mounted){
+      widget.name.text=bookingName;
+      widget.email.text=bookingEmail;
+      widget.phone.text=bookingPhone;
+      widget.onSelectTable(-1);
+      widget.onSeatsChanged(quantity);
+      widget.onBook([]);
     }
   }
 
