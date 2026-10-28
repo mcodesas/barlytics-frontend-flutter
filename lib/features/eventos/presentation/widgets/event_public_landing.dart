@@ -680,7 +680,7 @@ class _EventPublicLandingState extends State<EventPublicLanding> {
 
  Widget _poster(bool wide){
    final image=widget.event['imagen'];
-   final expand=()=>showEventPhotoViewer(context,
+   final expand=()=>showEventPhotoViewer(context,eventPalette:palette,
      images:[image],labels:['Afiche oficial · '+getText('titulo')]);
    return EventPanel(child:Column(
      key:_posterKey,crossAxisAlignment:CrossAxisAlignment.start,children:[
@@ -834,7 +834,7 @@ class _EventPublicLandingState extends State<EventPublicLanding> {
            for(var i=0;i<venue.length;i++)
              SizedBox(width:width,child:InkWell(
                borderRadius:BorderRadius.circular(12),
-               onTap:()=>showEventPhotoViewer(context,
+               onTap:()=>showEventPhotoViewer(context,eventPalette:palette,
                  images:venue.cast<Object?>(),
                  labels:List.generate(venue.length,
                    (j)=>'Fotografía del lugar '+(j+1).toString()),
@@ -856,7 +856,7 @@ class _EventPublicLandingState extends State<EventPublicLanding> {
        if(venue.isNotEmpty)...[
          SizedBox(height:14),
          OutlinedButton.icon(
-           onPressed:()=>showEventPhotoViewer(context,
+           onPressed:()=>showEventPhotoViewer(context,eventPalette:palette,
              images:venue.cast<Object?>(),
              labels:List.generate(venue.length,
                (i)=>'Fotografía del lugar '+(i+1).toString())),
@@ -1115,7 +1115,7 @@ class _EventPublicLandingState extends State<EventPublicLanding> {
                    if(eventPhoto(t['foto'])!=null)
                      Positioned(bottom:6,right:6,child:IconButton.filledTonal(
                        tooltip:'Ampliar foto de la mesa',
-                       onPressed:()=>showEventPhotoViewer(context,
+                       onPressed:()=>showEventPhotoViewer(context,eventPalette:palette,
                          images:[t['foto']],
                          labels:['Mesa '+(t['numero']??id).toString()]),
                        icon:Icon(Icons.zoom_in,size:19))),
@@ -1175,7 +1175,7 @@ class _EventPublicLandingState extends State<EventPublicLanding> {
          Row(children:[
            InkWell(
              onTap:eventPhoto(t['foto'])==null?null:
-               ()=>showEventPhotoViewer(context,
+               ()=>showEventPhotoViewer(context,eventPalette:palette,
                  images:[t['foto']],
                  labels:['Mesa '+(t['numero']??'').toString()]),
              child:Stack(children:[
