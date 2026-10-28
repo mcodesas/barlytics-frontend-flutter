@@ -9,10 +9,11 @@ Future<void> showEventPhotoViewer(BuildContext context, {
   required List<Object?> images,
   required List<String> labels,
   int initialIndex = 0,
+  EventPagePalette? eventPalette,
 }) async {
   if (images.isEmpty || initialIndex < 0 || initialIndex >= images.length) return;
   if (eventPhoto(images[initialIndex]) == null) return;
-  final palette = EventPagePalette.of(context);
+  final palette = eventPalette ?? EventPagePalette.of(context);
   await showDialog<void>(
     context: context, useSafeArea: false,
     barrierColor:palette.heroShade.withOpacity(.88),
