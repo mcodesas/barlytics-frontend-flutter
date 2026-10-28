@@ -253,7 +253,7 @@ class EventArtwork extends StatelessWidget {
     final placeholder = Container(
       color: EventPagePalette.of(context).surfaceSoft,
       alignment: Alignment.center,
-      child: Icon(emptyIcon, color: EventPagePalette.of(context).muted, size: 34),
+      child: Icon(emptyIcon, color: EventPagePalette.of(context).onSurfaceSoft, size: 34),
     );
     return ClipRRect(
       borderRadius: BorderRadius.circular(borderRadius),
