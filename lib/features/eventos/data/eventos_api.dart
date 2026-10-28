@@ -52,9 +52,12 @@ class EventosApi{
    map(await post(scoped('/api/v1/eventos/$eventId/reservas-internas'),values));
  Future<Map<String,dynamic>> editarReservaInterna(int reservationId,Map<String,dynamic> values)async=>
    map(await put(scoped('/api/v1/eventos/reservas/$reservationId/editar-interna'),values));
- Future<List<Map<String,dynamic>>> productos(int branch)async=>
-   list(await get('/api/v1/eventos/catalogo?sucursalId=$branch'));
+ Future<List<Map<String,dynamic>>> productos(int branch)async{
+  if(branch!=requireBranch())throw StateError('Catálogo de otra sucursal no autorizado');
+  return list(await get('/api/v1/eventos/catalogo?sucursalId=$branch'));
+ }
  Future<List<Map<String,dynamic>>> mesas(int branch)async{
+  if(branch!=requireBranch())throw StateError('Mesas de otra sucursal no autorizadas');
   final raw=map(await get('/api/v1/mesas/sucursal/$branch'));
   return list(raw['data']??[]);
  }
