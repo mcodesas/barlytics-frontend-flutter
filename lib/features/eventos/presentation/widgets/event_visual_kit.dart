@@ -58,6 +58,28 @@ class EventPagePalette {
   final Color accent,onAccent,canvas,surface,surfaceSoft,border,heroShade,text,muted;
   final Color menuPaper,menuInk,menuBorder;
 
+  // Protege los textos incluso si el organizador combina colores incompatibles.
+  static Color readable(Color preferred,Color background,{double minContrast=4.5}){
+    if(contrast(preferred,background)>=minContrast)return preferred;
+    final target=contrast(Colors.black,background)>=
+      contrast(Colors.white,background)?Colors.black:Colors.white;
+    var low=0.0,high=1.0;
+    for(var i=0;i<16;i++){
+      final mid=(low+high)/2;
+      if(contrast(Color.lerp(preferred,target,mid)!,background)>=minContrast){
+        high=mid;
+      }else{
+        low=mid;
+      }
+    }
+    return Color.lerp(preferred,target,high)!;
+  }
+  Color get onSurface=>readable(text,surface);
+  Color get onSurfaceSoft=>readable(text,surfaceSoft);
+  Color get accentOnSurface=>readable(accent,surface);
+  Color get accentOnSoft=>readable(accent,surfaceSoft);
+  Color get heroInk=>readable(text,heroShade);
+
   static Color parse(String? hex,Color fallback){
     final value=(hex??'').trim();
     if(!RegExp(r'^#[0-9a-fA-F]{6}$').hasMatch(value))return fallback;
@@ -81,19 +103,22 @@ class EventPagePalette {
     final surfaceSoft=Color.lerp(surface,Colors.white,
       surface.computeLuminance() > .38 ? .24 : .08)!;
     final border=parse(borderHex,Color.lerp(base,foreground,light ? .28 : .31)!);
-    final muted=Color.lerp(foreground,surface,.31)!;
+    final surfaceInk=readable(foreground,surface);
+    final muted=readable(Color.lerp(surfaceInk,surface,.24)!,surface);
+    final safeBorder=contrast(border,surface)>=1.45?border:
+      Color.lerp(surface,surfaceInk,.33)!;
     final onAccent=contrast(accent,const Color(0xFF171717))>=
         contrast(accent,Colors.white)?const Color(0xFF171717):Colors.white;
     final page=parse(menuHex,
       Color.lerp(base,Colors.white,light ? .17 : .12)!);
     return EventPagePalette._(
       accent:accent,onAccent:onAccent,canvas:base,surface:surface,
-      surfaceSoft:surfaceSoft,border:border,
-      text:foreground,muted:muted,
+      surfaceSoft:surfaceSoft,border:safeBorder,
+      text:surfaceInk,muted:muted,
       // El hero mantiene una velo del propio fondo seleccionado.
       heroShade:base,
-      menuPaper:page,menuInk:foreground,
-      menuBorder:Color.lerp(page,accent,.56)!,
+      menuPaper:page,menuInk:readable(foreground,page),
+      menuBorder:Color.lerp(page,readable(accent,page),.48)!,
     );
   }
 
