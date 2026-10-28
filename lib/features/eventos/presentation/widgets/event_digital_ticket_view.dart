@@ -400,10 +400,10 @@ class EventDigitalTicketView extends StatelessWidget {
 
         if (!wide) {
           return Column(children: [
-            details,
-            const SizedBox(height: 18),
             qr,
-            const SizedBox(height: 8),
+            const SizedBox(height: 18),
+            details,
+            const SizedBox(height: 12),
             Text('Presenta este QR al ingresar.',
               style: TextStyle(color: palette.muted, fontSize: 12)),
           ]);
