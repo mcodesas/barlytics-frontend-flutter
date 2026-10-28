@@ -318,12 +318,13 @@ class _EventosAdminState extends ConsumerState<EventosAdminPage>{
         onPressed:()async{
          final added=await showDialog<bool>(context:dialog,
           builder:(_)=>_ReservaInternaDialog(
-           eventId:id,eventTitle:data['even_titulo']?.toString()??'Evento'));
+           eventId:id,eventTitle:data['even_titulo']?.toString()??'Evento',
+            automaticSeats:data['modoReserva']=='PUESTOS'&&data['seleccionarMesa']==false));
          if(added==true&&dialog.mounted){
           Navigator.of(dialog).pop();
           if(mounted){
            ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-            content:Text('Reserva interna registrada sin cobro. La mesa quedó apartada.')));
+            content:Text('Reserva interna registrada sin cobro. Los puestos quedaron apartados.')));
            detail(id);
           }
          }
@@ -423,6 +424,7 @@ class _EventosAdminState extends ConsumerState<EventosAdminPage>{
                    context:dialog,builder:(_)=>_ReservaInternaDialog(
                     eventId:id,
                     eventTitle:data['even_titulo']?.toString()??'Evento',
+                    automaticSeats:data['modoReserva']=='PUESTOS'&&data['seleccionarMesa']==false,
                     initial:r));
                   if(edited==true&&dialog.mounted){
                    Navigator.pop(dialog);
@@ -565,10 +567,12 @@ class _EventosAdminState extends ConsumerState<EventosAdminPage>{
       onPressed:id==null?null:()async{
        final added=await showDialog<bool>(context:context,
         builder:(_)=>_ReservaInternaDialog(
-         eventId:id,eventTitle:item['even_titulo']?.toString()??'Evento'));
+         eventId:id,eventTitle:item['even_titulo']?.toString()??'Evento',
+         automaticSeats:item['even_modo_reserva']=='PUESTOS'&&
+           item['even_seleccionar_mesa']==false));
        if(added==true&&mounted){
         ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-         content:Text('Mesa apartada sin cobro en el evento')));
+         content:Text('Puestos apartados sin cobro en el evento')));
         detail(id);
        }
       },
@@ -1375,9 +1379,11 @@ class _EventPaymentGuideState extends ConsumerState<_EventPaymentGuide>{
 
 /// Registro sin giro o pasarela: aparta la mesa del evento desde el establecimiento.
 class _ReservaInternaDialog extends ConsumerStatefulWidget{
- const _ReservaInternaDialog({required this.eventId,required this.eventTitle,this.initial});
+ const _ReservaInternaDialog({required this.eventId,required this.eventTitle,
+  required this.automaticSeats,this.initial});
  final int eventId;
  final String eventTitle;
+ final bool automaticSeats;
  final Map<String,dynamic>? initial;
  @override ConsumerState<_ReservaInternaDialog> createState()=>_ReservaInternaState();
 }
@@ -1385,6 +1391,7 @@ class _ReservaInternaState extends ConsumerState<_ReservaInternaDialog>{
  final form=GlobalKey<FormState>();
  final name=TextEditingController(),phone=TextEditingController(),
   notes=TextEditingController();
+ final seatInput=TextEditingController(text:'1');
  List<Map<String,dynamic>> tables=[];
  bool loading=true,saving=false;
  String? error;
@@ -1406,6 +1413,7 @@ class _ReservaInternaState extends ConsumerState<_ReservaInternaDialog>{
    notes.text=i['eres_nota']?.toString()??'';
    selectedTable=asId(i['mesa_id']);
    seats=asId(i['eres_puestos'])??1;
+   seatInput.text=seats.toString();
    source=i['eres_origen']?.toString()??'BAR';
    final original=i['eres_sillas']?.toString()??'';
    originalChairs.addAll(RegExp(r'[0-9]+').allMatches(original)
@@ -1415,7 +1423,7 @@ class _ReservaInternaState extends ConsumerState<_ReservaInternaDialog>{
   load();
  }
  @override void dispose(){
-  name.dispose();phone.dispose();notes.dispose();super.dispose();
+  name.dispose();phone.dispose();notes.dispose();seatInput.dispose();super.dispose();
  }
  Future<void> load()async{
   if(mounted)setState((){loading=true;error=null;});
@@ -1424,7 +1432,7 @@ class _ReservaInternaState extends ConsumerState<_ReservaInternaDialog>{
    if(!mounted)return;
    setState((){
     tables=values;loading=false;
-    if(selectedTable!=null&&!tables.any((t)=>
+    if(!widget.automaticSeats&&selectedTable!=null&&!tables.any((t)=>
       asId(t['id'])==selectedTable&&
       (t['estado']=='DISPONIBLE'||(editing&&asId(t['id'])==asId(widget.initial?['mesa_id']))))){
      selectedTable=null;seats=1;
@@ -1436,13 +1444,19 @@ class _ReservaInternaState extends ConsumerState<_ReservaInternaDialog>{
  }
  Future<void> save()async{
   if(saving||!(form.currentState?.validate()??false))return;
-  if(selectedTable==null){
+  if(!widget.automaticSeats&&selectedTable==null){
    ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
     content:Text('Selecciona una mesa disponible para apartar')));
    return;
   }
+  if(widget.automaticSeats&&(seats<1||
+      (editing&&cancelled&&!reactivate?false:seats>autoLimit))){
+   ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+    content:Text('Selecciona de 1 a $autoLimit puestos disponibles')));
+   return;
+  }
   final selectedRow=tables.where((t)=>asId(t['id'])==selectedTable).toList();
-  if(selectedRow.isNotEmpty&&selectedRow.first['seleccionarSillas']==true
+  if(!widget.automaticSeats&&selectedRow.isNotEmpty&&selectedRow.first['seleccionarSillas']==true
     && !(editing&&cancelled&&!reactivate)&&chosenChairs.length!=seats){
    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
     content:Text('Selecciona exactamente '+seats.toString()+' sillas')));
@@ -1451,10 +1465,10 @@ class _ReservaInternaState extends ConsumerState<_ReservaInternaDialog>{
   setState(()=>saving=true);
   try{
    final body={
-    'mesaId':selectedTable,'puestos':seats,
+    'mesaId':widget.automaticSeats?null:selectedTable,'puestos':seats,
     'nombre':name.text.trim(),'telefono':phone.text.trim(),
     'origen':source,'nota':notes.text.trim(),
-    'sillas':tables.any((t)=>asId(t['id'])==selectedTable&&
+    'sillas':!widget.automaticSeats&&tables.any((t)=>asId(t['id'])==selectedTable&&
       t['seleccionarSillas']==true)
       ?(chosenChairs.toList()..sort()):<int>[],
    };
@@ -1474,6 +1488,18 @@ class _ReservaInternaState extends ConsumerState<_ReservaInternaDialog>{
     await load();
    }
   }
+ }
+ int get autoLimit{
+  final available=tables.fold<int>(0,(sum,t)=>sum+
+    (asId(t['disponibles'])??0).clamp(0,100000).toInt());
+  return available+(editing&&!cancelled?(asId(widget.initial?['eres_puestos'])??0):0);
+ }
+ void setAutoSeats(int value){
+  if(value<1||value>autoLimit)return;
+  setState((){
+   seats=value;
+   seatInput.text=value.toString();
+  });
  }
  @override Widget build(BuildContext context){
   final selectedRows=tables.where((t)=>asId(t['id'])==selectedTable).toList();
@@ -1535,6 +1561,7 @@ class _ReservaInternaState extends ConsumerState<_ReservaInternaDialog>{
         selected:{source},showSelectedIcon:true,
         onSelectionChanged:(values)=>setState(()=>source=values.first)),
        const SizedBox(height:18),
+       if(!widget.automaticSeats)...[
        const EventSectionHeading(icon:Icons.table_restaurant_outlined,
         title:'Selecciona la mesa',
         subtitle:'Las mesas completas están bloqueadas; las compartidas permiten reservar puestos libres.'),
@@ -1630,6 +1657,41 @@ class _ReservaInternaState extends ConsumerState<_ReservaInternaDialog>{
          Text(chosenChairs.length.toString()+' de '+seats.toString()+' sillas seleccionadas',
           style:const TextStyle(color:EventColors.muted,fontSize:12)),
         ],
+       ],
+       ],
+       if(widget.automaticSeats)...[
+        const EventSectionHeading(icon:Icons.event_seat_outlined,
+         title:'Cantidad de puestos',
+         subtitle:'La reserva se distribuye automáticamente entre todas las mesas disponibles del evento.'),
+        const SizedBox(height:13),
+        EventPill(icon:Icons.people_alt_outlined,
+         label:'Disponibles: '+autoLimit.toString()+' puestos'),
+        const SizedBox(height:12),
+        Row(mainAxisAlignment:MainAxisAlignment.center,children:[
+         IconButton.outlined(tooltip:'Quitar puesto',
+          onPressed:saving||seats<=1?null:()=>setAutoSeats(seats-1),
+          icon:const Icon(Icons.remove)),
+         const SizedBox(width:12),
+         SizedBox(width:106,child:TextFormField(
+          controller:seatInput,textAlign:TextAlign.center,
+          keyboardType:TextInputType.number,
+          inputFormatters:[FilteringTextInputFormatter.digitsOnly],
+          decoration:const InputDecoration(labelText:'Puestos'),
+          onChanged:(v)=>setState(()=>seats=int.tryParse(v)??0),
+          validator:(v){
+           final n=int.tryParse(v??'');
+           return n==null||n<1||n>autoLimit?'1 a $autoLimit':null;
+          },
+         )),
+         const SizedBox(width:12),
+         IconButton.outlined(tooltip:'Agregar puesto',
+          onPressed:saving||seats>=autoLimit?null:()=>setAutoSeats(seats+1),
+          icon:const Icon(Icons.add)),
+        ]),
+        const SizedBox(height:6),
+        Text('Se confirmará una sola reserva de $seats puestos, sin seleccionar mesa.',
+         textAlign:TextAlign.center,
+         style:const TextStyle(color:EventColors.muted,fontSize:12)),
        ],
        if(editing&&cancelled)...[
         const SizedBox(height:14),
