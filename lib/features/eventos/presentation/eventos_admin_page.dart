@@ -696,7 +696,9 @@ class _EventosAdminState extends ConsumerState<EventosAdminPage>{
       load();
     });
   });
-  final visibleEntries=entries.where((e)=>asId(e['sucu_id'])==branchId).toList();
+  final visibleEntries=branchId==null
+    ?<Map<String,dynamic>>[]
+    :entries.where((e)=>asId(e['sucu_id'])==branchId).toList();
   final published=visibleEntries.where((e)=>e['even_estado']=='PUBLICADO').length;
   final draft=visibleEntries.where((e)=>e['even_estado']=='BORRADOR').length;
   final query=search.trim().toLowerCase();
