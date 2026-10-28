@@ -418,9 +418,10 @@ class _EventPublicLandingState extends State<EventPublicLanding> {
       curve:Curves.easeInOut,alignment:.06);
   }
 
+  Uri? get whatsappUrl => eventWhatsappHelpLink(widget.event);
+
   Future<void> openSupport()async{
-    final url=helpWhatsappLink(getText('whatsapp'),
-      getText('titulo','Evento'),getText('sucursal'));
+    final url=whatsappUrl;
     if(url==null)return;
     try{
       if(!await launchUrl(url,mode:LaunchMode.externalApplication)&&mounted){
@@ -518,21 +519,34 @@ class _EventPublicLandingState extends State<EventPublicLanding> {
           RefreshIndicator(onRefresh:widget.onRefresh,
             child:ListView(children:[content])),
         ]),
+        floatingActionButton:wide&&whatsappUrl!=null
+          ?FloatingActionButton.extended(
+            heroTag:'evento-whatsapp-ayuda',
+            backgroundColor:palette.accent,
+            foregroundColor:palette.onAccent,
+            onPressed:openSupport,
+            tooltip:'Consultar por WhatsApp a '+getText('sucursal'),
+            icon:const Icon(Icons.chat_outlined),
+            label:const Text('¿Dudas? WhatsApp'))
+          :null,
+        floatingActionButtonLocation:FloatingActionButtonLocation.endFloat,
         bottomNavigationBar:wide?null:SafeArea(top:false,
           child:Container(
             padding:EdgeInsets.all(10),
             decoration:BoxDecoration(color:palette.surface,
               border:Border(top:BorderSide(color:palette.border))),
             child:Row(children:[
-              if(helpWhatsappLink(getText('whatsapp'),getText('titulo'),getText('sucursal'))!=null)...[
-                IconButton.outlined(
-                  tooltip:'¿Dudas? Escríbenos por WhatsApp',
+              if(whatsappUrl!=null)...[
+                OutlinedButton.icon(
                   onPressed:openSupport,
-                  style:IconButton.styleFrom(
-                    foregroundColor:palette.text,
-                    side:BorderSide(color:palette.border)),
-                  icon:Icon(Icons.support_agent_outlined)),
-                SizedBox(width:10),
+                  icon:const Icon(Icons.chat_outlined,size:19),
+                  label:MediaQuery.sizeOf(context).width>=390
+                    ?const Text('WhatsApp'):const SizedBox.shrink(),
+                  style:OutlinedButton.styleFrom(
+                    foregroundColor:palette.onSurface,
+                    side:BorderSide(color:palette.border),
+                    padding:const EdgeInsets.symmetric(horizontal:12,vertical:12))),
+                const SizedBox(width:9),
               ],
               Expanded(child:FilledButton.icon(
                 onPressed:startReservation,
@@ -619,7 +633,7 @@ class _EventPublicLandingState extends State<EventPublicLanding> {
               onPressed:widget.onShare,
                 icon:Icon(Icons.share_outlined),
                 label:Text('Compartir')),
-              if(helpWhatsappLink(getText('whatsapp'),getText('titulo'),getText('sucursal'))!=null)
+              if(whatsappUrl!=null)
                 OutlinedButton.icon(
               style:OutlinedButton.styleFrom(
                 foregroundColor:palette.heroInk,
@@ -963,8 +977,7 @@ class _EventPublicLandingState extends State<EventPublicLanding> {
        label:Text('Ver ubicación en Google Maps')),
      if(getText('instagram').isNotEmpty||
        getText('facebook').isNotEmpty||
-       getText('tiktok').isNotEmpty||
-       getText('whatsapp').isNotEmpty)...[
+       getText('tiktok').isNotEmpty||whatsappUrl!=null)...[
        SizedBox(height:22),
        Divider(height:1,color:palette.border.withOpacity(.6)),
        SizedBox(height:19),
@@ -974,8 +987,7 @@ class _EventPublicLandingState extends State<EventPublicLanding> {
        SizedBox(height:11),
        _socialLinks(),
      ],
-     if(helpWhatsappLink(getText('whatsapp'),getText('titulo'),
-       getText('sucursal'))!=null)...[
+     if(whatsappUrl!=null)...[
        SizedBox(height:15),
        OutlinedButton.icon(
          onPressed:openSupport,
@@ -996,8 +1008,8 @@ class _EventPublicLandingState extends State<EventPublicLanding> {
     (label:'Facebook',url:getText('facebook'),icon:Icons.people_alt_outlined),
    if(getText('tiktok').isNotEmpty)
     (label:'TikTok',url:getText('tiktok'),icon:Icons.music_note_outlined),
-   if(getText('whatsapp').isNotEmpty)
-    (label:'WhatsApp',url:getText('whatsapp'),icon:Icons.chat_outlined),
+   if(whatsappUrl!=null)
+    (label:'WhatsApp',url:whatsappUrl.toString(),icon:Icons.chat_outlined),
   ];
   if(items.isEmpty)return const SizedBox.shrink();
   return Wrap(spacing:9,runSpacing:9,children:[
