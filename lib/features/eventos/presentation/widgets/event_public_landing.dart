@@ -733,7 +733,8 @@ class _EventPublicLandingState extends State<EventPublicLanding> {
            label:Text('Ver galería en pantalla completa')),
        ],
      ]));
-   final mapPreview=venue.isNotEmpty?venue.first:widget.event['imagen'];
+   // No repetir exactamente la misma imagen de la galería como falso mapa.
+   final mapPreview=venue.length>1?venue.last:null;
    final place=EventPanel(child:Column(
      key:_locationKey,crossAxisAlignment:CrossAxisAlignment.start,children:[
        EventSectionHeading(icon:Icons.location_on_outlined,
@@ -755,29 +756,56 @@ class _EventPublicLandingState extends State<EventPublicLanding> {
    ]);
  }
 
- Widget _locationPhoto(Object? image) => InkWell(
-   onTap:getText('ubicacionGoogleMaps').isEmpty?null:openMap,
-   borderRadius:BorderRadius.circular(13),
-   child:Stack(children:[
-     EventArtwork(source:image,width:double.infinity,
-       height:MediaQuery.sizeOf(context).width>=940?250:200,
-       emptyIcon:Icons.map_outlined),
-     Positioned.fill(child:Container(
+ Widget _locationPhoto(Object? image){
+   final hasPhoto=eventPhoto(image)!=null;
+   return InkWell(
+     onTap:getText('ubicacionGoogleMaps').isEmpty?null:openMap,
+     borderRadius:BorderRadius.circular(15),
+     child:Container(
+       height:MediaQuery.sizeOf(context).width>=940?215:185,
+       clipBehavior:Clip.antiAlias,
        decoration:BoxDecoration(
-         borderRadius:BorderRadius.circular(13),
+         borderRadius:BorderRadius.circular(15),
          gradient:LinearGradient(
-           begin:Alignment.bottomCenter,end:Alignment.topCenter,
-           colors:[palette.heroShade.withOpacity(.90),Colors.transparent])))),
-     Positioned(left:12,bottom:12,right:12,child:Row(children:[
-       Icon(Icons.location_on,color:brand),
-       SizedBox(width:7),
-       Expanded(child:Text('Vista del lugar · Abrir en Google Maps',
-         style:TextStyle(color:palette.text,
-           fontWeight:FontWeight.w800,fontSize:12))),
-       Icon(Icons.open_in_new,color:palette.text,size:17),
-     ])),
-   ]),
- );
+           begin:Alignment.topLeft,end:Alignment.bottomRight,
+           colors:[palette.surfaceSoft,
+             Color.lerp(palette.surfaceSoft,palette.accent,.15)!]),
+         border:Border.all(color:palette.border)),
+       child:Stack(children:[
+         if(hasPhoto)
+           Positioned.fill(child:EventArtwork(source:image,
+             height:215,width:double.infinity,borderRadius:0)),
+         if(hasPhoto)
+           Positioned.fill(child:DecoratedBox(decoration:BoxDecoration(
+             gradient:LinearGradient(begin:Alignment.bottomCenter,
+               end:Alignment.topCenter,colors:[
+                 palette.heroShade.withOpacity(.93),Colors.transparent])))),
+         if(!hasPhoto)
+           Center(child:Column(mainAxisSize:MainAxisSize.min,children:[
+             Icon(Icons.place_outlined,color:brand,size:37),
+             const SizedBox(height:8),
+             Text('Encuéntranos',style:TextStyle(color:palette.text,
+               fontSize:18,fontWeight:FontWeight.w900)),
+             const SizedBox(height:5),
+             Padding(padding:const EdgeInsets.symmetric(horizontal:18),
+               child:Text(getText('direccion','Consulta cómo llegar'),
+                 textAlign:TextAlign.center,maxLines:2,
+                 overflow:TextOverflow.ellipsis,
+                 style:TextStyle(color:palette.muted,fontSize:12))),
+           ])),
+         Positioned(left:12,right:12,bottom:12,child:Row(children:[
+           Icon(Icons.directions_outlined,color:hasPhoto?Colors.white:brand,size:20),
+           const SizedBox(width:8),
+           Expanded(child:Text('Abrir ubicación en Google Maps',
+             style:TextStyle(color:hasPhoto?Colors.white:palette.text,
+               fontWeight:FontWeight.w800,fontSize:12))),
+           Icon(Icons.open_in_new_outlined,
+             color:hasPhoto?Colors.white:palette.text,size:17),
+         ])),
+       ]),
+     ),
+   );
+ }
 
  Widget _locationInfo()=>Column(
    crossAxisAlignment:CrossAxisAlignment.start,children:[
