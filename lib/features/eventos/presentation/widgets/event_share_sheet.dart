@@ -71,12 +71,13 @@ class EventShareSheet extends StatelessWidget {
     event['colorTexto']?.toString(),event['colorTarjeta']?.toString(),
     event['colorBorde']?.toString(),event['colorCarta']?.toString());
   Color readable(Color text,Color surface)=>
-    EventPagePalette.contrast(text,surface)>=4.5?text:
-    EventPagePalette.contrast(Colors.black,surface)>
-      EventPagePalette.contrast(Colors.white,surface)?Colors.black:Colors.white;
+    EventPagePalette.readable(text,surface);
   void notify(BuildContext context,String value) {
     if(context.mounted)ScaffoldMessenger.of(context)
-      .showSnackBar(SnackBar(content:Text(value)));
+      .showSnackBar(SnackBar(
+        backgroundColor:colors.surface,
+        behavior:SnackBarBehavior.floating,
+        content:Text(value,style:TextStyle(color:colors.onSurface))));
   }
   Future<bool> copy(BuildContext context)async{
     try{await Clipboard.setData(ClipboardData(text:link));
@@ -116,7 +117,7 @@ class EventShareSheet extends StatelessWidget {
         padding:EdgeInsets.fromLTRB(22,13,22,MediaQuery.paddingOf(context).bottom+22),
         child:Column(crossAxisAlignment:CrossAxisAlignment.stretch,children:[
           Center(child:Container(width:48,height:4,decoration:BoxDecoration(
-            color:p.accent.withOpacity(.8),borderRadius:BorderRadius.circular(4)))),
+            color:p.accentOnSurface,borderRadius:BorderRadius.circular(4)))),
           const SizedBox(height:22),
           Text('Compartir este evento',style:TextStyle(color:fg,
             fontSize:23,fontWeight:FontWeight.w900)),
@@ -189,4 +190,26 @@ Future<void> showEventShareSheet(
     useSafeArea:true,showDragHandle:false,
     backgroundColor:Colors.transparent,
     constraints:const BoxConstraints(maxWidth:660),
-    builder:(_)=>EventShareSheet(event:event,link:link));
+    builder:(context){
+      final p=EventPagePalette.fromHex(
+        event['colorPrimario']?.toString(),event['colorFondo']?.toString(),
+        event['colorTexto']?.toString(),event['colorTarjeta']?.toString(),
+        event['colorBorde']?.toString(),event['colorCarta']?.toString());
+      return EventPaletteScope(
+        palette:p,
+        child:Theme(
+          data:(p.surface.computeLuminance()>.18
+            ?ThemeData.light(useMaterial3:true)
+            :ThemeData.dark(useMaterial3:true)).copyWith(
+            colorScheme:p.surface.computeLuminance()>.18
+              ?ColorScheme.light(primary:p.accent,onPrimary:p.onAccent,
+                  surface:p.surface,onSurface:p.onSurface)
+              :ColorScheme.dark(primary:p.accent,onPrimary:p.onAccent,
+                  surface:p.surface,onSurface:p.onSurface),
+            textTheme:Theme.of(context).textTheme.apply(
+              bodyColor:p.onSurface,displayColor:p.onSurface),
+          ),
+          child:EventShareSheet(event:event,link:link),
+        ),
+      );
+    });
