@@ -323,20 +323,58 @@ class _EventPublicLandingState extends State<EventPublicLanding> {
     await launchUrl(uri,mode:LaunchMode.externalApplication);
   }
 
+
+  /// Limpia los marcadores usados al escribir la descripción en el editor
+  /// para mostrar un adelanto legible en la portada.
+  String get _shortDescription{
+    final content=getText('descripcion').replaceAll('**','').trim();
+    final lines=content.split(RegExp(r'\n+'))
+      .map((line)=>line.trim()).where((line)=>line.isNotEmpty).toList();
+    if(lines.isEmpty)return '';
+    return lines.firstWhere((line)=>line.length>=55,orElse:()=>lines.first);
+  }
+
+  /// Acepta párrafos y negritas Markdown guardados en base de datos.
+  /// Evita mostrar los literales ** en el sitio público.
+  Widget _descriptionBody(String description){
+    final lines=description.replaceAll('\r\n','\n').split('\n');
+    final paragraphs=<Widget>[];
+    final strong=RegExp(r'\*\*([^*]+)\*\*');
+    for(final raw in lines){
+      final value=raw.trim();
+      if(value.isEmpty)continue;
+      final spans=<InlineSpan>[];
+      var end=0;
+      for(final match in strong.allMatches(value)){
+        if(match.start>end)spans.add(TextSpan(text:value.substring(end,match.start)));
+        spans.add(TextSpan(text:match.group(1),
+          style:const TextStyle(fontWeight:FontWeight.w800)));
+        end=match.end;
+      }
+      if(end<value.length)spans.add(TextSpan(text:value.substring(end)));
+      paragraphs.add(Padding(
+        padding:const EdgeInsets.only(bottom:13),
+        child:Text.rich(TextSpan(children:spans),
+          style:TextStyle(color:palette.text,fontSize:15,height:1.63)),
+      ));
+    }
+    return Column(crossAxisAlignment:CrossAxisAlignment.start,children:paragraphs);
+  }
+
   @override Widget build(BuildContext context){
     final wide=MediaQuery.sizeOf(context).width>=940;
     final bg=venue.isNotEmpty?venue.first:widget.event['imagen'];
     final content=Column(children:[
       _hero(bg,wide),
       Center(child:ConstrainedBox(constraints:BoxConstraints(maxWidth:1320),
-        child:Padding(padding:EdgeInsets.symmetric(horizontal:wide?24:14,vertical:20),
+        child:Padding(padding:EdgeInsets.symmetric(horizontal:wide?24:14,vertical:24),
           child:Column(crossAxisAlignment:CrossAxisAlignment.stretch,children:[
             _opening(wide),
-            SizedBox(height:17),
+            SizedBox(height:25),
             _intro(wide),
-            SizedBox(height:17),
+            SizedBox(height:25),
             _bookingArea(wide),
-            SizedBox(height:17),
+            SizedBox(height:25),
             _catalog(),
             SizedBox(height:27),
             _footer(wide),
@@ -385,7 +423,7 @@ class _EventPublicLandingState extends State<EventPublicLanding> {
                   errorBuilder:(_,__,___)=>ColoredBox(color:backdrop)),
           )),
           Positioned.fill(child:ColoredBox(
-            color:palette.heroShade.withOpacity(.60))),
+            color:palette.heroShade.withOpacity(.46))),
           RefreshIndicator(onRefresh:widget.onRefresh,
             child:ListView(children:[content])),
         ]),
@@ -419,7 +457,7 @@ class _EventPublicLandingState extends State<EventPublicLanding> {
   }
 
   Widget _hero(Object? image,bool wide) => Container(
-    constraints:BoxConstraints(minHeight:wide?490:490),
+    constraints:BoxConstraints(minHeight:wide?475:455),
     child:Stack(children:[
       // La fotografía está en el fondo fijo de toda la pantalla.
       // El encabezado deja verla sin duplicarla ni desplazarla.
@@ -437,7 +475,7 @@ class _EventPublicLandingState extends State<EventPublicLanding> {
           padding:EdgeInsets.symmetric(horizontal:wide?27:19,vertical:18),
           child:Column(crossAxisAlignment:CrossAxisAlignment.start,children:[
             _nav(wide),
-            SizedBox(height:wide?63:48),
+            SizedBox(height:wide?56:42),
             EventPill(icon:Icons.local_activity_outlined,
               label:'EVENTO ESPECIAL · RESERVAS ABIERTAS',
               color:brand),
@@ -450,12 +488,12 @@ class _EventPublicLandingState extends State<EventPublicLanding> {
                   letterSpacing:-1,
                   color:palette.text,fontSize:wide?56:38))),
             SizedBox(height:13),
-            if(getText('descripcion').isNotEmpty)
-              ConstrainedBox(constraints:BoxConstraints(maxWidth:650),
-                child:Text(getText('descripcion'),
-                  maxLines:3,overflow:TextOverflow.ellipsis,
+            if(_shortDescription.isNotEmpty)
+              ConstrainedBox(constraints:BoxConstraints(maxWidth:680),
+                child:Text(_shortDescription,
+                  maxLines:2,overflow:TextOverflow.ellipsis,
                   style:TextStyle(color:palette.text,
-                    fontSize:15,height:1.55))),
+                    fontSize:wide?16:14,height:1.55))),
             SizedBox(height:19),
             Wrap(spacing:9,runSpacing:9,children:[
               EventPill(icon:Icons.event_outlined,label:time(widget.event['inicio'])),
@@ -552,7 +590,7 @@ class _EventPublicLandingState extends State<EventPublicLanding> {
                  borderRadius:BorderRadius.circular(15)),
                child:EventArtwork(
                  source:image,width:double.infinity,
-                 height:MediaQuery.sizeOf(context).width>=940?690:500,
+                 height:MediaQuery.sizeOf(context).width>=940?590:480,
                   fit:BoxFit.contain)),
              Positioned(bottom:12,right:12,child:Container(
                padding:EdgeInsets.all(9),
@@ -604,27 +642,47 @@ class _EventPublicLandingState extends State<EventPublicLanding> {
 
  Widget _opening(bool wide){
   final poster=eventPhoto(widget.event['imagen'])==null?null:_poster(false);
-  final intro=EventPanel(child:Column(
-   crossAxisAlignment:CrossAxisAlignment.start,children:[
-    EventSectionHeading(icon:Icons.auto_awesome_outlined,
-      title:'Sobre el evento',subtitle:'Toda la información de esta experiencia'),
-    SizedBox(height:16),
-    Text(getText('descripcion','Una experiencia especial para compartir.'),
-      style:TextStyle(color:palette.text,fontSize:15,height:1.75)),
-    SizedBox(height:17),
-    Wrap(spacing:9,runSpacing:9,children:[
-      EventPill(icon:Icons.event_outlined,label:time(widget.event['inicio'])),
-      EventPill(icon:Icons.place_outlined,label:getText('sucursal')),
-      EventPill(icon:Icons.payments_outlined,
-        label:currency(widget.event['precio']),color:brand),
-    ]),
-   ],
-  ));
+  final intro=EventPanel(padding:EdgeInsets.all(wide?26:20),
+    child:Column(
+      crossAxisAlignment:CrossAxisAlignment.start,children:[
+        EventSectionHeading(icon:Icons.auto_awesome_outlined,
+          title:'La experiencia',
+          subtitle:'Todo lo que necesitas saber antes de reservar'),
+        SizedBox(height:19),
+        _descriptionBody(getText('descripcion',
+          'Una experiencia especial para compartir.')),
+        SizedBox(height:10),
+        Container(
+          padding:EdgeInsets.symmetric(horizontal:14,vertical:15),
+          decoration:BoxDecoration(
+            borderRadius:BorderRadius.circular(13),
+            color:palette.surfaceSoft,
+            border:Border.all(color:palette.border.withOpacity(.55))),
+          child:Row(children:[
+            Icon(Icons.local_activity_outlined,color:brand,size:22),
+            SizedBox(width:11),
+            Expanded(child:Column(crossAxisAlignment:CrossAxisAlignment.start,
+              children:[
+                Text(widget.event['precioPorPuesto']==true
+                    ?'Valor por persona':'Valor de la reserva',
+                  style:TextStyle(color:palette.muted,fontSize:12)),
+                SizedBox(height:3),
+                Text(price(widget.event['precio'])==0?'Entrada gratuita':
+                  currency(widget.event['precio']),
+                  style:TextStyle(color:palette.text,
+                    fontSize:19,fontWeight:FontWeight.w800)),
+              ])),
+            Icon(Icons.arrow_forward_ios_rounded,color:brand,size:15),
+          ]),
+        ),
+      ],
+    ),
+  );
   if(poster==null)return intro;
-  if(!wide)return Column(children:[poster,SizedBox(height:13),intro]);
+  if(!wide)return Column(children:[poster,SizedBox(height:17),intro]);
   return Row(crossAxisAlignment:CrossAxisAlignment.start,children:[
-    Expanded(flex:7,child:poster),
-    SizedBox(width:16),
+    Expanded(flex:6,child:poster),
+    SizedBox(width:22),
     Expanded(flex:5,child:intro),
   ]);
  }
