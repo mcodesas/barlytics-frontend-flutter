@@ -347,7 +347,9 @@ class EventDigitalTicketView extends StatelessWidget {
       padding: const EdgeInsets.all(18),
       child: LayoutBuilder(builder: (context, constraints) {
         final wide = constraints.maxWidth >= 510;
-        final qr = _qr(ticketToken, wide ? 184 : 210);
+        final qrSize = wide ? 184.0 :
+          (constraints.maxWidth - 46).clamp(130.0, 210.0).toDouble();
+        final qr = _qr(ticketToken, qrSize);
         final details = Column(
           crossAxisAlignment: wide
             ? CrossAxisAlignment.start : CrossAxisAlignment.center,
