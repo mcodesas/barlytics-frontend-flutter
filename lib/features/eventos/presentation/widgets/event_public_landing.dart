@@ -206,6 +206,11 @@ class _EventPublicLandingState extends State<EventPublicLanding> {
     // escuchándolo durante la animación de cierre.
     final quantityFieldKey=GlobalKey<FormFieldState<String>>();
     final formKey=GlobalKey<FormState>();
+    // Copias del formulario para que el Overlay no retenga los controladores
+    // de la página si esta se destruye mientras se cierra el diálogo.
+    var bookingName=widget.name.text;
+    var bookingEmail=widget.email.text;
+    var bookingPhone=widget.phone.text;
     final unit=price(widget.event['precio']);
     final pricePerSeat=widget.event['precioPorPuesto']==true;
     final payment=widget.event['medioPago']=='MERCADOPAGO';
@@ -301,7 +306,8 @@ class _EventPublicLandingState extends State<EventPublicLanding> {
                   const SizedBox(height:10),
                   TextFormField(
                     style:TextStyle(color:palette.onSurfaceSoft),cursorColor:palette.accentOnSoft,
-                    controller:widget.name,
+                    initialValue:bookingName,
+                    onChanged:(value)=>bookingName=value,
                     maxLength:140,
                     textCapitalization:TextCapitalization.words,
                     decoration:const InputDecoration(labelText:'Nombre completo *',
@@ -311,7 +317,8 @@ class _EventPublicLandingState extends State<EventPublicLanding> {
                   const SizedBox(height:8),
                   TextFormField(
                     style:TextStyle(color:palette.onSurfaceSoft),cursorColor:palette.accentOnSoft,
-                    controller:widget.email,
+                    initialValue:bookingEmail,
+                    onChanged:(value)=>bookingEmail=value,
                     maxLength:220,
                     keyboardType:TextInputType.emailAddress,
                     decoration:const InputDecoration(labelText:'Correo electrónico *',
@@ -325,7 +332,8 @@ class _EventPublicLandingState extends State<EventPublicLanding> {
                   const SizedBox(height:8),
                   TextFormField(
                     style:TextStyle(color:palette.onSurfaceSoft),cursorColor:palette.accentOnSoft,
-                    controller:widget.phone,
+                    initialValue:bookingPhone,
+                    onChanged:(value)=>bookingPhone=value,
                     maxLength:40,
                     keyboardType:TextInputType.phone,
                     decoration:const InputDecoration(labelText:'Teléfono / WhatsApp',
@@ -364,6 +372,9 @@ class _EventPublicLandingState extends State<EventPublicLanding> {
         )),
       );
     if(accepted==true&&mounted){
+      widget.name.text=bookingName;
+      widget.email.text=bookingEmail;
+      widget.phone.text=bookingPhone;
       widget.onSelectTable(-1);
       widget.onSeatsChanged(quantity);
       widget.onBook([]);
