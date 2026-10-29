@@ -109,35 +109,41 @@ Uri? eventWhatsappHelpLink(Map<String,dynamic> event){
   return helpWhatsappLink(digits,title,venue);
 }
 
-class EventShareSheet extends StatelessWidget {
+class EventShareSheet extends StatefulWidget {
   const EventShareSheet({super.key,required this.event,required this.link});
   final Map<String,dynamic> event;
   final String link;
+  @override State<EventShareSheet> createState()=>_EventShareSheetState();
+}
+
+class _EventShareSheetState extends State<EventShareSheet> {
+  String? _notice;
   EventPagePalette get colors=>EventPagePalette.fromHex(
-    event['colorPrimario']?.toString(),event['colorFondo']?.toString(),
-    event['colorTexto']?.toString(),event['colorTarjeta']?.toString(),
-    event['colorBorde']?.toString(),event['colorCarta']?.toString());
+    widget.event['colorPrimario']?.toString(),widget.event['colorFondo']?.toString(),
+    widget.event['colorTexto']?.toString(),widget.event['colorTarjeta']?.toString(),
+    widget.event['colorBorde']?.toString(),widget.event['colorCarta']?.toString());
   Color readable(Color text,Color surface)=>
     EventPagePalette.readable(text,surface);
   void notify(BuildContext context,String value) {
-    if(context.mounted)ScaffoldMessenger.of(context)
-      .showSnackBar(SnackBar(
-        backgroundColor:colors.surface,
-        behavior:SnackBarBehavior.floating,
-        content:Text(value,style:TextStyle(color:colors.onSurface))));
+    // SnackBar del Scaffold queda detrás del barrier del BottomSheet.
+    // Dar feedback dentro del panel, para que sea visible en iOS/Facebook.
+    if(mounted)setState(()=>_notice=value);
   }
   Future<bool> copy(BuildContext context)async{
-    try{await Clipboard.setData(ClipboardData(text:link));
+    try{await Clipboard.setData(ClipboardData(text:widget.link));
       notify(context,'Enlace copiado');return true;
     }catch(_){notify(context,'No fue posible copiar');return false;}
   }
-  Future<void> open(BuildContext context,Uri target,String label)async {
+  Future<void> open(BuildContext context,Uri target,String label,
+    {ShareNetwork? network})async {
     try{
       // Iniciar la navegación directamente desde el toque para conservar
       // el gesto de usuario que requieren Facebook y Safari iOS.
       final launched=await launchUrl(target,
         mode:kIsWeb?LaunchMode.platformDefault:LaunchMode.externalApplication,
-        webOnlyWindowName:kIsWeb?'_self':null);
+        webOnlyWindowName:network==null
+          ?(kIsWeb?'_self':null)
+          :shareWebWindowName(network,isWeb:kIsWeb));
       if(!launched)notify(context,'No se pudo abrir $label. Usa Copiar enlace.');
     }catch(_){notify(context,'No se pudo abrir $label. Usa Copiar enlace.');}
   }
@@ -149,8 +155,9 @@ class EventShareSheet extends StatelessWidget {
       return;
     }
     // Solo las redes con un endpoint real de compartir abren otra página.
-    await open(context,shareDestination(network,link,
-      event['titulo']?.toString()??'Evento'),shareLabel(network));
+    await open(context,shareDestination(network,widget.link,
+      widget.event['titulo']?.toString()??'Evento'),shareLabel(network),
+      network:network);
   }
   @override Widget build(BuildContext context){
     final p=colors;
@@ -158,9 +165,9 @@ class EventShareSheet extends StatelessWidget {
     final itemFg=readable(p.text,p.surfaceSoft);
     final border=EventPagePalette.contrast(p.border,p.surfaceSoft)<1.4
       ?itemFg.withOpacity(.3):p.border;
-    final title=event['titulo']?.toString()??'Evento';
-    final venue=event['sucursal']?.toString()??'';
-    final help=eventWhatsappHelpLink(event);
+    final title=widget.event['titulo']?.toString()??'Evento';
+    final venue=widget.event['sucursal']?.toString()??'';
+    final help=eventWhatsappHelpLink(widget.event);
     return Container(
       constraints:BoxConstraints(maxHeight:MediaQuery.sizeOf(context).height*.86),
       decoration:BoxDecoration(color:p.surface,
@@ -182,12 +189,29 @@ class EventShareSheet extends StatelessWidget {
           Container(padding:const EdgeInsets.all(12),decoration:BoxDecoration(
             color:p.surfaceSoft,borderRadius:BorderRadius.circular(12),
             border:Border.all(color:border)),
-            child:SelectableText(link,style:TextStyle(color:itemFg,fontSize:12))),
+            child:SelectableText(widget.link,style:TextStyle(color:itemFg,fontSize:12))),
           const SizedBox(height:12),
           FilledButton.icon(onPressed:()=>copy(context),
             icon:const Icon(Icons.copy_outlined),label:const Text('Copiar enlace'),
             style:FilledButton.styleFrom(backgroundColor:p.accent,
               foregroundColor:p.onAccent,padding:const EdgeInsets.all(15))),
+          if(_notice!=null)...[
+            const SizedBox(height:12),
+            Container(
+              key:const Key('event-social-share-notice'),
+              padding:const EdgeInsets.symmetric(horizontal:12,vertical:11),
+              decoration:BoxDecoration(
+                color:p.surfaceSoft,
+                border:Border.all(color:p.border),
+                borderRadius:BorderRadius.circular(11)),
+              child:Row(children:[
+                Icon(Icons.info_outline,color:p.accentOnSoft,size:18),
+                const SizedBox(width:9),
+                Expanded(child:Text(_notice!,
+                  style:TextStyle(color:itemFg,fontSize:13))),
+              ]),
+            ),
+          ],
           const SizedBox(height:22),
           Text('Compartir en redes sociales',style:TextStyle(
             color:fg,fontWeight:FontWeight.w900,fontSize:16)),
@@ -208,8 +232,9 @@ class EventShareSheet extends StatelessWidget {
                       child:Column(children:[
                         Icon(shareIcon(n),color:itemFg,size:22),
                         const SizedBox(height:7),
-                        Text(shareByCopy(n)?'Copiar para ${shareLabel(n)}':
-                          shareLabel(n),maxLines:1,overflow:TextOverflow.ellipsis,
+                        Text(shareByCopy(n)?'${shareLabel(n)} · Copiar':
+                          shareLabel(n),maxLines:2,textAlign:TextAlign.center,
+                          overflow:TextOverflow.ellipsis,
                           style:TextStyle(color:itemFg,fontSize:11,
                             fontWeight:FontWeight.w800)),
                       ]),
