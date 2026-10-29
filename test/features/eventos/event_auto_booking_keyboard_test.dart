@@ -60,16 +60,25 @@ void main() {
     await tester.tap(open);
     await tester.pumpAndSettle();
 
-    expect(find.byType(AlertDialog), findsOneWidget);
-    expect(tester.widget<AlertDialog>(find.byType(AlertDialog)).scrollable, true);
+    expect(find.byType(BottomSheet), findsOneWidget);
+    expect(find.byKey(const Key('event-booking-form-scroll')), findsOneWidget);
 
-    // Simula teclado del navegador integrado de Instagram en iPhone.
+    // La regresión real ocurre al abrir el teclado, ANTES de escribir.
+    // El panel inferior debe mantener la cabecera y el botón de pago visibles.
+    final nameField = find.byKey(const Key('event-booking-name'));
+    await tester.ensureVisible(nameField);
+    await tester.tap(nameField);
     tester.view.viewInsets = const FakeViewPadding(bottom: 335);
     await tester.pumpAndSettle();
+
+    final header = find.text('Reservar puestos').last;
+    final continueFixed = find.byKey(const Key('event-booking-continue'));
+    expect(header, findsOneWidget);
+    expect(continueFixed, findsOneWidget);
+    expect(tester.getTopLeft(header).dy, greaterThanOrEqualTo(0));
+    expect(tester.getBottomRight(continueFixed).dy, lessThan(440));
     expect(tester.takeException(), isNull);
 
-    final nameField = find.widgetWithText(TextFormField, 'Nombre completo *');
-    await tester.ensureVisible(nameField);
     await tester.enterText(nameField, 'Cliente de prueba');
     final mailField = find.widgetWithText(TextFormField, 'Correo electrónico *');
     await tester.ensureVisible(mailField);
