@@ -1,3 +1,5 @@
+import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:barlytics_frontend/features/eventos/presentation/widgets/event_share_sheet.dart';
 
@@ -84,4 +86,51 @@ void main(){
     expect(shareByCopy(ShareNetwork.threads),isTrue);
     expect(shareByCopy(ShareNetwork.facebook),isFalse);
   });
+  test('Navega en la misma pestaña web y no finge publicar en Instagram',(){
+    expect(shareWebWindowName(ShareNetwork.whatsapp,isWeb:true),'_self');
+    expect(shareWebWindowName(ShareNetwork.facebook,isWeb:true),'_self');
+    expect(shareWebWindowName(ShareNetwork.telegram,isWeb:true),'_self');
+    expect(shareWebWindowName(ShareNetwork.facebook,isWeb:false),isNull);
+    expect(shareWebWindowName(ShareNetwork.instagram,isWeb:true),isNull);
+    expect(shareByCopy(ShareNetwork.instagram),isTrue);
+    expect(shareByCopy(ShareNetwork.tiktok),isTrue);
+    expect(shareByCopy(ShareNetwork.threads),isTrue);
+  });
+
+  testWidgets('Instagram copia el evento e informa dentro del panel',
+      (tester)async{
+    String? captured;
+    TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+      .setMockMethodCallHandler(SystemChannels.platform,(call)async{
+        if(call.method=='Clipboard.setData'){
+          captured=(call.arguments as Map)['text']?.toString();
+        }
+        return null;
+      });
+    addTearDown((){
+      TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+        .setMockMethodCallHandler(SystemChannels.platform,null);
+    });
+    const preview='https://www.barlytics.com.co/api/v1/eventos/public/demo/compartir?v=afiche';
+    await tester.pumpWidget(MaterialApp(home:Scaffold(body:EventShareSheet(
+      event:const {
+        'titulo':'Fiesta de prueba',
+        'sucursal':'La barra reserva',
+        'colorPrimario':'#A87648',
+        'colorFondo':'#F3E7D3',
+        'colorTexto':'#2A211C',
+      },
+      link:preview,
+    ))));
+    await tester.pumpAndSettle();
+
+    final button=find.text('Instagram · Copiar');
+    await tester.ensureVisible(button);
+    await tester.tap(button);
+    await tester.pumpAndSettle();
+    expect(captured,preview);
+    expect(find.byKey(const Key('event-social-share-notice')),findsOneWidget);
+    expect(find.textContaining('Abre Instagram y pégalo'),findsOneWidget);
+  });
+
 }
