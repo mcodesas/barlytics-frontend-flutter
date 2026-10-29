@@ -306,6 +306,9 @@ class _EventPublicLandingState extends State<EventPublicLanding>
         child:StatefulBuilder(builder:(sheetContext,rebuild){
           final media=MediaQuery.of(sheetContext);
           final keyboard=media.viewInsets.bottom;
+          // Reduce el encabezado cuando el teclado deja poca altura real:
+          // así el campo activo tiene espacio sin sacrificar la barra de pago.
+          final compact=keyboard>0||media.size.height<580;
           // En WebKit la altura visual y viewInsets pueden variar en pasos
           // separados. Reubicar el foco tras cada actualización del layout.
           if(previousKeyboard!=keyboard||previousViewport!=media.size.height){
@@ -363,17 +366,20 @@ class _EventPublicLandingState extends State<EventPublicLanding>
                       const SizedBox(height:9),
                       // Encabezado fijo: nunca desaparece al enfocar un campo.
                       Padding(
-                        padding:const EdgeInsets.fromLTRB(20,6,20,13),
+                        padding:EdgeInsets.fromLTRB(20,compact?0:6,20,compact?7:13),
                         child:Row(children:[
                           Expanded(child:Column(
                             crossAxisAlignment:CrossAxisAlignment.start,
                             children:[
                               Text('Reservar puestos',
                                 style:TextStyle(color:palette.onSurface,
-                                  fontWeight:FontWeight.w900,fontSize:22)),
-                              const SizedBox(height:4),
-                              Text('Elige tus puestos y completa tus datos',
-                                style:TextStyle(color:palette.muted,fontSize:13)),
+                                  fontWeight:FontWeight.w900,
+                                  fontSize:compact?19:22)),
+                              if(!compact)...[
+                                const SizedBox(height:4),
+                                Text('Elige tus puestos y completa tus datos',
+                                  style:TextStyle(color:palette.muted,fontSize:13)),
+                              ],
                             ],
                           )),
                           IconButton(
