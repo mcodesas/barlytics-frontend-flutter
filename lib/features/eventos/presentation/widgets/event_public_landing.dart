@@ -194,6 +194,9 @@ class _EventPublicLandingState extends State<EventPublicLanding> {
     );
   }
 
+  /// Formulario inferior coherente con el resto de BarLytics.
+  /// Los controles fijos no se desplazan cuando el teclado de iOS cambia
+  /// el viewport del navegador integrado de Instagram o Facebook.
   Future<void> _openAutomaticBooking()async{
     final limit=automaticMax;
     if(limit<1){
@@ -202,14 +205,10 @@ class _EventPublicLandingState extends State<EventPublicLanding> {
       return;
     }
     var quantity=widget.seats.clamp(1,limit).toInt();
-    // El TextFormField administra su propio controlador hasta que la ruta
-    // del diálogo termina de animar y se desmonta. No disponer de un
-    // TextEditingController local al retornar showDialog: aún hay widgets
-    // escuchándolo durante la animación de cierre.
     final quantityFieldKey=GlobalKey<FormFieldState<String>>();
     final formKey=GlobalKey<FormState>();
-    // Copias del formulario para que el Overlay no retenga los controladores
-    // de la página si esta se destruye mientras se cierra el diálogo.
+    // Se preservan los valores aunque el navegador reajuste el teclado.
+    // No usar controllers locales: el cierre animado puede disponerlos tarde.
     var bookingName=widget.name.text;
     var bookingEmail=widget.email.text;
     var bookingPhone=widget.phone.text;
@@ -217,174 +216,252 @@ class _EventPublicLandingState extends State<EventPublicLanding> {
     final pricePerSeat=widget.event['precioPorPuesto']==true;
     final payment=widget.event['medioPago']=='MERCADOPAGO';
     FocusManager.instance.primaryFocus?.unfocus();
-    final accepted=await showDialog<bool>(
-        context:context,
-        useSafeArea:true,
-        builder:(dialogContext)=>Theme(
-          data:_pageTheme(dialogContext),
-          child:StatefulBuilder(
-          builder:(dialogContext,rebuild){
-            void changeQuantity(int next){
-              if(next<1||next>limit)return;
-              quantityFieldKey.currentState?.didChange(next.toString());
-              rebuild(()=>quantity=next);
-            }
-            return AlertDialog(
-              scrollable:true,
-              insetPadding:const EdgeInsets.symmetric(horizontal:14,vertical:12),
-              backgroundColor:palette.surface,
-              shape:RoundedRectangleBorder(
-                borderRadius:BorderRadius.circular(19)),
-              title:Column(crossAxisAlignment:CrossAxisAlignment.start,children:[
-                Text('Reservar puestos',
-                  style:TextStyle(color:palette.text,fontWeight:FontWeight.w900)),
-                const SizedBox(height:6),
-                Text('Selecciona tus puestos. Pueden distribuirse entre varias mesas.',
-                  style:TextStyle(color:palette.muted,fontSize:12,fontWeight:FontWeight.normal)),
-              ]),
-              // Un solo scroll evita que el teclado tape los campos del formulario.
-              content:SizedBox(width:430,child:Form(key:formKey,child:Column(
-                  mainAxisSize:MainAxisSize.min,
-                  crossAxisAlignment:CrossAxisAlignment.stretch,children:[
-                  Text('Cantidad de puestos',style:TextStyle(
-                    color:palette.text,fontWeight:FontWeight.w800)),
-                  const SizedBox(height:11),
-                  Row(mainAxisAlignment:MainAxisAlignment.center,children:[
-                    IconButton.outlined(
-                      tooltip:'Quitar un puesto',
-                      onPressed:quantity<=1?null:()=>changeQuantity(quantity-1),
-                      icon:const Icon(Icons.remove)),
-                    const SizedBox(width:12),
-                    SizedBox(width:96,child:TextFormField(
-                    scrollPadding:const EdgeInsets.only(top:18,bottom:120),
-                      key:quantityFieldKey,
-                      initialValue:quantity.toString(),
-                      textAlign:TextAlign.center,
-                      keyboardType:TextInputType.number,
-                      inputFormatters:[FilteringTextInputFormatter.digitsOnly],
-                      style:TextStyle(color:palette.onSurfaceSoft,fontSize:23,
-                        fontWeight:FontWeight.w900),
-                      onChanged:(value){
-                        final parsed=int.tryParse(value);
-                        if(parsed!=null)rebuild(()=>quantity=parsed);
-                      },
-                      validator:(value){
-                        final n=int.tryParse(value??'');
-                        if(n==null||n<1||n>limit){
-                          return 'De 1 a $limit';
-                        }
-                        return null;
-                      },
-                    )),
-                    const SizedBox(width:12),
-                    IconButton.outlined(
-                      tooltip:'Agregar un puesto',
-                      onPressed:quantity>=limit?null:()=>changeQuantity(quantity+1),
-                      icon:const Icon(Icons.add)),
-                  ]),
-                  const SizedBox(height:9),
-                  Text('Hasta $limit puestos disponibles en el evento; se asignan entre mesas.',
-                    textAlign:TextAlign.center,
-                    style:TextStyle(color:palette.muted,fontSize:12)),
-                  const SizedBox(height:16),
-                  Container(
-                    padding:const EdgeInsets.all(14),
-                    decoration:BoxDecoration(color:palette.surfaceSoft,
-                      borderRadius:BorderRadius.circular(12),
-                      border:Border.all(color:palette.border)),
-                    child:Column(children:[
-                      Row(children:[
-                        Expanded(child:Text(pricePerSeat?'Precio por puesto':'Precio de reserva',
-                          style:TextStyle(color:palette.onSurfaceSoft))),
-                        Text(currency(unit),style:TextStyle(color:palette.onSurfaceSoft)),
-                      ]),
-                      const SizedBox(height:9),
-                      Row(children:[
-                        Expanded(child:Text('Total a pagar',
-                          style:TextStyle(color:palette.onSurfaceSoft,fontWeight:FontWeight.w800))),
-                        Text(currency(pricePerSeat?unit*quantity:unit),
-                          style:TextStyle(color:palette.accentOnSoft,fontSize:19,fontWeight:FontWeight.w900)),
-                      ]),
-                    ]),
+
+    final accepted=await showModalBottomSheet<bool>(
+      context:context,
+      isScrollControlled:true,
+      useSafeArea:true,
+      showDragHandle:true,
+      backgroundColor:palette.surface,
+      barrierColor:Colors.black54,
+      shape:const RoundedRectangleBorder(
+        borderRadius:BorderRadius.vertical(top:Radius.circular(26))),
+      builder:(sheetContext)=>Theme(
+        data:_pageTheme(sheetContext),
+        child:StatefulBuilder(builder:(sheetContext,rebuild){
+          final media=MediaQuery.of(sheetContext);
+          final keyboard=media.viewInsets.bottom;
+          // Mantiene el panel por encima del teclado sin esperar a que
+          // el usuario escriba el primer carácter.
+          final available=(media.size.height-media.padding.top-keyboard-16)
+            .clamp(0.0,media.size.height).toDouble();
+
+          void changeQuantity(int next){
+            if(next<1||next>limit)return;
+            quantityFieldKey.currentState?.didChange(next.toString());
+            rebuild(()=>quantity=next);
+          }
+
+          void finish(){
+            if(!(formKey.currentState?.validate()??false))return;
+            final count=int.tryParse(
+              quantityFieldKey.currentState?.value??'');
+            if(count==null||count<1||count>limit)return;
+            quantity=count;
+            FocusManager.instance.primaryFocus?.unfocus();
+            Navigator.pop(sheetContext,true);
+          }
+
+          return AnimatedPadding(
+            duration:const Duration(milliseconds:180),
+            curve:Curves.easeOut,
+            padding:EdgeInsets.only(bottom:keyboard),
+            child:SafeArea(
+              top:false,
+              child:Align(
+                alignment:Alignment.bottomCenter,
+                heightFactor:1,
+                child:ConstrainedBox(
+                  constraints:BoxConstraints(maxWidth:610,maxHeight:available),
+                  child:Column(
+                    mainAxisSize:MainAxisSize.min,
+                    crossAxisAlignment:CrossAxisAlignment.stretch,
+                    children:[
+                      // Encabezado fijo: nunca desaparece al enfocar un campo.
+                      Padding(
+                        padding:const EdgeInsets.fromLTRB(20,6,20,13),
+                        child:Row(children:[
+                          Expanded(child:Column(
+                            crossAxisAlignment:CrossAxisAlignment.start,
+                            children:[
+                              Text('Reservar puestos',
+                                style:TextStyle(color:palette.onSurface,
+                                  fontWeight:FontWeight.w900,fontSize:22)),
+                              const SizedBox(height:4),
+                              Text('Elige tus puestos y completa tus datos',
+                                style:TextStyle(color:palette.muted,fontSize:13)),
+                            ],
+                          )),
+                          IconButton(
+                            tooltip:'Cerrar reserva',
+                            onPressed:(){
+                              FocusManager.instance.primaryFocus?.unfocus();
+                              Navigator.pop(sheetContext,false);
+                            },
+                            icon:const Icon(Icons.close_rounded)),
+                        ]),
+                      ),
+                      Divider(height:1,color:palette.border),
+                      // Solo esta zona se desplaza; nunca el encabezado ni CTA.
+                      Flexible(child:SingleChildScrollView(
+                        key:const Key('event-booking-form-scroll'),
+                        keyboardDismissBehavior:ScrollViewKeyboardDismissBehavior.manual,
+                        padding:const EdgeInsets.fromLTRB(20,18,20,20),
+                        child:Form(key:formKey,child:Column(
+                          mainAxisSize:MainAxisSize.min,
+                          crossAxisAlignment:CrossAxisAlignment.stretch,
+                          children:[
+                            Text('Cantidad de puestos',
+                              style:TextStyle(color:palette.onSurface,
+                                fontWeight:FontWeight.w800)),
+                            const SizedBox(height:12),
+                            Row(mainAxisAlignment:MainAxisAlignment.center,children:[
+                              IconButton.outlined(
+                                tooltip:'Quitar un puesto',
+                                onPressed:quantity<=1?null:()=>changeQuantity(quantity-1),
+                                icon:const Icon(Icons.remove)),
+                              const SizedBox(width:12),
+                              SizedBox(width:96,child:TextFormField(
+                                key:quantityFieldKey,
+                                initialValue:quantity.toString(),
+                                scrollPadding:const EdgeInsets.only(top:12,bottom:25),
+                                textAlign:TextAlign.center,
+                                keyboardType:TextInputType.number,
+                                inputFormatters:[FilteringTextInputFormatter.digitsOnly],
+                                style:TextStyle(color:palette.onSurfaceSoft,
+                                  fontSize:23,fontWeight:FontWeight.w900),
+                                onChanged:(value){
+                                  final count=int.tryParse(value);
+                                  if(count!=null)rebuild(()=>quantity=count);
+                                },
+                                validator:(value){
+                                  final n=int.tryParse(value??'');
+                                  return n==null||n<1||n>limit?'De 1 a $limit':null;
+                                },
+                              )),
+                              const SizedBox(width:12),
+                              IconButton.outlined(
+                                tooltip:'Agregar un puesto',
+                                onPressed:quantity>=limit?null:()=>changeQuantity(quantity+1),
+                                icon:const Icon(Icons.add)),
+                            ]),
+                            const SizedBox(height:9),
+                            Text('Hasta $limit puestos disponibles; se asignan entre mesas.',
+                              textAlign:TextAlign.center,
+                              style:TextStyle(color:palette.muted,fontSize:12)),
+                            const SizedBox(height:16),
+                            Container(
+                              padding:const EdgeInsets.all(14),
+                              decoration:BoxDecoration(
+                                color:palette.surfaceSoft,
+                                borderRadius:BorderRadius.circular(12),
+                                border:Border.all(color:palette.border)),
+                              child:Column(children:[
+                                Row(children:[
+                                  Expanded(child:Text(pricePerSeat
+                                    ?'Precio por puesto':'Precio de reserva',
+                                    style:TextStyle(color:palette.onSurfaceSoft))),
+                                  Text(currency(unit),
+                                    style:TextStyle(color:palette.onSurfaceSoft)),
+                                ]),
+                                const SizedBox(height:9),
+                                Row(children:[
+                                  Expanded(child:Text('Total a pagar',
+                                    style:TextStyle(color:palette.onSurfaceSoft,
+                                      fontWeight:FontWeight.w800))),
+                                  Text(currency(pricePerSeat?unit*quantity:unit),
+                                    style:TextStyle(color:palette.accentOnSoft,
+                                      fontWeight:FontWeight.w900,fontSize:19)),
+                                ]),
+                              ]),
+                            ),
+                            const SizedBox(height:20),
+                            Text('Datos para la reserva',
+                              style:TextStyle(color:palette.onSurface,
+                                fontWeight:FontWeight.w800)),
+                            const SizedBox(height:12),
+                            TextFormField(
+                              key:const Key('event-booking-name'),
+                              initialValue:bookingName,
+                              onChanged:(value)=>bookingName=value,
+                              scrollPadding:const EdgeInsets.only(top:16,bottom:30),
+                              textInputAction:TextInputAction.next,
+                              maxLength:140,
+                              textCapitalization:TextCapitalization.words,
+                              style:TextStyle(color:palette.onSurfaceSoft),
+                              decoration:const InputDecoration(
+                                labelText:'Nombre completo *',
+                                prefixIcon:Icon(Icons.person_outline)),
+                              validator:(value)=>value==null||value.trim().isEmpty
+                                ?'Ingresa tu nombre':null,
+                            ),
+                            const SizedBox(height:7),
+                            TextFormField(
+                              key:const Key('event-booking-email'),
+                              initialValue:bookingEmail,
+                              onChanged:(value)=>bookingEmail=value,
+                              scrollPadding:const EdgeInsets.only(top:16,bottom:30),
+                              textInputAction:TextInputAction.next,
+                              keyboardType:TextInputType.emailAddress,
+                              maxLength:220,
+                              style:TextStyle(color:palette.onSurfaceSoft),
+                              decoration:const InputDecoration(
+                                labelText:'Correo electrónico *',
+                                prefixIcon:Icon(Icons.email_outlined)),
+                              validator:(value){
+                                final text=value?.trim()??'';
+                                return RegExp(r'^[^@\s]+@[^@\s]+\.[^@\s]+$')
+                                  .hasMatch(text)?null:'Ingresa un correo válido';
+                              },
+                            ),
+                            const SizedBox(height:7),
+                            TextFormField(
+                              key:const Key('event-booking-phone'),
+                              initialValue:bookingPhone,
+                              onChanged:(value)=>bookingPhone=value,
+                              scrollPadding:const EdgeInsets.only(top:16,bottom:30),
+                              keyboardType:TextInputType.phone,
+                              textInputAction:TextInputAction.done,
+                              maxLength:40,
+                              style:TextStyle(color:palette.onSurfaceSoft),
+                              decoration:const InputDecoration(
+                                labelText:'Teléfono / WhatsApp',
+                                prefixIcon:Icon(Icons.phone_outlined)),
+                            ),
+                            if(widget.event['medioPago']=='MANUAL')...[
+                              const SizedBox(height:8),
+                              Text('La reserva quedará pendiente de revisión del establecimiento.',
+                                style:TextStyle(color:palette.muted,fontSize:12)),
+                            ],
+                          ],
+                        )),
+                      )),
+                      Divider(height:1,color:palette.border),
+                      // Barra de acción fija mientras se escribe o se desplaza.
+                      Padding(
+                        padding:const EdgeInsets.fromLTRB(14,12,14,14),
+                        child:Row(children:[
+                          Expanded(child:TextButton(
+                            onPressed:(){
+                              FocusManager.instance.primaryFocus?.unfocus();
+                              Navigator.pop(sheetContext,false);
+                            },
+                            child:const Text('Cancelar'))),
+                          const SizedBox(width:9),
+                          Expanded(flex:2,child:FilledButton.icon(
+                            key:const Key('event-booking-continue'),
+                            onPressed:widget.busy?null:finish,
+                            icon:Icon(payment?Icons.payment_outlined:
+                              Icons.check_circle_outline,size:19),
+                            label:FittedBox(fit:BoxFit.scaleDown,
+                              child:Text(payment
+                                ?'Continuar al pago':'Confirmar reserva')),
+                            style:FilledButton.styleFrom(
+                              backgroundColor:brand,foregroundColor:onBrand,
+                              padding:const EdgeInsets.symmetric(
+                                horizontal:10,vertical:15)),
+                          )),
+                        ]),
+                      ),
+                    ],
                   ),
-                  const SizedBox(height:17),
-                  Text('Datos para la reserva',style:TextStyle(
-                    color:palette.text,fontWeight:FontWeight.w800)),
-                  const SizedBox(height:10),
-                  TextFormField(
-                    scrollPadding:const EdgeInsets.only(top:18,bottom:120),
-                    style:TextStyle(color:palette.onSurfaceSoft),cursorColor:palette.accentOnSoft,
-                    initialValue:bookingName,
-                    onChanged:(value)=>bookingName=value,
-                    maxLength:140,
-                    textCapitalization:TextCapitalization.words,
-                    decoration:const InputDecoration(labelText:'Nombre completo *',
-                      prefixIcon:Icon(Icons.person_outline)),
-                    validator:(v)=>(v?.trim().isEmpty??true)?'Ingresa tu nombre':null,
-                  ),
-                  const SizedBox(height:8),
-                  TextFormField(
-                    scrollPadding:const EdgeInsets.only(top:18,bottom:120),
-                    style:TextStyle(color:palette.onSurfaceSoft),cursorColor:palette.accentOnSoft,
-                    initialValue:bookingEmail,
-                    onChanged:(value)=>bookingEmail=value,
-                    maxLength:220,
-                    keyboardType:TextInputType.emailAddress,
-                    decoration:const InputDecoration(labelText:'Correo electrónico *',
-                      prefixIcon:Icon(Icons.email_outlined)),
-                    validator:(v){
-                      final text=v?.trim()??'';
-                      return RegExp(r'^[^@\s]+@[^@\s]+\.[^@\s]+$').hasMatch(text)
-                        ?null:'Ingresa un correo válido';
-                    },
-                  ),
-                  const SizedBox(height:8),
-                  TextFormField(
-                    scrollPadding:const EdgeInsets.only(top:18,bottom:120),
-                    style:TextStyle(color:palette.onSurfaceSoft),cursorColor:palette.accentOnSoft,
-                    initialValue:bookingPhone,
-                    onChanged:(value)=>bookingPhone=value,
-                    maxLength:40,
-                    keyboardType:TextInputType.phone,
-                    decoration:const InputDecoration(labelText:'Teléfono / WhatsApp',
-                      prefixIcon:Icon(Icons.phone_outlined)),
-                  ),
-                  if(widget.event['medioPago']=='MANUAL')...[
-                    const SizedBox(height:9),
-                    Text('La reserva quedará pendiente de revisión del establecimiento.',
-                      style:TextStyle(color:palette.muted,fontSize:12)),
-                  ],
-                ])),
-              ),
-              actions:[
-                TextButton(
-                  onPressed:(){
-                    FocusManager.instance.primaryFocus?.unfocus();
-                    Navigator.pop(dialogContext,false);
-                  },
-                  child:const Text('Cancelar')),
-                FilledButton.icon(
-                  onPressed:widget.busy?null:(){
-                    if(!(formKey.currentState?.validate()??false))return;
-                    final count=int.tryParse(
-                      quantityFieldKey.currentState?.value??'');
-                    if(count==null||count<1||count>limit)return;
-                    quantity=count;
-                    // Primero cerrar la ruta; los cambios del padre van
-                    // después de showDialog y no mientras reconstruye.
-                    FocusManager.instance.primaryFocus?.unfocus();
-                    Navigator.pop(dialogContext,true);
-                  },
-                  icon:Icon(payment?Icons.payment_outlined:Icons.check_circle_outline),
-                  label:Text(payment?'Continuar al pago':'Confirmar reserva'),
-                  style:FilledButton.styleFrom(
-                    backgroundColor:brand,foregroundColor:onBrand),
                 ),
-              ],
-            );
-          },
-        )),
-      );
+              ),
+            ),
+          );
+        }),
+      ),
+    );
     if(accepted==true&&mounted){
       widget.name.text=bookingName;
       widget.email.text=bookingEmail;
