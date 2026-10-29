@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:barlytics_frontend/features/eventos/presentation/widgets/event_public_landing.dart';
+import 'package:barlytics_frontend/features/eventos/presentation/widgets/event_visual_kit.dart';
 
 void main() {
   testWidgets('iPhone: el teclado no bloquea el formulario ni continuar al pago',
@@ -62,6 +63,15 @@ void main() {
 
     expect(find.byType(BottomSheet), findsOneWidget);
     expect(find.byKey(const Key('event-booking-form-scroll')), findsOneWidget);
+    final handle=find.byKey(const Key('event-booking-drag-handle'));
+    expect(handle,findsOneWidget);
+    final colors=EventPagePalette.fromHex(null,null);
+    final decoration=tester.widget<Container>(handle).decoration as BoxDecoration;
+    expect(decoration.color,
+      Color.lerp(colors.surface,colors.accentOnSurface,.38));
+    // La barra la pinta la paleta, no el drag handle azul del tema Flutter.
+    expect(tester.widget<BottomSheet>(find.byType(BottomSheet)).showDragHandle,
+      false);
 
     // La regresión real ocurre al abrir el teclado, ANTES de escribir.
     // El panel inferior debe mantener la cabecera y el botón de pago visibles.
