@@ -76,7 +76,59 @@ class EventPublicLanding extends StatefulWidget {
   State<EventPublicLanding> createState()=>_EventPublicLandingState();
 }
 
-class _EventPublicLandingState extends State<EventPublicLanding> {
+class _EventPublicLandingState extends State<EventPublicLanding>
+    with WidgetsBindingObserver {
+  // Al abrir el teclado, Facebook/Instagram en iOS redimensionan la vista
+  // después de emitir el foco. Esperar a escribir no debe ser necesario.
+  final _bookingQuantityFocus=FocusNode();
+  final _bookingNameFocus=FocusNode();
+  final _bookingEmailFocus=FocusNode();
+  final _bookingPhoneFocus=FocusNode();
+  bool _bookingSheetShowing=false;
+  bool _bookingRevealQueued=false;
+
+  @override
+  void initState(){
+    super.initState();
+    WidgetsBinding.instance.addObserver(this);
+  }
+
+  @override
+  void didChangeMetrics(){
+    super.didChangeMetrics();
+    if(_bookingSheetShowing)_revealFocusedBookingField();
+  }
+
+  void _revealFocusedBookingField(){
+    if(!_bookingSheetShowing||_bookingRevealQueued)return;
+    _bookingRevealQueued=true;
+    WidgetsBinding.instance.addPostFrameCallback((_){
+      _bookingRevealQueued=false;
+      if(!mounted||!_bookingSheetShowing)return;
+      final focused=<FocusNode>[
+        _bookingQuantityFocus,_bookingNameFocus,
+        _bookingEmailFocus,_bookingPhoneFocus,
+      ].where((node)=>node.hasFocus).firstOrNull;
+      final target=focused?.context;
+      if(target==null||!target.mounted)return;
+      // Se mueve el contenido del scroll interno, nunca la barra de acciones.
+      Scrollable.ensureVisible(target,
+        duration:const Duration(milliseconds:100),
+        curve:Curves.easeOut,
+        alignment:.14);
+    });
+  }
+
+  @override
+  void dispose(){
+    WidgetsBinding.instance.removeObserver(this);
+    _bookingQuantityFocus.dispose();
+    _bookingNameFocus.dispose();
+    _bookingEmailFocus.dispose();
+    _bookingPhoneFocus.dispose();
+    super.dispose();
+  }
+
   final _bookingKey=GlobalKey();
   final _menuKey=GlobalKey();
   final _locationKey=GlobalKey();
@@ -216,6 +268,9 @@ class _EventPublicLandingState extends State<EventPublicLanding> {
     final pricePerSeat=widget.event['precioPorPuesto']==true;
     final payment=widget.event['medioPago']=='MERCADOPAGO';
     FocusManager.instance.primaryFocus?.unfocus();
+    _bookingSheetShowing=true;
+    var previousKeyboard=-1.0;
+    var previousViewport=-1.0;
 
     final accepted=await showModalBottomSheet<bool>(
       context:context,
@@ -231,8 +286,13 @@ class _EventPublicLandingState extends State<EventPublicLanding> {
         child:StatefulBuilder(builder:(sheetContext,rebuild){
           final media=MediaQuery.of(sheetContext);
           final keyboard=media.viewInsets.bottom;
-          // Mantiene el panel por encima del teclado sin esperar a que
-          // el usuario escriba el primer carácter.
+          // En WebKit la altura visual y viewInsets pueden variar en pasos
+          // separados. Reubicar el foco tras cada actualización del layout.
+          if(previousKeyboard!=keyboard||previousViewport!=media.size.height){
+            previousKeyboard=keyboard;
+            previousViewport=media.size.height;
+            _revealFocusedBookingField();
+          }
           final available=(media.size.height-media.padding.top-keyboard-16)
             .clamp(0.0,media.size.height).toDouble();
 
@@ -313,6 +373,8 @@ class _EventPublicLandingState extends State<EventPublicLanding> {
                               const SizedBox(width:12),
                               SizedBox(width:96,child:TextFormField(
                                 key:quantityFieldKey,
+                                focusNode:_bookingQuantityFocus,
+                                onTap:_revealFocusedBookingField,
                                 initialValue:quantity.toString(),
                                 scrollPadding:const EdgeInsets.only(top:12,bottom:25),
                                 textAlign:TextAlign.center,
@@ -372,6 +434,8 @@ class _EventPublicLandingState extends State<EventPublicLanding> {
                             const SizedBox(height:12),
                             TextFormField(
                               key:const Key('event-booking-name'),
+                              focusNode:_bookingNameFocus,
+                              onTap:_revealFocusedBookingField,
                               initialValue:bookingName,
                               onChanged:(value)=>bookingName=value,
                               scrollPadding:const EdgeInsets.only(top:16,bottom:30),
@@ -388,6 +452,8 @@ class _EventPublicLandingState extends State<EventPublicLanding> {
                             const SizedBox(height:7),
                             TextFormField(
                               key:const Key('event-booking-email'),
+                              focusNode:_bookingEmailFocus,
+                              onTap:_revealFocusedBookingField,
                               initialValue:bookingEmail,
                               onChanged:(value)=>bookingEmail=value,
                               scrollPadding:const EdgeInsets.only(top:16,bottom:30),
@@ -407,6 +473,8 @@ class _EventPublicLandingState extends State<EventPublicLanding> {
                             const SizedBox(height:7),
                             TextFormField(
                               key:const Key('event-booking-phone'),
+                              focusNode:_bookingPhoneFocus,
+                              onTap:_revealFocusedBookingField,
                               initialValue:bookingPhone,
                               onChanged:(value)=>bookingPhone=value,
                               scrollPadding:const EdgeInsets.only(top:16,bottom:30),
@@ -462,6 +530,8 @@ class _EventPublicLandingState extends State<EventPublicLanding> {
         }),
       ),
     );
+    _bookingSheetShowing=false;
+    FocusManager.instance.primaryFocus?.unfocus();
     if(accepted==true&&mounted){
       widget.name.text=bookingName;
       widget.email.text=bookingEmail;
