@@ -84,6 +84,11 @@ class _EventPublicLandingState extends State<EventPublicLanding>
   final _bookingNameFocus=FocusNode();
   final _bookingEmailFocus=FocusNode();
   final _bookingPhoneFocus=FocusNode();
+  // Anclas externas para desplazar el viewport vertical, no el EditableText.
+  final _bookingQuantityAnchor=GlobalKey();
+  final _bookingNameAnchor=GlobalKey();
+  final _bookingEmailAnchor=GlobalKey();
+  final _bookingPhoneAnchor=GlobalKey();
   // Controlador exclusivo del formulario: no desplazar el evento que queda
   // detrás de la hoja cuando el teclado de un navegador integrado aparece.
   final _bookingFormScroll=ScrollController();
@@ -114,19 +119,21 @@ class _EventPublicLandingState extends State<EventPublicLanding>
     WidgetsBinding.instance.addPostFrameCallback((_){
       _bookingRevealQueued=false;
       if(!mounted||!_bookingSheetShowing)return;
-      final focused=<FocusNode>[
-        _bookingQuantityFocus,_bookingNameFocus,
-        _bookingEmailFocus,_bookingPhoneFocus,
-      ].where((node)=>node.hasFocus).firstOrNull;
-      final target=focused?.context?.findRenderObject();
+      final anchor=_bookingNameFocus.hasFocus?_bookingNameAnchor:
+        _bookingEmailFocus.hasFocus?_bookingEmailAnchor:
+        _bookingPhoneFocus.hasFocus?_bookingPhoneAnchor:
+        _bookingQuantityFocus.hasFocus?_bookingQuantityAnchor:null;
+      final target=anchor?.currentContext?.findRenderObject();
       if(target==null||!target.attached||!_bookingFormScroll.hasClients)return;
-      // Pedir al scroll interno que alinee el campo cerca del borde superior
-      // evita que quede oculto por la barra fija o por el teclado iOS.
-      // Scrollable.ensureVisible podía desplazar también la página de fondo.
-      _bookingFormScroll.position.ensureVisible(target,
-        duration:const Duration(milliseconds:180),
-        curve:Curves.easeOutCubic,
-        alignment:.12);
+      final position=_bookingFormScroll.position;
+      if(!position.hasContentDimensions)return;
+      // TextFormField internamente tiene otro viewport para EditableText.
+      // El RenderPadding externo se alinea en el scroll vertical del modal,
+      // incluso si el teclado abrió y el usuario todavía no escribió nada.
+      position.ensureVisible(target,
+        alignment:.12,
+        duration:Duration.zero,
+        alignmentPolicy:ScrollPositionAlignmentPolicy.explicit);
     });
   }
 
@@ -381,7 +388,16 @@ class _EventPublicLandingState extends State<EventPublicLanding>
                       Divider(height:1,color:palette.border),
                       // Barra visible y arrastrable. El formulario permanece
                       // desplazable incluso con el teclado abierto.
-                      Flexible(child:ScrollbarTheme(
+                      Flexible(child:NotificationListener<ScrollMetricsNotification>(
+                        onNotification:(notification){
+                          // La métrica de scroll cambia DESPUÉS del layout;
+                          // didChangeMetrics puede ocurrir demasiado pronto.
+                          if(notification.depth==0&&_bookingSheetShowing){
+                            _revealFocusedBookingField();
+                          }
+                          return false;
+                        },
+                        child:ScrollbarTheme(
                         data:ScrollbarThemeData(
                           thumbColor:WidgetStatePropertyAll(
                             palette.accentOnSurface.withOpacity(.55)),
@@ -416,7 +432,10 @@ class _EventPublicLandingState extends State<EventPublicLanding>
                                 onPressed:quantity<=1?null:()=>changeQuantity(quantity-1),
                                 icon:const Icon(Icons.remove)),
                               const SizedBox(width:12),
-                              SizedBox(width:96,child:TextFormField(
+                              SizedBox(width:96,child:Padding(
+                                key:_bookingQuantityAnchor,
+                                padding:EdgeInsets.zero,
+                                child:TextFormField(
                                 key:quantityFieldKey,
                                 focusNode:_bookingQuantityFocus,
                                 onTap:_revealFocusedBookingField,
@@ -435,7 +454,7 @@ class _EventPublicLandingState extends State<EventPublicLanding>
                                   final n=int.tryParse(value??'');
                                   return n==null||n<1||n>limit?'De 1 a $limit':null;
                                 },
-                              )),
+                              ))),
                               const SizedBox(width:12),
                               IconButton.outlined(
                                 tooltip:'Agregar un puesto',
@@ -477,7 +496,10 @@ class _EventPublicLandingState extends State<EventPublicLanding>
                               style:TextStyle(color:palette.onSurface,
                                 fontWeight:FontWeight.w800)),
                             const SizedBox(height:12),
-                            TextFormField(
+                            Padding(
+                              key:_bookingNameAnchor,
+                              padding:EdgeInsets.zero,
+                              child:TextFormField(
                               key:const Key('event-booking-name'),
                               focusNode:_bookingNameFocus,
                               onTap:_revealFocusedBookingField,
@@ -493,9 +515,12 @@ class _EventPublicLandingState extends State<EventPublicLanding>
                                 prefixIcon:Icon(Icons.person_outline)),
                               validator:(value)=>value==null||value.trim().isEmpty
                                 ?'Ingresa tu nombre':null,
-                            ),
+                            )),
                             const SizedBox(height:7),
-                            TextFormField(
+                            Padding(
+                              key:_bookingEmailAnchor,
+                              padding:EdgeInsets.zero,
+                              child:TextFormField(
                               key:const Key('event-booking-email'),
                               focusNode:_bookingEmailFocus,
                               onTap:_revealFocusedBookingField,
@@ -514,9 +539,12 @@ class _EventPublicLandingState extends State<EventPublicLanding>
                                 return RegExp(r'^[^@\s]+@[^@\s]+\.[^@\s]+$')
                                   .hasMatch(text)?null:'Ingresa un correo válido';
                               },
-                            ),
+                            )),
                             const SizedBox(height:7),
-                            TextFormField(
+                            Padding(
+                              key:_bookingPhoneAnchor,
+                              padding:EdgeInsets.zero,
+                              child:TextFormField(
                               key:const Key('event-booking-phone'),
                               focusNode:_bookingPhoneFocus,
                               onTap:_revealFocusedBookingField,
@@ -530,7 +558,7 @@ class _EventPublicLandingState extends State<EventPublicLanding>
                               decoration:const InputDecoration(
                                 labelText:'Teléfono / WhatsApp',
                                 prefixIcon:Icon(Icons.phone_outlined)),
-                            ),
+                            )),
                             if(widget.event['medioPago']=='MANUAL')...[
                               const SizedBox(height:8),
                               Text('La reserva quedará pendiente de revisión del establecimiento.',
@@ -539,6 +567,7 @@ class _EventPublicLandingState extends State<EventPublicLanding>
                           ],
                             )),
                           ),
+                        ),
                         ),
                       )),
                       Divider(height:1,color:palette.border),
