@@ -101,6 +101,8 @@ class _EventPublicLandingState extends State<EventPublicLanding> {
   // El cliente puede reservar el cupo total, no sólo el de una mesa.
   int get automaticMax=>eventAvailableSeats(tables);
   void startReservation(){
+    // Los navegadores integrados de iOS pueden conservar el teclado de fondo.
+    FocusManager.instance.primaryFocus?.unfocus();
     if(autoAssignOnly){
       _openAutomaticBooking();
     }else{
@@ -214,8 +216,10 @@ class _EventPublicLandingState extends State<EventPublicLanding> {
     final unit=price(widget.event['precio']);
     final pricePerSeat=widget.event['precioPorPuesto']==true;
     final payment=widget.event['medioPago']=='MERCADOPAGO';
+    FocusManager.instance.primaryFocus?.unfocus();
     final accepted=await showDialog<bool>(
         context:context,
+        useSafeArea:true,
         builder:(dialogContext)=>Theme(
           data:_pageTheme(dialogContext),
           child:StatefulBuilder(
@@ -226,6 +230,8 @@ class _EventPublicLandingState extends State<EventPublicLanding> {
               rebuild(()=>quantity=next);
             }
             return AlertDialog(
+              scrollable:true,
+              insetPadding:const EdgeInsets.symmetric(horizontal:14,vertical:12),
               backgroundColor:palette.surface,
               shape:RoundedRectangleBorder(
                 borderRadius:BorderRadius.circular(19)),
@@ -236,8 +242,8 @@ class _EventPublicLandingState extends State<EventPublicLanding> {
                 Text('Selecciona tus puestos. Pueden distribuirse entre varias mesas.',
                   style:TextStyle(color:palette.muted,fontSize:12,fontWeight:FontWeight.normal)),
               ]),
-              content:SizedBox(width:430,child:SingleChildScrollView(
-                child:Form(key:formKey,child:Column(
+              // Un solo scroll evita que el teclado tape los campos del formulario.
+              content:SizedBox(width:430,child:Form(key:formKey,child:Column(
                   mainAxisSize:MainAxisSize.min,
                   crossAxisAlignment:CrossAxisAlignment.stretch,children:[
                   Text('Cantidad de puestos',style:TextStyle(
@@ -250,6 +256,7 @@ class _EventPublicLandingState extends State<EventPublicLanding> {
                       icon:const Icon(Icons.remove)),
                     const SizedBox(width:12),
                     SizedBox(width:96,child:TextFormField(
+                    scrollPadding:const EdgeInsets.only(top:18,bottom:120),
                       key:quantityFieldKey,
                       initialValue:quantity.toString(),
                       textAlign:TextAlign.center,
@@ -305,6 +312,7 @@ class _EventPublicLandingState extends State<EventPublicLanding> {
                     color:palette.text,fontWeight:FontWeight.w800)),
                   const SizedBox(height:10),
                   TextFormField(
+                    scrollPadding:const EdgeInsets.only(top:18,bottom:120),
                     style:TextStyle(color:palette.onSurfaceSoft),cursorColor:palette.accentOnSoft,
                     initialValue:bookingName,
                     onChanged:(value)=>bookingName=value,
@@ -316,6 +324,7 @@ class _EventPublicLandingState extends State<EventPublicLanding> {
                   ),
                   const SizedBox(height:8),
                   TextFormField(
+                    scrollPadding:const EdgeInsets.only(top:18,bottom:120),
                     style:TextStyle(color:palette.onSurfaceSoft),cursorColor:palette.accentOnSoft,
                     initialValue:bookingEmail,
                     onChanged:(value)=>bookingEmail=value,
@@ -331,6 +340,7 @@ class _EventPublicLandingState extends State<EventPublicLanding> {
                   ),
                   const SizedBox(height:8),
                   TextFormField(
+                    scrollPadding:const EdgeInsets.only(top:18,bottom:120),
                     style:TextStyle(color:palette.onSurfaceSoft),cursorColor:palette.accentOnSoft,
                     initialValue:bookingPhone,
                     onChanged:(value)=>bookingPhone=value,
@@ -344,11 +354,14 @@ class _EventPublicLandingState extends State<EventPublicLanding> {
                     Text('La reserva quedará pendiente de revisión del establecimiento.',
                       style:TextStyle(color:palette.muted,fontSize:12)),
                   ],
-                ]))),
+                ])),
               ),
               actions:[
                 TextButton(
-                  onPressed:()=>Navigator.pop(dialogContext,false),
+                  onPressed:(){
+                    FocusManager.instance.primaryFocus?.unfocus();
+                    Navigator.pop(dialogContext,false);
+                  },
                   child:const Text('Cancelar')),
                 FilledButton.icon(
                   onPressed:widget.busy?null:(){
@@ -359,6 +372,7 @@ class _EventPublicLandingState extends State<EventPublicLanding> {
                     quantity=count;
                     // Primero cerrar la ruta; los cambios del padre van
                     // después de showDialog y no mientras reconstruye.
+                    FocusManager.instance.primaryFocus?.unfocus();
                     Navigator.pop(dialogContext,true);
                   },
                   icon:Icon(payment?Icons.payment_outlined:Icons.check_circle_outline),
