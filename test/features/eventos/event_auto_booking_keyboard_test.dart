@@ -138,4 +138,71 @@ void main() {
     expect(email.text, 'cliente@example.com');
     expect(tester.takeException(), isNull);
   });
+  // Verificar apertura del teclado en móviles de distinta altura y anchura.
+  for(final size in <Size>[const Size(360,700),const Size(430,920)]){
+    testWidgets('El foco desplaza nombre sin teclear en $size',
+      (tester) async {
+      tester.view.physicalSize=size;
+      tester.view.devicePixelRatio=1;
+      addTearDown((){
+        tester.view.resetPhysicalSize();
+        tester.view.resetDevicePixelRatio();
+        tester.view.resetViewInsets();
+      });
+      final name=TextEditingController();
+      final email=TextEditingController();
+      final phone=TextEditingController();
+      addTearDown((){
+        name.dispose();email.dispose();phone.dispose();
+      });
+      await tester.pumpWidget(MaterialApp(home:EventPublicLanding(
+        event:{
+          'titulo':'Evento desde celular',
+          'sucursal':'La barra reserva',
+          'modoReserva':'PUESTOS',
+          'seleccionarMesa':false,
+          'precioPorPuesto':true,
+          'medioPago':'MERCADOPAGO',
+          'precio':40000,
+          'mesas':[
+            {'id':1,'numero':1,'capacidad':6,'disponibles':6,
+             'estado':'DISPONIBLE'},
+          ],
+          'carta':[],
+        },
+        selectedTable:null,seats:1,busy:false,
+        name:name,email:email,phone:phone,
+        onSelectTable:(_){},onSeatsChanged:(_){},onBook:(_){},
+        onShare:(){},onRefresh:()async{},
+      )));
+      await tester.pumpAndSettle();
+      final open=find.text('Elegir mis puestos').last;
+      await tester.ensureVisible(open);
+      await tester.tap(open);
+      await tester.pumpAndSettle();
+
+      final nameField=find.byKey(const Key('event-booking-name'));
+      final cta=find.byKey(const Key('event-booking-continue'));
+      await tester.showKeyboard(nameField);
+      tester.view.viewInsets=FakeViewPadding(bottom:size.height*.44);
+      await tester.pumpAndSettle();
+
+      final scroll=tester.widget<SingleChildScrollView>(
+        find.byKey(const Key('event-booking-form-scroll'))).controller!;
+      expect(scroll.offset,greaterThan(0),
+        reason:'Debe desplazar al tocar el campo, no al escribir');
+      expect(tester.getBottomRight(nameField).dy,
+        lessThan(tester.getTopLeft(cta).dy),
+        reason:'Nombre visible por encima de la barra fija');
+
+      // Cambio de altura del teclado sin cambiar el valor del input.
+      tester.view.viewInsets=FakeViewPadding(bottom:size.height*.32);
+      await tester.pumpAndSettle();
+      expect(tester.getBottomRight(nameField).dy,
+        lessThan(tester.getTopLeft(cta).dy));
+      expect(tester.state<FormFieldState<String>>(nameField).value,isEmpty);
+      expect(tester.takeException(),isNull);
+    });
+  }
+
 }
