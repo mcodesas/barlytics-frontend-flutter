@@ -276,7 +276,8 @@ class _EventPublicLandingState extends State<EventPublicLanding>
       context:context,
       isScrollControlled:true,
       useSafeArea:true,
-      showDragHandle:true,
+      // Handle nativo usa el tema global (azul); usar el del propio evento.
+      showDragHandle:false,
       backgroundColor:palette.surface,
       barrierColor:Colors.black54,
       shape:const RoundedRectangleBorder(
@@ -293,7 +294,10 @@ class _EventPublicLandingState extends State<EventPublicLanding>
             previousViewport=media.size.height;
             _revealFocusedBookingField();
           }
-          final available=(media.size.height-media.padding.top-keyboard-16)
+          // El padding inferior ya consume el espacio del teclado.
+          // Restarlo aquí también contraía el panel dos veces y hacía que
+          // los campos saltaran al enfocar en WebKit/Facebook/Instagram.
+          final available=(media.size.height-media.padding.top-16)
             .clamp(0.0,media.size.height).toDouble();
 
           void changeQuantity(int next){
@@ -327,6 +331,16 @@ class _EventPublicLandingState extends State<EventPublicLanding>
                     mainAxisSize:MainAxisSize.min,
                     crossAxisAlignment:CrossAxisAlignment.stretch,
                     children:[
+                      const SizedBox(height:9),
+                      Center(child:Container(
+                        width:38,height:4,
+                        decoration:BoxDecoration(
+                          color:Color.lerp(
+                            palette.surface,palette.accentOnSurface,.38)!,
+                          borderRadius:BorderRadius.circular(20),
+                        ),
+                      )),
+                      const SizedBox(height:9),
                       // Encabezado fijo: nunca desaparece al enfocar un campo.
                       Padding(
                         padding:const EdgeInsets.fromLTRB(20,6,20,13),
