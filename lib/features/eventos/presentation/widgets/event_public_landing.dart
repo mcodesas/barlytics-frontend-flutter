@@ -333,6 +333,7 @@ class _EventPublicLandingState extends State<EventPublicLanding>
                     children:[
                       const SizedBox(height:9),
                       Center(child:Container(
+                        key:const Key('event-booking-drag-handle'),
                         width:38,height:4,
                         decoration:BoxDecoration(
                           color:Color.lerp(
