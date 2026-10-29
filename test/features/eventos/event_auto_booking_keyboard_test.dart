@@ -80,6 +80,15 @@ void main() {
     expect(tester.takeException(), isNull);
 
     await tester.enterText(nameField, 'Cliente de prueba');
+    // Abrir y cerrar el teclado no debe desmontar el formulario ni
+    // descartar el nombre que acaba de escribir el asistente.
+    tester.view.viewInsets = const FakeViewPadding(bottom: 0);
+    await tester.pumpAndSettle();
+    tester.view.viewInsets = const FakeViewPadding(bottom: 335);
+    await tester.pumpAndSettle();
+    expect(tester.state<FormFieldState<String>>(nameField).value,
+      'Cliente de prueba');
+    expect(find.text('Reservar puestos').last, findsOneWidget);
     final mailField = find.widgetWithText(TextFormField, 'Correo electrónico *');
     await tester.ensureVisible(mailField);
     await tester.enterText(mailField, 'cliente@example.com');
