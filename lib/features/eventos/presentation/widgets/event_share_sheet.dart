@@ -118,6 +118,7 @@ class EventShareSheet extends StatefulWidget {
 
 class _EventShareSheetState extends State<EventShareSheet> {
   String? _notice;
+  final _noticeKey=GlobalKey();
   EventPagePalette get colors=>EventPagePalette.fromHex(
     widget.event['colorPrimario']?.toString(),widget.event['colorFondo']?.toString(),
     widget.event['colorTexto']?.toString(),widget.event['colorTarjeta']?.toString(),
@@ -127,7 +128,15 @@ class _EventShareSheetState extends State<EventShareSheet> {
   void notify(BuildContext context,String value) {
     // SnackBar del Scaffold queda detrás del barrier del BottomSheet.
     // Dar feedback dentro del panel, para que sea visible en iOS/Facebook.
-    if(mounted)setState(()=>_notice=value);
+    if(!mounted)return;
+    setState(()=>_notice=value);
+    WidgetsBinding.instance.addPostFrameCallback((_){
+      if(!mounted)return;
+      final target=_noticeKey.currentContext;
+      if(target!=null)Scrollable.ensureVisible(target,
+        duration:const Duration(milliseconds:180),
+        curve:Curves.easeOut,alignment:.45);
+    });
   }
   Future<bool> copy(BuildContext context)async{
     try{await Clipboard.setData(ClipboardData(text:widget.link));
@@ -176,8 +185,9 @@ class _EventShareSheetState extends State<EventShareSheet> {
       child:SingleChildScrollView(
         padding:EdgeInsets.fromLTRB(22,13,22,MediaQuery.paddingOf(context).bottom+22),
         child:Column(crossAxisAlignment:CrossAxisAlignment.stretch,children:[
-          Center(child:Container(width:48,height:4,decoration:BoxDecoration(
-            color:p.accentOnSurface,borderRadius:BorderRadius.circular(4)))),
+          Center(child:Container(width:40,height:4,decoration:BoxDecoration(
+            color:Color.lerp(p.surface,p.accentOnSurface,.38)!,
+            borderRadius:BorderRadius.circular(4)))),
           const SizedBox(height:22),
           Text('Compartir este evento',style:TextStyle(color:fg,
             fontSize:23,fontWeight:FontWeight.w900)),
@@ -198,7 +208,7 @@ class _EventShareSheetState extends State<EventShareSheet> {
           if(_notice!=null)...[
             const SizedBox(height:12),
             Container(
-              key:const Key('event-social-share-notice'),
+              key:_noticeKey,
               padding:const EdgeInsets.symmetric(horizontal:12,vertical:11),
               decoration:BoxDecoration(
                 color:p.surfaceSoft,
