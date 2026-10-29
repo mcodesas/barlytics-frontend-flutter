@@ -63,6 +63,11 @@ void main() {
 
     expect(find.byType(BottomSheet), findsOneWidget);
     expect(find.byKey(const Key('event-booking-form-scroll')), findsOneWidget);
+    final bar=find.byKey(const Key('event-booking-scrollbar'));
+    expect(bar,findsOneWidget);
+    final scrollbar=tester.widget<Scrollbar>(bar);
+    expect(scrollbar.thumbVisibility,isTrue);
+    expect(scrollbar.interactive,isTrue);
     final handle=find.byKey(const Key('event-booking-drag-handle'));
     expect(handle,findsOneWidget);
     final colors=EventPagePalette.fromHex(null,null);
@@ -76,8 +81,9 @@ void main() {
     // La regresión real ocurre al abrir el teclado, ANTES de escribir.
     // El panel inferior debe mantener la cabecera y el botón de pago visibles.
     final nameField = find.byKey(const Key('event-booking-name'));
-    await tester.ensureVisible(nameField);
-    await tester.tap(nameField);
+    // No usar ensureVisible: debe desplazarlo el propio formulario al recibir
+    // el foco, antes de introducir cualquier carácter en WA Business.
+    await tester.showKeyboard(nameField);
     tester.view.viewInsets = const FakeViewPadding(bottom: 335);
     await tester.pumpAndSettle();
 
@@ -93,6 +99,11 @@ void main() {
     final buttonTop=tester.getTopLeft(continueFixed).dy;
     expect(nameBottom, lessThan(buttonTop),
       reason:'El nombre no puede quedar detrás de Continuar al pago');
+    final formScroll=tester.widget<SingleChildScrollView>(
+      find.byKey(const Key('event-booking-form-scroll')));
+    expect(formScroll.controller?.hasClients,isTrue);
+    expect(formScroll.controller!.offset,greaterThan(0),
+      reason:'El campo enfocado debe desplazar el scroll sin escribir letras');
     expect(tester.takeException(), isNull);
 
     await tester.enterText(nameField, 'Cliente de prueba');
@@ -106,8 +117,7 @@ void main() {
       'Cliente de prueba');
     expect(find.text('Reservar puestos').last, findsOneWidget);
     final mailField = find.widgetWithText(TextFormField, 'Correo electrónico *');
-    await tester.ensureVisible(mailField);
-    await tester.tap(mailField);
+    await tester.showKeyboard(mailField);
     await tester.pumpAndSettle();
     expect(tester.getBottomRight(mailField).dy,
       lessThan(tester.getTopLeft(continueFixed).dy),
