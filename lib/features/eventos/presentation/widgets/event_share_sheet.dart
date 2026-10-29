@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:url_launcher/url_launcher.dart';
@@ -49,8 +50,14 @@ IconData shareIcon(ShareNetwork n) => switch(n) {
   ShareNetwork.email=>Icons.email_outlined,
 };
 
+/// Estas plataformas no ofrecen una URL web para crear publicaciones
+/// arbitrarias con el enlace. No fingir que se publicó el contenido.
 bool shareByCopy(ShareNetwork n)=>n==ShareNetwork.instagram||
     n==ShareNetwork.tiktok||n==ShareNetwork.threads;
+
+/// En navegadores integrados, abrir _blank puede ser bloqueado por WebKit.
+String? shareWebWindowName(ShareNetwork n,{required bool isWeb})=>
+  isWeb&&!shareByCopy(n)?'_self':null;
 
 Uri shareDestination(ShareNetwork n,String link,String title) {
   final message='Te invito a '+title;
@@ -126,16 +133,22 @@ class EventShareSheet extends StatelessWidget {
   }
   Future<void> open(BuildContext context,Uri target,String label)async {
     try{
-      if(!await launchUrl(target,mode:LaunchMode.externalApplication)) {
-        notify(context,'No se pudo abrir '+label);
-      }
-    }catch(_){notify(context,'No se pudo abrir '+label);}
+      // Iniciar la navegación directamente desde el toque para conservar
+      // el gesto de usuario que requieren Facebook y Safari iOS.
+      final launched=await launchUrl(target,
+        mode:kIsWeb?LaunchMode.platformDefault:LaunchMode.externalApplication,
+        webOnlyWindowName:kIsWeb?'_self':null);
+      if(!launched)notify(context,'No se pudo abrir $label. Usa Copiar enlace.');
+    }catch(_){notify(context,'No se pudo abrir $label. Usa Copiar enlace.');}
   }
   Future<void> share(BuildContext context,ShareNetwork network)async {
     if(shareByCopy(network)){
       if(!await copy(context))return;
-      if(!context.mounted)return;
+      if(context.mounted)notify(context,
+        'Enlace copiado. Abre ${shareLabel(network)} y pégalo en tu publicación.');
+      return;
     }
+    // Solo las redes con un endpoint real de compartir abren otra página.
     await open(context,shareDestination(network,link,
       event['titulo']?.toString()??'Evento'),shareLabel(network));
   }
@@ -195,7 +208,8 @@ class EventShareSheet extends StatelessWidget {
                       child:Column(children:[
                         Icon(shareIcon(n),color:itemFg,size:22),
                         const SizedBox(height:7),
-                        Text(shareLabel(n),maxLines:1,overflow:TextOverflow.ellipsis,
+                        Text(shareByCopy(n)?'Copiar para ${shareLabel(n)}':
+                          shareLabel(n),maxLines:1,overflow:TextOverflow.ellipsis,
                           style:TextStyle(color:itemFg,fontSize:11,
                             fontWeight:FontWeight.w800)),
                       ]),
@@ -205,7 +219,7 @@ class EventShareSheet extends StatelessWidget {
             ]);
           }),
           const SizedBox(height:12),
-          Text('Instagram, TikTok y Threads: copiamos el enlace y abrimos la red para pegarlo.',
+          Text('Instagram, TikTok y Threads no permiten publicar enlaces directamente desde la web. Su botón copia el enlace para pegarlo en la aplicación.',
             style:TextStyle(color:fg.withOpacity(.75),fontSize:12)),
           if(help!=null)...[
             const SizedBox(height:18),
