@@ -84,6 +84,9 @@ class _EventPublicLandingState extends State<EventPublicLanding>
   final _bookingNameFocus=FocusNode();
   final _bookingEmailFocus=FocusNode();
   final _bookingPhoneFocus=FocusNode();
+  // Controlador exclusivo del formulario: no desplazar el evento que queda
+  // detrás de la hoja cuando el teclado de un navegador integrado aparece.
+  final _bookingFormScroll=ScrollController();
   bool _bookingSheetShowing=false;
   bool _bookingRevealQueued=false;
 
@@ -91,6 +94,12 @@ class _EventPublicLandingState extends State<EventPublicLanding>
   void initState(){
     super.initState();
     WidgetsBinding.instance.addObserver(this);
+    for(final focus in <FocusNode>[
+      _bookingQuantityFocus,_bookingNameFocus,
+      _bookingEmailFocus,_bookingPhoneFocus,
+    ]){
+      focus.addListener(_revealFocusedBookingField);
+    }
   }
 
   @override
@@ -109,19 +118,22 @@ class _EventPublicLandingState extends State<EventPublicLanding>
         _bookingQuantityFocus,_bookingNameFocus,
         _bookingEmailFocus,_bookingPhoneFocus,
       ].where((node)=>node.hasFocus).firstOrNull;
-      final target=focused?.context;
-      if(target==null||!target.mounted)return;
-      // Se mueve el contenido del scroll interno, nunca la barra de acciones.
-      Scrollable.ensureVisible(target,
-        duration:const Duration(milliseconds:100),
-        curve:Curves.easeOut,
-        alignment:.14);
+      final target=focused?.context?.findRenderObject();
+      if(target==null||!target.attached||!_bookingFormScroll.hasClients)return;
+      // Pedir al scroll interno que alinee el campo cerca del borde superior
+      // evita que quede oculto por la barra fija o por el teclado iOS.
+      // Scrollable.ensureVisible podía desplazar también la página de fondo.
+      _bookingFormScroll.position.ensureVisible(target,
+        duration:const Duration(milliseconds:180),
+        curve:Curves.easeOutCubic,
+        alignment:.12);
     });
   }
 
   @override
   void dispose(){
     WidgetsBinding.instance.removeObserver(this);
+    _bookingFormScroll.dispose();
     _bookingQuantityFocus.dispose();
     _bookingNameFocus.dispose();
     _bookingEmailFocus.dispose();
@@ -367,12 +379,30 @@ class _EventPublicLandingState extends State<EventPublicLanding>
                         ]),
                       ),
                       Divider(height:1,color:palette.border),
-                      // Solo esta zona se desplaza; nunca el encabezado ni CTA.
-                      Flexible(child:SingleChildScrollView(
-                        key:const Key('event-booking-form-scroll'),
-                        keyboardDismissBehavior:ScrollViewKeyboardDismissBehavior.manual,
-                        padding:const EdgeInsets.fromLTRB(20,18,20,20),
-                        child:Form(key:formKey,child:Column(
+                      // Barra visible y arrastrable. El formulario permanece
+                      // desplazable incluso con el teclado abierto.
+                      Flexible(child:ScrollbarTheme(
+                        data:ScrollbarThemeData(
+                          thumbColor:WidgetStatePropertyAll(
+                            palette.accentOnSurface.withOpacity(.55)),
+                          trackColor:WidgetStatePropertyAll(
+                            palette.border.withOpacity(.14)),
+                          trackBorderColor:WidgetStatePropertyAll(
+                            palette.border.withOpacity(.3))),
+                        child:Scrollbar(
+                          key:const Key('event-booking-scrollbar'),
+                          controller:_bookingFormScroll,
+                          thumbVisibility:true,
+                          trackVisibility:true,
+                          interactive:true,
+                          thickness:5,
+                          radius:const Radius.circular(8),
+                          child:SingleChildScrollView(
+                            key:const Key('event-booking-form-scroll'),
+                            controller:_bookingFormScroll,
+                            keyboardDismissBehavior:ScrollViewKeyboardDismissBehavior.manual,
+                            padding:const EdgeInsets.fromLTRB(20,18,26,34),
+                            child:Form(key:formKey,child:Column(
                           mainAxisSize:MainAxisSize.min,
                           crossAxisAlignment:CrossAxisAlignment.stretch,
                           children:[
@@ -507,7 +537,9 @@ class _EventPublicLandingState extends State<EventPublicLanding>
                                 style:TextStyle(color:palette.muted,fontSize:12)),
                             ],
                           ],
-                        )),
+                            )),
+                          ),
+                        ),
                       )),
                       Divider(height:1,color:palette.border),
                       // Barra de acción fija mientras se escribe o se desplaza.
