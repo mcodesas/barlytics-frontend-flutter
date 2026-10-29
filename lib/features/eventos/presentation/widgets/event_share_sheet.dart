@@ -208,13 +208,13 @@ class _EventShareSheetState extends State<EventShareSheet> {
           if(_notice!=null)...[
             const SizedBox(height:12),
             Container(
-              key:_noticeKey,
+              key:const Key('event-social-share-notice'),
               padding:const EdgeInsets.symmetric(horizontal:12,vertical:11),
               decoration:BoxDecoration(
                 color:p.surfaceSoft,
                 border:Border.all(color:p.border),
                 borderRadius:BorderRadius.circular(11)),
-              child:Row(children:[
+              child:Row(key:_noticeKey,children:[
                 Icon(Icons.info_outline,color:p.accentOnSoft,size:18),
                 const SizedBox(width:9),
                 Expanded(child:Text(_notice!,
