@@ -77,6 +77,12 @@ void main() {
     expect(continueFixed, findsOneWidget);
     expect(tester.getTopLeft(header).dy, greaterThanOrEqualTo(0));
     expect(tester.getBottomRight(continueFixed).dy, lessThan(440));
+    // Antes de teclear, el nombre completo debe quedar encima de la barra
+    // fija. Era el defecto reproducido en el navegador de Facebook.
+    final nameBottom=tester.getBottomRight(nameField).dy;
+    final buttonTop=tester.getTopLeft(continueFixed).dy;
+    expect(nameBottom, lessThan(buttonTop),
+      reason:'El nombre no puede quedar detrás de Continuar al pago');
     expect(tester.takeException(), isNull);
 
     await tester.enterText(nameField, 'Cliente de prueba');
@@ -91,6 +97,11 @@ void main() {
     expect(find.text('Reservar puestos').last, findsOneWidget);
     final mailField = find.widgetWithText(TextFormField, 'Correo electrónico *');
     await tester.ensureVisible(mailField);
+    await tester.tap(mailField);
+    await tester.pumpAndSettle();
+    expect(tester.getBottomRight(mailField).dy,
+      lessThan(tester.getTopLeft(continueFixed).dy),
+      reason:'El correo debe permanecer visible con el teclado abierto');
     await tester.enterText(mailField, 'cliente@example.com');
     await tester.pumpAndSettle();
 
