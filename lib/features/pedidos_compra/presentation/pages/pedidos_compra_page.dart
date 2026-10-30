@@ -176,6 +176,7 @@ class _PedidosCompraPageState extends ConsumerState<PedidosCompraPage> {
     final accepted = await showDialog<bool>(
       context: context,
       builder: (dialogContext) => AlertDialog(
+        scrollable: true,
         title: Text('Recibir pedido #' + id.toString()),
         content: Text(
           'Se registrarán ' +
@@ -236,6 +237,7 @@ class _PedidosCompraPageState extends ConsumerState<PedidosCompraPage> {
     final accepted = await showDialog<bool>(
       context: context,
       builder: (dialogContext) => AlertDialog(
+        scrollable: true,
         title: Text('Eliminar pedido #' + id.toString()),
         content: const Text(
           '¿Confirmas que deseas eliminar este pedido? '
@@ -650,6 +652,7 @@ class _PedidosCompraPageState extends ConsumerState<PedidosCompraPage> {
     final accepted = await showDialog<bool>(
       context: context,
       builder: (dialogContext) => AlertDialog(
+        scrollable: true,
         title: const Text('Eliminar proveedor'),
         content: Text(
           '¿Eliminar ' +
