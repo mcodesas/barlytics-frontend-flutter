@@ -7756,6 +7756,29 @@ Future<Uint8List> _crearPdfCierreCaja(CierreCajaResumenModel cierre) async {
         ),
         pw.SizedBox(height: 8),
         pw.Text('Formula de cruce: total contado por medios + pagos/salidas del turno - base inicial = dinero real de ventas. Diferencia = cruce - total vendido.', style: const pw.TextStyle(fontSize: 8)),
+        if (cierre.cerrado == true && cierre.ventasPendientes.isNotEmpty) ...[
+          pw.SizedBox(height: 12),
+          pw.Text(
+            'ATENCIÓN: ${cierre.ventasPendientes.length} ventas posteriores por '
+            '${CurrencyUtils.format(cierre.totalVentasPendientes)} aún no forman parte de este cierre. '
+            'El efectivo contado originalmente no se ha modificado.',
+            style: pw.TextStyle(
+              color: PdfColor.fromHex('#9A3412'),
+              fontSize: 10,
+              fontWeight: pw.FontWeight.bold,
+            ),
+          ),
+          pw.SizedBox(height: 9),
+          pw.Table.fromTextArray(
+            headerDecoration: pw.BoxDecoration(color: PdfColor.fromHex('#FFEDD5')),
+            headers: const ['Venta', 'Fecha', 'Valor pendiente'],
+            data: cierre.ventasPendientes.map((venta) => [
+              venta.ventaId?.toString() ?? '-',
+              venta.fecha ?? '-',
+              CurrencyUtils.format(venta.total),
+            ]).toList(),
+          ),
+        ],
         sectionTitle('1. Medios de pago - recibido, contado y diferencia ajustada'),
         pw.Table.fromTextArray(
           headerDecoration: pw.BoxDecoration(color: PdfColor.fromHex('#E2E8F0')),
