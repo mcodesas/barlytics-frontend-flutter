@@ -471,6 +471,7 @@ class _AppScaffoldState extends ConsumerState<AppScaffold> {
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (dialogContext) => AlertDialog(
+        scrollable: true,
         title: const Text('Cerrar sesión'),
         content: const Text('¿Deseas salir de BarLytics en este dispositivo?'),
         actions: [
@@ -978,7 +979,8 @@ void _showContextHelp(BuildContext context, WidgetRef ref) {
   showDialog<void>(
     context: context,
     builder: (dialogContext) => AlertDialog(
-      title: Text(guide.title),
+      scrollable: true,
+        title: Text(guide.title),
       content: ConstrainedBox(
         constraints: const BoxConstraints(maxWidth: 440),
         child: SingleChildScrollView(
