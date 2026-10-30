@@ -172,11 +172,7 @@ class _ManualPurchaseOrderDialogState extends State<ManualPurchaseOrderDialog> {
                           );
                           return Padding(
                             padding: const EdgeInsets.symmetric(vertical: 8),
-                            child: SingleChildScrollView(
-                              scrollDirection: Axis.horizontal,
-                              child: SizedBox(
-                                width: math.max(410.0, width - 58),
-                                child: Row(
+                            child: Row(
                               children: [
                                 Checkbox(
                                   value: selectedCount > 0,
@@ -243,8 +239,6 @@ class _ManualPurchaseOrderDialogState extends State<ManualPurchaseOrderDialog> {
                                   ),
                                 ],
                               ],
-                                ),
-                              ),
                             ),
                           );
                         },

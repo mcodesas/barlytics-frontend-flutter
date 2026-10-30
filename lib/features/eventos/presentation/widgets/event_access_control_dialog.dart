@@ -300,7 +300,7 @@ class _EventAccessState extends ConsumerState<EventAccessControlDialog>{
       child:Wrap(spacing:12,runSpacing:8,
         crossAxisAlignment:WrapCrossAlignment.center,
         children:[
-          ConstrainedBox(constraints:BoxConstraints(maxWidth:MediaQuery.sizeOf(context).width < 400 ? MediaQuery.sizeOf(context).width - 90 : 220),child:Column(
+          SizedBox(width:220,child:Column(
             crossAxisAlignment:CrossAxisAlignment.start,children:[
               Text('${entry['nombre']??'Asistente'} · Entrada ${entry['numero']}',
                 style:const TextStyle(color:accessText,fontWeight:FontWeight.bold)),

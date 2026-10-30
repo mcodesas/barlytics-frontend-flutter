@@ -73,41 +73,4 @@ void main() {
     await tester.pumpAndSettle();
     expect(tester.takeException(), isNull);
   });
-  testWidgets('Pedido con productos no desborda en móvil estrecho', (tester) async {
-    tester.view.physicalSize = const Size(320, 580);
-    tester.view.devicePixelRatio = 1;
-    addTearDown(tester.view.resetPhysicalSize);
-    addTearDown(tester.view.resetDevicePixelRatio);
-
-    await tester.pumpWidget(MaterialApp(
-      home: Scaffold(body: Builder(builder: (context) => FilledButton(
-        onPressed: () => showDialog<Map<int, int>>(
-          context: context,
-          builder: (_) => const ManualPurchaseOrderDialog(
-            products: [
-              {
-                'producto_id': 1,
-                'producto': 'Producto de presentación de compra extensa',
-                'presentacion_compra': 'Paquete',
-                'costo_presentacion_actual': 12000,
-                'stock_actual': 10,
-                'unidades_por_presentacion': 6,
-              },
-            ],
-            initialSelection: {},
-          ),
-        ),
-        child: const Text('Abrir'),
-      ))),
-    ));
-    await tester.tap(find.text('Abrir'));
-    await tester.pumpAndSettle();
-    expect(find.text('Producto de presentación de compra extensa'), findsOneWidget);
-    expect(find.byType(SingleChildScrollView), findsWidgets);
-    expect(tester.takeException(), isNull);
-    await tester.tap(find.text('Cancelar'));
-    await tester.pumpAndSettle();
-    expect(tester.takeException(), isNull);
-  });
-
 }

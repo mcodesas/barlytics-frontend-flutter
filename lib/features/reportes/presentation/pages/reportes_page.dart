@@ -922,7 +922,6 @@ class _ReporteDetailState extends ConsumerState<_ReporteDetail> {
         }
 
         return AlertDialog(
-         scrollable: true,
           title: Text(
             'Quincena · ${_monthYearLabel(selectedMonth)}',
           ),
@@ -1037,7 +1036,6 @@ class _ReporteDetailState extends ConsumerState<_ReporteDetail> {
             }
 
             return AlertDialog(
-         scrollable: true,
               titlePadding: const EdgeInsets.fromLTRB(24, 20, 16, 8),
               contentPadding: const EdgeInsets.fromLTRB(20, 8, 20, 8),
               actionsPadding: const EdgeInsets.fromLTRB(16, 8, 16, 14),
@@ -4350,7 +4348,6 @@ class _NextOrderContentState extends ConsumerState<_NextOrderContent> {
     final chosen = await showDialog<double>(
       context: context,
       builder: (dialogContext) => AlertDialog(
-         scrollable: true,
         title: const Text('Pedir unidades exactas'),
         content: ConstrainedBox(
           constraints: const BoxConstraints(maxWidth: 420),
@@ -4570,7 +4567,6 @@ class _NextOrderContentState extends ConsumerState<_NextOrderContent> {
       context: context,
       builder: (dialogContext) => StatefulBuilder(
         builder: (context, setLocal) => AlertDialog(
-         scrollable: true,
           title: const Text('Distribuir productos por proveedor'),
           content: SizedBox(
             width: 680,
@@ -4851,7 +4847,6 @@ class _NextOrderContentState extends ConsumerState<_NextOrderContent> {
       final accepted = await showDialog<bool>(
         context: context,
         builder: (dialogContext) => AlertDialog(
-         scrollable: true,
           title: Text(
             groups.length == 1
                 ? 'Confirmar pedido'
@@ -5062,7 +5057,6 @@ class _NextOrderContentState extends ConsumerState<_NextOrderContent> {
     return showDialog<Map<String, dynamic>>(
       context: context,
       builder: (dialogContext) => AlertDialog(
-         scrollable: true,
         title: const Text('Selecciona el pedido a enviar'),
         content: SizedBox(
           width: 520,
@@ -5117,7 +5111,6 @@ class _NextOrderContentState extends ConsumerState<_NextOrderContent> {
       final confirmFirst = await showDialog<bool>(
         context: context,
         builder: (dialogContext) => AlertDialog(
-         scrollable: true,
           title: const Text('Confirmar antes de enviar'),
           content: const Text(
             'Para mantener la trazabilidad, primero se crearán los pedidos separados por proveedor/WhatsApp.',
