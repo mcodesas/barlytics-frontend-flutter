@@ -1186,7 +1186,8 @@ class _ProductosFormPageState extends ConsumerState<ProductosFormPage> {
         context: context,
         builder: (dialogContext) => StatefulBuilder(
           builder: (dialogContext, setDialogState) => AlertDialog(
-            scrollable: true,
+           scrollable: true,
+         scrollable: true,
             title: const Text('Agregar ingrediente'),
             content: SizedBox(
               width: 520,
@@ -1325,7 +1326,8 @@ class _ProductosFormPageState extends ConsumerState<ProductosFormPage> {
         context: context,
         builder: (ctx) => StatefulBuilder(
           builder: (ctx, update) => AlertDialog(
-            scrollable: true,
+           scrollable: true,
+         scrollable: true,
             title: const Text('Crear ingrediente / insumo'),
             content: SizedBox(
               width: 460,
@@ -1492,7 +1494,8 @@ class _ProductosFormPageState extends ConsumerState<ProductosFormPage> {
         context: context,
         builder: (dialogContext) => StatefulBuilder(
           builder: (dialogContext, setDialogState) => AlertDialog(
-            scrollable: true,
+           scrollable: true,
+         scrollable: true,
             title: const Text('Agregar adición al pedido'),
             content: SizedBox(
               width: 540,
@@ -1630,7 +1633,8 @@ class _ProductosFormPageState extends ConsumerState<ProductosFormPage> {
         context: context,
         builder: (ctx) => StatefulBuilder(
           builder: (ctx, update) => AlertDialog(
-            scrollable: true,
+           scrollable: true,
+         scrollable: true,
             title: const Text('Crear adición nueva'),
             content: SizedBox(
               width: 460,
@@ -2062,7 +2066,8 @@ class _ProductosFormPageState extends ConsumerState<ProductosFormPage> {
         context: context,
         barrierDismissible: false,
         builder: (dialogContext) => AlertDialog(
-          title: Row(
+          scrollable: true,
+        title: Row(
             children: [
               const Icon(Icons.check_circle_rounded, color: Colors.green),
               const SizedBox(width: 9),
@@ -2216,6 +2221,7 @@ class _ProductosFormPageState extends ConsumerState<ProductosFormPage> {
     return showDialog<bool>(
       context: context,
       builder: (_) => AlertDialog(
+        scrollable: true,
         title: Text(title),
         content: Form(
           key: formKey,
