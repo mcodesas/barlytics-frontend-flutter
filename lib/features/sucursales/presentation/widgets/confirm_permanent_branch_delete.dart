@@ -40,7 +40,8 @@ class _ConfirmPermanentBranchDeletionDialogState
     final isExactMatch = _confirmation.text.trim() == widget.branchName.trim();
     final theme = Theme.of(context);
     return AlertDialog(
-      title: Row(
+      scrollable: true,
+        title: Row(
         children: [
           const Icon(Icons.warning_amber_rounded, color: Colors.redAccent),
           const SizedBox(width: 10),
