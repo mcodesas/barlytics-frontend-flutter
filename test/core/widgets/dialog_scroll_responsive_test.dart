@@ -73,4 +73,74 @@ void main() {
     await tester.pumpAndSettle();
     expect(tester.takeException(), isNull);
   });
+  testWidgets('Pedido manual adapta controles en 320 px sin desbordar', (tester) async {
+    tester.view.physicalSize = const Size(320, 580);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    await tester.pumpWidget(MaterialApp(
+      home: Scaffold(
+        body: Builder(builder: (context) => FilledButton(
+          onPressed: () => showDialog<Map<int, int>>(
+            context: context,
+            builder: (_) => const ManualPurchaseOrderDialog(
+              products: [
+                {
+                  'producto_id': 7,
+                  'producto': 'Cerveza de presentación extensa',
+                  'presentacion_compra': 'Caja de seis',
+                  'costo_presentacion_actual': 12000,
+                  'stock_actual': 30,
+                  'unidades_por_presentacion': 6,
+                },
+              ],
+              initialSelection: {},
+            ),
+          ),
+          child: const Text('Abrir productos'),
+        )),
+      ),
+    ));
+    await tester.tap(find.text('Abrir productos'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Cerveza de presentación extensa'), findsOneWidget);
+    expect(find.byTooltip('Aumentar paquetes o presentaciones'), findsOneWidget);
+    expect(tester.takeException(), isNull);
+
+    await tester.tap(find.byTooltip('Aumentar paquetes o presentaciones'));
+    await tester.pumpAndSettle();
+    expect(find.text('Agregar 1 producto'), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('Pedido manual conserva botones cuando el teclado ocupa espacio', (tester) async {
+    tester.view.physicalSize = const Size(360, 690);
+    tester.view.devicePixelRatio = 1;
+    tester.view.viewInsets = const FakeViewPadding(bottom: 240);
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    addTearDown(tester.view.resetViewInsets);
+
+    await tester.pumpWidget(MaterialApp(
+      home: Scaffold(
+        body: Builder(builder: (context) => FilledButton(
+          onPressed: () => showDialog<void>(
+            context: context,
+            builder: (_) => const ManualPurchaseOrderDialog(
+              products: [],
+              initialSelection: {},
+            ),
+          ),
+          child: const Text('Abrir pedido'),
+        )),
+      ),
+    ));
+    await tester.tap(find.text('Abrir pedido'));
+    await tester.pumpAndSettle();
+    expect(find.text('Cancelar'), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
+
 }
