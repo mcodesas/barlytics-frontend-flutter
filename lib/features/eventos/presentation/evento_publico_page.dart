@@ -109,6 +109,7 @@ class _PublicState extends ConsumerState<EventoPublicoPage>{
         ?Colors.black:Colors.white);
     final shouldPay=directPayment?true:await showDialog<bool>(
       context:context,builder:(ctx)=>AlertDialog(
+        scrollable: true,
       backgroundColor:palette.surface,
       shape:RoundedRectangleBorder(borderRadius:BorderRadius.circular(18),
         side:BorderSide(color:palette.border)),
