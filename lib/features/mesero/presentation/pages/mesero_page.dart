@@ -6073,9 +6073,12 @@ class _SalidaCajaDialogState extends State<_SalidaCajaDialog> {
     final size = MediaQuery.sizeOf(context);
     final mobile = size.width < 700;
     final dialogWidth = mobile ? size.width - 20 : 680.0;
-    final dialogHeight = mobile
-        ? size.height - 20
-        : (size.height - 48 < 720 ? size.height - 48 : 720.0);
+    // Dialog descuenta el teclado y los márgenes: no debe forzar una altura
+    // mayor que el espacio visible cuando se editan campos desde el móvil.
+    final visibleHeight = size.height - MediaQuery.viewInsetsOf(context).bottom;
+    final dialogHeight = (visibleHeight - (mobile ? 36.0 : 48.0))
+        .clamp(0.0, mobile ? visibleHeight : 720.0)
+        .toDouble();
 
     return SizedBox(
       width: dialogWidth,
