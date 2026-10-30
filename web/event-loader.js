@@ -30,12 +30,17 @@
       ? raw.trim() : fallback;
   const channel = (value) =>
     value <= .04045 ? value / 12.92 : Math.pow((value + .055) / 1.055, 2.4);
-  const isLight = (hex) => {
+  const luminance = (hex) => {
     const value = parseInt(hex.slice(1), 16);
     const r = channel(((value >> 16) & 255) / 255);
     const g = channel(((value >> 8) & 255) / 255);
     const b = channel((value & 255) / 255);
-    return .2126 * r + .7152 * g + .0722 * b > .38;
+    return .2126 * r + .7152 * g + .0722 * b;
+  };
+  const isLight = (hex) => luminance(hex) > .38;
+  const contrast = (a, b) => {
+    const x = luminance(a) + .05, y = luminance(b) + .05;
+    return Math.max(x, y) / Math.min(x, y);
   };
   const validImage = (raw) => {
     if (typeof raw !== 'string') return null;
@@ -54,10 +59,14 @@
     if (!data || typeof data !== 'object' || loader.classList.contains('barlytics-loader--hidden')) return;
     const background = validColor(data.colorFondo, '#102735');
     const accent = validColor(data.colorPrimario, '#35D0C5');
-    const foreground = validColor(data.colorTexto, isLight(background)
+    const selectedText = validColor(data.colorTexto, isLight(background)
       ? '#211B18' : '#F2FBFF');
-    // Contraste de texto y spinner para paletas personalizadas.
-    const ink = isLight(background) ? '#211B18' : '#F2FBFF';
+    // Las combinaciones personalizadas pueden ser ilegibles. Igual que
+    // EventPagePalette.readable, privilegiar contraste suficiente.
+    const ink = contrast('#000000', background) >=
+      contrast('#FFFFFF', background) ? '#000000' : '#FFFFFF';
+    const foreground = contrast(selectedText, background) >= 4.5
+      ? selectedText : ink;
     loader.style.setProperty('--event-loader-bg', background);
     loader.style.setProperty('--event-loader-accent', accent);
     loader.style.setProperty('--event-loader-ink', foreground);
