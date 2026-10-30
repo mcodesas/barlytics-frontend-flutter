@@ -425,16 +425,25 @@ class _EventosAdminState extends ConsumerState<EventosAdminPage>{
                   ],
                  ));
                 if(accept!=true||!dialog.mounted)return;
+                String title='Entradas enviadas';
+                String message='El servicio de correo aceptó el envío de las entradas a $to.';
                 try{
                  await ref.read(eventosApiProvider).reenviarEntradas(asId(r['eres_id'])!);
-                 if(!dialog.mounted)return;
-                 ScaffoldMessenger.of(dialog).showSnackBar(SnackBar(
-                  content:Text('Entradas reenviadas a $to')));
                 }catch(e){
-                 if(!dialog.mounted)return;
-                 ScaffoldMessenger.of(dialog).showSnackBar(SnackBar(
-                  content:Text('No fue posible reenviar: ${niceEventError(e)}')));
+                 title='No se pudieron reenviar';
+                 message=niceEventError(e);
                 }
+                if(!dialog.mounted)return;
+                await showDialog<void>(
+                 context:dialog,
+                 builder:(alert)=>AlertDialog(
+                  title:Text(title),
+                  content:Text(message),
+                  actions:[
+                   FilledButton(onPressed:()=>Navigator.of(alert).pop(),
+                    child:const Text('Entendido')),
+                  ],
+                 ));
                },
                icon:const Icon(Icons.forward_to_inbox_outlined,size:18),
                label:const Text('Reenviar entradas'),
