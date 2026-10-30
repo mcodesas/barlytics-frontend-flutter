@@ -402,6 +402,7 @@ class _InventarioListPageState extends ConsumerState<InventarioListPage> {
       context: context,
       builder: (dialogContext) => StatefulBuilder(
         builder: (context, setDialogState) => AlertDialog(
+      scrollable: true,
           title: const Text('Sincronizar diferencias'),
           content: SizedBox(
             width: 560,
