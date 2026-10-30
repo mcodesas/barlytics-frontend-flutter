@@ -446,6 +446,7 @@ class _ReadyOrderNotificationHostState
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (dialogContext) => AlertDialog(
+        scrollable: true,
         title: const Text('Confirmar entrega'),
         content: Text(
           '${notification.mensaje}\n\n¿Confirmas que este producto ya fue entregado a la mesa?',
