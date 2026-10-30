@@ -251,6 +251,7 @@ class _GastosFijosPageState extends ConsumerState<GastosFijosPage> {
           if (labor) type = 'VARIABLE';
 
           return AlertDialog(
+        scrollable: true,
             title: Text(current == null ? 'Nuevo gasto' : 'Editar gasto'),
             content: SizedBox(
               width: math.min(MediaQuery.sizeOf(ctx).width * .86, 600),
@@ -1366,6 +1367,7 @@ class _LaborDialogState extends State<_LaborDialog> {
     final name = await showDialog<String>(
       context: context,
       builder: (ctx) => AlertDialog(
+        scrollable: true,
         title: const Row(
           children: [
             Icon(Icons.badge_outlined),
@@ -2449,6 +2451,7 @@ class _EditLaborRateDialogState extends State<_EditLaborRateDialog> {
         );
 
     return AlertDialog(
+        scrollable: true,
       title: Row(
         children: [
           Icon(Icons.edit_calendar_outlined, color: widget.palette.secondary),
