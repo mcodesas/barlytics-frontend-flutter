@@ -156,6 +156,7 @@ class _EventAccessState extends ConsumerState<EventAccessControlDialog>{
   }
 
   @override Widget build(BuildContext context){
+    final media=MediaQuery.of(context);
     final entries=(overview?['entradas'] as List? ??const [])
       .map((x)=>Map<String,dynamic>.from(x as Map)).toList();
     final query=filter.text.trim().toLowerCase();
@@ -168,8 +169,11 @@ class _EventAccessState extends ConsumerState<EventAccessControlDialog>{
       insetPadding:const EdgeInsets.all(12),
       shape:RoundedRectangleBorder(borderRadius:BorderRadius.circular(20)),
       child:ConstrainedBox(
-        constraints:BoxConstraints(maxWidth:850,
-          maxHeight:MediaQuery.sizeOf(context).height*.94),
+        constraints:BoxConstraints(
+          maxWidth:850,
+          maxHeight:(media.size.height-media.viewInsets.bottom-32)
+            .clamp(160.0,media.size.height*.94).toDouble(),
+        ),
         child:Column(mainAxisSize:MainAxisSize.min,children:[
           Padding(padding:const EdgeInsets.fromLTRB(17,13,9,9),
             child:Row(children:[
