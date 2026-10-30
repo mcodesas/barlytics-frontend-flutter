@@ -10,6 +10,7 @@ Future<bool> showConfirmationDialog(
   final result = await showDialog<bool>(
     context: context,
     builder: (context) => AlertDialog(
+        scrollable: true,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(26)),
       title: Row(
         children: [
