@@ -20,6 +20,7 @@ Future<bool> printTicketOverLan(BuildContext context, int branchId, String ticke
         : await showDialog<(String, int)>(
       context: context,
       builder: (dialogContext) => AlertDialog(
+        scrollable: true,
         title: Text(station == 'cocina' ? 'Impresora de cocina' : 'Imprimir por Wi-Fi / LAN'),
         content: SizedBox(
           width: 420,
