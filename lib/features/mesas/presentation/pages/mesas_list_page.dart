@@ -744,6 +744,7 @@ class _MesasListPageState extends ConsumerState<MesasListPage> {
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (dialogContext) => AlertDialog(
+        scrollable: true,
         title: Text('Inactivar mesa ${table.number}'),
         content: const Text(
           'Si tiene histórico, la mesa se conservará como inactiva. Si nunca se ha utilizado, el backend puede eliminarla definitivamente.',
