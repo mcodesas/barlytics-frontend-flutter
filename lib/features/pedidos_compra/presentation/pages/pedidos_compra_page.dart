@@ -1,3 +1,4 @@
+import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
@@ -349,9 +350,10 @@ class _PedidosCompraPageState extends ConsumerState<PedidosCompraPage> {
                     : 'Editar proveedor / WhatsApp',
               ),
               content: SizedBox(
-                width: 680,
-                child: ConstrainedBox(
-                  constraints: const BoxConstraints(maxHeight: 680),
+                width: math.min(MediaQuery.sizeOf(context).width * .86, 680.0),
+                child: SingleChildScrollView(
+                  key: const Key('proveedor-dialog-scroll'),
+                  keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
                   child: Column(
                     mainAxisSize: MainAxisSize.min,
                     children: [
@@ -457,7 +459,9 @@ class _PedidosCompraPageState extends ConsumerState<PedidosCompraPage> {
                         },
                       ),
                       const SizedBox(height: 8),
-                      Flexible(
+                      SizedBox(
+                        height: math.min(260.0,
+                            math.max(120.0, MediaQuery.sizeOf(context).height * .31)),
                         child: Container(
                           decoration: BoxDecoration(
                             border: Border.all(color: Theme.of(context).dividerColor),
