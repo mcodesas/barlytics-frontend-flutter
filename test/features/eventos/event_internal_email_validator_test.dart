@@ -10,7 +10,7 @@ void main() {
     expect(validateInternalBookingEmail('nombre@dominio'), isNotNull);
     expect(validateInternalBookingEmail('nombre@@dominio.com'), isNotNull);
     expect(validateInternalBookingEmail('nombre con espacio@dominio.com'), isNotNull);
-    expect(validateInternalBookingEmail('${'x'*212}@dominio.com'), isNotNull);
+    expect(validateInternalBookingEmail(List.filled(212, 'x').join() + '@dominio.com'), isNotNull);
     expect(validateInternalBookingEmail('cliente@example.com'), isNull);
     expect(validateInternalBookingEmail(' cliente@example.com '), isNull);
   });
