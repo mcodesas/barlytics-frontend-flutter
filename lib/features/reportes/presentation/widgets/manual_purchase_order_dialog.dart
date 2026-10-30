@@ -53,7 +53,11 @@ class _ManualPurchaseOrderDialogState extends State<ManualPurchaseOrderDialog> {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final width = MediaQuery.sizeOf(context).width;
+    final media = MediaQuery.of(context);
+    final width = media.size.width;
+    final compactHeight = media.viewInsets.bottom > 0 || media.size.height < 610;
+    final availableHeight = media.size.height -
+        media.padding.vertical - media.viewInsets.bottom - 48;
     final query = _search.text.trim().toLowerCase();
     final filtered = widget.products.where((product) {
       final name = (product['producto'] ?? '').toString().toLowerCase();
@@ -68,14 +72,10 @@ class _ManualPurchaseOrderDialogState extends State<ManualPurchaseOrderDialog> {
         width: math.min(width - 24, 750.0),
         height: math.min(
           730.0,
-          math.max(
-            310.0,
-            MediaQuery.sizeOf(context).height -
-                MediaQuery.viewInsetsOf(context).bottom - 65,
-          ),
+          math.max(180.0, availableHeight),
         ),
         child: Padding(
-          padding: const EdgeInsets.all(16),
+          padding: EdgeInsets.all(compactHeight ? 10 : 16),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
@@ -96,12 +96,14 @@ class _ManualPurchaseOrderDialogState extends State<ManualPurchaseOrderDialog> {
                   ),
                 ],
               ),
-              const SizedBox(height: 5),
-              Text(
-                'Elige los productos y las cantidades de compra. No es necesario que el inventario esté por debajo del mínimo.',
-                style: theme.textTheme.bodyMedium,
-              ),
-              const SizedBox(height: 15),
+              if (!compactHeight) ...[
+                const SizedBox(height: 5),
+                Text(
+                  'Elige los productos y las cantidades de compra. No es necesario que el inventario esté por debajo del mínimo.',
+                  style: theme.textTheme.bodyMedium,
+                ),
+              ],
+              SizedBox(height: compactHeight ? 5 : 15),
               TextField(
                 controller: _search,
                 autofocus: true,
@@ -120,6 +122,7 @@ class _ManualPurchaseOrderDialogState extends State<ManualPurchaseOrderDialog> {
                         ),
                 ),
               ),
+              if (!compactHeight) ...[
               const SizedBox(height: 10),
               Row(
                 children: [
@@ -135,6 +138,7 @@ class _ManualPurchaseOrderDialogState extends State<ManualPurchaseOrderDialog> {
                   ),
                 ],
               ),
+              ],
               const Divider(height: 8),
               Expanded(
                 child: filtered.isEmpty
