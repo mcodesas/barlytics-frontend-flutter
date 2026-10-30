@@ -51,3 +51,7 @@ void _renderTheme() {
   html.document.documentElement?.style.setProperty('color-scheme', scheme);
   html.document.body?.style.setProperty('color-scheme', scheme);
 }
+
+/// El splash HTML escucha el evento una vez Flutter ha pintado el resultado.
+void completeEventBrowserLoader() =>
+  html.window.dispatchEvent(html.Event('barlytics-event-ready'));
