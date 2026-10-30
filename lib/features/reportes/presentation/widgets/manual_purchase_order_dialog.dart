@@ -66,12 +66,14 @@ class _ManualPurchaseOrderDialogState extends State<ManualPurchaseOrderDialog> {
       insetPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 18),
       child: SizedBox(
         width: math.min(width - 24, 750.0),
+        // Nunca imponer un mínimo superior al espacio real disponible:
+        // antes, el mínimo de 310 px se salía de la pantalla con teclado.
         height: math.min(
           730.0,
           math.max(
-            310.0,
+            100.0,
             MediaQuery.sizeOf(context).height -
-                MediaQuery.viewInsetsOf(context).bottom - 65,
+                MediaQuery.viewInsetsOf(context).bottom - 52,
           ),
         ),
         child: Padding(
