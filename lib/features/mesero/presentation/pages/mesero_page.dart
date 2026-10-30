@@ -3106,6 +3106,7 @@ class _MeseroPageState extends ConsumerState<MeseroPage> {
     final confirm = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
+        scrollable: true,
         title: Text('Eliminar mesa ${mesa.mesaNumero ?? '-'}'),
         content: const Text('Si la mesa no tiene datos relacionados se eliminará. Si tiene histórico se marcará como inactiva.'),
         actions: [
@@ -3241,6 +3242,7 @@ class _MeseroPageState extends ConsumerState<MeseroPage> {
     final confirm = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
+        scrollable: true,
         title: const Text('Eliminar venta directa'),
         content: Text(
           'Se eliminará la Venta directa #$ventaId${productos > 0 ? ' y sus $productos productos pendientes' : ''}.\n\n'
@@ -3897,6 +3899,7 @@ class _MeseroPageState extends ConsumerState<MeseroPage> {
     final confirm = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
+        scrollable: true,
         title: const Text('Liberar mesa'),
         content: const Text(
           'Esta venta no tiene productos registrados. Se eliminarán las cuentas vacías, se cancelará la venta abierta y la mesa quedará disponible.',
@@ -3946,6 +3949,7 @@ class _MeseroPageState extends ConsumerState<MeseroPage> {
     final confirm = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
+        scrollable: true,
         title: const Text('Eliminar pago registrado'),
         content: Text(
           'Se eliminará el pago de ${CurrencyUtils.format(pago.valor)} realizado con '
@@ -4126,6 +4130,7 @@ class _MeseroPageState extends ConsumerState<MeseroPage> {
     final opcion = await showDialog<String>(
       context: context,
       builder: (ctx) => AlertDialog(
+        scrollable: true,
         title: const Text('Cobro registrado'),
         content: const Text('¿Deseas entregar un comprobante al cliente?'),
         actions: [
@@ -4167,6 +4172,7 @@ class _MeseroPageState extends ConsumerState<MeseroPage> {
     final email = await showDialog<String>(
       context: context,
       builder: (ctx) => AlertDialog(
+        scrollable: true,
         title: const Text('¿Enviar comprobante al cliente?'),
         content: Column(
           mainAxisSize: MainAxisSize.min,
@@ -4227,6 +4233,7 @@ class _MeseroPageState extends ConsumerState<MeseroPage> {
     final confirm = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
+        scrollable: true,
         title: const Text('Finalizar venta'),
         content: Text(
           _esVentaDirecta(venta)
@@ -4289,6 +4296,7 @@ class _MeseroPageState extends ConsumerState<MeseroPage> {
     final confirm = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
+        scrollable: true,
         title: const Text('Eliminar cuenta vacía'),
         content: Text(
           'Se eliminará $nombreCuenta.\n\n'
@@ -4448,6 +4456,7 @@ class _MeseroPageState extends ConsumerState<MeseroPage> {
     final confirm = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
+        scrollable: true,
         title: const Text('Eliminar producto no pagado'),
         content: Text(
           'Se eliminará de ${_cuentaEtiquetaVisible(cuenta)} el producto:\n\n'
@@ -4688,6 +4697,7 @@ class _MeseroPageState extends ConsumerState<MeseroPage> {
         builder: (context) {
           final palette = ref.watch(selectedAppPaletteProvider);
           return AlertDialog(
+        scrollable: true,
             backgroundColor: palette.surface,
             title: Text('Registrar base inicial', style: TextStyle(color: palette.textPrimary, fontWeight: FontWeight.w900)),
             content: SizedBox(
@@ -4917,6 +4927,7 @@ class _MeseroPageState extends ConsumerState<MeseroPage> {
     final confirmado = await showDialog<bool>(
       context: context,
       builder: (dialogContext) => AlertDialog(
+        scrollable: true,
         title: const Text('Anular salida de caja'),
         content: Text(
           'Se anulará ${salida.descripcion ?? 'esta salida'} por '
@@ -15378,6 +15389,7 @@ class _DetalleHistorialVentaPageState extends ConsumerState<_DetalleHistorialVen
     final email = await showDialog<String>(
       context: context,
       builder: (dialogContext) => AlertDialog(
+        scrollable: true,
         title: const Text('Enviar comprobante por correo'),
         content: TextField(
           controller: controller,
@@ -19841,6 +19853,7 @@ class _SumarCantidadProductoDialogState extends ConsumerState<_SumarCantidadProd
     final valorUnitario = producto.valorUnitario ?? 0;
 
     return AlertDialog(
+        scrollable: true,
       backgroundColor: palette.surface.withOpacity(palette.darkBackground ? 0.97 : 0.995),
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(24),
@@ -20164,6 +20177,7 @@ class _AgregarProductosOverlayPanelState extends ConsumerState<_AgregarProductos
     final confirmar = await showDialog<bool>(
       context: context,
       builder: (dialogContext) => AlertDialog(
+        scrollable: true,
         title: const Text('Quitar producto de la venta'),
         content: Text('¿Quieres eliminar $nombre de esta venta directa?'),
         actions: [
@@ -21253,6 +21267,7 @@ class _CantidadProductoExistenteDialogState extends ConsumerState<_CantidadProdu
         ((widget.producto.valorUnitario ?? 0) +
             (widget.producto.precioAdicionalUnitario ?? 0));
     return AlertDialog(
+        scrollable: true,
       backgroundColor: palette.surface.withOpacity(0.99),
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24), side: BorderSide(color: palette.secondary.withOpacity(0.18))),
       title: Text('Modificar cantidad', style: TextStyle(color: palette.textPrimary, fontWeight: FontWeight.w900)),
@@ -21440,6 +21455,7 @@ class _CantidadAgregarDesdePanelDialogState extends ConsumerState<_CantidadAgreg
     final palette = ref.watch(selectedAppPaletteProvider);
     final cantidad = _parse() ?? 0;
     return AlertDialog(
+        scrollable: true,
       backgroundColor: palette.surface.withOpacity(0.99),
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(26),
@@ -21892,6 +21908,7 @@ class _CantidadProductoDialogState extends ConsumerState<_CantidadProductoDialog
     final total = cantidad * precio;
 
     return AlertDialog(
+        scrollable: true,
       backgroundColor: palette.surface.withOpacity(palette.darkBackground ? 0.96 : 0.99),
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24), side: BorderSide(color: palette.cardBorder)),
       title: Text('Cantidad del producto', style: TextStyle(color: palette.textPrimary, fontWeight: FontWeight.w900)),
