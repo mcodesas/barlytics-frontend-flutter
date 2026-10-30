@@ -251,7 +251,8 @@ class _GastosFijosPageState extends ConsumerState<GastosFijosPage> {
           if (labor) type = 'VARIABLE';
 
           return AlertDialog(
-            title: Text(current == null ? 'Nuevo gasto' : 'Editar gasto'),
+            scrollable: true,
+        title: Text(current == null ? 'Nuevo gasto' : 'Editar gasto'),
             content: SizedBox(
               width: math.min(MediaQuery.sizeOf(ctx).width * .86, 600),
               child: Form(
@@ -490,6 +491,7 @@ class _GastosFijosPageState extends ConsumerState<GastosFijosPage> {
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
+        scrollable: true,
         title: const Text('Desactivar gasto'),
         content: Text(
           '¿Deseas desactivar "${item['gafiNombre'] ?? 'este gasto'}"?',
@@ -1363,6 +1365,7 @@ class _LaborDialogState extends State<_LaborDialog> {
     final name = await showDialog<String>(
       context: context,
       builder: (ctx) => AlertDialog(
+        scrollable: true,
         title: const Row(
           children: [
             Icon(Icons.badge_outlined),
@@ -1507,6 +1510,7 @@ class _LaborDialogState extends State<_LaborDialog> {
     final ok = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
+        scrollable: true,
         title: const Text('Renombrar cargo'),
         content: TextField(
           controller: controller,
@@ -1552,6 +1556,7 @@ class _LaborDialogState extends State<_LaborDialog> {
     final ok = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
+        scrollable: true,
         title: const Text('Desactivar cargo'),
         content: Text(
           '¿Deseas desactivar "$name"? El histórico de tarifas se conserva.',
@@ -1657,6 +1662,7 @@ class _LaborDialogState extends State<_LaborDialog> {
     final ok = await showDialog<bool>(
       context: context,
       builder: (dialogContext) => AlertDialog(
+        scrollable: true,
         title: const Row(
           children: [
             Icon(Icons.event_busy_outlined),
@@ -2183,7 +2189,8 @@ class _LaborDialogState extends State<_LaborDialog> {
     final height = math.max(180.0, math.min(size.height - keyboard - 156, 720.0));
 
     return AlertDialog(
-      insetPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+      scrollable: true,
+        insetPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
       contentPadding: const EdgeInsets.fromLTRB(14, 8, 14, 14),
       titlePadding: const EdgeInsets.fromLTRB(16, 12, 10, 0),
       title: Row(
@@ -2421,7 +2428,8 @@ class _EditLaborRateDialogState extends State<_EditLaborRateDialog> {
         );
 
     return AlertDialog(
-      title: Row(
+      scrollable: true,
+        title: Row(
         children: [
           Icon(Icons.edit_calendar_outlined, color: widget.palette.secondary),
           const SizedBox(width: 10),
