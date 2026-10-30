@@ -147,6 +147,63 @@
       transition: opacity 260ms ease, visibility 260ms ease;
     }
 
+    /* En enlaces públicos el splash adopta la paleta real del evento. */
+    #barlytics-loader.barlytics-loader--event {
+      --event-loader-bg: #102735;
+      --event-loader-accent: #35d0c5;
+      --event-loader-ink: #f2fbff;
+      --event-loader-muted: #bdcbd0;
+      color: var(--event-loader-ink);
+      background: var(--event-loader-bg);
+      background: radial-gradient(circle at 50% 38%,
+        color-mix(in srgb, var(--event-loader-accent) 16%, transparent),
+        transparent 58%), var(--event-loader-bg);
+    }
+
+    #barlytics-loader.barlytics-loader--event .barlytics-loader__logo,
+    #barlytics-loader:not(.barlytics-loader--event) .barlytics-loader__event {
+      display: none;
+    }
+
+    .barlytics-loader__event {
+      width: min(430px, 92vw);
+      text-align: center;
+    }
+    .barlytics-loader__event-logo {
+      display: none;
+      width: 108px;
+      height: 108px;
+      border-radius: 23px;
+      object-fit: cover;
+      margin: 0 auto 20px;
+      border: 1px solid color-mix(in srgb, var(--event-loader-accent) 35%, transparent);
+      box-shadow: 0 18px 48px rgba(0, 0, 0, .15);
+    }
+    .barlytics-loader__event-venue {
+      color: var(--event-loader-ink);
+      font-size: clamp(22px, 5vw, 28px);
+      line-height: 1.2;
+      font-weight: 800;
+      margin: 0 0 8px;
+      overflow-wrap: anywhere;
+    }
+    .barlytics-loader__event-title {
+      color: var(--event-loader-muted);
+      font-size: 14px;
+      line-height: 1.5;
+      font-weight: 600;
+      margin: 0 auto 19px;
+      overflow-wrap: anywhere;
+    }
+    #barlytics-loader.barlytics-loader--event .barlytics-loader__spinner {
+      border-color: color-mix(in srgb, var(--event-loader-accent) 20%, transparent);
+      border-top-color: var(--event-loader-accent);
+      margin: 7px auto 12px;
+    }
+    #barlytics-loader.barlytics-loader--event .barlytics-loader__status {
+      color: var(--event-loader-muted);
+    }
+
     #barlytics-loader.barlytics-loader--hidden {
       opacity: 0;
       visibility: hidden;
@@ -206,6 +263,11 @@
   <div id="barlytics-loader" role="status" aria-live="polite" aria-label="Cargando BarLytics">
     <div class="barlytics-loader__content">
       <img class="barlytics-loader__logo" src="branding/barlytics-logo-light.png" alt="BarLytics">
+      <div class="barlytics-loader__event" aria-label="Preparando el evento">
+        <img class="barlytics-loader__event-logo" alt="Logo de la sucursal" />
+        <h1 class="barlytics-loader__event-venue">Preparando tu evento</h1>
+        <p class="barlytics-loader__event-title">Cargando los detalles y las reservas</p>
+      </div>
       <div class="barlytics-loader__spinner" aria-hidden="true"></div>
       <div class="barlytics-loader__status">Iniciando BarLytics...</div>
     </div>
@@ -246,10 +308,23 @@
           window.setTimeout(() => loader.remove(), 320);
         }));
       };
-      window.addEventListener('flutter-first-frame', hideLoader, { once: true });
+      // En una página pública la primera imagen de Flutter todavía puede
+      // ser el estado de carga genérico; esperar hasta que la API del evento
+      // haya respondido y Flutter haya dibujado la página real.
+      const route = location.hash.startsWith('#/')
+        ? location.hash.slice(1) : location.pathname;
+      const eventRoute = /^\/evento\/([^/?#]+)\/?$/.test(route);
+      if (eventRoute) {
+        window.addEventListener('barlytics-event-ready', hideLoader, { once: true });
+        // Un error de red o Flutter jamás debe dejar la página cubierta.
+        window.setTimeout(hideLoader, 12000);
+      } else {
+        window.addEventListener('flutter-first-frame', hideLoader, { once: true });
+      }
     })();
   </script>
 
+  <script src="event-loader.js"></script>
   <script src="flutter_bootstrap.js" async></script>
 </body>
 </html>
