@@ -349,6 +349,7 @@ class _ProductosSetupToolsState extends ConsumerState<ProductosSetupTools> {
     await showDialog<void>(
       context: context,
       builder: (context) => AlertDialog(
+        scrollable: true,
         title: Text(title),
         content: SizedBox(
           width: 560,
@@ -566,7 +567,8 @@ class _BaseCatalogDialogState extends State<_BaseCatalogDialog> {
         selectable.every((item) => _selected.contains(item.catalogId));
 
     return AlertDialog(
-      insetPadding: const EdgeInsets.all(12),
+      scrollable: true,
+        insetPadding: const EdgeInsets.all(12),
       titlePadding: const EdgeInsets.fromLTRB(20, 18, 12, 0),
       contentPadding: const EdgeInsets.fromLTRB(20, 14, 20, 0),
       actionsPadding: const EdgeInsets.fromLTRB(16, 10, 16, 14),
@@ -1137,7 +1139,8 @@ class _CopyProductsDialogState extends State<_CopyProductsDialog> {
     }).toList(growable: false);
 
     return AlertDialog(
-      title: const Text('Seleccionar productos para la nueva sucursal'),
+      scrollable: true,
+        title: const Text('Seleccionar productos para la nueva sucursal'),
       content: SizedBox(
         width: 760,
         height: 580,
