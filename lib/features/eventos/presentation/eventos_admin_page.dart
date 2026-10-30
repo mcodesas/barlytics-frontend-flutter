@@ -117,7 +117,7 @@ class _EventosAdminState extends ConsumerState<EventosAdminPage>{
     backgroundColor:eventSurface,
     shape:RoundedRectangleBorder(borderRadius:BorderRadius.circular(22)),
     insetPadding:const EdgeInsets.all(12),
-    child:SizedBox(width:MediaQuery.sizeOf(dialog).width>1450?1360.0:MediaQuery.sizeOf(dialog).width*.94,
+    child:SizedBox(width:math.min(1360.0,MediaQuery.sizeOf(dialog).width-24),
       height:math.min(MediaQuery.sizeOf(dialog).height*.93,
         _eventDialogAvailableHeight(dialog)),
      child:EventoEditor(initial:event,
@@ -1975,8 +1975,9 @@ class _EventEditorState extends ConsumerState<EventoEditor>{
     insetPadding:const EdgeInsets.all(12),
     shape:RoundedRectangleBorder(borderRadius:BorderRadius.circular(18)),
     child:SizedBox(
-     width:MediaQuery.sizeOf(dialog).width>1320?1180.0:MediaQuery.sizeOf(dialog).width*.95,
-     height:MediaQuery.sizeOf(dialog).height*.92,
+     width:math.min(1180.0,MediaQuery.sizeOf(dialog).width-24),
+     height:math.min(MediaQuery.sizeOf(dialog).height*.92,
+       _eventDialogAvailableHeight(dialog)),
      child:ProductosFormPage(embedded:true,sucursalId:branchId)),
    ),
   );
