@@ -59,6 +59,8 @@ void main() {
       'lib/features/productos/presentation/widgets/productos_setup_tools.dart',
       'lib/features/empresas/presentation/pages/empresas_form_page.dart',
       'lib/features/eventos/presentation/eventos_admin_page.dart',
+      'lib/features/eventos/presentation/evento_publico_page.dart',
+      'lib/features/sucursales/presentation/widgets/confirm_permanent_branch_delete.dart',
       'lib/core/printing/network_ticket_dialog.dart',
     ];
     for (final path in paths) {
