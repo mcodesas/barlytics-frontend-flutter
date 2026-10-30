@@ -1218,6 +1218,7 @@ class _LaborDialog extends StatefulWidget {
 
 class _LaborDialogState extends State<_LaborDialog> {
   final TextEditingController value = TextEditingController();
+  final ScrollController _mobileScroll = ScrollController();
   final NumberFormat money = NumberFormat.currency(
     locale: 'es_CO',
     symbol: r'$',
@@ -1243,6 +1244,7 @@ class _LaborDialogState extends State<_LaborDialog> {
 
   @override
   void dispose() {
+    _mobileScroll.dispose();
     value.dispose();
     super.dispose();
   }
@@ -2286,8 +2288,10 @@ class _LaborDialogState extends State<_LaborDialog> {
                           Expanded(
                             child: mobile
                                 ? Scrollbar(
+                                    controller: _mobileScroll,
                                     thumbVisibility: true,
                                     child: SingleChildScrollView(
+                                      controller: _mobileScroll,
                                       key: const Key('labor-dialog-mobile-scroll'),
                                       keyboardDismissBehavior:
                                           ScrollViewKeyboardDismissBehavior.onDrag,
