@@ -1745,38 +1745,7 @@ class _LaborDialogState extends State<_LaborDialog> {
     setState(() => days = {...presetDays});
   }
 
-  Widget _rolesPane() => Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            'Cargos de trabajo',
-            style: TextStyle(
-              color: widget.palette.textPrimary,
-              fontSize: 16,
-              fontWeight: FontWeight.w900,
-            ),
-          ),
-          const SizedBox(height: 4),
-          Text(
-            'Cada cargo puede tener una tarifa diferente según los días de la semana.',
-            style: TextStyle(
-              color: widget.palette.textSecondary,
-              fontSize: 12,
-              height: 1.3,
-            ),
-          ),
-          const SizedBox(height: 12),
-          SizedBox(
-            width: double.infinity,
-            child: FilledButton.icon(
-              onPressed: saving ? null : _addRole,
-              icon: const Icon(Icons.add),
-              label: const Text('Crear cargo'),
-            ),
-          ),
-          const SizedBox(height: 12),
-          Expanded(
-            child: cargos.isEmpty
+  Widget _rolesContent() => cargos.isEmpty
                 ? Center(
                     child: Padding(
                       padding: const EdgeInsets.all(12),
@@ -1906,12 +1875,56 @@ class _LaborDialogState extends State<_LaborDialog> {
                         ),
                       );
                     },
-                  ),
+                  );
+
+  Widget _rolesPane({bool compact = false}) => Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            'Cargos de trabajo',
+            style: TextStyle(
+              color: widget.palette.textPrimary,
+              fontSize: 16,
+              fontWeight: FontWeight.w900,
+            ),
           ),
+          const SizedBox(height: 4),
+          Text(
+            'Cada cargo puede tener una tarifa diferente según los días de la semana.',
+            style: TextStyle(
+              color: widget.palette.textSecondary,
+              fontSize: 12,
+              height: 1.3,
+            ),
+          ),
+          const SizedBox(height: 12),
+          SizedBox(
+            width: double.infinity,
+            child: FilledButton.icon(
+              onPressed: saving ? null : _addRole,
+              icon: const Icon(Icons.add),
+              label: const Text('Crear cargo'),
+            ),
+          ),
+          const SizedBox(height: 12),
+          if (compact)
+            SizedBox(height: 220, child: _rolesContent())
+          else
+            Expanded(child: _rolesContent()),
         ],
       );
 
-  Widget _configurationPane() {
+  Widget _rateHistory(List<Map<String, dynamic>> currentRates) =>
+      _RatesList(
+            rates: currentRates,
+            palette: widget.palette,
+            money: money,
+            busy: saving,
+            onEdit: _editRate,
+            onDelete: _deleteRate,
+          );
+
+  Widget _configurationPane({bool compact = false}) {
     if (selected == null) {
       return Center(
         child: Text(
@@ -2165,16 +2178,10 @@ class _LaborDialogState extends State<_LaborDialog> {
           ),
         ),
         const SizedBox(height: 8),
-        Expanded(
-          child: _RatesList(
-            rates: selectedRates,
-            palette: widget.palette,
-            money: money,
-            busy: saving,
-            onEdit: _editRate,
-            onDelete: _deleteRate,
-          ),
-        ),
+        if (compact)
+          SizedBox(height: 230, child: _rateHistory(selectedRates))
+        else
+          Expanded(child: _rateHistory(selectedRates)),
       ],
     );
   }
@@ -2266,8 +2273,6 @@ class _LaborDialogState extends State<_LaborDialog> {
                           // En pantallas pequeñas ambos paneles van dentro
                           // de UN scroll general. Cada lista conserva además
                           // su propio desplazamiento, sin un Column desbordado.
-                          final textScale =
-                              MediaQuery.textScalerOf(context).scale(16) / 16;
                           return SingleChildScrollView(
                             key: const Key('labor-dialog-mobile-scroll'),
                             keyboardDismissBehavior:
@@ -2276,15 +2281,9 @@ class _LaborDialogState extends State<_LaborDialog> {
                             child: Column(
                               crossAxisAlignment: CrossAxisAlignment.stretch,
                               children: [
-                                SizedBox(
-                                  height: 220 * math.max(1.0, textScale),
-                                  child: _rolesPane(),
-                                ),
+                                _rolesPane(compact: true),
                                 const Divider(height: 28),
-                                SizedBox(
-                                  height: 880 * math.max(1.0, textScale),
-                                  child: _configurationPane(),
-                                ),
+                                _configurationPane(compact: true),
                               ],
                             ),
                           );
