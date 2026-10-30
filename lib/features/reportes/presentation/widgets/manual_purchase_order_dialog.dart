@@ -170,10 +170,43 @@ class _ManualPurchaseOrderDialogState extends State<ManualPurchaseOrderDialog> {
                           final selectedPresentation = OrderWhatsappMessageFormatter.purchaseQuantityLabel(
                             product, presentations: selectedCount, units: selectedCount * factor,
                           );
+                          final quantityControls = Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                                  IconButton(
+                                    visualDensity: VisualDensity.compact,
+                                    tooltip: 'Disminuir paquetes o presentaciones',
+                                    onPressed: selectedCount == 0
+                                        ? null
+                                        : () => _change(id, selectedCount - 1),
+                                    icon: const Icon(Icons.remove_circle_outline),
+                                  ),
+                                  SizedBox(
+                                    width: 34,
+                                    child: Text(
+                                      selectedCount.toString(),
+                                      textAlign: TextAlign.center,
+                                      style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 15),
+                                    ),
+                                  ),
+                                  IconButton(
+                                    visualDensity: VisualDensity.compact,
+                                    tooltip: 'Aumentar paquetes o presentaciones',
+                                    onPressed: () => _change(id, selectedCount + 1),
+                                    icon: const Icon(Icons.add_circle_outline),
+                                  ),
+                            ],
+                          );
                           return Padding(
                             padding: const EdgeInsets.symmetric(vertical: 8),
-                            child: Row(
-                              children: [
+                            child: LayoutBuilder(
+                              builder: (context, itemConstraints) {
+                                final compactItem = itemConstraints.maxWidth < 430;
+                                return Column(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    Row(
+                                      children: [
                                 Checkbox(
                                   value: selectedCount > 0,
                                   onChanged: !available
@@ -214,31 +247,17 @@ class _ManualPurchaseOrderDialogState extends State<ManualPurchaseOrderDialog> {
                                     ],
                                   ),
                                 ),
-                                if (available) ...[
-                                  IconButton(
-                                    visualDensity: VisualDensity.compact,
-                                    tooltip: 'Disminuir paquetes o presentaciones',
-                                    onPressed: selectedCount == 0
-                                        ? null
-                                        : () => _change(id, selectedCount - 1),
-                                    icon: const Icon(Icons.remove_circle_outline),
-                                  ),
-                                  SizedBox(
-                                    width: 34,
-                                    child: Text(
-                                      selectedCount.toString(),
-                                      textAlign: TextAlign.center,
-                                      style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 15),
+                                if (available && !compactItem) quantityControls,
+                                      ],
                                     ),
-                                  ),
-                                  IconButton(
-                                    visualDensity: VisualDensity.compact,
-                                    tooltip: 'Aumentar paquetes o presentaciones',
-                                    onPressed: () => _change(id, selectedCount + 1),
-                                    icon: const Icon(Icons.add_circle_outline),
-                                  ),
-                                ],
-                              ],
+                                    if (available && compactItem)
+                                      Align(
+                                        alignment: Alignment.centerRight,
+                                        child: quantityControls,
+                                      ),
+                                  ],
+                                );
+                              },
                             ),
                           );
                         },
