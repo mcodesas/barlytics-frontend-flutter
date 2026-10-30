@@ -108,8 +108,11 @@ class _EventosAdminState extends ConsumerState<EventosAdminPage>{
     backgroundColor:eventSurface,
     shape:RoundedRectangleBorder(borderRadius:BorderRadius.circular(22)),
     insetPadding:const EdgeInsets.all(12),
-    child:SizedBox(width:MediaQuery.sizeOf(dialog).width>1450?1360.0:MediaQuery.sizeOf(dialog).width*.94,
-      height:MediaQuery.sizeOf(dialog).height*.93,
+    child:SizedBox(
+      width:(MediaQuery.sizeOf(dialog).width-36).clamp(180.0,1360.0).toDouble(),
+      height:(MediaQuery.sizeOf(dialog).height-
+        MediaQuery.viewInsetsOf(dialog).bottom-36).clamp(
+        120.0,MediaQuery.sizeOf(dialog).height*.93).toDouble(),
      child:EventoEditor(initial:event,
       onSaved:(row)=>Navigator.of(dialog).pop(row))),
    ),
@@ -292,7 +295,10 @@ class _EventosAdminState extends ConsumerState<EventosAdminPage>{
     shape:RoundedRectangleBorder(borderRadius:BorderRadius.circular(22)),
     child:ConstrainedBox(
      constraints:BoxConstraints(
-      maxWidth:890,maxHeight:MediaQuery.sizeOf(dialog).height*.89),
+      maxWidth:890,
+      maxHeight:(MediaQuery.sizeOf(dialog).height-
+       MediaQuery.viewInsetsOf(dialog).bottom-48)
+       .clamp(140.0,MediaQuery.sizeOf(dialog).height*.89).toDouble()),
      child:Padding(padding:const EdgeInsets.all(19),
       child:Column(crossAxisAlignment:CrossAxisAlignment.start,children:[
        Row(children:[
@@ -1962,8 +1968,10 @@ class _EventEditorState extends ConsumerState<EventoEditor>{
     insetPadding:const EdgeInsets.all(12),
     shape:RoundedRectangleBorder(borderRadius:BorderRadius.circular(18)),
     child:SizedBox(
-     width:MediaQuery.sizeOf(dialog).width>1320?1180.0:MediaQuery.sizeOf(dialog).width*.95,
-     height:MediaQuery.sizeOf(dialog).height*.92,
+     width:(MediaQuery.sizeOf(dialog).width-36).clamp(180.0,1180.0).toDouble(),
+     height:(MediaQuery.sizeOf(dialog).height-
+       MediaQuery.viewInsetsOf(dialog).bottom-36).clamp(
+       120.0,MediaQuery.sizeOf(dialog).height*.92).toDouble(),
      child:ProductosFormPage(embedded:true,sucursalId:branchId)),
    ),
   );
