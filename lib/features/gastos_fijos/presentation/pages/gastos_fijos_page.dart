@@ -1743,38 +1743,10 @@ class _LaborDialogState extends State<_LaborDialog> {
     setState(() => days = {...presetDays});
   }
 
-  Widget _rolesPane() => Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            'Cargos de trabajo',
-            style: TextStyle(
-              color: widget.palette.textPrimary,
-              fontSize: 16,
-              fontWeight: FontWeight.w900,
-            ),
-          ),
-          const SizedBox(height: 4),
-          Text(
-            'Cada cargo puede tener una tarifa diferente según los días de la semana.',
-            style: TextStyle(
-              color: widget.palette.textSecondary,
-              fontSize: 12,
-              height: 1.3,
-            ),
-          ),
-          const SizedBox(height: 12),
-          SizedBox(
-            width: double.infinity,
-            child: FilledButton.icon(
-              onPressed: saving ? null : _addRole,
-              icon: const Icon(Icons.add),
-              label: const Text('Crear cargo'),
-            ),
-          ),
-          const SizedBox(height: 12),
-          Expanded(
-            child: cargos.isEmpty
+  // La lista forma parte del scroll general en móvil; en escritorio usa
+  // su propia área flexible para mantener el panel dividido.
+  Widget _roleList({bool embedded = false}) {
+    return cargos.isEmpty
                 ? Center(
                     child: Padding(
                       padding: const EdgeInsets.all(12),
@@ -1808,6 +1780,10 @@ class _LaborDialogState extends State<_LaborDialog> {
                     ),
                   )
                 : ListView.separated(
+                    shrinkWrap: embedded,
+                    physics: embedded
+                        ? const NeverScrollableScrollPhysics()
+                        : null,
                     itemCount: cargos.length,
                     separatorBuilder: (_, __) => const SizedBox(height: 7),
                     itemBuilder: (_, index) {
@@ -1904,8 +1880,43 @@ class _LaborDialogState extends State<_LaborDialog> {
                         ),
                       );
                     },
-                  ),
+                  );
+  }
+
+  Widget _rolesPane({bool embedded = false}) => Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            'Cargos de trabajo',
+            style: TextStyle(
+              color: widget.palette.textPrimary,
+              fontSize: 16,
+              fontWeight: FontWeight.w900,
+            ),
           ),
+          const SizedBox(height: 4),
+          Text(
+            'Cada cargo puede tener una tarifa diferente según los días de la semana.',
+            style: TextStyle(
+              color: widget.palette.textSecondary,
+              fontSize: 12,
+              height: 1.3,
+            ),
+          ),
+          const SizedBox(height: 12),
+          SizedBox(
+            width: double.infinity,
+            child: FilledButton.icon(
+              onPressed: saving ? null : _addRole,
+              icon: const Icon(Icons.add),
+              label: const Text('Crear cargo'),
+            ),
+          ),
+          const SizedBox(height: 12),
+          if (embedded)
+            _roleList(embedded: true)
+          else
+            Expanded(child: _roleList()),
         ],
       );
 
@@ -2164,16 +2175,14 @@ class _LaborDialogState extends State<_LaborDialog> {
         ),
         const SizedBox(height: 8),
         if (mobile)
-          SizedBox(
-            height: math.min(300.0, math.max(100.0, selectedRates.length * 78.0 + 35)),
-            child: _RatesList(
-              rates: selectedRates,
-              palette: widget.palette,
-              money: money,
-              busy: saving,
-              onEdit: _editRate,
-              onDelete: _deleteRate,
-            ),
+          _RatesList(
+            rates: selectedRates,
+            palette: widget.palette,
+            money: money,
+            busy: saving,
+            embedded: true,
+            onEdit: _editRate,
+            onDelete: _deleteRate,
           )
         else
           Expanded(
@@ -2288,13 +2297,7 @@ class _LaborDialogState extends State<_LaborDialog> {
                                         crossAxisAlignment:
                                             CrossAxisAlignment.stretch,
                                         children: [
-                                          SizedBox(
-                                            height: math.min(
-                                                310.0,
-                                                math.max(250.0,
-                                                  cargos.length * 78.0 + 155.0)),
-                                            child: _rolesPane(),
-                                          ),
+                                          _rolesPane(embedded: true),
                                           const Divider(height: 24),
                                           _configurationPane(mobile: true),
                                         ],
@@ -2525,6 +2528,7 @@ class _RatesList extends StatelessWidget {
   final AppPalette palette;
   final NumberFormat money;
   final bool busy;
+  final bool embedded;
   final ValueChanged<Map<String, dynamic>> onEdit;
   final ValueChanged<Map<String, dynamic>> onDelete;
 
@@ -2533,6 +2537,7 @@ class _RatesList extends StatelessWidget {
     required this.palette,
     required this.money,
     required this.busy,
+    this.embedded = false,
     required this.onEdit,
     required this.onDelete,
   });
@@ -2588,6 +2593,8 @@ class _RatesList extends StatelessWidget {
     });
 
     return ListView.separated(
+      shrinkWrap: embedded,
+      physics: embedded ? const NeverScrollableScrollPhysics() : null,
       itemCount: visibleRates.length,
       separatorBuilder: (_, __) => const SizedBox(height: 7),
       itemBuilder: (_, index) {
