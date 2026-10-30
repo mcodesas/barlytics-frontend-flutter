@@ -263,7 +263,14 @@ class _MediosPagoListPageState extends ConsumerState<MediosPagoListPage> {
         elevation: 0,
         backgroundColor: Colors.transparent,
         insetPadding: const EdgeInsets.all(24),
-        child: Container(
+        child: ConstrainedBox(
+          constraints: BoxConstraints(
+            maxHeight: MediaQuery.sizeOf(context).height * .75,
+            maxWidth: 460,
+          ),
+          child: SingleChildScrollView(
+            key: const Key('medio-pago-qr-dialog-scroll'),
+            child: Container(
           constraints: const BoxConstraints(maxWidth: 460),
           padding: const EdgeInsets.all(20),
           decoration: BoxDecoration(
@@ -309,6 +316,8 @@ class _MediosPagoListPageState extends ConsumerState<MediosPagoListPage> {
                 label: const Text('Reemplazar QR'),
               ),
             ],
+          ),
+        ),
           ),
         ),
       ),
