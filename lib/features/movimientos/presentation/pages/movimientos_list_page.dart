@@ -610,7 +610,8 @@ class _MovimientosListPageState extends ConsumerState<MovimientosListPage> {
           context: context,
           barrierColor: Colors.black.withOpacity(0.72),
           builder: (dialogContext) => AlertDialog(
-            backgroundColor: palette.surface,
+            scrollable: true,
+        backgroundColor: palette.surface,
             elevation: 24,
             shape: RoundedRectangleBorder(
               borderRadius: BorderRadius.circular(palette.radius(24)),
@@ -1731,7 +1732,8 @@ class _QuantityDialogState extends State<_QuantityDialog> {
   Widget build(BuildContext context) {
     final palette = widget.palette;
     return AlertDialog(
-      backgroundColor: palette.surface,
+      scrollable: true,
+        backgroundColor: palette.surface,
       elevation: 24,
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(palette.radius(24)),
@@ -1964,7 +1966,8 @@ class _MovementDirectionDialog extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return AlertDialog(
-      backgroundColor: palette.surface,
+      scrollable: true,
+        backgroundColor: palette.surface,
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(palette.radius(22)),
       ),
