@@ -1905,7 +1905,7 @@ class _LaborDialogState extends State<_LaborDialog> {
         ],
       );
 
-  Widget _configurationPane() {
+  Widget _configurationPane({bool mobile = false}) {
     if (selected == null) {
       return Center(
         child: Text(
@@ -2159,122 +2159,162 @@ class _LaborDialogState extends State<_LaborDialog> {
           ),
         ),
         const SizedBox(height: 8),
-        Expanded(
-          child: _RatesList(
-            rates: selectedRates,
-            palette: widget.palette,
-            money: money,
-            busy: saving,
-            onEdit: _editRate,
-            onDelete: _deleteRate,
+        if (mobile)
+          SizedBox(
+            height: math.min(300, math.max(100, selectedRates.length * 78.0 + 35)),
+            child: _RatesList(
+              rates: selectedRates,
+              palette: widget.palette,
+              money: money,
+              busy: saving,
+              onEdit: _editRate,
+              onDelete: _deleteRate,
+            ),
+          )
+        else
+          Expanded(
+            child: _RatesList(
+              rates: selectedRates,
+              palette: widget.palette,
+              money: money,
+              busy: saving,
+              onEdit: _editRate,
+              onDelete: _deleteRate,
+            ),
           ),
-        ),
       ],
     );
   }
 
   @override
   Widget build(BuildContext context) {
-    final size = MediaQuery.sizeOf(context);
-    final width = math.min(size.width * .94, 980.0);
-    final height = math.min(size.height * .82, 680.0);
+    final media = MediaQuery.of(context);
+    final size = media.size;
+    // Dialog ya respeta el teclado y los safe areas del sistema. Reservar
+    // un margen adicional evita que iPhone y navegadores oculten acciones.
+    final availableHeight = size.height -
+        media.padding.vertical - media.viewInsets.bottom - 40;
+    final height = math.min(720.0, math.max(180.0, availableHeight));
+    final width = math.min(980.0, math.max(280.0, size.width - 32));
+    final mobile = size.width < 760;
 
-    return AlertDialog(
-      titlePadding: const EdgeInsets.fromLTRB(24, 18, 12, 0),
-      title: Row(
-        children: [
-          const Icon(Icons.groups_2_outlined),
-          const SizedBox(width: 10),
-          Expanded(
-            child: Text(
-              'Mano de obra',
-              style: TextStyle(
-                color: widget.palette.textPrimary,
-                fontWeight: FontWeight.w900,
-              ),
-            ),
-          ),
-          IconButton(
-            tooltip: 'Cerrar',
-            onPressed: saving ? null : () => Navigator.pop(context),
-            icon: const Icon(Icons.close),
-          ),
-        ],
-      ),
-      content: SizedBox(
+    return Dialog(
+      insetPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+      clipBehavior: Clip.antiAlias,
+      child: SizedBox(
         width: width,
         height: height,
-        child: loading
-            ? const Center(child: AppLoader())
-            : Column(
+        child: Column(
+          children: [
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 12, 8, 8),
+              child: Row(
                 children: [
-                  if (loadWarning != null) ...[
-                    Container(
-                      width: double.infinity,
-                      padding: const EdgeInsets.all(12),
-                      decoration: BoxDecoration(
-                        color: widget.palette.warning.withOpacity(.10),
-                        borderRadius: BorderRadius.circular(12),
-                        border: Border.all(
-                          color: widget.palette.warning.withOpacity(.35),
-                        ),
-                      ),
-                      child: Row(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Icon(
-                            Icons.warning_amber_rounded,
-                            color: widget.palette.warning,
-                          ),
-                          const SizedBox(width: 10),
-                          Expanded(
-                            child: Text(
-                              loadWarning!,
-                              style: TextStyle(
-                                color: widget.palette.textPrimary,
-                                fontSize: 12,
-                                height: 1.3,
-                              ),
-                            ),
-                          ),
-                          IconButton(
-                            tooltip: 'Reintentar',
-                            onPressed: saving ? null : () => _load(),
-                            icon: const Icon(Icons.refresh),
-                          ),
-                        ],
-                      ),
-                    ),
-                    const SizedBox(height: 12),
-                  ],
+                  const Icon(Icons.groups_2_outlined),
+                  const SizedBox(width: 10),
                   Expanded(
-                    child: LayoutBuilder(
-                      builder: (_, constraints) {
-                        if (constraints.maxWidth < 760) {
-                          return Column(
-                            children: [
-                              SizedBox(height: 260, child: _rolesPane()),
-                              const Divider(height: 24),
-                              Expanded(child: _configurationPane()),
-                            ],
-                          );
-                        }
-
-                        return Row(
-                          children: [
-                            SizedBox(width: 300, child: _rolesPane()),
-                            const VerticalDivider(width: 28),
-                            Expanded(child: _configurationPane()),
-                          ],
-                        );
-                      },
+                    child: Text(
+                      'Mano de obra',
+                      style: TextStyle(
+                        color: widget.palette.textPrimary,
+                        fontWeight: FontWeight.w900,
+                        fontSize: 18,
+                      ),
                     ),
+                  ),
+                  IconButton(
+                    tooltip: 'Cerrar',
+                    onPressed: saving ? null : () => Navigator.pop(context),
+                    icon: const Icon(Icons.close),
                   ),
                 ],
               ),
+            ),
+            const Divider(height: 1),
+            Expanded(
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(14, 12, 14, 10),
+                child: loading
+                    ? const Center(child: AppLoader())
+                    : Column(
+                        children: [
+                          if (loadWarning != null)
+                            Container(
+                              width: double.infinity,
+                              margin: const EdgeInsets.only(bottom: 10),
+                              padding: const EdgeInsets.all(10),
+                              decoration: BoxDecoration(
+                                color: widget.palette.warning.withOpacity(.10),
+                                borderRadius: BorderRadius.circular(12),
+                                border: Border.all(
+                                  color: widget.palette.warning.withOpacity(.35),
+                                ),
+                              ),
+                              child: Row(
+                                children: [
+                                  Icon(Icons.warning_amber_rounded,
+                                      color: widget.palette.warning),
+                                  const SizedBox(width: 8),
+                                  Expanded(child: Text(
+                                    loadWarning!,
+                                    style: TextStyle(
+                                      color: widget.palette.textPrimary,
+                                      fontSize: 12,
+                                    ),
+                                  )),
+                                  IconButton(
+                                    tooltip: 'Reintentar',
+                                    onPressed: saving ? null : _load,
+                                    icon: const Icon(Icons.refresh),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          Expanded(
+                            child: mobile
+                                ? Scrollbar(
+                                    thumbVisibility: true,
+                                    child: SingleChildScrollView(
+                                      key: const Key('labor-dialog-mobile-scroll'),
+                                      keyboardDismissBehavior:
+                                          ScrollViewKeyboardDismissBehavior.onDrag,
+                                      padding: const EdgeInsets.only(
+                                          right: 8, bottom: 28),
+                                      child: Column(
+                                        crossAxisAlignment:
+                                            CrossAxisAlignment.stretch,
+                                        children: [
+                                          SizedBox(
+                                            height: math.min(
+                                                260.0,
+                                                math.max(170.0,
+                                                  cargos.length * 72.0 + 112)),
+                                            child: _rolesPane(),
+                                          ),
+                                          const Divider(height: 24),
+                                          _configurationPane(mobile: true),
+                                        ],
+                                      ),
+                                    ),
+                                  )
+                                : Row(
+                                    children: [
+                                      SizedBox(width: 300, child: _rolesPane()),
+                                      const VerticalDivider(width: 28),
+                                      Expanded(child: _configurationPane()),
+                                    ],
+                                  ),
+                          ),
+                        ],
+                      ),
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
+
 }
 
 /// Edita una sola tarifa ya registrada; nunca modifica ni elimina el cargo.
