@@ -2161,7 +2161,7 @@ class _LaborDialogState extends State<_LaborDialog> {
         const SizedBox(height: 8),
         if (mobile)
           SizedBox(
-            height: math.min(300, math.max(100, selectedRates.length * 78.0 + 35)),
+            height: math.min(300.0, math.max(100.0, selectedRates.length * 78.0 + 35)),
             child: _RatesList(
               rates: selectedRates,
               palette: widget.palette,
