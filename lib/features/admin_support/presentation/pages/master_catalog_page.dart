@@ -52,6 +52,7 @@ class _MasterCatalogPageState extends ConsumerState<MasterCatalogPage> {
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (dialogContext) => AlertDialog(
+        scrollable: true,
         title: Text(active ? 'Inactivar producto' : 'Activar producto'),
         content: Text('El cambio afecta solo el catálogo para nuevas empresas. '
             'No altera productos ya importados. ¿Continuar con ' +
