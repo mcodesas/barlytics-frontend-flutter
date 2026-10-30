@@ -59,7 +59,9 @@ class _EventAccessState extends ConsumerState<EventAccessControlDialog>{
       return;
     }
     setState((){scanning=true;preview=null;result=null;error=null;});
-    await Future<void>.delayed(Duration.zero);
+    // Abrir la cámara solo cuando su widget ya está insertado en el árbol.
+    await WidgetsBinding.instance.endOfFrame;
+    if(!mounted)return;
     try{await scanner.start();}
     catch(e){
       if(mounted)setState((){
