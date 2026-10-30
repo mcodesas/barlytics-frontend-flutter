@@ -6,6 +6,10 @@ import 'event_browser_theme_bridge_stub.dart'
 String eventBrowserThemeHex(Color color) =>
     '#${(color.toARGB32() & 0xFFFFFF).toRadixString(16).padLeft(6, '0').toUpperCase()}';
 
+/// Se llama después de dibujar la página del evento (o el error), para
+/// quitar el splash HTML sin mostrar un fotograma de carga genérica.
+void completeEventBrowserLoader() => browser.completeEventBrowserLoader();
+
 /// Mantiene el color del navegador sincronizado con la página pública.
 /// Restaura el tema anterior cuando se cierra una entrada o se sale del evento.
 /// En web el navegador puede ignorar theme-color en su interfaz nativa.
