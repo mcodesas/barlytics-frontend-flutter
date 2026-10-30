@@ -23,6 +23,8 @@
     return;
   }
 
+  // Activa el muestreador WebKit antes de consultar la paleta.
+  document.documentElement.setAttribute('data-barlytics-event-chrome', '');
   loader.classList.add('barlytics-loader--event');
   loader.setAttribute('aria-label', 'Cargando evento');
   const name = loader.querySelector('.barlytics-loader__event-venue');
@@ -82,6 +84,11 @@
     document.documentElement.style.setProperty('color-scheme', scheme);
     document.body.style.setProperty('color-scheme', scheme);
 
+    // Para Safari 26 el meta theme-color no basta: el sampler del borde
+    // utiliza la MISMA variable que la pantalla de carga.
+    document.documentElement.style.setProperty(
+      '--barlytics-event-chrome-color', background);
+    window.barlyticsRefreshSafariChrome?.();
     document.documentElement.style.setProperty('background-color', background, 'important');
     document.body.style.setProperty('background-color', background, 'important');
     document.querySelectorAll('meta[name="theme-color"]').forEach((element) => {
