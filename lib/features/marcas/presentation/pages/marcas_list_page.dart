@@ -262,7 +262,9 @@ class _MarcasListPageState extends ConsumerState<MarcasListPage> {
           builder: (context) => Dialog(
             elevation: 0,
             backgroundColor: Colors.transparent,
-            child: Container(
+            child: SingleChildScrollView(
+                keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
+                child: Container(
               constraints: const BoxConstraints(maxWidth: 440),
               padding: const EdgeInsets.all(22),
               decoration: BoxDecoration(
@@ -314,6 +316,7 @@ class _MarcasListPageState extends ConsumerState<MarcasListPage> {
                 ],
               ),
             ),
+              ),
           ),
         ) ??
         false;
