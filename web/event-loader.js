@@ -61,7 +61,10 @@
     loader.style.setProperty('--event-loader-accent', accent);
     loader.style.setProperty('--event-loader-ink', foreground);
     loader.style.setProperty('--event-loader-muted', ink);
-    loader.style.colorScheme = isLight(background) ? 'light' : 'dark';
+    const scheme = isLight(background) ? 'light' : 'dark';
+    loader.style.colorScheme = scheme;
+    document.documentElement.style.setProperty('color-scheme', scheme);
+    document.body.style.setProperty('color-scheme', scheme);
 
     document.documentElement.style.setProperty('background-color', background, 'important');
     document.body.style.setProperty('background-color', background, 'important');
@@ -97,5 +100,10 @@
     return response.json();
   }).then(apply).catch(() => {
     // Se conserva la pantalla neutral; Flutter mostrará el error real.
-  }).finally(() => window.clearTimeout(timeout));
+  }).finally(() => {
+    window.clearTimeout(timeout);
+    // La pantalla HTML solo se oculta cuando el tema y Flutter estén listos.
+    // También se dispara en error: el usuario nunca queda bloqueado.
+    window.dispatchEvent(new Event('barlytics-event-brand-ready'));
+  });
 })();
