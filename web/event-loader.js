@@ -96,9 +96,27 @@
     }
     const source = validImage(data.fotoSucursal) || validImage(data.logo);
     if (logo && source) {
-      logo.onload = () => { logo.style.display = 'block'; };
-      logo.onerror = () => { logo.style.display = 'none'; };
-      logo.src = source;
+      // Dar a la imagen un momento para cargar antes de retirar el splash.
+      // La espera tiene un límite: una foto lenta nunca bloquea el evento.
+      return new Promise((resolve) => {
+        let resolved = false;
+        const finish = () => {
+          if (resolved) return;
+          resolved = true;
+          window.clearTimeout(imageTimeout);
+          resolve();
+        };
+        const imageTimeout = window.setTimeout(finish, 1000);
+        logo.onload = () => {
+          logo.style.display = 'block';
+          finish();
+        };
+        logo.onerror = () => {
+          logo.style.display = 'none';
+          finish();
+        };
+        logo.src = source;
+      });
     }
   };
 
