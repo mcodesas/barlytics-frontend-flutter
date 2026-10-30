@@ -5675,6 +5675,7 @@ class _MeseroPageState extends ConsumerState<MeseroPage> {
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (dialogContext) => AlertDialog(
+        scrollable: true,
         title: const Text('Conciliar ventas posteriores'),
         content: SizedBox(
           width: 470,
@@ -19701,6 +19702,7 @@ class _MoverProductoCuentaDialogState extends State<_MoverProductoCuentaDialog> 
         1;
 
     return AlertDialog(
+        scrollable: true,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
       title: const Text('Pasar producto a otra cuenta'),
       content: SizedBox(
@@ -21619,6 +21621,7 @@ class _PersonalizarProductoDialogState
         .toList(growable: false);
 
     return AlertDialog(
+        scrollable: true,
       backgroundColor:
           palette.surface.withOpacity(palette.darkBackground ? .98 : 1),
       shape: RoundedRectangleBorder(
@@ -22079,6 +22082,7 @@ class _CrearMesaDialogState extends State<_CrearMesaDialog> {
     final dialogWidth = mediaWidth < 560 ? mediaWidth - 48 : 460.0;
 
     return AlertDialog(
+        scrollable: true,
       title: const Text('Agregar mesa'),
       content: SizedBox(
         width: dialogWidth > 280 ? dialogWidth : 280.0,
@@ -22179,6 +22183,7 @@ class _EditarMesaDialogState extends State<_EditarMesaDialog> {
     final dialogWidth = mediaWidth < 560 ? mediaWidth - 48 : 460.0;
 
     return AlertDialog(
+        scrollable: true,
       title: Text('Editar mesa ${widget.mesa.mesaNumero ?? '-'}'),
       content: SizedBox(
         width: dialogWidth > 280 ? dialogWidth : 280.0,
@@ -22237,6 +22242,7 @@ class _EditarMesaDialogState extends State<_EditarMesaDialog> {
               final confirm = await showDialog<bool>(
                 context: context,
                 builder: (context) => AlertDialog(
+        scrollable: true,
                   title: const Text('Eliminar o inactivar mesa'),
                   content: const Text('Si la mesa no tiene datos relacionados se eliminará. Si tiene histórico se marcará como inactiva.'),
                   actions: [
@@ -22485,6 +22491,7 @@ class _AjustarCuentasDialogState extends State<_AjustarCuentasDialog> {
 
   @override
   Widget build(BuildContext context) => AlertDialog(
+        scrollable: true,
         title: const Text('Modificar cuentas'),
         content: SizedBox(
           width: 520,
@@ -22631,6 +22638,7 @@ class _AbrirVentaDialogState extends State<_AbrirVentaDialog> {
     _syncDescriptionControllers(totalCuentas);
 
     return AlertDialog(
+        scrollable: true,
       title: Text('Mesa ${widget.mesa.mesaNumero ?? '-'}'),
       content: SizedBox(
         width: 520,
