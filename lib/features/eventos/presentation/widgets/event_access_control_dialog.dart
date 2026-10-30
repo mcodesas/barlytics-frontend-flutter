@@ -41,10 +41,10 @@ class _EventAccessState extends ConsumerState<EventAccessControlDialog>{
     super.dispose();
   }
 
-  Future<void> reload()async{
+  Future<void> reload({bool clearError=false})async{
     try{
       final data=await ref.read(eventosApiProvider).ingresosEvento(widget.eventId);
-      if(mounted)setState((){overview=data;loading=false;error=null;});
+      if(mounted)setState((){overview=data;loading=false;if(clearError)error=null;});
     }catch(e){
       if(mounted)setState((){
         loading=false;error='No fue posible consultar las entradas: $e';
@@ -261,7 +261,7 @@ class _EventAccessState extends ConsumerState<EventAccessControlDialog>{
                 const Expanded(child:Text('Ingreso manual por persona',
                   style:TextStyle(color:accessText,fontSize:17,
                     fontWeight:FontWeight.w800))),
-                IconButton(onPressed:busy?null:reload,tooltip:'Actualizar',
+                IconButton(onPressed:busy?null:()=>reload(clearError:true),tooltip:'Actualizar',
                   icon:const Icon(Icons.refresh,color:accessAccent)),
               ]),
               TextField(
