@@ -438,6 +438,7 @@ class _EmpresasFormPageState extends ConsumerState<EmpresasFormPage> {
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (dialogContext) => AlertDialog(
+        scrollable: true,
         title: const Text('Eliminar sucursal'),
         content: Text('¿Deseas eliminar ${sucursal.sucuNombre}?'),
         actions: [
