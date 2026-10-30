@@ -5654,6 +5654,95 @@ class _MeseroPageState extends ConsumerState<MeseroPage> {
     }
   }
 
+  /// Reconciliación deliberada: evita incorporar ventas al arqueo histórico
+  /// sin mostrar primero sus identificadores e importes al responsable.
+  Future<void> _conciliarVentasPosteriores(CierreCajaResumenModel cierre) async {
+    final id = cierre.cierreCajaId;
+    if (_processing || id == null || cierre.ventasPendientes.isEmpty) return;
+    final motivo = TextEditingController(
+      text: 'Venta registrada después del cierre de caja');
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Conciliar ventas posteriores'),
+        content: SizedBox(
+          width: 470,
+          child: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Se incluirán ${cierre.ventasPendientes.length} ventas '
+                  'por ${CurrencyUtils.format(cierre.totalVentasPendientes ?? 0)} '
+                  'en el cierre del ${cierre.fecha ?? ''}.',
+                ),
+                const SizedBox(height: 10),
+                const Text(
+                  'El dinero contado originalmente NO se modificará. '
+                  'La diferencia de caja reflejará los nuevos ingresos. '
+                  'La acción quedará registrada en auditoría.',
+                ),
+                const SizedBox(height: 14),
+                TextField(
+                  controller: motivo,
+                  maxLength: 300,
+                  maxLines: 2,
+                  decoration: const InputDecoration(
+                    labelText: 'Motivo de la conciliación',
+                    border: OutlineInputBorder(),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(dialogContext).pop(false),
+            child: const Text('Cancelar'),
+          ),
+          FilledButton.icon(
+            onPressed: () {
+              if (motivo.text.trim().isEmpty) return;
+              Navigator.of(dialogContext).pop(true);
+            },
+            icon: const Icon(Icons.fact_check_outlined),
+            label: const Text('Conciliar ventas'),
+          ),
+        ],
+      ),
+    );
+    final descripcion = motivo.text.trim();
+    motivo.dispose();
+    if (confirmed != true || descripcion.isEmpty || !mounted) return;
+    setState(() => _processing = true);
+    try {
+      await _dataSource.conciliarVentasPosteriores(
+        cierreCajaId: id,
+        ventaIds: cierre.ventasPendientes
+            .map((venta) => venta.ventaId)
+            .whereType<int>()
+            .toList(growable: false),
+        motivo: descripcion,
+      );
+      await _reloadCierreCaja();
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+        content: Text(
+          'Ventas conciliadas. Revisa la diferencia de caja actualizada.'),
+      ));
+    } catch (error) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+        content: Text('No se pudo conciliar: $error'),
+      ));
+      await _reloadCierreCaja();
+    } finally {
+      if (mounted) setState(() => _processing = false);
+    }
+  }
+
   Widget _buildCierreCaja() {
     _cierreCajaFuture ??= _cargarCierreCaja();
     return FutureBuilder<CierreCajaResumenModel>(
@@ -5709,6 +5798,36 @@ class _MeseroPageState extends ConsumerState<MeseroPage> {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             header,
+            if (cerrado && cierre.ventasPendientes.isNotEmpty) ...[
+              const SizedBox(height: 14),
+              _CierreSection(
+                icon: Icons.notification_important_outlined,
+                title: 'Ventas registradas después del cierre',
+                subtitle:
+                    '${cierre.ventasPendientes.length} ventas pendientes por '
+                    '${CurrencyUtils.format(cierre.totalVentasPendientes ?? 0)}. '
+                    'No están incluidas en el arqueo original.',
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    _CierreVentasTable(items: cierre.ventasPendientes),
+                    const SizedBox(height: 12),
+                    const Text(
+                      'Al conciliar se actualizan ventas, medios de pago y '
+                      'diferencia, pero NO se modifica el efectivo contado.',
+                    ),
+                    const SizedBox(height: 12),
+                    FilledButton.icon(
+                      onPressed: _processing
+                          ? null
+                          : () => _conciliarVentasPosteriores(cierre),
+                      icon: const Icon(Icons.fact_check_rounded),
+                      label: const Text('Conciliar ventas pendientes'),
+                    ),
+                  ],
+                ),
+              ),
+            ],
             const SizedBox(height: 16),
             LayoutBuilder(
               builder: (context, constraints) {
