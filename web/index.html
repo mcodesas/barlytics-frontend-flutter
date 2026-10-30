@@ -120,7 +120,11 @@
   </script>
 
   <style>
-    :root { color-scheme: dark; background: #061723; }
+    :root {
+      --barlytics-event-chrome-color: #061723;
+      color-scheme: dark;
+      background: #061723;
+    }
     html, body {
       margin: 0;
       width: 100%;
@@ -129,6 +133,39 @@
       color-scheme: dark;
       overflow: hidden;
       overscroll-behavior: none;
+    }
+
+    /*
+     * Safari 26 deriva el color del navegador de elementos fijos próximos
+     * al borde, incluso cuando theme-color cambió dinámicamente.
+     * El sampler no pinta píxeles debido a background-clip:text.
+     */
+    .barlytics-safari-chrome-sample {
+      position: fixed;
+      left: 0;
+      right: 0;
+      z-index: 2147483647;
+      height: 0;
+      border: 0;
+      outline: 0;
+      box-shadow: none;
+      pointer-events: none;
+      background-color: var(--barlytics-event-chrome-color);
+      background-clip: text;
+      -webkit-background-clip: text;
+      transition: none;
+    }
+    .barlytics-safari-chrome-sample--top { top: 0; }
+    .barlytics-safari-chrome-sample--bottom { bottom: 0; }
+    @supports (-webkit-touch-callout: none) {
+      @media (hover: none) and (pointer: coarse) {
+        html[data-barlytics-event-chrome] .barlytics-safari-chrome-sample {
+          height: 11px;
+        }
+        html[data-barlytics-event-chrome-refresh] .barlytics-safari-chrome-sample {
+          height: 12px;
+        }
+      }
     }
 
     #barlytics-loader {
@@ -260,6 +297,8 @@
   </style>
 </head>
 <body>
+  <div aria-hidden="true" class="barlytics-safari-chrome-sample barlytics-safari-chrome-sample--top"></div>
+  <div aria-hidden="true" class="barlytics-safari-chrome-sample barlytics-safari-chrome-sample--bottom"></div>
   <div id="barlytics-loader" role="status" aria-live="polite" aria-label="Cargando BarLytics">
     <div class="barlytics-loader__content">
       <img class="barlytics-loader__logo" src="branding/barlytics-logo-light.png" alt="BarLytics">
@@ -280,6 +319,19 @@
   <script>
     (() => {
       const BARLYTICS_THEME = '#061723';
+      // Safari puede conservar el color anterior. Al cambiar la altura
+      // del sampler por dos frames volvemos a solicitar su muestreo.
+      window.barlyticsRefreshSafariChrome = () => {
+        const root = document.documentElement;
+        if (!root.hasAttribute('data-barlytics-event-chrome')) return;
+        root.setAttribute('data-barlytics-event-chrome-refresh', '');
+        requestAnimationFrame(() => requestAnimationFrame(() => {
+          root.removeAttribute('data-barlytics-event-chrome-refresh');
+        }));
+      };
+      window.addEventListener('pageshow', () => {
+        window.barlyticsRefreshSafariChrome();
+      });
       document.documentElement.style.colorScheme = 'dark';
       document.body.style.backgroundColor = BARLYTICS_THEME;
       const themes = document.querySelectorAll('meta[name="theme-color"]');
