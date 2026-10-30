@@ -2290,9 +2290,9 @@ class _LaborDialogState extends State<_LaborDialog> {
                                         children: [
                                           SizedBox(
                                             height: math.min(
-                                                260.0,
-                                                math.max(170.0,
-                                                  cargos.length * 72.0 + 112)),
+                                                310.0,
+                                                math.max(250.0,
+                                                  cargos.length * 78.0 + 155.0)),
                                             child: _rolesPane(),
                                           ),
                                           const Divider(height: 24),
