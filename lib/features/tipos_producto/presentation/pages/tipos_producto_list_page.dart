@@ -224,6 +224,7 @@ class _TiposProductoListPageState extends ConsumerState<TiposProductoListPage> {
           context: context,
           barrierColor: Colors.black.withOpacity(0.56),
           builder: (context) => AlertDialog(
+        scrollable: true,
             backgroundColor: palette.surface,
             surfaceTintColor: Colors.transparent,
             shape: RoundedRectangleBorder(
