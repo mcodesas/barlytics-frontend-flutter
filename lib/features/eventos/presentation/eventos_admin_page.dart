@@ -324,7 +324,7 @@ class _EventosAdminState extends ConsumerState<EventosAdminPage>{
           Navigator.of(dialog).pop();
           if(mounted){
            ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-            content:Text('Reserva interna registrada sin cobro. Los puestos quedaron apartados.')));
+            content:Text('Reserva confirmada sin cobro. Las entradas se enviarán al correo registrado.')));
            detail(id);
           }
          }
@@ -402,6 +402,43 @@ class _EventosAdminState extends ConsumerState<EventosAdminPage>{
               const SizedBox(height:8),
               Text(r['eres_nota'].toString(),
                style:const TextStyle(color:EventColors.muted,fontSize:12)),
+             ],
+             if(!retired&&state=='CONFIRMADA'&&
+                 (r['eres_email']?.toString().trim().isNotEmpty??false))...[
+              const SizedBox(height:10),
+              OutlinedButton.icon(
+               key:Key('reenviar-entradas-${r['eres_id']}'),
+               onPressed:()async{
+                final to=r['eres_email'].toString().trim();
+                final accept=await showDialog<bool>(
+                 context:dialog,
+                 builder:(alert)=>AlertDialog(
+                  title:const Text('Reenviar entradas'),
+                  content:Text(
+                   'Se enviarán nuevamente todas las entradas individuales a $to. '
+                   'Se conservarán los mismos códigos QR y no se generará un nuevo cobro.'),
+                  actions:[
+                   TextButton(onPressed:()=>Navigator.pop(alert,false),
+                    child:const Text('Cancelar')),
+                   FilledButton(onPressed:()=>Navigator.pop(alert,true),
+                    child:const Text('Reenviar')),
+                  ],
+                 ));
+                if(accept!=true||!dialog.mounted)return;
+                try{
+                 await ref.read(eventosApiProvider).reenviarEntradas(asId(r['eres_id'])!);
+                 if(!dialog.mounted)return;
+                 ScaffoldMessenger.of(dialog).showSnackBar(SnackBar(
+                  content:Text('Entradas reenviadas a $to')));
+                }catch(e){
+                 if(!dialog.mounted)return;
+                 ScaffoldMessenger.of(dialog).showSnackBar(SnackBar(
+                  content:Text('No fue posible reenviar: ${niceEventError(e)}')));
+                }
+               },
+               icon:const Icon(Icons.forward_to_inbox_outlined,size:18),
+               label:const Text('Reenviar entradas'),
+              ),
              ],
              if(state=='PENDIENTE_REVISION'||(internal&&['CONFIRMADA','CANCELADA'].contains(state)))...[
               const SizedBox(height:10),
@@ -572,7 +609,7 @@ class _EventosAdminState extends ConsumerState<EventosAdminPage>{
            item['even_seleccionar_mesa']==false));
        if(added==true&&mounted){
         ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-         content:Text('Puestos apartados sin cobro en el evento')));
+         content:Text('Puestos apartados. Se enviarán las entradas al correo registrado.')));
         detail(id);
        }
       },
@@ -1389,8 +1426,8 @@ class _ReservaInternaDialog extends ConsumerStatefulWidget{
 }
 class _ReservaInternaState extends ConsumerState<_ReservaInternaDialog>{
  final form=GlobalKey<FormState>();
- final name=TextEditingController(),phone=TextEditingController(),
-  notes=TextEditingController();
+ final name=TextEditingController(),email=TextEditingController(),
+  phone=TextEditingController(),notes=TextEditingController();
  final seatInput=TextEditingController(text:'1');
  List<Map<String,dynamic>> tables=[];
  bool loading=true,saving=false;
@@ -1409,6 +1446,7 @@ class _ReservaInternaState extends ConsumerState<_ReservaInternaDialog>{
   final i=widget.initial;
   if(i!=null){
    name.text=i['eres_nombre']?.toString()??'';
+   email.text=i['eres_email']?.toString()??'';
    phone.text=i['eres_telefono']?.toString()??'';
    notes.text=i['eres_nota']?.toString()??'';
    selectedTable=asId(i['mesa_id']);
@@ -1423,7 +1461,7 @@ class _ReservaInternaState extends ConsumerState<_ReservaInternaDialog>{
   load();
  }
  @override void dispose(){
-  name.dispose();phone.dispose();notes.dispose();seatInput.dispose();super.dispose();
+  name.dispose();email.dispose();phone.dispose();notes.dispose();seatInput.dispose();super.dispose();
  }
  Future<void> load()async{
   if(mounted)setState((){loading=true;error=null;});
@@ -1466,7 +1504,7 @@ class _ReservaInternaState extends ConsumerState<_ReservaInternaDialog>{
   try{
    final body={
     'mesaId':widget.automaticSeats?null:selectedTable,'puestos':seats,
-    'nombre':name.text.trim(),'telefono':phone.text.trim(),
+    'nombre':name.text.trim(),'email':email.text.trim(),'telefono':phone.text.trim(),
     'origen':source,'nota':notes.text.trim(),
     'sillas':!widget.automaticSeats&&tables.any((t)=>asId(t['id'])==selectedTable&&
       t['seleccionarSillas']==true)
@@ -1725,6 +1763,1492 @@ class _ReservaInternaState extends ConsumerState<_ReservaInternaDialog>{
         decoration:const InputDecoration(labelText:'Nombre o responsable *',
          border:OutlineInputBorder()),
         validator:(v)=>(v?.trim().isEmpty??true)?'Escribe el nombre':null),
+       const SizedBox(height:10),
+       TextFormField(
+        key:const Key('reserva-interna-email'),
+        controller:email,maxLength:220,
+        keyboardType:TextInputType.emailAddress,
+        textInputAction:TextInputAction.next,
+        decoration:const InputDecoration(
+         labelText:'Correo electrónico para las entradas *',
+         helperText:'Enviaremos los QR individuales a este correo',
+         prefixIcon:Icon(Icons.mail_outline),
+         border:OutlineInputBorder()),
+        validator:(v){
+         final value=(v??'').trim();
+         return RegExp(r'^[^@\s]+@[^@\s]+\.[^@\s]+
+        keyboardType:TextInputType.phone,
+        decoration:const InputDecoration(labelText:'Teléfono de contacto',
+         border:OutlineInputBorder())),
+       const SizedBox(height:10),
+       TextFormField(controller:notes,maxLength:600,maxLines:2,
+        decoration:const InputDecoration(labelText:'Observaciones (opcional)',
+         border:OutlineInputBorder())),
+       const SizedBox(height:8),
+       const EventPill(icon:Icons.verified_outlined,
+        label:'Reserva confirmada sin giro de dinero',
+        color:EventColors.success),
+      ]),
+     )),
+     Container(width:double.infinity,padding:const EdgeInsets.all(15),
+      decoration:const BoxDecoration(color:Color(0xFF082532),
+       border:Border(top:BorderSide(color:EventColors.border))),
+      child:LayoutBuilder(builder:(context,box){
+       final cancel=OutlinedButton(
+        onPressed:saving?null:()=>Navigator.pop(context,false),
+        child:const Text('Cancelar'));
+       final saveButton=FilledButton.icon(
+        onPressed:saving?null:save,
+        style:FilledButton.styleFrom(backgroundColor:EventColors.primary,
+         foregroundColor:EventColors.onPrimary),
+        icon:const Icon(Icons.check_circle_outline,size:18),
+        label:Text(saving?'Guardando...':editing
+          ?(cancelled&&reactivate?'Guardar y reactivar':'Guardar cambios')
+          :'Confirmar sin cobro'));
+       if(box.maxWidth<450)return Column(
+        mainAxisSize:MainAxisSize.min,children:[
+         SizedBox(width:double.infinity,child:saveButton),
+         const SizedBox(height:9),
+         SizedBox(width:double.infinity,child:cancel),
+        ]);
+       return Row(children:[
+        Expanded(child:cancel),
+        const SizedBox(width:11),
+        Expanded(child:saveButton),
+       ]);
+      }),
+     ),
+    ])),
+   ),
+  );
+ }
+}
+
+class EventoEditor extends ConsumerStatefulWidget{
+ const EventoEditor({super.key,required this.onSaved,this.initial});
+ final Map<String,dynamic>? initial;
+ final ValueChanged<Map<String,dynamic>> onSaved;
+ @override ConsumerState<EventoEditor> createState()=>_EventEditorState();
+}
+class _EventEditorState extends ConsumerState<EventoEditor>{
+ final form=GlobalKey<FormState>();
+ final productSearch=TextEditingController();
+ final title=TextEditingController(),description=TextEditingController(),
+       amount=TextEditingController(text:'0'),instructions=TextEditingController(),
+       mapsUrl=TextEditingController();
+ final primaryHex=TextEditingController(text:'#35D0C5'),
+       backgroundHex=TextEditingController(text:'#102735'),
+       textHex=TextEditingController(text:'#F2FBFF'),
+       cardHex=TextEditingController(),borderHex=TextEditingController(),
+       menuHex=TextEditingController();
+ final instagramUrl=TextEditingController(),facebookUrl=TextEditingController(),
+       tiktokUrl=TextEditingController(),whatsappUrl=TextEditingController();
+ String bookingMode='MESA';bool sharing=false,selectChairs=false,selectTable=true;
+ bool get bookingLocked=>(asId(widget.initial?['reservasRegistradas'])??0)>0;
+ String? customLogo;
+ DateTime start=DateTime.now().add(const Duration(days:1)).copyWith(hour:20,minute:0),
+   finish=DateTime.now().add(const Duration(days:2)).copyWith(hour:2,minute:0);
+ String method='GRATIS';String? photo;bool publish=false,busy=false;
+ int? branch;Set<int> chosen={};List<Map<String,dynamic>> tables=[];
+ Map<int,int> capacities={};List<String> venuePhotos=[];
+ List<Map<String,dynamic>> availableProducts=[];
+ Set<int> selectedProducts={};
+ bool loadingProducts=false,onlySelected=false;
+ String typeFilter='TODOS',brandFilter='TODAS',controlFilter='TODOS';
+ String? productError;
+ int productRequest=0;
+ @override void initState(){
+  super.initState();
+  final i=widget.initial;
+  if(i!=null){
+   title.text=i['even_titulo']?.toString()??'';description.text=i['even_descripcion']?.toString()??'';
+   amount.text=i['even_precio']?.toString()??'0';
+   instructions.text=i['even_instrucciones_pago']?.toString()??'';
+   photo=i['even_imagen']?.toString();method=i['even_medio_pago']?.toString()??'GRATIS';
+   start=DateTime.tryParse(i['even_inicio']?.toString()??'')??start;
+   finish=DateTime.tryParse(i['even_fin']?.toString()??'')??finish;
+   branch=asId(i['sucu_id']);
+   chosen=(i['mesas'] as List? ??[]).map(asId).whereType<int>().toSet();
+   mapsUrl.text=i['even_maps_url']?.toString()??'';
+   capacities=(i['capacidadesMesas'] as Map? ??{}).map((key,value)=>
+    MapEntry(int.tryParse(key.toString())??-1,asId(value)??6))..remove(-1);
+   venuePhotos=(i['fotosLugar'] as List? ??[]).whereType<String>().toList();
+   selectedProducts=(i['productos'] as List? ??[]).map(asId).whereType<int>().toSet();
+   bookingMode=i['modoReserva']?.toString()??'MESA';
+   sharing=i['compartirMesa']==true;selectChairs=i['seleccionarSillas']==true;
+   selectTable=i['seleccionarMesa']!=false;
+   primaryHex.text=i['colorPrimario']?.toString()??'#23D8D1';
+   backgroundHex.text=i['colorFondo']?.toString()??'#061925';
+   textHex.text=i['colorTexto']?.toString()??'#F2FBFF';
+   cardHex.text=i['colorTarjeta']?.toString()??'';
+   borderHex.text=i['colorBorde']?.toString()??'';
+   menuHex.text=i['colorCarta']?.toString()??'';
+   customLogo=i['logoEvento']?.toString();
+   instagramUrl.text=i['instagram']?.toString()??'';
+   facebookUrl.text=i['facebook']?.toString()??'';
+   tiktokUrl.text=i['tiktok']?.toString()??'';
+   whatsappUrl.text=i['whatsapp']?.toString()??'';
+  }
+  WidgetsBinding.instance.addPostFrameCallback((_){if(mounted)_loadTables();});
+ }
+ @override void dispose(){
+  productSearch.dispose();title.dispose();description.dispose();amount.dispose();
+  instructions.dispose();mapsUrl.dispose();
+  primaryHex.dispose();backgroundHex.dispose();textHex.dispose();
+  cardHex.dispose();borderHex.dispose();menuHex.dispose();
+  instagramUrl.dispose();facebookUrl.dispose();tiktokUrl.dispose();
+  whatsappUrl.dispose();super.dispose();
+ }
+ Future<void> _loadTables()async{
+  branch??=ref.read(branchScopeProvider).activeBranchId;
+  final branchId=branch;
+  if(branchId==null)return;
+  _loadProducts(branchId);
+  try{
+   final rows=await ref.read(eventosApiProvider).mesas(branchId);
+   if(!mounted||branch!=branchId)return;
+   setState(()=>tables=rows.where((e)=>
+    e['mesaEstado']?.toString().toUpperCase()!='INACTIVA').toList());
+  }catch(e){
+   if(mounted&&branch==branchId)ScaffoldMessenger.of(context).showSnackBar(
+    SnackBar(content:Text('Mesas: '+niceEventError(e))));
+  }
+ }
+ Future<void> _createProduct()async{
+  final branchId=branch;
+  if(branchId==null){
+   ScaffoldMessenger.of(context).showSnackBar(
+    const SnackBar(content:Text('Selecciona la sucursal primero')));
+   return;
+  }
+  final created=await showDialog<int>(
+   context:context,barrierDismissible:false,
+   builder:(dialog)=>Dialog(
+    backgroundColor:EventColors.background,
+    insetPadding:const EdgeInsets.all(12),
+    shape:RoundedRectangleBorder(borderRadius:BorderRadius.circular(18)),
+    child:SizedBox(
+     width:MediaQuery.sizeOf(dialog).width>1320?1180.0:MediaQuery.sizeOf(dialog).width*.95,
+     height:MediaQuery.sizeOf(dialog).height*.92,
+     child:ProductosFormPage(embedded:true,sucursalId:branchId)),
+   ),
+  );
+  if(!mounted||branch!=branchId||created==null)return;
+  await _loadProducts(branchId);
+  if(!mounted)return;
+  if(availableProducts.any((p)=>asId(p['id'])==created)){
+   setState(()=>selectedProducts.add(created));
+   ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+    content:Text('Producto creado y agregado al evento')));
+  }else{
+   ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+    content:Text('Producto creado. Comprueba que tenga precio vigente en esta sucursal.')));
+  }
+ }
+ Future<void> _loadProducts(int branchId)async{
+  final req=++productRequest;
+  if(mounted)setState((){loadingProducts=true;productError=null;});
+  try{
+   final products=await ref.read(eventosApiProvider).productos(branchId);
+   if(!mounted||branch!=branchId||req!=productRequest)return;
+   setState((){
+    availableProducts=products;loadingProducts=false;productError=null;
+   });
+  }catch(e){
+   if(!mounted||branch!=branchId||req!=productRequest)return;
+   setState((){
+    loadingProducts=false;productError=niceEventError(e);
+   });
+  }
+ }
+ Future<void> _pickLogo()async{
+  final selected=await FilePicker.platform.pickFiles(type:FileType.image,withData:true);
+  final image=selected?.files.singleOrNull;
+  if(image==null||image.bytes==null)return;
+  if(image.size>1700000){if(mounted)ScaffoldMessenger.of(context).showSnackBar(
+   const SnackBar(content:Text('El logo no debe superar 1.7 MB')));return;}
+  final ext=image.extension?.toLowerCase();
+  if(!['jpg','jpeg','png','webp'].contains(ext)){
+   if(mounted)ScaffoldMessenger.of(context).showSnackBar(
+    const SnackBar(content:Text('Formatos admitidos: JPG, PNG o WebP')));return;
+  }
+  final mime=ext=='png'?'image/png':ext=='webp'?'image/webp':'image/jpeg';
+  if(mounted)setState(()=>customLogo='data:'+mime+';base64,'+base64Encode(image.bytes!));
+ }
+ Future<void> _venueImage()async{
+  final files=await FilePicker.platform.pickFiles(allowMultiple:true,
+   type:FileType.image,withData:true);
+  if(files==null)return;
+  final next=<String>[];
+  for(final file in files.files){
+   if(file.bytes==null||file.size>700000){
+    if(mounted)ScaffoldMessenger.of(context).showSnackBar(
+     const SnackBar(content:Text('Máximo 700 KB por foto')));
+    return;
+   }
+   final ext=file.extension?.toLowerCase();
+   if(!['jpg','jpeg','png','webp'].contains(ext)){
+    if(mounted)ScaffoldMessenger.of(context).showSnackBar(
+     const SnackBar(content:Text('Solo JPG, PNG o WebP')));
+    return;
+   }
+   final mime=ext=='png'?'image/png':ext=='webp'?'image/webp':'image/jpeg';
+   next.add('data:'+mime+';base64,'+base64Encode(file.bytes!));
+  }
+  if(venuePhotos.length+next.length>4){
+   if(mounted)ScaffoldMessenger.of(context).showSnackBar(
+    const SnackBar(content:Text('Se admiten máximo cuatro fotos del establecimiento')));
+   return;
+  }
+  if(mounted)setState(()=>venuePhotos=[...venuePhotos,...next]);
+ }
+ ImageProvider? _photoSource(String raw){
+  try{
+   if(raw.startsWith('data:image/')&&raw.contains(',')){
+    return MemoryImage(base64Decode(raw.substring(raw.indexOf(',')+1)));
+   }
+   if(raw.startsWith('https://'))return NetworkImage(raw);
+  }catch(_){}
+  return null;
+ }
+ Future<void> _pick(bool beginning,bool date)async{
+  final original=beginning?start:finish;
+  if(date){
+   final selected=await showDatePicker(context:context,initialDate:original,firstDate:DateTime(2020),lastDate:DateTime(2100));
+   if(selected==null)return;
+   setState((){
+    final v=DateTime(selected.year,selected.month,selected.day,original.hour,original.minute);
+    if(beginning)start=v;else finish=v;
+   });
+  }else{
+   final selected=await showTimePicker(context:context,initialTime:TimeOfDay.fromDateTime(original));
+   if(selected==null)return;
+   setState((){
+    final v=DateTime(original.year,original.month,original.day,selected.hour,selected.minute);
+    if(beginning)start=v;else finish=v;
+   });
+  }
+ }
+ Future<void> _image()async{
+  final result=await FilePicker.platform.pickFiles(type:FileType.image,withData:true);
+  final file=result?.files.singleOrNull;
+  if(file==null||file.bytes==null)return;
+  if(file.size>1900000){
+   if(mounted)ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content:Text('La imagen debe pesar menos de 1.9 MB')));
+   return;
+  }
+  final ext=file.extension?.toLowerCase();
+  final mime=ext=='png'?'image/png':ext=='webp'?'image/webp':'image/jpeg';
+  setState(()=>photo='data:'+mime+';base64,'+base64Encode(file.bytes!));
+ }
+ Future<void> _save()async{
+  if(busy||!(form.currentState?.validate()??false))return;
+  final location=Uri.tryParse(mapsUrl.text.trim());
+  if(location==null||location.scheme!='https'||
+   !const ['maps.app.goo.gl','goo.gl','maps.google.com','google.com','www.google.com'].contains(location.host.toLowerCase())){
+   ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+    content:Text('Pega un enlace de ubicación válido de Google Maps')));return;
+  }
+  if(branch==null||chosen.isEmpty){ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content:Text('Selecciona sucursal y por lo menos una mesa')));return;}
+  if(!finish.isAfter(start)){ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content:Text('La fecha/hora de fin debe ser posterior al inicio')));return;}
+  final price=double.tryParse(amount.text.replaceAll(',','.'))??-1;
+  if(price<0||(method=='GRATIS'&&price!=0)||(method!='GRATIS'&&price<=0)){
+   ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content:Text('Verifica el precio y el medio de pago')));return;
+  }
+  if(!RegExp(r'^#[0-9A-Fa-f]{6}$').hasMatch(primaryHex.text.trim())||
+     !RegExp(r'^#[0-9A-Fa-f]{6}$').hasMatch(backgroundHex.text.trim())||
+     !RegExp(r'^#[0-9A-Fa-f]{6}$').hasMatch(textHex.text.trim())||
+     [cardHex,borderHex,menuHex].any((controller)=>controller.text.trim().isNotEmpty&&
+       !RegExp(r'^#[0-9A-Fa-f]{6}$').hasMatch(controller.text.trim()))){
+    ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+      content:Text('Usa colores con el formato #RRGGBB')));
+    return;
+  }
+  setState(()=>busy=true);
+  try{
+   final body={'sucursalId':branch,'titulo':title.text.trim(),'descripcion':description.text.trim(),
+    'imagen':photo,'inicio':start.toIso8601String(),'fin':finish.toIso8601String(),
+    'precio':price,'medioPago':method,'instruccionesPago':instructions.text.trim(),
+    'mesas':chosen.toList(),'publicar':publish,
+    'googleMapsUrl':mapsUrl.text.trim(),'fotosLugar':venuePhotos,
+    'capacidadesMesas':{for(final id in chosen)id.toString():capacities[id]??6},
+    'productos':selectedProducts.toList(),
+    'modoReserva':bookingMode,
+    'compartirMesa':bookingMode=='PUESTOS'&&sharing,
+    'seleccionarSillas':bookingMode=='PUESTOS'&&selectTable&&selectChairs,
+    'seleccionarMesa':bookingMode!='PUESTOS'||selectTable,
+    'colorPrimario':primaryHex.text.trim(),
+    'colorFondo':backgroundHex.text.trim(),
+    'colorTexto':textHex.text.trim(),'logo':customLogo,
+    'colorTarjeta':cardHex.text.trim(),
+    'colorBorde':borderHex.text.trim(),
+    'colorCarta':menuHex.text.trim(),
+    'instagram':instagramUrl.text.trim(),
+    'facebook':facebookUrl.text.trim(),
+    'tiktok':tiktokUrl.text.trim(),'whatsapp':whatsappUrl.text.trim()};
+   final api=ref.read(eventosApiProvider);
+   final result=widget.initial==null
+     ?await api.crear(body)
+     :await api.cambiar(asId(widget.initial!['even_id'])!,body);
+   if(!mounted)return;
+   widget.onSaved({
+    'even_id':result['id']??widget.initial?['even_id'],
+    'even_slug':result['slug']??widget.initial?['even_slug'],
+    'even_titulo':title.text.trim(),
+    'even_inicio':start.toIso8601String(),
+    'even_fin':finish.toIso8601String(),
+    'even_estado':result['estado']??widget.initial?['even_estado']??(publish?'PUBLICADO':'BORRADOR'),
+    'even_precio':price,
+    'even_medio_pago':method,
+    'sucu_id':branch,
+   });
+  }catch(e){if(mounted)ScaffoldMessenger.of(context).showSnackBar(SnackBar(content:Text('No se guardó: '+niceEventError(e))));}
+  finally{if(mounted)setState(()=>busy=false);}
+ }
+
+ Widget _block(int number,String title,String subtitle,Widget child){
+   return EventPanel(child:Column(crossAxisAlignment:CrossAxisAlignment.start,children:[
+     EventSectionHeading(number:number,title:title,subtitle:subtitle),
+     const SizedBox(height:17),child,
+   ]));
+ }
+ Widget _dateButton(String label,String value,IconData icon,VoidCallback action){
+   return InkWell(onTap:action,borderRadius:BorderRadius.circular(12),
+     child:Container(padding:const EdgeInsets.all(13),
+       decoration:BoxDecoration(color:EventColors.surfaceLight,
+         borderRadius:BorderRadius.circular(12),
+         border:Border.all(color:EventColors.border)),
+       child:Row(children:[
+         Icon(icon,color:EventColors.primary,size:21),const SizedBox(width:11),
+         Expanded(child:Column(crossAxisAlignment:CrossAxisAlignment.start,children:[
+           Text(label,style:const TextStyle(color:EventColors.muted,fontSize:10)),
+           const SizedBox(height:4),
+           Text(value,style:const TextStyle(color:EventColors.text,
+             fontWeight:FontWeight.w800,fontSize:13)),
+         ])),
+         const Icon(Icons.expand_more,color:EventColors.muted,size:16),
+       ])));
+ }
+ Widget _general(List<dynamic> branches,double width){
+   final details=Column(children:[
+     TextFormField(controller:title,maxLength:180,
+       decoration:const InputDecoration(labelText:'Nombre del evento *',
+         prefixIcon:Icon(Icons.celebration_outlined)),
+       validator:(v)=>(v?.trim().isEmpty??true)?'Escribe el nombre del evento':null),
+     const SizedBox(height:10),
+     TextFormField(controller:description,maxLines:3,maxLength:1200,
+       decoration:const InputDecoration(
+         labelText:'Descripción y experiencia',alignLabelWithHint:true)),
+     const SizedBox(height:12),
+     TextFormField(controller:mapsUrl,
+       decoration:const InputDecoration(labelText:'Ubicación en Google Maps *',
+         prefixIcon:Icon(Icons.location_on_outlined),
+         hintText:'https://maps.app.goo.gl/...'),
+       validator:(v)=>(v?.trim().isEmpty??true)?'Pega la ubicación de Google Maps':null),
+     const SizedBox(height:8),
+     const Align(alignment:Alignment.centerLeft,
+       child:Text('En Google Maps selecciona Compartir → Copiar enlace.',
+         style:TextStyle(color:EventColors.muted,fontSize:11))),
+     const SizedBox(height:16),
+     DropdownButtonFormField<int>(value:branch,
+       decoration:const InputDecoration(labelText:'Sucursal *',
+         prefixIcon:Icon(Icons.storefront_outlined)),
+       items:branches.where((e)=>e.sucuId!=null).map<DropdownMenuItem<int>>((v)=>
+         DropdownMenuItem<int>(value:v.sucuId,child:Text(v.sucuNombre??'Sucursal'))).toList(),
+       onChanged:null, // Cambia la sede desde el selector principal.
+      ),
+   ]);
+   final media=Column(crossAxisAlignment:CrossAxisAlignment.start,children:[
+     const Text('Afiche o portada del evento',
+       style:TextStyle(color:EventColors.text,fontWeight:FontWeight.w800)),
+     const SizedBox(height:8),
+     Stack(children:[
+       EventArtwork(source:photo,width:double.infinity,height:178),
+       if(photo!=null)Positioned(right:7,top:7,
+         child:IconButton.filledTonal(
+           onPressed:()=>setState(()=>photo=null),
+           icon:const Icon(Icons.delete_outline,size:18))),
+     ]),
+     const SizedBox(height:8),
+     SizedBox(width:double.infinity,child:OutlinedButton.icon(
+       onPressed:busy?null:_image,icon:const Icon(Icons.upload_file_outlined),
+       label:Text(photo==null?'Cargar afiche':'Cambiar afiche'))),
+     const SizedBox(height:14),
+     Row(children:[
+       const Expanded(child:Text('Fotos del establecimiento',
+         style:TextStyle(color:EventColors.text,fontWeight:FontWeight.w700))),
+       TextButton.icon(
+         onPressed:venuePhotos.length>=4?null:_venueImage,
+         icon:const Icon(Icons.add_photo_alternate_outlined,size:16),
+         label:const Text('Agregar')),
+     ]),
+     SizedBox(height:100,child:ListView.separated(
+       scrollDirection:Axis.horizontal,
+       itemCount:venuePhotos.length<4?venuePhotos.length+1:venuePhotos.length,
+       separatorBuilder:(_,__)=>const SizedBox(width:8),
+       itemBuilder:(context,i){
+         if(i==venuePhotos.length)return InkWell(onTap:_venueImage,
+           child:Container(width:100,
+             decoration:BoxDecoration(borderRadius:BorderRadius.circular(12),
+               border:Border.all(color:EventColors.primary)),
+             child:const Column(mainAxisAlignment:MainAxisAlignment.center,children:[
+               Icon(Icons.add_photo_alternate_outlined,color:EventColors.primary),
+               SizedBox(height:5),
+               Text('Agregar fotos',style:TextStyle(
+                 fontSize:10,color:EventColors.primary)),
+             ])));
+         return SizedBox(width:132,child:Stack(children:[
+           EventArtwork(source:venuePhotos[i],width:132,height:100),
+           Positioned(right:2,top:2,child:IconButton.filledTonal(
+             onPressed:()=>setState(()=>venuePhotos.removeAt(i)),
+             constraints:const BoxConstraints(minWidth:30,minHeight:30),
+             padding:EdgeInsets.zero,icon:const Icon(Icons.close,size:15))),
+         ]));
+       },
+     )),
+   ]);
+   return _block(1,'Información general',
+     'Da identidad al evento: foto, lugar, nombre y descripción.',
+     width>635?Row(crossAxisAlignment:CrossAxisAlignment.start,children:[
+       Expanded(flex:6,child:details),const SizedBox(width:17),
+       Expanded(flex:5,child:media),
+     ]):Column(children:[details,const SizedBox(height:17),media]));
+ }
+ Widget _dates()=>_block(2,'Fecha y horario',
+   'Elige cuándo comienza y termina tu evento.',
+   LayoutBuilder(builder:(context,box){
+     final count=box.maxWidth>680?4:box.maxWidth>330?2:1;
+     final w=(box.maxWidth-10*(count-1))/count;
+     return Wrap(spacing:10,runSpacing:10,children:[
+       SizedBox(width:w,child:_dateButton('Fecha de inicio',dateLabel(start),
+         Icons.calendar_month_outlined,()=>_pick(true,true))),
+       SizedBox(width:w,child:_dateButton('Hora de inicio',hourLabel(start),
+         Icons.schedule_outlined,()=>_pick(true,false))),
+       SizedBox(width:w,child:_dateButton('Fecha de fin',dateLabel(finish),
+         Icons.event_available_outlined,()=>_pick(false,true))),
+       SizedBox(width:w,child:_dateButton('Hora de fin',hourLabel(finish),
+         Icons.nights_stay_outlined,()=>_pick(false,false))),
+     ]);
+   }));
+
+ Widget _bookingPreferences()=>_block(3,'Modalidad de reservas',
+  'Decide si vendes mesas completas o puestos individuales y cómo se eligen las sillas.',
+  Column(crossAxisAlignment:CrossAxisAlignment.start,children:[
+   SegmentedButton<String>(
+    segments:const [
+     ButtonSegment(value:'MESA',label:Text('Mesa completa'),
+      icon:Icon(Icons.table_restaurant_outlined)),
+     ButtonSegment(value:'PUESTOS',label:Text('Por puestos'),
+      icon:Icon(Icons.event_seat_outlined)),
+    ],selected:{bookingMode},
+    onSelectionChanged:bookingLocked?null:(v)=>setState((){
+     bookingMode=v.first;
+     if(bookingMode=='MESA'){sharing=false;selectChairs=false;selectTable=true;}
+    })),
+   const SizedBox(height:12),
+   Text(bookingMode=='MESA'
+     ?'Una reserva ocupa la mesa entera, incluso si hay menos asistentes.'
+     :'La persona puede reservar uno o varios puestos de la misma mesa.',
+     style:const TextStyle(color:EventColors.muted,fontSize:12)),
+   if(bookingMode=='PUESTOS')...[
+    const SizedBox(height:12),
+    SwitchListTile.adaptive(
+     contentPadding:EdgeInsets.zero,value:selectTable,
+     title:const Text('Permitir que el cliente elija la mesa',
+      style:TextStyle(color:EventColors.text,fontWeight:FontWeight.w700)),
+     subtitle:const Text('Si está desactivado, solo se elige la cantidad de puestos. BarLytics asigna automáticamente una mesa con disponibilidad.'),
+     onChanged:(v)=>setState((){
+      selectTable=v;
+      if(!v)selectChairs=false;
+     })),
+    SwitchListTile.adaptive(
+     contentPadding:EdgeInsets.zero,value:sharing,
+     title:const Text('Permitir compartir mesa',
+      style:TextStyle(color:EventColors.text,fontWeight:FontWeight.w700)),
+     subtitle:const Text('Admite reservas independientes en distintos puestos de una mesa.'),
+     onChanged:bookingLocked?null:(v)=>setState(()=>sharing=v)),
+    SwitchListTile.adaptive(
+     contentPadding:EdgeInsets.zero,value:selectChairs,
+     title:const Text('El cliente puede elegir sus sillas',
+      style:TextStyle(color:EventColors.text,fontWeight:FontWeight.w700)),
+     subtitle:const Text('Si está apagado, BarLytics asigna los asientos automáticamente.'),
+     onChanged:bookingLocked||!selectTable?null:(v)=>setState(()=>selectChairs=v)),
+   ],
+   const SizedBox(height:8),
+   if(bookingLocked)Container(
+     padding:const EdgeInsets.all(12),
+     decoration:BoxDecoration(
+       borderRadius:BorderRadius.circular(11),
+       color:EventColors.surfaceLight,
+       border:Border.all(color:EventColors.border)),
+     child:const Row(children:[
+       Icon(Icons.lock_outline,color:EventColors.warning,size:20),
+       SizedBox(width:10),
+       Expanded(child:Text(
+         'Este evento ya tiene reservas. Para proteger sus puestos, la modalidad y las sillas quedan bloqueadas; puedes seguir editando el diseño, colores, fotos y carta.',
+         style:TextStyle(color:EventColors.muted,fontSize:12,height:1.5))),
+     ]),
+   )else const Text(
+    'Puedes cambiar la modalidad mientras no haya reservas registradas.',
+    style:TextStyle(color:EventColors.muted,fontSize:11)),
+  ]));
+
+ Future<void> _pickThemeColor(
+   TextEditingController controller,String heading) async {
+  final paletteNow=EventPagePalette.fromHex(
+    primaryHex.text,backgroundHex.text,textHex.text,
+    cardHex.text,borderHex.text,menuHex.text);
+  final fallback=identical(controller,cardHex)?paletteNow.surface:
+    identical(controller,borderHex)?paletteNow.border:
+    identical(controller,menuHex)?paletteNow.menuPaper:
+    EventColors.primary;
+  var hsv=HSVColor.fromColor(EventPagePalette.parse(controller.text,fallback));
+  final selected=await showDialog<Color>(
+   context:context,
+   builder:(dialogContext)=>StatefulBuilder(
+    builder:(dialogContext,update)=>AlertDialog(
+     backgroundColor:EventColors.surface,
+     title:Text(heading,style:const TextStyle(color:EventColors.text)),
+     content:SizedBox(width:380,child:Column(
+      mainAxisSize:MainAxisSize.min,
+      crossAxisAlignment:CrossAxisAlignment.stretch,children:[
+       Container(height:68,decoration:BoxDecoration(
+        color:hsv.toColor(),
+        borderRadius:BorderRadius.circular(13),
+        border:Border.all(color:EventColors.border))),
+       const SizedBox(height:16),
+       const Text('Tono',style:TextStyle(color:EventColors.muted)),
+       Slider(value:hsv.hue,min:0,max:360,
+        onChanged:(v)=>update(()=>hsv=hsv.withHue(v))),
+       const Text('Intensidad',style:TextStyle(color:EventColors.muted)),
+       Slider(value:hsv.saturation,min:0,max:1,
+        onChanged:(v)=>update(()=>hsv=hsv.withSaturation(v))),
+       const Text('Luminosidad',style:TextStyle(color:EventColors.muted)),
+       Slider(value:hsv.value,min:0,max:1,
+        onChanged:(v)=>update(()=>hsv=hsv.withValue(v))),
+      ],
+     )),
+     actions:[
+      TextButton(onPressed:()=>Navigator.pop(dialogContext),
+       child:const Text('Cancelar')),
+      FilledButton(onPressed:()=>Navigator.pop(dialogContext,hsv.toColor()),
+       child:const Text('Aplicar color')),
+     ],
+    ),
+   ),
+  );
+  if(selected==null||!mounted)return;
+  final rgb=(selected.toARGB32()&0xFFFFFF)
+    .toRadixString(16).padLeft(6,'0').toUpperCase();
+  setState(()=>controller.text='#'+rgb);
+ }
+
+ Widget _visualTheme(){
+  final previewProducts=availableProducts.where(
+    (p)=>selectedProducts.contains(asId(p['id']))).take(2).toList();
+  final selected=EventPagePalette.fromHex(
+    primaryHex.text.trim(),backgroundHex.text.trim(),textHex.text.trim(),
+    cardHex.text.trim(),borderHex.text.trim(),menuHex.text.trim());
+  final validAccent=RegExp(r'^#[0-9a-fA-F]{6}$').hasMatch(primaryHex.text.trim());
+  final validBase=RegExp(r'^#[0-9a-fA-F]{6}$').hasMatch(backgroundHex.text.trim());
+  final validText=RegExp(r'^#[0-9a-fA-F]{6}$').hasMatch(textHex.text.trim());
+  final validAdvanced=[cardHex,borderHex,menuHex].every(
+    (c)=>c.text.trim().isEmpty||RegExp(r'^#[0-9a-fA-F]{6}$').hasMatch(c.text.trim()));
+
+  Widget presetCard(EventPalettePreset p){
+   final scheme=EventPagePalette.fromHex(p.accent,p.background,p.text);
+   final active=primaryHex.text.toUpperCase()==p.accent &&
+     backgroundHex.text.toUpperCase()==p.background &&
+     textHex.text.toUpperCase()==p.text &&
+     cardHex.text.trim().isEmpty&&borderHex.text.trim().isEmpty&&
+     menuHex.text.trim().isEmpty;
+   return Container(
+    width:225,padding:const EdgeInsets.all(11),
+    decoration:BoxDecoration(
+     color:EventColors.surfaceLight,
+     borderRadius:BorderRadius.circular(15),
+     border:Border.all(
+      color:active?EventColors.primary:EventColors.border,
+      width:active?2:1)),
+    child:Column(crossAxisAlignment:CrossAxisAlignment.stretch,children:[
+     InkWell(
+      onTap:()=>setState((){
+       primaryHex.text=p.accent;
+       backgroundHex.text=p.background;
+       textHex.text=p.text;
+       cardHex.clear();borderHex.clear();menuHex.clear();
+      }),
+      borderRadius:BorderRadius.circular(11),
+      child:Container(
+       padding:const EdgeInsets.all(12),
+       decoration:BoxDecoration(
+        color:scheme.canvas,borderRadius:BorderRadius.circular(11)),
+       child:Row(children:[
+        Container(width:34,height:34,
+         decoration:BoxDecoration(
+          shape:BoxShape.circle,
+          color:scheme.accent,
+          border:Border.all(color:Colors.white24,width:2))),
+        const SizedBox(width:11),
+        Expanded(child:Column(
+         crossAxisAlignment:CrossAxisAlignment.start,children:[
+          Text(p.name,maxLines:1,overflow:TextOverflow.ellipsis,
+           style:TextStyle(color:scheme.text,
+            fontWeight:FontWeight.w800,fontSize:13)),
+          Text(p.description,maxLines:1,overflow:TextOverflow.ellipsis,
+           style:TextStyle(color:scheme.muted,fontSize:10)),
+         ])),
+        if(active)Icon(Icons.check_circle,
+          color:scheme.accent,size:17),
+       ]),
+      ),
+     ),
+     const SizedBox(height:8),
+     Row(mainAxisAlignment:MainAxisAlignment.center,children:[
+      for(final color in [scheme.canvas,scheme.surface,scheme.text,scheme.accent])
+       Container(width:25,height:13,margin:const EdgeInsets.symmetric(horizontal:3),
+        decoration:BoxDecoration(color:color,borderRadius:BorderRadius.circular(3),
+         border:Border.all(color:EventColors.border))),
+     ]),
+     const SizedBox(height:6),
+     Row(children:[
+      Expanded(child:TextButton(
+       onPressed:()=>setState(()=>primaryHex.text=p.accent),
+       style:TextButton.styleFrom(
+        padding:const EdgeInsets.symmetric(horizontal:4)),
+       child:const Text('Solo acento',style:TextStyle(fontSize:11)))),
+      Expanded(child:TextButton(
+       onPressed:()=>setState((){
+        backgroundHex.text=p.background;
+        if(EventPagePalette.contrast(
+          EventPagePalette.parse(textHex.text,EventColors.text),
+          EventPagePalette.parse(p.background,EventColors.background))<4.5){
+          textHex.text=p.text;
+        }
+       }),
+       style:TextButton.styleFrom(
+        padding:const EdgeInsets.symmetric(horizontal:4)),
+       child:const Text('Solo fondo',style:TextStyle(fontSize:11)))),
+     ]),
+     SizedBox(width:double.infinity,child:TextButton(
+      onPressed:()=>setState(()=>textHex.text=p.text),
+      child:const Text('Solo texto',style:TextStyle(fontSize:11)))),
+    ]),
+   );
+  }
+
+  return _block(4,'Identidad y paleta de colores',
+   'Combinaciones profesionales con fondos armonizados. Puedes mezclarlas y ajustar cada color a tu gusto.',
+   Column(crossAxisAlignment:CrossAxisAlignment.start,children:[
+    const Text('Logo del evento o establecimiento',
+     style:TextStyle(color:EventColors.text,fontWeight:FontWeight.w800)),
+    const SizedBox(height:9),
+    Wrap(spacing:13,runSpacing:9,crossAxisAlignment:WrapCrossAlignment.center,children:[
+     EventArtwork(source:customLogo,width:76,height:76,
+      emptyIcon:Icons.storefront_outlined),
+     OutlinedButton.icon(onPressed:_pickLogo,
+      icon:const Icon(Icons.add_photo_alternate_outlined),
+      label:const Text('Cargar logo')),
+     if(customLogo!=null)TextButton.icon(
+      onPressed:()=>setState(()=>customLogo=null),
+      icon:const Icon(Icons.close,size:17),
+      label:const Text('Quitar')),
+    ]),
+    const SizedBox(height:20),
+    const Text('Paletas prediseñadas',
+     style:TextStyle(color:EventColors.text,fontWeight:FontWeight.w800,fontSize:15)),
+    const SizedBox(height:5),
+    const Text('Selecciona una combinación completa de fondo, texto y acento. O mezcla los colores a tu gusto.',
+     style:TextStyle(color:EventColors.muted,fontSize:12,height:1.5)),
+    const SizedBox(height:13),
+    Wrap(spacing:10,runSpacing:10,children:[
+     for(final preset in eventPalettePresets)presetCard(preset),
+    ]),
+    const SizedBox(height:20),
+    Row(children:[
+     const Expanded(child:Text('Personaliza tus propios tonos',
+      style:TextStyle(color:EventColors.text,
+       fontWeight:FontWeight.w800,fontSize:15))),
+     TextButton.icon(
+      onPressed:()=>setState((){
+       primaryHex.text='#35D0C5';
+       backgroundHex.text='#102735';
+       textHex.text='#F2FBFF';
+       cardHex.clear();borderHex.clear();menuHex.clear();
+      }),
+      icon:const Icon(Icons.restart_alt_outlined,size:17),
+      label:const Text('Restablecer')),
+    ]),
+    const SizedBox(height:7),
+    LayoutBuilder(builder:(context,space){
+     Widget input(TextEditingController controller,String label,
+        String helper,Color swatch){
+      return TextField(
+       controller:controller,
+       maxLength:7,
+       onChanged:(_)=>setState((){}),
+       decoration:InputDecoration(
+        labelText:label,counterText:'',
+        helperText:helper,helperMaxLines:2,
+        prefixIcon:Padding(padding:const EdgeInsets.all(12),
+         child:Container(width:20,height:20,
+          decoration:BoxDecoration(
+           color:swatch,borderRadius:BorderRadius.circular(7),
+           border:Border.all(color:Colors.white54)))),
+       ),
+      );
+     }
+     final accentInput=input(primaryHex,'Color de acento · #RRGGBB',
+      'Botones, destacados e iconos',selected.accent);
+     final backgroundInput=input(backgroundHex,'Color del fondo · #RRGGBB',
+      'Determina el fondo y las tarjetas',selected.canvas);
+     final textInput=input(textHex,'Color del texto · #RRGGBB',
+      'Títulos, descripciones y carta',selected.text);
+     if(space.maxWidth<560)return Column(children:[
+      accentInput,const SizedBox(height:10),backgroundInput,
+      const SizedBox(height:10),textInput,
+     ]);
+     return Row(children:[
+      Expanded(child:accentInput),const SizedBox(width:14),
+      Expanded(child:backgroundInput),const SizedBox(width:14),
+      Expanded(child:textInput),
+     ]);
+    }),
+    const SizedBox(height:10),
+    Wrap(spacing:12,runSpacing:9,children:[
+     OutlinedButton.icon(
+      onPressed:()=>_pickThemeColor(primaryHex,'Elegir color de acento'),
+      icon:const Icon(Icons.color_lens_outlined),
+      label:const Text('Elegir acento visualmente')),
+     OutlinedButton.icon(
+      onPressed:()=>_pickThemeColor(backgroundHex,'Elegir tono de ambiente'),
+      icon:const Icon(Icons.format_color_fill_outlined),
+      label:const Text('Elegir ambiente visualmente')),
+     OutlinedButton.icon(
+      onPressed:()=>_pickThemeColor(textHex,'Elegir color del texto'),
+      icon:const Icon(Icons.format_color_text_outlined),
+      label:const Text('Elegir color del texto')),
+    ]),
+    if(!validAccent||!validBase||!validText||!validAdvanced)
+     const Padding(padding:EdgeInsets.only(top:7),child:Text(
+      'Escribe seis dígitos hexadecimales por color, por ejemplo #E6BE83.',
+      style:TextStyle(color:EventColors.warning,fontSize:12))),
+    const SizedBox(height:19),
+    Row(children:[
+     const Expanded(child:Text('Opciones avanzadas',
+       style:TextStyle(color:EventColors.text,fontWeight:FontWeight.w800,fontSize:15))),
+     TextButton.icon(
+      onPressed:()=>setState((){
+       cardHex.clear();borderHex.clear();menuHex.clear();
+      }),
+      icon:const Icon(Icons.auto_awesome_outlined,size:17),
+      label:const Text('Colores automáticos')),
+    ]),
+    const Text('Deja vacío cualquier campo para heredar el color de la paleta. Puedes personalizar cada superficie sin afectar a otros eventos.',
+     style:TextStyle(color:EventColors.muted,fontSize:12,height:1.45)),
+    const SizedBox(height:10),
+    LayoutBuilder(builder:(context,space){
+     Widget field(TextEditingController controller,String name,Color sample){
+      return TextField(controller:controller,maxLength:7,
+       onChanged:(_)=>setState((){}),
+       decoration:InputDecoration(labelText:name,counterText:'',
+        hintText:'Automático',
+        prefixIcon:Padding(padding:const EdgeInsets.all(12),
+         child:Container(width:20,height:20,decoration:BoxDecoration(
+          color:sample,borderRadius:BorderRadius.circular(6))))));
+     }
+     final controls=<Widget>[
+      field(cardHex,'Fondo de las tarjetas',selected.surface),
+      field(borderHex,'Color de los bordes',selected.border),
+      field(menuHex,'Color de las hojas de carta',selected.menuPaper),
+     ];
+     if(space.maxWidth<570)return Column(children:[
+      controls[0],const SizedBox(height:9),controls[1],
+      const SizedBox(height:9),controls[2],
+     ]);
+     return Row(children:[
+      Expanded(child:controls[0]),const SizedBox(width:12),
+      Expanded(child:controls[1]),const SizedBox(width:12),
+      Expanded(child:controls[2]),
+     ]);
+    }),
+    const SizedBox(height:8),
+    Wrap(spacing:10,runSpacing:9,children:[
+     OutlinedButton.icon(
+      onPressed:()=>_pickThemeColor(cardHex,'Color de tarjetas'),
+      icon:const Icon(Icons.dashboard_customize_outlined),
+      label:const Text('Tarjetas')),
+     OutlinedButton.icon(
+      onPressed:()=>_pickThemeColor(borderHex,'Color de bordes'),
+      icon:const Icon(Icons.border_outer_outlined),
+      label:const Text('Bordes')),
+     OutlinedButton.icon(
+      onPressed:()=>_pickThemeColor(menuHex,'Color de carta'),
+      icon:const Icon(Icons.menu_book_outlined),
+      label:const Text('Hojas de carta')),
+    ]),
+    if(!validAdvanced)
+     const Text('Los colores personalizados deben tener formato #RRGGBB.',
+       style:TextStyle(color:EventColors.warning,fontSize:12)),
+    const SizedBox(height:18),
+    const Text('Vista previa en vivo',
+     style:TextStyle(color:EventColors.text,
+      fontWeight:FontWeight.w800,fontSize:15)),
+    const SizedBox(height:11),
+    Container(
+     clipBehavior:Clip.antiAlias,
+     decoration:BoxDecoration(color:selected.canvas,
+      borderRadius:BorderRadius.circular(16),
+      border:Border.all(color:selected.border)),
+     child:Column(crossAxisAlignment:CrossAxisAlignment.stretch,children:[
+      Container(padding:const EdgeInsets.all(18),
+       decoration:BoxDecoration(gradient:LinearGradient(
+        begin:Alignment.centerLeft,end:Alignment.centerRight,
+        colors:[selected.heroShade,selected.canvas])),
+       child:Wrap(spacing:16,runSpacing:12,
+        crossAxisAlignment:WrapCrossAlignment.center,children:[
+        EventArtwork(source:customLogo??photo,width:66,height:66,
+         emptyIcon:Icons.event_outlined),
+        Column(crossAxisAlignment:CrossAxisAlignment.start,children:[
+         Text(title.text.trim().isEmpty?'Tu próximo gran evento':title.text,
+          maxLines:2,overflow:TextOverflow.ellipsis,
+          style:TextStyle(color:selected.text,
+           fontSize:21,fontWeight:FontWeight.w900)),
+         const SizedBox(height:6),
+         Text('Presentación del establecimiento',
+          style:TextStyle(color:selected.muted,fontSize:11)),
+        ]),
+        Container(
+         padding:const EdgeInsets.symmetric(horizontal:16,vertical:11),
+         decoration:BoxDecoration(color:selected.accent,
+          borderRadius:BorderRadius.circular(11)),
+         child:Text('Reservar ahora',
+          style:TextStyle(color:selected.onAccent,
+           fontWeight:FontWeight.w800,fontSize:12)),
+        ),
+       ]),
+      ),
+      Padding(padding:const EdgeInsets.all(15),
+       child:Row(children:[
+        Expanded(child:Container(
+         padding:const EdgeInsets.all(14),
+         decoration:BoxDecoration(color:selected.surface,
+          border:Border.all(color:selected.border),
+          borderRadius:BorderRadius.circular(12)),
+         child:Column(crossAxisAlignment:CrossAxisAlignment.start,children:[
+          Icon(Icons.image_outlined,color:selected.accent),
+          const SizedBox(height:8),
+          Text('Afiche oficial',
+           style:TextStyle(color:selected.text,fontWeight:FontWeight.w800)),
+          const SizedBox(height:3),
+          Text('Superficie personalizable',
+           style:TextStyle(color:selected.muted,fontSize:10)),
+         ]))),
+        const SizedBox(width:10),
+        Expanded(child:Container(
+         padding:const EdgeInsets.all(14),
+         decoration:BoxDecoration(color:selected.surfaceSoft,
+          border:Border.all(color:selected.border),
+          borderRadius:BorderRadius.circular(12)),
+         child:Column(crossAxisAlignment:CrossAxisAlignment.start,children:[
+          Icon(Icons.restaurant_menu,color:selected.accent),
+          const SizedBox(height:8),
+          Text('Nuestra carta',
+           style:TextStyle(color:selected.text,fontWeight:FontWeight.w800)),
+          const SizedBox(height:3),
+          Text('Tarjetas y detalles',
+           style:TextStyle(color:selected.muted,fontSize:10)),
+         ]))),
+       ]),
+      ),
+     ]),
+    ),
+    const SizedBox(height:13),
+    Container(
+     width:double.infinity,padding:const EdgeInsets.all(8),
+     decoration:BoxDecoration(color:selected.menuPaper,
+      border:Border.all(color:selected.menuBorder,width:2)),
+     child:Container(padding:const EdgeInsets.all(13),
+      decoration:BoxDecoration(border:Border.all(
+       color:selected.menuBorder.withOpacity(.7))),
+      child:Column(children:[
+       Text('CARTA DEL EVENTO',textAlign:TextAlign.center,
+        style:TextStyle(fontFamily:'Georgia',fontSize:20,
+         letterSpacing:2,color:selected.menuInk)),
+       const SizedBox(height:6),
+       Text(title.text.trim().isEmpty?'Vista previa del evento':title.text.trim(),
+        textAlign:TextAlign.center,maxLines:2,
+        style:TextStyle(fontFamily:'Georgia',
+          color:selected.menuInk,fontSize:11)),
+       const SizedBox(height:12),
+       Divider(color:selected.menuBorder),
+       if(previewProducts.isEmpty)
+        Text('Selecciona productos del catálogo para previsualizarlos',
+         textAlign:TextAlign.center,
+         style:TextStyle(color:selected.menuInk,fontSize:11))
+       else for(final p in previewProducts)...[
+        Row(children:[
+         Expanded(child:Text((p['nombre']??'').toString(),
+          maxLines:2,style:TextStyle(fontFamily:'Georgia',
+           color:selected.menuInk,fontWeight:FontWeight.bold))),
+         const SizedBox(width:10),
+         Text(p['precio']==null?'Consultar':
+          NumberFormat.currency(locale:'es_CO',symbol:'\$',decimalDigits:0).format(
+            double.tryParse(p['precio'].toString())??0),
+          style:TextStyle(fontFamily:'Georgia',
+           fontWeight:FontWeight.bold,color:selected.menuInk)),
+        ]),
+        if((p['descripcion']?.toString()??'').isNotEmpty)
+         Align(alignment:Alignment.centerLeft,
+          child:Text(p['descripcion'].toString(),maxLines:2,
+           overflow:TextOverflow.ellipsis,
+           style:TextStyle(fontFamily:'Georgia',
+            color:selected.menuInk,fontSize:11))),
+        Divider(color:selected.menuBorder),
+       ],
+      ]),
+     ),
+    ),
+    const SizedBox(height:10),
+    const Text('La carta, fondos y tarjetas siguen los colores elegidos. Ajusta el contraste para lograr una lectura cómoda.',
+     style:TextStyle(color:EventColors.muted,fontSize:11,height:1.5)),
+    if(EventPagePalette.contrast(selected.text,selected.surface)<4.5)
+     const Padding(padding:EdgeInsets.symmetric(vertical:5),
+      child:Text('El texto contrasta poco con las tarjetas: cambia la letra o el fondo.',
+       style:TextStyle(color:EventColors.warning,fontWeight:FontWeight.w700,fontSize:12))),
+    if(EventPagePalette.contrast(selected.menuInk,selected.menuPaper)<4.5)
+     const Padding(padding:EdgeInsets.symmetric(vertical:5),
+      child:Text('El color de las hojas de carta tiene poco contraste con el texto.',
+       style:TextStyle(color:EventColors.warning,fontWeight:FontWeight.w700,fontSize:12))),
+    const SizedBox(height:20),
+    const Text('Redes sociales para la página pública',
+     style:TextStyle(color:EventColors.text,fontWeight:FontWeight.w800)),
+    const SizedBox(height:9),
+    TextField(controller:instagramUrl,
+      decoration:const InputDecoration(prefixIcon:Icon(Icons.camera_alt_outlined),
+        labelText:'Instagram · enlace HTTPS')),
+    const SizedBox(height:9),
+    TextField(controller:facebookUrl,
+      decoration:const InputDecoration(prefixIcon:Icon(Icons.people_alt_outlined),
+        labelText:'Facebook · enlace HTTPS')),
+    const SizedBox(height:9),
+    TextField(controller:tiktokUrl,
+      decoration:const InputDecoration(prefixIcon:Icon(Icons.smart_display_outlined),
+        labelText:'TikTok · enlace HTTPS')),
+    const SizedBox(height:9),
+    TextField(controller:whatsappUrl,
+      decoration:const InputDecoration(prefixIcon:Icon(Icons.chat_outlined),
+        labelText:'WhatsApp · enlace wa.me HTTPS')),
+   ]));
+ }
+
+ Widget _tables()=>_block(5,'Mesas habilitadas',
+   'Selecciona las mesas y define su capacidad de puestos.',
+   Column(crossAxisAlignment:CrossAxisAlignment.start,children:[
+     Align(alignment:Alignment.centerRight,child:TextButton.icon(
+       onPressed:tables.isEmpty?null:()=>setState((){
+         final all=tables.every((m)=>chosen.contains(asId(m['mesaId'])));
+         if(all){chosen.clear();capacities.clear();}
+         else{for(final m in tables){
+           final id=asId(m['mesaId']);
+           if(id!=null){chosen.add(id);capacities.putIfAbsent(id,()=>6);}
+         }}
+       }),
+       icon:const Icon(Icons.select_all,size:18),
+       label:const Text('Seleccionar / quitar todas'))),
+     if(tables.isEmpty)const Padding(
+       padding:EdgeInsets.all(22),
+       child:Center(child:Text('No se encontraron mesas de esta sucursal.',
+         style:TextStyle(color:EventColors.muted))))
+     else GridView.builder(
+       shrinkWrap:true,physics:const NeverScrollableScrollPhysics(),
+       itemCount:tables.length,
+       gridDelegate:const SliverGridDelegateWithMaxCrossAxisExtent(
+         maxCrossAxisExtent:185,mainAxisExtent:198,
+         mainAxisSpacing:10,crossAxisSpacing:10),
+       itemBuilder:(ctx,i){
+         final m=tables[i],id=asId(m['mesaId']);
+         if(id==null)return const SizedBox.shrink();
+         final active=chosen.contains(id);
+         return Container(
+           clipBehavior:Clip.antiAlias,
+           decoration:BoxDecoration(
+             color:active?const Color(0xFF17495A):EventColors.surfaceLight,
+             borderRadius:BorderRadius.circular(13),
+             border:Border.all(color:active?EventColors.primary:EventColors.border,
+               width:active?1.8:1)),
+           child:Column(crossAxisAlignment:CrossAxisAlignment.stretch,children:[
+             Expanded(child:InkWell(
+               onTap:()=>setState((){
+                 if(active){chosen.remove(id);capacities.remove(id);}
+                 else{chosen.add(id);capacities.putIfAbsent(id,()=>6);}
+               }),
+               child:Stack(children:[
+                 Positioned.fill(child:EventArtwork(
+                   source:m['mesaFoto'],height:115,
+                   borderRadius:0,emptyIcon:Icons.table_restaurant_outlined)),
+                 Positioned(left:6,top:6,child:Container(
+                   decoration:BoxDecoration(
+                     color:active?EventColors.primary:EventColors.background,
+                     borderRadius:BorderRadius.circular(7)),
+                   padding:const EdgeInsets.all(5),
+                   child:Icon(active?Icons.check:Icons.add,size:15,
+                     color:active?EventColors.onPrimary:EventColors.muted))),
+               ]))),
+             Padding(padding:const EdgeInsets.fromLTRB(10,8,10,0),
+               child:Text('Mesa '+(m['mesaNumero']??id).toString(),
+                 style:const TextStyle(color:EventColors.text,
+                   fontWeight:FontWeight.w800,fontSize:12))),
+             SizedBox(height:43,child:Padding(
+               padding:const EdgeInsets.symmetric(horizontal:9),
+               child:DropdownButtonHideUnderline(child:DropdownButton<int>(
+                 isExpanded:true,isDense:true,value:capacities[id]??6,
+                 dropdownColor:EventColors.surfaceLight,
+                 style:const TextStyle(color:EventColors.text,fontSize:12),
+                 items:List.generate(30,(x)=>DropdownMenuItem<int>(
+                   value:x+1,child:Text((x+1).toString()+' puestos'))),
+                 onChanged:active?(v){if(v!=null)setState(()=>capacities[id]=v);}:null,
+               )))),
+           ]),
+         );
+       }),
+   ]));
+ Widget _paymentOption(String value,IconData icon,String name,String subtitle){
+   final active=method==value;
+   return InkWell(onTap:()=>setState((){
+     method=value;if(method=='GRATIS')amount.text='0';
+   }),child:Container(
+     padding:const EdgeInsets.all(13),
+     decoration:BoxDecoration(
+       color:active?EventColors.primary:EventColors.surfaceLight,
+       borderRadius:BorderRadius.circular(12),
+       border:Border.all(color:active?EventColors.primary:EventColors.border)),
+     child:Column(crossAxisAlignment:CrossAxisAlignment.start,children:[
+       Icon(icon,color:active?EventColors.onPrimary:EventColors.primary,size:23),
+       const SizedBox(height:6),
+       Text(name,style:TextStyle(fontSize:12,fontWeight:FontWeight.w800,
+         color:active?EventColors.onPrimary:EventColors.text)),
+       Text(subtitle,style:TextStyle(fontSize:10,
+         color:active?EventColors.onPrimary:EventColors.muted)),
+     ]),
+   ));
+ }
+
+ Widget _products()=>_block(6,'Productos destacados del evento',
+  'Selecciona de la carta de esta sucursal lo que verán tus asistentes.',
+  Column(crossAxisAlignment:CrossAxisAlignment.start,children:[
+   Wrap(spacing:10,runSpacing:10,crossAxisAlignment:WrapCrossAlignment.center,children:[
+    SizedBox(width:300,child:TextField(
+     controller:productSearch,onChanged:(_)=>setState((){}),
+     decoration:const InputDecoration(
+      hintText:'Buscar bebidas, comidas o cócteles',
+      prefixIcon:Icon(Icons.search_outlined),isDense:true))),
+    FilterChip(
+     selected:onlySelected,
+     label:Text('Seleccionados ('+selectedProducts.length.toString()+')'),
+     onSelected:(v)=>setState(()=>onlySelected=v)),
+    OutlinedButton.icon(
+     onPressed:loadingProducts||branch==null?null:()=>_loadProducts(branch!),
+     icon:const Icon(Icons.refresh,size:18),
+     label:const Text('Actualizar')),
+    FilledButton.icon(
+     onPressed:busy?null:_createProduct,
+     style:FilledButton.styleFrom(backgroundColor:EventColors.primary,
+       foregroundColor:EventColors.onPrimary),
+     icon:const Icon(Icons.add_circle_outline,size:18),
+     label:const Text('Crear producto')),
+   ]),
+   const SizedBox(height:12),
+   if(availableProducts.isNotEmpty)
+    LayoutBuilder(builder:(context,box){
+     final types=<String,String>{'TODOS':'Todos los tipos'};
+     final brands=<String,String>{'TODAS':'Todas las marcas'};
+     for(final item in availableProducts){
+      final typeKey=item['tipoId']?.toString()??'SIN_TIPO';
+      types[typeKey]=item['tipo']?.toString()??'Sin tipo';
+      final brandKey=item['marcaId']?.toString()??'SIN_MARCA';
+      brands[brandKey]=item['marca']?.toString()??'Sin marca';
+     }
+     final controls=<String,String>{
+      'TODOS':'Todos los controles',
+      'NORMAL':'Normal',
+      'PREPARADO':'Preparado',
+      'ADICIONAL':'Adicional'
+     };
+     final w=box.maxWidth>630?(box.maxWidth-18)/3:box.maxWidth;
+     return Wrap(spacing:9,runSpacing:9,children:[
+      SizedBox(width:w,child:DropdownButtonFormField<String>(
+       value:types.containsKey(typeFilter)?typeFilter:'TODOS',
+       isExpanded:true,
+       decoration:const InputDecoration(
+        labelText:'Tipo de producto',isDense:true),
+       items:types.entries.map((x)=>DropdownMenuItem<String>(
+        value:x.key,child:Text(x.value,overflow:TextOverflow.ellipsis))).toList(),
+       onChanged:(v)=>setState(()=>typeFilter=v??'TODOS'))),
+      SizedBox(width:w,child:DropdownButtonFormField<String>(
+       value:brands.containsKey(brandFilter)?brandFilter:'TODAS',
+       isExpanded:true,
+       decoration:const InputDecoration(
+        labelText:'Marca',isDense:true),
+       items:brands.entries.map((x)=>DropdownMenuItem<String>(
+        value:x.key,child:Text(x.value,overflow:TextOverflow.ellipsis))).toList(),
+       onChanged:(v)=>setState(()=>brandFilter=v??'TODAS'))),
+      SizedBox(width:w,child:DropdownButtonFormField<String>(
+       value:controls.containsKey(controlFilter)?controlFilter:'TODOS',
+       isExpanded:true,
+       decoration:const InputDecoration(
+        labelText:'Tipo de control',isDense:true),
+       items:controls.entries.map((x)=>DropdownMenuItem<String>(
+        value:x.key,child:Text(x.value))).toList(),
+       onChanged:(v)=>setState(()=>controlFilter=v??'TODOS'))),
+     ]);
+    }),
+   const SizedBox(height:12),
+   if(loadingProducts)const Padding(
+    padding:EdgeInsets.all(25),child:Center(child:CircularProgressIndicator()))
+   else if(productError!=null)
+    EventPanel(background:EventColors.surfaceLight,child:Row(children:[
+     const Icon(Icons.warning_amber_rounded,color:EventColors.warning),
+     const SizedBox(width:10),
+     Expanded(child:Text(productError!,
+      style:const TextStyle(color:EventColors.muted,fontSize:12))),
+     TextButton(onPressed:branch==null?null:()=>_loadProducts(branch!),
+      child:const Text('Reintentar')),
+    ]))
+   else if(availableProducts.isEmpty)
+    const Padding(padding:EdgeInsets.all(25),child:Center(
+     child:Text('No hay productos vendibles con precio vigente en esta sucursal.',
+      textAlign:TextAlign.center,style:TextStyle(color:EventColors.muted))))
+   else LayoutBuilder(builder:(ctx,box){
+    final query=productSearch.text.toLowerCase().trim();
+    final filtered=availableProducts.where((item){
+     final id=asId(item['id']);
+     if(id==null||(onlySelected&&!selectedProducts.contains(id)))return false;
+     if(typeFilter!='TODOS'&&(item['tipoId']?.toString()??'SIN_TIPO')!=typeFilter)return false;
+     if(brandFilter!='TODAS'&&(item['marcaId']?.toString()??'SIN_MARCA')!=brandFilter)return false;
+     if(controlFilter!='TODOS'&&(item['tipoControl']?.toString()??'NORMAL')!=controlFilter)return false;
+     if(query.isEmpty)return true;
+     return (item['nombre']?.toString().toLowerCase().contains(query)??false)||
+            (item['descripcion']?.toString().toLowerCase().contains(query)??false);
+    }).toList();
+    if(filtered.isEmpty)return const Padding(
+     padding:EdgeInsets.all(22),
+     child:Text('No encontramos productos con esos filtros.',
+      style:TextStyle(color:EventColors.muted)));
+    return SizedBox(height:filtered.length<=3?132:340,
+     child:GridView.builder(
+      itemCount:filtered.length,
+      gridDelegate:const SliverGridDelegateWithMaxCrossAxisExtent(
+       maxCrossAxisExtent:310,mainAxisExtent:119,
+       crossAxisSpacing:10,mainAxisSpacing:10),
+      itemBuilder:(ctx,index){
+       final item=filtered[index],id=asId(item['id']);
+       if(id==null)return const SizedBox.shrink();
+       final selected=selectedProducts.contains(id);
+       final cost=NumberFormat.currency(locale:'es_CO',symbol:'COP ',
+        decimalDigits:0).format(double.tryParse(item['precio']?.toString()??'')??0);
+       return InkWell(
+        onTap:(){
+         if(!selected&&selectedProducts.length>=100){
+          ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+           content:Text('Puedes destacar máximo 100 productos por evento')));
+          return;
+         }
+         setState((){if(selected)selectedProducts.remove(id);
+           else selectedProducts.add(id);});
+        },
+        borderRadius:BorderRadius.circular(13),
+        child:Container(
+         clipBehavior:Clip.antiAlias,
+         decoration:BoxDecoration(
+          color:selected?const Color(0xFF194B5A):EventColors.surfaceLight,
+          borderRadius:BorderRadius.circular(13),
+          border:Border.all(
+           color:selected?EventColors.primary:EventColors.border,
+           width:selected?1.7:1)),
+         child:Row(children:[
+          SizedBox(width:90,child:Stack(children:[
+           Positioned.fill(child:EventArtwork(
+            source:item['imagen'],borderRadius:0,height:119,
+            emptyIcon:Icons.restaurant_menu_outlined)),
+           if(selected)const Positioned(top:7,left:7,
+            child:CircleAvatar(radius:13,backgroundColor:EventColors.primary,
+             child:Icon(Icons.check,color:EventColors.onPrimary,size:16))),
+          ])),
+          const SizedBox(width:11),
+          Expanded(child:Column(
+           mainAxisAlignment:MainAxisAlignment.center,
+           crossAxisAlignment:CrossAxisAlignment.start,children:[
+            Text(item['nombre']?.toString()??'Producto',
+             maxLines:2,overflow:TextOverflow.ellipsis,
+             style:const TextStyle(fontWeight:FontWeight.w800,
+              color:EventColors.text,fontSize:12)),
+            const SizedBox(height:7),
+            Text(cost,style:const TextStyle(color:EventColors.primary,
+             fontWeight:FontWeight.w700,fontSize:12)),
+            const SizedBox(height:3),
+            Text(selected?'Incluido en el evento':'Toca para incluir',
+             style:TextStyle(fontSize:10,
+              color:selected?EventColors.success:EventColors.muted)),
+           ])),
+          const SizedBox(width:8),
+         ]),
+        ),
+       );
+      },
+     ));
+   }),
+   const SizedBox(height:12),
+   Container(
+    padding:const EdgeInsets.all(14),
+    decoration:BoxDecoration(color:EventColors.surfaceLight,
+      borderRadius:BorderRadius.circular(12),
+      border:Border.all(color:EventColors.border)),
+    child:Row(crossAxisAlignment:CrossAxisAlignment.start,children:[
+     const Icon(Icons.auto_stories_outlined,color:EventColors.primary,size:23),
+     const SizedBox(width:12),
+     Expanded(child:Column(
+      crossAxisAlignment:CrossAxisAlignment.start,children:[
+       Text(selectedProducts.isEmpty
+         ?'No has seleccionado productos para la carta'
+         :'Se crearán '+((selectedProducts.length+3)~/4).toString()+
+           ' hoja(s) con '+selectedProducts.length.toString()+' producto(s)',
+        style:const TextStyle(color:EventColors.text,
+          fontWeight:FontWeight.w800,fontSize:13)),
+       const SizedBox(height:6),
+       const Text('Las hojas se crean automáticamente desde los productos '
+        'seleccionados y guardados en la base de datos, con hasta cuatro '
+        'productos por hoja. Mostrarán sus imágenes, nombres, descripciones y precios.',
+        style:TextStyle(color:EventColors.muted,fontSize:11,height:1.5)),
+      ],
+     )),
+    ]),
+   ),
+  ]));
+
+ Widget _payments()=>_block(7,'Reservas y pagos',
+   bookingMode=='PUESTOS'
+     ?'Configura el precio por asistente y el método de pago.'
+     :'Configura el precio por mesa completa y el método de pago.',
+   Column(crossAxisAlignment:CrossAxisAlignment.start,children:[
+     LayoutBuilder(builder:(context,box){
+       final columns=box.maxWidth>485?3:1;
+       final w=(box.maxWidth-(columns-1)*9)/columns;
+       return Wrap(spacing:9,runSpacing:9,children:[
+         SizedBox(width:w,child:_paymentOption('GRATIS',
+           Icons.celebration_outlined,'Gratis','Reserva sin costo')),
+         SizedBox(width:w,child:_paymentOption('MANUAL',
+           Icons.payments_outlined,'Pago manual','Revisión del negocio')),
+         SizedBox(width:w,child:_paymentOption('MERCADOPAGO',
+           Icons.credit_card_outlined,'Pago electrónico','Mercado Pago / PSE')),
+       ]);
+     }),
+     const SizedBox(height:16),
+     TextFormField(controller:amount,readOnly:method=='GRATIS',
+       keyboardType:const TextInputType.numberWithOptions(decimal:true),
+       onChanged:(_)=>setState((){}),
+       decoration:InputDecoration(
+         labelText:bookingMode=='PUESTOS'?'Precio por puesto (COP)':'Precio por mesa (COP)',
+         prefixIcon:const Icon(Icons.attach_money),
+         helperText:bookingMode=='PUESTOS'
+          ?'Total = precio × cantidad de puestos'
+          :'La reserva ocupa la mesa y se cobra una sola vez')),
+     if(method=='MANUAL')...[
+       const SizedBox(height:13),
+       TextFormField(controller:instructions,maxLines:3,
+         decoration:const InputDecoration(labelText:'Instrucciones de pago manual',
+           alignLabelWithHint:true)),
+     ],
+   ]));
+ Widget _summary(){
+   final capacity=chosen.fold<int>(0,(n,id)=>n+(capacities[id]??6));
+   final unit=double.tryParse(amount.text.replaceAll(',','.'))??0;
+   return EventPanel(background:const Color(0xFF0A2637),
+     child:Column(crossAxisAlignment:CrossAxisAlignment.start,children:[
+       const EventSectionHeading(icon:Icons.fact_check_outlined,
+         title:'Resumen del evento',
+         subtitle:'Todo listo para dar vida a tu experiencia.'),
+       const SizedBox(height:22),
+       EventMetric(icon:Icons.table_restaurant_outlined,
+         label:'Mesas seleccionadas',value:chosen.length.toString()),
+       const Divider(color:EventColors.border,height:28),
+       EventMetric(icon:Icons.groups_outlined,
+         label:'Capacidad total',value:capacity.toString()+' puestos'),
+       const Divider(color:EventColors.border,height:28),
+       EventMetric(icon:Icons.payments_outlined,
+          label:bookingMode=='PUESTOS'?'Precio por puesto':'Precio por mesa',
+         value:method=='GRATIS'?'Gratis':
+           NumberFormat.currency(locale:'es_CO',symbol:'COP ',decimalDigits:0).format(unit)),
+       const Divider(color:EventColors.border,height:28),
+       EventMetric(icon:Icons.restaurant_menu_outlined,
+        label:'Productos destacados',value:selectedProducts.length.toString()),
+       const Divider(color:EventColors.border,height:28),
+       const EventMetric(icon:Icons.public_outlined,label:'Página pública',
+         value:'Lista al publicar',color:EventColors.success),
+       const SizedBox(height:17),
+       const Text('Los asistentes verán el afiche, el lugar y las mesas reales. Podrán elegir puestos y compartir el evento.',
+         style:TextStyle(color:EventColors.muted,fontSize:12,height:1.5)),
+     ]));
+ }
+
+ bool get editingNonDraft=>
+   widget.initial!=null&&(widget.initial?['even_estado']?.toString()??'BORRADOR')!='BORRADOR';
+ String get eventStatus=>widget.initial?['even_estado']?.toString()??'BORRADOR';
+
+ /// Botones responsivos: un evento publicado o cancelado se guarda sin cambiar su estado.
+ Widget _editorFooter(){
+   final cancel=OutlinedButton(
+     onPressed:busy?null:()=>Navigator.pop(context),
+     style:OutlinedButton.styleFrom(
+       foregroundColor:EventColors.text,
+       side:const BorderSide(color:EventColors.border),
+       padding:const EdgeInsets.symmetric(horizontal:20,vertical:17),
+       shape:RoundedRectangleBorder(borderRadius:BorderRadius.circular(12))),
+     child:const Text('Cancelar'),
+   );
+   final draft=OutlinedButton.icon(
+     onPressed:busy?null:(){
+       setState(()=>publish=false);
+       _save();
+     },
+     style:OutlinedButton.styleFrom(
+       foregroundColor:EventColors.primary,
+       side:const BorderSide(color:EventColors.primary),
+       padding:const EdgeInsets.symmetric(horizontal:20,vertical:17),
+       shape:RoundedRectangleBorder(borderRadius:BorderRadius.circular(12))),
+     icon:const Icon(Icons.save_outlined,size:18),
+     label:Text(busy?'Guardando...':'Guardar borrador'),
+   );
+   final primary=FilledButton.icon(
+     onPressed:busy?null:(){
+       setState(()=>publish=!editingNonDraft);
+       _save();
+     },
+     style:FilledButton.styleFrom(
+       backgroundColor:EventColors.primary,
+       foregroundColor:EventColors.onPrimary,
+       padding:const EdgeInsets.symmetric(horizontal:23,vertical:17),
+       shape:RoundedRectangleBorder(borderRadius:BorderRadius.circular(12))),
+     icon:Icon(editingNonDraft?Icons.save_outlined:Icons.send_outlined,size:18),
+     label:Text(busy?'Guardando...':editingNonDraft?'Guardar cambios':'Publicar evento'),
+   );
+   return Container(
+     width:double.infinity,
+     padding:const EdgeInsets.symmetric(horizontal:21,vertical:15),
+     decoration:const BoxDecoration(
+       color:Color(0xFF082532),
+       border:Border(top:BorderSide(color:EventColors.border))),
+     child:LayoutBuilder(builder:(context,available){
+       if(available.maxWidth<500){
+         return Column(mainAxisSize:MainAxisSize.min,children:[
+           SizedBox(width:double.infinity,child:primary),
+           if(!editingNonDraft)...[
+             const SizedBox(height:9),
+             SizedBox(width:double.infinity,child:draft),
+           ],
+           const SizedBox(height:9),
+           SizedBox(width:double.infinity,child:cancel),
+         ]);
+       }
+       if(available.maxWidth<780&&!editingNonDraft){
+         return Column(mainAxisSize:MainAxisSize.min,children:[
+           SizedBox(width:double.infinity,child:primary),
+           const SizedBox(height:9),
+           Row(children:[
+             Expanded(child:cancel),
+             const SizedBox(width:10),
+             Expanded(child:draft),
+           ]),
+         ]);
+       }
+       return Row(children:[
+         cancel,
+         const Spacer(),
+         if(!editingNonDraft)...[draft,const SizedBox(width:12)],
+         primary,
+       ]);
+     }),
+   );
+ }
+ @override Widget build(BuildContext context){
+   final current=ref.watch(branchScopeProvider);
+   final branches=current.branches.where((b)=>b.sucuId==current.activeBranchId).toList();
+   return Theme(
+     data:ThemeData.dark(useMaterial3:true).copyWith(
+       colorScheme:const ColorScheme.dark(
+         primary:EventColors.primary,surface:EventColors.surface),
+       inputDecorationTheme:InputDecorationTheme(
+         filled:true,fillColor:EventColors.surfaceLight,
+         border:OutlineInputBorder(borderRadius:BorderRadius.circular(11)),
+         enabledBorder:OutlineInputBorder(
+           borderRadius:BorderRadius.circular(11),
+           borderSide:const BorderSide(color:EventColors.border)),
+         contentPadding:const EdgeInsets.symmetric(horizontal:14,vertical:14),
+         labelStyle:const TextStyle(color:EventColors.muted),
+       )),
+     child:Form(key:form,child:LayoutBuilder(builder:(context,box){
+       final wide=box.maxWidth>=1000;
+       return Column(children:[
+         Container(padding:const EdgeInsets.symmetric(horizontal:19,vertical:17),
+           decoration:const BoxDecoration(
+             gradient:LinearGradient(colors:[
+               Color(0xFF10485A),Color(0xFF0C2B3E),Color(0xFF103B4D)]),
+             border:Border(bottom:BorderSide(color:EventColors.border))),
+           child:Row(children:[
+             Container(width:45,height:45,
+               decoration:BoxDecoration(
+                 color:EventColors.primary.withOpacity(.15),
+                 borderRadius:BorderRadius.circular(13)),
+               child:const Icon(Icons.event_available_outlined,color:EventColors.primary)),
+             const SizedBox(width:12),
+             Expanded(child:Column(crossAxisAlignment:CrossAxisAlignment.start,children:[
+               Text(widget.initial==null?'Crear nuevo evento':'Editar evento',
+                 style:const TextStyle(color:EventColors.text,
+                   fontSize:21,fontWeight:FontWeight.w900)),
+               const SizedBox(height:3),
+               Text(editingNonDraft
+                 ?'Puedes modificar el evento sin cambiar su estado ni afectar reservas.'
+                 :'Crea una experiencia única y recibe reservas en línea desde tu página pública.',
+                 maxLines:2,style:TextStyle(color:EventColors.muted,fontSize:12)),
+             ])),
+             if(wide)EventPill(
+               icon:eventStatus=='CANCELADO'?Icons.cancel_outlined:
+                eventStatus=='PUBLICADO'?Icons.public_outlined:Icons.edit_note_outlined,
+               label:widget.initial==null?'Nuevo evento':
+                eventStatus=='CANCELADO'?'Cancelado · se conserva':
+                eventStatus=='PUBLICADO'?'Publicado · se conserva':'Borrador',
+               color:eventStatus=='CANCELADO'?EventColors.warning:
+                eventStatus=='PUBLICADO'?EventColors.success:EventColors.primary),
+             const SizedBox(width:7),
+             IconButton(onPressed:busy?null:()=>Navigator.pop(context),
+               icon:const Icon(Icons.close,color:EventColors.text)),
+           ])),
+         Expanded(child:Row(crossAxisAlignment:CrossAxisAlignment.start,children:[
+           Expanded(child:ListView(padding:const EdgeInsets.all(13),children:[
+             LayoutBuilder(builder:(context,inner)=>
+               _general(branches,inner.maxWidth)),
+             const SizedBox(height:12),_dates(),
+             const SizedBox(height:12),_bookingPreferences(),
+             const SizedBox(height:12),_visualTheme(),
+             const SizedBox(height:12),_tables(),
+             const SizedBox(height:12),_products(),
+             const SizedBox(height:12),_payments(),
+             if(!wide)...[const SizedBox(height:12),_summary()],
+             const SizedBox(height:22),
+           ])),
+           if(wide)SizedBox(width:303,child:Padding(
+             padding:const EdgeInsets.fromLTRB(0,13,13,13),
+             child:SingleChildScrollView(child:_summary()))),
+         ])),
+         _editorFooter(),
+       ]);
+     })),
+   );
+ }
+}
+).hasMatch(value)
+          ?null:'Ingresa un correo válido para recibir las entradas';
+        }),
        const SizedBox(height:10),
        TextFormField(controller:phone,maxLength:40,
         keyboardType:TextInputType.phone,
