@@ -346,6 +346,7 @@ class _PedidosCompraPageState extends ConsumerState<PedidosCompraPage> {
             }).toList(growable: false);
 
             return AlertDialog(
+        scrollable: true,
               title: Text(
                 current == null
                     ? 'Nuevo proveedor / WhatsApp'
