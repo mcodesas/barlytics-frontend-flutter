@@ -426,8 +426,12 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
               insetPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 24),
               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(26)),
               child: ConstrainedBox(
-                constraints: const BoxConstraints(maxWidth: 470),
-                child: Padding(
+                constraints: BoxConstraints(
+                  maxWidth: 470,
+                  maxHeight: MediaQuery.sizeOf(dialogContext).height * .82,
+                ),
+                child: SingleChildScrollView(
+                  child: Padding(
                   padding: const EdgeInsets.all(22),
                   child: Column(
                     mainAxisSize: MainAxisSize.min,
@@ -556,6 +560,7 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
                       ),
                     ],
                   ),
+                  ),
                 ),
               ),
             );
@@ -607,8 +612,12 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
               insetPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 24),
               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(26)),
               child: ConstrainedBox(
-                constraints: const BoxConstraints(maxWidth: 470),
-                child: Padding(
+                constraints: BoxConstraints(
+                  maxWidth: 470,
+                  maxHeight: MediaQuery.sizeOf(dialogContext).height * .82,
+                ),
+                child: SingleChildScrollView(
+                  child: Padding(
                   padding: const EdgeInsets.all(22),
                   child: Column(
                     mainAxisSize: MainAxisSize.min,
@@ -713,6 +722,7 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
                         ],
                       ),
                     ],
+                  ),
                   ),
                 ),
               ),
