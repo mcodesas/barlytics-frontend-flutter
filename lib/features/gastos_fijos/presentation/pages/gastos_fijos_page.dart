@@ -490,6 +490,7 @@ class _GastosFijosPageState extends ConsumerState<GastosFijosPage> {
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
+        scrollable: true,
         title: const Text('Desactivar gasto'),
         content: Text(
           '¿Deseas desactivar "${item['gafiNombre'] ?? 'este gasto'}"?',
@@ -1507,6 +1508,7 @@ class _LaborDialogState extends State<_LaborDialog> {
     final ok = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
+        scrollable: true,
         title: const Text('Renombrar cargo'),
         content: TextField(
           controller: controller,
@@ -1552,6 +1554,7 @@ class _LaborDialogState extends State<_LaborDialog> {
     final ok = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
+        scrollable: true,
         title: const Text('Desactivar cargo'),
         content: Text(
           '¿Deseas desactivar "$name"? El histórico de tarifas se conserva.',
@@ -1657,6 +1660,7 @@ class _LaborDialogState extends State<_LaborDialog> {
     final ok = await showDialog<bool>(
       context: context,
       builder: (dialogContext) => AlertDialog(
+        scrollable: true,
         title: const Row(
           children: [
             Icon(Icons.event_busy_outlined),
