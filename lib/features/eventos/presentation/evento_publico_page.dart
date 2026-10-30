@@ -12,6 +12,7 @@ import 'widgets/event_public_landing.dart';
 import 'widgets/event_digital_ticket_view.dart';
 import 'widgets/event_share_sheet.dart';
 import 'widgets/event_visual_kit.dart';
+import 'widgets/event_browser_theme.dart';
 
 /// En la web la navegación al checkout reemplaza la pestaña actual.
 /// Abrir otra pestaña después de una petición HTTP puede ser bloqueado por
@@ -171,20 +172,27 @@ class _PublicState extends ConsumerState<EventoPublicoPage>{
     ])),
    );
   }
-  return EventPublicLanding(
-   event:current,
-   selectedTable:selected,
-   seats:seats,
-   busy:busy,
-   name:name,email:email,phone:phone,
-   onSelectTable:(id)=>setState((){
-    selected=id>0?id:null;
-    seats=1;
-   }),
-   onSeatsChanged:(value)=>setState(()=>seats=value),
-   onBook:book,
-   onShare:share,
-   onRefresh:refresh,
+  final eventPalette=EventPagePalette.fromHex(
+    current['colorPrimario']?.toString(),current['colorFondo']?.toString(),
+    current['colorTexto']?.toString(),current['colorTarjeta']?.toString(),
+    current['colorBorde']?.toString(),current['colorCarta']?.toString());
+  return EventBrowserThemeScope(
+   background:eventPalette.canvas,
+   child:EventPublicLanding(
+    event:current,
+    selectedTable:selected,
+    seats:seats,
+    busy:busy,
+    name:name,email:email,phone:phone,
+    onSelectTable:(id)=>setState((){
+     selected=id>0?id:null;
+     seats=1;
+    }),
+    onSeatsChanged:(value)=>setState(()=>seats=value),
+    onBook:book,
+    onShare:share,
+    onRefresh:refresh,
+   ),
   );
  }
 }
@@ -219,33 +227,34 @@ class _EntradaState extends ConsumerState<EventoEntradaPublicaPage>{
     value?['colorPrimario']?.toString(),value?['colorFondo']?.toString(),
     value?['colorTexto']?.toString(),value?['colorTarjeta']?.toString(),
     value?['colorBorde']?.toString(),value?['colorCarta']?.toString());
-  return EventDigitalTicketView(
-    token:widget.token,
-    value:value,
-    error:error,
-    palette:palette,
-    qrUrl:(entryToken)=>ref.read(eventosApiProvider).qrLink(entryToken),
-    onRefresh:refresh,
-    onFinish:(){
-      final slug=(value?['slug']??'').toString().trim();
-      if(slug.isNotEmpty){
-        // Usar GoRouter permite volver al evento incluso desde un QR
-        // abierto directamente en una pestaña, sin historial de navegacion.
-        context.go('/evento/'+Uri.encodeComponent(slug));
-      }else if(Navigator.of(context).canPop()){
-        Navigator.of(context).pop();
-      }else{
-        context.go('/');
-      }
-    },
-    onPay:(checkout)async{
-      final ok=await openEventCheckout(checkout)
-        .catchError((Object _)=>false);
-      if(!ok&&mounted){
-        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-          content:Text('No se pudo abrir Mercado Pago. Comprueba el enlace o intenta de nuevo.')));
-      }
-    },
+  return EventBrowserThemeScope(
+    background:palette.canvas,
+    child:EventDigitalTicketView(
+      token:widget.token,
+      value:value,
+      error:error,
+      palette:palette,
+      qrUrl:(entryToken)=>ref.read(eventosApiProvider).qrLink(entryToken),
+      onRefresh:refresh,
+      onFinish:(){
+        final slug=(value?['slug']??'').toString().trim();
+        if(slug.isNotEmpty){
+          context.go('/evento/'+Uri.encodeComponent(slug));
+        }else if(Navigator.of(context).canPop()){
+          Navigator.of(context).pop();
+        }else{
+          context.go('/');
+        }
+      },
+      onPay:(checkout)async{
+        final ok=await openEventCheckout(checkout)
+          .catchError((Object _)=>false);
+        if(!ok&&mounted){
+          ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+            content:Text('No se pudo abrir Mercado Pago. Comprueba el enlace o intenta de nuevo.')));
+        }
+      },
+    ),
   );
  }
 }
