@@ -48,7 +48,9 @@ void main() {
     expect(source, contains("Key('labor-dialog-mobile-scroll')"));
     expect(source, contains('MediaQuery.viewInsetsOf(context).bottom'));
     expect(source, contains('ScrollViewKeyboardDismissBehavior.onDrag'));
-    expect(source, contains('height: 880 * math.max(1.0, textScale)'));
+    expect(source, contains('_rolesPane(compact: true)'));
+    expect(source, contains('_configurationPane(compact: true)'));
+    expect(source, contains('SizedBox(height: 230, child: _rateHistory(selectedRates))'));
     expect(source, isNot(contains('SizedBox(height: 260, child: _rolesPane())')));
   });
 }
