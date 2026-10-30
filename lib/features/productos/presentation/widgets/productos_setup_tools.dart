@@ -349,6 +349,7 @@ class _ProductosSetupToolsState extends ConsumerState<ProductosSetupTools> {
     await showDialog<void>(
       context: context,
       builder: (context) => AlertDialog(
+        scrollable: true,
         title: Text(title),
         content: SizedBox(
           width: 560,
@@ -566,6 +567,7 @@ class _BaseCatalogDialogState extends State<_BaseCatalogDialog> {
         selectable.every((item) => _selected.contains(item.catalogId));
 
     return AlertDialog(
+        scrollable: true,
       insetPadding: const EdgeInsets.all(12),
       titlePadding: const EdgeInsets.fromLTRB(20, 18, 12, 0),
       contentPadding: const EdgeInsets.fromLTRB(20, 14, 20, 0),
