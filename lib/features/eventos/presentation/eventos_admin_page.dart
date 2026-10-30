@@ -132,6 +132,7 @@ class _EventosAdminState extends ConsumerState<EventosAdminPage>{
   if(slug.isEmpty)return;
   final url=ref.read(eventosApiProvider).link(slug);
   await showDialog<void>(context:context,builder:(dialog)=>AlertDialog(
+        scrollable: true,
    title:const Text('Compartir evento'),
    content:ConstrainedBox(constraints:const BoxConstraints(maxWidth:570),
     child:Column(mainAxisSize:MainAxisSize.min,
@@ -423,6 +424,7 @@ class _EventosAdminState extends ConsumerState<EventosAdminPage>{
                 final accepted=await showDialog<bool>(
                  context:dialog,
                  builder:(alert)=>AlertDialog(
+        scrollable: true,
                   title:const Text('Reenviar entradas'),
                   content:Text(
                    'Se enviarán todas las entradas individuales a '+to+'. '
@@ -447,6 +449,7 @@ class _EventosAdminState extends ConsumerState<EventosAdminPage>{
                 await showDialog<void>(
                  context:dialog,
                  builder:(alert)=>AlertDialog(
+        scrollable: true,
                   title:Text(title),content:Text(message),
                   actions:[FilledButton(
                    onPressed:()=>Navigator.of(alert).pop(),
@@ -492,6 +495,7 @@ class _EventosAdminState extends ConsumerState<EventosAdminPage>{
                 onPressed:()async{
                  final confirm=await showDialog<bool>(
                   context:dialog,builder:(alert)=>AlertDialog(
+        scrollable: true,
                    title:const Text('Liberar mesa'),
                    content:const Text('Se cancelará esta reserva interna y la mesa volverá a estar disponible para este evento.'),
                    actions:[
@@ -547,6 +551,7 @@ class _EventosAdminState extends ConsumerState<EventosAdminPage>{
  }
  Future<void> cancel(int id)async{
   final confirmed=await showDialog<bool>(context:context,builder:(ctx)=>AlertDialog(
+        scrollable: true,
    title:const Text('Cancelar evento'),content:const Text('No se permite cancelar eventos con reservas confirmadas sin gestionar primero las devoluciones.'),
    actions:[TextButton(onPressed:()=>Navigator.pop(ctx,false),child:const Text('Volver')),
     TextButton(onPressed:()=>Navigator.pop(ctx,true),child:const Text('Cancelar evento'))]));
@@ -2335,6 +2340,7 @@ class _EventEditorState extends ConsumerState<EventoEditor>{
    context:context,
    builder:(dialogContext)=>StatefulBuilder(
     builder:(dialogContext,update)=>AlertDialog(
+        scrollable: true,
      backgroundColor:EventColors.surface,
      title:Text(heading,style:const TextStyle(color:EventColors.text)),
      content:SizedBox(width:380,child:Column(
