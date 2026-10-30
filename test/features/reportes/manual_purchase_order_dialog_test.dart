@@ -98,4 +98,30 @@ void main() {
     final widgets = tester.widgetList<Checkbox>(find.byType(Checkbox)).toList();
     expect(widgets.last.onChanged, isNull);
   });
+  testWidgets('pedido manual no excede viewport reducido por teclado', (tester) async {
+    tester.view.physicalSize = const Size(360, 600);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(() {
+      tester.view.resetPhysicalSize();
+      tester.view.resetDevicePixelRatio();
+      tester.view.resetViewInsets();
+    });
+
+    await tester.pumpWidget(const MaterialApp(
+      home: Scaffold(
+        body: ManualPurchaseOrderDialog(
+          products: products,
+          initialSelection: <int, int>{},
+        ),
+      ),
+    ));
+    tester.view.viewInsets = const FakeViewPadding(bottom: 310);
+    await tester.pumpAndSettle();
+    expect(find.text('Crear pedido manual'), findsOneWidget);
+    expect(tester.takeException(), isNull);
+    final dialogRect = tester.getRect(find.byType(Dialog));
+    expect(dialogRect.top, greaterThanOrEqualTo(0));
+    expect(dialogRect.bottom, lessThanOrEqualTo(600));
+  });
+
 }
