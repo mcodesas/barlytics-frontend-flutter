@@ -315,8 +315,20 @@
         ? location.hash.slice(1) : location.pathname;
       const eventRoute = /^\/evento\/([^/?#]+)\/?$/.test(route);
       if (eventRoute) {
-        window.addEventListener('barlytics-event-ready', hideLoader, { once: true });
-        // Un error de red o Flutter jamás debe dejar la página cubierta.
+        let flutterReady = false;
+        let brandReady = false;
+        const hideWhenReady = () => {
+          if (flutterReady && brandReady) hideLoader();
+        };
+        window.addEventListener('barlytics-event-ready', () => {
+          flutterReady = true;
+          hideWhenReady();
+        }, { once: true });
+        window.addEventListener('barlytics-event-brand-ready', () => {
+          brandReady = true;
+          hideWhenReady();
+        }, { once: true });
+        // Ni el API ni un error de Flutter deben dejar el splash bloqueando.
         window.setTimeout(hideLoader, 12000);
       } else {
         window.addEventListener('flutter-first-frame', hideLoader, { once: true });
