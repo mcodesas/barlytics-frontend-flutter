@@ -2062,6 +2062,7 @@ class _ProductosFormPageState extends ConsumerState<ProductosFormPage> {
         context: context,
         barrierDismissible: false,
         builder: (dialogContext) => AlertDialog(
+        scrollable: true,
           title: Row(
             children: [
               const Icon(Icons.check_circle_rounded, color: Colors.green),
@@ -2216,6 +2217,7 @@ class _ProductosFormPageState extends ConsumerState<ProductosFormPage> {
     return showDialog<bool>(
       context: context,
       builder: (_) => AlertDialog(
+        scrollable: true,
         title: Text(title),
         content: Form(
           key: formKey,
