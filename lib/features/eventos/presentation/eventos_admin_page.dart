@@ -11,6 +11,7 @@ import '../../../core/branch/branch_scope_provider.dart';
 import '../data/eventos_api.dart';
 import 'widgets/event_visual_kit.dart';
 import 'widgets/event_internal_email_validator.dart';
+import 'widgets/event_access_control_dialog.dart';
 import '../../productos/presentation/pages/productos_form_page.dart';
 
 const sea=Color(0xff24d4ce);
@@ -315,6 +316,14 @@ class _EventosAdminState extends ConsumerState<EventosAdminPage>{
            style:TextStyle(color:EventColors.text,fontSize:12)),
          ])),
        const SizedBox(height:13),
+       Align(alignment:Alignment.centerRight,child:OutlinedButton.icon(
+        onPressed:()=>showDialog<void>(
+         context:dialog,
+         builder:(_)=>EventAccessControlDialog(
+          eventId:id,title:data['even_titulo']?.toString()??'Evento')),
+        icon:const Icon(Icons.qr_code_scanner),
+        label:const Text('Control de ingreso'))),
+       const SizedBox(height:9),
        Align(alignment:Alignment.centerRight,child:FilledButton.icon(
         onPressed:()async{
          final added=await showDialog<bool>(context:dialog,
@@ -606,6 +615,17 @@ class _EventosAdminState extends ConsumerState<EventosAdminPage>{
     Wrap(spacing:8,runSpacing:9,children:[
      OutlinedButton.icon(onPressed:id==null?null:()=>detail(id),
       icon:const Icon(Icons.groups_outlined,size:18),label:const Text('Ver reservas'),
+      style:OutlinedButton.styleFrom(foregroundColor:eventText,
+       side:const BorderSide(color:eventBorder))),
+     OutlinedButton.icon(
+      key:Key('control-ingreso-evento-'+(id??0).toString()),
+      onPressed:id==null?null:()=>showDialog<void>(
+       context:context,
+       builder:(_)=>EventAccessControlDialog(
+        eventId:id,
+        title:item['even_titulo']?.toString()??'Evento')),
+      icon:const Icon(Icons.qr_code_scanner,size:18),
+      label:const Text('Control de ingreso'),
       style:OutlinedButton.styleFrom(foregroundColor:eventText,
        side:const BorderSide(color:eventBorder))),
      if(status!='CANCELADO')OutlinedButton.icon(
