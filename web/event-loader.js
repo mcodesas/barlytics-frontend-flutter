@@ -6,8 +6,9 @@
   if (!loader) return;
 
   // GoRouter utiliza /#/evento/slug en web; admitir también rutas sin hash.
-  const route = location.hash.startsWith('#/')
+  const rawRoute = location.hash.startsWith('#/')
     ? location.hash.slice(1) : location.pathname;
+  const route = rawRoute.split('?')[0]; // Soporta enlaces con parámetros UTM.
   const match = /^\/evento\/([^/?#]+)\/?$/.exec(route);
   if (!match) return; // No aplicar el tema de un evento a login ni al SaaS.
 
