@@ -195,7 +195,9 @@ class _MediosPagoListPageState extends ConsumerState<MediosPagoListPage> {
           builder: (context) => Dialog(
             elevation: 0,
             backgroundColor: Colors.transparent,
-            child: Container(
+            child: SingleChildScrollView(
+                keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
+                child: Container(
               constraints: const BoxConstraints(maxWidth: 430),
               padding: const EdgeInsets.all(22),
               decoration: BoxDecoration(
@@ -247,6 +249,7 @@ class _MediosPagoListPageState extends ConsumerState<MediosPagoListPage> {
                 ],
               ),
             ),
+              ),
           ),
         ) ??
         false;
@@ -263,7 +266,9 @@ class _MediosPagoListPageState extends ConsumerState<MediosPagoListPage> {
         elevation: 0,
         backgroundColor: Colors.transparent,
         insetPadding: const EdgeInsets.all(24),
-        child: Container(
+        child: SingleChildScrollView(
+                keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
+                child: Container(
           constraints: const BoxConstraints(maxWidth: 460),
           padding: const EdgeInsets.all(20),
           decoration: BoxDecoration(
@@ -311,6 +316,7 @@ class _MediosPagoListPageState extends ConsumerState<MediosPagoListPage> {
             ],
           ),
         ),
+              ),
       ),
     );
   }
