@@ -112,7 +112,8 @@ class _EventAccessState extends ConsumerState<EventAccessControlDialog>{
     if(id==null||busy||entry['ingreso']!=null)return;
     if(entry['estadoReserva']!='CONFIRMADA'||entry['retirada']==true)return;
     final approved=await showDialog<bool>(context:context,builder:(dialog)=>AlertDialog(
-      title:const Text('Confirmar ingreso manual'),
+      scrollable: true,
+        title:const Text('Confirmar ingreso manual'),
       content:Text('¿Ingresó ${entry['nombre']}? Entrada ${entry['numero']} · '
         'Mesa ${entry['mesa']}.\nSe registrarán fecha, hora y responsable.'),
       actions:[
