@@ -100,6 +100,7 @@ class _ResetPasswordPageState extends ConsumerState<ResetPasswordPage> {
       context: context,
       barrierDismissible: false,
       builder: (dialogContext) => AlertDialog(
+        scrollable: true,
         icon: const TechBrandMark(icon: Icons.link_off_rounded),
         title: const Text('Enlace vencido o no válido'),
         content: Text(_message ?? 'El enlace expiró. Solicita un nuevo enlace de activación o recuperación de contraseña.'),
@@ -356,6 +357,7 @@ class _ResetPasswordPageState extends ConsumerState<ResetPasswordPage> {
       context: context,
       barrierDismissible: false,
       builder: (dialogContext) => AlertDialog(
+        scrollable: true,
         icon: const TechBrandMark(icon: Icons.verified_user_rounded),
         title: const Text('Contraseña registrada'),
         content: const Text('Tu contraseña fue registrada correctamente. Ingresa con tu correo y nueva clave.'),
