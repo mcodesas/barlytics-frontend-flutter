@@ -28,4 +28,35 @@ void main() {
     // Las entradas QR privadas no se confunden con la ruta de un evento.
     expect(js, contains('const match = /^\\/evento\\/'));
   });
+  test('Safari 26 dispone de muestreadores invisibles de ambos bordes',(){
+    final html=File('web/index.html').readAsStringSync();
+    expect(html,contains('barlytics-safari-chrome-sample--top'));
+    expect(html,contains('barlytics-safari-chrome-sample--bottom'));
+    expect(html,contains('background-clip: text'));
+    expect(html,contains('-webkit-background-clip: text'));
+    expect(html,contains('data-barlytics-event-chrome'));
+    expect(html,contains('--barlytics-event-chrome-color'));
+    expect(html,contains("window.barlyticsRefreshSafariChrome"));
+    // Solo los enlaces de eventos activan el muestreador; BarLytics
+    // administrativo conserva su color corporativo.
+    expect(html,contains('html[data-barlytics-event-chrome]'));
+  });
+
+  test('El fondo de evento cambia también el muestreador Safari 26',(){
+    final js=File('web/event-loader.js').readAsStringSync();
+    final webBridge=File('lib/features/eventos/presentation/widgets/'
+      'event_browser_theme_bridge_web.dart').readAsStringSync();
+    expect(js,contains("'--barlytics-event-chrome-color', background"));
+    expect(js,contains('data-barlytics-event-chrome'));
+    expect(js,contains('window.barlyticsRefreshSafariChrome?.()'));
+    expect(webBridge,contains(
+      "'--barlytics-event-chrome-color', hex"));
+    expect(webBridge,contains(
+      "root?.attributes.remove('data-barlytics-event-chrome')"));
+    expect(webBridge,contains(
+      "root?.setAttribute('data-barlytics-event-chrome','')"));
+    expect(webBridge,contains(
+      "data-barlytics-event-chrome-refresh"));
+  });
+
 }
