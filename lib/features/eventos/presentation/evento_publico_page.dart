@@ -54,8 +54,18 @@ class _PublicState extends ConsumerState<EventoPublicoPage>{
  @override void initState(){super.initState();refresh();}
  @override void dispose(){name.dispose();email.dispose();phone.dispose();super.dispose();}
  Future<void> refresh()async{
-  try{final e=await ref.read(eventosApiProvider).eventoPublico(widget.slug);if(mounted)setState((){event=e;error=null;});}
-  catch(e){if(mounted)setState(()=>error=e.toString());}
+  try{
+    final e=await ref.read(eventosApiProvider).eventoPublico(widget.slug);
+    if(mounted)setState((){event=e;error=null;});
+  }catch(e){
+    if(mounted)setState(()=>error=e.toString());
+  }finally{
+    // No retirar la pantalla de carga HTML durante el fotograma genérico.
+    // Esperar hasta que Flutter haya dibujado la página o el error.
+    WidgetsBinding.instance.addPostFrameCallback((_){
+      if(mounted)completeEventBrowserLoader();
+    });
+  }
  }
  Future<void> share()async{
   final current=event;
