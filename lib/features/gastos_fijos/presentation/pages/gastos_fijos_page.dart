@@ -2176,11 +2176,16 @@ class _LaborDialogState extends State<_LaborDialog> {
   @override
   Widget build(BuildContext context) {
     final size = MediaQuery.sizeOf(context);
-    final width = math.min(size.width * .94, 980.0);
-    final height = math.min(size.height * .82, 680.0);
+    final keyboard = MediaQuery.viewInsetsOf(context).bottom;
+    // AlertDialog suma título, márgenes y padding al alto del contenido.
+    // Calcular el área restante evita que el diálogo se corte en móviles.
+    final width = math.max(220.0, math.min(size.width - 56, 930.0));
+    final height = math.max(180.0, math.min(size.height - keyboard - 156, 720.0));
 
     return AlertDialog(
-      titlePadding: const EdgeInsets.fromLTRB(24, 18, 12, 0),
+      insetPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+      contentPadding: const EdgeInsets.fromLTRB(14, 8, 14, 14),
+      titlePadding: const EdgeInsets.fromLTRB(16, 12, 10, 0),
       title: Row(
         children: [
           const Icon(Icons.groups_2_outlined),
@@ -2251,12 +2256,30 @@ class _LaborDialogState extends State<_LaborDialog> {
                     child: LayoutBuilder(
                       builder: (_, constraints) {
                         if (constraints.maxWidth < 760) {
-                          return Column(
-                            children: [
-                              SizedBox(height: 260, child: _rolesPane()),
-                              const Divider(height: 24),
-                              Expanded(child: _configurationPane()),
-                            ],
+                          // En pantallas pequeñas ambos paneles van dentro
+                          // de UN scroll general. Cada lista conserva además
+                          // su propio desplazamiento, sin un Column desbordado.
+                          final textScale =
+                              MediaQuery.textScalerOf(context).scale(16) / 16;
+                          return SingleChildScrollView(
+                            key: const Key('labor-dialog-mobile-scroll'),
+                            keyboardDismissBehavior:
+                                ScrollViewKeyboardDismissBehavior.onDrag,
+                            padding: const EdgeInsets.only(bottom: 16),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.stretch,
+                              children: [
+                                SizedBox(
+                                  height: 220 * math.max(1.0, textScale),
+                                  child: _rolesPane(),
+                                ),
+                                const Divider(height: 28),
+                                SizedBox(
+                                  height: 880 * math.max(1.0, textScale),
+                                  child: _configurationPane(),
+                                ),
+                              ],
+                            ),
                           );
                         }
 
