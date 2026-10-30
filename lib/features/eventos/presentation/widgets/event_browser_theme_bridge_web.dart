@@ -50,6 +50,28 @@ void _renderTheme() {
   html.document.body?.style.setProperty('background-color', hex, 'important');
   html.document.documentElement?.style.setProperty('color-scheme', scheme);
   html.document.body?.style.setProperty('color-scheme', scheme);
+
+  // Safari 26 obtiene la tonalidad del navegador de los elementos
+  // posicionados en sus bordes: no siempre respeta meta theme-color.
+  // El par de samplers del HTML solo existe visualmente para WebKit móvil,
+  // tiene fondo de color calculable y no pinta píxeles en la página.
+  final root=html.document.documentElement;
+  root?.style.setProperty('--barlytics-event-chrome-color', hex);
+  if(_activeThemes.isEmpty){
+    root?.attributes.remove('data-barlytics-event-chrome');
+    root?.attributes.remove('data-barlytics-event-chrome-refresh');
+  }else{
+    root?.setAttribute('data-barlytics-event-chrome','');
+    // Desbloquea el color que WebKit pudo almacenar antes de terminar
+    // la petición del evento. Un cambio de geometría en dos frames fuerza
+    // un nuevo muestreo en Safari 26 sin producir flashes visibles.
+    root?.setAttribute('data-barlytics-event-chrome-refresh','');
+    html.window.requestAnimationFrame((_){
+      html.window.requestAnimationFrame((_){
+        root?.attributes.remove('data-barlytics-event-chrome-refresh');
+      });
+    });
+  }
 }
 
 /// El splash HTML escucha el evento una vez Flutter ha pintado el resultado.
