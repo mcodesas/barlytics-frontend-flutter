@@ -425,7 +425,9 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
             return Dialog(
               insetPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 24),
               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(26)),
-              child: ConstrainedBox(
+              child: SingleChildScrollView(
+                keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
+                child: ConstrainedBox(
                 constraints: const BoxConstraints(maxWidth: 470),
                 child: Padding(
                   padding: const EdgeInsets.all(22),
@@ -558,6 +560,7 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
                   ),
                 ),
               ),
+              ),
             );
           },
         ) ??
@@ -606,7 +609,9 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
             return Dialog(
               insetPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 24),
               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(26)),
-              child: ConstrainedBox(
+              child: SingleChildScrollView(
+                keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
+                child: ConstrainedBox(
                 constraints: const BoxConstraints(maxWidth: 470),
                 child: Padding(
                   padding: const EdgeInsets.all(22),
@@ -715,6 +720,7 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
                     ],
                   ),
                 ),
+              ),
               ),
             );
           },
