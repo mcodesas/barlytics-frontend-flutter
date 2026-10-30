@@ -12,10 +12,16 @@
   const match = /^\/evento\/([^/?#]+)\/?$/.exec(route);
   if (!match) return; // No aplicar el tema de un evento a login ni al SaaS.
 
+  const signalBrandReady = () =>
+    window.dispatchEvent(new Event('barlytics-event-brand-ready'));
   let slug;
-  try { slug = decodeURIComponent(match[1]); } catch (_) { return; }
+  try { slug = decodeURIComponent(match[1]); }
+  catch (_) { signalBrandReady(); return; }
   // Evitar URLs arbitrarias y rutas de entradas privadas.
-  if (!/^[a-z0-9_-]{1,180}$/i.test(slug)) return;
+  if (!/^[a-z0-9_-]{1,180}$/i.test(slug)) {
+    signalBrandReady();
+    return;
+  }
 
   loader.classList.add('barlytics-loader--event');
   loader.setAttribute('aria-label', 'Cargando evento');
@@ -114,6 +120,6 @@
     window.clearTimeout(timeout);
     // La pantalla HTML solo se oculta cuando el tema y Flutter estén listos.
     // También se dispara en error: el usuario nunca queda bloqueado.
-    window.dispatchEvent(new Event('barlytics-event-brand-ready'));
+    signalBrandReady();
   });
 })();
