@@ -471,6 +471,7 @@ class _AppScaffoldState extends ConsumerState<AppScaffold> {
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (dialogContext) => AlertDialog(
+        scrollable: true,
         title: const Text('Cerrar sesión'),
         content: const Text('¿Deseas salir de BarLytics en este dispositivo?'),
         actions: [
