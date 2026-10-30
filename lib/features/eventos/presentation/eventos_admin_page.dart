@@ -132,7 +132,8 @@ class _EventosAdminState extends ConsumerState<EventosAdminPage>{
   if(slug.isEmpty)return;
   final url=ref.read(eventosApiProvider).link(slug);
   await showDialog<void>(context:context,builder:(dialog)=>AlertDialog(
-   title:const Text('Compartir evento'),
+   scrollable: true,
+        title:const Text('Compartir evento'),
    content:ConstrainedBox(constraints:const BoxConstraints(maxWidth:570),
     child:Column(mainAxisSize:MainAxisSize.min,
      crossAxisAlignment:CrossAxisAlignment.start,children:[
@@ -195,7 +196,8 @@ class _EventosAdminState extends ConsumerState<EventosAdminPage>{
    result=await showDialog<Map<String,dynamic>>(
     context:parentDialog,builder:(ctx)=>StatefulBuilder(
      builder:(ctx,update)=>AlertDialog(
-      backgroundColor:EventColors.surface,
+      scrollable: true,
+        backgroundColor:EventColors.surface,
       title:Text(alreadyRetired?'Gestionar devolución':'Retirar reserva',
        style:const TextStyle(color:EventColors.text,fontWeight:FontWeight.w900)),
       content:ConstrainedBox(
@@ -423,7 +425,8 @@ class _EventosAdminState extends ConsumerState<EventosAdminPage>{
                 final accepted=await showDialog<bool>(
                  context:dialog,
                  builder:(alert)=>AlertDialog(
-                  title:const Text('Reenviar entradas'),
+                  scrollable: true,
+        title:const Text('Reenviar entradas'),
                   content:Text(
                    'Se enviarán todas las entradas individuales a '+to+'. '
                    'Conservaremos los códigos QR originales sin generar cobros.'),
@@ -447,7 +450,8 @@ class _EventosAdminState extends ConsumerState<EventosAdminPage>{
                 await showDialog<void>(
                  context:dialog,
                  builder:(alert)=>AlertDialog(
-                  title:Text(title),content:Text(message),
+                  scrollable: true,
+        title:Text(title),content:Text(message),
                   actions:[FilledButton(
                    onPressed:()=>Navigator.of(alert).pop(),
                    child:const Text('Entendido'))],
@@ -492,7 +496,8 @@ class _EventosAdminState extends ConsumerState<EventosAdminPage>{
                 onPressed:()async{
                  final confirm=await showDialog<bool>(
                   context:dialog,builder:(alert)=>AlertDialog(
-                   title:const Text('Liberar mesa'),
+                   scrollable: true,
+        title:const Text('Liberar mesa'),
                    content:const Text('Se cancelará esta reserva interna y la mesa volverá a estar disponible para este evento.'),
                    actions:[
                     TextButton(onPressed:()=>Navigator.pop(alert,false),
@@ -547,7 +552,8 @@ class _EventosAdminState extends ConsumerState<EventosAdminPage>{
  }
  Future<void> cancel(int id)async{
   final confirmed=await showDialog<bool>(context:context,builder:(ctx)=>AlertDialog(
-   title:const Text('Cancelar evento'),content:const Text('No se permite cancelar eventos con reservas confirmadas sin gestionar primero las devoluciones.'),
+   scrollable: true,
+        title:const Text('Cancelar evento'),content:const Text('No se permite cancelar eventos con reservas confirmadas sin gestionar primero las devoluciones.'),
    actions:[TextButton(onPressed:()=>Navigator.pop(ctx,false),child:const Text('Volver')),
     TextButton(onPressed:()=>Navigator.pop(ctx,true),child:const Text('Cancelar evento'))]));
   if(confirmed!=true)return;
@@ -2335,7 +2341,8 @@ class _EventEditorState extends ConsumerState<EventoEditor>{
    context:context,
    builder:(dialogContext)=>StatefulBuilder(
     builder:(dialogContext,update)=>AlertDialog(
-     backgroundColor:EventColors.surface,
+     scrollable: true,
+        backgroundColor:EventColors.surface,
      title:Text(heading,style:const TextStyle(color:EventColors.text)),
      content:SizedBox(width:380,child:Column(
       mainAxisSize:MainAxisSize.min,
