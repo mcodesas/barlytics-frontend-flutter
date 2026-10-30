@@ -1137,6 +1137,7 @@ class _CopyProductsDialogState extends State<_CopyProductsDialog> {
     }).toList(growable: false);
 
     return AlertDialog(
+        scrollable: true,
       title: const Text('Seleccionar productos para la nueva sucursal'),
       content: SizedBox(
         width: 760,
