@@ -10,6 +10,7 @@ import 'package:intl/intl.dart';
 import '../../../core/branch/branch_scope_provider.dart';
 import '../data/eventos_api.dart';
 import 'widgets/event_visual_kit.dart';
+import 'widgets/event_internal_email_validator.dart';
 import '../../productos/presentation/pages/productos_form_page.dart';
 
 const sea=Color(0xff24d4ce);
@@ -1781,11 +1782,7 @@ class _ReservaInternaState extends ConsumerState<_ReservaInternaDialog>{
          helperText:'Los QR individuales se enviarán al correo',
          prefixIcon:Icon(Icons.mail_outline),
          border:OutlineInputBorder()),
-        validator:(v){
-         final value=(v??'').trim();
-         return RegExp(r'^[^@\s]+@[^@\s]+\.[^@\s]+$').hasMatch(value)
-          ?null:'Ingresa un correo válido para recibir las entradas';
-        }),
+        validator:validateInternalBookingEmail,
        const SizedBox(height:10),
        TextFormField(controller:phone,maxLength:40,
         keyboardType:TextInputType.phone,
