@@ -3,8 +3,8 @@ import 'dart:collection';
 import 'dart:math' as math;
 import 'dart:html' as html;
 
-/// El último scope activo es la página visible. Al cerrar la entrada
-/// se recupera el fondo del evento que sigue debajo, o BarLytics por defecto.
+/// El último scope activo corresponde a la página pública visible.
+/// Al salir del evento se recupera el fondo anterior o el de BarLytics.
 final Map<Object, String> _activeThemes = LinkedHashMap<Object, String>.identity();
 const _defaultTheme = '#061723';
 
@@ -25,12 +25,11 @@ void _renderTheme() {
   final g = ((number >> 8) & 255) / 255.0;
   final b = (number & 255) / 255.0;
   double channel(double v) => v <= .04045 ? v / 12.92 :
-      math.pow((v + .055) / 1.055, 2.4).toDouble();
+    math.pow((v + .055) / 1.055, 2.4).toDouble();
   final luminance = .2126 * channel(r) + .7152 * channel(g) + .0722 * channel(b);
   final scheme = luminance > .38 ? 'light' : 'dark';
 
-  // Se actualizan los dos meta theme-color (light/dark), de manera que
-  // el evento manda sobre la preferencia del teléfono.
+  // Se actualizan ambos meta theme-color (claro y oscuro).
   for (final meta in html.document.querySelectorAll('meta[name="theme-color"]')) {
     meta.setAttribute('content', hex);
   }
@@ -41,14 +40,14 @@ void _renderTheme() {
   html.document.querySelector('meta[name="supported-color-schemes"]')
     ?.setAttribute('content', scheme);
 
-  // Apple solo admite estos estilos predeterminados, no hex arbitrario.
+  // Apple PWA únicamente admite estilos predefinidos, no valores hex.
   html.document.querySelector('meta[name="apple-mobile-web-app-status-bar-style"]')
     ?.setAttribute('content', scheme == 'light' ? 'default' : 'black-translucent');
 
-  // index.html define inicialmente #061723 !important; hay que reemplazar
-  // ese estilo con la misma prioridad para cubrir las áreas seguras.
+  // index.html usa !important, así que igualamos esa prioridad.
   html.document.documentElement?.style
     .setProperty('background-color', hex, 'important');
   html.document.body?.style.setProperty('background-color', hex, 'important');
   html.document.documentElement?.style.setProperty('color-scheme', scheme);
-  html.document.body?.st
+  html.document.body?.style.setProperty('color-scheme', scheme);
+}
