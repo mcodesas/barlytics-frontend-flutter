@@ -5659,8 +5659,8 @@ class _MeseroPageState extends ConsumerState<MeseroPage> {
   Future<void> _conciliarVentasPosteriores(CierreCajaResumenModel cierre) async {
     final id = cierre.cierreCajaId;
     if (_processing || id == null || cierre.ventasPendientes.isEmpty) return;
-    final motivo = TextEditingController(
-      text: 'Venta registrada después del cierre de caja');
+    var motivo = 'Venta registrada después del cierre de caja';
+    final formKey = GlobalKey<FormState>();
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (dialogContext) => AlertDialog(
@@ -5668,7 +5668,9 @@ class _MeseroPageState extends ConsumerState<MeseroPage> {
         content: SizedBox(
           width: 470,
           child: SingleChildScrollView(
-            child: Column(
+            child: Form(
+              key: formKey,
+              child: Column(
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
@@ -5684,8 +5686,11 @@ class _MeseroPageState extends ConsumerState<MeseroPage> {
                   'La acción quedará registrada en auditoría.',
                 ),
                 const SizedBox(height: 14),
-                TextField(
-                  controller: motivo,
+                TextFormField(
+                  initialValue: motivo,
+                  onChanged: (value) => motivo = value,
+                  validator: (value) => value == null || value.trim().isEmpty
+                      ? 'Escribe el motivo de la conciliación' : null,
                   maxLength: 300,
                   maxLines: 2,
                   decoration: const InputDecoration(
@@ -5694,6 +5699,7 @@ class _MeseroPageState extends ConsumerState<MeseroPage> {
                   ),
                 ),
               ],
+            ),
             ),
           ),
         ),
@@ -5704,7 +5710,7 @@ class _MeseroPageState extends ConsumerState<MeseroPage> {
           ),
           FilledButton.icon(
             onPressed: () {
-              if (motivo.text.trim().isEmpty) return;
+              if (!(formKey.currentState?.validate() ?? false)) return;
               Navigator.of(dialogContext).pop(true);
             },
             icon: const Icon(Icons.fact_check_outlined),
@@ -5713,8 +5719,7 @@ class _MeseroPageState extends ConsumerState<MeseroPage> {
         ],
       ),
     );
-    final descripcion = motivo.text.trim();
-    motivo.dispose();
+    final descripcion = motivo.trim();
     if (confirmed != true || descripcion.isEmpty || !mounted) return;
     setState(() => _processing = true);
     try {
