@@ -981,7 +981,10 @@ void _showContextHelp(BuildContext context, WidgetRef ref) {
     builder: (dialogContext) => AlertDialog(
       title: Text(guide.title),
       content: ConstrainedBox(
-        constraints: const BoxConstraints(maxWidth: 440),
+        constraints: BoxConstraints(
+          maxWidth: 440,
+          maxHeight: MediaQuery.sizeOf(dialogContext).height * .60,
+        ),
         child: SingleChildScrollView(
           child: Column(
             mainAxisSize: MainAxisSize.min,
