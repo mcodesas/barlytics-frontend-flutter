@@ -287,6 +287,7 @@ class _RolesPersonalizadosPageState extends ConsumerState<RolesPersonalizadosPag
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (dialog) => AlertDialog(
+        scrollable: true,
         title: const Text('Usar roles estándar'),
         content: const Text(
           'Puedes empezar con los permisos estándar de Cajero, Mesero, Inventario y Gerente. '
