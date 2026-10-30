@@ -476,6 +476,20 @@ class MeseroRemoteDataSource {
     return response.data!;
   }
 
+  Future<CierreCajaResumenModel> conciliarVentasPosteriores({
+    required int cierreCajaId,
+    required List<int> ventaIds,
+    required String motivo,
+  }) async {
+    final response = await _apiClient.post<CierreCajaResumenModel>(
+      ApiPaths.meseroCierreCajaConciliarVentas(cierreCajaId),
+      {'ventaIds': ventaIds, 'motivo': motivo.trim()},
+      (json) => CierreCajaResumenModel.fromJson(
+        Map<String, dynamic>.from(json as Map)),
+    );
+    return response.data!;
+  }
+
   Future<SalidaCajaOpcionesModel> opcionesSalidaCaja() async {
     final response = await _apiClient.get<SalidaCajaOpcionesModel>(
       ApiPaths.meseroCierreCajaSalidaOpciones,

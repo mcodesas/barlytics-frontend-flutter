@@ -10,6 +10,8 @@ import 'package:intl/intl.dart';
 import '../../../core/branch/branch_scope_provider.dart';
 import '../data/eventos_api.dart';
 import 'widgets/event_visual_kit.dart';
+import 'widgets/event_internal_email_validator.dart';
+import 'widgets/event_access_control_dialog.dart';
 import '../../productos/presentation/pages/productos_form_page.dart';
 
 const sea=Color(0xff24d4ce);
@@ -314,6 +316,14 @@ class _EventosAdminState extends ConsumerState<EventosAdminPage>{
            style:TextStyle(color:EventColors.text,fontSize:12)),
          ])),
        const SizedBox(height:13),
+       Align(alignment:Alignment.centerRight,child:OutlinedButton.icon(
+        onPressed:()=>showDialog<void>(
+         context:dialog,
+         builder:(_)=>EventAccessControlDialog(
+          eventId:id,title:data['even_titulo']?.toString()??'Evento')),
+        icon:const Icon(Icons.qr_code_scanner),
+        label:const Text('Control de ingreso'))),
+       const SizedBox(height:9),
        Align(alignment:Alignment.centerRight,child:FilledButton.icon(
         onPressed:()async{
          final added=await showDialog<bool>(context:dialog,
@@ -324,7 +334,7 @@ class _EventosAdminState extends ConsumerState<EventosAdminPage>{
           Navigator.of(dialog).pop();
           if(mounted){
            ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-            content:Text('Reserva interna registrada sin cobro. Los puestos quedaron apartados.')));
+            content:Text('Reserva confirmada. Las entradas se enviarán al correo registrado.')));
            detail(id);
           }
          }
@@ -402,6 +412,50 @@ class _EventosAdminState extends ConsumerState<EventosAdminPage>{
               const SizedBox(height:8),
               Text(r['eres_nota'].toString(),
                style:const TextStyle(color:EventColors.muted,fontSize:12)),
+             ],
+             if(!retired&&state=='CONFIRMADA'&&
+                 (r['eres_email']?.toString().trim().isNotEmpty??false))...[
+              const SizedBox(height:10),
+              OutlinedButton.icon(
+               key:Key('reenviar-entradas-'+(r['eres_id']??'').toString()),
+               onPressed:()async{
+                final to=r['eres_email'].toString().trim();
+                final accepted=await showDialog<bool>(
+                 context:dialog,
+                 builder:(alert)=>AlertDialog(
+                  title:const Text('Reenviar entradas'),
+                  content:Text(
+                   'Se enviarán todas las entradas individuales a '+to+'. '
+                   'Conservaremos los códigos QR originales sin generar cobros.'),
+                  actions:[
+                   TextButton(onPressed:()=>Navigator.of(alert).pop(false),
+                    child:const Text('Cancelar')),
+                   FilledButton(onPressed:()=>Navigator.of(alert).pop(true),
+                    child:const Text('Reenviar')),
+                  ],
+                 ));
+                if(accepted!=true||!dialog.mounted)return;
+                String title='Entradas enviadas';
+                String message='El servicio de correo aceptó el envío a '+to+'.';
+                try{
+                 await ref.read(eventosApiProvider).reenviarEntradas(asId(r['eres_id'])!);
+                }catch(e){
+                 title='No se pudieron reenviar';
+                 message=niceEventError(e);
+                }
+                if(!dialog.mounted)return;
+                await showDialog<void>(
+                 context:dialog,
+                 builder:(alert)=>AlertDialog(
+                  title:Text(title),content:Text(message),
+                  actions:[FilledButton(
+                   onPressed:()=>Navigator.of(alert).pop(),
+                   child:const Text('Entendido'))],
+                 ));
+               },
+               icon:const Icon(Icons.forward_to_inbox_outlined,size:18),
+               label:const Text('Reenviar entradas'),
+              ),
              ],
              if(state=='PENDIENTE_REVISION'||(internal&&['CONFIRMADA','CANCELADA'].contains(state)))...[
               const SizedBox(height:10),
@@ -563,6 +617,17 @@ class _EventosAdminState extends ConsumerState<EventosAdminPage>{
       icon:const Icon(Icons.groups_outlined,size:18),label:const Text('Ver reservas'),
       style:OutlinedButton.styleFrom(foregroundColor:eventText,
        side:const BorderSide(color:eventBorder))),
+     OutlinedButton.icon(
+      key:Key('control-ingreso-evento-'+(id??0).toString()),
+      onPressed:id==null?null:()=>showDialog<void>(
+       context:context,
+       builder:(_)=>EventAccessControlDialog(
+        eventId:id,
+        title:item['even_titulo']?.toString()??'Evento')),
+      icon:const Icon(Icons.qr_code_scanner,size:18),
+      label:const Text('Control de ingreso'),
+      style:OutlinedButton.styleFrom(foregroundColor:eventText,
+       side:const BorderSide(color:eventBorder))),
      if(status!='CANCELADO')OutlinedButton.icon(
       onPressed:id==null?null:()async{
        final added=await showDialog<bool>(context:context,
@@ -572,7 +637,7 @@ class _EventosAdminState extends ConsumerState<EventosAdminPage>{
            item['even_seleccionar_mesa']==false));
        if(added==true&&mounted){
         ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-         content:Text('Puestos apartados sin cobro en el evento')));
+         content:Text('Puestos apartados. Las entradas se enviarán al correo registrado.')));
         detail(id);
        }
       },
@@ -1389,8 +1454,8 @@ class _ReservaInternaDialog extends ConsumerStatefulWidget{
 }
 class _ReservaInternaState extends ConsumerState<_ReservaInternaDialog>{
  final form=GlobalKey<FormState>();
- final name=TextEditingController(),phone=TextEditingController(),
-  notes=TextEditingController();
+ final name=TextEditingController(),email=TextEditingController(),
+  phone=TextEditingController(),notes=TextEditingController();
  final seatInput=TextEditingController(text:'1');
  List<Map<String,dynamic>> tables=[];
  bool loading=true,saving=false;
@@ -1409,6 +1474,7 @@ class _ReservaInternaState extends ConsumerState<_ReservaInternaDialog>{
   final i=widget.initial;
   if(i!=null){
    name.text=i['eres_nombre']?.toString()??'';
+   email.text=i['eres_email']?.toString()??'';
    phone.text=i['eres_telefono']?.toString()??'';
    notes.text=i['eres_nota']?.toString()??'';
    selectedTable=asId(i['mesa_id']);
@@ -1423,7 +1489,7 @@ class _ReservaInternaState extends ConsumerState<_ReservaInternaDialog>{
   load();
  }
  @override void dispose(){
-  name.dispose();phone.dispose();notes.dispose();seatInput.dispose();super.dispose();
+  name.dispose();email.dispose();phone.dispose();notes.dispose();seatInput.dispose();super.dispose();
  }
  Future<void> load()async{
   if(mounted)setState((){loading=true;error=null;});
@@ -1466,7 +1532,7 @@ class _ReservaInternaState extends ConsumerState<_ReservaInternaDialog>{
   try{
    final body={
     'mesaId':widget.automaticSeats?null:selectedTable,'puestos':seats,
-    'nombre':name.text.trim(),'telefono':phone.text.trim(),
+    'nombre':name.text.trim(),'email':email.text.trim(),'telefono':phone.text.trim(),
     'origen':source,'nota':notes.text.trim(),
     'sillas':!widget.automaticSeats&&tables.any((t)=>asId(t['id'])==selectedTable&&
       t['seleccionarSillas']==true)
@@ -1719,12 +1785,24 @@ class _ReservaInternaState extends ConsumerState<_ReservaInternaDialog>{
        const SizedBox(height:19),
        const EventSectionHeading(icon:Icons.person_outline,
         title:'Datos del responsable',
-        subtitle:'El teléfono es opcional; no se exige correo ni pago.'),
+        subtitle:'El correo es obligatorio para enviar las entradas; el teléfono y el pago son opcionales.'),
        const SizedBox(height:11),
        TextFormField(controller:name,maxLength:140,
         decoration:const InputDecoration(labelText:'Nombre o responsable *',
          border:OutlineInputBorder()),
         validator:(v)=>(v?.trim().isEmpty??true)?'Escribe el nombre':null),
+       const SizedBox(height:10),
+       TextFormField(
+        key:const Key('reserva-interna-email'),
+        controller:email,maxLength:220,
+        keyboardType:TextInputType.emailAddress,
+        textInputAction:TextInputAction.next,
+        decoration:const InputDecoration(
+         labelText:'Correo electrónico para las entradas *',
+         helperText:'Los QR individuales se enviarán al correo',
+         prefixIcon:Icon(Icons.mail_outline),
+         border:OutlineInputBorder()),
+        validator:validateInternalBookingEmail),
        const SizedBox(height:10),
        TextFormField(controller:phone,maxLength:40,
         keyboardType:TextInputType.phone,

@@ -52,6 +52,17 @@ class EventosApi{
    map(await post(scoped('/api/v1/eventos/$eventId/reservas-internas'),values));
  Future<Map<String,dynamic>> editarReservaInterna(int reservationId,Map<String,dynamic> values)async=>
    map(await put(scoped('/api/v1/eventos/reservas/$reservationId/editar-interna'),values));
+ Future<Map<String,dynamic>> reenviarEntradas(int reservationId)async=>
+   map(await post(scoped('/api/v1/eventos/reservas/$reservationId/reenviar-entradas')));
+ Future<Map<String,dynamic>> ingresosEvento(int eventId)async=>
+   map(await get(scoped('/api/v1/eventos/$eventId/accesos')));
+ Future<Map<String,dynamic>> consultarEntradaQr(int eventId,String token)async=>
+   map(await get(scoped('/api/v1/eventos/$eventId/accesos/consultar')+
+     '&token=${Uri.encodeQueryComponent(token)}'));
+ Future<Map<String,dynamic>> validarEntradaQr(int eventId,String token)async=>
+   map(await post(scoped('/api/v1/eventos/$eventId/accesos/validar'),{'token':token}));
+ Future<Map<String,dynamic>> registrarIngresoManual(int eventId,int entryId)async=>
+   map(await post(scoped('/api/v1/eventos/$eventId/accesos/$entryId/manual')));
  Future<List<Map<String,dynamic>>> productos(int branch)async{
   if(branch!=requireBranch())throw StateError('Catálogo de otra sucursal no autorizado');
   return list(await get('/api/v1/eventos/catalogo?sucursalId=$branch'));

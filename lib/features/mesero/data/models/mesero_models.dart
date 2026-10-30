@@ -591,6 +591,8 @@ class CierreCajaResumenModel {
     this.sucursalId,
     this.cerrado,
     this.ventasIncluidas,
+    this.ventasPendientes = const <CierreCajaVentaIncluidaModel>[],
+    this.totalVentasPendientes,
     this.totalVendido,
     this.totalVentasSinPropina,
     this.totalPropinas,
@@ -616,6 +618,8 @@ class CierreCajaResumenModel {
   final int? sucursalId;
   final bool? cerrado;
   final int? ventasIncluidas;
+  final List<CierreCajaVentaIncluidaModel> ventasPendientes;
+  final double? totalVentasPendientes;
   final double? totalVendido;
   final double? totalVentasSinPropina;
   final double? totalPropinas;
@@ -641,6 +645,10 @@ class CierreCajaResumenModel {
         sucursalId: (json['sucursalId'] as num?)?.toInt(),
         cerrado: json['cerrado'] as bool?,
         ventasIncluidas: (json['ventasIncluidas'] as num?)?.toInt(),
+        ventasPendientes: (json['ventasPendientes'] as List? ?? const [])
+            .map((e) => CierreCajaVentaIncluidaModel.fromJson(Map<String, dynamic>.from(e as Map)))
+            .toList(growable: false),
+        totalVentasPendientes: (json['totalVentasPendientes'] as num?)?.toDouble(),
         totalVendido: (json['totalVendido'] as num?)?.toDouble(),
         totalVentasSinPropina: (json['totalVentasSinPropina'] as num?)?.toDouble(),
         totalPropinas: (json['totalPropinas'] as num?)?.toDouble(),
