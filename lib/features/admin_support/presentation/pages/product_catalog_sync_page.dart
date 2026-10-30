@@ -308,6 +308,7 @@ class _ProductCatalogSyncPageState extends ConsumerState<ProductCatalogSyncPage>
     await showDialog<void>(
       context: context,
       builder: (dialogContext) => AlertDialog(
+        scrollable: true,
         title: const Row(children: [Icon(Icons.check_circle_rounded), SizedBox(width: 9), Text('Sincronización completada')]),
         content: SizedBox(
           width: 520,
