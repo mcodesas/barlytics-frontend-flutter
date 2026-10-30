@@ -27,18 +27,33 @@ verticalmente el formulario completo. La captura mostraba opciones "Sáb" y
 | Mesero / Ventas y cierres | Desplazamiento en formularios de pago, confirmaciones y otros diálogos sin scroll interno |
 | Administración / Roles, empresas, catálogos y suscripciones | Desplazamiento en diálogos y confirmaciones extensos |
 | Core / Mensajes, actualizaciones, lookup y seguridad | Desplazamiento y conservación de acciones de confirmación |
+| Medios de pago / Vista previa QR | Limitar altura al 75 % de la ventana y habilitar desplazamiento; permite reemplazar el QR sin perder el botón |
+| Impresión de tickets LAN | Desplazamiento en el formulario IP/puerto, especialmente con teclado abierto |
+| Catálogo BarLytics / Selección y resultados | Paneles de selección e importación con desplazamiento sin ocultar acciones |
 
 Los diálogos con un `SingleChildScrollView` funcional ya existente se
 mantuvieron sin envolverlos nuevamente; los bottom sheets inspeccionados en
 ventas, pagos, inventario, mesas, comandas, sucursales y usuarios ya utilizan
 `isScrollControlled: true` (varios tienen scroll interno).
 
+## Auditoría estructural adicional
+
+- Los 32 archivos Dart modificados en la rama pasaron comprobación estática
+  de delimitadores y bloques. Esta comprobación **no equivale a compilar**.
+- En los formularios auditados de caja, inventario, pedidos, eventos, productos,
+  gastos, empresas y red, todos los `AlertDialog` ahora declaran `scrollable: true`.
+- La vista previa del QR conserva su contenido en un `SingleChildScrollView`
+  con altura máxima relativa al dispositivo.
+- Los diálogos personalizados conservan scroll interno y zonas seguras; falta
+  comprobar su comportamiento real con teclado, texto ampliado y distintas plataformas.
+
 ## Pruebas incluidas
 
 - `test/core/widgets/dialog_scroll_responsive_test.dart`: diálogos reales
   en ventanas móviles (320×540 y 360×690).
 - `test/features/gastos_fijos/dialogos_movil_scroll_regression_test.dart`:
-  guardas de regresión estructural para Mano de obra, proveedores, cuentas y eventos.
+  guardas de regresión estructural para Mano de obra, proveedores, cuentas, eventos y QR de pagos,
+  además de una verificación de `scrollable: true` en 11 archivos auditados.
 
 ## Checklist manual antes de aprobar
 
