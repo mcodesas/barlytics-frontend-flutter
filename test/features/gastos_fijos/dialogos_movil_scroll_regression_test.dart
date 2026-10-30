@@ -39,4 +39,41 @@ void main() {
     expect(src, contains('_eventDialogAvailableHeight(context)'));
     expect(src, contains('media.viewInsets.bottom'));
   });
+  test('Vista previa QR de pagos nunca usa altura infinita en teléfono', () {
+    final src = File(
+      'lib/features/medios_pago/presentation/pages/medios_pago_list_page.dart',
+    ).readAsStringSync();
+    expect(src, contains("Key('medio-pago-qr-dialog-scroll')"));
+    expect(src, contains('maxHeight: MediaQuery.sizeOf(context).height * .75'));
+  });
+
+  test('Todos los formularios AlertDialog auditados permiten scroll', () {
+    const paths = [
+      'lib/features/gastos_fijos/presentation/pages/gastos_fijos_page.dart',
+      'lib/features/mesero/presentation/pages/mesero_page.dart',
+      'lib/features/inventario/presentation/pages/inventario_admin_page.dart',
+      'lib/features/inventario/presentation/pages/inventario_list_page.dart',
+      'lib/features/pagos/presentation/pages/pagos_list_page.dart',
+      'lib/features/pedidos_compra/presentation/pages/pedidos_compra_page.dart',
+      'lib/features/productos/presentation/pages/productos_form_page.dart',
+      'lib/features/productos/presentation/widgets/productos_setup_tools.dart',
+      'lib/features/empresas/presentation/pages/empresas_form_page.dart',
+      'lib/features/eventos/presentation/eventos_admin_page.dart',
+      'lib/core/printing/network_ticket_dialog.dart',
+    ];
+    for (final path in paths) {
+      final src = File(path).readAsStringSync();
+      final matches = RegExp(r'\bAlertDialog\(').allMatches(src);
+      expect(matches, isNotEmpty, reason: path);
+      for (final match in matches) {
+        final end = (match.start + 340).clamp(0, src.length);
+        expect(
+          src.substring(match.start, end),
+          contains(RegExp(r'\bscrollable:\s*true')),
+          reason: '$path: diálogo sin scroll, posición ${match.start}',
+        );
+      }
+    }
+  });
+
 }
