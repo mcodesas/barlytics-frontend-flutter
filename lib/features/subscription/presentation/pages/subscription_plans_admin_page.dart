@@ -235,6 +235,7 @@ class _SubscriptionPlansAdminPageState extends ConsumerState<SubscriptionPlansAd
     return await showDialog<bool>(
           context: context,
           builder: (context) => AlertDialog(
+        scrollable: true,
             shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
             icon: CircleAvatar(
               radius: 24,
