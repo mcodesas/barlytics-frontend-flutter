@@ -17043,7 +17043,13 @@ class _SeleccionCuentaPagoDialog extends ConsumerWidget {
     return Dialog(
       backgroundColor: Colors.transparent,
       insetPadding: const EdgeInsets.all(20),
-      child: TechGlassPanel(
+      child: ConstrainedBox(
+        constraints: BoxConstraints(
+          maxHeight: MediaQuery.sizeOf(context).height * .78,
+        ),
+        child: SingleChildScrollView(
+          key: const Key('seleccion-cuenta-pago-scroll'),
+          child: TechGlassPanel(
         maxWidth: 520,
         padding: const EdgeInsets.all(22),
         dark: true,
@@ -17073,6 +17079,8 @@ class _SeleccionCuentaPagoDialog extends ConsumerWidget {
               child: TextButton(onPressed: () => Navigator.of(context).pop(), child: const Text('Cancelar')),
             ),
           ],
+        ),
+          ),
         ),
       ),
     );
