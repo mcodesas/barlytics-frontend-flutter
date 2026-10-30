@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:math' as math;
 import 'package:file_picker/file_picker.dart';
 import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
@@ -13,6 +14,14 @@ import 'widgets/event_visual_kit.dart';
 import 'widgets/event_internal_email_validator.dart';
 import 'widgets/event_access_control_dialog.dart';
 import '../../productos/presentation/pages/productos_form_page.dart';
+
+// Mantener los diálogos dentro del espacio realmente visible, incluso
+// cuando el teclado iOS/Android reduce la ventana o hay safe areas.
+double _eventDialogAvailableHeight(BuildContext context) {
+  final media = MediaQuery.of(context);
+  return math.max(180.0,
+    media.size.height - media.viewInsets.bottom - media.padding.vertical - 32.0);
+}
 
 const sea=Color(0xff24d4ce);
 const eventSurface=Color(0xff102e40);
@@ -109,7 +118,8 @@ class _EventosAdminState extends ConsumerState<EventosAdminPage>{
     shape:RoundedRectangleBorder(borderRadius:BorderRadius.circular(22)),
     insetPadding:const EdgeInsets.all(12),
     child:SizedBox(width:MediaQuery.sizeOf(dialog).width>1450?1360.0:MediaQuery.sizeOf(dialog).width*.94,
-      height:MediaQuery.sizeOf(dialog).height*.93,
+      height:math.min(MediaQuery.sizeOf(dialog).height*.93,
+        _eventDialogAvailableHeight(dialog)),
      child:EventoEditor(initial:event,
       onSaved:(row)=>Navigator.of(dialog).pop(row))),
    ),
@@ -1301,7 +1311,8 @@ class _EventPaymentGuideState extends ConsumerState<_EventPaymentGuide>{
    insetPadding:const EdgeInsets.all(12),
    child:ConstrainedBox(
     constraints:BoxConstraints(maxWidth:820,
-     maxHeight:MediaQuery.sizeOf(context).height*.93),
+     maxHeight:math.min(MediaQuery.sizeOf(context).height*.93,
+      _eventDialogAvailableHeight(context))),
     child:Column(children:[
      Container(width:double.infinity,padding:const EdgeInsets.all(21),
       decoration:const BoxDecoration(gradient:LinearGradient(colors:[
@@ -1594,7 +1605,9 @@ class _ReservaInternaState extends ConsumerState<_ReservaInternaDialog>{
    backgroundColor:EventColors.background,
    shape:RoundedRectangleBorder(borderRadius:BorderRadius.circular(23)),
    child:ConstrainedBox(
-    constraints:BoxConstraints(maxWidth:760,maxHeight:MediaQuery.sizeOf(context).height*.92),
+    constraints:BoxConstraints(maxWidth:760,
+      maxHeight:math.min(MediaQuery.sizeOf(context).height*.92,
+        _eventDialogAvailableHeight(context))),
     child:Form(key:form,child:Column(children:[
      Container(width:double.infinity,
       padding:const EdgeInsets.all(19),
