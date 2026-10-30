@@ -1037,7 +1037,7 @@ class _ReporteDetailState extends ConsumerState<_ReporteDetail> {
             }
 
             return AlertDialog(
-          scrollable: true,
+              scrollable: true,
               titlePadding: const EdgeInsets.fromLTRB(24, 20, 16, 8),
               contentPadding: const EdgeInsets.fromLTRB(20, 8, 20, 8),
               actionsPadding: const EdgeInsets.fromLTRB(16, 8, 16, 14),
@@ -4350,7 +4350,7 @@ class _NextOrderContentState extends ConsumerState<_NextOrderContent> {
     final chosen = await showDialog<double>(
       context: context,
       builder: (dialogContext) => AlertDialog(
-          scrollable: true,
+        scrollable: true,
         title: const Text('Pedir unidades exactas'),
         content: ConstrainedBox(
           constraints: const BoxConstraints(maxWidth: 420),
