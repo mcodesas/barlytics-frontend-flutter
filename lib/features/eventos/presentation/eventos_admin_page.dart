@@ -206,6 +206,7 @@ class _EventosAdminState extends ConsumerState<EventosAdminPage>{
    result=await showDialog<Map<String,dynamic>>(
     context:parentDialog,builder:(ctx)=>StatefulBuilder(
      builder:(ctx,update)=>AlertDialog(
+        scrollable: true,
       backgroundColor:EventColors.surface,
       title:Text(alreadyRetired?'Gestionar devolución':'Retirar reserva',
        style:const TextStyle(color:EventColors.text,fontWeight:FontWeight.w900)),
