@@ -3280,13 +3280,13 @@ class _WizardActionButton extends StatelessWidget {
         child: Tooltip(
           message: label.isEmpty ? 'Anterior' : label,
           child: OutlinedButton(
-          onPressed: enabled ? onPressed : null,
-          style: OutlinedButton.styleFrom(
-            foregroundColor: palette.primary,
-            side: BorderSide(color: palette.cardBorder),
-            shape: shape,
-          ),
-          child: child,
+            onPressed: enabled ? onPressed : null,
+            style: OutlinedButton.styleFrom(
+              foregroundColor: palette.primary,
+              side: BorderSide(color: palette.cardBorder),
+              shape: shape,
+            ),
+            child: child,
           ),
         ),
       );
