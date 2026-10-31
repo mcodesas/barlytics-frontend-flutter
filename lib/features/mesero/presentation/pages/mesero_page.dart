@@ -18603,6 +18603,7 @@ class _PagarCuentaDialogState extends State<_PagarCuentaDialog> {
   Future<void> _mostrarOtrosMediosPago(_PagoFormRowData pago, List<MeseroMedioPagoModel> otros) async {
     final seleccionado = await showModalBottomSheet<int>(
       context: context,
+      isScrollControlled: true,
       useSafeArea: true,
       backgroundColor: Colors.transparent,
       builder: (sheetContext) {
