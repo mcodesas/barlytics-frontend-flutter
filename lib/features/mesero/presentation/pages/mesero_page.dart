@@ -22083,13 +22083,13 @@ class _CrearMesaDialogState extends State<_CrearMesaDialog> {
   @override
   Widget build(BuildContext context) {
     final mediaWidth = MediaQuery.sizeOf(context).width;
-    final dialogWidth = mediaWidth < 560 ? mediaWidth - 48 : 460.0;
+    final dialogWidth = (mediaWidth - 128).clamp(0.0, 460.0).toDouble();
 
     return AlertDialog(
         scrollable: true,
       title: const Text('Agregar mesa'),
       content: SizedBox(
-        width: dialogWidth > 280 ? dialogWidth : 280.0,
+        width: dialogWidth,
         child: Form(
           key: _formKey,
           child: SingleChildScrollView(
@@ -22184,13 +22184,13 @@ class _EditarMesaDialogState extends State<_EditarMesaDialog> {
   @override
   Widget build(BuildContext context) {
     final mediaWidth = MediaQuery.sizeOf(context).width;
-    final dialogWidth = mediaWidth < 560 ? mediaWidth - 48 : 460.0;
+    final dialogWidth = (mediaWidth - 128).clamp(0.0, 460.0).toDouble();
 
     return AlertDialog(
         scrollable: true,
       title: Text('Editar mesa ${widget.mesa.mesaNumero ?? '-'}'),
       content: SizedBox(
-        width: dialogWidth > 280 ? dialogWidth : 280.0,
+        width: dialogWidth,
         child: Form(
           key: _formKey,
           child: SingleChildScrollView(
