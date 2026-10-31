@@ -127,4 +127,127 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
+
+  for (final size in <Size>[
+    const Size(320, 640),
+    const Size(390, 844),
+    const Size(1280, 800),
+  ]) {
+    testWidgets('barra de producto separada del menú inferior en $size',
+        (tester) async {
+      tester.view.physicalSize = size;
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+
+      var nextPressed = false;
+      await tester.pumpWidget(MaterialApp(
+        home: Scaffold(
+          body: Column(
+            children: [
+              const SizedBox(
+                height: 72,
+                child: Center(child: Text('Encabezado BarLytics')),
+              ),
+              Expanded(
+                child: ProductWizardViewport(
+                  content: ListView(
+                    children: const [
+                      Text('Nombre del producto'),
+                      SizedBox(height: 800),
+                    ],
+                  ),
+                  navigation: ProductWizardFooter(
+                    surfaceColor: Colors.white,
+                    borderColor: Colors.grey,
+                    shadowColor: Colors.black12,
+                    child: Row(
+                      children: [
+                        OutlinedButton(
+                          onPressed: () {},
+                          child: const Text('Anterior'),
+                        ),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: FilledButton(
+                            onPressed: () => nextPressed = true,
+                            child: const Text('Siguiente'),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
+          bottomNavigationBar: const SizedBox(
+            height: 64,
+            child: Center(child: Text('Menú inferior')),
+          ),
+        ),
+      ));
+      await tester.pumpAndSettle();
+
+      final footer = find.byKey(const Key('product-wizard-footer-card'));
+      expect(footer, findsOneWidget);
+      expect(tester.getSize(footer).width, lessThanOrEqualTo(720));
+      expect(
+        tester.getBottomRight(footer).dy,
+        lessThan(tester.getTopLeft(find.text('Menú inferior')).dy),
+      );
+      expect(find.text('Nombre del producto'), findsOneWidget);
+      expect(tester.takeException(), isNull);
+      await tester.tap(find.text('Siguiente'));
+      await tester.pump();
+      expect(nextPressed, isTrue);
+    });
+  }
+
+  testWidgets('barra del asistente accesible con teclado abierto', (tester) async {
+    tester.view.physicalSize = const Size(360, 680);
+    tester.view.devicePixelRatio = 1;
+    tester.view.viewInsets = const FakeViewPadding(bottom: 240);
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    addTearDown(tester.view.resetViewInsets);
+
+    await tester.pumpWidget(MaterialApp(
+      home: Scaffold(
+        body: ProductWizardViewport(
+          content: ListView(
+            children: const [
+              TextField(decoration: InputDecoration(labelText: 'Nombre')),
+              SizedBox(height: 600),
+            ],
+          ),
+          navigation: ProductWizardFooter(
+            surfaceColor: Colors.white,
+            borderColor: Colors.grey,
+            shadowColor: Colors.black12,
+            child: FilledButton(
+              onPressed: () {},
+              child: const Text('Siguiente'),
+            ),
+          ),
+        ),
+        bottomNavigationBar: const SizedBox(
+          height: 56,
+          child: Center(child: Text('Menú inferior')),
+        ),
+      ),
+    ));
+    await tester.pumpAndSettle();
+
+    final footer = find.byKey(const Key('product-wizard-footer-card'));
+    expect(footer, findsOneWidget);
+    expect(
+      tester.getBottomRight(footer).dy,
+      lessThan(tester.getTopLeft(find.text('Menú inferior')).dy),
+    );
+    expect(find.text('Siguiente'), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
+
+
 }
