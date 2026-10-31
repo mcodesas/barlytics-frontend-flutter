@@ -4592,19 +4592,11 @@ class _NextOrderContentState extends ConsumerState<_NextOrderContent> {
                       ? _orderDestinations
                       : _orderDestinations.where((d) =>
                           associated.contains((d['id'] as num?)?.toInt())).toList();
-                  return Row(
-                    children: [
-                      Expanded(
-                        flex: 5,
-                        child: Text(
-                          (row['producto'] ?? 'Producto').toString(),
-                          style: const TextStyle(fontWeight: FontWeight.w800),
-                        ),
-                      ),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        flex: 6,
-                        child: DropdownButtonFormField<int>(
+                  final productLabel = Text(
+                    (row['producto'] ?? 'Producto').toString(),
+                    style: const TextStyle(fontWeight: FontWeight.w800),
+                  );
+                  final destinationField = DropdownButtonFormField<int>(
                           value: selection[productId] ?? 0,
                           isExpanded: true,
                           decoration: const InputDecoration(
@@ -4638,9 +4630,25 @@ class _NextOrderContentState extends ConsumerState<_NextOrderContent> {
                             if (value == null) return;
                             setLocal(() => selection[productId] = value);
                           },
-                        ),
-                      ),
-                    ],
+                        );
+                  return LayoutBuilder(
+                    builder: (context, dimensions) {
+                      if (dimensions.maxWidth < 450) {
+                        return Column(
+                          crossAxisAlignment: CrossAxisAlignment.stretch,
+                          children: [
+                            productLabel,
+                            const SizedBox(height: 9),
+                            destinationField,
+                          ],
+                        );
+                      }
+                      return Row(children: [
+                        Expanded(flex: 5, child: productLabel),
+                        const SizedBox(width: 12),
+                        Expanded(flex: 6, child: destinationField),
+                      ]);
+                    },
                   );
                 },
               ),
