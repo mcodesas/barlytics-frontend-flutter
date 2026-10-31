@@ -461,49 +461,19 @@ class _ProductosFormPageState extends ConsumerState<ProductosFormPage> {
           ),
         ],
       ),
-      navigation: SafeArea(
-        top: false,
-        minimum: const EdgeInsets.only(bottom: 8),
-        child: Padding(
-          // Separar las acciones del menú inferior del AppScaffold: el editor
-          // no debe dibujar una segunda barra oscura de lado a lado.
-          padding: const EdgeInsets.fromLTRB(12, 6, 12, 2),
-          child: Center(
-            heightFactor: 1,
-            child: ConstrainedBox(
-              constraints: const BoxConstraints(maxWidth: 720),
-              child: DecoratedBox(
-                decoration: BoxDecoration(
-                  color: palette.surface.withOpacity(0.98),
-                  borderRadius: BorderRadius.circular(20),
-                  border: Border.all(color: palette.cardBorder),
-                  boxShadow: [
-                    BoxShadow(
-                      color: palette.cardShadow,
-                      blurRadius: 18,
-                      offset: const Offset(0, 5),
-                    ),
-                  ],
-                ),
-                child: Padding(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 10,
-                    vertical: 9,
-                  ),
-                  child: _NavigationButtons(
-                    palette: palette,
-                    saving: _saving,
-                    currentStep: _currentStep,
-                    onPrevious: _currentStep == 0
-                        ? null
-                        : () => setState(() => _currentStep--),
-                    onNext: _goNext,
-                    onSave: () => _confirmAndSave(context, palette),
-                  ),
-                ),
-              ),
-            ),
-          ),
+      navigation: ProductWizardFooter(
+        surfaceColor: palette.surface,
+        borderColor: palette.cardBorder,
+        shadowColor: palette.cardShadow,
+        child: _NavigationButtons(
+          palette: palette,
+          saving: _saving,
+          currentStep: _currentStep,
+          onPrevious: _currentStep == 0
+              ? null
+              : () => setState(() => _currentStep--),
+          onNext: _goNext,
+          onSave: () => _confirmAndSave(context, palette),
         ),
       ),
     );
