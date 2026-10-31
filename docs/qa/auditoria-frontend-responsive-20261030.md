@@ -34,3 +34,13 @@
 
 ## Criterio de cierre
 No afirmar «cero bugs» sin pruebas de compilación, pruebas automatizadas satisfactorias y QA manual por plataforma. No crear PR, fusionar en main ni desplegar hasta completar esos controles.
+
+## QA-PROD-001 — Barra de navegación del asistente de productos
+
+**Evidencia:** captura aportada el 30 de octubre de 2026; botones «Anterior / Siguiente» sobre la barra inferior general de BarLytics, demasiado anchos y con una segunda banda oscura.
+
+**Corrección aplicada:** un componente `ProductWizardFooter` limita las acciones a 720 px, las presenta como una tarjeta centrada y separada del menú inferior. En móvil, «Anterior» puede reducirse a un icono accesible y «Siguiente» ocupa el espacio restante, evitando dos filas de botones.
+
+**Cobertura añadida:** pruebas de widget para 320×640, 390×844, 1280×800 y teclado abierto a 360×680. Comprueban que la tarjeta no sobrepase su ancho máximo, quede antes del menú inferior y mantenga su acción disponible.
+
+**Resultado:** corrección de código realizada; pruebas **no ejecutadas** en esta sesión porque no hay SDK Flutter/Dart instalado. Pendiente ejecutar CI manual y validación visual en la aplicación desplegada.
