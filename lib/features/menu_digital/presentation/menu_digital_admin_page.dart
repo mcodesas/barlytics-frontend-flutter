@@ -335,7 +335,7 @@ class _MenuDigitalAdminPageState extends ConsumerState<MenuDigitalAdminPage> {
               style: const pw.TextStyle(fontSize: 8)),
           pw.SizedBox(height: 20),
           pw.Text('Creado con BarLytics', style: const pw.TextStyle(fontSize: 9)),
-        ]))),
+        ])),
       ));
       final ok = await downloadBytesFile(
         fileName: 'menu-digital-qr.pdf',
