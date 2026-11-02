@@ -110,6 +110,7 @@ class _ManagerHomePageState extends ConsumerState<ManagerHomePage> {
       );
     }
 
+    final puedeMenuDigital = widget.items.any((item) => item.keyName == 'menu_digital');
     final puedeTesoreria = widget.items.any((item) => item.keyName == 'tesoreria');
     final puedeAgendaDeportiva = widget.items.any((item) => item.keyName == 'agenda_deportiva');
     final branchName = branchState.activeBranch?.sucuNombre?.trim();
@@ -183,6 +184,27 @@ class _ManagerHomePageState extends ConsumerState<ManagerHomePage> {
                     ),
                   ),
                 ),
+                if (puedeMenuDigital)
+                  SliverToBoxAdapter(
+                    child: Center(
+                      child: ConstrainedBox(
+                        constraints: const BoxConstraints(maxWidth: 1440),
+                        child: Padding(
+                          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 5),
+                          child: Card(
+                            child: ListTile(
+                              leading: Icon(Icons.menu_book_rounded, color: palette.secondary),
+                              title: const Text('Menú digital · Carta para compartir',
+                                  style: TextStyle(fontWeight: FontWeight.bold)),
+                              subtitle: const Text('Personaliza tu carta como tienda o libro, publica el enlace y descarga el QR'),
+                              trailing: const Icon(Icons.chevron_right_rounded),
+                              onTap: () => context.go('/menu_digital'),
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
                 if (puedeTesoreria)
                   SliverToBoxAdapter(
                   child: Center(
