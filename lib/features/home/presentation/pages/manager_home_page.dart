@@ -760,6 +760,10 @@ class _ManagerFinancePulse extends StatelessWidget {
         : <Map<String, dynamic>>[];
     expenseRows.sort((a, b) =>
         _managerDouble(b['valor']).compareTo(_managerDouble(a['valor'])));
+    final cashFlowRaw = summary['flujo_dinero_por_medio'];
+    final cashFlowRows = cashFlowRaw is List
+        ? cashFlowRaw.whereType<Map>().map((item) => Map<String, dynamic>.from(item)).toList()
+        : <Map<String, dynamic>>[];
 
     Widget line(String label, double amount, {bool prominent = false}) => Padding(
       padding: const EdgeInsets.symmetric(vertical: 5),
@@ -849,6 +853,26 @@ class _ManagerFinancePulse extends StatelessWidget {
                         style: TextStyle(color: palette.textSecondary, fontSize: 10)),
                   ]),
             ),
+            section('Flujo monetario del día', 'Recaudos menos pagos efectivos registrados; no representa el saldo de la cuenta.',
+              cashFlowRows.isEmpty
+                  ? Text('No hay movimientos de dinero asignables al día.',
+                      style: TextStyle(color: palette.textSecondary))
+                  : Column(children: [
+                      for (final row in cashFlowRows) ...[
+                        Align(
+                          alignment: Alignment.centerLeft,
+                          child: Text(
+                            _managerText(row['medio_pago'], 'Sin medio'),
+                            style: TextStyle(color: palette.secondary, fontWeight: FontWeight.w900),
+                          ),
+                        ),
+                        line('  Ingresos', _managerDouble(row['ingresos'])),
+                        line('  Egresos', _managerDouble(row['egresos'])),
+                        line('  Neto del periodo', _managerDouble(row['flujo_neto']), prominent: true),
+                        const SizedBox(height: 6),
+                      ],
+                    ]),
+            ),
           ];
           if (compact) return Column(children: [
             for (var i = 0; i < cards.length; i++) ...[
@@ -860,7 +884,7 @@ class _ManagerFinancePulse extends StatelessWidget {
             spacing: 11, runSpacing: 11,
             children: [
               for (final card in cards)
-                SizedBox(width: (constraints.maxWidth - 22) / 3, child: card),
+                SizedBox(width: (constraints.maxWidth - 11) / 2, child: card),
             ],
           );
         }),
