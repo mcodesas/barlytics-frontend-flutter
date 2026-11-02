@@ -1993,6 +1993,14 @@ class _ReportContent extends StatelessWidget {
                           signed: definition.signedChart,
                         ),
                 ),
+                if (definition.keyName == 'reporte_ventas_fecha') ...[
+                  const SizedBox(height: 14),
+                  _DailyProductBreakdown(
+                    key: ValueKey('productos-dia-${range.start}-${range.end}'),
+                    days: payload.rows,
+                    palette: palette,
+                  ),
+                ],
                 const SizedBox(height: 14),
                 _Panel(
                   title: 'Detalle para validar y actuar',
@@ -2016,6 +2024,153 @@ class _ReportContent extends StatelessWidget {
   }
 }
 
+
+/// Desglose real por producto para cada día del reporte. Usa el endpoint
+/// existente de ventas por producto con filtro inicio=fin, sin prorrateos
+/// ni estimaciones que puedan distorsionar el detalle contable.
+class _DailyProductBreakdown extends ConsumerStatefulWidget {
+  const _DailyProductBreakdown({
+    super.key,
+    required this.days,
+    required this.palette,
+  });
+
+  final List<Map<String, dynamic>> days;
+  final AppPalette palette;
+
+  @override
+  ConsumerState<_DailyProductBreakdown> createState() => _DailyProductBreakdownState();
+}
+
+class _DailyProductBreakdownState extends ConsumerState<_DailyProductBreakdown> {
+  final Map<String, List<Map<String, dynamic>>> _cache = {};
+  String? _selectedDay;
+  bool _loading = false;
+  String? _error;
+
+  Future<void> _openDay(String date) async {
+    if (_selectedDay == date) {
+      setState(() => _selectedDay = null);
+      return;
+    }
+    setState(() {
+      _selectedDay = date;
+      _error = null;
+      _loading = !_cache.containsKey(date);
+    });
+    if (_cache.containsKey(date)) return;
+    try {
+      final branchId = ref.read(branchScopeProvider).activeBranchId;
+      if (branchId == null) throw StateError('Selecciona una sucursal.');
+      final response = await ref.read(apiClientProvider).get<Object?>(
+        '/api/v1/reportes/productos-mas-vendidos',
+        (json) => json,
+        queryParameters: {
+          'inicio': date,
+          'fin': date,
+          'sucursalId': branchId,
+          'limite': 500,
+        },
+      );
+      if (!mounted) return;
+      final data = response.data;
+      setState(() {
+        _cache[date] = data is List
+            ? data.whereType<Map>().map((item) => Map<String, dynamic>.from(item)).toList()
+            : <Map<String, dynamic>>[];
+        _loading = false;
+      });
+    } catch (error) {
+      if (!mounted) return;
+      setState(() {
+        _loading = false;
+        _error = error.toString();
+      });
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final palette = widget.palette;
+    final sorted = [...widget.days]
+      ..sort((a, b) => (b['fecha']?.toString() ?? '').compareTo(a['fecha']?.toString() ?? ''));
+    return _Panel(
+      title: 'Productos vendidos por día',
+      subtitle: 'Selecciona una fecha para ver la cantidad de cada producto y su venta real. Los importes no incluyen propinas.',
+      icon: Icons.shopping_basket_outlined,
+      palette: palette,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          if (sorted.isEmpty)
+            Text('No hay ventas finalizadas en el período.', style: TextStyle(color: palette.textSecondary)),
+          for (final day in sorted) ...[
+            Builder(builder: (context) {
+              final date = day['fecha']?.toString().split(' ').first ?? '';
+              final expanded = _selectedDay == date;
+              final products = _cache[date] ?? const <Map<String, dynamic>>[];
+              return Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  Material(
+                    color: expanded ? palette.secondary.withOpacity(0.10) : Colors.transparent,
+                    borderRadius: BorderRadius.circular(12),
+                    child: InkWell(
+                      onTap: date.isEmpty ? null : () => _openDay(date),
+                      borderRadius: BorderRadius.circular(12),
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 13),
+                        child: Row(
+                          children: [
+                            Icon(expanded ? Icons.expand_less_rounded : Icons.expand_more_rounded, color: palette.secondary),
+                            const SizedBox(width: 10),
+                            Expanded(child: Text(date, style: TextStyle(color: palette.textPrimary, fontWeight: FontWeight.w800))),
+                            Text('${day['ventas'] ?? 0} ventas', style: TextStyle(color: palette.textSecondary)),
+                            const SizedBox(width: 12),
+                            Text(CurrencyUtils.format(_toDouble(day['total'])), style: TextStyle(color: palette.textPrimary, fontWeight: FontWeight.w900)),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ),
+                  if (expanded)
+                    Padding(
+                      padding: const EdgeInsets.fromLTRB(12, 5, 12, 15),
+                      child: _loading
+                          ? const Center(child: CircularProgressIndicator())
+                          : _error != null
+                              ? Text('No se pudo consultar el detalle: $_error', style: TextStyle(color: palette.warning))
+                              : products.isEmpty
+                                  ? Text('Sin productos para esta fecha.', style: TextStyle(color: palette.textSecondary))
+                                  : Column(
+                                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                                      children: [
+                                        for (var i = 0; i < products.length; i++) ...[
+                                          if (i > 0) Divider(height: 12, color: palette.cardBorder),
+                                          Row(
+                                            children: [
+                                              Expanded(child: Text(products[i]['producto']?.toString() ?? 'Producto', style: TextStyle(color: palette.textPrimary))),
+                                              Text('${products[i]['cantidad'] ?? 0} uds.', style: TextStyle(color: palette.textSecondary, fontWeight: FontWeight.w700)),
+                                              const SizedBox(width: 14),
+                                              Text(CurrencyUtils.format(_toDouble(products[i]['total'])), style: TextStyle(color: palette.textPrimary, fontWeight: FontWeight.w800)),
+                                            ],
+                                          ),
+                                        ],
+                                        const SizedBox(height: 10),
+                                        Text('Productos distintos: ${products.length} · Unidades: ${products.fold<double>(0, (sum, item) => sum + _toDouble(item['cantidad']))}',
+                                          style: TextStyle(color: palette.secondary, fontWeight: FontWeight.w800)),
+                                      ],
+                                    ),
+                    ),
+                ],
+              );
+            }),
+          ],
+        ],
+      ),
+    );
+  }
+}
 
 class _ReportDecisionSection extends StatelessWidget {
   const _ReportDecisionSection({
