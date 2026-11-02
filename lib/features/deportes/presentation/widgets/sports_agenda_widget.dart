@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -6,6 +8,16 @@ import 'package:url_launcher/url_launcher.dart';
 
 import '../../../../app/theme/app_palette.dart';
 import '../../../../core/providers/core_providers.dart';
+
+/// Fecha civil del día en Colombia; la agenda remota publica horas de Bogotá.
+///
+/// Usar la fecha del dispositivo falla cuando el usuario viaja a otro país.
+/// El argumento opcional permite probar el cambio de fecha en medianoche.
+DateTime sportsTodayBogota({DateTime? now}) {
+  final utc = (now ?? DateTime.now()).toUtc();
+  final colombia = utc.subtract(const Duration(hours: 5));
+  return DateTime(colombia.year, colombia.month, colombia.day);
+}
 
 /// Mismo lenguaje visual del resto de BarLytics: paleta, densidad y superficies.
 /// En Inicio se presenta un resumen; la pantalla propia permite consultar todo.
@@ -19,7 +31,8 @@ class SportsAgendaWidget extends ConsumerStatefulWidget {
 }
 
 class _SportsAgendaWidgetState extends ConsumerState<SportsAgendaWidget> {
-  DateTime _date = DateUtils.dateOnly(DateTime.now());
+  DateTime _date = sportsTodayBogota();
+  Timer? _todayTimer;
   final _leagueController = TextEditingController();
   final _cityController = TextEditingController();
   String _league = '';
@@ -32,6 +45,18 @@ class _SportsAgendaWidgetState extends ConsumerState<SportsAgendaWidget> {
   @override
   void initState() {
     super.initState();
+    if (widget.compact) {
+      // La tarjeta de Inicio siempre representa HOY en Colombia,
+      // incluso si el panel gerencial permanece abierto toda la noche.
+      _todayTimer = Timer.periodic(const Duration(minutes: 1), (_) {
+        if (!mounted) return;
+        final today = sportsTodayBogota();
+        if (!DateUtils.isSameDay(_date, today)) {
+          setState(() => _date = today);
+          _load();
+        }
+      });
+    }
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted) _load();
     });
@@ -39,6 +64,7 @@ class _SportsAgendaWidgetState extends ConsumerState<SportsAgendaWidget> {
 
   @override
   void dispose() {
+    _todayTimer?.cancel();
     _leagueController.dispose();
     _cityController.dispose();
     super.dispose();
@@ -53,6 +79,7 @@ class _SportsAgendaWidgetState extends ConsumerState<SportsAgendaWidget> {
   Future<void> _load() async {
     if (!mounted) return;
     final request = ++_requestNumber;
+    if (widget.compact) _date = sportsTodayBogota();
     setState(() {
       _busy = true;
       _error = null;
@@ -113,7 +140,7 @@ class _SportsAgendaWidgetState extends ConsumerState<SportsAgendaWidget> {
   }
 
   Future<void> _pickDate() async {
-    final today = DateUtils.dateOnly(DateTime.now());
+    final today = sportsTodayBogota();
     final first = today.subtract(const Duration(days: 1));
     final last = today.add(const Duration(days: 14));
     final current = _date.isBefore(first) || _date.isAfter(last) ? today : _date;
@@ -277,8 +304,8 @@ class _SportsAgendaWidgetState extends ConsumerState<SportsAgendaWidget> {
     final palette = ref.watch(selectedAppPaletteProvider);
     final matches = _rows(_data['partidos']);
     final news = _rows(_data['noticias']);
-    final matchLimit = widget.compact ? 3 : 30;
-    final newsLimit = widget.compact ? 2 : 12;
+    final matchLimit = widget.compact ? 4 : 30;
+    const newsLimit = 12;
 
     return LayoutBuilder(builder: (context, constraints) {
       final isMobile = constraints.maxWidth < 640;
@@ -301,25 +328,33 @@ class _SportsAgendaWidgetState extends ConsumerState<SportsAgendaWidget> {
             ),
             const SizedBox(width: 13),
             Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              Text('AGENDA PARA TU NEGOCIO',
+              Text(widget.compact ? 'HOY EN COLOMBIA' : 'AGENDA PARA TU NEGOCIO',
                 style: TextStyle(color: palette.onPrimary.withOpacity(0.80),
                     fontWeight: FontWeight.w800, fontSize: 10, letterSpacing: 1.2)),
               const SizedBox(height: 4),
-              Text('Deportes y noticias',
+              Text(widget.compact ? 'Partidos de hoy' : 'Deportes y noticias',
                 style: TextStyle(color: palette.onPrimary,
                     fontSize: (isMobile ? 21 : 26) * palette.fontScale,
                     fontWeight: FontWeight.w900)),
               const SizedBox(height: 6),
-              Text('Encuentros de fútbol y titulares para planear la agenda del bar.',
+              Text(widget.compact
+                  ? DateFormat('EEEE d MMMM', 'es_CO').format(_date)
+                  : 'Encuentros de fútbol y titulares para planear la agenda del bar.',
                 style: TextStyle(color: palette.onPrimary.withOpacity(0.9),
                     fontSize: 12 * palette.fontScale)),
             ])),
-            if (widget.compact)
+            if (widget.compact) ...[
+              IconButton(
+                tooltip: 'Actualizar partidos del día',
+                onPressed: _busy ? null : _load,
+                icon: Icon(Icons.refresh_rounded, color: palette.onPrimary),
+              ),
               IconButton(
                 tooltip: 'Ver agenda completa',
                 onPressed: () => context.go('/agenda_deportiva'),
                 icon: Icon(Icons.arrow_forward_rounded, color: palette.onPrimary),
               ),
+            ],
           ]),
         ),
         SizedBox(height: 14 * palette.spacingScale),
@@ -388,26 +423,14 @@ class _SportsAgendaWidgetState extends ConsumerState<SportsAgendaWidget> {
                   ),
               ],
             ),
-          ]))
-        else
-          _surface(
-            child: Row(children: [
-              Icon(Icons.calendar_today_outlined, color: palette.secondary, size: 19),
-              const SizedBox(width: 9),
-              Expanded(child: Text(DateFormat('EEEE d MMMM', 'es_CO').format(_date),
-                style: TextStyle(color: palette.textPrimary, fontWeight: FontWeight.w800))),
-              TextButton(
-                onPressed: _pickDate,
-                child: const Text('Cambiar fecha'),
-              ),
-            ]),
-          ),
+          ])),
         if (_busy) Padding(
           padding: const EdgeInsets.only(top: 12),
           child: LinearProgressIndicator(color: palette.secondary),
         ),
         SizedBox(height: 18 * palette.spacingScale),
-        _sectionHeading('Partidos del día', Icons.sports_soccer_outlined, matches.length),
+        _sectionHeading(widget.compact ? 'Encuentros programados' : 'Partidos del día',
+            Icons.sports_soccer_outlined, matches.length),
         if (_error != null)
           _surface(child: Row(children: [
             Icon(Icons.wifi_off_outlined, color: palette.danger),
@@ -425,7 +448,9 @@ class _SportsAgendaWidgetState extends ConsumerState<SportsAgendaWidget> {
             Icon(Icons.event_busy_outlined, color: palette.textSecondary),
             const SizedBox(width: 11),
             Expanded(child: Text(
-              'No hay partidos disponibles para esta fecha en las ligas consultadas.',
+              widget.compact
+                  ? 'Hoy no hay partidos disponibles en las ligas consultadas.'
+                  : 'No hay partidos disponibles para esta fecha en las ligas consultadas.',
               style: TextStyle(color: palette.textSecondary),
             )),
           ])),
@@ -439,27 +464,27 @@ class _SportsAgendaWidgetState extends ConsumerState<SportsAgendaWidget> {
             icon: const Icon(Icons.arrow_forward_rounded),
             label: const Text('Ver todos los encuentros'),
           ),
-        SizedBox(height: 12 * palette.spacingScale),
-        _sectionHeading('Noticias deportivas', Icons.newspaper_rounded, news.length),
-        if (news.isEmpty && !_busy)
-          _surface(child: Text(
-            _data['errorNoticias']?.toString().isNotEmpty == true
-                ? _data['errorNoticias'].toString()
-                : 'Por ahora no hay titulares disponibles.',
-            style: TextStyle(color: palette.textSecondary),
-          )),
-        for (final item in news.take(newsLimit)) ...[
-          _newsCard(item),
-          const SizedBox(height: 10),
-        ],
         if (widget.compact)
           Align(alignment: Alignment.centerRight, child: TextButton.icon(
             onPressed: () => context.go('/agenda_deportiva'),
             icon: const Icon(Icons.arrow_forward_rounded),
-            label: const Text('Abrir agenda completa'),
+            label: const Text('Ver agenda deportiva completa'),
           )),
         if (!widget.compact) ...[
-          const SizedBox(height: 8),
+          SizedBox(height: 12 * palette.spacingScale),
+          _sectionHeading('Noticias deportivas', Icons.newspaper_rounded, news.length),
+          if (news.isEmpty && !_busy)
+            _surface(child: Text(
+              _data['errorNoticias']?.toString().isNotEmpty == true
+                  ? _data['errorNoticias'].toString()
+                  : 'Por ahora no hay titulares disponibles.',
+              style: TextStyle(color: palette.textSecondary),
+            )),
+          for (final item in news.take(newsLimit)) ...[
+            _newsCard(item),
+            const SizedBox(height: 10),
+          ],
+            const SizedBox(height: 8),
           _surface(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
             Text('FUENTES Y COBERTURA',
               style: TextStyle(color: palette.secondary, fontSize: 11,
