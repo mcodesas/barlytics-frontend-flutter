@@ -2579,10 +2579,25 @@ class _OperationalBottomNavigation extends ConsumerWidget {
       );
     }
 
+    final activePath = mostSpecificMenuPath(
+      _currentPath(), widget.items.map((item) => item.path),
+    );
     groups.sort((a, b) {
+      // Ubicar el grupo activo primero, incluso si el orden de MENUS lo
+      // sitúa al fondo del menú, sin cambiar el orden guardado en la BD.
+      final activeA = a.items.any((item) => item.path == activePath);
+      final activeB = b.items.any((item) => item.path == activePath);
+      if (activeA != activeB) return activeA ? -1 : 1;
       final order = a.order.compareTo(b.order);
       return order != 0 ? order : a.name.toLowerCase().compareTo(b.name.toLowerCase());
     });
+    for (final group in groups) {
+      final index = group.items.indexWhere((item) => item.path == activePath);
+      if (index > 0) {
+        final active = group.items.removeAt(index);
+        group.items.insert(0, active);
+      }
+    }
     return groups;
   }
 
@@ -4240,10 +4255,22 @@ class _AuthorizedMenuGroupsState extends State<_AuthorizedMenuGroups> {
 
   @override
   Widget build(BuildContext context) {
+    final path = _currentPath();
+    if (path != _lastPath) {
+      _lastPath = path;
+      _expandedCode = _selectedGroupCode(_buildGroups(), path);
+    }
+
     if (widget.preserveExactOrder) {
       final orderedItems = widget.items
           .where((item) => item.path.trim().isNotEmpty && item.path != '/home')
-          .toList(growable: false);
+          .toList(growable: true);
+      final activePath = mostSpecificMenuPath(path, orderedItems.map((item) => item.path));
+      final activeIndex = orderedItems.indexWhere((item) => item.path == activePath);
+      if (activeIndex > 0) {
+        final active = orderedItems.removeAt(activeIndex);
+        orderedItems.insert(0, active);
+      }
       if (orderedItems.isEmpty) return const SizedBox.shrink();
       return Column(
         children: [
@@ -4446,7 +4473,7 @@ class _AuthorizedMenuGroupsState extends State<_AuthorizedMenuGroups> {
 
   String _currentPath() {
     try {
-      return GoRouterState.of(context).uri.path;
+      return GoRouter.of(context).routerDelegate.currentConfiguration.uri.path;
     } catch (_) {
       return '';
     }
@@ -4710,7 +4737,9 @@ class _NavTile extends ConsumerWidget {
 
   String _currentPath(BuildContext context) {
     try {
-      return GoRouterState.of(context).uri.path;
+      // El menú vive fuera del árbol del widget de la ruta. Leer la
+      // configuración real del router evita resaltar el Inicio anterior.
+      return GoRouter.of(context).routerDelegate.currentConfiguration.uri.path;
     } catch (_) {
       return '';
     }
