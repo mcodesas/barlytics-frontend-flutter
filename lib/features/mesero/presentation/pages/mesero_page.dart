@@ -6084,6 +6084,9 @@ class _SalidaCajaDialogState extends State<_SalidaCajaDialog> {
 
   bool get _canSubmit {
     if (_valor <= 0) return false;
+    if (_tipo == 'GASTO_TURNO') {
+      return _medioPagoId != null && _descripcionController.text.trim().isNotEmpty;
+    }
     if (_tipo == 'PAGO_GASTO') {
       return _gastoId != null && _medioPagoId != null;
     }
@@ -6518,15 +6521,32 @@ class _SalidaCajaDialogState extends State<_SalidaCajaDialog> {
           ),
         ),
         const SizedBox(height: 12),
+        DropdownButtonFormField<int>(
+          value: _medioPagoId,
+          isExpanded: true,
+          decoration: const InputDecoration(
+            labelText: 'Medio con el que se pagó *',
+            helperText: 'Efectivo, Nequi, Daviplata, transferencia u otro.',
+            prefixIcon: Icon(Icons.account_balance_wallet_outlined),
+          ),
+          items: widget.mediosPago
+              .where((medio) => medio.medioPagoId != null)
+              .map((medio) => DropdownMenuItem<int>(
+                    value: medio.medioPagoId,
+                    child: Text(medio.nombre ?? 'Medio',
+                      overflow: TextOverflow.ellipsis),
+                  ))
+              .toList(growable: false),
+          onChanged: (value) => setState(() => _medioPagoId = value),
+        ),
+        const SizedBox(height: 12),
         amountField(),
       ],
     );
   }
 
   Widget _buildImpact(AppPalette palette) {
-    final affects = _tipo == 'GASTO_TURNO' ||
-        ((_tipo == 'PAGO_PEDIDO' || _tipo == 'PAGO_GASTO') &&
-            _esMedioPagoEfectivo(_medioPago));
+    final affects = _esMedioPagoEfectivo(_medioPago);
     final medio = _medioPago;
     final text = _tipo == 'PAGO_PEDIDO'
         ? medio == null
@@ -6544,7 +6564,13 @@ class _SalidaCajaDialogState extends State<_SalidaCajaDialog> {
                 : _esMedioPagoEfectivo(medio)
                     ? 'Registra el pago y sí afecta el efectivo del turno.'
                     : 'Registra el pago por ${medio.nombre ?? 'giro electrónico'}, pero no modifica el efectivo del cierre.'
-            : 'Descuenta efectivo y se suma a gastos variables del periodo.';
+            : medio == null
+                ? 'Selecciona el medio de pago del gasto.'
+                : _esMedioPagoEfectivo(medio)
+                    ? 'Descuenta efectivo y se suma a gastos variables del periodo.'
+                    : 'Registra gasto del turno por ' +
+                        (medio.nombre ?? 'medio digital') +
+                        ', sin descontarlo del efectivo físico.';
     return Container(
       padding: const EdgeInsets.all(13),
       decoration: BoxDecoration(
