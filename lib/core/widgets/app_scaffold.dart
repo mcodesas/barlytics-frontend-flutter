@@ -3548,10 +3548,15 @@ class _ManagerBottomNavigation extends ConsumerWidget {
     final allBottomGroups = _buildBottomGroups(menuItems);
     final visibleGroups = allBottomGroups.take(3).toList(growable: false);
 
-    var selectedIndex = 0;
+    // 'Más' solamente representa destinos autorizados que no estén visibles.
+    var selectedIndex = currentPath == '/home' ? 0 : -1;
     if (currentPath != '/home') {
       final groupIndex = visibleGroups.indexWhere((group) => group.containsPath(currentPath));
-      selectedIndex = groupIndex >= 0 ? groupIndex + 1 : visibleGroups.length + 1;
+      if (groupIndex >= 0) {
+        selectedIndex = groupIndex + 1;
+      } else if (mostSpecificMenuPath(currentPath, menuItems.map((item) => item.path)) != null || currentPath == '/profile') {
+        selectedIndex = visibleGroups.length + 1;
+      }
     }
 
     return Container(
@@ -3568,11 +3573,11 @@ class _ManagerBottomNavigation extends ConsumerWidget {
       child: SafeArea(
         top: false,
         child: BottomNavigationBar(
-          currentIndex: selectedIndex,
+          currentIndex: selectedIndex < 0 ? 0 : selectedIndex,
           type: BottomNavigationBarType.fixed,
           backgroundColor: Colors.transparent,
           elevation: 0,
-          selectedItemColor: palette.secondary,
+          selectedItemColor: selectedIndex < 0 ? palette.textSecondary : palette.secondary,
           unselectedItemColor: palette.textSecondary.withOpacity(0.86),
           selectedFontSize: compact ? 10 : 11.5,
           unselectedFontSize: compact ? 9.5 : 11,
@@ -4453,9 +4458,11 @@ class _AuthorizedMenuGroupsState extends State<_AuthorizedMenuGroups> {
   }
 
   bool _groupContainsPath(_MenuGroupData group, String path) {
-    return group.items.any((item) =>
-        item.path.startsWith('/') &&
-        (path == item.path || (item.path != '/home' && path.startsWith('${item.path}/'))));
+    final selected = mostSpecificMenuPath(
+      path,
+      widget.items.map((item) => item.path),
+    );
+    return selected != null && group.items.any((item) => item.path == selected);
   }
 }
 
@@ -4620,7 +4627,13 @@ class _NavTile extends ConsumerWidget {
     final visual = ModuleVisuals.byKey(keyName);
     final appPalette = palette ?? appPalettes.first;
     final pathNow = _currentPath(context);
-    final selected = pathNow == path || (path != '/home' && pathNow.startsWith('$path/'));
+    // Priorizar la ruta hija más específica del menú autorizado.
+    final authorized = ref.watch(userMenuProvider).valueOrNull ?? const <UserMenuItem>[];
+    final selectedPath = mostSpecificMenuPath(
+      pathNow,
+      <String>['/home', ...authorized.map((item) => item.path)],
+    );
+    final selected = selectedPath == path;
     final foreground = dark ? Colors.white : appPalette.textPrimary;
     final selectedForeground = _selectedMenuForeground(appPalette);
 
