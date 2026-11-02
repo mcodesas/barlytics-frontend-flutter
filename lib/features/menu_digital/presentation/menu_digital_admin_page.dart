@@ -587,7 +587,6 @@ class _MenuDigitalAdminPageState extends ConsumerState<MenuDigitalAdminPage> {
   @override
   Widget build(BuildContext context) {
     final palette = ref.watch(selectedAppPaletteProvider);
-    final branch = ref.watch(branchScopeProvider).activeBranchId;
     ref.listen<int?>(
       branchScopeProvider.select((state) => state.activeBranchId),
       (previous, next) {
@@ -598,11 +597,6 @@ class _MenuDigitalAdminPageState extends ConsumerState<MenuDigitalAdminPage> {
         }
       },
     );
-    if (branch != _loadedBranch && !_loading) {
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (mounted) _load();
-      });
-    }
     return Scaffold(backgroundColor: Colors.transparent,
       body: LayoutBuilder(builder: (context, constraints) {
         final mobile = constraints.maxWidth < 900;
