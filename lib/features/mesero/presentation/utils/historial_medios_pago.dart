@@ -45,7 +45,7 @@ List<HistorialMedioPagoResumen> resumirPagosRegistrados(
     );
   }
 
-  final resultado = agrupados.values.toList(growable: false);
+  final resultado = agrupados.values.toList(growable: true);
   resultado.sort((a, b) {
     final porValor = b.total.compareTo(a.total);
     if (porValor != 0) return porValor;
