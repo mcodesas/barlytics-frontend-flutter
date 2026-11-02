@@ -24,11 +24,6 @@ class _SportsAgendaWidgetState extends ConsumerState<SportsAgendaWidget> {
   final _cityController = TextEditingController();
   static const _sports = <String, String>{
     'Soccer': 'Fútbol',
-    'Basketball': 'Baloncesto',
-    'Tennis': 'Tenis',
-    'Motorsport': 'Automovilismo',
-    'Baseball': 'Béisbol',
-    'American Football': 'Fútbol americano',
   };
 
   @override
@@ -98,8 +93,8 @@ class _SportsAgendaWidgetState extends ConsumerState<SportsAgendaWidget> {
             IconButton(onPressed: _busy ? null : _load,
                 icon: const Icon(Icons.refresh_rounded), tooltip: 'Actualizar'),
           ]),
-          const Text('Información para planear eventos del bar. Horarios en Colombia; '
-              'la programación no garantiza disponibilidad de transmisión.'),
+          const Text('Agenda gratuita de fútbol con cobertura comunitaria parcial. '
+              'Horarios en Colombia; confirma los partidos y derechos de transmisión antes de anunciarlos.'),
           const SizedBox(height: 12),
           Wrap(spacing: 8, runSpacing: 8, crossAxisAlignment: WrapCrossAlignment.center,
             children: [
@@ -160,13 +155,15 @@ class _SportsAgendaWidgetState extends ConsumerState<SportsAgendaWidget> {
           const SizedBox(height: 12),
           const Text('Próximos encuentros en la fecha seleccionada',
             style: TextStyle(fontWeight: FontWeight.bold)),
-          if (_data['configurado'] != true)
-            Padding(padding: const EdgeInsets.symmetric(vertical: 8), child: Text(
-              _data['errorProgramacion']?.toString() ??
-                  'Proveedor de programación sin configurar.',
-              style: TextStyle(color: scheme.secondary))),
-          if (_data['configurado'] == true && matches.isEmpty && !_busy)
-            const Text('No se encontraron encuentros en la fuente para esos filtros.'),
+          if (_data['errorProgramacion']?.toString().isNotEmpty == true)
+            Padding(
+              padding: const EdgeInsets.symmetric(vertical: 8),
+              child: Text(_data['errorProgramacion'].toString(),
+                  style: TextStyle(color: scheme.error)),
+            ),
+          if (matches.isEmpty && !_busy &&
+              _data['errorProgramacion']?.toString().isNotEmpty != true)
+            const Text('No hay partidos disponibles en las ligas consultadas para estos filtros.'),
           for (final game in matches.take(20)) ListTile(
             dense: true,
             leading: const Icon(Icons.event_available_outlined),
@@ -197,9 +194,20 @@ class _SportsAgendaWidgetState extends ConsumerState<SportsAgendaWidget> {
             onTap: () => _open(item['url']?.toString() ?? ''),
           ),
           const SizedBox(height: 8),
-          Text('Fuente partidos: TheSportsDB · Noticias: Google News (enlaces a los editores). '
-              'Verifica canal, licencias y permisos de exhibición comercial en Colombia.',
+          Text('Fuente: OpenLigaDB (ODbL 1.0), información de colaboradores. '
+              'No cubre todas las ligas. Noticias: Google News. '
+              'Verifica horarios y licencias de exhibición comercial en Colombia.',
               style: TextStyle(color: scheme.onSurfaceVariant, fontSize: 11)),
+          TextButton.icon(
+            onPressed: () => _open('https://www.openligadb.de/'),
+            icon: const Icon(Icons.open_in_new_rounded, size: 16),
+            label: const Text('Fuente de los partidos · OpenLigaDB'),
+          ),
+          TextButton.icon(
+            onPressed: () => _open('https://opendatacommons.org/licenses/odbl/1-0/'),
+            icon: const Icon(Icons.open_in_new_rounded, size: 16),
+            label: const Text('Licencia de datos ODbL 1.0'),
+          ),
         ]),
       ),
     );
