@@ -245,6 +245,17 @@ class _ManagerHomePageState extends ConsumerState<ManagerHomePage> {
                       constraints: const BoxConstraints(maxWidth: 1440),
                       child: Padding(
                         padding: const EdgeInsets.fromLTRB(16, 14, 16, 0),
+                        child: _ManagerFinancePulse(summary: _today, palette: palette),
+                      ),
+                    ),
+                  ),
+                ),
+                SliverToBoxAdapter(
+                  child: Center(
+                    child: ConstrainedBox(
+                      constraints: const BoxConstraints(maxWidth: 1440),
+                      child: Padding(
+                        padding: const EdgeInsets.fromLTRB(16, 14, 16, 0),
                         child: _ManagerOverviewLayout(
                           salesCard: _ManagerSalesPulseCard(
                             summary: _week,
@@ -719,6 +730,144 @@ class _ManagerHeroChip extends StatelessWidget {
       color: Colors.transparent,
       borderRadius: BorderRadius.circular(999),
       child: InkWell(onTap: onTap, borderRadius: BorderRadius.circular(999), child: child),
+    );
+  }
+}
+
+/// Información financiera del día, derivada del resumen oficial del backend.
+/// No equiparar recaudo con saldo bancario: las transferencias, retiros y
+/// desembolsos por medio de pago requieren un libro auxiliar propio.
+class _ManagerFinancePulse extends StatelessWidget {
+  const _ManagerFinancePulse({required this.summary, required this.palette});
+  final Map<String, dynamic> summary;
+  final AppPalette palette;
+
+  @override
+  Widget build(BuildContext context) {
+    final revenue = _managerNumber(summary, 'ingresos_periodo');
+    final cost = _managerNumber(summary, 'costo_ventas_periodo');
+    final gross = _managerNumber(summary, 'ganancia_bruta_periodo');
+    final operating = _managerNumber(summary, 'gastos_operativos_periodo');
+    final net = _managerNumber(summary, 'ganancia_neta_estimada_periodo');
+    final margin = _managerNumber(summary, 'margen_neto_porcentaje');
+    final paymentRaw = summary['medios_pago'];
+    final paymentRows = paymentRaw is List
+        ? paymentRaw.whereType<Map>().map((item) => Map<String, dynamic>.from(item)).toList()
+        : <Map<String, dynamic>>[];
+    final expenseRaw = summary['desglose_gastos_periodo'];
+    final expenseRows = expenseRaw is List
+        ? expenseRaw.whereType<Map>().map((item) => Map<String, dynamic>.from(item)).toList()
+        : <Map<String, dynamic>>[];
+    expenseRows.sort((a, b) =>
+        _managerDouble(b['valor']).compareTo(_managerDouble(a['valor'])));
+
+    Widget line(String label, double amount, {bool prominent = false}) => Padding(
+      padding: const EdgeInsets.symmetric(vertical: 5),
+      child: Row(children: [
+        Expanded(child: Text(label,
+            maxLines: 2,
+            overflow: TextOverflow.ellipsis,
+            style: TextStyle(
+              color: prominent ? palette.textPrimary : palette.textSecondary,
+              fontWeight: prominent ? FontWeight.w900 : FontWeight.w600,
+            ))),
+        const SizedBox(width: 8),
+        Text(CurrencyUtils.format(amount),
+          style: TextStyle(
+            color: prominent ? palette.secondary : palette.textPrimary,
+            fontWeight: FontWeight.w800,
+          )),
+      ]),
+    );
+
+    Widget section(String title, String description, Widget child) => Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: palette.secondary.withOpacity(0.04),
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: palette.cardBorder),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(title, style: TextStyle(color: palette.textPrimary, fontSize: 15, fontWeight: FontWeight.w900)),
+          const SizedBox(height: 4),
+          Text(description, style: TextStyle(color: palette.textSecondary, fontSize: 11)),
+          const SizedBox(height: 12),
+          child,
+        ],
+      ),
+    );
+
+    return Container(
+      padding: const EdgeInsets.all(17),
+      decoration: palette.panelDecoration(baseRadius: 24, tint: palette.secondary, elevated: false),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+        Row(children: [
+          Icon(Icons.account_balance_wallet_outlined, color: palette.secondary, size: 24),
+          const SizedBox(width: 10),
+          Expanded(child: Text('Radiografía financiera de hoy',
+            style: TextStyle(fontSize: 18, color: palette.textPrimary, fontWeight: FontWeight.w900))),
+        ]),
+        const SizedBox(height: 5),
+        Text('Ingresos, costos, gastos y recaudos del día por sucursal.',
+          style: TextStyle(color: palette.textSecondary, fontSize: 12)),
+        const SizedBox(height: 16),
+        LayoutBuilder(builder: (context, constraints) {
+          final compact = constraints.maxWidth < 760;
+          final cards = [
+            section('Rentabilidad estimada', 'Diferencia entre venta, costo y gastos.',
+              Column(children: [
+                line('Ingresos por ventas', revenue),
+                line('Costo de mercancía vendida', cost),
+                line('Ganancia bruta', gross),
+                line('Gastos operativos', operating),
+                const Divider(),
+                line('Ganancia neta estimada', net, prominent: true),
+                Align(alignment: Alignment.centerLeft,
+                  child: Text('Margen neto: ' + margin.toStringAsFixed(1) + '%',
+                    style: TextStyle(color: palette.secondary, fontWeight: FontWeight.w800))),
+              ]),
+            ),
+            section('Ingresos según medio de pago', 'Recaudo de ventas finalizadas. No equivale al saldo disponible en cada cuenta.',
+              paymentRows.isEmpty
+                ? Text('Sin pagos registrados en ventas finalizadas.', style: TextStyle(color: palette.textSecondary))
+                : Column(children: [
+                    for (final row in paymentRows)
+                      line(_managerText(row['medio_pago'], 'Medio de pago'), _managerDouble(row['total'])),
+                  ]),
+            ),
+            section('¿En qué se gastó hoy?', 'Gastos presupuestados del día y gastos registrados durante el turno.',
+              expenseRows.isEmpty
+                ? Text('Sin desglose de gastos registrado para este día.', style: TextStyle(color: palette.textSecondary))
+                : Column(children: [
+                    for (final row in expenseRows.take(8))
+                      line(_managerText(row['concepto'], _managerText(row['categoria'], 'Gasto')),
+                          _managerDouble(row['valor'])),
+                    if (expenseRows.length > 8)
+                      Text('Otros gastos en Reportes → Resumen ejecutivo.',
+                        style: TextStyle(color: palette.textSecondary, fontSize: 10)),
+                  ]),
+            ),
+          ];
+          if (compact) return Column(children: [
+            for (var i = 0; i < cards.length; i++) ...[
+              if (i > 0) const SizedBox(height: 10),
+              cards[i],
+            ],
+          ]);
+          return Wrap(
+            spacing: 11, runSpacing: 11,
+            children: [
+              for (final card in cards)
+                SizedBox(width: (constraints.maxWidth - 22) / 3, child: card),
+            ],
+          );
+        }),
+        const SizedBox(height: 9),
+        Text('Nota: los gastos configurados son estimaciones por periodo; un egreso real debe registrarse en caja para conciliar dinero por medio de pago.',
+            style: TextStyle(color: palette.textSecondary, fontSize: 10.5)),
+      ]),
     );
   }
 }
