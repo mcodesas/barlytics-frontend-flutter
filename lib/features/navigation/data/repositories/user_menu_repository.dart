@@ -93,6 +93,8 @@ class UserMenuRepository {
     'proximo_pedido' => 'Realizar pedido a proveedores',
     'marcas' => 'Parametrización de marcas',
     'tipos_producto' => 'Parametrización de tipos de producto',
+    'tesoreria' => 'Tesorería · Saldos por medio',
+    'agenda_deportiva' => 'Agenda deportiva y noticias',
     _ => fallback,
   };
 
@@ -143,6 +145,8 @@ class UserMenuRepository {
       'soporte_mantenimiento': moduleRegistry.length + 25,
       'sincronizar_catalogo': moduleRegistry.length + 26,
       'mesero_productos': moduleRegistry.length + 27,
+      'tesoreria': moduleRegistry.length + 28,
+      'agenda_deportiva': moduleRegistry.length + 29,
     };
     final list = items.toList(growable: false);
     list.sort((a, b) => (order[a.keyName] ?? 9999).compareTo(order[b.keyName] ?? 9999));
