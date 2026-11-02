@@ -427,7 +427,8 @@ class _PedidosCompraPageState extends ConsumerState<PedidosCompraPage> {
                     for (final item in quantities.entries) {
                       final rawQuantity = item.value.text.trim().replaceAll(',', '.');
                       final quantity = double.tryParse(rawQuantity);
-                      if (!RegExp(r'^\d+(?:\.\d{1,2})?
+                      if (!RegExp(r'^\d+(?:\.\d{1,2})?$').hasMatch(rawQuantity) ||
+                          quantity == null || quantity <= 0) {
                         setDialog(() => errorText = 'Ingresa cantidades positivas con máximo dos decimales.');
                         return;
                       }
