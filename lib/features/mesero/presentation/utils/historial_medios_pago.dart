@@ -39,7 +39,9 @@ List<HistorialMedioPagoResumen> resumirPagosRegistrados(
     final anterior = agrupados[clave];
     agrupados[clave] = HistorialMedioPagoResumen(
       medioPagoId: pago.medioPagoId,
-      nombre: nombreInformado.isNotEmpty ? nombre : (anterior?.nombre ?? nombre),
+      nombre: anterior == null || anterior.nombre.startsWith('Medio ')
+          ? nombre
+          : anterior.nombre,
       total: (anterior?.total ?? 0) + valor,
       cantidad: (anterior?.cantidad ?? 0) + 1,
     );
