@@ -499,10 +499,14 @@ class _MenuDigitalAdminPageState extends ConsumerState<MenuDigitalAdminPage> {
         const SizedBox(height: 11),
         Wrap(spacing: 8, children: [
           TextButton.icon(
-            onPressed: () => setState(() {
-              _selected.addAll(visible.map((p) => _id(p['id'])).whereType<int>());
-              _dirty = true;
-            }),
+            onPressed: () {
+              final ids = visible.map((p) => _id(p['id'])).whereType<int>();
+              if ({..._selected, ...ids}.length > 200) {
+                _notify('La carta permite máximo 200 productos. Ajusta los filtros.');
+                return;
+              }
+              setState(() { _selected.addAll(ids); _dirty = true; });
+            },
             icon: const Icon(Icons.done_all_rounded),
             label: const Text('Seleccionar visibles')),
           TextButton.icon(
@@ -522,12 +526,16 @@ class _MenuDigitalAdminPageState extends ConsumerState<MenuDigitalAdminPage> {
             return CheckboxListTile(
               dense: true, contentPadding: EdgeInsets.zero,
               value: id != null && _selected.contains(id),
-              onChanged: (checked) => setState(() {
-                if (id != null) {
-                  if (checked == true) { _selected.add(id); } else { _selected.remove(id); }
+              onChanged: (checked) {
+                if (id == null) return;
+                if (checked == true && !_selected.contains(id) && _selected.length >= 200) {
+                  _notify('La carta permite máximo 200 productos.'); return;
                 }
-                _dirty = true;
-              }),
+                setState(() {
+                  if (checked == true) { _selected.add(id); } else { _selected.remove(id); }
+                  _dirty = true;
+                });
+              },
               title: Text((item['nombre'] ?? '').toString(),
                   maxLines: 2, overflow: TextOverflow.ellipsis),
               subtitle: Text((item['tipo'] ?? 'Sin categoría').toString()),
