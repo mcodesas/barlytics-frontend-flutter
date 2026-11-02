@@ -268,6 +268,218 @@ class _PedidosCompraPageState extends ConsumerState<PedidosCompraPage> {
     }
   }
 
+  /// Permite modificar las cantidades y las referencias de un pedido que
+  /// todavía no se ha recibido; el servidor valida pagos y concurrencia.
+  Future<void> _editPendingOrder(Map<String, dynamic> order) async {
+    final id = (order['pediId'] as num?)?.toInt();
+    final branchId = ref.read(branchScopeProvider).activeBranchId;
+    if (id == null || branchId == null) return;
+    List<Map<String, dynamic>> catalog;
+    try {
+      final response = await ref.read(apiClientProvider).get<Object?>(
+        '/api/v1/productos/sucursal/' + branchId.toString(),
+        (json) => json,
+      );
+      catalog = _maps(response.data)
+          .where((item) => (item['prodId'] as num?) != null)
+          .toList();
+      catalog.sort((a, b) => (a['prodNombre'] ?? '').toString()
+          .compareTo((b['prodNombre'] ?? '').toString()));
+    } catch (error) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+        content: Text('No se pudo consultar el catálogo: ' + error.toString()),
+      ));
+      return;
+    }
+    if (!mounted) return;
+
+    final originals = _maps(order['detalles']);
+    final quantities = <int, TextEditingController>{};
+    final names = <int, String>{
+      for (final item in originals)
+        if (item['prodId'] is num)
+          (item['prodId'] as num).toInt(): item['producto']?.toString() ?? 'Producto',
+      for (final item in catalog)
+        (item['prodId'] as num).toInt(): item['prodNombre']?.toString() ?? 'Producto',
+    };
+    for (final detail in originals) {
+      final productId = (detail['prodId'] as num?)?.toInt();
+      if (productId == null) continue;
+      quantities[productId] = TextEditingController(text: _qty(detail['unidades']));
+    }
+    final observation = TextEditingController(text: order['observacion']?.toString() ?? '');
+    String? errorText;
+    int? addProductId;
+    bool saving = false;
+    try {
+      final saved = await showDialog<bool>(
+        context: context,
+        builder: (dialogContext) => StatefulBuilder(
+          builder: (dialogContext, setDialog) {
+            final available = catalog
+                .where((product) => !quantities.containsKey((product['prodId'] as num).toInt()))
+                .toList();
+            if (addProductId != null &&
+                !available.any((product) => (product['prodId'] as num).toInt() == addProductId)) {
+              addProductId = null;
+            }
+
+            return AlertDialog(
+              scrollable: true,
+              title: Text('Editar pedido #' + id.toString()),
+              content: SizedBox(
+                width: math.min(MediaQuery.sizeOf(dialogContext).width * .86, 650.0),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    const Text(
+                      'Edita las unidades reales de cada producto. Nada ingresa al inventario hasta confirmar la recepción.',
+                    ),
+                    const SizedBox(height: 12),
+                    for (final item in quantities.entries) ...[
+                      Padding(
+                        padding: const EdgeInsets.symmetric(vertical: 5),
+                        child: Row(children: [
+                          Expanded(child: Text(names[item.key] ?? 'Producto',
+                            maxLines: 2, overflow: TextOverflow.ellipsis)),
+                          const SizedBox(width: 10),
+                          SizedBox(
+                            width: 100,
+                            child: TextField(
+                              controller: item.value,
+                              enabled: !saving,
+                              keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                              decoration: const InputDecoration(
+                                labelText: 'Unidades',
+                                isDense: true,
+                              ),
+                            ),
+                          ),
+                          IconButton(
+                            tooltip: 'Quitar producto',
+                            onPressed: saving ? null : () => setDialog(() {
+                              quantities.remove(item.key);
+                            }),
+                            icon: const Icon(Icons.remove_circle_outline_rounded),
+                          ),
+                        ]),
+                      ),
+                    ],
+                    const SizedBox(height: 12),
+                    if (available.isNotEmpty) ...[
+                      DropdownButtonFormField<int>(
+                        value: addProductId,
+                        isExpanded: true,
+                        decoration: const InputDecoration(labelText: 'Agregar producto'),
+                        items: [
+                          for (final item in available)
+                            DropdownMenuItem<int>(
+                              value: (item['prodId'] as num).toInt(),
+                              child: Text(item['prodNombre']?.toString() ?? 'Producto',
+                                overflow: TextOverflow.ellipsis),
+                            ),
+                        ],
+                        onChanged: saving ? null : (value) => setDialog(() => addProductId = value),
+                      ),
+                      const SizedBox(height: 8),
+                      OutlinedButton.icon(
+                        onPressed: saving || addProductId == null ? null : () => setDialog(() {
+                          quantities[addProductId!] = TextEditingController(text: '1');
+                          addProductId = null;
+                        }),
+                        icon: const Icon(Icons.add_rounded),
+                        label: const Text('Añadir al pedido'),
+                      ),
+                    ],
+                    const SizedBox(height: 12),
+                    TextField(
+                      controller: observation,
+                      enabled: !saving,
+                      maxLines: 2,
+                      maxLength: 500,
+                      decoration: const InputDecoration(labelText: 'Observación'),
+                    ),
+                    if (errorText != null)
+                      Padding(
+                        padding: const EdgeInsets.only(top: 9),
+                        child: Text(errorText!, style: TextStyle(
+                          color: Theme.of(dialogContext).colorScheme.error,
+                          fontWeight: FontWeight.w700,
+                        )),
+                      ),
+                  ],
+                ),
+              ),
+              actions: [
+                TextButton(
+                  onPressed: saving ? null : () => Navigator.of(dialogContext).pop(false),
+                  child: const Text('Cancelar'),
+                ),
+                FilledButton.icon(
+                  onPressed: saving ? null : () async {
+                    if (quantities.isEmpty) {
+                      setDialog(() => errorText = 'El pedido debe conservar al menos un producto.');
+                      return;
+                    }
+                    final details = <Map<String, dynamic>>[];
+                    for (final item in quantities.entries) {
+                      final quantity = double.tryParse(item.value.text.trim().replaceAll(',', '.'));
+                      if (quantity == null || quantity <= 0 ||
+                          (quantity * 100).roundToDouble() != quantity * 100) {
+                        setDialog(() => errorText = 'Ingresa cantidades positivas con máximo dos decimales.');
+                        return;
+                      }
+                      details.add({'prodId': item.key, 'unidades': quantity});
+                    }
+                    setDialog(() { saving = true; errorText = null; });
+                    try {
+                      await ref.read(apiClientProvider).put<Object?>(
+                        '/api/v1/pedidos-compra/' + id.toString() + '/detalles',
+                        {
+                          'sucuId': branchId,
+                          'observacion': observation.text.trim(),
+                          'destinoId': order['destinoId'],
+                          'detalles': details,
+                        },
+                        (json) => json,
+                      );
+                      if (dialogContext.mounted) Navigator.of(dialogContext).pop(true);
+                    } catch (error) {
+                      if (dialogContext.mounted) {
+                        setDialog(() {
+                          saving = false;
+                          errorText = 'No se pudo guardar: ' + error.toString();
+                        });
+                      }
+                    }
+                  },
+                  icon: saving
+                      ? const SizedBox.square(dimension: 15,
+                          child: CircularProgressIndicator(strokeWidth: 2))
+                      : const Icon(Icons.save_outlined),
+                  label: Text(saving ? 'Guardando...' : 'Guardar cambios'),
+                ),
+              ],
+            );
+          },
+        ),
+      );
+      if (saved == true && mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Pedido actualizado. El inventario no cambió.')),
+        );
+        await _reload();
+      }
+    } finally {
+      for (final controller in quantities.values) {
+        controller.dispose();
+      }
+      observation.dispose();
+    }
+  }
+
   Future<void> _receive(Map<String, dynamic> order) async {
     final id = (order['pediId'] as num?)?.toInt();
     if (id == null || _receiving.contains(id)) return;
@@ -1418,6 +1630,11 @@ class _PedidosCompraPageState extends ConsumerState<PedidosCompraPage> {
                 onPressed: busy || phone.isEmpty ? null : () => _resendPendingOrder(order),
                 icon: const Icon(Icons.chat_outlined, size: 19),
                 label: const Text('Reenviar por WhatsApp'),
+              ),
+              OutlinedButton.icon(
+                onPressed: busy ? null : () => _editPendingOrder(order),
+                icon: const Icon(Icons.edit_note_rounded, size: 19),
+                label: const Text('Editar productos'),
               ),
               OutlinedButton.icon(
                 onPressed: busy ? null : () => _printPendingOrder(order),
