@@ -524,6 +524,7 @@ String _resolveCurrentPageTitle(
     '/dashboard': 'Dashboard',
     '/tesoreria': 'Tesorería · Saldos por medio',
     '/agenda_deportiva': 'Agenda deportiva y noticias',
+    '/menu_digital': 'Menú digital · Carta pública',
     '/reportes': 'Reportes',
     '/reporte_resumen_ejecutivo': 'Resumen ejecutivo',
     '/reporte_ventas_fecha': 'Ventas por fecha',
