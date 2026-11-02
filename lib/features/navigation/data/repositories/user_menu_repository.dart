@@ -95,6 +95,7 @@ class UserMenuRepository {
     'tipos_producto' => 'Parametrización de tipos de producto',
     'tesoreria' => 'Tesorería · Saldos por medio',
     'agenda_deportiva' => 'Agenda deportiva y noticias',
+    'menu_digital' => 'Menú digital',
     _ => fallback,
   };
 
