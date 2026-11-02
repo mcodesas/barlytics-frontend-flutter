@@ -2579,25 +2579,10 @@ class _OperationalBottomNavigation extends ConsumerWidget {
       );
     }
 
-    final activePath = mostSpecificMenuPath(
-      _currentPath(), widget.items.map((item) => item.path),
-    );
     groups.sort((a, b) {
-      // Ubicar el grupo activo primero, incluso si el orden de MENUS lo
-      // sitúa al fondo del menú, sin cambiar el orden guardado en la BD.
-      final activeA = a.items.any((item) => item.path == activePath);
-      final activeB = b.items.any((item) => item.path == activePath);
-      if (activeA != activeB) return activeA ? -1 : 1;
       final order = a.order.compareTo(b.order);
       return order != 0 ? order : a.name.toLowerCase().compareTo(b.name.toLowerCase());
     });
-    for (final group in groups) {
-      final index = group.items.indexWhere((item) => item.path == activePath);
-      if (index > 0) {
-        final active = group.items.removeAt(index);
-        group.items.insert(0, active);
-      }
-    }
     return groups;
   }
 
@@ -4325,10 +4310,24 @@ class _AuthorizedMenuGroupsState extends State<_AuthorizedMenuGroups> {
       ));
     }
 
+    final selectedPath = mostSpecificMenuPath(
+      _currentPath(), widget.items.map((item) => item.path),
+    );
     groups.sort((a, b) {
+      // Priorizar el grupo que contiene la ruta actualmente abierta.
+      final aSelected = a.items.any((item) => item.path == selectedPath);
+      final bSelected = b.items.any((item) => item.path == selectedPath);
+      if (aSelected != bSelected) return aSelected ? -1 : 1;
       final order = a.order.compareTo(b.order);
       return order != 0 ? order : a.name.toLowerCase().compareTo(b.name.toLowerCase());
     });
+    for (final group in groups) {
+      final selectedIndex = group.items.indexWhere((item) => item.path == selectedPath);
+      if (selectedIndex > 0) {
+        final selectedItem = group.items.removeAt(selectedIndex);
+        group.items.insert(0, selectedItem);
+      }
+    }
     return groups;
   }
 
