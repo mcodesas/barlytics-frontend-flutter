@@ -16,10 +16,12 @@ class _SportsAgendaWidgetState extends ConsumerState<SportsAgendaWidget> {
   DateTime _date = DateTime.now();
   String _sport = 'Soccer';
   String _league = '';
+  String _city = '';
   bool _busy = false;
   String? _error;
   Map<String, dynamic> _data = {};
   final _leagueController = TextEditingController();
+  final _cityController = TextEditingController();
   static const _sports = <String, String>{
     'Soccer': 'Fútbol',
     'Basketball': 'Baloncesto',
@@ -37,6 +39,7 @@ class _SportsAgendaWidgetState extends ConsumerState<SportsAgendaWidget> {
   @override
   void dispose() {
     _leagueController.dispose();
+    _cityController.dispose();
     super.dispose();
   }
 
@@ -53,6 +56,7 @@ class _SportsAgendaWidgetState extends ConsumerState<SportsAgendaWidget> {
           'fecha': DateFormat('yyyy-MM-dd').format(_date),
           'deporte': _sport,
           if (_league.isNotEmpty) 'liga': _league,
+          if (_city.isNotEmpty) 'ciudad': _city,
         },
       );
       if (!mounted) return;
@@ -133,6 +137,21 @@ class _SportsAgendaWidgetState extends ConsumerState<SportsAgendaWidget> {
                 ),
                 onSubmitted: (v) { setState(() => _league = v.trim()); _load(); },
               )),
+              SizedBox(width: 190, child: TextField(
+                controller: _cityController,
+                decoration: InputDecoration(
+                  labelText: 'Ciudad/sede (opcional)', isDense: true,
+                  suffixIcon: IconButton(
+                    tooltip: 'Filtrar ciudad o sede',
+                    icon: const Icon(Icons.location_on_outlined),
+                    onPressed: () {
+                      setState(() => _city = _cityController.text.trim());
+                      _load();
+                    },
+                  ),
+                ),
+                onSubmitted: (v) { setState(() => _city = v.trim()); _load(); },
+              )),
             ],
           ),
           if (_busy) const Padding(padding: EdgeInsets.symmetric(vertical: 12),
@@ -156,7 +175,9 @@ class _SportsAgendaWidgetState extends ConsumerState<SportsAgendaWidget> {
                 : (game['local']?.toString() ?? 'Local') + ' vs ' +
                     (game['visitante']?.toString() ?? 'Visitante')),
             subtitle: Text((game['liga']?.toString() ?? 'Liga') +
-                ' · ' + (game['horaBogota']?.toString().isNotEmpty == true
+                ' · ' + (game['ciudad']?.toString().isNotEmpty == true
+                    ? game['ciudad'].toString() + ' · ' : '') +
+                (game['horaBogota']?.toString().isNotEmpty == true
                     ? game['horaBogota'].toString().replaceAll('T', ' ') +
                         ' (hora Colombia)'
                     : 'Hora no confirmada')),
