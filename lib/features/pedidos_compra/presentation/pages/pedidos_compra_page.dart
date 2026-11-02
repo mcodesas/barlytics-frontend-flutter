@@ -232,7 +232,7 @@ class _PedidosCompraPageState extends ConsumerState<PedidosCompraPage> {
         pw.Text('Proveedor: ' + (order['destinoNombre']?.toString() ?? 'General')),
         pw.Text('Fecha: ' + _date(order['fecha'])),
         pw.SizedBox(height: 20),
-        pw.TableHelper.fromTextArray(
+        pw.Table.fromTextArray(
           headers: const ['Producto', 'Presentaciones', 'Unidades'],
           data: details.map((detail) => [
             detail['producto']?.toString() ?? 'Producto',
