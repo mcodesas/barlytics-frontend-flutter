@@ -13,6 +13,7 @@ import '../../../../core/constants/api_paths.dart';
 import '../../../../core/errors/error_mapper.dart';
 import '../../../../core/providers/core_providers.dart';
 import '../../../../core/utils/currency_utils.dart';
+import '../../../deportes/presentation/widgets/sports_agenda_widget.dart';
 import '../../../../core/widgets/app_error_view.dart';
 import '../../../../core/widgets/app_loader.dart';
 import '../../../../core/widgets/tech_background.dart';
@@ -176,6 +177,37 @@ class _ManagerHomePageState extends ConsumerState<ManagerHomePage> {
                             onTap: () => context.go('/eventos'),
                           ),
                         ),
+                      ),
+                    ),
+                  ),
+                ),
+                SliverToBoxAdapter(
+                  child: Center(
+                    child: ConstrainedBox(
+                      constraints: const BoxConstraints(maxWidth: 1440),
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 5),
+                        child: Card(
+                          child: ListTile(
+                            leading: const Icon(Icons.account_balance_wallet_outlined),
+                            title: const Text('Tesorería · Saldos por medio',
+                              style: TextStyle(fontWeight: FontWeight.bold)),
+                            subtitle: const Text('Saldo inicial, recaudo, gastos, retiros, transferencias y conciliaciones por sucursal'),
+                            trailing: const Icon(Icons.chevron_right),
+                            onTap: () => context.go('/tesoreria'),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+                const SliverToBoxAdapter(
+                  child: Center(
+                    child: ConstrainedBox(
+                      constraints: BoxConstraints(maxWidth: 1440),
+                      child: Padding(
+                        padding: EdgeInsets.symmetric(horizontal: 16, vertical: 5),
+                        child: SportsAgendaWidget(),
                       ),
                     ),
                   ),
