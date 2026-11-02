@@ -954,6 +954,24 @@ class _MeseroPageState extends ConsumerState<MeseroPage> {
   Widget build(BuildContext context) {
     final rawSelectedMode = ref.watch(meseroSelectedModeProvider);
 
+    // Cada vez que se vuelve a Cierre de caja/Historial se consulta otra vez
+    // el servidor: pueden existir ventas finalizadas desde otro dispositivo
+    // después de que esta vista cargó su Future original.
+    ref.listen<MeseroPageMode>(meseroSelectedModeProvider, (anterior, nuevo) {
+      if (anterior == nuevo ||
+          (nuevo != MeseroPageMode.cierreCaja &&
+              nuevo != MeseroPageMode.historial)) {
+        return;
+      }
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted || ref.read(meseroSelectedModeProvider) != nuevo) return;
+        if (nuevo == MeseroPageMode.cierreCaja) {
+          setState(() => _cierreCajaFuture = _cargarCierreCaja());
+        } else {
+          setState(() => _historialVentasFuture = _cargarHistorialVentas());
+        }
+      });
+    });
 
     return FutureBuilder<void>(
       future: _future,
@@ -987,7 +1005,13 @@ class _MeseroPageState extends ConsumerState<MeseroPage> {
         }
 
         final content = RefreshIndicator(
-          onRefresh: _reload,
+          // Deslizar para actualizar debe consultar el recurso visible,
+          // no solamente recargar el listado de mesas.
+          onRefresh: selectedMode == MeseroPageMode.cierreCaja
+              ? _reloadCierreCaja
+              : selectedMode == MeseroPageMode.historial
+                  ? _reloadHistorialVentas
+                  : _reload,
           child: _buildScrollableContent(isCajero, selectedMode),
         );
 
@@ -5822,6 +5846,19 @@ class _MeseroPageState extends ConsumerState<MeseroPage> {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             header,
+            if (cerrado && cierre.ventasPendientes.isEmpty) ...[
+              const SizedBox(height: 10),
+              Text(
+                'No hay ventas posteriores pendientes de conciliación. '
+                'Al registrar otra venta finalizada de este día, actualiza '
+                'el cierre para revisarla sin modificar el arqueo original.',
+                style: TextStyle(
+                  color: palette.textSecondary,
+                  fontSize: 12,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+            ],
             if (cerrado && cierre.ventasPendientes.isNotEmpty) ...[
               const SizedBox(height: 14),
               _CierreSection(
