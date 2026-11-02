@@ -110,6 +110,8 @@ class _ManagerHomePageState extends ConsumerState<ManagerHomePage> {
       );
     }
 
+    final puedeTesoreria = widget.items.any((item) => item.keyName == 'tesoreria');
+    final puedeAgendaDeportiva = widget.items.any((item) => item.keyName == 'agenda_deportiva');
     final branchName = branchState.activeBranch?.sucuNombre?.trim();
     final safeBranchName = branchName == null || branchName.isEmpty ? 'Sucursal activa' : branchName;
     final todaySales = _managerNumber(_today, 'total_vendido');
@@ -181,7 +183,8 @@ class _ManagerHomePageState extends ConsumerState<ManagerHomePage> {
                     ),
                   ),
                 ),
-                SliverToBoxAdapter(
+                if (puedeTesoreria)
+                  SliverToBoxAdapter(
                   child: Center(
                     child: ConstrainedBox(
                       constraints: const BoxConstraints(maxWidth: 1440),
@@ -201,7 +204,8 @@ class _ManagerHomePageState extends ConsumerState<ManagerHomePage> {
                     ),
                   ),
                 ),
-                const SliverToBoxAdapter(
+                if (puedeAgendaDeportiva)
+                  const SliverToBoxAdapter(
                   child: Center(
                     child: ConstrainedBox(
                       constraints: BoxConstraints(maxWidth: 1440),
