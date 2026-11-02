@@ -52,7 +52,10 @@ class _SportsAgendaWidgetState extends ConsumerState<SportsAgendaWidget> {
         if (!mounted) return;
         final today = sportsTodayBogota();
         if (!DateUtils.isSameDay(_date, today)) {
-          setState(() => _date = today);
+          setState(() {
+            _date = today;
+            _data = {};
+          });
           _load();
         }
       });
@@ -79,7 +82,13 @@ class _SportsAgendaWidgetState extends ConsumerState<SportsAgendaWidget> {
   Future<void> _load() async {
     if (!mounted) return;
     final request = ++_requestNumber;
-    if (widget.compact) _date = sportsTodayBogota();
+    if (widget.compact) {
+      final today = sportsTodayBogota();
+      if (!DateUtils.isSameDay(_date, today)) {
+        _date = today;
+        _data = {};
+      }
+    }
     setState(() {
       _busy = true;
       _error = null;
