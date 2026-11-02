@@ -1,4 +1,7 @@
 import 'dart:convert';
+import 'dart:typed_data';
+
+import 'package:dio/dio.dart';
 
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
@@ -96,7 +99,15 @@ class _MenuDigitalAdminPageState extends ConsumerState<MenuDigitalAdminPage> {
         _error = 'Selecciona una sucursal para administrar su menú.'; });
       return;
     }
-    setState(() { _loading = true; _loadedBranch = branch; _error = null; });
+    setState(() {
+      _loading = true;
+      _loadedBranch = branch;
+      _error = null;
+      _saved = null;
+      _catalog = [];
+      _selected = {};
+      _dirty = false;
+    });
     try {
       final api = ref.read(menuDigitalApiProvider);
       final results = await Future.wait<dynamic>([api.admin(), api.catalogo()]);
@@ -273,6 +284,26 @@ class _MenuDigitalAdminPageState extends ConsumerState<MenuDigitalAdminPage> {
           icon: const Icon(Icons.copy_rounded), label: const Text('Copiar enlace')),
       ],
     ));
+  }
+
+  Future<void> _downloadQrPng() async {
+    if (_dirty || _saved?['publicado'] != true) {
+      _notify('Guarda y publica el menú antes de descargar el QR.'); return;
+    }
+    final slug = (_saved?['slug'] ?? '').toString();
+    if (slug.isEmpty) return;
+    try {
+      final response = await ref.read(menuDigitalApiProvider).dio.get<List<int>>(
+        '/api/v1/menu-digital/public/' + Uri.encodeComponent(slug) + '/qr',
+        options: Options(responseType: ResponseType.bytes),
+      );
+      final bytes = response.data;
+      if (bytes == null || bytes.isEmpty) throw StateError('El QR no contiene datos.');
+      final ok = await downloadBytesFile(
+        fileName: 'menu-digital-qr.png', bytes: Uint8List.fromList(bytes),
+        mimeType: 'image/png');
+      if (ok) _notify('QR descargado en PNG. Puedes imprimirlo en las mesas.');
+    } catch (e) { _notify('No fue posible descargar el PNG: ' + e.toString()); }
   }
 
   Future<void> _downloadQr() async {
@@ -517,6 +548,16 @@ class _MenuDigitalAdminPageState extends ConsumerState<MenuDigitalAdminPage> {
   Widget build(BuildContext context) {
     final palette = ref.watch(selectedAppPaletteProvider);
     final branch = ref.watch(branchScopeProvider).activeBranchId;
+    ref.listen<int?>(
+      branchScopeProvider.select((state) => state.activeBranchId),
+      (previous, next) {
+        if (previous != next) {
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            if (mounted) _load();
+          });
+        }
+      },
+    );
     if (branch != _loadedBranch && !_loading) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (mounted) _load();
@@ -574,6 +615,9 @@ class _MenuDigitalAdminPageState extends ConsumerState<MenuDigitalAdminPage> {
                     OutlinedButton.icon(onPressed: _saved?['publicado'] == true ? _share : null,
                       icon: const Icon(Icons.share_outlined),
                       label: const Text('Compartir')),
+                    FilledButton.tonalIcon(onPressed: _saved?['publicado'] == true ? _downloadQrPng : null,
+                      icon: const Icon(Icons.qr_code_2_rounded),
+                      label: const Text('Descargar QR PNG')),
                     OutlinedButton.icon(onPressed: _saved?['publicado'] == true ? _downloadQr : null,
                       icon: const Icon(Icons.qr_code_2_rounded),
                       label: const Text('Descargar QR PDF')),
