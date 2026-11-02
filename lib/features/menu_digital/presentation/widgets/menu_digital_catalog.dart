@@ -19,6 +19,7 @@ class MenuDigitalCatalog extends StatefulWidget {
 class _MenuDigitalCatalogState extends State<MenuDigitalCatalog> {
   String _category = 'Todos';
   String _search = '';
+  int _bookPage = 0;
   final _money = NumberFormat.currency(locale: 'es_CO', symbol: r'$', decimalDigits: 0);
 
   Color _color(String key, String fallback) {
@@ -168,6 +169,11 @@ class _MenuDigitalCatalogState extends State<MenuDigitalCatalog> {
           (p['descripcion']?.toString().toLowerCase().contains(_search.toLowerCase()) ?? false);
       return matchesSearch && (_category == 'Todos' || category == _category);
     }).toList();
+    final bookCategories = <String>{
+      for (final p in filtered) (p['tipo'] ?? 'Especialidades').toString(),
+    }.toList();
+    final currentBookPage = bookCategories.isEmpty
+        ? 0 : _bookPage.clamp(0, bookCategories.length - 1);
 
     return Container(
       color: canvas,
@@ -280,12 +286,36 @@ class _MenuDigitalCatalogState extends State<MenuDigitalCatalog> {
                   child: Text('Por ahora no hay productos para mostrar.',
                     textAlign: TextAlign.center, style: TextStyle(color: fg.withOpacity(0.77))))
               else if (book) ...[
-                Wrap(spacing: gap, runSpacing: gap, children: [
-                  for (final cat in <String>{
-                    for (final p in filtered) (p['tipo'] ?? 'Especialidades').toString(),
-                  })
-                    SizedBox(width: itemWidth, child: _bookSection(cat,
-                      filtered.where((p) => (p['tipo'] ?? 'Especialidades') == cat).toList())),
+                // Cada categoría es una hoja del libro, con navegación real,
+                // no un catálogo de tarjetas disfrazado de libro.
+                _bookSection(bookCategories[currentBookPage],
+                  filtered.where((p) =>
+                    (p['tipo'] ?? 'Especialidades') == bookCategories[currentBookPage]).toList()),
+                const SizedBox(height: 15),
+                Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
+                  IconButton.filledTonal(
+                    tooltip: 'Página anterior',
+                    onPressed: currentBookPage == 0 ? null
+                        : () => setState(() => _bookPage = currentBookPage - 1),
+                    icon: const Icon(Icons.chevron_left_rounded),
+                  ),
+                  Expanded(child: Column(children: [
+                    Text('PÁGINA ' + (currentBookPage + 1).toString() +
+                        ' DE ' + bookCategories.length.toString(),
+                      textAlign: TextAlign.center,
+                      style: TextStyle(color: accent,
+                          fontWeight: FontWeight.w900, fontSize: 11)),
+                    Text(bookCategories[currentBookPage],
+                      textAlign: TextAlign.center,
+                      maxLines: 1, overflow: TextOverflow.ellipsis,
+                      style: TextStyle(color: fg.withOpacity(0.77), fontSize: 12)),
+                  ])),
+                  IconButton.filledTonal(
+                    tooltip: 'Página siguiente',
+                    onPressed: currentBookPage >= bookCategories.length - 1 ? null
+                        : () => setState(() => _bookPage = currentBookPage + 1),
+                    icon: const Icon(Icons.chevron_right_rounded),
+                  ),
                 ]),
               ] else
                 Wrap(spacing: gap, runSpacing: gap, children: [
