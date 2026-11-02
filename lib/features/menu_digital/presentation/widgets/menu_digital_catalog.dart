@@ -173,7 +173,7 @@ class _MenuDigitalCatalogState extends State<MenuDigitalCatalog> {
       for (final p in filtered) (p['tipo'] ?? 'Especialidades').toString(),
     }.toList();
     final currentBookPage = bookCategories.isEmpty
-        ? 0 : _bookPage.clamp(0, bookCategories.length - 1);
+        ? 0 : _bookPage.clamp(0, bookCategories.length - 1).toInt();
 
     return Container(
       color: canvas,
