@@ -204,18 +204,6 @@ class _ManagerHomePageState extends ConsumerState<ManagerHomePage> {
                     ),
                   ),
                 ),
-                if (puedeAgendaDeportiva)
-                  SliverToBoxAdapter(
-                    child: Center(
-                      child: ConstrainedBox(
-                        constraints: const BoxConstraints(maxWidth: 1440),
-                        child: const Padding(
-                          padding: EdgeInsets.symmetric(horizontal: 16, vertical: 5),
-                          child: SportsAgendaWidget(compact: true),
-                        ),
-                      ),
-                    ),
-                  ),
                 if (showTeamSetupAlert)
                   SliverToBoxAdapter(
                     child: Center(
@@ -275,6 +263,18 @@ class _ManagerHomePageState extends ConsumerState<ManagerHomePage> {
                     ),
                   ),
                 ),
+                if (puedeAgendaDeportiva)
+                  SliverToBoxAdapter(
+                    child: Center(
+                      child: ConstrainedBox(
+                        constraints: const BoxConstraints(maxWidth: 1440),
+                        child: const Padding(
+                          padding: EdgeInsets.symmetric(horizontal: 16, vertical: 5),
+                          child: SportsAgendaWidget(compact: true),
+                        ),
+                      ),
+                    ),
+                  ),
                 SliverToBoxAdapter(
                   child: Center(
                     child: ConstrainedBox(
