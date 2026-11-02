@@ -2,6 +2,10 @@ import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
+import 'package:pdf/pdf.dart';
+import 'package:pdf/widgets.dart' as pw;
+import 'package:printing/printing.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 import '../../../../app/theme/app_palette.dart';
 import '../../../../core/branch/branch_scope_provider.dart';
@@ -160,6 +164,107 @@ class _PedidosCompraPageState extends ConsumerState<PedidosCompraPage> {
         _error = error;
         _loading = false;
       });
+    }
+  }
+
+  String _pendingOrderMessage(Map<String, dynamic> order) {
+    final details = _maps(order['detalles']);
+    final lines = <String>[
+      '*PEDIDO DE COMPRA #' + (order['pediId']?.toString() ?? '-') + '*',
+      'Proveedor: ' + (order['destinoNombre']?.toString() ?? 'General'),
+      'Fecha: ' + _date(order['fecha']),
+      '',
+    ];
+    for (final detail in details) {
+      lines.add('• ' + (detail['producto']?.toString() ?? 'Producto'));
+      lines.add('  ' + _qty(detail['presentaciones']) + ' ' +
+          (detail['presentacion']?.toString() ?? 'und.') +
+          ' (' + _qty(detail['unidades']) + ' unidades)');
+    }
+    lines.addAll([
+      '',
+      'Total estimado: ' + _money.format(_number(order['totalEstimado'])) + ' COP',
+      'Estado: PENDIENTE DE RECEPCIÓN',
+    ]);
+    return lines.join('\n');
+  }
+
+  /// Compartir no altera el pedido ni descuenta/ingresa existencias.
+  Future<void> _resendPendingOrder(Map<String, dynamic> order) async {
+    var phone = (order['whatsappDestino']?.toString() ?? '')
+        .replaceAll(RegExp(r'[^0-9]'), '');
+    if (phone.length == 10) phone = '57' + phone;
+    if (phone.length < 11 || phone.length > 15) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+        content: Text('Configura un WhatsApp válido para este proveedor.'),
+      ));
+      return;
+    }
+    final message = Uri.encodeComponent(_pendingOrderMessage(order));
+    final uri = Uri.parse('https://wa.me/' + phone + '?text=' + message);
+    try {
+      final opened = await launchUrl(uri, mode: LaunchMode.externalApplication);
+      if (!opened && mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('No fue posible abrir WhatsApp.')),
+        );
+      }
+    } catch (error) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('No fue posible abrir WhatsApp: ' + error.toString())),
+      );
+    }
+  }
+
+  Future<void> _printPendingOrder(Map<String, dynamic> order) async {
+    final id = order['pediId']?.toString() ?? '-';
+    final details = _maps(order['detalles']);
+    final pdf = pw.Document();
+    pdf.addPage(pw.MultiPage(
+      pageFormat: PdfPageFormat.a4,
+      margin: const pw.EdgeInsets.all(32),
+      build: (context) => [
+        pw.Text('BarLytics · Pedido de compra #' + id,
+            style: pw.TextStyle(fontSize: 19, fontWeight: pw.FontWeight.bold)),
+        pw.SizedBox(height: 10),
+        pw.Text('Estado: PENDIENTE DE RECEPCIÓN'),
+        pw.Text('Proveedor: ' + (order['destinoNombre']?.toString() ?? 'General')),
+        pw.Text('Fecha: ' + _date(order['fecha'])),
+        pw.SizedBox(height: 20),
+        pw.TableHelper.fromTextArray(
+          headers: const ['Producto', 'Presentaciones', 'Unidades'],
+          data: details.map((detail) => [
+            detail['producto']?.toString() ?? 'Producto',
+            _qty(detail['presentaciones']) + ' ' +
+                (detail['presentacion']?.toString() ?? 'und.'),
+            _qty(detail['unidades']),
+          ]).toList(),
+          headerStyle: pw.TextStyle(fontWeight: pw.FontWeight.bold),
+        ),
+        pw.SizedBox(height: 18),
+        pw.Align(
+          alignment: pw.Alignment.centerRight,
+          child: pw.Text(
+            'Total estimado: ' + _money.format(_number(order['totalEstimado'])) + ' COP',
+            style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 13),
+          ),
+        ),
+        pw.SizedBox(height: 18),
+        pw.Text('La impresión no confirma la recepción ni cambia el inventario.',
+            style: const pw.TextStyle(fontSize: 9)),
+      ],
+    ));
+    try {
+      await Printing.layoutPdf(
+        name: 'barlytics-pedido-' + id,
+        onLayout: (format) => pdf.save(),
+      );
+    } catch (error) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('No se pudo generar el PDF: ' + error.toString())),
+      );
     }
   }
 
@@ -797,7 +902,7 @@ class _PedidosCompraPageState extends ConsumerState<PedidosCompraPage> {
                 Text(
                   widget.providersOnly
                       ? 'Proveedores de pedidos'
-                      : 'Pedidos de compra',
+                      : 'Recepción de pedidos de compra',
                   style: Theme.of(context).textTheme.titleLarge?.copyWith(
                         color: palette.textPrimary,
                         fontWeight: FontWeight.w900,
@@ -1301,6 +1406,23 @@ class _PedidosCompraPageState extends ConsumerState<PedidosCompraPage> {
                   fontSize: 17,
                   fontWeight: FontWeight.w900,
                 ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: [
+              OutlinedButton.icon(
+                onPressed: busy || phone.isEmpty ? null : () => _resendPendingOrder(order),
+                icon: const Icon(Icons.chat_outlined, size: 19),
+                label: const Text('Reenviar por WhatsApp'),
+              ),
+              OutlinedButton.icon(
+                onPressed: busy ? null : () => _printPendingOrder(order),
+                icon: const Icon(Icons.picture_as_pdf_outlined, size: 19),
+                label: const Text('Imprimir PDF'),
               ),
             ],
           ),
