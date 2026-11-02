@@ -458,18 +458,26 @@ class _SportsAgendaWidgetState extends ConsumerState<SportsAgendaWidget> {
           _matchCard(match),
           const SizedBox(height: 10),
         ],
-        if (widget.compact && matches.length > matchLimit)
-          TextButton.icon(
-            onPressed: () => context.go('/agenda_deportiva'),
-            icon: const Icon(Icons.arrow_forward_rounded),
-            label: const Text('Ver todos los encuentros'),
-          ),
         if (widget.compact)
           Align(alignment: Alignment.centerRight, child: TextButton.icon(
             onPressed: () => context.go('/agenda_deportiva'),
             icon: const Icon(Icons.arrow_forward_rounded),
             label: const Text('Ver agenda deportiva completa'),
           )),
+        if (widget.compact)
+          Padding(
+            padding: const EdgeInsets.only(top: 4, bottom: 8),
+            child: Wrap(spacing: 10, runSpacing: 0, children: [
+              TextButton(
+                onPressed: () => _open('https://www.openligadb.de/'),
+                child: const Text('Fuente: OpenLigaDB'),
+              ),
+              TextButton(
+                onPressed: () => _open('https://opendatacommons.org/licenses/odbl/1-0/'),
+                child: const Text('Licencia ODbL 1.0'),
+              ),
+            ]),
+          ),
         if (!widget.compact) ...[
           SizedBox(height: 12 * palette.spacingScale),
           _sectionHeading('Noticias deportivas', Icons.newspaper_rounded, news.length),
@@ -484,7 +492,7 @@ class _SportsAgendaWidgetState extends ConsumerState<SportsAgendaWidget> {
             _newsCard(item),
             const SizedBox(height: 10),
           ],
-            const SizedBox(height: 8),
+          const SizedBox(height: 8),
           _surface(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
             Text('FUENTES Y COBERTURA',
               style: TextStyle(color: palette.secondary, fontSize: 11,
