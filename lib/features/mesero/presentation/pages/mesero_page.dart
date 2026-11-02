@@ -16567,6 +16567,150 @@ class _HistorialResumenMetrica extends ConsumerWidget {
   }
 }
 
+class _HistorialPagoMedioChip extends ConsumerWidget {
+  const _HistorialPagoMedioChip({required this.medio});
+
+  final HistorialMedioPagoResumen medio;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final palette = ref.watch(selectedAppPaletteProvider);
+    final importe = CurrencyUtils.format(medio.total);
+    return Tooltip(
+      message: '${medio.nombre}: $importe',
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: 310),
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+          decoration: BoxDecoration(
+            color: palette.secondary.withOpacity(0.09),
+            border: Border.all(color: palette.secondary.withOpacity(0.18)),
+            borderRadius: BorderRadius.circular(12),
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(Icons.account_balance_wallet_outlined,
+                  size: 15, color: palette.secondary),
+              const SizedBox(width: 6),
+              Flexible(
+                child: Text(
+                  medio.nombre,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    color: palette.textPrimary,
+                    fontWeight: FontWeight.w800,
+                    fontSize: 11.5,
+                  ),
+                ),
+              ),
+              const SizedBox(width: 8),
+              Text(
+                importe,
+                style: TextStyle(
+                  color: palette.secondary,
+                  fontWeight: FontWeight.w900,
+                  fontSize: 11.5,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _HistorialMediosPagoResumenPanel extends ConsumerWidget {
+  const _HistorialMediosPagoResumenPanel({
+    required this.medios,
+    required this.totalCobrado,
+  });
+
+  final List<HistorialMedioPagoResumen> medios;
+  final double totalCobrado;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final palette = ref.watch(selectedAppPaletteProvider);
+    final desglosado = totalPagosRegistrados(medios);
+    final faltante = totalCobrado - desglosado;
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: palette.surface.withOpacity(palette.darkBackground ? 0.90 : 0.98),
+        borderRadius: BorderRadius.circular(22),
+        border: Border.all(color: palette.cardBorder),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(Icons.account_balance_wallet_outlined,
+                  color: palette.secondary),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  'Pagos realizados por medio de pago',
+                  style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                    fontWeight: FontWeight.w900,
+                    color: palette.textPrimary,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 5),
+          Text(
+            'Importes de las ventas que coinciden con los filtros actuales.',
+            style: TextStyle(
+              color: palette.textSecondary,
+              fontWeight: FontWeight.w700,
+              fontSize: 11.5,
+            ),
+          ),
+          const SizedBox(height: 12),
+          if (medios.isEmpty)
+            Text(
+              totalCobrado > 0.009
+                  ? 'El historial no devolvió el detalle de los medios de pago para estas ventas.'
+                  : 'No hay pagos registrados en las ventas seleccionadas.',
+              style: TextStyle(
+                color: palette.textSecondary,
+                fontWeight: FontWeight.w700,
+              ),
+            )
+          else
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: [
+                for (final medio in medios)
+                  _HistorialPagoMedioChip(medio: medio),
+              ],
+            ),
+          if (medios.isNotEmpty && faltante.abs() > 0.01) ...[
+            const SizedBox(height: 9),
+            Text(
+              'Aviso: la suma por medios (${CurrencyUtils.format(desglosado)}) '
+              'no coincide con el total cobrado del historial '
+              '(${CurrencyUtils.format(totalCobrado)}). Revisa el detalle de las ventas.',
+              style: TextStyle(
+                color: palette.textSecondary,
+                fontSize: 11,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
 class _HistorialDiaSection extends ConsumerWidget {
   const _HistorialDiaSection({
     required this.titulo,
