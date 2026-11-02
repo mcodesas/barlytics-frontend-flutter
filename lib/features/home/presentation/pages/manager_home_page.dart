@@ -205,17 +205,17 @@ class _ManagerHomePageState extends ConsumerState<ManagerHomePage> {
                   ),
                 ),
                 if (puedeAgendaDeportiva)
-                  const SliverToBoxAdapter(
-                  child: Center(
-                    child: ConstrainedBox(
-                      constraints: BoxConstraints(maxWidth: 1440),
-                      child: Padding(
-                        padding: EdgeInsets.symmetric(horizontal: 16, vertical: 5),
-                        child: SportsAgendaWidget(),
+                  SliverToBoxAdapter(
+                    child: Center(
+                      child: ConstrainedBox(
+                        constraints: const BoxConstraints(maxWidth: 1440),
+                        child: const Padding(
+                          padding: EdgeInsets.symmetric(horizontal: 16, vertical: 5),
+                          child: SportsAgendaWidget(),
+                        ),
                       ),
                     ),
                   ),
-                ),
                 if (showTeamSetupAlert)
                   SliverToBoxAdapter(
                     child: Center(
