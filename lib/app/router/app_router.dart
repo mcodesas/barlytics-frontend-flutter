@@ -19,6 +19,7 @@ import '../../features/auth/presentation/providers/auth_provider.dart';
 import '../../features/navigation/presentation/providers/active_role_provider.dart';
 import '../../features/home/presentation/pages/home_page.dart';
 import '../../features/dashboard/presentation/pages/dashboard_page.dart';
+import '../../features/tesoreria/presentation/pages/tesoreria_page.dart';
 import '../../features/admin_support/presentation/pages/admin_support_page.dart';
 import '../../features/admin_support/presentation/pages/admin_data_explorer_page.dart';
 import '../../features/admin_support/presentation/pages/admin_audit_page.dart';
@@ -315,6 +316,7 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       GoRoute(path: '/catalogo_maestro', builder: (context, state) => AppScaffold(child: const MasterCatalogPage())),
       GoRoute(path: '/profile', builder: (context, state) => _setupAwareScaffold(ref, state, const ProfilePage())),
       GoRoute(path: '/dashboard', builder: (context, state) => const AppScaffold(child: DashboardPage())),
+      GoRoute(path: '/tesoreria', builder: (context, state) => const AppScaffold(child: TesoreriaPage())),
       GoRoute(path: '/reportes', builder: (context, state) => AppScaffold(child: const ReportesPage())),
       GoRoute(
         path: '/reporte_resumen_ejecutivo',
