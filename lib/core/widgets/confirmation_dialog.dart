@@ -1,33 +1,60 @@
 import 'package:flutter/material.dart';
 
-import '../../app/theme/app_colors.dart';
-
+/// Confirmación compartida entre módulos, coherente con el tema activo.
+/// Utiliza el DialogTheme global, sin colores o radios fijos por pantalla.
 Future<bool> showConfirmationDialog(
   BuildContext context, {
   required String title,
   required String message,
 }) async {
+  final theme = Theme.of(context);
+  final colors = theme.colorScheme;
   final result = await showDialog<bool>(
     context: context,
-    builder: (context) => AlertDialog(
-        scrollable: true,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(26)),
+    builder: (dialogContext) => AlertDialog(
+      scrollable: true,
       title: Row(
         children: [
           Container(
             width: 42,
             height: 42,
-            decoration: const BoxDecoration(color: AppColors.warningSoft, shape: BoxShape.circle),
-            child: const Icon(Icons.warning_amber_rounded, color: AppColors.warning),
+            decoration: BoxDecoration(
+              color: colors.tertiaryContainer,
+              shape: BoxShape.circle,
+            ),
+            child: Icon(
+              Icons.warning_amber_rounded,
+              color: colors.onTertiaryContainer,
+            ),
           ),
           const SizedBox(width: 12),
-          Expanded(child: Text(title, style: const TextStyle(fontWeight: FontWeight.w900))),
+          Expanded(
+            child: Text(
+              title,
+              style: theme.textTheme.titleMedium?.copyWith(
+                fontWeight: FontWeight.w900,
+              ),
+            ),
+          ),
         ],
       ),
-      content: Text(message, style: const TextStyle(color: AppColors.textSecondary, height: 1.35)),
+      content: Text(
+        message,
+        style: theme.textTheme.bodyMedium?.copyWith(
+          color: colors.onSurfaceVariant,
+          height: 1.35,
+        ),
+      ),
       actions: [
-        TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Cancelar')),
-        FilledButton.icon(onPressed: () => Navigator.pop(context, true), icon: const Icon(Icons.check_rounded), label: const Text('Confirmar')),
+        TextButton(
+          onPressed: () => Navigator.of(dialogContext).pop(false),
+          child: const Text('Cancelar'),
+        ),
+        FilledButton.icon(
+          onPressed: () => Navigator.of(dialogContext).pop(true),
+          icon: const Icon(Icons.check_rounded),
+          label: const Text('Confirmar'),
+        ),
       ],
     ),
   );
