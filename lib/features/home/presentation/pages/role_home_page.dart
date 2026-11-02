@@ -13,6 +13,7 @@ import '../../../navigation/data/models/user_menu_item.dart';
 import '../../../navigation/presentation/providers/user_menu_provider.dart';
 import '../../../navigation/presentation/providers/active_role_provider.dart';
 import '../../../navigation/presentation/providers/user_assigned_roles_provider.dart';
+import '../../../deportes/presentation/widgets/sports_agenda_widget.dart';
 import '../../../mesero/presentation/providers/mesero_tab_provider.dart';
 import '../../../profile/presentation/providers/profile_header_provider.dart';
 import '../../../sucursales/data/models/sucursales_response_model.dart';
@@ -64,6 +65,8 @@ class _RoleHomePageState extends ConsumerState<RoleHomePage> {
         ? customOptions.first.name : null;
     final profile = _RoleHomeProfile.resolve(widget.roles, customName: customName);
     final availableItems = _buildAvailableItems(profile, widget.items);
+    // La agenda solo se muestra cuando el backend concedió este permiso al rol.
+    final canSeeSports = availableItems.any((item) => item.keyName == 'agenda_deportiva');
     final featuredItems = _featuredItems(profile, availableItems);
     final workflow = _workflowFor(profile, availableItems);
     final displayName = profileAsync.maybeWhen(
@@ -127,6 +130,15 @@ class _RoleHomePageState extends ConsumerState<RoleHomePage> {
                     ),
                   ),
                 ),
+                if (canSeeSports)
+                  const SliverToBoxAdapter(
+                    child: _CenteredContent(
+                      child: Padding(
+                        padding: EdgeInsets.fromLTRB(16, 18, 16, 0),
+                        child: SportsAgendaWidget(compact: true),
+                      ),
+                    ),
+                  ),
                 if (workflow.isNotEmpty)
                   SliverToBoxAdapter(
                     child: _CenteredContent(
