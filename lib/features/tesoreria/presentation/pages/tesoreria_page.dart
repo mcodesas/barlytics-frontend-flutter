@@ -18,7 +18,7 @@ class _TesoreriaPageState extends ConsumerState<TesoreriaPage> {
   String? _error;
   Map<String, dynamic> _summary = {};
   List<Map<String, dynamic>> _moves = [], _reconciliations = [];
-  final _currency = NumberFormat.currency(locale: 'es_CO', symbol: r'$ ', decimalDigits: 0);
+  final _currency = NumberFormat.currency(locale: 'es_CO', symbol: r'$ ', decimalDigits: 2);
 
   Map<String, dynamic> _asMap(Object? obj) => obj is Map
       ? Map<String, dynamic>.from(obj) : {};
