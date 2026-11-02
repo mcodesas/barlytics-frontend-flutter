@@ -106,6 +106,10 @@ class _TesoreriaPageState extends ConsumerState<TesoreriaPage> {
     try {
       await showDialog<void>(context: context, builder: (ctx) =>
           StatefulBuilder(builder: (ctx, update) => AlertDialog(
+        backgroundColor: ref.read(selectedAppPaletteProvider).surface,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(ref.read(selectedAppPaletteProvider).radius(23)),
+        ),
         scrollable: true,
         title: Text('Saldo inicial: ' + (medium['nombre']?.toString() ?? 'Medio')),
         content: SizedBox(width: 430, child: Column(
@@ -179,6 +183,10 @@ class _TesoreriaPageState extends ConsumerState<TesoreriaPage> {
               onChanged: change,
             );
         return AlertDialog(
+        backgroundColor: ref.read(selectedAppPaletteProvider).surface,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(ref.read(selectedAppPaletteProvider).radius(23)),
+        ),
           scrollable: true,
           title: const Text('Movimiento de dinero'),
           content: SizedBox(width: 500, child: Column(
@@ -250,6 +258,10 @@ class _TesoreriaPageState extends ConsumerState<TesoreriaPage> {
     try {
       final accepted = await showDialog<bool>(context: context, builder: (ctx) =>
           AlertDialog(
+        backgroundColor: ref.read(selectedAppPaletteProvider).surface,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(ref.read(selectedAppPaletteProvider).radius(23)),
+        ),
         scrollable: true,
         title: Text('Conciliar: ' + (medium['nombre']?.toString() ?? 'Medio')),
         content: SizedBox(width: 420, child: Column(
@@ -284,7 +296,11 @@ class _TesoreriaPageState extends ConsumerState<TesoreriaPage> {
     final reason = TextEditingController();
     try {
       final accepted = await showDialog<bool>(context: context, builder: (ctx) =>
-          AlertDialog(scrollable: true,
+          AlertDialog(
+        backgroundColor: ref.read(selectedAppPaletteProvider).surface,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(ref.read(selectedAppPaletteProvider).radius(23)),
+        ),scrollable: true,
         title: const Text('Anular movimiento'),
         content: TextField(controller: reason, maxLength: 300,
             decoration: const InputDecoration(labelText: 'Motivo obligatorio')),
@@ -454,7 +470,6 @@ class _TesoreriaPageState extends ConsumerState<TesoreriaPage> {
         const SizedBox(height: 6),
         Text('Establece la fecha y el valor inicial para calcular movimientos.',
           style: TextStyle(color: palette.textSecondary, fontSize: 12)),
-        const Spacer(),
         const SizedBox(height: 14),
         FilledButton.icon(
           onPressed: () => _opening(account),
