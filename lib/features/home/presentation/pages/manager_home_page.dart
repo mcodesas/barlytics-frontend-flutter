@@ -211,7 +211,7 @@ class _ManagerHomePageState extends ConsumerState<ManagerHomePage> {
                         constraints: const BoxConstraints(maxWidth: 1440),
                         child: const Padding(
                           padding: EdgeInsets.symmetric(horizontal: 16, vertical: 5),
-                          child: SportsAgendaWidget(),
+                          child: SportsAgendaWidget(compact: true),
                         ),
                       ),
                     ),
