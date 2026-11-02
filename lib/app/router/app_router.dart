@@ -229,23 +229,23 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       // Estos roles son deliberadamente operativos. Si son los únicos roles
       // activos, no deben poder abrir por URL módulos administrativos que no
       // aparecen en su menú.
-      if (authState.authenticated && inventoryOnly) {
+      if (authState.authenticated && !isDigitalMenuPublic && inventoryOnly) {
         final allowed = path == '/home' || path == '/profile' || path.startsWith('/inventario');
         if (!allowed) return '/inventario';
       }
-      if (authState.authenticated && movementsOnly) {
+      if (authState.authenticated && !isDigitalMenuPublic && movementsOnly) {
         final allowed = path == '/home' || path == '/profile' || path == '/productos' || path.startsWith('/movimientos');
         if (!allowed) return '/movimientos';
       }
-      if (authState.authenticated && pricesOnly) {
+      if (authState.authenticated && !isDigitalMenuPublic && pricesOnly) {
         final allowed = path == '/home' || path == '/profile' || path.startsWith('/precios');
         if (!allowed) return '/precios';
       }
-      if (authState.authenticated && commandsOnly) {
+      if (authState.authenticated && !isDigitalMenuPublic && commandsOnly) {
         final allowed = path == '/home' || path == '/profile' || path.startsWith('/comandas');
         if (!allowed) return '/comandas';
       }
-      if (authState.authenticated &&
+      if (authState.authenticated && !isDigitalMenuPublic &&
           restrictedOperationalOnly &&
           !inventoryOnly &&
           !movementsOnly &&
