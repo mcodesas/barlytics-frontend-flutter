@@ -172,6 +172,11 @@ class _MenuDigitalAdminPageState extends ConsumerState<MenuDigitalAdminPage> {
     final badColor = _colorControllers.values.any(
       (c) => !RegExp(r'^#[0-9A-Fa-f]{6}$').hasMatch(c.text.trim()));
     if (badColor) { _notify('Utiliza colores HEX como #14B8A6.'); return; }
+    if (!_hasReadableColors) {
+      _notify('El texto tiene poco contraste con el fondo o las tarjetas. '
+          'Elige otra combinación para que todos puedan leer la carta.');
+      return;
+    }
     setState(() => _saving = true);
     try {
       final result = await ref.read(menuDigitalApiProvider).guardar(values);
@@ -468,6 +473,18 @@ class _MenuDigitalAdminPageState extends ConsumerState<MenuDigitalAdminPage> {
                 radius: 12),
               label: Text(p.name), onPressed: () => _preset(p)),
         ]),
+        const SizedBox(height: 10),
+        if (!_hasReadableColors)
+          Padding(
+            padding: const EdgeInsets.only(bottom: 11),
+            child: Row(children: [
+              Icon(Icons.contrast_rounded, size: 20, color: pal.warning),
+              const SizedBox(width: 8),
+              Expanded(child: Text(
+                'El texto se confunde con el fondo o las tarjetas. Ajusta los colores.',
+                style: TextStyle(color: pal.warning, fontSize: 12))),
+            ]),
+          ),
         const SizedBox(height: 16),
         for (final row in <(String, String)>[
           ('Color principal', 'primario'),
@@ -545,6 +562,21 @@ class _MenuDigitalAdminPageState extends ConsumerState<MenuDigitalAdminPage> {
         )),
       ])),
     ]);
+  }
+
+  double _contrast(Color left, Color right) {
+    final a = left.computeLuminance(), b = right.computeLuminance();
+    final highest = a > b ? a : b;
+    final lowest = a > b ? b : a;
+    return (highest + 0.05) / (lowest + 0.05);
+  }
+
+  bool get _hasReadableColors {
+    final text = _parseColor(_colorControllers['texto']!.text);
+    final background = _parseColor(_colorControllers['fondo']!.text);
+    final card = _parseColor(_colorControllers['tarjeta']!.text);
+    if (text == null || background == null || card == null) return false;
+    return _contrast(text, background) >= 4.5 && _contrast(text, card) >= 4.5;
   }
 
   Color? _parseColor(String value) {
