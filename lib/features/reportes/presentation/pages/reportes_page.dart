@@ -102,6 +102,18 @@ class ReportesPage extends ConsumerWidget {
       percentageKeys: ['porcentaje'],
     ),
     _ReportDefinition(
+      keyName: 'reporte_flujo_dinero_medios',
+      title: 'Flujo de dinero por medio de pago',
+      description: 'Compara los ingresos por ventas con los egresos registrados por efectivo, transferencias y otros medios. El flujo neto no equivale al saldo bancario.',
+      path: '/api/v1/reportes/dinero/medios',
+      icon: Icons.swap_horiz_rounded,
+      requiresDates: true,
+      chartLabelKey: 'medio_pago',
+      chartValueKey: 'flujo_neto',
+      currencyKeys: ['ingresos', 'egresos', 'flujo_neto'],
+      signedChart: true,
+    ),
+    _ReportDefinition(
       keyName: 'reporte_stock_actual',
       title: 'Stock actual',
       description: 'Controla disponibilidad, mínimos, agotados, sobrestock y productos sin parámetros de inventario.',
@@ -2047,6 +2059,16 @@ class _DailyProductBreakdownState extends ConsumerState<_DailyProductBreakdown> 
   String? _selectedDay;
   bool _loading = false;
   String? _error;
+
+  @override
+  void didUpdateWidget(covariant _DailyProductBreakdown oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (!identical(oldWidget.days, widget.days)) {
+      _cache.clear();
+      _selectedDay = null;
+      _error = null;
+    }
+  }
 
   Future<void> _openDay(String date) async {
     if (_selectedDay == date) {
