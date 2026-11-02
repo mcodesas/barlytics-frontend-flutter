@@ -31,6 +31,7 @@ import '../../../pagos/presentation/pages/pagos_list_page.dart';
 import '../../data/datasources/mesero_remote_datasource.dart';
 import '../../data/models/mesero_models.dart';
 import '../providers/mesero_tab_provider.dart';
+import '../utils/historial_medios_pago.dart';
 
 
 bool _ventaEsDirecta(MeseroVentaModel venta) =>
@@ -1922,6 +1923,7 @@ class _MeseroPageState extends ConsumerState<MeseroPage> {
         // Mantener visibles los controles de fecha incluso si el día no tiene ventas.
         // Así se puede salir del estado vacío seleccionando otro día.
         final ventasFiltradas = _filtrarYOrdenarHistorial(ventas);
+        final mediosPagados = resumirPagosVentas(ventasFiltradas);
         final totalVendido = ventasFiltradas.fold<double>(0, (sum, venta) => sum + (venta.total ?? 0));
         final totalPagado = ventasFiltradas.fold<double>(0, (sum, venta) => sum + (venta.totalPagado ?? (venta.pagada == true ? (venta.total ?? 0) : 0)));
         final saldoPendiente = ventasFiltradas.fold<double>(0, (sum, venta) => sum + (venta.saldoPendiente ?? 0));
@@ -1967,6 +1969,11 @@ class _MeseroPageState extends ConsumerState<MeseroPage> {
               saldoPendiente: saldoPendiente,
               propinas: propinas,
               ticketPromedio: ticketPromedio,
+            ),
+            const SizedBox(height: 14),
+            _HistorialMediosPagoResumenPanel(
+              medios: mediosPagados,
+              totalCobrado: totalPagado,
             ),
             const SizedBox(height: 14),
             _buildHistorialFiltrosPanel(totalVentas: ventas.length, ventasMostradas: ventasFiltradas.length),
@@ -16699,13 +16706,7 @@ class _HistorialVentaListadoRow extends ConsumerWidget {
     final ventaDirecta = (venta.tipoVenta ?? '').trim().toUpperCase() == 'DIRECTA' || venta.mesaId == null;
     final productos = venta.cuentas.fold<int>(0, (sum, cuenta) => sum + cuenta.productos.length);
     final pagos = venta.cuentas.fold<int>(0, (sum, cuenta) => sum + cuenta.pagos.length);
-    final medios = venta.cuentas
-        .expand((cuenta) => cuenta.pagos)
-        .map((pago) => (pago.medioPagoNombre ?? '').trim())
-        .where((value) => value.isNotEmpty)
-        .toSet()
-        .take(2)
-        .join(', ');
+    final medios = resumirPagosVentas(<MeseroVentaModel>[venta]);
 
     return Material(
       color: Colors.transparent,
@@ -16764,9 +16765,29 @@ class _HistorialVentaListadoRow extends ConsumerWidget {
                             _HistorialDatoInline(icon: Icons.call_split_rounded, label: 'Cuentas', value: '${venta.cuentas.length}'),
                             _HistorialDatoInline(icon: Icons.inventory_2_rounded, label: 'Productos', value: '$productos'),
                             _HistorialDatoInline(icon: Icons.payments_rounded, label: 'Pagos', value: '$pagos'),
-                            if (medios.isNotEmpty) _HistorialDatoInline(icon: Icons.account_balance_wallet_rounded, label: 'Medios', value: medios),
+
                           ],
                         ),
+                        if (medios.isNotEmpty) ...[
+                          const SizedBox(height: 10),
+                          Text(
+                            'Pagos por medio',
+                            style: TextStyle(
+                              color: palette.textSecondary,
+                              fontWeight: FontWeight.w800,
+                              fontSize: 11,
+                            ),
+                          ),
+                          const SizedBox(height: 6),
+                          Wrap(
+                            spacing: 7,
+                            runSpacing: 7,
+                            children: [
+                              for (final medio in medios)
+                                _HistorialPagoMedioChip(medio: medio),
+                            ],
+                          ),
+                        ],
                       ],
                     ),
                   ),
