@@ -217,9 +217,19 @@ class _MenuDigitalCatalogState extends State<MenuDigitalCatalog> {
                       )),
                     child: Column(crossAxisAlignment: CrossAxisAlignment.start,
                       mainAxisAlignment: MainAxisAlignment.center, children: [
-                      Text((widget.menu['sucursal'] ?? '').toString().toUpperCase(),
-                        style: TextStyle(color: accent, fontSize: 12, fontWeight: FontWeight.w900,
-                          letterSpacing: 1.5)),
+                      Row(mainAxisSize: MainAxisSize.min, children: [
+                        if (_image(widget.menu['logo']) != null) ...[
+                          _photo(widget.menu['logo'],
+                              height: 48, width: 48, radius: 12),
+                          const SizedBox(width: 12),
+                        ],
+                        Flexible(child: Text(
+                          (widget.menu['sucursal'] ?? '').toString().toUpperCase(),
+                          maxLines: 2, overflow: TextOverflow.ellipsis,
+                          style: TextStyle(color: accent, fontSize: 12,
+                              fontWeight: FontWeight.w900, letterSpacing: 1.5),
+                        )),
+                      ]),
                       const SizedBox(height: 11),
                       Text((widget.menu['titulo'] ?? 'Nuestra carta').toString(),
                         style: TextStyle(color: fg,
