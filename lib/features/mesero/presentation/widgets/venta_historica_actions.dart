@@ -156,6 +156,85 @@ class _VentaHistoricaActionsState extends ConsumerState<VentaHistoricaActions> {
     }
   }
 
+  Future<void> _desanular() async {
+    if (_enProceso || !widget.autorizado || !_anulada) return;
+    final motivo = TextEditingController();
+    var acepto = false;
+    final confirmacion = await showDialog<String>(
+      context: context,
+      builder: (dialog) => StatefulBuilder(
+        builder: (context, refresh) => AlertDialog(
+          scrollable: true,
+          title: Text('Desanular venta #${widget.ventaId}'),
+          content: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 510),
+            child: Column(mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+              const Text('Se restaurará la venta original como FINALIZADA. '
+                'El inventario volverá a descontarse según las cantidades '
+                'que se reintegraron al anular y el cierre se recalculará.'),
+              const SizedBox(height: 10),
+              const Text('No se crearán nuevos pagos ni una venta duplicada. '
+                'El dinero realmente entregado en el cierre seguirá intacto.'),
+              const SizedBox(height: 10),
+              const Text('No se permite si hay una corrección vinculada, '
+                'un reembolso realizado o stock insuficiente.',
+                style: TextStyle(fontWeight: FontWeight.w700)),
+              const SizedBox(height: 14),
+              TextField(
+                controller: motivo,
+                autofocus: true,
+                minLines: 2, maxLines: 4, maxLength: 300,
+                onChanged: (_) => refresh(() {}),
+                decoration: const InputDecoration(
+                  labelText: 'Motivo de desanulación (mínimo 8 caracteres)',
+                  hintText: 'Explica por qué la venta debe recuperarse',
+                  border: OutlineInputBorder(),
+                ),
+              ),
+              CheckboxListTile(
+                value: acepto,
+                contentPadding: EdgeInsets.zero,
+                controlAffinity: ListTileControlAffinity.leading,
+                onChanged: (v) => refresh(() => acepto = v ?? false),
+                title: const Text('Confirmo que no se ha devuelto dinero '
+                  'al cliente y que deseo recuperar esta venta.'),
+              ),
+            ]),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(dialog),
+              child: const Text('Cancelar')),
+            FilledButton.icon(
+              onPressed: acepto && motivo.text.trim().length >= 8
+                ? () => Navigator.pop(dialog, motivo.text.trim()) : null,
+              icon: const Icon(Icons.restore_rounded),
+              label: const Text('Confirmar desanulación')),
+          ],
+        ),
+      ),
+    );
+    motivo.dispose();
+    if (confirmacion == null || !mounted) return;
+    setState(() => _enProceso = true);
+    try {
+      final data = await MeseroRemoteDataSource(ref.read(apiClientProvider))
+          .desanularVentaFinalizada(widget.ventaId, confirmacion);
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+        content: Text('Venta #${widget.ventaId} restaurada como '
+          '${data['estado'] ?? 'FINALIZADA'}. '
+          'Stock y cierre reconciliados.')));
+      await widget.onAnulada(); // Actualiza el detalle y los indicadores.
+    } catch (e) {
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('No se pudo desanular: $e')));
+    } finally {
+      if (mounted) setState(() => _enProceso = false);
+    }
+  }
+
   Future<void> _verAuditoria() async {
     try {
       final result = await MeseroRemoteDataSource(ref.read(apiClientProvider))
@@ -216,6 +295,11 @@ class _VentaHistoricaActionsState extends ConsumerState<VentaHistoricaActions> {
                     ? null : () => _operar(corregir: true),
                 icon: const Icon(Icons.edit_note_rounded),
                 label: const Text('Retomar o corregir venta'),
+              ),
+              OutlinedButton.icon(
+                onPressed: _enProceso ? null : _desanular,
+                icon: const Icon(Icons.restore_rounded),
+                label: const Text('Desanular venta'),
               ),
               OutlinedButton.icon(
                 onPressed: _enProceso ? null : _verAuditoria,
