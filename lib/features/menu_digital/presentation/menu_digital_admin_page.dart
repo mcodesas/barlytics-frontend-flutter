@@ -259,6 +259,9 @@ class _MenuDigitalAdminPageState extends ConsumerState<MenuDigitalAdminPage> {
       _notify('Aún no existe un enlace público.'); return;
     }
     if (!mounted) return;
+    final slug = (_saved?['slug'] ?? '').toString();
+    final qrPreview = ref.read(menuDigitalApiProvider).server +
+        '/api/v1/menu-digital/public/' + Uri.encodeComponent(slug) + '/qr';
     await showDialog<void>(context: context, builder: (dialog) => AlertDialog(
       scrollable: true,
       title: const Text('Comparte tu menú digital'),
@@ -266,7 +269,17 @@ class _MenuDigitalAdminPageState extends ConsumerState<MenuDigitalAdminPage> {
         child: Column(mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start, children: [
           const Text('Tus clientes podrán ver la carta sin iniciar sesión.'),
-          const SizedBox(height: 13),
+          const SizedBox(height: 15),
+          Center(child: Container(
+            padding: const EdgeInsets.all(11),
+            decoration: BoxDecoration(color: Colors.white,
+                borderRadius: BorderRadius.circular(16)),
+            child: Image.network(qrPreview, width: 180, height: 180,
+              errorBuilder: (context, error, stack) => const SizedBox(
+                width: 180, height: 180,
+                child: Center(child: Text('Descarga el QR para verlo')))),
+          )),
+          const SizedBox(height: 15),
           SelectableText(link),
           const SizedBox(height: 12),
           const Text('También puedes colocar el QR impreso en cada mesa.'),
