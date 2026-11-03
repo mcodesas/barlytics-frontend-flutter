@@ -469,8 +469,22 @@ class _MenuDigitalCatalogState extends State<MenuDigitalCatalog> {
                 ),
                 child: Stack(children: [
                   if (coverHasImage)
-                    Positioned.fill(child: _photo(widget.menu['portada'],
-                        width: double.infinity, radius: 26)),
+                    Positioned.fill(
+                      child: ColoredBox(
+                        color: colors.secondarySurface,
+                        child: Image(
+                          image: _image(widget.menu['portada'])!,
+                          // En pantallas web anchas BoxFit.cover recortaba la
+                          // parte superior e inferior de la portada (logos,
+                          // nombres de negocio y texto del afiche).
+                          // Contain mantiene visible el afiche completo.
+                          fit: mobile ? BoxFit.cover : BoxFit.contain,
+                          alignment: Alignment.centerRight,
+                          errorBuilder: (context, error, stack) =>
+                            ColoredBox(color: colors.secondarySurface),
+                        ),
+                      ),
+                    ),
                   Container(
                     width: double.infinity,
                     constraints: BoxConstraints(minHeight: mobile ? 232 : 250),
