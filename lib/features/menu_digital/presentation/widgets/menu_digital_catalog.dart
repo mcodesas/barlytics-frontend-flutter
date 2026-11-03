@@ -787,7 +787,35 @@ class _MenuDigitalCatalogState extends State<MenuDigitalCatalog> {
                     icon: const Icon(Icons.chevron_right_rounded),
                   ),
                 ]),
-              ] else
+              ] else if (style == 'EDITORIAL')
+                MenuDigitalExtraLayouts.editorial(
+                  products: filtered,
+                  colors: colors,
+                  image: (p, w, h) => _productPhoto(
+                    p, width: w, height: h, radius: 10),
+                  onDetails: _showProductDetails,
+                )
+              else if (style == 'MINIMALISTA')
+                MenuDigitalExtraLayouts.minimalist(
+                  products: filtered,
+                  colors: colors,
+                  image: (p, w, h) => _productPhoto(
+                    p, width: w, height: h, radius: 8),
+                  onDetails: _showProductDetails,
+                )
+              else if (style == 'GALERIA')
+                Wrap(spacing: gap, runSpacing: gap, children: [
+                  for (final p in filtered)
+                    MenuDigitalExtraLayouts.galleryItem(
+                      product: p,
+                      width: itemWidth,
+                      colors: colors,
+                      image: (product, w, h) => _productPhoto(
+                        product, width: w, height: h, radius: 12),
+                      onDetails: _showProductDetails,
+                    ),
+                ])
+              else
                 Wrap(spacing: gap, runSpacing: gap, children: [
                   for (final p in filtered)
                     _storeItem(p, itemWidth),
