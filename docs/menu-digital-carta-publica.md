@@ -71,3 +71,54 @@ El backend reutiliza `BARLYTICS_EVENTS_FRONTEND_URL` para componer la URL al nav
 11. Verificar que las modificaciones a una carta publicada aparezcan en el enlace estable.
 
 **Estado:** ajustes en rama de desarrollo; validación de estructura realizada, ejecución de Flutter y QA visual en navegador pendientes. Sin PR, merge ni despliegue.
+
+## Identidad visual e imágenes de la carta (V67 y V68)
+
+La carta ofrece **dos opciones de encabezado** independientes de sus cinco
+diseños de productos y de las 32 paletas de color:
+
+- **Foto completa arriba** (predeterminada): la foto se muestra con
+  `BoxFit.contain`, sin cortar afiches ni logos incluidos en ella. Debajo se
+  presentan el logo del negocio, el nombre de la sucursal, el título y la
+  descripción de la carta.
+- **Encabezado dividido clásico**: conserva la versión anterior, con el texto
+  y la fotografía en el mismo bloque horizontal.
+
+El logo de la carta utiliza por defecto `sucursal.sucu_foto`. El gerente
+puede subir un logo distinto para esa carta, o restablecer el de la sucursal.
+No se modifica el registro de la sucursal.
+
+Además se puede subir una foto de **fondo opcional**, que se combina de forma
+atenuada con el color de fondo seleccionado para garantizar la lectura, y
+una **galería de hasta seis fotografías** con visor de zoom. Se puede activar
+«Mostrar estas fotos también arriba» para alternarlas junto con la portada
+principal en un carrusel. La galería inferior sigue visible.
+
+Los cambios quedan almacenados por sucursal en
+`menu_digital.mudi_logo`, `mudi_fondo_imagen`, `mudi_galeria`,
+`mudi_portada_modo` (migración **V67**) y `mudi_galeria_arriba`
+(migración **V68**). `mudi_slug` no cambia: los enlaces de compartir y el QR
+que ya existen continúan funcionando.
+
+Límites validados en backend: portada y fondo hasta 1,5 MB cada uno, logo
+hasta 900 KB y seis fotografías de galería de 700 KB como máximo por foto.
+Solo se admiten JPEG/PNG/WEBP en Data URI, o URLs HTTPS para imágenes
+individuales. Las fotos de galería se cargan desde archivos en el editor;
+no se admiten SVG ni rutas `file:`.
+
+### Regresión requerida
+
+1. Abrir una carta existente: conservar portada, colores, productos, enlaces y
+   logo de sucursal sin tener que volver a cargar las imágenes.
+2. Elegir portada completa y dividida, cambiar paletas y los cinco diseños.
+3. Subir logo propio y pulsar «Usar logo de sucursal».
+4. Subir fondo y comprobar lectura en temas claros y oscuros.
+5. Agregar varias fotos, eliminar una, ampliar con zoom y recorrer el visor.
+6. Activar galería superior, cambiar foto con flechas y abrir foto completa.
+7. Confirmar responsividad en 320, 390, 768 y 1440 píxeles y sin desbordes.
+8. Cambiar de sucursal: las imágenes temporales no deben compartirse entre
+   negocios.
+9. Guardar, publicar y abrir carta pública desde el QR y enlace anterior.
+
+**Ejecución automatizada pendiente** en Flutter y PostgreSQL; validar sobre
+una copia de datos antes de desplegar.
