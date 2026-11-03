@@ -12836,6 +12836,7 @@ class _CuentaProductosTabla extends ConsumerWidget {
     this.onSumarCantidadProducto,
     this.productoActualizando,
     this.onEliminarProducto,
+    this.onDescuentoProducto,
     this.onMoverProducto,
   });
 
@@ -12847,6 +12848,7 @@ class _CuentaProductosTabla extends ConsumerWidget {
   final ValueChanged<MeseroDetalleProductoModel>? onSumarCantidadProducto;
   final bool Function(MeseroDetalleProductoModel)? productoActualizando;
   final ValueChanged<MeseroDetalleProductoModel>? onEliminarProducto;
+  final ValueChanged<MeseroDetalleProductoModel>? onDescuentoProducto;
   final ValueChanged<MeseroDetalleProductoModel>? onMoverProducto;
 
   @override
@@ -12879,6 +12881,7 @@ class _CuentaProductosTabla extends ConsumerWidget {
                       onSumarCantidadProducto: onSumarCantidadProducto,
                       actualizando: productoActualizando?.call(producto) ?? false,
                       onEliminarProducto: onEliminarProducto,
+                      onDescuentoProducto: onDescuentoProducto,
                       onMoverProducto: onMoverProducto,
                     ),
                   ),
@@ -12968,6 +12971,19 @@ class _CuentaProductosTabla extends ConsumerWidget {
                     overflow: TextOverflow.ellipsis,
                     style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 12.5),
                   ),
+                IconButton(
+                  tooltip: (producto.descuentoAplicado ?? 0) > 0
+                      ? 'Modificar descuento: ${CurrencyUtils.format(producto.descuentoAplicado)}'
+                      : 'Descuento de producto',
+                  visualDensity: VisualDensity.compact,
+                  constraints: const BoxConstraints(minWidth: 30, minHeight: 30),
+                  padding: EdgeInsets.zero,
+                  iconSize: 17,
+                  onPressed: pagado || actualizando || cuenta.pagos.isNotEmpty
+                      ? null : onDescuentoProducto == null
+                          ? null : () => onDescuentoProducto!(producto),
+                  icon: const Icon(Icons.percent_rounded),
+                ),
                 ),
               ],
             ),
@@ -13105,6 +13121,19 @@ class _CuentaProductosTabla extends ConsumerWidget {
                     overflow: TextOverflow.ellipsis,
                     style: const TextStyle(fontWeight: FontWeight.w800),
                   ),
+                IconButton(
+                  tooltip: (producto.descuentoAplicado ?? 0) > 0
+                      ? 'Modificar descuento: ${CurrencyUtils.format(producto.descuentoAplicado)}'
+                      : 'Descuento de producto',
+                  visualDensity: VisualDensity.compact,
+                  constraints: const BoxConstraints(minWidth: 30, minHeight: 30),
+                  padding: EdgeInsets.zero,
+                  iconSize: 18,
+                  onPressed: pagado || actualizando || cuenta.pagos.isNotEmpty
+                      ? null : onDescuentoProducto == null
+                          ? null : () => onDescuentoProducto!(producto),
+                  icon: const Icon(Icons.percent_rounded),
+                ),
                 ),
               ],
             ),
@@ -13472,6 +13501,7 @@ class _CuentaProductoMobileRow extends StatelessWidget {
     this.onSumarCantidadProducto,
     this.actualizando = false,
     this.onEliminarProducto,
+    this.onDescuentoProducto,
     this.onMoverProducto,
   });
 
@@ -13482,6 +13512,7 @@ class _CuentaProductoMobileRow extends StatelessWidget {
   final ValueChanged<MeseroDetalleProductoModel>? onSumarCantidadProducto;
   final bool actualizando;
   final ValueChanged<MeseroDetalleProductoModel>? onEliminarProducto;
+  final ValueChanged<MeseroDetalleProductoModel>? onDescuentoProducto;
   final ValueChanged<MeseroDetalleProductoModel>? onMoverProducto;
 
   @override
@@ -13538,6 +13569,20 @@ class _CuentaProductoMobileRow extends StatelessWidget {
               const SizedBox(width: 8),
               Expanded(child: _MobileMiniMetric(label: 'Total', value: CurrencyUtils.format(producto.subtotal), alignEnd: true)),
             ],
+          ),
+          if ((producto.descuentoAplicado ?? 0) > 0)
+            Padding(
+              padding: const EdgeInsets.only(top: 8),
+              child: Text('Descuento: -' + CurrencyUtils.format(producto.descuentoAplicado),
+                style: TextStyle(color: palette.secondary, fontWeight: FontWeight.w800)),
+            ),
+          const SizedBox(height: 10),
+          OutlinedButton.icon(
+            onPressed: pagado || actualizando ? null
+                : onDescuentoProducto == null ? null : () => onDescuentoProducto!(producto),
+            icon: const Icon(Icons.percent_rounded),
+            label: Text((producto.descuentoAplicado ?? 0) > 0
+                ? 'Modificar descuento' : 'Descuento de este producto'),
           ),
           const SizedBox(height: 10),
           LayoutBuilder(
