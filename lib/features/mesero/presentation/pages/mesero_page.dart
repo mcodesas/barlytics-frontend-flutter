@@ -2636,7 +2636,7 @@ class _MeseroPageState extends ConsumerState<MeseroPage> {
             children: [
               LayoutBuilder(
                 builder: (context, constraints) {
-                  final compactHeader = constraints.maxWidth < 620;
+                  final compactHeader = constraints.maxWidth < 1040;
                   final descuentoVentaButton = OutlinedButton.icon(
                     onPressed: _processing || venta.ventaId == null ||
                             venta.cuentas.any((cuenta) => cuenta.pagos.isNotEmpty)
@@ -11132,6 +11132,10 @@ class _VentaInfoPanel extends ConsumerWidget {
     final ventaDirecta = (venta.tipoVenta ?? '').trim().toUpperCase() == 'DIRECTA' || venta.mesaId == null;
     final cuentas = venta.cuentas.length;
     final productos = venta.cuentas.fold<int>(0, (sum, cuenta) => sum + cuenta.productos.length);
+    final descuentoTotal = venta.cuentas.fold<double>(0, (sum, cuenta) =>
+      sum + (cuenta.descuentoAplicado ?? 0) +
+        cuenta.productos.fold<double>(0, (subtotal, p) =>
+          subtotal + (p.descuentoAplicado ?? 0)));
     final saldo = venta.saldoPendiente ?? 0;
     final pagada = venta.pagada == true || saldo <= 0.009;
 
@@ -11257,6 +11261,12 @@ class _VentaInfoPanel extends ConsumerWidget {
                     height: 1,
                   ),
                 ),
+                if (descuentoTotal > 0) ...[
+                  const SizedBox(height: 7),
+                  Text('Descuentos: -' + CurrencyUtils.format(descuentoTotal),
+                    style: TextStyle(color: palette.secondary,
+                        fontSize: 12, fontWeight: FontWeight.w900)),
+                ],
                 const SizedBox(height: 8),
                 _ResumenEstadoVentaChip(
                   label: pagada ? 'Pagada' : 'Saldo pendiente',
