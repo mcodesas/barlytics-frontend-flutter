@@ -48,7 +48,7 @@ void main() {
     final confirm = tester.widget<FilledButton>(
         find.widgetWithText(FilledButton, 'Confirmar desanulación'));
     expect(confirm.onPressed, isNull);
-    expect(find.textContaining('reembolso realizado'), findsOneWidget);
+    expect(find.textContaining('se archivará automáticamente'), findsOneWidget);
   });
 
   testWidgets('Una venta finalizada permite corregir o anular',
