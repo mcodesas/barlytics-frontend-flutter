@@ -137,7 +137,7 @@ Future<DescuentoVentaInput?> mostrarDialogoDescuento(
           FilledButton.icon(
             onPressed: !saving || submitting ? null : () {
               submitting = true;
-              Navigator.pop(dialog, DescuentoVentaInput(type, val, reason.text.trim()));
+              Navigator.pop(dialog, DescuentoVentaInput(type, val!, reason.text.trim()));
             },
             icon: const Icon(Icons.check_rounded),
             label: const Text('Aplicar descuento'),
