@@ -387,11 +387,34 @@ class _MenuDigitalCatalogState extends State<MenuDigitalCatalog> {
     );
   }
 
+  IconData _iconForCategory(String category) {
+    final name = category.toUpperCase();
+    if (name == 'TODOS') return Icons.check_circle_outline_rounded;
+    if (name.contains('CERVEZA')) return Icons.sports_bar_rounded;
+    if (name.contains('COCTEL') || name.contains('CÓCTEL')) {
+      return Icons.local_bar_rounded;
+    }
+    if (name.contains('COMIDA') || name.contains('PASABOCAS')) {
+      return Icons.tapas_rounded;
+    }
+    if (name.contains('BEBIDA') || name.contains('JUGO')) {
+      return Icons.local_drink_rounded;
+    }
+    if (name.contains('WHISKY') || name.contains('LICOR') ||
+        name.contains('AGUARDIENTE') || name.contains('RON')) {
+      return Icons.wine_bar_rounded;
+    }
+    if (name.contains('CIGARRILLO')) return Icons.smoking_rooms_rounded;
+    return Icons.restaurant_menu_rounded;
+  }
+
   @override
   Widget build(BuildContext context) {
     final canvas = _color('fondo', '#081B27');
     final fg = _color('texto', '#F8FAFC');
     final accent = _color('primario', '#14B8A6');
+    final colors = MenuDigitalColors.fromMenu(widget.menu);
+    final coverHasImage = _image(widget.menu['portada']) != null;
     final book = widget.menu['estilo'] == 'LIBRO';
     final items = _products;
     final cats = <String>['Todos', ...items.map((p) =>
@@ -434,65 +457,121 @@ class _MenuDigitalCatalogState extends State<MenuDigitalCatalog> {
                 const SizedBox(height: 10),
               ],
               Container(
-                decoration: BoxDecoration(borderRadius: BorderRadius.circular(26),
-                    color: _color('tarjeta', '#112D3B')),
+                clipBehavior: Clip.antiAlias,
+                decoration: BoxDecoration(
+                  color: colors.card,
+                  borderRadius: BorderRadius.circular(26),
+                  border: Border.all(color: colors.border),
+                  boxShadow: [BoxShadow(
+                    color: Colors.black.withOpacity(.12),
+                    blurRadius: 24, offset: const Offset(0, 10),
+                  )],
+                ),
                 child: Stack(children: [
-                  if (_image(widget.menu['portada']) != null)
+                  if (coverHasImage)
                     Positioned.fill(child: _photo(widget.menu['portada'],
                         width: double.infinity, radius: 26)),
                   Container(
                     width: double.infinity,
-                    constraints: const BoxConstraints(minHeight: 225),
+                    constraints: BoxConstraints(minHeight: mobile ? 232 : 250),
                     padding: EdgeInsets.all(mobile ? 23 : 36),
-                    decoration: BoxDecoration(borderRadius: BorderRadius.circular(26),
+                    decoration: BoxDecoration(
                       gradient: LinearGradient(
-                        begin: Alignment.topLeft, end: Alignment.bottomRight,
-                        colors: [canvas.withOpacity(0.94), canvas.withOpacity(0.67)],
-                      )),
-                    child: Column(crossAxisAlignment: CrossAxisAlignment.start,
-                      mainAxisAlignment: MainAxisAlignment.center, children: [
-                      Row(mainAxisSize: MainAxisSize.min, children: [
-                        if (_image(widget.menu['logo']) != null) ...[
-                          _photo(widget.menu['logo'],
-                              height: 48, width: 48, radius: 12),
-                          const SizedBox(width: 12),
-                        ],
-                        Flexible(child: Text(
-                          (widget.menu['sucursal'] ?? '').toString().toUpperCase(),
-                          maxLines: 2, overflow: TextOverflow.ellipsis,
-                          style: TextStyle(color: accent, fontSize: 12,
-                              fontWeight: FontWeight.w900, letterSpacing: 1.5),
-                        )),
-                      ]),
-                      const SizedBox(height: 11),
-                      Text((widget.menu['titulo'] ?? 'Nuestra carta').toString(),
-                        style: TextStyle(color: fg,
-                          fontSize: mobile ? 29 : 39, fontWeight: FontWeight.w900, height: 1.08)),
-                      const SizedBox(height: 12),
-                      Text((widget.menu['descripcion'] ?? 'Descubre nuestros sabores').toString(),
-                        style: TextStyle(color: fg.withOpacity(0.83), fontSize: 14, height: 1.45)),
-                      const SizedBox(height: 17),
-                      Container(padding: const EdgeInsets.symmetric(horizontal: 13, vertical: 8),
-                        decoration: BoxDecoration(
-                          color: accent.withOpacity(0.18), borderRadius: BorderRadius.circular(18)),
-                        child: Text(book ? 'CARTA TIPO LIBRO' : 'CATÁLOGO TIPO TIENDA',
-                          style: TextStyle(color: accent, fontSize: 11, fontWeight: FontWeight.w900))),
-                    ]),
+                        begin: Alignment.centerLeft,
+                        end: Alignment.centerRight,
+                        colors: coverHasImage
+                          ? [canvas.withOpacity(.98), canvas.withOpacity(.85),
+                              canvas.withOpacity(mobile ? .66 : .28)]
+                          : [canvas.withOpacity(.98), canvas.withOpacity(.86)],
+                      ),
+                    ),
+                    child: Align(
+                      alignment: Alignment.centerLeft,
+                      child: ConstrainedBox(
+                        constraints: BoxConstraints(
+                          maxWidth: mobile ? double.infinity : 550),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Row(mainAxisSize: MainAxisSize.min, children: [
+                              if (_image(widget.menu['logo']) != null) ...[
+                                _photo(widget.menu['logo'],
+                                    height: 48, width: 48, radius: 12),
+                                const SizedBox(width: 12),
+                              ],
+                              Flexible(child: Text(
+                                (widget.menu['sucursal'] ?? '').toString().toUpperCase(),
+                                maxLines: 2, overflow: TextOverflow.ellipsis,
+                                style: TextStyle(color:
+                                  MenuDigitalColors.contrast(accent, canvas) >= 4.5
+                                    ? accent : fg,
+                                  fontSize: 12, fontWeight: FontWeight.w900,
+                                  letterSpacing: 1.7),
+                              )),
+                            ]),
+                            const SizedBox(height: 13),
+                            Text((widget.menu['titulo'] ?? 'Nuestra carta').toString(),
+                              style: TextStyle(color: fg, fontFamily: 'Georgia',
+                                fontSize: mobile ? 31 : 44,
+                                fontWeight: FontWeight.bold, height: 1.1)),
+                            const SizedBox(height: 10),
+                            if ((widget.menu['descripcion'] ?? '').toString().isNotEmpty)
+                              Text(widget.menu['descripcion'].toString(),
+                                maxLines: 3, overflow: TextOverflow.ellipsis,
+                                style: TextStyle(color: fg.withOpacity(.84),
+                                  fontSize: 14, height: 1.5)),
+                            const SizedBox(height: 18),
+                            Container(
+                              padding: const EdgeInsets.symmetric(
+                                  horizontal: 14, vertical: 9),
+                              decoration: BoxDecoration(
+                                color: accent,
+                                borderRadius: BorderRadius.circular(24)),
+                              child: Row(mainAxisSize: MainAxisSize.min, children: [
+                                Icon(book ? Icons.menu_book_rounded
+                                  : Icons.storefront_outlined,
+                                  color: colors.onAccent, size: 16),
+                                const SizedBox(width: 8),
+                                Text(book ? 'CARTA TIPO LIBRO' : 'CATÁLOGO TIPO TIENDA',
+                                  style: TextStyle(color: colors.onAccent,
+                                    fontSize: 11, fontWeight: FontWeight.w900,
+                                    letterSpacing: .6)),
+                              ]),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
                   ),
                 ]),
               ),
               const SizedBox(height: 24),
               if (!widget.preview) ...[
                 TextField(
-                  onChanged: (value) => setState(() => _search = value),
-                  style: TextStyle(color: fg),
+                  onChanged: (value) => setState(() {
+                    _search = value;
+                    _bookPage = 0;
+                  }),
+                  cursorColor: accent,
+                  style: TextStyle(color: fg, fontSize: 15),
                   decoration: InputDecoration(
                     hintText: 'Buscar en nuestra carta',
-                    hintStyle: TextStyle(color: fg.withOpacity(0.58)),
-                    prefixIcon: Icon(Icons.search_rounded, color: accent),
-                    filled: true, fillColor: _color('tarjeta', '#112D3B'),
-                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(17),
-                      borderSide: BorderSide.none),
+                    hintStyle: TextStyle(color: fg.withOpacity(.62)),
+                    prefixIcon: Icon(Icons.search_rounded, color: fg),
+                    contentPadding: const EdgeInsets.symmetric(
+                      horizontal: 18, vertical: 17),
+                    filled: true, fillColor: colors.card,
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(19),
+                      borderSide: BorderSide(color: colors.border)),
+                    enabledBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(19),
+                      borderSide: BorderSide(color: colors.border)),
+                    focusedBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(19),
+                      borderSide: BorderSide(color: accent, width: 2)),
                   ),
                 ),
                 const SizedBox(height: 13),
@@ -502,13 +581,24 @@ class _MenuDigitalCatalogState extends State<MenuDigitalCatalog> {
                       Padding(padding: const EdgeInsets.only(right: 8),
                         child: ChoiceChip(
                           label: Text(cat), selected: _category == cat,
-                          onSelected: (_) => setState(() => _category = cat),
+                          showCheckmark: false,
+                          avatar: Icon(_iconForCategory(cat), size: 17,
+                            color: _category == cat ? colors.onAccent : fg),
+                          onSelected: (_) => setState(() {
+                            _category = cat;
+                            _bookPage = 0;
+                          }),
                           selectedColor: accent,
-                          backgroundColor: _color('tarjeta', '#112D3B'),
-                          labelStyle: TextStyle(color: _category == cat
-                              ? (ThemeData.estimateBrightnessForColor(accent) == Brightness.dark
-                                  ? Colors.white : Colors.black)
-                              : fg, fontWeight: FontWeight.w700),
+                          backgroundColor: colors.card,
+                          side: BorderSide(color: _category == cat
+                              ? accent : colors.border),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(22)),
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 10, vertical: 8),
+                          labelStyle: TextStyle(
+                            color: _category == cat ? colors.onAccent : fg,
+                            fontWeight: FontWeight.w700),
                         )),
                     ],
                   ]),
@@ -520,9 +610,16 @@ class _MenuDigitalCatalogState extends State<MenuDigitalCatalog> {
                   color: accent),
                 const SizedBox(width: 9),
                 Expanded(child: Text(book ? 'Explora nuestra carta' : 'Nuestros productos',
-                  style: TextStyle(color: fg, fontWeight: FontWeight.w900, fontSize: 21))),
-                Text(filtered.length.toString(), style: TextStyle(color: accent,
-                  fontWeight: FontWeight.w900)),
+                  style: TextStyle(color: fg, fontFamily: 'Georgia',
+                    fontWeight: FontWeight.bold, fontSize: 23))),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                  decoration: BoxDecoration(color: accent,
+                    borderRadius: BorderRadius.circular(20)),
+                  child: Text(filtered.length.toString(),
+                    style: TextStyle(color: colors.onAccent,
+                      fontWeight: FontWeight.w900)),
+                ),
               ]),
               const SizedBox(height: 15),
               if (filtered.isEmpty)
@@ -539,6 +636,10 @@ class _MenuDigitalCatalogState extends State<MenuDigitalCatalog> {
                 Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
                   IconButton.filledTonal(
                     tooltip: 'Página anterior',
+                    style: IconButton.styleFrom(backgroundColor: accent,
+                      foregroundColor: colors.onAccent,
+                      disabledBackgroundColor: colors.secondarySurface,
+                      disabledForegroundColor: fg.withOpacity(.45)),
                     onPressed: currentBookPage == 0 ? null
                         : () => setState(() => _bookPage = currentBookPage - 1),
                     icon: const Icon(Icons.chevron_left_rounded),
@@ -556,6 +657,10 @@ class _MenuDigitalCatalogState extends State<MenuDigitalCatalog> {
                   ])),
                   IconButton.filledTonal(
                     tooltip: 'Página siguiente',
+                    style: IconButton.styleFrom(backgroundColor: accent,
+                      foregroundColor: colors.onAccent,
+                      disabledBackgroundColor: colors.secondarySurface,
+                      disabledForegroundColor: fg.withOpacity(.45)),
                     onPressed: currentBookPage >= bookCategories.length - 1 ? null
                         : () => setState(() => _bookPage = currentBookPage + 1),
                     icon: const Icon(Icons.chevron_right_rounded),
