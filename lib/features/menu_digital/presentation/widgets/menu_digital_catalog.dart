@@ -589,33 +589,116 @@ class _MenuDigitalCatalogState extends State<MenuDigitalCatalog> {
                   ),
                 ),
                 const SizedBox(height: 13),
-                SingleChildScrollView(scrollDirection: Axis.horizontal,
-                  child: Row(children: [
-                    for (final cat in cats) ...[
-                      Padding(padding: const EdgeInsets.only(right: 8),
-                        child: ChoiceChip(
-                          label: Text(cat), selected: _category == cat,
-                          showCheckmark: false,
-                          avatar: Icon(_iconForCategory(cat), size: 17,
-                            color: _category == cat ? colors.onAccent : fg),
-                          onSelected: (_) => setState(() {
-                            _category = cat;
-                            _bookPage = 0;
-                          }),
-                          selectedColor: accent,
-                          backgroundColor: colors.card,
-                          side: BorderSide(color: _category == cat
-                              ? accent : colors.border),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(22)),
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 10, vertical: 8),
-                          labelStyle: TextStyle(
-                            color: _category == cat ? colors.onAccent : fg,
-                            fontWeight: FontWeight.w700),
+                // En la web el carrusel horizontal ocultaba las categorías
+                // que quedaban a la derecha (sin indicador de desplazamiento).
+                // El menú se distribuye en varias filas y ninguna opción
+                // queda fuera de la pantalla, también con ventana estrecha.
+                Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.fromLTRB(14, 14, 14, 15),
+                  decoration: BoxDecoration(
+                    color: colors.secondarySurface,
+                    borderRadius: BorderRadius.circular(19),
+                    border: Border.all(color: colors.border),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(children: [
+                        Icon(Icons.category_outlined,
+                            color: colors.text, size: 19),
+                        const SizedBox(width: 8),
+                        Expanded(child: Text(
+                          'Tipos de productos',
+                          style: TextStyle(
+                            color: fg, fontSize: mobile ? 15 : 16,
+                            fontWeight: FontWeight.w900),
                         )),
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 10, vertical: 5),
+                          decoration: BoxDecoration(
+                            color: accent,
+                            borderRadius: BorderRadius.circular(14),
+                          ),
+                          child: Text(
+                            '${cats.length - 1} tipos',
+                            style: TextStyle(
+                              color: colors.onAccent, fontSize: 11,
+                              fontWeight: FontWeight.w800),
+                          ),
+                        ),
+                      ]),
+                      const SizedBox(height: 5),
+                      Text(
+                        'Selecciona una categoría para explorar los productos.',
+                        style: TextStyle(
+                          color: fg.withOpacity(.75),
+                          fontSize: 12, height: 1.35,
+                        ),
+                      ),
+                      const SizedBox(height: 12),
+                      LayoutBuilder(builder: (context, limits) {
+                        // Un nombre largo puede ocupar hasta dos líneas.
+                        // La restricción evita que un solo chip desborde
+                        // el ancho en navegadores o teléfonos pequeños.
+                        final maxLabelWidth =
+                            (limits.maxWidth - 90).clamp(72.0, 238.0);
+                        return Wrap(
+                          alignment: WrapAlignment.start,
+                          spacing: 8,
+                          runSpacing: 8,
+                          children: [
+                            for (final cat in cats)
+                              Tooltip(
+                                message: cat,
+                                child: ChoiceChip(
+                                  label: ConstrainedBox(
+                                    constraints: BoxConstraints(
+                                      maxWidth: maxLabelWidth),
+                                    child: Text(
+                                      cat,
+                                      maxLines: 2,
+                                      softWrap: true,
+                                      overflow: TextOverflow.ellipsis,
+                                    ),
+                                  ),
+                                  selected: _category == cat,
+                                  showCheckmark: false,
+                                  avatar: Icon(
+                                    _iconForCategory(cat),
+                                    size: 17,
+                                    color: _category == cat
+                                        ? colors.onAccent : fg,
+                                  ),
+                                  onSelected: (_) => setState(() {
+                                    _category = cat;
+                                    _bookPage = 0;
+                                  }),
+                                  selectedColor: accent,
+                                  backgroundColor: colors.card,
+                                  side: BorderSide(
+                                    color: _category == cat
+                                        ? accent : colors.border,
+                                    width: _category == cat ? 1.5 : 1,
+                                  ),
+                                  shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(22)),
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 10, vertical: 8),
+                                  labelStyle: TextStyle(
+                                    color: _category == cat
+                                        ? colors.onAccent : fg,
+                                    fontWeight: FontWeight.w800,
+                                    fontSize: 12.5,
+                                  ),
+                                ),
+                              ),
+                          ],
+                        );
+                      }),
                     ],
-                  ]),
+                  ),
                 ),
                 const SizedBox(height: 22),
               ],
