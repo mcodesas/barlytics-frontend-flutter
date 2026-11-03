@@ -23,6 +23,7 @@ class _MenuDigitalCatalogState extends State<MenuDigitalCatalog> {
   String _category = 'Todos';
   String _search = '';
   int _bookPage = 0;
+  int _heroPage = 0;
   final _money = NumberFormat.currency(locale: 'es_CO', symbol: r'$', decimalDigits: 0);
 
   Color _color(String key, String fallback) {
@@ -495,7 +496,15 @@ class _MenuDigitalCatalogState extends State<MenuDigitalCatalog> {
   Widget _fullCoverHeader(
       MenuDigitalColors colors, Color canvas, Color fg, Color accent,
       bool mobile, String style) {
-    final cover = _image(widget.menu['portada']);
+    final slideshow = <String>[
+      if (_image(widget.menu['portada']) != null)
+        widget.menu['portada'].toString(),
+      if (widget.menu['galeriaArriba'] == true)
+        for (final photo in (widget.menu['galeria'] as List? ?? const []))
+          if (photo is String && _image(photo) != null) photo,
+    ];
+    final page = slideshow.isEmpty ? 0 : _heroPage % slideshow.length;
+    final cover = slideshow.isEmpty ? null : _image(slideshow[page]);
     final logo = _image(widget.menu['logo']);
     final branch = (widget.menu['sucursal'] ?? '').toString();
     final description = (widget.menu['descripcion'] ?? '').toString();
@@ -507,14 +516,43 @@ class _MenuDigitalCatalogState extends State<MenuDigitalCatalog> {
           width: double.infinity,
           color: colors.secondarySurface,
           child: InkWell(
-            onTap: () => _openVenuePhoto(
-                [widget.menu['portada'].toString()], 0),
+            onTap: () => _openVenuePhoto(slideshow, page),
             child: Stack(fit: StackFit.expand, children: [
               // No cortar foto ni texto del afiche, sea vertical u horizontal.
               Image(image: cover, fit: BoxFit.contain,
                 errorBuilder: (_, __, ___) =>
                     Center(child: Icon(Icons.image_outlined, size: 55,
                       color: colors.text))),
+              if (slideshow.length > 1) ...[
+                Positioned(left: 10, top: 0, bottom: 0,
+                  child: Center(child: IconButton.filledTonal(
+                    tooltip: 'Foto anterior de portada',
+                    icon: const Icon(Icons.chevron_left_rounded),
+                    onPressed: () => setState(() {
+                      _heroPage = (page - 1 + slideshow.length) %
+                          slideshow.length;
+                    }),
+                  ))),
+                Positioned(right: 10, top: 0, bottom: 0,
+                  child: Center(child: IconButton.filledTonal(
+                    tooltip: 'Siguiente foto de portada',
+                    icon: const Icon(Icons.chevron_right_rounded),
+                    onPressed: () => setState(() {
+                      _heroPage = (page + 1) % slideshow.length;
+                    }),
+                  ))),
+                Positioned(left: 12, bottom: 12,
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 10, vertical: 6),
+                    decoration: BoxDecoration(
+                      color: colors.canvas.withOpacity(.92),
+                      borderRadius: BorderRadius.circular(14)),
+                    child: Text('${page + 1} / ${slideshow.length}',
+                      style: TextStyle(color: colors.text,
+                        fontSize: 12, fontWeight: FontWeight.bold)),
+                  )),
+              ],
               Positioned(right: 14, bottom: 12,
                 child: Container(
                   padding: const EdgeInsets.symmetric(
