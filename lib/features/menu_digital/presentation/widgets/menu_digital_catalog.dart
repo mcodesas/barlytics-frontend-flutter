@@ -452,7 +452,7 @@ class _MenuDigitalCatalogState extends State<MenuDigitalCatalog> {
             padding: EdgeInsets.fromLTRB(mobile ? 16 : 24, 24, mobile ? 16 : 24, 55),
             children: [
               if (widget.preview) ...[
-                Text('VISTA PREVIA · ' + (book ? 'LIBRO' : 'TIENDA'),
+                Text('VISTA PREVIA · ' + (book ? 'LIBRO' : 'MODERNO'),
                   style: TextStyle(color: accent, fontSize: 11, fontWeight: FontWeight.w900)),
                 const SizedBox(height: 10),
               ],
@@ -548,7 +548,7 @@ class _MenuDigitalCatalogState extends State<MenuDigitalCatalog> {
                                   : Icons.storefront_outlined,
                                   color: colors.onAccent, size: 16),
                                 const SizedBox(width: 8),
-                                Text(book ? 'CARTA TIPO LIBRO' : 'CATÁLOGO TIPO TIENDA',
+                                Text(book ? 'CARTA TIPO LIBRO' : 'CATÁLOGO MODERNO',
                                   style: TextStyle(color: colors.onAccent,
                                     fontSize: 11, fontWeight: FontWeight.w900,
                                     letterSpacing: .6)),
