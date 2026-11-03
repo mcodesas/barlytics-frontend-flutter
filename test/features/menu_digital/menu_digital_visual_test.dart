@@ -41,7 +41,7 @@ void main() {
     expect(colors.card, const Color(0xFFF2E5CB));
   });
 
-  testWidgets('Ambos estilos muestran el producto en la vista previa',
+  testWidgets('Los cinco diseños muestran productos en la vista previa',
       (tester) async {
     final menu = <String, dynamic>{
       'titulo': 'Nuestra carta',
@@ -59,13 +59,16 @@ void main() {
       )));
       await tester.pumpAndSettle();
     }
-    await render();
-    expect(find.text('VISTA PREVIA · MODERNO'), findsOneWidget);
-    expect(find.text('Producto demo'), findsWidgets);
-    menu['estilo'] = 'LIBRO';
-    await render();
-    expect(find.text('VISTA PREVIA · LIBRO'), findsOneWidget);
-    expect(find.text('Producto demo'), findsWidgets);
+    for (final style in const <String>[
+      'TIENDA', 'LIBRO', 'EDITORIAL', 'GALERIA', 'MINIMALISTA',
+    ]) {
+      menu['estilo'] = style;
+      await render();
+      expect(find.text('VISTA PREVIA · ' +
+          (style == 'TIENDA' ? 'MODERNO' : style)), findsOneWidget);
+      expect(find.text('Producto demo'), findsWidgets,
+          reason: 'Falta el producto en $style');
+    }
   });
 
   testWidgets('Todos los tipos de producto son accesibles en web angosta',
@@ -104,15 +107,45 @@ void main() {
     )));
     await tester.pumpAndSettle();
 
-    // Hay diez tipos más el botón "Todos". El Wrap no recorta la fila
-    // ni exige desplazamiento horizontal para acceder a los últimos.
-    expect(find.byType(ChoiceChip), findsNWidgets(tipos.length + 1));
+    // En libro cada tipo es una hoja: las diez categorías quedan visibles
+    // sin desplazamiento horizontal, con su propio botón seleccionado.
+    expect(find.byType(ChoiceChip), findsNWidgets(tipos.length));
     expect(find.text('Tipos de productos'), findsOneWidget);
     expect(find.text('SIN ALCOHOL'), findsOneWidget);
     await tester.ensureVisible(find.text('SIN ALCOHOL'));
     await tester.tap(find.text('SIN ALCOHOL'));
     await tester.pumpAndSettle();
     expect(find.text('Producto SIN ALCOHOL'), findsWidgets);
+  });
+
+  testWidgets('Pasar hoja también selecciona su categoría',
+      (tester) async {
+    await tester.pumpWidget(MaterialApp(home: Scaffold(
+      body: SizedBox(height: 820, child: MenuDigitalCatalog(menu: {
+        'estilo': 'LIBRO',
+        'titulo': 'Carta de ejemplo',
+        'sucursal': 'Sucursal',
+        'productos': [
+          {'id': 1, 'nombre': 'Producto A', 'tipo': 'AGUARDIENTE', 'precio': 2000},
+          {'id': 2, 'nombre': 'Producto B', 'tipo': 'BEBIDA', 'precio': 3000},
+          {'id': 3, 'nombre': 'Producto C', 'tipo': 'WHISKY', 'precio': 4000},
+        ],
+      })),
+    )));
+    await tester.pumpAndSettle();
+    expect(tester.widget<ChoiceChip>(
+        find.widgetWithText(ChoiceChip, 'AGUARDIENTE')).selected, isTrue);
+    await tester.ensureVisible(find.byTooltip('Página siguiente'));
+    await tester.tap(find.byTooltip('Página siguiente'));
+    await tester.pumpAndSettle();
+    expect(tester.widget<ChoiceChip>(
+        find.widgetWithText(ChoiceChip, 'BEBIDA')).selected, isTrue);
+    expect(find.text('Producto B'), findsWidgets);
+    await tester.tap(find.widgetWithText(ChoiceChip, 'WHISKY'));
+    await tester.pumpAndSettle();
+    expect(tester.widget<ChoiceChip>(
+        find.widgetWithText(ChoiceChip, 'WHISKY')).selected, isTrue);
+    expect(find.text('Producto C'), findsWidgets);
   });
 
   testWidgets('Pulsar la imagen muestra la descripción y el precio',
