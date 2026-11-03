@@ -41,6 +41,53 @@ void main() {
     expect(colors.card, const Color(0xFFF2E5CB));
   });
 
+  testWidgets('Todos los tipos de producto son accesibles en web angosta',
+      (tester) async {
+    tester.view.physicalSize = const Size(390, 1300);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(() {
+      tester.view.resetPhysicalSize();
+      tester.view.resetDevicePixelRatio();
+    });
+    final tipos = <String>[
+      'AGUARDIENTE', 'BEBIDA', 'WHISKY', 'CERVEZA', 'CIGARRILLO',
+      'PASABOCAS', 'RON', 'COCTEL', 'VODKA', 'SIN ALCOHOL',
+    ];
+    final productos = <Map<String, dynamic>>[
+      for (var i = 0; i < tipos.length; i++)
+        <String, dynamic>{
+          'id': i + 1,
+          'tipo': tipos[i],
+          'nombre': 'Producto ${tipos[i]}',
+          'descripcion': 'Prueba de categoría',
+          'precio': 1200,
+        },
+    ];
+    await tester.pumpWidget(MaterialApp(home: Scaffold(
+      body: MenuDigitalCatalog(menu: <String, dynamic>{
+        'titulo': 'Nuestra carta',
+        'sucursal': 'Sucursal de prueba',
+        'estilo': 'LIBRO',
+        'productos': productos,
+        'primario': '#A87C3D',
+        'fondo': '#FFF9EF',
+        'texto': '#302418',
+        'tarjeta': '#F2E5CB',
+      }),
+    )));
+    await tester.pumpAndSettle();
+
+    // Hay diez tipos más el botón "Todos". El Wrap no recorta la fila
+    // ni exige desplazamiento horizontal para acceder a los últimos.
+    expect(find.byType(ChoiceChip), findsNWidgets(tipos.length + 1));
+    expect(find.text('Tipos de productos'), findsOneWidget);
+    expect(find.text('SIN ALCOHOL'), findsOneWidget);
+    await tester.ensureVisible(find.text('SIN ALCOHOL'));
+    await tester.tap(find.text('SIN ALCOHOL'));
+    await tester.pumpAndSettle();
+    expect(find.text('Producto SIN ALCOHOL'), findsWidgets);
+  });
+
   testWidgets('Pulsar la imagen muestra la descripción y el precio',
       (tester) async {
     final product = <String, dynamic>{
