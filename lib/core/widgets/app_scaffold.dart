@@ -524,7 +524,7 @@ String _resolveCurrentPageTitle(
     '/dashboard': 'Dashboard',
     '/tesoreria': 'Tesorería · Saldos por medio',
     '/agenda_deportiva': 'Agenda deportiva y noticias',
-    '/menu_digital': 'Menú digital · Carta pública',
+    '/menu_digital': 'Menú digital',
     '/reportes': 'Reportes',
     '/reporte_resumen_ejecutivo': 'Resumen ejecutivo',
     '/reporte_ventas_fecha': 'Ventas por fecha',
@@ -793,7 +793,11 @@ class _PageTopBar extends ConsumerWidget {
     final showRichHeader = subtitle != null || eyebrow != null || statusText != null || leadingContentIcon != null;
     final barHeight = heightFor(dense);
     final displayTitle = compact && title == 'Historial de ventas' ? 'Historial' : title;
-    final showLeadingIcon = leadingContentIcon != null && !(compact && title == 'Historial de ventas');
+    // El encabezado web no debe cortar el nombre del menú cuando existen
+    // varios selectores de rol y sucursal en pantallas intermedias.
+    final showLeadingIcon = leadingContentIcon != null &&
+        !(compact && title == 'Historial de ventas') &&
+        !(compactSelectors && title == 'Menú digital');
 
     return Container(
       height: barHeight,
