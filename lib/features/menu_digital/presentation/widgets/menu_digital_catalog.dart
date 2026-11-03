@@ -518,7 +518,14 @@ class _MenuDigitalCatalogState extends State<MenuDigitalCatalog> {
           child: InkWell(
             onTap: () => _openVenuePhoto(slideshow, page),
             child: Stack(fit: StackFit.expand, children: [
-              // No cortar foto ni texto del afiche, sea vertical u horizontal.
+              // Ambientación a pantalla completa detrás del afiche para
+              // no dejar bandas vacías, sin recortar la fotografía principal.
+              Image(image: cover, fit: BoxFit.cover,
+                color: colors.canvas.withOpacity(.55),
+                colorBlendMode: BlendMode.srcOver,
+                errorBuilder: (_, __, ___) =>
+                    Container(color: colors.secondarySurface)),
+              // Esta segunda capa garantiza la fotografía íntegra.
               Image(image: cover, fit: BoxFit.contain,
                 errorBuilder: (_, __, ___) =>
                     Center(child: Icon(Icons.image_outlined, size: 55,
