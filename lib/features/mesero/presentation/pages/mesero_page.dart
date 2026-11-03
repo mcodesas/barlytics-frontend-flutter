@@ -11804,6 +11804,8 @@ class _CuentaDetalle extends ConsumerWidget {
     this.onSumarCantidadProducto,
     this.productoActualizando,
     this.onEliminarProducto,
+    this.onDescuentoProducto,
+    this.onDescuentoCuenta,
     this.onMoverProducto,
     this.onPagarCuenta,
     this.onEliminarPago,
@@ -11818,6 +11820,8 @@ class _CuentaDetalle extends ConsumerWidget {
   final ValueChanged<MeseroDetalleProductoModel>? onSumarCantidadProducto;
   final bool Function(MeseroDetalleProductoModel)? productoActualizando;
   final ValueChanged<MeseroDetalleProductoModel>? onEliminarProducto;
+  final ValueChanged<MeseroDetalleProductoModel>? onDescuentoProducto;
+  final VoidCallback? onDescuentoCuenta;
   final ValueChanged<MeseroDetalleProductoModel>? onMoverProducto;
   final VoidCallback? onPagarCuenta;
   final ValueChanged<MeseroPagoModel>? onEliminarPago;
@@ -11857,6 +11861,7 @@ class _CuentaDetalle extends ConsumerWidget {
               onSumarCantidadProducto: onSumarCantidadProducto,
               productoActualizando: productoActualizando,
               onEliminarProducto: onEliminarProducto,
+              onDescuentoProducto: onDescuentoProducto,
               onMoverProducto: onMoverProducto,
             ),
     );
@@ -11892,6 +11897,7 @@ class _CuentaDetalle extends ConsumerWidget {
       nombreCuenta: nombreCuenta,
       cuenta: cuenta,
       onPagarCuenta: onPagarCuenta,
+      onDescuentoCuenta: onDescuentoCuenta,
       onFinalizarVenta: onFinalizarVenta,
       onLimpiarVentaSinConsumos: onLimpiarVentaSinConsumos,
     );
@@ -12159,6 +12165,7 @@ class _PosCheckoutPanel extends ConsumerWidget {
     required this.nombreCuenta,
     required this.cuenta,
     this.onPagarCuenta,
+    this.onDescuentoCuenta,
     this.onFinalizarVenta,
     this.onLimpiarVentaSinConsumos,
   });
@@ -12166,6 +12173,7 @@ class _PosCheckoutPanel extends ConsumerWidget {
   final String nombreCuenta;
   final MeseroCuentaModel cuenta;
   final VoidCallback? onPagarCuenta;
+  final VoidCallback? onDescuentoCuenta;
   final VoidCallback? onFinalizarVenta;
   final VoidCallback? onLimpiarVentaSinConsumos;
 
@@ -12207,6 +12215,11 @@ class _PosCheckoutPanel extends ConsumerWidget {
             label: 'Productos',
             value: CurrencyUtils.format(cuenta.subtotalProductos),
           ),
+          if ((cuenta.descuentoAplicado ?? 0) > 0)
+            _PosAmountRow(
+              label: 'Descuento aplicado',
+              value: '- ' + CurrencyUtils.format(cuenta.descuentoAplicado),
+            ),
           _PosAmountRow(
             label: 'Propina',
             value: CurrencyUtils.format(cuenta.propina),
@@ -12214,6 +12227,13 @@ class _PosCheckoutPanel extends ConsumerWidget {
           _PosAmountRow(
             label: 'Pagado',
             value: CurrencyUtils.format(cuenta.totalPagado),
+          ),
+          const SizedBox(height: 9),
+          OutlinedButton.icon(
+            onPressed: onDescuentoCuenta,
+            icon: const Icon(Icons.percent_rounded),
+            label: Text((cuenta.descuentoAplicado ?? 0) > 0
+                ? 'Modificar descuento' : 'Descuento de cuenta'),
           ),
           Padding(
             padding: const EdgeInsets.symmetric(vertical: 10),
