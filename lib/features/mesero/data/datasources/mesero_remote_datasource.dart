@@ -434,6 +434,17 @@ class MeseroRemoteDataSource {
     return response.data ?? const <String, dynamic>{};
   }
 
+  /// Revierte una anulación auditable, restaurando la venta original.
+  Future<Map<String, dynamic>> desanularVentaFinalizada(
+      int ventaId, String motivo) async {
+    final response = await _apiClient.post<Map<String, dynamic>>(
+      '/api/v1/mesero/ventas/$ventaId/desanular',
+      {'motivo': motivo.trim()},
+      (json) => Map<String, dynamic>.from(json as Map),
+    );
+    return response.data ?? const <String, dynamic>{};
+  }
+
   /// Anula la venta original y devuelve nueva venta editable, sin pagos.
   Future<Map<String, dynamic>> corregirVentaFinalizada(
       int ventaId, String motivo) async {
