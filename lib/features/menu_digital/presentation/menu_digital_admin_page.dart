@@ -678,6 +678,7 @@ class _MenuDigitalAdminPageState extends ConsumerState<MenuDigitalAdminPage> {
   @override
   Widget build(BuildContext context) {
     final palette = ref.watch(selectedAppPaletteProvider);
+    final menuColors = MenuDigitalColors.fromMenu(_preview());
     ref.listen<int?>(
       branchScopeProvider.select((state) => state.activeBranchId),
       (previous, next) {
@@ -737,7 +738,15 @@ class _MenuDigitalAdminPageState extends ConsumerState<MenuDigitalAdminPage> {
                       icon: Icon(_saved?['publicado'] == true
                           ? Icons.visibility_off_outlined : Icons.public_rounded),
                       label: Text(_saved?['publicado'] == true ? 'Ocultar carta' : 'Publicar carta')),
-                    OutlinedButton.icon(onPressed: _saved?['publicado'] == true ? _share : null,
+                    OutlinedButton.icon(
+                      style: OutlinedButton.styleFrom(
+                        backgroundColor: menuColors.accent,
+                        foregroundColor: menuColors.onAccent,
+                        disabledBackgroundColor: palette.cardBorder,
+                        disabledForegroundColor: palette.textSecondary,
+                        side: BorderSide(color: menuColors.accent),
+                      ),
+                      onPressed: _saved?['publicado'] == true ? _share : null,
                       icon: const Icon(Icons.share_outlined),
                       label: const Text('Compartir')),
                     FilledButton.tonalIcon(onPressed: _saved?['publicado'] == true ? _downloadQrPng : null,
@@ -747,10 +756,19 @@ class _MenuDigitalAdminPageState extends ConsumerState<MenuDigitalAdminPage> {
                       icon: const Icon(Icons.qr_code_2_rounded),
                       label: const Text('Descargar QR PDF')),
                     if (_saved?['publicado'] == true)
-                      TextButton.icon(
-                        onPressed: () => context.go('/carta/' + (_saved?['slug'] ?? '').toString()),
-                        icon: const Icon(Icons.open_in_new_rounded),
-                        label: const Text('Ver como cliente')),
+                      Container(
+                        decoration: BoxDecoration(
+                          color: menuColors.card,
+                          borderRadius: BorderRadius.circular(13),
+                          border: Border.all(color: menuColors.border)),
+                        child: TextButton.icon(
+                          style: TextButton.styleFrom(
+                            foregroundColor: menuColors.text),
+                          onPressed: () => context.go('/carta/' +
+                            (_saved?['slug'] ?? '').toString()),
+                          icon: const Icon(Icons.open_in_new_rounded),
+                          label: const Text('Ver como cliente')),
+                      ),
                   ]),
                   const SizedBox(height: 9),
                   Text(_dirty
