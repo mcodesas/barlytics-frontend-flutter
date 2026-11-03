@@ -3490,6 +3490,33 @@ class _MeseroPageState extends ConsumerState<MeseroPage> {
           _actualizarProductoVentaDirectaRapida(cuentaDirecta, producto, cantidad),
       onEliminarProductoExistente: (producto) =>
           _eliminarProductoVentaDirectaRapida(cuentaDirecta, producto),
+      onDescuentoCuentaExistente: () async {
+        final cuentaActual = _ventaActiva?.cuentas.firstWhere(
+          (item) => item.cuentaId == cuentaDirecta.cuentaId,
+          orElse: () => cuentaDirecta,
+        ) ?? cuentaDirecta;
+        await _aplicarDescuentoPos(
+          alcance: 'CUENTA', id: cuentaDirecta.cuentaId!,
+          cuentaId: cuentaDirecta.cuentaId,
+          titulo: 'Descuento de venta directa',
+          subtotal: cuentaActual.subtotalProductos ?? 0,
+          tipoActual: cuentaActual.descuentoTipo,
+          valorActual: cuentaActual.descuentoValor,
+        );
+        return _ventaActiva;
+      },
+      onDescuentoProductoExistente: (producto) async {
+        await _aplicarDescuentoPos(
+          alcance: 'PRODUCTO', id: producto.detalleId!,
+          cuentaId: cuentaDirecta.cuentaId,
+          titulo: 'Descuento · ${producto.productoNombre ?? 'Producto'}',
+          subtotal: ((producto.valorUnitario ?? 0) +
+              (producto.precioAdicionalUnitario ?? 0)) * (producto.cantidad ?? 0),
+          tipoActual: producto.descuentoTipo,
+          valorActual: producto.descuentoValor,
+        );
+        return _ventaActiva;
+      },
     );
 
     final size = MediaQuery.sizeOf(context);
@@ -20392,6 +20419,8 @@ class _AgregarProductosOverlayPanel extends ConsumerStatefulWidget {
     this.onConfirmarRapido,
     this.onActualizarProductoExistente,
     this.onEliminarProductoExistente,
+    this.onDescuentoCuentaExistente,
+    this.onDescuentoProductoExistente,
   });
 
   final MeseroCuentaModel cuenta;
@@ -20403,6 +20432,8 @@ class _AgregarProductosOverlayPanel extends ConsumerStatefulWidget {
   final Future<bool> Function(Map<int, double> cantidades, bool cobrar)? onConfirmarRapido;
   final Future<MeseroVentaModel?> Function(MeseroDetalleProductoModel producto, double cantidad)? onActualizarProductoExistente;
   final Future<MeseroVentaModel?> Function(MeseroDetalleProductoModel producto)? onEliminarProductoExistente;
+  final Future<MeseroVentaModel?> Function()? onDescuentoCuentaExistente;
+  final Future<MeseroVentaModel?> Function(MeseroDetalleProductoModel producto)? onDescuentoProductoExistente;
 
   @override
   ConsumerState<_AgregarProductosOverlayPanel> createState() => _AgregarProductosOverlayPanelState();
@@ -20586,6 +20617,39 @@ class _AgregarProductosOverlayPanelState extends ConsumerState<_AgregarProductos
     });
   }
 
+  Future<void> _descontarVentaDirecta() async {
+    if (_guardando || _cantidades.isNotEmpty ||
+        _cuentaActual.pagos.isNotEmpty || widget.onDescuentoCuentaExistente == null) return;
+    setState(() => _guardando = true);
+    try {
+      final response = await widget.onDescuentoCuentaExistente!();
+      if (!mounted) return;
+      final latest = response == null ? null : _cuentaDesdeVenta(response);
+      setState(() {
+        if (latest != null) _cuentaActual = latest;
+      });
+    } finally {
+      if (mounted) setState(() => _guardando = false);
+    }
+  }
+
+  Future<void> _descontarProductoExistente(MeseroDetalleProductoModel producto) async {
+    if (_guardando || _cantidades.isNotEmpty || producto.pagado == true ||
+        _cuentaActual.pagos.isNotEmpty ||
+        widget.onDescuentoProductoExistente == null) return;
+    setState(() => _guardando = true);
+    try {
+      final response = await widget.onDescuentoProductoExistente!(producto);
+      if (!mounted) return;
+      final latest = response == null ? null : _cuentaDesdeVenta(response);
+      setState(() {
+        if (latest != null) _cuentaActual = latest;
+      });
+    } finally {
+      if (mounted) setState(() => _guardando = false);
+    }
+  }
+
   Future<void> _confirmar({bool cobrar = false}) async {
     final tieneProductosActuales = _cuentaActual.productos.isNotEmpty;
     if (_guardando || (!cobrar && _cantidades.isEmpty) || (cobrar && _cantidades.isEmpty && !tieneProductosActuales)) return;
@@ -20741,6 +20805,21 @@ class _AgregarProductosOverlayPanelState extends ConsumerState<_AgregarProductos
               ),
             ],
           ),
+          if (existentes.isNotEmpty && widget.onDescuentoCuentaExistente != null) ...[
+            const SizedBox(height: 9),
+            OutlinedButton.icon(
+              onPressed: !_guardando && _cantidades.isEmpty &&
+                      _cuentaActual.pagos.isEmpty
+                  ? _descontarVentaDirecta : null,
+              icon: const Icon(Icons.percent_rounded),
+              label: Text((_cuentaActual.descuentoAplicado ?? 0) > 0
+                  ? 'Modificar descuento de venta'
+                  : 'Aplicar descuento a la venta'),
+            ),
+            if (_cantidades.isNotEmpty)
+              Text('Guarda primero los productos nuevos para poder aplicar un descuento.',
+                style: TextStyle(color: palette.textSecondary, fontSize: 11)),
+          ],
           if (tieneItems) ...[
             const SizedBox(height: 10),
             SizedBox(
@@ -21030,6 +21109,9 @@ class _AgregarProductosOverlayPanelState extends ConsumerState<_AgregarProductos
                       children: [
                         Text('Unidad ${CurrencyUtils.format(unitario)}', style: TextStyle(color: palette.textSecondary, fontWeight: FontWeight.w700, fontSize: 11)),
                         Text('Subtotal ${CurrencyUtils.format(total)}', style: TextStyle(color: palette.secondary, fontWeight: FontWeight.w900, fontSize: 11)),
+                        if ((producto.descuentoAplicado ?? 0) > 0)
+                          Text('Descuento -${CurrencyUtils.format(producto.descuentoAplicado)}',
+                            style: TextStyle(color: palette.secondary, fontWeight: FontWeight.w900, fontSize: 11)),
                       ],
                     ),
                     if (personalizacion.isNotEmpty) ...[
@@ -21099,6 +21181,14 @@ class _AgregarProductosOverlayPanelState extends ConsumerState<_AgregarProductos
                   enabled: !pagado && !_guardando,
                   primary: true,
                   onTap: () => _actualizarProductoExistente(producto, cantidad + 1),
+                ),
+                const SizedBox(width: 3),
+                _PanelQuantityButton(
+                  icon: Icons.percent_rounded,
+                  enabled: !pagado && !_guardando && _cantidades.isEmpty &&
+                      _cuentaActual.pagos.isEmpty &&
+                      widget.onDescuentoProductoExistente != null,
+                  onTap: () => _descontarProductoExistente(producto),
                 ),
                 const SizedBox(width: 3),
                 _PanelQuantityButton(
