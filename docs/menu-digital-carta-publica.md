@@ -16,7 +16,9 @@ El menú pertenece a una sucursal y comparte **productos seleccionados del catá
 
 - Vista **TIENDA**: tarjetas, imágenes, nombres, descripciones, categoría y precio.
 - Vista **LIBRO**: una hoja por categoría, paso de página anterior/siguiente, precios y detalles.
-- Colores: 6 paletas predefinidas o personalización HEX de fondo, color principal, letra y tarjetas.
+- Colores: **32 paletas predefinidas visibles**, con filtros de claras/oscuras y cuatro tonos HEX personalizables: fondo, principal, texto y tarjetas. El botón «32 paletas de colores» del encabezado del editor desplaza a esta sección y cada opción presenta una miniatura con colores reales.
+- Vista web de la portada: se utiliza `BoxFit.contain` en pantallas anchas para evitar cortar textos o logotipos incluidos en la fotografía del banner. En móvil se conserva la composición adaptativa.
+- Encabezado administrativo web: el título compacto «Menú digital» evita truncamientos cuando hay selectores de rol y sucursal.
 - Portada: carga de PNG/JPEG/WEBP de hasta 1,5 MB o enlace HTTPS; nombre y descripción personalizados.
 - Editor con selección de productos, búsqueda, vista previa y estados de publicación.
 - Enlace público estable de lectura, no requiere login del visitante. Funciona exclusivamente si el menú está publicado.
@@ -64,4 +66,4 @@ El backend reutiliza `BARLYTICS_EVENTS_FRONTEND_URL` para componer la URL al nav
 10. Confirmar que una carta no pueda incluir insumos ni productos de otra sucursal.
 11. Verificar que las modificaciones a una carta publicada aparezcan en el enlace estable.
 
-**Estado:** código y pruebas fuente incorporados a la rama, compilación y QA de ejecución pendientes. Sin PR, merge ni despliegue.
+**Estado:** ajustes en rama de desarrollo; validación de estructura realizada, ejecución de Flutter y QA visual en navegador pendientes. Sin PR, merge ni despliegue.
