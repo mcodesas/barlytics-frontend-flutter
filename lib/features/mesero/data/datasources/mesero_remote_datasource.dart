@@ -336,6 +336,31 @@ class MeseroRemoteDataSource {
     return response.data!;
   }
 
+  Future<MeseroVentaModel> aplicarDescuento({
+    required String alcance,
+    required int id,
+    int? cuentaId,
+    required String tipo,
+    required double valor,
+    String motivo = '',
+  }) async {
+    final path = switch (alcance) {
+      'VENTA' => '/api/v1/mesero/ventas/$id/descuento',
+      'CUENTA' => '/api/v1/mesero/cuentas/$id/descuento',
+      'PRODUCTO' => '/api/v1/mesero/cuentas/$cuentaId/productos/$id/descuento',
+      _ => throw ArgumentError.value(alcance, 'alcance'),
+    };
+    if (alcance == 'PRODUCTO' && cuentaId == null) {
+      throw StateError('Selecciona una cuenta.');
+    }
+    final response = await _apiClient.put<MeseroVentaModel>(
+      path,
+      {'tipo': tipo, 'valor': valor, 'motivo': motivo.trim()},
+      (json) => MeseroVentaModel.fromJson(Map<String, dynamic>.from(json as Map)),
+    );
+    return response.data!;
+  }
+
   Future<MeseroVentaModel> eliminarProductoCuenta({
     required int cuentaId,
     required int detalleId,
