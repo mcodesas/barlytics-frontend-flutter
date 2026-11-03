@@ -72,7 +72,7 @@ void main() {
       )),
     ));
     await tester.pumpAndSettle();
-    expect(find.text('Negocio con logo'), findsOneWidget);
+    expect(find.text('NEGOCIO CON LOGO'), findsOneWidget);
     expect(find.text('Ver foto completa'), findsOneWidget);
     expect(find.text('Conoce nuestro lugar'), findsOneWidget);
     expect(find.text('1 / 3'), findsOneWidget);
@@ -106,7 +106,7 @@ void main() {
     ));
     await tester.pumpAndSettle();
     expect(find.text('Nuestra carta'), findsOneWidget);
-    expect(find.text('Sucursal con imagen'), findsOneWidget);
+    expect(find.text('SUCURSAL CON IMAGEN'), findsOneWidget);
     expect(find.text('Ver foto completa'), findsNothing);
   });
 
