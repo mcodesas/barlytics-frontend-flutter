@@ -31,8 +31,16 @@ Future<DescuentoVentaInput?> mostrarDialogoDescuento(
   final result = await showDialog<DescuentoVentaInput>(
     context: context,
     builder: (dialog) => StatefulBuilder(builder: (context, update) {
-      double? amount() => double.tryParse(
-        value.text.trim().replaceAll('.', '').replaceAll(',', '.'));
+      double? amount() {
+        final input = value.text.trim().replaceAll(' ', '');
+        // En porcentaje: 12.5 y 12,5 se entienden como 12,5%.
+        if (type == 'PORCENTAJE') {
+          return double.tryParse(input.replaceAll(',', '.'));
+        }
+        // En COP: 5.000 significa cinco mil. 5000,50 permite centavos.
+        final normalized = input.replaceAll('.', '').replaceAll(',', '.');
+        return double.tryParse(normalized);
+      }
       final val = amount();
       final valid = val != null && val >= 0 &&
           (type == 'PORCENTAJE' ? val <= 100 : val <= base + .001);
