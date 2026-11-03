@@ -122,7 +122,7 @@ class _MenuDigitalAdminPageState extends ConsumerState<MenuDigitalAdminPage> {
         };
         entry.value.text = admin[entry.key]?.toString() ?? fallback;
       }
-      _layout = admin['estilo']?.toString() ?? 'TIENDA';
+      _layout = admin['estilo']?.toString() == 'LIBRO' ? 'LIBRO' : 'TIENDA';
       _saved = admin;
       _catalog = catalog;
       _selected = <int>{
@@ -487,6 +487,104 @@ class _MenuDigitalAdminPageState extends ConsumerState<MenuDigitalAdminPage> {
     );
   }
 
+
+  Widget _designOption(AppPalette pal, MenuDigitalColors colors,
+      String style, double width) {
+    final modern = style == 'TIENDA';
+    final selected = _layout == style;
+    final title = modern ? 'Moderno' : 'Carta tipo libro';
+    return Semantics(
+      button: true, selected: selected, label: 'Elegir diseño $title',
+      child: InkWell(
+        borderRadius: BorderRadius.circular(18),
+        onTap: () => setState(() { _layout = style; _dirty = true; }),
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 180),
+          width: width, padding: const EdgeInsets.all(13),
+          decoration: BoxDecoration(
+            color: selected ? pal.secondary.withOpacity(.12) : pal.surface,
+            borderRadius: BorderRadius.circular(18),
+            border: Border.all(color: selected ? pal.secondary : pal.cardBorder,
+                width: selected ? 2 : 1)),
+          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Row(children: [
+              Icon(modern ? Icons.dashboard_customize_rounded
+                  : Icons.auto_stories_rounded, color: pal.secondary),
+              const SizedBox(width: 8),
+              Expanded(child: Text(title, style: TextStyle(
+                  color: pal.textPrimary, fontWeight: FontWeight.w900))),
+              Icon(selected ? Icons.radio_button_checked_rounded
+                  : Icons.radio_button_unchecked_rounded,
+                  color: selected ? pal.secondary : pal.textSecondary),
+            ]),
+            const SizedBox(height: 7),
+            Text(modern
+                ? 'Fotos, tarjetas y precios destacados.'
+                : 'Páginas por categoría, como una carta impresa.',
+                style: TextStyle(color: pal.textSecondary, fontSize: 12)),
+            const SizedBox(height: 10),
+            Container(
+              height: 89, padding: const EdgeInsets.all(10),
+              decoration: BoxDecoration(color: colors.canvas,
+                  borderRadius: BorderRadius.circular(12)),
+              child: modern
+                ? Row(children: [
+                    for (int i = 0; i < 2; i++) ...[
+                      Expanded(child: Container(
+                        padding: const EdgeInsets.all(6),
+                        decoration: BoxDecoration(color: colors.card,
+                            borderRadius: BorderRadius.circular(8)),
+                        child: Column(children: [
+                          Expanded(child: Container(
+                            color: colors.secondarySurface,
+                            child: Center(child: Icon(Icons.image_outlined,
+                                size: 16, color: colors.text)))),
+                          const SizedBox(height: 5),
+                          Container(height: 6, width: double.infinity,
+                              color: colors.text.withOpacity(.65)),
+                          const SizedBox(height: 3),
+                          Container(height: 7, width: 40,
+                              color: colors.accent),
+                        ]),
+                      )),
+                      if (i == 0) const SizedBox(width: 9),
+                    ],
+                  ])
+                : Container(
+                    padding: const EdgeInsets.all(9),
+                    decoration: BoxDecoration(
+                      color: colors.card, borderRadius: BorderRadius.circular(7)),
+                    child: Column(children: [
+                      Text('NUESTRA CARTA',
+                          style: TextStyle(color: colors.text, fontSize: 10,
+                            fontWeight: FontWeight.w800)),
+                      Divider(height: 12, color: colors.border),
+                      for (int i = 0; i < 2; i++)
+                        Padding(padding: const EdgeInsets.only(bottom: 6),
+                          child: Row(children: [
+                            Icon(Icons.restaurant_menu_rounded,
+                                color: colors.text, size: 13),
+                            const SizedBox(width: 8),
+                            Expanded(child: Container(height: 4,
+                                color: colors.text.withOpacity(.6))),
+                            const SizedBox(width: 8),
+                            Container(width: 31, height: 9,
+                                color: colors.accent),
+                          ])),
+                    ]),
+                  ),
+            ),
+            const SizedBox(height: 9),
+            Text(selected ? 'DISEÑO SELECCIONADO' : 'Seleccionar este diseño',
+                style: TextStyle(color: selected
+                    ? pal.secondary : pal.textSecondary,
+                    fontSize: 11, fontWeight: FontWeight.w800)),
+          ]),
+        ),
+      ),
+    );
+  }
+
   Widget _fieldColor(AppPalette pal, String name, String key) {
     final controller = _colorControllers[key]!;
     final color = _parseColor(controller.text);
@@ -567,25 +665,34 @@ class _MenuDigitalAdminPageState extends ConsumerState<MenuDigitalAdminPage> {
             style: TextStyle(color: pal.textSecondary, fontSize: 12)),
       ])),
       const SizedBox(height: 13),
-      _panel(pal, Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-        Text('Presentación', style: TextStyle(
-            color: pal.textPrimary, fontSize: 18, fontWeight: FontWeight.w900)),
-        const SizedBox(height: 6),
-        Text('Elige cómo verán tus clientes los productos.',
-            style: TextStyle(color: pal.textSecondary)),
-        const SizedBox(height: 12),
-        SegmentedButton<String>(
-          segments: const [
-            ButtonSegment(value: 'TIENDA', label: Text('Tienda'),
-                icon: Icon(Icons.storefront_outlined)),
-            ButtonSegment(value: 'LIBRO', label: Text('Libro'),
-                icon: Icon(Icons.auto_stories_rounded)),
-          ],
-          selected: {_layout},
-          onSelectionChanged: (values) {
-            setState(() { _layout = values.first; _dirty = true; });
+      _panel(pal, Column(crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Row(children: [
+            Icon(Icons.style_rounded, color: pal.secondary),
+            const SizedBox(width: 10),
+            Expanded(child: Text('¿Qué diseño quieres para tu carta?',
+                style: TextStyle(color: pal.textPrimary,
+                  fontSize: 18, fontWeight: FontWeight.w900))),
+          ]),
+          const SizedBox(height: 7),
+          Text('Elige Moderno o Libro. Los productos, los precios y '
+              'las paletas de colores son compatibles con ambos diseños.',
+              style: TextStyle(color: pal.textSecondary, fontSize: 12)),
+          const SizedBox(height: 14),
+          LayoutBuilder(builder: (context, limits) {
+            final width = limits.maxWidth < 470
+                ? limits.maxWidth : (limits.maxWidth - 12) / 2;
+            final colors = MenuDigitalColors.fromMenu(_preview());
+            return Wrap(spacing: 12, runSpacing: 12, children: [
+              _designOption(pal, colors, 'TIENDA', width),
+              _designOption(pal, colors, 'LIBRO', width),
+            ]);
           }),
-      ])),
+          const SizedBox(height: 8),
+          Text('La vista previa se actualiza inmediatamente. Guarda los '
+              'cambios para reflejarlos en tu enlace y código QR.',
+              style: TextStyle(color: pal.textSecondary, fontSize: 11)),
+        ])),
       const SizedBox(height: 13),
       KeyedSubtree(
         key: _paletasKey,
