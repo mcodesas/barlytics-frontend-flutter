@@ -423,6 +423,36 @@ class MeseroRemoteDataSource {
     return response.data!;
   }
 
+  /// Anula venta finalizada. No borra el histórico, concilia inventario y caja.
+  Future<Map<String, dynamic>> anularVentaFinalizada(
+      int ventaId, String motivo) async {
+    final response = await _apiClient.post<Map<String, dynamic>>(
+      '/api/v1/mesero/ventas/$ventaId/anular',
+      {'motivo': motivo.trim()},
+      (json) => Map<String, dynamic>.from(json as Map),
+    );
+    return response.data ?? const <String, dynamic>{};
+  }
+
+  /// Anula la venta original y devuelve nueva venta editable, sin pagos.
+  Future<Map<String, dynamic>> corregirVentaFinalizada(
+      int ventaId, String motivo) async {
+    final response = await _apiClient.post<Map<String, dynamic>>(
+      '/api/v1/mesero/ventas/$ventaId/corregir',
+      {'motivo': motivo.trim()},
+      (json) => Map<String, dynamic>.from(json as Map),
+    );
+    return response.data ?? const <String, dynamic>{};
+  }
+
+  Future<Map<String, dynamic>> auditoriaAnulacionVenta(int ventaId) async {
+    final response = await _apiClient.get<Map<String, dynamic>>(
+      '/api/v1/mesero/ventas/$ventaId/anulacion',
+      (json) => Map<String, dynamic>.from(json as Map),
+    );
+    return response.data ?? const <String, dynamic>{};
+  }
+
   Future<MeseroVentaModel> finalizarVenta(int ventaId) async {
     final response = await _apiClient.post<MeseroVentaModel>(
       ApiPaths.meseroFinalizarVenta(ventaId),
