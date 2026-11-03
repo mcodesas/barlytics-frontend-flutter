@@ -50,6 +50,10 @@ class _MenuDigitalAdminPageState extends ConsumerState<MenuDigitalAdminPage> {
   int _generation = 0;
   String _filter = '';
   String? _uploadedCover;
+  String? _customLogo;
+  String? _backgroundPhoto;
+  List<String> _gallery = [];
+  String _coverMode = 'COMPLETA';
 
   @override
   void initState() {
@@ -113,6 +117,11 @@ class _MenuDigitalAdminPageState extends ConsumerState<MenuDigitalAdminPage> {
           ? '' : admin['portada']?.toString() ?? '';
       _uploadedCover = (admin['portada'] ?? '').toString().startsWith('data:image/')
           ? admin['portada'].toString() : null;
+      _customLogo = (admin['logoPersonalizado'] ?? '').toString().trim();
+      _backgroundPhoto = (admin['fondoImagen'] ?? '').toString().trim();
+      _gallery = (admin['galeria'] as List? ?? const [])
+          .whereType<String>().toList();
+      _coverMode = admin['portadaModo'] == 'DIVIDIDA' ? 'DIVIDIDA' : 'COMPLETA';
       for (final entry in _colorControllers.entries) {
         final fallback = switch (entry.key) {
           'primario' => _presets.first.primary,
@@ -146,6 +155,10 @@ class _MenuDigitalAdminPageState extends ConsumerState<MenuDigitalAdminPage> {
     'titulo': _title.text.trim(),
     'descripcion': _description.text.trim(),
     'portada': _uploadedCover ?? _cover.text.trim(),
+    'logo': _customLogo ?? '',
+    'fondoImagen': _backgroundPhoto ?? '',
+    'galeria': List<String>.from(_gallery),
+    'portadaModo': _coverMode,
     'estilo': _layout,
     for (final entry in _colorControllers.entries)
       entry.key: entry.value.text.trim(),
@@ -257,6 +270,100 @@ class _MenuDigitalAdminPageState extends ConsumerState<MenuDigitalAdminPage> {
 
   void _removeCover() {
     setState(() { _uploadedCover = null; _cover.clear(); _dirty = true; });
+  }
+
+  ImageProvider? _visualImage(String? source) {
+    if (source == null || source.isEmpty) return null;
+    try {
+      if (source.startsWith('data:image/') && source.contains(',')) {
+        return MemoryImage(base64Decode(source.substring(source.indexOf(',') + 1)));
+      }
+      if (source.startsWith('https://')) return NetworkImage(source);
+    } catch (_) {}
+    return null;
+  }
+
+  Widget _visualPreview(String? source, {double width = 100, double height = 76}) {
+    final image = _visualImage(source);
+    return Container(
+      width: width, height: height,
+      clipBehavior: Clip.antiAlias,
+      decoration: BoxDecoration(
+        color: _parseColor(_colorControllers['tarjeta']!.text) ?? Colors.grey.shade200,
+        borderRadius: BorderRadius.circular(12)),
+      child: image == null
+          ? const Icon(Icons.add_photo_alternate_outlined)
+          : Image(image: image, fit: BoxFit.contain,
+              errorBuilder: (_, __, ___) => const Icon(Icons.broken_image_outlined)),
+    );
+  }
+
+  Future<void> _pickVisual(String target) async {
+    try {
+      final result = await FilePicker.platform.pickFiles(
+        type: FileType.custom,
+        allowedExtensions: const ['png', 'jpg', 'jpeg', 'webp'],
+        withData: true,
+      );
+      if (result == null || result.files.isEmpty) return;
+      final file = result.files.first;
+      final limit = target == 'logo' ? 900000 : 1500000;
+      if (file.bytes == null || file.bytes!.isEmpty || file.bytes!.length > limit) {
+        _notify('Imagen demasiado grande. Logo máximo 900 KB; fondo máximo 1,5 MB.');
+        return;
+      }
+      final ext = file.extension?.toLowerCase() ?? '';
+      final mime = ext == 'png' ? 'image/png' :
+          ext == 'webp' ? 'image/webp' : 'image/jpeg';
+      final encoded = 'data:$mime;base64,${base64Encode(file.bytes!)}';
+      if (!mounted) return;
+      setState(() {
+        if (target == 'logo') {
+          _customLogo = encoded;
+        } else {
+          _backgroundPhoto = encoded;
+        }
+        _dirty = true;
+      });
+    } catch (e) {
+      _notify('No fue posible cargar la imagen: $e');
+    }
+  }
+
+  Future<void> _pickGallery() async {
+    if (_gallery.length >= 6) {
+      _notify('La galería permite máximo 6 fotografías.'); return;
+    }
+    try {
+      final result = await FilePicker.platform.pickFiles(
+        type: FileType.custom,
+        allowedExtensions: const ['png', 'jpg', 'jpeg', 'webp'],
+        allowMultiple: true,
+        withData: true,
+      );
+      if (result == null || result.files.isEmpty) return;
+      final added = <String>[];
+      for (final file in result.files) {
+        if (_gallery.length + added.length >= 6) break;
+        final bytes = file.bytes;
+        if (bytes == null || bytes.isEmpty || bytes.length > 700000) {
+          _notify('Algunas fotografías superan 700 KB y se omitieron.');
+          continue;
+        }
+        final ext = file.extension?.toLowerCase() ?? '';
+        final mime = ext == 'png' ? 'image/png' :
+            ext == 'webp' ? 'image/webp' : 'image/jpeg';
+        added.add('data:$mime;base64,${base64Encode(bytes)}');
+      }
+      if (mounted && added.isNotEmpty) {
+        setState(() {
+          _gallery = [..._gallery, ...added];
+          _dirty = true;
+        });
+      }
+    } catch (e) {
+      _notify('No fue posible cargar la galería: $e');
+    }
   }
 
   Future<void> _share() async {
@@ -695,6 +802,11 @@ class _MenuDigitalAdminPageState extends ConsumerState<MenuDigitalAdminPage> {
       'titulo': _title.text.trim().isEmpty ? 'Nuestra carta' : _title.text.trim(),
       'descripcion': _description.text,
       'portada': _uploadedCover ?? _cover.text.trim(),
+      'logo': (_customLogo?.isNotEmpty ?? false)
+          ? _customLogo : _saved?['logoSucursal'],
+      'fondoImagen': _backgroundPhoto ?? '',
+      'galeria': List<String>.from(_gallery),
+      'portadaModo': _coverMode,
       'estilo': _layout,
       'sucursal': ref.read(branchScopeProvider).activeBranch?.sucuNombre ?? '',
       for (final entry in _colorControllers.entries) entry.key: entry.value.text.trim(),
