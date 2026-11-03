@@ -643,7 +643,7 @@ class _MenuDigitalCatalogState extends State<MenuDigitalCatalog> {
                         // La restricción evita que un solo chip desborde
                         // el ancho en navegadores o teléfonos pequeños.
                         final maxLabelWidth =
-                            (limits.maxWidth - 90).clamp(72.0, 238.0);
+                            (limits.maxWidth - 90).clamp(72.0, 238.0).toDouble();
                         return Wrap(
                           alignment: WrapAlignment.start,
                           spacing: 8,
