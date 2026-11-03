@@ -13011,6 +13011,7 @@ class _CuentaProductosTabla extends ConsumerWidget {
                     overflow: TextOverflow.ellipsis,
                     style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 12.5),
                   ),
+                ),
                 IconButton(
                   tooltip: (producto.descuentoAplicado ?? 0) > 0
                       ? 'Modificar descuento: ${CurrencyUtils.format(producto.descuentoAplicado)}'
@@ -13023,7 +13024,6 @@ class _CuentaProductosTabla extends ConsumerWidget {
                       ? null : onDescuentoProducto == null
                           ? null : () => onDescuentoProducto!(producto),
                   icon: const Icon(Icons.percent_rounded),
-                ),
                 ),
               ],
             ),
@@ -13161,6 +13161,7 @@ class _CuentaProductosTabla extends ConsumerWidget {
                     overflow: TextOverflow.ellipsis,
                     style: const TextStyle(fontWeight: FontWeight.w800),
                   ),
+                ),
                 IconButton(
                   tooltip: (producto.descuentoAplicado ?? 0) > 0
                       ? 'Modificar descuento: ${CurrencyUtils.format(producto.descuentoAplicado)}'
@@ -13173,7 +13174,6 @@ class _CuentaProductosTabla extends ConsumerWidget {
                       ? null : onDescuentoProducto == null
                           ? null : () => onDescuentoProducto!(producto),
                   icon: const Icon(Icons.percent_rounded),
-                ),
                 ),
               ],
             ),
