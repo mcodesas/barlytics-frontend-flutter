@@ -26,6 +26,7 @@ void main() {
       (tester) async {
     await tester.pumpWidget(buildActions(estado: 'ANULADA'));
     expect(find.text('Retomar o corregir venta'), findsOneWidget);
+    expect(find.text('Desanular venta'), findsOneWidget);
     expect(find.text('Ver motivo y auditoría'), findsOneWidget);
 
     await tester.tap(find.text('Retomar o corregir venta'));
@@ -34,6 +35,20 @@ void main() {
     expect(find.textContaining('NO se volverá a devolver stock'), findsOneWidget);
     expect(find.text('Retomar corrección'), findsOneWidget);
     expect(find.byType(CheckboxListTile), findsOneWidget);
+  });
+
+  testWidgets('Desanular requiere motivo y confirmación explícita',
+      (tester) async {
+    await tester.pumpWidget(buildActions(estado: 'ANULADA'));
+    await tester.tap(find.text('Desanular venta'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Desanular venta #77'), findsOneWidget);
+    expect(find.text('Confirmar desanulación'), findsOneWidget);
+    final confirm = tester.widget<FilledButton>(
+        find.widgetWithText(FilledButton, 'Confirmar desanulación'));
+    expect(confirm.onPressed, isNull);
+    expect(find.textContaining('reembolso realizado'), findsOneWidget);
   });
 
   testWidgets('Una venta finalizada permite corregir o anular',
@@ -50,5 +65,6 @@ void main() {
         buildActions(estado: 'ANULADA', autorizado: false));
     expect(find.text('Retomar o corregir venta'), findsNothing);
     expect(find.text('Ver motivo y auditoría'), findsNothing);
+    expect(find.text('Desanular venta'), findsNothing);
   });
 }
