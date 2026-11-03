@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 
 import 'menu_digital_palette.dart';
+import 'menu_digital_extra_layouts.dart';
 
 /// Render compartido: la vista previa en el editor utiliza exactamente la
 /// misma composición que la página pública del cliente.
@@ -408,6 +409,14 @@ class _MenuDigitalCatalogState extends State<MenuDigitalCatalog> {
     return Icons.restaurant_menu_rounded;
   }
 
+  void _selectBookPage(int page, List<String> categories) {
+    if (categories.isEmpty || page < 0 || page >= categories.length) return;
+    setState(() {
+      _bookPage = page;
+      _category = categories[page];
+    });
+  }
+
   @override
   Widget build(BuildContext context) {
     final canvas = _color('fondo', '#081B27');
@@ -415,22 +424,28 @@ class _MenuDigitalCatalogState extends State<MenuDigitalCatalog> {
     final accent = _color('primario', '#14B8A6');
     final colors = MenuDigitalColors.fromMenu(widget.menu);
     final coverHasImage = _image(widget.menu['portada']) != null;
-    final book = widget.menu['estilo'] == 'LIBRO';
+    final style = (widget.menu['estilo'] ?? 'TIENDA').toString().toUpperCase();
+    final book = style == 'LIBRO';
     final items = _products;
     final cats = <String>['Todos', ...items.map((p) =>
         (p['tipo'] ?? 'Especialidades').toString()).toSet()];
-    final filtered = items.where((p) {
-      final category = (p['tipo'] ?? 'Especialidades').toString();
-      final matchesSearch = _search.isEmpty ||
-          (p['nombre']?.toString().toLowerCase().contains(_search.toLowerCase()) ?? false) ||
-          (p['descripcion']?.toString().toLowerCase().contains(_search.toLowerCase()) ?? false);
-      return matchesSearch && (_category == 'Todos' || category == _category);
-    }).toList();
+    final searched = items.where((p) =>
+        _search.isEmpty ||
+        (p['nombre']?.toString().toLowerCase().contains(_search.toLowerCase()) ?? false) ||
+        (p['descripcion']?.toString().toLowerCase().contains(_search.toLowerCase()) ?? false)
+    ).toList();
+    // No filtrar las hojas por el chip activo: las otras categorías
+    // deben seguir existiendo para poder navegar hacia ellas.
     final bookCategories = <String>{
-      for (final p in filtered) (p['tipo'] ?? 'Especialidades').toString(),
+      for (final p in searched) (p['tipo'] ?? 'Especialidades').toString(),
     }.toList();
     final currentBookPage = bookCategories.isEmpty
         ? 0 : _bookPage.clamp(0, bookCategories.length - 1).toInt();
+    final activeBookCategory = bookCategories.isEmpty
+        ? '' : bookCategories[currentBookPage];
+    final filtered = book ? searched : searched.where((p) =>
+        _category == 'Todos' ||
+        (p['tipo'] ?? 'Especialidades').toString() == _category).toList();
 
     return Container(
       color: canvas,
@@ -438,7 +453,8 @@ class _MenuDigitalCatalogState extends State<MenuDigitalCatalog> {
         final mobile = constraints.maxWidth < 640;
         final maxWidth = constraints.maxWidth.isFinite
             ? constraints.maxWidth.clamp(260.0, 1120.0) : 1120.0;
-        final columns = book ? (mobile ? 1 : 2)
+        final columns = book ? 1 : style == 'GALERIA'
+            ? (maxWidth < 720 ? 1 : 2)
             : maxWidth < 500 ? 1 : maxWidth < 860 ? 2 : 3;
         const gap = 15.0;
         final itemWidth = (maxWidth - (mobile ? 32.0 : 48.0) -
@@ -452,7 +468,7 @@ class _MenuDigitalCatalogState extends State<MenuDigitalCatalog> {
             padding: EdgeInsets.fromLTRB(mobile ? 16 : 24, 24, mobile ? 16 : 24, 55),
             children: [
               if (widget.preview) ...[
-                Text('VISTA PREVIA · ' + (book ? 'LIBRO' : 'MODERNO'),
+                Text('VISTA PREVIA · ' + (style == 'TIENDA' ? 'MODERNO' : style),
                   style: TextStyle(color: accent, fontSize: 11, fontWeight: FontWeight.w900)),
                 const SizedBox(height: 10),
               ],
@@ -649,7 +665,7 @@ class _MenuDigitalCatalogState extends State<MenuDigitalCatalog> {
                           spacing: 8,
                           runSpacing: 8,
                           children: [
-                            for (final cat in cats)
+                            for (final cat in (book ? bookCategories : cats))
                               Tooltip(
                                 message: cat,
                                 child: ChoiceChip(
@@ -663,31 +679,39 @@ class _MenuDigitalCatalogState extends State<MenuDigitalCatalog> {
                                       overflow: TextOverflow.ellipsis,
                                     ),
                                   ),
-                                  selected: _category == cat,
+                                  selected: book ? activeBookCategory == cat : _category == cat,
                                   showCheckmark: false,
                                   avatar: Icon(
                                     _iconForCategory(cat),
                                     size: 17,
-                                    color: _category == cat
+                                    color: (book ? activeBookCategory == cat : _category == cat)
                                         ? colors.onAccent : fg,
                                   ),
-                                  onSelected: (_) => setState(() {
-                                    _category = cat;
-                                    _bookPage = 0;
-                                  }),
+                                  onSelected: (_) {
+                                    if (book) {
+                                      _selectBookPage(bookCategories.indexOf(cat),
+                                          bookCategories);
+                                    } else {
+                                      setState(() {
+                                        _category = cat;
+                                        _bookPage = 0;
+                                      });
+                                    }
+                                  },
                                   selectedColor: accent,
                                   backgroundColor: colors.card,
                                   side: BorderSide(
-                                    color: _category == cat
+                                    color: (book ? activeBookCategory == cat : _category == cat)
                                         ? accent : colors.border,
-                                    width: _category == cat ? 1.5 : 1,
+                                    width: (book ? activeBookCategory == cat : _category == cat)
+                                        ? 1.5 : 1,
                                   ),
                                   shape: RoundedRectangleBorder(
                                     borderRadius: BorderRadius.circular(22)),
                                   padding: const EdgeInsets.symmetric(
                                     horizontal: 10, vertical: 8),
                                   labelStyle: TextStyle(
-                                    color: _category == cat
+                                    color: (book ? activeBookCategory == cat : _category == cat)
                                         ? colors.onAccent : fg,
                                     fontWeight: FontWeight.w800,
                                     fontSize: 12.5,
@@ -738,7 +762,7 @@ class _MenuDigitalCatalogState extends State<MenuDigitalCatalog> {
                       disabledBackgroundColor: colors.secondarySurface,
                       disabledForegroundColor: fg.withOpacity(.45)),
                     onPressed: currentBookPage == 0 ? null
-                        : () => setState(() => _bookPage = currentBookPage - 1),
+                        : () => _selectBookPage(currentBookPage - 1, bookCategories),
                     icon: const Icon(Icons.chevron_left_rounded),
                   ),
                   Expanded(child: Column(children: [
@@ -759,7 +783,7 @@ class _MenuDigitalCatalogState extends State<MenuDigitalCatalog> {
                       disabledBackgroundColor: colors.secondarySurface,
                       disabledForegroundColor: fg.withOpacity(.45)),
                     onPressed: currentBookPage >= bookCategories.length - 1 ? null
-                        : () => setState(() => _bookPage = currentBookPage + 1),
+                        : () => _selectBookPage(currentBookPage + 1, bookCategories),
                     icon: const Icon(Icons.chevron_right_rounded),
                   ),
                 ]),
