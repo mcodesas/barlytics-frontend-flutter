@@ -417,6 +417,258 @@ class _MenuDigitalCatalogState extends State<MenuDigitalCatalog> {
     });
   }
 
+  Future<void> _openVenuePhoto(List<String> photos, int first) async {
+    if (photos.isEmpty) return;
+    var current = first;
+    await showDialog<void>(
+      context: context,
+      builder: (dialogContext) => StatefulBuilder(
+        builder: (context, setDialogState) {
+          final colors = MenuDigitalColors.fromMenu(widget.menu);
+          final photo = _image(photos[current]);
+          return Dialog(
+            backgroundColor: colors.canvas,
+            insetPadding: const EdgeInsets.all(12),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(20)),
+            child: ConstrainedBox(
+              constraints: BoxConstraints(
+                maxWidth: 940,
+                maxHeight: MediaQuery.sizeOf(context).height * .90),
+              child: Column(mainAxisSize: MainAxisSize.min, children: [
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(16, 10, 8, 5),
+                  child: Row(children: [
+                    Expanded(child: Text('Fotografía ${current + 1} de ${photos.length}',
+                      style: TextStyle(color: colors.text, fontSize: 16,
+                        fontWeight: FontWeight.w800))),
+                    IconButton(
+                      tooltip: 'Cerrar fotografía',
+                      color: colors.text,
+                      onPressed: () => Navigator.pop(dialogContext),
+                      icon: const Icon(Icons.close_rounded)),
+                  ]),
+                ),
+                Flexible(child: Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 12),
+                  child: photo == null
+                      ? const SizedBox(height: 220,
+                          child: Center(child: Icon(Icons.broken_image_outlined)))
+                      : InteractiveViewer(
+                          minScale: 1, maxScale: 5,
+                          child: Center(child: Image(
+                            image: photo,
+                            fit: BoxFit.contain,
+                            errorBuilder: (_, __, ___) =>
+                                const Icon(Icons.broken_image_outlined))),
+                        ),
+                )),
+                Padding(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 12, vertical: 12),
+                  child: Row(mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      TextButton.icon(
+                        onPressed: current == 0 ? null
+                            : () => setDialogState(() => current--),
+                        icon: const Icon(Icons.chevron_left_rounded),
+                        label: const Text('Anterior'),
+                      ),
+                      Text('${current + 1} / ${photos.length}',
+                        style: TextStyle(color: colors.text)),
+                      TextButton.icon(
+                        onPressed: current == photos.length - 1 ? null
+                            : () => setDialogState(() => current++),
+                        icon: const Icon(Icons.chevron_right_rounded),
+                        label: const Text('Siguiente'),
+                      ),
+                    ]),
+                ),
+              ]),
+            ),
+          );
+        },
+      ),
+    );
+  }
+
+  Widget _fullCoverHeader(
+      MenuDigitalColors colors, Color canvas, Color fg, Color accent,
+      bool mobile, String style) {
+    final cover = _image(widget.menu['portada']);
+    final logo = _image(widget.menu['logo']);
+    final branch = (widget.menu['sucursal'] ?? '').toString();
+    final description = (widget.menu['descripcion'] ?? '').toString();
+    final title = (widget.menu['titulo'] ?? 'Nuestra carta').toString();
+    return Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+      if (cover != null)
+        Container(
+          height: mobile ? 225 : 350,
+          width: double.infinity,
+          color: colors.secondarySurface,
+          child: InkWell(
+            onTap: () => _openVenuePhoto(
+                [widget.menu['portada'].toString()], 0),
+            child: Stack(fit: StackFit.expand, children: [
+              // No cortar foto ni texto del afiche, sea vertical u horizontal.
+              Image(image: cover, fit: BoxFit.contain,
+                errorBuilder: (_, __, ___) =>
+                    Center(child: Icon(Icons.image_outlined, size: 55,
+                      color: colors.text))),
+              Positioned(right: 14, bottom: 12,
+                child: Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 12, vertical: 7),
+                  decoration: BoxDecoration(
+                    color: colors.canvas.withOpacity(.90),
+                    borderRadius: BorderRadius.circular(15)),
+                  child: Row(mainAxisSize: MainAxisSize.min, children: [
+                    Icon(Icons.zoom_in_rounded,
+                      color: colors.text, size: 17),
+                    const SizedBox(width: 6),
+                    Text('Ver foto completa',
+                      style: TextStyle(color: colors.text,
+                        fontSize: 11, fontWeight: FontWeight.w800)),
+                  ]),
+                )),
+            ]),
+          ),
+        ),
+      Container(
+        padding: EdgeInsets.fromLTRB(
+            mobile ? 20 : 34, mobile ? 20 : 27,
+            mobile ? 20 : 34, mobile ? 22 : 30),
+        decoration: BoxDecoration(
+          gradient: LinearGradient(colors: [
+            canvas, colors.card.withOpacity(.98)],
+            begin: Alignment.topLeft, end: Alignment.bottomRight)),
+        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Row(crossAxisAlignment: CrossAxisAlignment.center, children: [
+            if (logo != null) ...[
+              Container(
+                height: mobile ? 70 : 88, width: mobile ? 70 : 88,
+                padding: const EdgeInsets.all(5),
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(16),
+                  border: Border.all(color: colors.border)),
+                child: ClipRRect(
+                  borderRadius: BorderRadius.circular(11),
+                  child: Image(image: logo, fit: BoxFit.contain,
+                    errorBuilder: (_, __, ___) =>
+                      const Icon(Icons.storefront_rounded))),
+              ),
+              const SizedBox(width: 15),
+            ] else ...[
+              Container(
+                height: 56, width: 56,
+                decoration: BoxDecoration(
+                  color: accent.withOpacity(.13),
+                  borderRadius: BorderRadius.circular(16)),
+                child: Icon(Icons.storefront_rounded, color: accent)),
+              const SizedBox(width: 13),
+            ],
+            Expanded(child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start, children: [
+                Text(branch.toUpperCase(), maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    color: MenuDigitalColors.contrast(accent, canvas) >= 4.5
+                        ? accent : fg,
+                    fontSize: 12, fontWeight: FontWeight.w900,
+                    letterSpacing: 1)),
+                const SizedBox(height: 5),
+                Text(title, maxLines: 3,
+                  style: TextStyle(color: fg, fontFamily: 'Georgia',
+                    fontSize: mobile ? 28 : 39,
+                    height: 1.12, fontWeight: FontWeight.bold)),
+              ]),
+            )),
+          ]),
+          if (description.isNotEmpty) ...[
+            const SizedBox(height: 13),
+            Text(description, maxLines: 4,
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(color: fg.withOpacity(.85),
+                fontSize: 13, height: 1.5)),
+          ],
+          const SizedBox(height: 13),
+          Container(
+            padding: const EdgeInsets.symmetric(
+                horizontal: 12, vertical: 8),
+            decoration: BoxDecoration(
+              color: accent, borderRadius: BorderRadius.circular(20)),
+            child: Text(
+              switch (style) {
+                'LIBRO' => 'CARTA TIPO LIBRO',
+                'EDITORIAL' => 'CARTA EDITORIAL',
+                'GALERIA' => 'GALERÍA DE PRODUCTOS',
+                'MINIMALISTA' => 'CARTA MINIMALISTA',
+                _ => 'CARTA MODERNA',
+              },
+              style: TextStyle(color: colors.onAccent,
+                fontSize: 11, fontWeight: FontWeight.w900)),
+          ),
+        ]),
+      ),
+    ]);
+  }
+
+  Widget _venueGallery(MenuDigitalColors colors, bool mobile) {
+    final photos = (widget.menu['galeria'] as List? ?? const [])
+        .whereType<String>()
+        .where((raw) => _image(raw) != null)
+        .toList();
+    if (photos.isEmpty) return const SizedBox.shrink();
+    return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+      Row(children: [
+        Icon(Icons.photo_library_outlined, color: colors.accent, size: 25),
+        const SizedBox(width: 9),
+        Expanded(child: Text('Conoce nuestro lugar',
+          style: TextStyle(color: colors.text,
+              fontSize: mobile ? 19 : 24, fontWeight: FontWeight.w900))),
+        Text('${photos.length} fotos',
+          style: TextStyle(color: colors.text.withOpacity(.7))),
+      ]),
+      const SizedBox(height: 12),
+      LayoutBuilder(builder: (context, limits) {
+        const spacing = 10.0;
+        final columns = limits.maxWidth < 490 ? 2
+            : limits.maxWidth < 850 ? 3 : 4;
+        final width = (limits.maxWidth - spacing * (columns - 1)) / columns;
+        return Wrap(spacing: spacing, runSpacing: spacing, children: [
+          for (var i = 0; i < photos.length; i++)
+            SizedBox(
+              width: width, height: mobile ? 118 : 155,
+              child: Material(
+                color: colors.card,
+                borderRadius: BorderRadius.circular(14),
+                clipBehavior: Clip.antiAlias,
+                child: InkWell(
+                  onTap: () => _openVenuePhoto(photos, i),
+                  child: Stack(fit: StackFit.expand, children: [
+                    Image(image: _image(photos[i])!,
+                      fit: BoxFit.cover,
+                      errorBuilder: (_, __, ___) =>
+                          Icon(Icons.broken_image_outlined,
+                            color: colors.text)),
+                    Positioned(right: 6, bottom: 6,
+                      child: Container(
+                        padding: const EdgeInsets.all(5),
+                        decoration: BoxDecoration(
+                          color: colors.canvas.withOpacity(.85),
+                          shape: BoxShape.circle),
+                        child: Icon(Icons.zoom_in_rounded,
+                          color: colors.text, size: 20))),
+                  ]),
+                ),
+              ),
+            ),
+        ]);
+      }),
+    ]);
+  }
+
   @override
   Widget build(BuildContext context) {
     final canvas = _color('fondo', '#081B27');
@@ -424,6 +676,8 @@ class _MenuDigitalCatalogState extends State<MenuDigitalCatalog> {
     final accent = _color('primario', '#14B8A6');
     final colors = MenuDigitalColors.fromMenu(widget.menu);
     final coverHasImage = _image(widget.menu['portada']) != null;
+    final fullCover = widget.menu['portadaModo'] != 'DIVIDIDA';
+    final backgroundPhoto = _image(widget.menu['fondoImagen']);
     final style = (widget.menu['estilo'] ?? 'TIENDA').toString().toUpperCase();
     final book = style == 'LIBRO';
     final items = _products;
@@ -448,7 +702,15 @@ class _MenuDigitalCatalogState extends State<MenuDigitalCatalog> {
         (p['tipo'] ?? 'Especialidades').toString() == _category).toList();
 
     return Container(
-      color: canvas,
+      decoration: BoxDecoration(
+        color: canvas,
+        image: backgroundPhoto == null ? null : DecorationImage(
+          image: backgroundPhoto,
+          fit: BoxFit.cover,
+          opacity: .17,
+          colorFilter: ColorFilter.mode(
+            canvas.withOpacity(.35), BlendMode.srcOver)),
+      ),
       child: LayoutBuilder(builder: (context, constraints) {
         final mobile = constraints.maxWidth < 640;
         final maxWidth = constraints.maxWidth.isFinite
@@ -483,7 +745,9 @@ class _MenuDigitalCatalogState extends State<MenuDigitalCatalog> {
                     blurRadius: 24, offset: const Offset(0, 10),
                   )],
                 ),
-                child: Stack(children: [
+                child: fullCover
+                    ? _fullCoverHeader(colors, canvas, fg, accent, mobile, style)
+                    : Stack(children: [
                   if (coverHasImage)
                     Positioned.fill(
                       child: ColoredBox(
@@ -577,7 +841,10 @@ class _MenuDigitalCatalogState extends State<MenuDigitalCatalog> {
                   ),
                 ]),
               ),
-              const SizedBox(height: 24),
+              const SizedBox(height: 18),
+              _venueGallery(colors, mobile),
+              if ((widget.menu['galeria'] as List? ?? const []).isNotEmpty)
+                const SizedBox(height: 22),
               if (!widget.preview) ...[
                 TextField(
                   onChanged: (value) => setState(() {
