@@ -41,6 +41,75 @@ void main() {
     expect(colors.card, const Color(0xFFF2E5CB));
   });
 
+  testWidgets('Portada completa, logo y carrusel conservan las fotos enteras',
+      (tester) async {
+    tester.view.physicalSize = const Size(1040, 1450);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(() {
+      tester.view.resetPhysicalSize();
+      tester.view.resetDevicePixelRatio();
+    });
+    const picture = 'data:image/png;base64,'
+        'iVBORw0KGgoAAAANSUhEUgAAAAIAAAACCAIAAAD91Jpz'
+        'AAAAFklEQVR4nGM8WGnHwMDAxMDAwMDAAAASTQF8cCGfAgAAAABJRU5ErkJggg==';
+    final data = <String, dynamic>{
+      'titulo': 'Carta de prueba',
+      'sucursal': 'Negocio con logo',
+      'logo': picture,
+      'portada': picture,
+      'portadaModo': 'COMPLETA',
+      'fondoImagen': picture,
+      'galeria': <String>[picture, picture],
+      'galeriaArriba': true,
+      'estilo': 'LIBRO',
+      'productos': [
+        {'id': 1, 'nombre': 'Producto', 'tipo': 'BEBIDA', 'precio': 3000},
+      ],
+    };
+    await tester.pumpWidget(MaterialApp(
+      home: Scaffold(body: SingleChildScrollView(
+        child: MenuDigitalCatalog(menu: data, preview: true),
+      )),
+    ));
+    await tester.pumpAndSettle();
+    expect(find.text('Negocio con logo'), findsOneWidget);
+    expect(find.text('Ver foto completa'), findsOneWidget);
+    expect(find.text('Conoce nuestro lugar'), findsOneWidget);
+    expect(find.text('1 / 3'), findsOneWidget);
+    await tester.tap(find.byTooltip('Siguiente foto de portada'));
+    await tester.pumpAndSettle();
+    expect(find.text('2 / 3'), findsOneWidget);
+
+    await tester.tap(find.text('Ver foto completa'));
+    await tester.pumpAndSettle();
+    expect(find.text('Fotografía 2 de 3'), findsOneWidget);
+    expect(find.byType(InteractiveViewer), findsOneWidget);
+  });
+
+  testWidgets('Conservar encabezado dividido clásico sigue siendo posible',
+      (tester) async {
+    const picture = 'data:image/png;base64,'
+        'iVBORw0KGgoAAAANSUhEUgAAAAIAAAACCAIAAAD91Jpz'
+        'AAAAFklEQVR4nGM8WGnHwMDAxMDAwMDAAAASTQF8cCGfAgAAAABJRU5ErkJggg==';
+    await tester.pumpWidget(MaterialApp(
+      home: Scaffold(body: SingleChildScrollView(
+        child: MenuDigitalCatalog(menu: {
+          'titulo': 'Nuestra carta',
+          'sucursal': 'Sucursal con imagen',
+          'logo': picture,
+          'portada': picture,
+          'portadaModo': 'DIVIDIDA',
+          'estilo': 'TIENDA',
+          'productos': const [],
+        }, preview: true),
+      )),
+    ));
+    await tester.pumpAndSettle();
+    expect(find.text('Nuestra carta'), findsOneWidget);
+    expect(find.text('Sucursal con imagen'), findsOneWidget);
+    expect(find.text('Ver foto completa'), findsNothing);
+  });
+
   testWidgets('Los cinco diseños muestran productos en la vista previa',
       (tester) async {
     final menu = <String, dynamic>{
