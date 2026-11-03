@@ -54,6 +54,7 @@ class _MenuDigitalAdminPageState extends ConsumerState<MenuDigitalAdminPage> {
   String? _backgroundPhoto;
   List<String> _gallery = [];
   String _coverMode = 'COMPLETA';
+  bool _galleryOnTop = false;
 
   @override
   void initState() {
@@ -122,6 +123,7 @@ class _MenuDigitalAdminPageState extends ConsumerState<MenuDigitalAdminPage> {
       _gallery = (admin['galeria'] as List? ?? const [])
           .whereType<String>().toList();
       _coverMode = admin['portadaModo'] == 'DIVIDIDA' ? 'DIVIDIDA' : 'COMPLETA';
+      _galleryOnTop = admin['galeriaArriba'] == true;
       for (final entry in _colorControllers.entries) {
         final fallback = switch (entry.key) {
           'primario' => _presets.first.primary,
@@ -159,6 +161,7 @@ class _MenuDigitalAdminPageState extends ConsumerState<MenuDigitalAdminPage> {
     'fondoImagen': _backgroundPhoto ?? '',
     'galeria': List<String>.from(_gallery),
     'portadaModo': _coverMode,
+    'galeriaArriba': _galleryOnTop,
     'estilo': _layout,
     for (final entry in _colorControllers.entries)
       entry.key: entry.value.text.trim(),
@@ -807,6 +810,7 @@ class _MenuDigitalAdminPageState extends ConsumerState<MenuDigitalAdminPage> {
       'fondoImagen': _backgroundPhoto ?? '',
       'galeria': List<String>.from(_gallery),
       'portadaModo': _coverMode,
+      'galeriaArriba': _galleryOnTop,
       'estilo': _layout,
       'sucursal': ref.read(branchScopeProvider).activeBranch?.sucuNombre ?? '',
       for (final entry in _colorControllers.entries) entry.key: entry.value.text.trim(),
@@ -950,6 +954,19 @@ class _MenuDigitalAdminPageState extends ConsumerState<MenuDigitalAdminPage> {
              'en tamaño completo y hacer zoom. Máximo 700 KB por foto.',
           style: TextStyle(color: pal.textSecondary, fontSize: 12)),
         const SizedBox(height: 9),
+        CheckboxListTile(
+          value: _galleryOnTop,
+          contentPadding: EdgeInsets.zero,
+          controlAffinity: ListTileControlAffinity.leading,
+          title: const Text('Mostrar estas fotos también arriba'),
+          subtitle: const Text('Crea un carrusel en la portada con la foto '
+              'principal y las fotos de la galería, sin recortar imágenes.'),
+          onChanged: (enabled) => setState(() {
+            _galleryOnTop = enabled ?? false;
+            _dirty = true;
+          }),
+        ),
+        const SizedBox(height: 8),
         Wrap(spacing: 9, runSpacing: 9, children: [
           for (var index = 0; index < _gallery.length; index++)
             Stack(children: [
