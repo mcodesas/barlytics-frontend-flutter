@@ -32,6 +32,8 @@ class _MenuDigitalAdminPageState extends ConsumerState<MenuDigitalAdminPage> {
   final _description = TextEditingController();
   final _cover = TextEditingController();
   final _search = TextEditingController();
+  final _paletasKey = GlobalKey();
+  String _filtroPaletas = 'TODAS';
   final _colorControllers = <String, TextEditingController>{
     'primario': TextEditingController(text: _presets.first.primary),
     'fondo': TextEditingController(text: _presets.first.background),
@@ -202,6 +204,21 @@ class _MenuDigitalAdminPageState extends ConsumerState<MenuDigitalAdminPage> {
       if (mounted) setState(() => _saving = false);
     }
   }
+
+  void _mostrarPaletas() {
+    final target = _paletasKey.currentContext;
+    if (target == null) return;
+    Scrollable.ensureVisible(
+      target,
+      alignment: 0.04,
+      duration: const Duration(milliseconds: 350),
+      curve: Curves.easeInOutCubic,
+    );
+  }
+
+  bool _paletaClara(MenuDigitalPalettePreset preset) =>
+      MenuDigitalColors.parse(preset.background, '#FFFFFF')
+          .computeLuminance() > 0.35;
 
   void _preset(MenuDigitalPalettePreset p) {
     _colorControllers['primario']!.text = p.primary;
@@ -415,21 +432,53 @@ class _MenuDigitalAdminPageState extends ConsumerState<MenuDigitalAdminPage> {
               Icon(Icons.check_circle_rounded, size: 16, color: pal.secondary),
           ]),
           const SizedBox(height: 8),
+          Container(
+            height: 58,
+            padding: const EdgeInsets.all(7),
+            decoration: BoxDecoration(
+              color: _parseColor(preset.background),
+              borderRadius: BorderRadius.circular(10),
+              border: Border.all(
+                color: _parseColor(preset.text)!.withOpacity(.22)),
+            ),
+            child: Row(children: [
+              Container(width: 22, height: 22,
+                decoration: BoxDecoration(
+                  color: _parseColor(preset.primary),
+                  borderRadius: BorderRadius.circular(6))),
+              const SizedBox(width: 6),
+              Text('Aa', style: TextStyle(
+                color: _parseColor(preset.text),
+                fontSize: 13, fontWeight: FontWeight.w900)),
+              const Spacer(),
+              Container(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 7, vertical: 6),
+                decoration: BoxDecoration(
+                  color: _parseColor(preset.card),
+                  borderRadius: BorderRadius.circular(7)),
+                child: Text('Carta', style: TextStyle(
+                  color: _parseColor(preset.text),
+                  fontSize: 10, fontWeight: FontWeight.w700)),
+              ),
+            ]),
+          ),
+          const SizedBox(height: 8),
           Row(children: [
             for (final hex in <String>[
               preset.primary, preset.background, preset.text, preset.card,
             ]) ...[
-              Expanded(child: Container(height: 16,
+              Expanded(child: Container(height: 13,
                 decoration: BoxDecoration(
                   color: _parseColor(hex),
-                  borderRadius: BorderRadius.circular(5),
+                  borderRadius: BorderRadius.circular(4),
                   border: Border.all(color: pal.cardBorder),
                 ),
               )),
               const SizedBox(width: 4),
             ],
           ]),
-          const SizedBox(height: 6),
+          const SizedBox(height: 5),
           Text(preset.primary + ' · ' + preset.background,
             maxLines: 1, overflow: TextOverflow.ellipsis,
             style: TextStyle(color: pal.textSecondary, fontSize: 10)),
@@ -538,32 +587,62 @@ class _MenuDigitalAdminPageState extends ConsumerState<MenuDigitalAdminPage> {
           }),
       ])),
       const SizedBox(height: 13),
-      _panel(pal, Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-        Text('Paleta de colores', style: TextStyle(
-            color: pal.textPrimary, fontSize: 18, fontWeight: FontWeight.w900)),
-        const SizedBox(height: 7),
-        Text('32 combinaciones con cuatro colores HEX cada una. '
-            'Elige una y modifica los tonos a tu gusto.',
-            style: TextStyle(color: pal.textSecondary, fontSize: 12)),
-        const SizedBox(height: 13),
-        Wrap(spacing: 8, runSpacing: 9, children: [
-          for (final p in _presets.take(6)) _paletteChoice(p, pal),
-        ]),
-        ExpansionTile(
-          tilePadding: EdgeInsets.zero,
-          childrenPadding: const EdgeInsets.only(bottom: 12),
-          title: Text('Ver las 32 paletas de colores',
-            style: TextStyle(color: pal.secondary, fontWeight: FontWeight.w800)),
-          subtitle: Text('Claras, oscuras, elegantes y vibrantes',
-            style: TextStyle(color: pal.textSecondary, fontSize: 12)),
+      KeyedSubtree(
+        key: _paletasKey,
+        child: _panel(pal, Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            Align(alignment: Alignment.centerLeft,
-              child: Wrap(spacing: 8, runSpacing: 9, children: [
-                for (final p in _presets.skip(6)) _paletteChoice(p, pal),
-              ]),
-            ),
-          ],
-        ),
+            Row(children: [
+              Icon(Icons.palette_rounded, color: pal.secondary, size: 27),
+              const SizedBox(width: 10),
+              Expanded(child: Text('Diseña los colores de tu carta',
+                style: TextStyle(color: pal.textPrimary,
+                  fontSize: 19, fontWeight: FontWeight.w900))),
+              Container(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 11, vertical: 6),
+                decoration: BoxDecoration(
+                  color: pal.secondary.withOpacity(.15),
+                  borderRadius: BorderRadius.circular(14)),
+                child: Text('${_presets.length} paletas',
+                  style: TextStyle(color: pal.secondary,
+                    fontWeight: FontWeight.w900, fontSize: 12)),
+              ),
+            ]),
+            const SizedBox(height: 7),
+            Text('Selecciona una combinación completa y comprueba el resultado '
+                'en la vista previa. También puedes personalizar cada código HEX.',
+              style: TextStyle(color: pal.textSecondary, fontSize: 12)),
+            const SizedBox(height: 13),
+            Wrap(spacing: 8, runSpacing: 8, children: [
+              for (final filter in const <(String, String)>[
+                ('TODAS', 'Todas (32)'),
+                ('CLARAS', 'Claras'),
+                ('OSCURAS', 'Oscuras'),
+              ])
+                ChoiceChip(
+                  label: Text(filter.$2),
+                  selected: _filtroPaletas == filter.$1,
+                  showCheckmark: false,
+                  onSelected: (_) => setState(() => _filtroPaletas = filter.$1),
+                  selectedColor: pal.secondary,
+                  labelStyle: TextStyle(
+                    color: _filtroPaletas == filter.$1
+                        ? pal.onSecondary : pal.textPrimary,
+                    fontWeight: FontWeight.w700),
+                  side: BorderSide(color: pal.cardBorder),
+                ),
+            ]),
+            const SizedBox(height: 13),
+            // Mostrar todas las paletas directamente: antes 26 estaban
+            // ocultas dentro de un ExpansionTile y pasaban desapercibidas.
+            Wrap(spacing: 9, runSpacing: 9, children: [
+              for (final preset in _presets)
+                if (_filtroPaletas == 'TODAS' ||
+                    (_filtroPaletas == 'CLARAS' && _paletaClara(preset)) ||
+                    (_filtroPaletas == 'OSCURAS' && !_paletaClara(preset)))
+                  _paletteChoice(preset, pal),
+            ]),
         const SizedBox(height: 10),
         if (!_hasReadableColors)
           Padding(
@@ -586,7 +665,8 @@ class _MenuDigitalAdminPageState extends ConsumerState<MenuDigitalAdminPage> {
           _fieldColor(pal, row.$1, row.$2),
           const SizedBox(height: 9),
         ],
-      ])),
+          ])),
+        ),
       const SizedBox(height: 13),
       _panel(pal, Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
         Row(children: [
@@ -733,6 +813,10 @@ class _MenuDigitalAdminPageState extends ConsumerState<MenuDigitalAdminPage> {
                     FilledButton.icon(onPressed: _saving ? null : _save,
                       icon: const Icon(Icons.save_rounded),
                       label: Text(_saving ? 'Guardando...' : 'Guardar cambios')),
+                    OutlinedButton.icon(
+                      onPressed: _mostrarPaletas,
+                      icon: const Icon(Icons.palette_rounded),
+                      label: const Text('32 paletas de colores')),
                     OutlinedButton.icon(
                       onPressed: _saving ? null : () => _publish(_saved?['publicado'] != true),
                       icon: Icon(_saved?['publicado'] == true
