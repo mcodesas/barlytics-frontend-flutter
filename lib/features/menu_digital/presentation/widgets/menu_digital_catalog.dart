@@ -621,7 +621,7 @@ class _MenuDigitalCatalogState extends State<MenuDigitalCatalog> {
                     fontSize: mobile ? 28 : 39,
                     height: 1.12, fontWeight: FontWeight.bold)),
               ]),
-            )),
+            ),
           ]),
           if (description.isNotEmpty) ...[
             const SizedBox(height: 13),
