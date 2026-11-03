@@ -92,6 +92,9 @@ class _MenuDigitalAdminPageState extends ConsumerState<MenuDigitalAdminPage> {
     if (branch == null) {
       setState(() { _loading = false; _loadedBranch = null;
         _catalog = []; _saved = null; _selected = {};
+        _uploadedCover = null; _customLogo = null;
+        _backgroundPhoto = null; _gallery = [];
+        _coverMode = 'COMPLETA'; _galleryOnTop = false;
         _error = 'Selecciona una sucursal para administrar su menú.'; });
       return;
     }
@@ -102,6 +105,12 @@ class _MenuDigitalAdminPageState extends ConsumerState<MenuDigitalAdminPage> {
       _saved = null;
       _catalog = [];
       _selected = {};
+      _uploadedCover = null;
+      _customLogo = null;
+      _backgroundPhoto = null;
+      _gallery = [];
+      _coverMode = 'COMPLETA';
+      _galleryOnTop = false;
       _dirty = false;
     });
     try {
