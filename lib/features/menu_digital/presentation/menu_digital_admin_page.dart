@@ -886,7 +886,9 @@ class _MenuDigitalAdminPageState extends ConsumerState<MenuDigitalAdminPage> {
             avatar: const Icon(Icons.view_week_outlined, size: 19),
             selected: _coverMode == 'DIVIDIDA',
             onSelected: (_) => setState(() {
-              _coverMode = 'DIVIDIDA'; _dirty = true;
+              _coverMode = 'DIVIDIDA';
+              _galleryOnTop = false; // El carrusel requiere portada completa.
+              _dirty = true;
             })),
         ]),
         const SizedBox(height: 7),
@@ -963,6 +965,7 @@ class _MenuDigitalAdminPageState extends ConsumerState<MenuDigitalAdminPage> {
               'principal y las fotos de la galería, sin recortar imágenes.'),
           onChanged: (enabled) => setState(() {
             _galleryOnTop = enabled ?? false;
+            if (_galleryOnTop) _coverMode = 'COMPLETA';
             _dirty = true;
           }),
         ),
