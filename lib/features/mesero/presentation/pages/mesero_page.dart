@@ -1785,7 +1785,7 @@ class _MeseroPageState extends ConsumerState<MeseroPage> {
         final fechaVenta = _parseFechaVentaHistorial(venta.fecha);
         if (fechaVenta == null || !_esMismoDia(fechaVenta, filtroDia)) return false;
       }
-      final anulada = (venta.estado ?? '').toUpperCase() == 'ANULADA';
+      final anulada = const {'ANULADA', 'CANCELADA'}.contains((venta.estado ?? '').toUpperCase());
       if (_historialEstado == 'anuladas' && !anulada) return false;
       if (_historialEstado == 'pagadas' && (anulada || !_ventaHistorialPagada(venta))) return false;
       if (_historialEstado == 'pendientes' && (anulada || _ventaHistorialPagada(venta))) return false;
@@ -1865,7 +1865,7 @@ class _MeseroPageState extends ConsumerState<MeseroPage> {
               DropdownMenuItem(value: 'todos', child: Text('Todos los estados', maxLines: 1, overflow: TextOverflow.ellipsis)),
               DropdownMenuItem(value: 'pagadas', child: Text('Pagadas', maxLines: 1, overflow: TextOverflow.ellipsis)),
               DropdownMenuItem(value: 'pendientes', child: Text('Con saldo pendiente', maxLines: 1, overflow: TextOverflow.ellipsis)),
-              DropdownMenuItem(value: 'anuladas', child: Text('Anuladas', maxLines: 1, overflow: TextOverflow.ellipsis)),
+              DropdownMenuItem(value: 'anuladas', child: Text('Anuladas / canceladas', maxLines: 1, overflow: TextOverflow.ellipsis)),
             ],
             onChanged: (value) => setState(() => _historialEstado = value ?? 'todos'),
           );
@@ -1958,7 +1958,7 @@ class _MeseroPageState extends ConsumerState<MeseroPage> {
         // Se conservan las anuladas en el historial pero nunca se suman
         // como ventas/pagos vigentes en el panel de resultados.
         final ventasContables = ventasFiltradas.where((v) =>
-            (v.estado ?? '').toUpperCase() != 'ANULADA').toList(growable: false);
+            !const {'ANULADA', 'CANCELADA'}.contains((v.estado ?? '').toUpperCase())).toList(growable: false);
         final mediosPagados = resumirPagosVentas(ventasContables);
         final totalVendido = ventasContables.fold<double>(0, (sum, venta) => sum + (venta.total ?? 0));
         final totalPagado = ventasContables.fold<double>(0, (sum, venta) => sum + (venta.totalPagado ?? (venta.pagada == true ? (venta.total ?? 0) : 0)));
@@ -15976,9 +15976,10 @@ class _HistorialVentaCabecera extends ConsumerWidget {
                         style: Theme.of(context).textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.w900, color: palette.textPrimary),
                       ),
                     ),
-                    (venta.estado ?? '').toUpperCase() == 'ANULADA'
-                        ? const Chip(label: Text('ANULADA'),
-                            avatar: Icon(Icons.block_rounded, size: 16))
+                    const {'ANULADA', 'CANCELADA'}.contains(
+                            (venta.estado ?? '').toUpperCase())
+                        ? Chip(label: Text((venta.estado ?? '').toUpperCase()),
+                            avatar: const Icon(Icons.block_rounded, size: 16))
                         : _HistorialEstadoChip(pagada: pagada),
                   ],
                 ),
@@ -17003,10 +17004,10 @@ class _HistorialDiaSection extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final palette = ref.watch(selectedAppPaletteProvider);
     final total = ventas.where((venta) =>
-        (venta.estado ?? '').toUpperCase() != 'ANULADA')
+        !const {'ANULADA', 'CANCELADA'}.contains((venta.estado ?? '').toUpperCase()))
         .fold<double>(0, (sum, venta) => sum + (venta.total ?? 0));
     final vigentes = ventas.where((venta) =>
-        (venta.estado ?? '').toUpperCase() != 'ANULADA').toList(growable: false);
+        !const {'ANULADA', 'CANCELADA'}.contains((venta.estado ?? '').toUpperCase())).toList(growable: false);
     final pagadas = vigentes.where((venta) => venta.pagada == true
         || (venta.saldoPendiente ?? 0) <= 0.009).length;
 
@@ -17128,7 +17129,7 @@ class _HistorialVentaListadoRow extends ConsumerWidget {
     final ventaDirecta = (venta.tipoVenta ?? '').trim().toUpperCase() == 'DIRECTA' || venta.mesaId == null;
     final productos = venta.cuentas.fold<int>(0, (sum, cuenta) => sum + cuenta.productos.length);
     final pagos = venta.cuentas.fold<int>(0, (sum, cuenta) => sum + cuenta.pagos.length);
-    final anulada = (venta.estado ?? '').toUpperCase() == 'ANULADA';
+    final anulada = const {'ANULADA', 'CANCELADA'}.contains((venta.estado ?? '').toUpperCase());
     final medios = anulada
         ? const <HistorialMedioPagoResumen>[]
         : resumirPagosVentas(<MeseroVentaModel>[venta]);
@@ -17173,8 +17174,8 @@ class _HistorialVentaListadoRow extends ConsumerWidget {
                           children: [
                             Expanded(child: Text('Venta #${venta.ventaId ?? '-'}', style: TextStyle(color: palette.textPrimary, fontWeight: FontWeight.w900, fontSize: 15))),
                             anulada
-                                ? const Chip(label: Text('ANULADA'),
-                                    avatar: Icon(Icons.block_rounded, size: 16))
+                                ? Chip(label: Text((venta.estado ?? '').toUpperCase()),
+                                    avatar: const Icon(Icons.block_rounded, size: 16))
                                 : _HistorialEstadoChip(pagada: pagada),
                           ],
                         ),
@@ -17266,7 +17267,7 @@ class _HistorialMesaSection extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final palette = ref.watch(selectedAppPaletteProvider);
     final total = ventas.where((venta) =>
-        (venta.estado ?? '').toUpperCase() != 'ANULADA')
+        !const {'ANULADA', 'CANCELADA'}.contains((venta.estado ?? '').toUpperCase()))
         .fold<double>(0, (sum, venta) => sum + (venta.total ?? 0));
     return Container(
       width: double.infinity,
