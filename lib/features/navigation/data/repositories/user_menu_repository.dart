@@ -33,6 +33,7 @@ class UserMenuRepository {
       // como OTROS nunca debe aparecer dentro de ese grupo.
       final normalizedItem = item.copyWith(
         keyName: keyName,
+        title: _menuTitle(keyName, item.title),
         path: path,
         groupCode: keyName == 'home' ? 'INICIO' : null,
         groupName: keyName == 'home' ? 'Inicio' : null,
@@ -71,10 +72,32 @@ class UserMenuRepository {
     }
 
 
+    // Administrar mesas y Mesero abren el mismo módulo operativo.
+    // Evitar dos accesos idénticos preservando el único permiso existente.
+    if (byKey.containsKey('mesero') && byKey.containsKey('administrar_mesas')) {
+      byKey.remove('administrar_mesas');
+    }
     final items = byKey.values.toList(growable: false);
     if (preserveBackendOrder) return items;
     return _sortByDatabaseNavigation(items);
   }
+
+  // Solo cambia la presentación; rutas y permisos permanecen intactos.
+  static String _menuTitle(String key, String fallback) => switch (key) {
+    'detalle_cuenta_venta' => 'Productos por cuenta',
+    'cuentas_venta' => 'Cuentas de venta',
+    'administrar_mesas' => 'Atender mesas',
+    'inventario' => 'Realizar conteo de inventario',
+    'movimientos' => 'Movimientos de inventario',
+    'pedidos_compra' => 'Recibir pedidos de compra',
+    'proximo_pedido' => 'Realizar pedido a proveedores',
+    'marcas' => 'Parametrización de marcas',
+    'tipos_producto' => 'Parametrización de tipos de producto',
+    'tesoreria' => 'Tesorería · Saldos por medio',
+    'agenda_deportiva' => 'Agenda deportiva y noticias',
+    'menu_digital' => 'Menú digital',
+    _ => fallback,
+  };
 
   List<UserMenuItem> _sortByDatabaseNavigation(Iterable<UserMenuItem> items) {
     final list = items.toList(growable: false);
@@ -123,6 +146,8 @@ class UserMenuRepository {
       'soporte_mantenimiento': moduleRegistry.length + 25,
       'sincronizar_catalogo': moduleRegistry.length + 26,
       'mesero_productos': moduleRegistry.length + 27,
+      'tesoreria': moduleRegistry.length + 28,
+      'agenda_deportiva': moduleRegistry.length + 29,
     };
     final list = items.toList(growable: false);
     list.sort((a, b) => (order[a.keyName] ?? 9999).compareTo(order[b.keyName] ?? 9999));

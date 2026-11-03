@@ -198,6 +198,9 @@ class MeseroDetalleProductoModel {
     this.valorUnitario,
     this.precioAdicionalUnitario,
     this.subtotal,
+    this.descuentoTipo,
+    this.descuentoValor,
+    this.descuentoAplicado,
     this.personalizacion,
     this.pagado,
   });
@@ -212,6 +215,9 @@ class MeseroDetalleProductoModel {
   final double? valorUnitario;
   final double? precioAdicionalUnitario;
   final double? subtotal;
+  final String? descuentoTipo;
+  final double? descuentoValor;
+  final double? descuentoAplicado;
   final String? personalizacion;
   final bool? pagado;
 
@@ -226,6 +232,9 @@ class MeseroDetalleProductoModel {
         valorUnitario: (json['valorUnitario'] as num?)?.toDouble(),
         precioAdicionalUnitario: (json['precioAdicionalUnitario'] as num?)?.toDouble(),
         subtotal: (json['subtotal'] as num?)?.toDouble(),
+        descuentoTipo: json['descuentoTipo']?.toString(),
+        descuentoValor: (json['descuentoValor'] as num?)?.toDouble(),
+        descuentoAplicado: (json['descuentoAplicado'] as num?)?.toDouble(),
         personalizacion: json['personalizacion']?.toString(),
         pagado: json['pagado'] is bool
             ? json['pagado'] as bool
@@ -276,6 +285,9 @@ class MeseroCuentaModel {
     this.total,
     this.propina,
     this.subtotalProductos,
+    this.descuentoTipo,
+    this.descuentoValor,
+    this.descuentoAplicado,
     this.totalPagado,
     this.saldoPendiente,
     this.pagada,
@@ -290,6 +302,9 @@ class MeseroCuentaModel {
   final double? total;
   final double? propina;
   final double? subtotalProductos;
+  final String? descuentoTipo;
+  final double? descuentoValor;
+  final double? descuentoAplicado;
   final double? totalPagado;
   final double? saldoPendiente;
   final bool? pagada;
@@ -304,6 +319,9 @@ class MeseroCuentaModel {
         total: (json['total'] as num?)?.toDouble(),
         propina: (json['propina'] as num?)?.toDouble(),
         subtotalProductos: (json['subtotalProductos'] as num?)?.toDouble(),
+        descuentoTipo: json['descuentoTipo']?.toString(),
+        descuentoValor: (json['descuentoValor'] as num?)?.toDouble(),
+        descuentoAplicado: (json['descuentoAplicado'] as num?)?.toDouble(),
         totalPagado: (json['totalPagado'] as num?)?.toDouble(),
         saldoPendiente: (json['saldoPendiente'] as num?)?.toDouble(),
         pagada: json['pagada'] as bool?,

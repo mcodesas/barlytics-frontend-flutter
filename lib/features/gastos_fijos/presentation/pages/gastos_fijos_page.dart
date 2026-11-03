@@ -251,6 +251,7 @@ class _GastosFijosPageState extends ConsumerState<GastosFijosPage> {
           if (labor) type = 'VARIABLE';
 
           return AlertDialog(
+        scrollable: true,
             title: Text(current == null ? 'Nuevo gasto' : 'Editar gasto'),
             content: SizedBox(
               width: math.min(MediaQuery.sizeOf(ctx).width * .86, 600),
@@ -490,6 +491,7 @@ class _GastosFijosPageState extends ConsumerState<GastosFijosPage> {
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
+        scrollable: true,
         title: const Text('Desactivar gasto'),
         content: Text(
           '¿Deseas desactivar "${item['gafiNombre'] ?? 'este gasto'}"?',
@@ -1217,6 +1219,7 @@ class _LaborDialog extends StatefulWidget {
 
 class _LaborDialogState extends State<_LaborDialog> {
   final TextEditingController value = TextEditingController();
+  final ScrollController _mobileScroll = ScrollController();
   final NumberFormat money = NumberFormat.currency(
     locale: 'es_CO',
     symbol: r'$',
@@ -1242,6 +1245,7 @@ class _LaborDialogState extends State<_LaborDialog> {
 
   @override
   void dispose() {
+    _mobileScroll.dispose();
     value.dispose();
     super.dispose();
   }
@@ -1363,6 +1367,7 @@ class _LaborDialogState extends State<_LaborDialog> {
     final name = await showDialog<String>(
       context: context,
       builder: (ctx) => AlertDialog(
+        scrollable: true,
         title: const Row(
           children: [
             Icon(Icons.badge_outlined),
@@ -1507,6 +1512,7 @@ class _LaborDialogState extends State<_LaborDialog> {
     final ok = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
+        scrollable: true,
         title: const Text('Renombrar cargo'),
         content: TextField(
           controller: controller,
@@ -1552,6 +1558,7 @@ class _LaborDialogState extends State<_LaborDialog> {
     final ok = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
+        scrollable: true,
         title: const Text('Desactivar cargo'),
         content: Text(
           '¿Deseas desactivar "$name"? El histórico de tarifas se conserva.',
@@ -1657,6 +1664,7 @@ class _LaborDialogState extends State<_LaborDialog> {
     final ok = await showDialog<bool>(
       context: context,
       builder: (dialogContext) => AlertDialog(
+        scrollable: true,
         title: const Row(
           children: [
             Icon(Icons.event_busy_outlined),
@@ -1739,38 +1747,10 @@ class _LaborDialogState extends State<_LaborDialog> {
     setState(() => days = {...presetDays});
   }
 
-  Widget _rolesPane() => Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            'Cargos de trabajo',
-            style: TextStyle(
-              color: widget.palette.textPrimary,
-              fontSize: 16,
-              fontWeight: FontWeight.w900,
-            ),
-          ),
-          const SizedBox(height: 4),
-          Text(
-            'Cada cargo puede tener una tarifa diferente según los días de la semana.',
-            style: TextStyle(
-              color: widget.palette.textSecondary,
-              fontSize: 12,
-              height: 1.3,
-            ),
-          ),
-          const SizedBox(height: 12),
-          SizedBox(
-            width: double.infinity,
-            child: FilledButton.icon(
-              onPressed: saving ? null : _addRole,
-              icon: const Icon(Icons.add),
-              label: const Text('Crear cargo'),
-            ),
-          ),
-          const SizedBox(height: 12),
-          Expanded(
-            child: cargos.isEmpty
+  // La lista forma parte del scroll general en móvil; en escritorio usa
+  // su propia área flexible para mantener el panel dividido.
+  Widget _roleList({bool embedded = false}) {
+    return cargos.isEmpty
                 ? Center(
                     child: Padding(
                       padding: const EdgeInsets.all(12),
@@ -1804,6 +1784,10 @@ class _LaborDialogState extends State<_LaborDialog> {
                     ),
                   )
                 : ListView.separated(
+                    shrinkWrap: embedded,
+                    physics: embedded
+                        ? const NeverScrollableScrollPhysics()
+                        : null,
                     itemCount: cargos.length,
                     separatorBuilder: (_, __) => const SizedBox(height: 7),
                     itemBuilder: (_, index) {
@@ -1900,12 +1884,47 @@ class _LaborDialogState extends State<_LaborDialog> {
                         ),
                       );
                     },
-                  ),
+                  );
+  }
+
+  Widget _rolesPane({bool embedded = false}) => Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            'Cargos de trabajo',
+            style: TextStyle(
+              color: widget.palette.textPrimary,
+              fontSize: 16,
+              fontWeight: FontWeight.w900,
+            ),
           ),
+          const SizedBox(height: 4),
+          Text(
+            'Cada cargo puede tener una tarifa diferente según los días de la semana.',
+            style: TextStyle(
+              color: widget.palette.textSecondary,
+              fontSize: 12,
+              height: 1.3,
+            ),
+          ),
+          const SizedBox(height: 12),
+          SizedBox(
+            width: double.infinity,
+            child: FilledButton.icon(
+              onPressed: saving ? null : _addRole,
+              icon: const Icon(Icons.add),
+              label: const Text('Crear cargo'),
+            ),
+          ),
+          const SizedBox(height: 12),
+          if (embedded)
+            _roleList(embedded: true)
+          else
+            Expanded(child: _roleList()),
         ],
       );
 
-  Widget _configurationPane() {
+  Widget _configurationPane({bool mobile = false}) {
     if (selected == null) {
       return Center(
         child: Text(
@@ -2159,122 +2178,156 @@ class _LaborDialogState extends State<_LaborDialog> {
           ),
         ),
         const SizedBox(height: 8),
-        Expanded(
-          child: _RatesList(
+        if (mobile)
+          _RatesList(
             rates: selectedRates,
             palette: widget.palette,
             money: money,
             busy: saving,
+            embedded: true,
             onEdit: _editRate,
             onDelete: _deleteRate,
+          )
+        else
+          Expanded(
+            child: _RatesList(
+              rates: selectedRates,
+              palette: widget.palette,
+              money: money,
+              busy: saving,
+              onEdit: _editRate,
+              onDelete: _deleteRate,
+            ),
           ),
-        ),
       ],
     );
   }
 
   @override
   Widget build(BuildContext context) {
-    final size = MediaQuery.sizeOf(context);
-    final width = math.min(size.width * .94, 980.0);
-    final height = math.min(size.height * .82, 680.0);
+    final media = MediaQuery.of(context);
+    final size = media.size;
+    // Dialog ya respeta el teclado y los safe areas del sistema. Reservar
+    // un margen adicional evita que iPhone y navegadores oculten acciones.
+    final availableHeight = size.height -
+        media.padding.vertical - media.viewInsets.bottom - 40;
+    final height = math.min(720.0, math.max(180.0, availableHeight));
+    final width = math.min(980.0, math.max(280.0, size.width - 32));
+    final mobile = size.width < 760;
 
-    return AlertDialog(
-      titlePadding: const EdgeInsets.fromLTRB(24, 18, 12, 0),
-      title: Row(
-        children: [
-          const Icon(Icons.groups_2_outlined),
-          const SizedBox(width: 10),
-          Expanded(
-            child: Text(
-              'Mano de obra',
-              style: TextStyle(
-                color: widget.palette.textPrimary,
-                fontWeight: FontWeight.w900,
-              ),
-            ),
-          ),
-          IconButton(
-            tooltip: 'Cerrar',
-            onPressed: saving ? null : () => Navigator.pop(context),
-            icon: const Icon(Icons.close),
-          ),
-        ],
-      ),
-      content: SizedBox(
+    return Dialog(
+      insetPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+      clipBehavior: Clip.antiAlias,
+      child: SizedBox(
         width: width,
         height: height,
-        child: loading
-            ? const Center(child: AppLoader())
-            : Column(
+        child: Column(
+          children: [
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 12, 8, 8),
+              child: Row(
                 children: [
-                  if (loadWarning != null) ...[
-                    Container(
-                      width: double.infinity,
-                      padding: const EdgeInsets.all(12),
-                      decoration: BoxDecoration(
-                        color: widget.palette.warning.withOpacity(.10),
-                        borderRadius: BorderRadius.circular(12),
-                        border: Border.all(
-                          color: widget.palette.warning.withOpacity(.35),
-                        ),
-                      ),
-                      child: Row(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Icon(
-                            Icons.warning_amber_rounded,
-                            color: widget.palette.warning,
-                          ),
-                          const SizedBox(width: 10),
-                          Expanded(
-                            child: Text(
-                              loadWarning!,
-                              style: TextStyle(
-                                color: widget.palette.textPrimary,
-                                fontSize: 12,
-                                height: 1.3,
-                              ),
-                            ),
-                          ),
-                          IconButton(
-                            tooltip: 'Reintentar',
-                            onPressed: saving ? null : () => _load(),
-                            icon: const Icon(Icons.refresh),
-                          ),
-                        ],
-                      ),
-                    ),
-                    const SizedBox(height: 12),
-                  ],
+                  const Icon(Icons.groups_2_outlined),
+                  const SizedBox(width: 10),
                   Expanded(
-                    child: LayoutBuilder(
-                      builder: (_, constraints) {
-                        if (constraints.maxWidth < 760) {
-                          return Column(
-                            children: [
-                              SizedBox(height: 260, child: _rolesPane()),
-                              const Divider(height: 24),
-                              Expanded(child: _configurationPane()),
-                            ],
-                          );
-                        }
-
-                        return Row(
-                          children: [
-                            SizedBox(width: 300, child: _rolesPane()),
-                            const VerticalDivider(width: 28),
-                            Expanded(child: _configurationPane()),
-                          ],
-                        );
-                      },
+                    child: Text(
+                      'Mano de obra',
+                      style: TextStyle(
+                        color: widget.palette.textPrimary,
+                        fontWeight: FontWeight.w900,
+                        fontSize: 18,
+                      ),
                     ),
+                  ),
+                  IconButton(
+                    tooltip: 'Cerrar',
+                    onPressed: saving ? null : () => Navigator.pop(context),
+                    icon: const Icon(Icons.close),
                   ),
                 ],
               ),
+            ),
+            const Divider(height: 1),
+            Expanded(
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(14, 12, 14, 10),
+                child: loading
+                    ? const Center(child: AppLoader())
+                    : Column(
+                        children: [
+                          if (loadWarning != null)
+                            Container(
+                              width: double.infinity,
+                              margin: const EdgeInsets.only(bottom: 10),
+                              padding: const EdgeInsets.all(10),
+                              decoration: BoxDecoration(
+                                color: widget.palette.warning.withOpacity(.10),
+                                borderRadius: BorderRadius.circular(12),
+                                border: Border.all(
+                                  color: widget.palette.warning.withOpacity(.35),
+                                ),
+                              ),
+                              child: Row(
+                                children: [
+                                  Icon(Icons.warning_amber_rounded,
+                                      color: widget.palette.warning),
+                                  const SizedBox(width: 8),
+                                  Expanded(child: Text(
+                                    loadWarning!,
+                                    style: TextStyle(
+                                      color: widget.palette.textPrimary,
+                                      fontSize: 12,
+                                    ),
+                                  )),
+                                  IconButton(
+                                    tooltip: 'Reintentar',
+                                    onPressed: saving ? null : _load,
+                                    icon: const Icon(Icons.refresh),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          Expanded(
+                            child: mobile
+                                ? Scrollbar(
+                                    controller: _mobileScroll,
+                                    thumbVisibility: true,
+                                    child: SingleChildScrollView(
+                                      controller: _mobileScroll,
+                                      key: const Key('labor-dialog-mobile-scroll'),
+                                      keyboardDismissBehavior:
+                                          ScrollViewKeyboardDismissBehavior.onDrag,
+                                      padding: const EdgeInsets.only(
+                                          right: 8, bottom: 28),
+                                      child: Column(
+                                        crossAxisAlignment:
+                                            CrossAxisAlignment.stretch,
+                                        children: [
+                                          _rolesPane(embedded: true),
+                                          const Divider(height: 24),
+                                          _configurationPane(mobile: true),
+                                        ],
+                                      ),
+                                    ),
+                                  )
+                                : Row(
+                                    children: [
+                                      SizedBox(width: 300, child: _rolesPane()),
+                                      const VerticalDivider(width: 28),
+                                      Expanded(child: _configurationPane()),
+                                    ],
+                                  ),
+                          ),
+                        ],
+                      ),
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
+
 }
 
 /// Edita una sola tarifa ya registrada; nunca modifica ni elimina el cargo.
@@ -2398,6 +2451,7 @@ class _EditLaborRateDialogState extends State<_EditLaborRateDialog> {
         );
 
     return AlertDialog(
+        scrollable: true,
       title: Row(
         children: [
           Icon(Icons.edit_calendar_outlined, color: widget.palette.secondary),
@@ -2481,6 +2535,7 @@ class _RatesList extends StatelessWidget {
   final AppPalette palette;
   final NumberFormat money;
   final bool busy;
+  final bool embedded;
   final ValueChanged<Map<String, dynamic>> onEdit;
   final ValueChanged<Map<String, dynamic>> onDelete;
 
@@ -2489,6 +2544,7 @@ class _RatesList extends StatelessWidget {
     required this.palette,
     required this.money,
     required this.busy,
+    this.embedded = false,
     required this.onEdit,
     required this.onDelete,
   });
@@ -2544,6 +2600,8 @@ class _RatesList extends StatelessWidget {
     });
 
     return ListView.separated(
+      shrinkWrap: embedded,
+      physics: embedded ? const NeverScrollableScrollPhysics() : null,
       itemCount: visibleRates.length,
       separatorBuilder: (_, __) => const SizedBox(height: 7),
       itemBuilder: (_, index) {

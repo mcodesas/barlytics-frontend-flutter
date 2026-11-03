@@ -1,6 +1,11 @@
+import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
+import 'package:pdf/pdf.dart';
+import 'package:pdf/widgets.dart' as pw;
+import 'package:printing/printing.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 import '../../../../app/theme/app_palette.dart';
 import '../../../../core/branch/branch_scope_provider.dart';
@@ -162,6 +167,320 @@ class _PedidosCompraPageState extends ConsumerState<PedidosCompraPage> {
     }
   }
 
+  String _pendingOrderMessage(Map<String, dynamic> order) {
+    final details = _maps(order['detalles']);
+    final lines = <String>[
+      '*PEDIDO DE COMPRA #' + (order['pediId']?.toString() ?? '-') + '*',
+      'Proveedor: ' + (order['destinoNombre']?.toString() ?? 'General'),
+      'Fecha: ' + _date(order['fecha']),
+      '',
+    ];
+    for (final detail in details) {
+      lines.add('• ' + (detail['producto']?.toString() ?? 'Producto'));
+      lines.add('  ' + _qty(detail['presentaciones']) + ' ' +
+          (detail['presentacion']?.toString() ?? 'und.') +
+          ' (' + _qty(detail['unidades']) + ' unidades)');
+    }
+    lines.addAll([
+      '',
+      'Total estimado: ' + _money.format(_number(order['totalEstimado'])) + ' COP',
+      'Estado: PENDIENTE DE RECEPCIÓN',
+    ]);
+    return lines.join('\n');
+  }
+
+  /// Compartir no altera el pedido ni descuenta/ingresa existencias.
+  Future<void> _resendPendingOrder(Map<String, dynamic> order) async {
+    var phone = (order['whatsappDestino']?.toString() ?? '')
+        .replaceAll(RegExp(r'[^0-9]'), '');
+    if (phone.length == 10) phone = '57' + phone;
+    if (phone.length < 11 || phone.length > 15) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+        content: Text('Configura un WhatsApp válido para este proveedor.'),
+      ));
+      return;
+    }
+    final message = Uri.encodeComponent(_pendingOrderMessage(order));
+    final uri = Uri.parse('https://wa.me/' + phone + '?text=' + message);
+    try {
+      final opened = await launchUrl(uri, mode: LaunchMode.externalApplication);
+      if (!opened && mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('No fue posible abrir WhatsApp.')),
+        );
+      }
+    } catch (error) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('No fue posible abrir WhatsApp: ' + error.toString())),
+      );
+    }
+  }
+
+  Future<void> _printPendingOrder(Map<String, dynamic> order) async {
+    final id = order['pediId']?.toString() ?? '-';
+    final details = _maps(order['detalles']);
+    final pdf = pw.Document();
+    pdf.addPage(pw.MultiPage(
+      pageFormat: PdfPageFormat.a4,
+      margin: const pw.EdgeInsets.all(32),
+      build: (context) => [
+        pw.Text('BarLytics · Pedido de compra #' + id,
+            style: pw.TextStyle(fontSize: 19, fontWeight: pw.FontWeight.bold)),
+        pw.SizedBox(height: 10),
+        pw.Text('Estado: PENDIENTE DE RECEPCIÓN'),
+        pw.Text('Proveedor: ' + (order['destinoNombre']?.toString() ?? 'General')),
+        pw.Text('Fecha: ' + _date(order['fecha'])),
+        pw.SizedBox(height: 20),
+        pw.Table.fromTextArray(
+          headers: const ['Producto', 'Presentaciones', 'Unidades'],
+          data: details.map((detail) => [
+            detail['producto']?.toString() ?? 'Producto',
+            _qty(detail['presentaciones']) + ' ' +
+                (detail['presentacion']?.toString() ?? 'und.'),
+            _qty(detail['unidades']),
+          ]).toList(),
+          headerStyle: pw.TextStyle(fontWeight: pw.FontWeight.bold),
+        ),
+        pw.SizedBox(height: 18),
+        pw.Align(
+          alignment: pw.Alignment.centerRight,
+          child: pw.Text(
+            'Total estimado: ' + _money.format(_number(order['totalEstimado'])) + ' COP',
+            style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 13),
+          ),
+        ),
+        pw.SizedBox(height: 18),
+        pw.Text('La impresión no confirma la recepción ni cambia el inventario.',
+            style: const pw.TextStyle(fontSize: 9)),
+      ],
+    ));
+    try {
+      await Printing.layoutPdf(
+        name: 'barlytics-pedido-' + id,
+        onLayout: (format) => pdf.save(),
+      );
+    } catch (error) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('No se pudo generar el PDF: ' + error.toString())),
+      );
+    }
+  }
+
+  /// Permite modificar las cantidades y las referencias de un pedido que
+  /// todavía no se ha recibido; el servidor valida pagos y concurrencia.
+  Future<void> _editPendingOrder(Map<String, dynamic> order) async {
+    final id = (order['pediId'] as num?)?.toInt();
+    final branchId = ref.read(branchScopeProvider).activeBranchId;
+    if (id == null || branchId == null) return;
+    List<Map<String, dynamic>> catalog;
+    try {
+      final response = await ref.read(apiClientProvider).get<Object?>(
+        '/api/v1/productos/sucursal/' + branchId.toString(),
+        (json) => json,
+      );
+      catalog = _maps(response.data)
+          .where((item) => (item['prodId'] as num?) != null)
+          .toList();
+      catalog.sort((a, b) => (a['prodNombre'] ?? '').toString()
+          .compareTo((b['prodNombre'] ?? '').toString()));
+    } catch (error) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+        content: Text('No se pudo consultar el catálogo: ' + error.toString()),
+      ));
+      return;
+    }
+    if (!mounted) return;
+
+    final originals = _maps(order['detalles']);
+    final quantities = <int, TextEditingController>{};
+    final names = <int, String>{
+      for (final item in originals)
+        if (item['prodId'] is num)
+          (item['prodId'] as num).toInt(): item['producto']?.toString() ?? 'Producto',
+      for (final item in catalog)
+        (item['prodId'] as num).toInt(): item['prodNombre']?.toString() ?? 'Producto',
+    };
+    for (final detail in originals) {
+      final productId = (detail['prodId'] as num?)?.toInt();
+      if (productId == null) continue;
+      quantities[productId] = TextEditingController(text: _qty(detail['unidades']));
+    }
+    final observation = TextEditingController(text: order['observacion']?.toString() ?? '');
+    String? errorText;
+    int? addProductId;
+    bool saving = false;
+    try {
+      final saved = await showDialog<bool>(
+        context: context,
+        builder: (dialogContext) => StatefulBuilder(
+          builder: (dialogContext, setDialog) {
+            final available = catalog
+                .where((product) => !quantities.containsKey((product['prodId'] as num).toInt()))
+                .toList();
+            if (addProductId != null &&
+                !available.any((product) => (product['prodId'] as num).toInt() == addProductId)) {
+              addProductId = null;
+            }
+
+            return AlertDialog(
+              scrollable: true,
+              title: Text('Editar pedido #' + id.toString()),
+              content: SizedBox(
+                width: math.min(MediaQuery.sizeOf(dialogContext).width * .86, 650.0),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    const Text(
+                      'Edita las unidades reales de cada producto. Nada ingresa al inventario hasta confirmar la recepción.',
+                    ),
+                    const SizedBox(height: 12),
+                    for (final item in quantities.entries) ...[
+                      Padding(
+                        padding: const EdgeInsets.symmetric(vertical: 5),
+                        child: Row(children: [
+                          Expanded(child: Text(names[item.key] ?? 'Producto',
+                            maxLines: 2, overflow: TextOverflow.ellipsis)),
+                          const SizedBox(width: 10),
+                          SizedBox(
+                            width: 100,
+                            child: TextField(
+                              controller: item.value,
+                              enabled: !saving,
+                              keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                              decoration: const InputDecoration(
+                                labelText: 'Unidades',
+                                isDense: true,
+                              ),
+                            ),
+                          ),
+                          IconButton(
+                            tooltip: 'Quitar producto',
+                            onPressed: saving ? null : () => setDialog(() {
+                              quantities.remove(item.key);
+                            }),
+                            icon: const Icon(Icons.remove_circle_outline_rounded),
+                          ),
+                        ]),
+                      ),
+                    ],
+                    const SizedBox(height: 12),
+                    if (available.isNotEmpty) ...[
+                      DropdownButtonFormField<int>(
+                        value: addProductId,
+                        isExpanded: true,
+                        decoration: const InputDecoration(labelText: 'Agregar producto'),
+                        items: [
+                          for (final item in available)
+                            DropdownMenuItem<int>(
+                              value: (item['prodId'] as num).toInt(),
+                              child: Text(item['prodNombre']?.toString() ?? 'Producto',
+                                overflow: TextOverflow.ellipsis),
+                            ),
+                        ],
+                        onChanged: saving ? null : (value) => setDialog(() => addProductId = value),
+                      ),
+                      const SizedBox(height: 8),
+                      OutlinedButton.icon(
+                        onPressed: saving || addProductId == null ? null : () => setDialog(() {
+                          quantities[addProductId!] = TextEditingController(text: '1');
+                          addProductId = null;
+                        }),
+                        icon: const Icon(Icons.add_rounded),
+                        label: const Text('Añadir al pedido'),
+                      ),
+                    ],
+                    const SizedBox(height: 12),
+                    TextField(
+                      controller: observation,
+                      enabled: !saving,
+                      maxLines: 2,
+                      maxLength: 500,
+                      decoration: const InputDecoration(labelText: 'Observación'),
+                    ),
+                    if (errorText != null)
+                      Padding(
+                        padding: const EdgeInsets.only(top: 9),
+                        child: Text(errorText!, style: TextStyle(
+                          color: Theme.of(dialogContext).colorScheme.error,
+                          fontWeight: FontWeight.w700,
+                        )),
+                      ),
+                  ],
+                ),
+              ),
+              actions: [
+                TextButton(
+                  onPressed: saving ? null : () => Navigator.of(dialogContext).pop(false),
+                  child: const Text('Cancelar'),
+                ),
+                FilledButton.icon(
+                  onPressed: saving ? null : () async {
+                    if (quantities.isEmpty) {
+                      setDialog(() => errorText = 'El pedido debe conservar al menos un producto.');
+                      return;
+                    }
+                    final details = <Map<String, dynamic>>[];
+                    for (final item in quantities.entries) {
+                      final rawQuantity = item.value.text.trim().replaceAll(',', '.');
+                      final quantity = double.tryParse(rawQuantity);
+                      if (!RegExp(r'^\d+(?:\.\d{1,2})?$').hasMatch(rawQuantity) ||
+                          quantity == null || quantity <= 0) {
+                        setDialog(() => errorText = 'Ingresa cantidades positivas con máximo dos decimales.');
+                        return;
+                      }
+                      details.add({'prodId': item.key, 'unidades': quantity});
+                    }
+                    setDialog(() { saving = true; errorText = null; });
+                    try {
+                      await ref.read(apiClientProvider).put<Object?>(
+                        '/api/v1/pedidos-compra/' + id.toString() + '/detalles',
+                        {
+                          'sucuId': branchId,
+                          'observacion': observation.text.trim(),
+                          'destinoId': order['destinoId'],
+                          'detalles': details,
+                        },
+                        (json) => json,
+                      );
+                      if (dialogContext.mounted) Navigator.of(dialogContext).pop(true);
+                    } catch (error) {
+                      if (dialogContext.mounted) {
+                        setDialog(() {
+                          saving = false;
+                          errorText = 'No se pudo guardar: ' + error.toString();
+                        });
+                      }
+                    }
+                  },
+                  icon: saving
+                      ? const SizedBox.square(dimension: 15,
+                          child: CircularProgressIndicator(strokeWidth: 2))
+                      : const Icon(Icons.save_outlined),
+                  label: Text(saving ? 'Guardando...' : 'Guardar cambios'),
+                ),
+              ],
+            );
+          },
+        ),
+      );
+      if (saved == true && mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Pedido actualizado. El inventario no cambió.')),
+        );
+        await _reload();
+      }
+    } finally {
+      for (final controller in quantities.values) {
+        controller.dispose();
+      }
+      observation.dispose();
+    }
+  }
+
   Future<void> _receive(Map<String, dynamic> order) async {
     final id = (order['pediId'] as num?)?.toInt();
     if (id == null || _receiving.contains(id)) return;
@@ -175,6 +494,7 @@ class _PedidosCompraPageState extends ConsumerState<PedidosCompraPage> {
     final accepted = await showDialog<bool>(
       context: context,
       builder: (dialogContext) => AlertDialog(
+        scrollable: true,
         title: Text('Recibir pedido #' + id.toString()),
         content: Text(
           'Se registrarán ' +
@@ -235,6 +555,7 @@ class _PedidosCompraPageState extends ConsumerState<PedidosCompraPage> {
     final accepted = await showDialog<bool>(
       context: context,
       builder: (dialogContext) => AlertDialog(
+        scrollable: true,
         title: Text('Eliminar pedido #' + id.toString()),
         content: const Text(
           '¿Confirmas que deseas eliminar este pedido? '
@@ -343,15 +664,17 @@ class _PedidosCompraPageState extends ConsumerState<PedidosCompraPage> {
             }).toList(growable: false);
 
             return AlertDialog(
+        scrollable: true,
               title: Text(
                 current == null
                     ? 'Nuevo proveedor / WhatsApp'
                     : 'Editar proveedor / WhatsApp',
               ),
               content: SizedBox(
-                width: 680,
-                child: ConstrainedBox(
-                  constraints: const BoxConstraints(maxHeight: 680),
+                width: math.min(MediaQuery.sizeOf(context).width * .86, 680.0),
+                child: SingleChildScrollView(
+                  key: const Key('proveedor-dialog-scroll'),
+                  keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
                   child: Column(
                     mainAxisSize: MainAxisSize.min,
                     children: [
@@ -457,7 +780,9 @@ class _PedidosCompraPageState extends ConsumerState<PedidosCompraPage> {
                         },
                       ),
                       const SizedBox(height: 8),
-                      Flexible(
+                      SizedBox(
+                        height: math.min(260.0,
+                            math.max(120.0, MediaQuery.sizeOf(context).height * .31)),
                         child: Container(
                           decoration: BoxDecoration(
                             border: Border.all(color: Theme.of(context).dividerColor),
@@ -646,6 +971,7 @@ class _PedidosCompraPageState extends ConsumerState<PedidosCompraPage> {
     final accepted = await showDialog<bool>(
       context: context,
       builder: (dialogContext) => AlertDialog(
+        scrollable: true,
         title: const Text('Eliminar proveedor'),
         content: Text(
           '¿Eliminar ' +
@@ -789,7 +1115,7 @@ class _PedidosCompraPageState extends ConsumerState<PedidosCompraPage> {
                 Text(
                   widget.providersOnly
                       ? 'Proveedores de pedidos'
-                      : 'Pedidos de compra',
+                      : 'Recepción de pedidos de compra',
                   style: Theme.of(context).textTheme.titleLarge?.copyWith(
                         color: palette.textPrimary,
                         fontWeight: FontWeight.w900,
@@ -1293,6 +1619,28 @@ class _PedidosCompraPageState extends ConsumerState<PedidosCompraPage> {
                   fontSize: 17,
                   fontWeight: FontWeight.w900,
                 ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: [
+              OutlinedButton.icon(
+                onPressed: busy || phone.isEmpty ? null : () => _resendPendingOrder(order),
+                icon: const Icon(Icons.chat_outlined, size: 19),
+                label: const Text('Reenviar por WhatsApp'),
+              ),
+              OutlinedButton.icon(
+                onPressed: busy ? null : () => _editPendingOrder(order),
+                icon: const Icon(Icons.edit_note_rounded, size: 19),
+                label: const Text('Editar productos'),
+              ),
+              OutlinedButton.icon(
+                onPressed: busy ? null : () => _printPendingOrder(order),
+                icon: const Icon(Icons.picture_as_pdf_outlined, size: 19),
+                label: const Text('Imprimir PDF'),
               ),
             ],
           ),

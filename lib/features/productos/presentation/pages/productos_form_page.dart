@@ -461,28 +461,19 @@ class _ProductosFormPageState extends ConsumerState<ProductosFormPage> {
           ),
         ],
       ),
-      navigation: SafeArea(
-        top: false,
-        child: Container(
-          decoration: BoxDecoration(
-            color: palette.background.withOpacity(0.97),
-            border: Border(top: BorderSide(color: palette.cardBorder)),
-          ),
-          padding: const EdgeInsets.fromLTRB(12, 10, 12, 12),
-          child: Center(
-            heightFactor: 1,
-            child: ConstrainedBox(
-              constraints: const BoxConstraints(maxWidth: 1120),
-              child: _NavigationButtons(
-                palette: palette,
-                saving: _saving,
-                currentStep: _currentStep,
-                onPrevious: _currentStep == 0 ? null : () => setState(() => _currentStep--),
-                onNext: _goNext,
-                onSave: () => _confirmAndSave(context, palette),
-              ),
-            ),
-          ),
+      navigation: ProductWizardFooter(
+        surfaceColor: palette.surface,
+        borderColor: palette.cardBorder,
+        shadowColor: palette.cardShadow,
+        child: _NavigationButtons(
+          palette: palette,
+          saving: _saving,
+          currentStep: _currentStep,
+          onPrevious: _currentStep == 0
+              ? null
+              : () => setState(() => _currentStep--),
+          onNext: _goNext,
+          onSave: () => _confirmAndSave(context, palette),
         ),
       ),
     );
@@ -2062,6 +2053,7 @@ class _ProductosFormPageState extends ConsumerState<ProductosFormPage> {
         context: context,
         barrierDismissible: false,
         builder: (dialogContext) => AlertDialog(
+        scrollable: true,
           title: Row(
             children: [
               const Icon(Icons.check_circle_rounded, color: Colors.green),
@@ -2216,6 +2208,7 @@ class _ProductosFormPageState extends ConsumerState<ProductosFormPage> {
     return showDialog<bool>(
       context: context,
       builder: (_) => AlertDialog(
+        scrollable: true,
         title: Text(title),
         content: Form(
           key: formKey,
@@ -3204,12 +3197,37 @@ class _NavigationButtons extends StatelessWidget {
         );
 
         if (compact) {
-          return Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [next, const SizedBox(height: 10), previous],
+          // Una columna de dos botones quitaba demasiado alto útil al
+          // formulario y se amontonaba sobre la navegación inferior.
+          // En teléfonos estrechos «Anterior» se representa con su icono;
+          // el tooltip mantiene el texto para accesibilidad.
+          final backLabel = constraints.maxWidth < 420 ? '' : 'Anterior';
+          final compactPrevious = _WizardActionButton(
+            palette: palette,
+            outlined: true,
+            enabled: !saving && onPrevious != null,
+            icon: Icons.arrow_back_rounded,
+            label: backLabel,
+            onPressed: onPrevious,
+          );
+          return Row(
+            children: [
+              SizedBox(
+                width: backLabel.isEmpty ? 52 : 126,
+                child: compactPrevious,
+              ),
+              const SizedBox(width: 8),
+              Expanded(child: next),
+            ],
           );
         }
-        return Row(children: [Expanded(child: previous), const SizedBox(width: 12), Expanded(child: next)]);
+        return Row(
+          children: [
+            Expanded(child: previous),
+            const SizedBox(width: 12),
+            Expanded(child: next),
+          ],
+        );
       },
     );
   }
@@ -3242,14 +3260,16 @@ class _WizardActionButton extends StatelessWidget {
         loading
             ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2))
             : Icon(icon, size: 19),
-        const SizedBox(width: 8),
-        Flexible(
-          child: Text(
-            label,
-            overflow: TextOverflow.ellipsis,
-            style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 13.5),
+        if (label.isNotEmpty) ...[
+          const SizedBox(width: 8),
+          Flexible(
+            child: Text(
+              label,
+              overflow: TextOverflow.ellipsis,
+              style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 13.5),
+            ),
           ),
-        ),
+        ],
       ],
     );
 
@@ -3257,14 +3277,17 @@ class _WizardActionButton extends StatelessWidget {
     if (outlined) {
       return SizedBox(
         height: 48,
-        child: OutlinedButton(
-          onPressed: enabled ? onPressed : null,
-          style: OutlinedButton.styleFrom(
-            foregroundColor: palette.primary,
-            side: BorderSide(color: palette.cardBorder),
-            shape: shape,
+        child: Tooltip(
+          message: label.isEmpty ? 'Anterior' : label,
+          child: OutlinedButton(
+            onPressed: enabled ? onPressed : null,
+            style: OutlinedButton.styleFrom(
+              foregroundColor: palette.primary,
+              side: BorderSide(color: palette.cardBorder),
+              shape: shape,
+            ),
+            child: child,
           ),
-          child: child,
         ),
       );
     }

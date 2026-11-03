@@ -1388,6 +1388,7 @@ class _PaymentSplitDialogState extends State<_PaymentSplitDialog> {
     });
     final matched = (amount - widget.total).abs() < .005;
     return AlertDialog(
+      scrollable: true,
       title: Text('Editar pagos · Cuenta #${widget.accountId}'),
       content: SizedBox(
         width: 540,

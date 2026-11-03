@@ -791,6 +791,7 @@ class _EmpresasListPageState extends ConsumerState<EmpresasListPage> {
     final accepted = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
+        scrollable: true,
         title: const Text('Inactivar empresa'),
         content: Text('¿Deseas inactivar ${_text(company.empreNombreComercial)}? Esta acción puede afectar el acceso de sus usuarios.'),
         actions: [

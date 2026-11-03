@@ -438,6 +438,7 @@ class _EmpresasFormPageState extends ConsumerState<EmpresasFormPage> {
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (dialogContext) => AlertDialog(
+        scrollable: true,
         title: const Text('Eliminar sucursal'),
         content: Text('¿Deseas eliminar ${sucursal.sucuNombre}?'),
         actions: [
@@ -1442,6 +1443,7 @@ class _SucursalDialogState extends State<_SucursalDialog> {
   @override
   Widget build(BuildContext context) {
     return AlertDialog(
+        scrollable: true,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(28)),
       title: Text(widget.sucursal == null ? 'Agregar sucursal' : 'Modificar sucursal', style: const TextStyle(fontWeight: FontWeight.w900)),
       content: SizedBox(

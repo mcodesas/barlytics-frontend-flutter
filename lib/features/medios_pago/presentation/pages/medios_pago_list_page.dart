@@ -9,6 +9,7 @@ import 'package:go_router/go_router.dart';
 import '../../../../app/theme/app_control_metrics.dart';
 import '../../../../app/theme/app_palette.dart';
 import '../../../../core/providers/core_providers.dart';
+import '../../../../core/branch/branch_scope_provider.dart';
 import '../../../../core/utils/input_constraints.dart';
 import '../../../../core/widgets/tech_background.dart';
 import '../../../sucursales/data/models/sucursales_response_model.dart';
@@ -63,9 +64,14 @@ class _MediosPagoListPageState extends ConsumerState<MediosPagoListPage> {
       final branches = response.data ?? const <SucursalesResponseModel>[];
       final enabled = branches.where((item) => item.sucuEstado == 1 && item.sucuId != null).toList(growable: false);
       final usable = enabled.isNotEmpty ? enabled : branches.where((item) => item.sucuId != null).toList(growable: false);
+      // Al reabrir la pantalla, mostrar la sucursal activa del encabezado.
+      // La primera sucursal alfabética puede tener medios de pago sin QR.
+      final activeBranchId = ref.read(branchScopeProvider).activeBranchId;
       final selected = _branchId != null && usable.any((item) => item.sucuId == _branchId)
           ? _branchId
-          : (usable.isEmpty ? null : usable.first.sucuId);
+          : activeBranchId != null && usable.any((item) => item.sucuId == activeBranchId)
+              ? activeBranchId
+              : (usable.isEmpty ? null : usable.first.sucuId);
       if (!mounted) return;
       setState(() {
         _branches = usable;
@@ -118,7 +124,7 @@ class _MediosPagoListPageState extends ConsumerState<MediosPagoListPage> {
     await _loadMethods(value);
   }
 
-  Future<void> _updateMethod(
+  Future<bool> _updateMethod(
     MediosPagoResponseModel method, {
     int? status,
     String? qr,
@@ -126,7 +132,7 @@ class _MediosPagoListPageState extends ConsumerState<MediosPagoListPage> {
   }) async {
     final branchId = _branchId;
     final methodId = method.mepaId;
-    if (branchId == null || methodId == null || _saving.contains(methodId)) return;
+    if (branchId == null || methodId == null || _saving.contains(methodId)) return false;
     setState(() => _saving.add(methodId));
     try {
       final body = <String, dynamic>{
@@ -141,12 +147,26 @@ class _MediosPagoListPageState extends ConsumerState<MediosPagoListPage> {
         (json) => MediosPagoResponseModel.fromJson(Map<String, dynamic>.from(json as Map)),
       );
       final updated = response.data;
-      if (!mounted || updated == null || branchId != _branchId) return;
+      if (!mounted || updated == null || branchId != _branchId) return false;
+      // Confirmar contra el GET persistido: una respuesta PUT exitosa por sí
+      // sola no garantiza que el QR vuelva a aparecer tras reabrir el módulo.
+      final verification = await ref.read(apiClientProvider).get<MediosPagoResponseModel>(
+        '/api/v1/mediospago/sucursal/$branchId/$methodId',
+        (json) => MediosPagoResponseModel.fromJson(Map<String, dynamic>.from(json as Map)),
+      );
+      final persisted = verification.data;
+      if (!mounted || branchId != _branchId || persisted == null) return false;
+      if (sendQr && (persisted.mepaQr ?? '').trim() != (qr ?? '').trim()) {
+        _showMessage('El servidor no confirmó la persistencia del QR. Vuelve a intentar.', error: true);
+        return false;
+      }
       setState(() {
-        _methods = _methods.map((item) => item.mepaId == methodId ? updated : item).toList(growable: false);
+        _methods = _methods.map((item) => item.mepaId == methodId ? persisted : item).toList(growable: false);
       });
+      return true;
     } catch (error) {
       if (mounted) _showMessage(_message(error), error: true);
+      return false;
     } finally {
       if (mounted) setState(() => _saving.remove(methodId));
     }
@@ -176,15 +196,15 @@ class _MediosPagoListPageState extends ConsumerState<MediosPagoListPage> {
       'gif' => 'image/gif',
       _ => 'image/png',
     };
-    await _updateMethod(method, qr: 'data:$mime;base64,${base64Encode(bytes)}', sendQr: true);
-    if (mounted) _showMessage('QR actualizado');
+    final saved = await _updateMethod(method, qr: 'data:$mime;base64,${base64Encode(bytes)}', sendQr: true);
+    if (mounted && saved) _showMessage('QR guardado y verificado en esta sucursal');
   }
 
   Future<void> _removeQr(MediosPagoResponseModel method) async {
     final confirmed = await _confirmRemoveQr(method.mepaNombre ?? 'este medio');
     if (!confirmed) return;
-    await _updateMethod(method, qr: '', sendQr: true);
-    if (mounted) _showMessage('QR eliminado');
+    final saved = await _updateMethod(method, qr: '', sendQr: true);
+    if (mounted && saved) _showMessage('QR eliminado');
   }
 
   Future<bool> _confirmRemoveQr(String name) async {
@@ -263,7 +283,14 @@ class _MediosPagoListPageState extends ConsumerState<MediosPagoListPage> {
         elevation: 0,
         backgroundColor: Colors.transparent,
         insetPadding: const EdgeInsets.all(24),
-        child: Container(
+        child: ConstrainedBox(
+          constraints: BoxConstraints(
+            maxHeight: MediaQuery.sizeOf(context).height * .75,
+            maxWidth: 460,
+          ),
+          child: SingleChildScrollView(
+            key: const Key('medio-pago-qr-dialog-scroll'),
+            child: Container(
           constraints: const BoxConstraints(maxWidth: 460),
           padding: const EdgeInsets.all(20),
           decoration: BoxDecoration(
@@ -309,6 +336,8 @@ class _MediosPagoListPageState extends ConsumerState<MediosPagoListPage> {
                 label: const Text('Reemplazar QR'),
               ),
             ],
+          ),
+        ),
           ),
         ),
       ),

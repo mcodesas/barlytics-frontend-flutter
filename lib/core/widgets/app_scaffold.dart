@@ -471,6 +471,7 @@ class _AppScaffoldState extends ConsumerState<AppScaffold> {
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (dialogContext) => AlertDialog(
+        scrollable: true,
         title: const Text('Cerrar sesión'),
         content: const Text('¿Deseas salir de BarLytics en este dispositivo?'),
         actions: [
@@ -521,6 +522,9 @@ String _resolveCurrentPageTitle(
     '/home': 'Inicio',
     '/profile': 'Mi perfil',
     '/dashboard': 'Dashboard',
+    '/tesoreria': 'Tesorería · Saldos por medio',
+    '/agenda_deportiva': 'Agenda deportiva y noticias',
+    '/menu_digital': 'Menú digital',
     '/reportes': 'Reportes',
     '/reporte_resumen_ejecutivo': 'Resumen ejecutivo',
     '/reporte_ventas_fecha': 'Ventas por fecha',
@@ -789,7 +793,11 @@ class _PageTopBar extends ConsumerWidget {
     final showRichHeader = subtitle != null || eyebrow != null || statusText != null || leadingContentIcon != null;
     final barHeight = heightFor(dense);
     final displayTitle = compact && title == 'Historial de ventas' ? 'Historial' : title;
-    final showLeadingIcon = leadingContentIcon != null && !(compact && title == 'Historial de ventas');
+    // El encabezado web no debe cortar el nombre del menú cuando existen
+    // varios selectores de rol y sucursal en pantallas intermedias.
+    final showLeadingIcon = leadingContentIcon != null &&
+        !(compact && title == 'Historial de ventas') &&
+        !(compactSelectors && title == 'Menú digital');
 
     return Container(
       height: barHeight,
@@ -980,7 +988,10 @@ void _showContextHelp(BuildContext context, WidgetRef ref) {
     builder: (dialogContext) => AlertDialog(
       title: Text(guide.title),
       content: ConstrainedBox(
-        constraints: const BoxConstraints(maxWidth: 440),
+        constraints: BoxConstraints(
+          maxWidth: 440,
+          maxHeight: MediaQuery.sizeOf(dialogContext).height * .60,
+        ),
         child: SingleChildScrollView(
           child: Column(
             mainAxisSize: MainAxisSize.min,
@@ -3544,10 +3555,15 @@ class _ManagerBottomNavigation extends ConsumerWidget {
     final allBottomGroups = _buildBottomGroups(menuItems);
     final visibleGroups = allBottomGroups.take(3).toList(growable: false);
 
-    var selectedIndex = 0;
+    // 'Más' solamente representa destinos autorizados que no estén visibles.
+    var selectedIndex = currentPath == '/home' ? 0 : -1;
     if (currentPath != '/home') {
       final groupIndex = visibleGroups.indexWhere((group) => group.containsPath(currentPath));
-      selectedIndex = groupIndex >= 0 ? groupIndex + 1 : visibleGroups.length + 1;
+      if (groupIndex >= 0) {
+        selectedIndex = groupIndex + 1;
+      } else if (mostSpecificMenuPath(currentPath, menuItems.map((item) => item.path)) != null || currentPath == '/profile') {
+        selectedIndex = visibleGroups.length + 1;
+      }
     }
 
     return Container(
@@ -3564,11 +3580,11 @@ class _ManagerBottomNavigation extends ConsumerWidget {
       child: SafeArea(
         top: false,
         child: BottomNavigationBar(
-          currentIndex: selectedIndex,
+          currentIndex: selectedIndex < 0 ? 0 : selectedIndex,
           type: BottomNavigationBarType.fixed,
           backgroundColor: Colors.transparent,
           elevation: 0,
-          selectedItemColor: palette.secondary,
+          selectedItemColor: selectedIndex < 0 ? palette.textSecondary : palette.secondary,
           unselectedItemColor: palette.textSecondary.withOpacity(0.86),
           selectedFontSize: compact ? 10 : 11.5,
           unselectedFontSize: compact ? 9.5 : 11,
@@ -4229,10 +4245,22 @@ class _AuthorizedMenuGroupsState extends State<_AuthorizedMenuGroups> {
 
   @override
   Widget build(BuildContext context) {
+    final path = _currentPath();
+    if (path != _lastPath) {
+      _lastPath = path;
+      _expandedCode = _selectedGroupCode(_buildGroups(), path);
+    }
+
     if (widget.preserveExactOrder) {
       final orderedItems = widget.items
           .where((item) => item.path.trim().isNotEmpty && item.path != '/home')
-          .toList(growable: false);
+          .toList(growable: true);
+      final activePath = mostSpecificMenuPath(path, orderedItems.map((item) => item.path));
+      final activeIndex = orderedItems.indexWhere((item) => item.path == activePath);
+      if (activeIndex > 0) {
+        final active = orderedItems.removeAt(activeIndex);
+        orderedItems.insert(0, active);
+      }
       if (orderedItems.isEmpty) return const SizedBox.shrink();
       return Column(
         children: [
@@ -4287,10 +4315,24 @@ class _AuthorizedMenuGroupsState extends State<_AuthorizedMenuGroups> {
       ));
     }
 
+    final selectedPath = mostSpecificMenuPath(
+      _currentPath(), widget.items.map((item) => item.path),
+    );
     groups.sort((a, b) {
+      // Priorizar el grupo que contiene la ruta actualmente abierta.
+      final aSelected = a.items.any((item) => item.path == selectedPath);
+      final bSelected = b.items.any((item) => item.path == selectedPath);
+      if (aSelected != bSelected) return aSelected ? -1 : 1;
       final order = a.order.compareTo(b.order);
       return order != 0 ? order : a.name.toLowerCase().compareTo(b.name.toLowerCase());
     });
+    for (final group in groups) {
+      final selectedIndex = group.items.indexWhere((item) => item.path == selectedPath);
+      if (selectedIndex > 0) {
+        final selectedItem = group.items.removeAt(selectedIndex);
+        group.items.insert(0, selectedItem);
+      }
+    }
     return groups;
   }
 
@@ -4435,7 +4477,7 @@ class _AuthorizedMenuGroupsState extends State<_AuthorizedMenuGroups> {
 
   String _currentPath() {
     try {
-      return GoRouterState.of(context).uri.path;
+      return GoRouter.of(context).routerDelegate.currentConfiguration.uri.path;
     } catch (_) {
       return '';
     }
@@ -4449,9 +4491,11 @@ class _AuthorizedMenuGroupsState extends State<_AuthorizedMenuGroups> {
   }
 
   bool _groupContainsPath(_MenuGroupData group, String path) {
-    return group.items.any((item) =>
-        item.path.startsWith('/') &&
-        (path == item.path || (item.path != '/home' && path.startsWith('${item.path}/'))));
+    final selected = mostSpecificMenuPath(
+      path,
+      widget.items.map((item) => item.path),
+    );
+    return selected != null && group.items.any((item) => item.path == selected);
   }
 }
 
@@ -4616,7 +4660,13 @@ class _NavTile extends ConsumerWidget {
     final visual = ModuleVisuals.byKey(keyName);
     final appPalette = palette ?? appPalettes.first;
     final pathNow = _currentPath(context);
-    final selected = pathNow == path || (path != '/home' && pathNow.startsWith('$path/'));
+    // Priorizar la ruta hija más específica del menú autorizado.
+    final authorized = ref.watch(userMenuProvider).valueOrNull ?? const <UserMenuItem>[];
+    final selectedPath = mostSpecificMenuPath(
+      pathNow,
+      <String>['/home', ...authorized.map((item) => item.path)],
+    );
+    final selected = selectedPath == path;
     final foreground = dark ? Colors.white : appPalette.textPrimary;
     final selectedForeground = _selectedMenuForeground(appPalette);
 
@@ -4691,7 +4741,9 @@ class _NavTile extends ConsumerWidget {
 
   String _currentPath(BuildContext context) {
     try {
-      return GoRouterState.of(context).uri.path;
+      // El menú vive fuera del árbol del widget de la ruta. Leer la
+      // configuración real del router evita resaltar el Inicio anterior.
+      return GoRouter.of(context).routerDelegate.currentConfiguration.uri.path;
     } catch (_) {
       return '';
     }

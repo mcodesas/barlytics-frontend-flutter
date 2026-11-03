@@ -263,14 +263,18 @@ class _MarcasListPageState extends ConsumerState<MarcasListPage> {
             elevation: 0,
             backgroundColor: Colors.transparent,
             child: Container(
-              constraints: const BoxConstraints(maxWidth: 440),
+              constraints: BoxConstraints(
+                maxWidth: 440,
+                maxHeight: MediaQuery.sizeOf(context).height * .82,
+              ),
               padding: const EdgeInsets.all(22),
               decoration: BoxDecoration(
                 color: palette.surface,
                 borderRadius: BorderRadius.circular(palette.radius(26)),
                 boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.28), blurRadius: 30, offset: const Offset(0, 12))],
               ),
-              child: Column(
+              child: SingleChildScrollView(
+                child: Column(
                 mainAxisSize: MainAxisSize.min,
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
@@ -312,6 +316,7 @@ class _MarcasListPageState extends ConsumerState<MarcasListPage> {
                     ],
                   ),
                 ],
+                ),
               ),
             ),
           ),

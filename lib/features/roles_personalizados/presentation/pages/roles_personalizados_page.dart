@@ -224,14 +224,17 @@ class _RolesPersonalizadosPageState extends ConsumerState<RolesPersonalizadosPag
       barrierColor: Colors.black54,
       builder: (context) {
         final media = MediaQuery.of(context);
-        final availableHeight = math.max(
-          320.0,
-          media.size.height - media.padding.top - media.viewInsets.bottom,
-        ).toDouble();
-        final height = math.min(
-          availableHeight,
-          math.max(560.0, availableHeight * 0.94),
-        ).toDouble();
+        // El teclado puede dejar menos de 320 px disponibles en móviles.
+        // Nunca forzar una altura mínima superior al área realmente visible.
+        final availableHeight = (media.size.height -
+                media.padding.top -
+                media.padding.bottom -
+                media.viewInsets.bottom)
+            .clamp(0.0, double.infinity)
+            .toDouble();
+        final height = availableHeight > 560.0
+            ? availableHeight * 0.94
+            : availableHeight;
         return AnimatedPadding(
           duration: const Duration(milliseconds: 180),
           curve: Curves.easeOut,
@@ -287,6 +290,7 @@ class _RolesPersonalizadosPageState extends ConsumerState<RolesPersonalizadosPag
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (dialog) => AlertDialog(
+        scrollable: true,
         title: const Text('Usar roles estándar'),
         content: const Text(
           'Puedes empezar con los permisos estándar de Cajero, Mesero, Inventario y Gerente. '

@@ -445,6 +445,7 @@ class _PreciosListPageState extends ConsumerState<PreciosListPage> {
       final discard = await showDialog<bool>(
         context: context,
         builder: (dialogContext) => AlertDialog(
+        scrollable: true,
           title: const Text('Cambiar de sucursal'),
           content: const Text(
             'Hay precios modificados sin guardar. Al cambiar de sucursal se descartarán esos cambios.',

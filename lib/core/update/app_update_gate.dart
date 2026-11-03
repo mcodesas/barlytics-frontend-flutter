@@ -155,6 +155,7 @@ class _AppUpdateDialogState extends State<_AppUpdateDialog> {
     return PopScope(
       canPop: !release.mandatory && !_updating,
       child: AlertDialog(
+        scrollable: true,
         constraints: const BoxConstraints(maxWidth: 520),
         icon: const Icon(Icons.system_update_alt_rounded, size: 42),
         title: const Text('Nueva versión disponible'),

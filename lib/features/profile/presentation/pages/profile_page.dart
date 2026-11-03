@@ -426,8 +426,12 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
               insetPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 24),
               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(26)),
               child: ConstrainedBox(
-                constraints: const BoxConstraints(maxWidth: 470),
-                child: Padding(
+                constraints: BoxConstraints(
+                  maxWidth: 470,
+                  maxHeight: MediaQuery.sizeOf(dialogContext).height * .82,
+                ),
+                child: SingleChildScrollView(
+                  child: Padding(
                   padding: const EdgeInsets.all(22),
                   child: Column(
                     mainAxisSize: MainAxisSize.min,
@@ -536,25 +540,25 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
                         ),
                       ],
                       const SizedBox(height: 22),
-                      Row(
+                      OverflowBar(
+                        alignment: MainAxisAlignment.end,
+                        overflowAlignment: OverflowBarAlignment.end,
+                        spacing: 10,
+                        overflowSpacing: 8,
                         children: [
-                          Expanded(
-                            child: OutlinedButton(
-                              onPressed: () => Navigator.of(dialogContext).pop(false),
-                              child: const Text('Volver'),
-                            ),
+                          OutlinedButton(
+                            onPressed: () => Navigator.of(dialogContext).pop(false),
+                            child: const Text('Volver'),
                           ),
-                          const SizedBox(width: 10),
-                          Expanded(
-                            child: FilledButton.icon(
-                              onPressed: () => Navigator.of(dialogContext).pop(true),
-                              icon: const Icon(Icons.check_rounded),
-                              label: const Text('Confirmar cambio'),
-                            ),
+                          FilledButton.icon(
+                            onPressed: () => Navigator.of(dialogContext).pop(true),
+                            icon: const Icon(Icons.check_rounded),
+                            label: const Text('Confirmar cambio'),
                           ),
                         ],
                       ),
                     ],
+                  ),
                   ),
                 ),
               ),
@@ -607,8 +611,12 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
               insetPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 24),
               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(26)),
               child: ConstrainedBox(
-                constraints: const BoxConstraints(maxWidth: 470),
-                child: Padding(
+                constraints: BoxConstraints(
+                  maxWidth: 470,
+                  maxHeight: MediaQuery.sizeOf(dialogContext).height * .82,
+                ),
+                child: SingleChildScrollView(
+                  child: Padding(
                   padding: const EdgeInsets.all(22),
                   child: Column(
                     mainAxisSize: MainAxisSize.min,
@@ -693,26 +701,26 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
                         ],
                       ),
                       const SizedBox(height: 22),
-                      Row(
+                      OverflowBar(
+                        alignment: MainAxisAlignment.end,
+                        overflowAlignment: OverflowBarAlignment.end,
+                        spacing: 10,
+                        overflowSpacing: 8,
                         children: [
-                          Expanded(
-                            child: OutlinedButton(
-                              onPressed: () => Navigator.of(dialogContext).pop(false),
-                              child: const Text('Mantener suscripción'),
-                            ),
+                          OutlinedButton(
+                            onPressed: () => Navigator.of(dialogContext).pop(false),
+                            child: const Text('Mantener suscripción'),
                           ),
-                          const SizedBox(width: 10),
-                          Expanded(
-                            child: FilledButton.icon(
-                              style: FilledButton.styleFrom(backgroundColor: Colors.red),
-                              onPressed: () => Navigator.of(dialogContext).pop(true),
-                              icon: const Icon(Icons.block_rounded),
-                              label: Text(keepsPaidAccess ? 'Cancelar renovación' : 'Finalizar suscripción'),
-                            ),
+                          FilledButton.icon(
+                            style: FilledButton.styleFrom(backgroundColor: Colors.red),
+                            onPressed: () => Navigator.of(dialogContext).pop(true),
+                            icon: const Icon(Icons.block_rounded),
+                            label: Text(keepsPaidAccess ? 'Cancelar renovación' : 'Finalizar suscripción'),
                           ),
                         ],
                       ),
                     ],
+                  ),
                   ),
                 ),
               ),

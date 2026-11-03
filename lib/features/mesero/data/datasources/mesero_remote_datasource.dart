@@ -336,6 +336,31 @@ class MeseroRemoteDataSource {
     return response.data!;
   }
 
+  Future<MeseroVentaModel> aplicarDescuento({
+    required String alcance,
+    required int id,
+    int? cuentaId,
+    required String tipo,
+    required double valor,
+    String motivo = '',
+  }) async {
+    final path = switch (alcance) {
+      'VENTA' => '/api/v1/mesero/ventas/$id/descuento',
+      'CUENTA' => '/api/v1/mesero/cuentas/$id/descuento',
+      'PRODUCTO' => '/api/v1/mesero/cuentas/$cuentaId/productos/$id/descuento',
+      _ => throw ArgumentError.value(alcance, 'alcance'),
+    };
+    if (alcance == 'PRODUCTO' && cuentaId == null) {
+      throw StateError('Selecciona una cuenta.');
+    }
+    final response = await _apiClient.put<MeseroVentaModel>(
+      path,
+      {'tipo': tipo, 'valor': valor, 'motivo': motivo.trim()},
+      (json) => MeseroVentaModel.fromJson(Map<String, dynamic>.from(json as Map)),
+    );
+    return response.data!;
+  }
+
   Future<MeseroVentaModel> eliminarProductoCuenta({
     required int cuentaId,
     required int detalleId,
@@ -396,6 +421,47 @@ class MeseroRemoteDataSource {
       (json) => MeseroVentaModel.fromJson(Map<String, dynamic>.from(json as Map)),
     );
     return response.data!;
+  }
+
+  /// Anula venta finalizada. No borra el histórico, concilia inventario y caja.
+  Future<Map<String, dynamic>> anularVentaFinalizada(
+      int ventaId, String motivo) async {
+    final response = await _apiClient.post<Map<String, dynamic>>(
+      '/api/v1/mesero/ventas/$ventaId/anular',
+      {'motivo': motivo.trim()},
+      (json) => Map<String, dynamic>.from(json as Map),
+    );
+    return response.data ?? const <String, dynamic>{};
+  }
+
+  /// Revierte una anulación auditable, restaurando la venta original.
+  Future<Map<String, dynamic>> desanularVentaFinalizada(
+      int ventaId, String motivo) async {
+    final response = await _apiClient.post<Map<String, dynamic>>(
+      '/api/v1/mesero/ventas/$ventaId/desanular',
+      {'motivo': motivo.trim()},
+      (json) => Map<String, dynamic>.from(json as Map),
+    );
+    return response.data ?? const <String, dynamic>{};
+  }
+
+  /// Anula la venta original y devuelve nueva venta editable, sin pagos.
+  Future<Map<String, dynamic>> corregirVentaFinalizada(
+      int ventaId, String motivo) async {
+    final response = await _apiClient.post<Map<String, dynamic>>(
+      '/api/v1/mesero/ventas/$ventaId/corregir',
+      {'motivo': motivo.trim()},
+      (json) => Map<String, dynamic>.from(json as Map),
+    );
+    return response.data ?? const <String, dynamic>{};
+  }
+
+  Future<Map<String, dynamic>> auditoriaAnulacionVenta(int ventaId) async {
+    final response = await _apiClient.get<Map<String, dynamic>>(
+      '/api/v1/mesero/ventas/$ventaId/anulacion',
+      (json) => Map<String, dynamic>.from(json as Map),
+    );
+    return response.data ?? const <String, dynamic>{};
   }
 
   Future<MeseroVentaModel> finalizarVenta(int ventaId) async {

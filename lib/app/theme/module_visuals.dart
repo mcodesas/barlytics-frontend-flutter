@@ -75,8 +75,18 @@ class ModuleVisuals {
         return const ModuleVisual(icon: Icons.point_of_sale_rounded, color: Color(0xFF2563EB), description: 'Consumos y ventas por mesa');
       case 'mesero':
         return const ModuleVisual(icon: Icons.room_service_rounded, color: Color(0xFFF59E0B), description: 'Operación rápida de mesas y cuentas');
+      case 'menu_digital':
+        return const ModuleVisual(
+          icon: Icons.menu_book_rounded, color: Color(0xFF14B8A6),
+          description: 'Carta compartible con tienda/libro, paletas, enlace y QR');
       case 'eventos':
         return const ModuleVisual(icon: Icons.event_available_rounded, color: Color(0xFF0D9488), description: 'Eventos, reservas de mesas, pagos y entradas QR');
+      case 'tesoreria':
+        return const ModuleVisual(icon: Icons.account_balance_wallet_rounded,
+            color: Color(0xFF0D9488), description: 'Saldos por medio, movimientos, transferencias y conciliaciones');
+      case 'agenda_deportiva':
+        return const ModuleVisual(icon: Icons.sports_soccer_rounded,
+            color: Color(0xFF0284C7), description: 'Partidos de fútbol y noticias para planear eventos del negocio');
       case 'comandas':
         return const ModuleVisual(icon: Icons.room_service_rounded, color: Color(0xFF0D9488), description: 'Pedidos de cocina y barra por mesa');
       case 'cuentas_venta':

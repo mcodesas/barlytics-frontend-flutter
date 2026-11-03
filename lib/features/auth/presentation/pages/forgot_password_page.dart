@@ -121,6 +121,7 @@ class _ForgotPasswordPageState extends ConsumerState<ForgotPasswordPage> {
       context: context,
       barrierDismissible: false,
       builder: (dialogContext) => AlertDialog(
+        scrollable: true,
         icon: const TechBrandMark(icon: Icons.mark_email_read_rounded),
         title: const Text('Correo enviado'),
         content: Text(

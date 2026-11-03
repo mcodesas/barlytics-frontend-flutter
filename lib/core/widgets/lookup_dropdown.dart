@@ -97,6 +97,7 @@ class LookupDropdown extends StatelessWidget {
             }
 
             return AlertDialog(
+        scrollable: true,
               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(28)),
               titlePadding: const EdgeInsets.fromLTRB(22, 22, 22, 0),
               contentPadding: const EdgeInsets.fromLTRB(22, 16, 22, 0),

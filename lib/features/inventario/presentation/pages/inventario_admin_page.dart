@@ -264,6 +264,7 @@ class _InventarioAdminPageState extends ConsumerState<InventarioAdminPage> {
     final justification = await showDialog<String>(
       context: context,
       builder: (dialogContext) => AlertDialog(
+        scrollable: true,
         title: const Row(children: [
           Icon(Icons.restore_outlined, color: Colors.orangeAccent),
           SizedBox(width: 10),
@@ -364,6 +365,7 @@ class _InventarioAdminPageState extends ConsumerState<InventarioAdminPage> {
     final justification = await showDialog<String>(
       context: context,
       builder: (dialogContext) => AlertDialog(
+        scrollable: true,
         title: const Text('Anular sincronizaciones seleccionadas'),
         content: ConstrainedBox(
           constraints: const BoxConstraints(maxWidth: 480),

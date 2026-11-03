@@ -31,6 +31,9 @@ import '../../../pagos/presentation/pages/pagos_list_page.dart';
 import '../../data/datasources/mesero_remote_datasource.dart';
 import '../../data/models/mesero_models.dart';
 import '../providers/mesero_tab_provider.dart';
+import '../utils/historial_medios_pago.dart';
+import '../widgets/descuento_venta_dialog.dart';
+import '../widgets/venta_historica_actions.dart';
 
 
 bool _ventaEsDirecta(MeseroVentaModel venta) =>
@@ -643,6 +646,9 @@ class _MeseroPageState extends ConsumerState<MeseroPage> {
           total: cuentaActualizada.total,
           propina: cuentaActualizada.propina,
           subtotalProductos: cuentaActualizada.subtotalProductos,
+          descuentoTipo: cuentaActualizada.descuentoTipo,
+          descuentoValor: cuentaActualizada.descuentoValor,
+          descuentoAplicado: cuentaActualizada.descuentoAplicado,
           totalPagado: cuentaActualizada.totalPagado,
           saldoPendiente: cuentaActualizada.saldoPendiente,
           pagada: cuentaActualizada.pagada,
@@ -953,6 +959,24 @@ class _MeseroPageState extends ConsumerState<MeseroPage> {
   Widget build(BuildContext context) {
     final rawSelectedMode = ref.watch(meseroSelectedModeProvider);
 
+    // Cada vez que se vuelve a Cierre de caja/Historial se consulta otra vez
+    // el servidor: pueden existir ventas finalizadas desde otro dispositivo
+    // después de que esta vista cargó su Future original.
+    ref.listen<MeseroPageMode>(meseroSelectedModeProvider, (anterior, nuevo) {
+      if (anterior == nuevo ||
+          (nuevo != MeseroPageMode.cierreCaja &&
+              nuevo != MeseroPageMode.historial)) {
+        return;
+      }
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted || ref.read(meseroSelectedModeProvider) != nuevo) return;
+        if (nuevo == MeseroPageMode.cierreCaja) {
+          setState(() => _cierreCajaFuture = _cargarCierreCaja());
+        } else {
+          setState(() => _historialVentasFuture = _cargarHistorialVentas());
+        }
+      });
+    });
 
     return FutureBuilder<void>(
       future: _future,
@@ -986,7 +1010,13 @@ class _MeseroPageState extends ConsumerState<MeseroPage> {
         }
 
         final content = RefreshIndicator(
-          onRefresh: _reload,
+          // Deslizar para actualizar debe consultar el recurso visible,
+          // no solamente recargar el listado de mesas.
+          onRefresh: selectedMode == MeseroPageMode.cierreCaja
+              ? _reloadCierreCaja
+              : selectedMode == MeseroPageMode.historial
+                  ? _reloadHistorialVentas
+                  : _reload,
           child: _buildScrollableContent(isCajero, selectedMode),
         );
 
@@ -1755,8 +1785,10 @@ class _MeseroPageState extends ConsumerState<MeseroPage> {
         final fechaVenta = _parseFechaVentaHistorial(venta.fecha);
         if (fechaVenta == null || !_esMismoDia(fechaVenta, filtroDia)) return false;
       }
-      if (_historialEstado == 'pagadas' && !_ventaHistorialPagada(venta)) return false;
-      if (_historialEstado == 'pendientes' && _ventaHistorialPagada(venta)) return false;
+      final anulada = const {'ANULADA', 'CANCELADA'}.contains((venta.estado ?? '').toUpperCase());
+      if (_historialEstado == 'anuladas' && !anulada) return false;
+      if (_historialEstado == 'pagadas' && (anulada || !_ventaHistorialPagada(venta))) return false;
+      if (_historialEstado == 'pendientes' && (anulada || _ventaHistorialPagada(venta))) return false;
       return _ventaCoincideBusquedaHistorial(venta, query);
     }).toList(growable: true);
 
@@ -1833,6 +1865,7 @@ class _MeseroPageState extends ConsumerState<MeseroPage> {
               DropdownMenuItem(value: 'todos', child: Text('Todos los estados', maxLines: 1, overflow: TextOverflow.ellipsis)),
               DropdownMenuItem(value: 'pagadas', child: Text('Pagadas', maxLines: 1, overflow: TextOverflow.ellipsis)),
               DropdownMenuItem(value: 'pendientes', child: Text('Con saldo pendiente', maxLines: 1, overflow: TextOverflow.ellipsis)),
+              DropdownMenuItem(value: 'anuladas', child: Text('Anuladas / canceladas', maxLines: 1, overflow: TextOverflow.ellipsis)),
             ],
             onChanged: (value) => setState(() => _historialEstado = value ?? 'todos'),
           );
@@ -1922,11 +1955,16 @@ class _MeseroPageState extends ConsumerState<MeseroPage> {
         // Mantener visibles los controles de fecha incluso si el día no tiene ventas.
         // Así se puede salir del estado vacío seleccionando otro día.
         final ventasFiltradas = _filtrarYOrdenarHistorial(ventas);
-        final totalVendido = ventasFiltradas.fold<double>(0, (sum, venta) => sum + (venta.total ?? 0));
-        final totalPagado = ventasFiltradas.fold<double>(0, (sum, venta) => sum + (venta.totalPagado ?? (venta.pagada == true ? (venta.total ?? 0) : 0)));
-        final saldoPendiente = ventasFiltradas.fold<double>(0, (sum, venta) => sum + (venta.saldoPendiente ?? 0));
-        final propinas = ventasFiltradas.fold<double>(0, (sum, venta) => sum + (venta.propina ?? 0));
-        final double ticketPromedio = ventasFiltradas.isEmpty ? 0.0 : (totalVendido / ventasFiltradas.length).toDouble();
+        // Se conservan las anuladas en el historial pero nunca se suman
+        // como ventas/pagos vigentes en el panel de resultados.
+        final ventasContables = ventasFiltradas.where((v) =>
+            !const {'ANULADA', 'CANCELADA'}.contains((v.estado ?? '').toUpperCase())).toList(growable: false);
+        final mediosPagados = resumirPagosVentas(ventasContables);
+        final totalVendido = ventasContables.fold<double>(0, (sum, venta) => sum + (venta.total ?? 0));
+        final totalPagado = ventasContables.fold<double>(0, (sum, venta) => sum + (venta.totalPagado ?? (venta.pagada == true ? (venta.total ?? 0) : 0)));
+        final saldoPendiente = ventasContables.fold<double>(0, (sum, venta) => sum + (venta.saldoPendiente ?? 0));
+        final propinas = ventasContables.fold<double>(0, (sum, venta) => sum + (venta.propina ?? 0));
+        final double ticketPromedio = ventasContables.isEmpty ? 0.0 : (totalVendido / ventasContables.length).toDouble();
 
         final grupos = <String, ({DateTime? fecha, List<MeseroVentaModel> ventas})>{};
         for (final venta in ventasFiltradas) {
@@ -1961,12 +1999,17 @@ class _MeseroPageState extends ConsumerState<MeseroPage> {
             ),
             const SizedBox(height: 14),
             _HistorialResumenOperacion(
-              ventas: ventasFiltradas.length,
+              ventas: ventasContables.length,
               totalVendido: totalVendido,
               totalPagado: totalPagado,
               saldoPendiente: saldoPendiente,
               propinas: propinas,
               ticketPromedio: ticketPromedio,
+            ),
+            const SizedBox(height: 14),
+            _HistorialMediosPagoResumenPanel(
+              medios: mediosPagados,
+              totalCobrado: totalPagado,
             ),
             const SizedBox(height: 14),
             _buildHistorialFiltrosPanel(totalVentas: ventas.length, ventasMostradas: ventasFiltradas.length),
@@ -1993,14 +2036,17 @@ class _MeseroPageState extends ConsumerState<MeseroPage> {
   }
 
   Future<void> _mostrarDetalleHistorialVenta(MeseroVentaModel venta, {String? comprobanteInicial}) async {
-    await Navigator.of(context, rootNavigator: true).push<void>(
+    final nuevaVentaId = await Navigator.of(context, rootNavigator: true).push<int>(
       MaterialPageRoute(
         fullscreenDialog: false,
         builder: (_) => _DetalleHistorialVentaPage(venta: venta, imprimirAlAbrir: comprobanteInicial == 'imprimir', enviarCorreoAlAbrir: comprobanteInicial == 'correo'),
       ),
     );
-    if (mounted) {
-      await _reloadHistorialVentas();
+    if (!mounted) return;
+    await _reloadHistorialVentas();
+    if (nuevaVentaId != null && mounted) {
+      final borrador = await _dataSource.consultarVenta(nuevaVentaId);
+      if (mounted) await _mostrarVentaDirectaRapida(borrador);
     }
   }
 
@@ -2601,7 +2647,20 @@ class _MeseroPageState extends ConsumerState<MeseroPage> {
             children: [
               LayoutBuilder(
                 builder: (context, constraints) {
-                  final compactHeader = constraints.maxWidth < 620;
+                  final compactHeader = constraints.maxWidth < 1040;
+                  final descuentoVentaButton = OutlinedButton.icon(
+                    onPressed: _processing || venta.ventaId == null ||
+                            venta.cuentas.any((cuenta) => cuenta.pagos.isNotEmpty)
+                        ? null
+                        : () => _aplicarDescuentoPos(
+                            alcance: 'VENTA', id: venta.ventaId!,
+                            titulo: 'Descuento de toda la venta',
+                            subtotal: venta.cuentas.fold<double>(
+                              0, (total, cuenta) => total + (cuenta.subtotalProductos ?? 0)),
+                          ),
+                    icon: const Icon(Icons.percent_rounded),
+                    label: const Text('Descuento de venta'),
+                  );
                   final modificarCuentasButton = FilledButton.tonalIcon(
                     onPressed: _processing || venta.ventaId == null ? null : () => _cambiarNumeroCuentas(venta),
                     icon: const Icon(Icons.groups_2_rounded),
@@ -2628,6 +2687,7 @@ class _MeseroPageState extends ConsumerState<MeseroPage> {
                           crossAxisAlignment: WrapCrossAlignment.center,
                           children: [
                             modificarCuentasButton,
+                            descuentoVentaButton,
                             _TotalPill(total: venta.total),
                           ],
                         ),
@@ -2645,6 +2705,8 @@ class _MeseroPageState extends ConsumerState<MeseroPage> {
                       ),
                       const SizedBox(width: 10),
                       modificarCuentasButton,
+                      const SizedBox(width: 10),
+                      descuentoVentaButton,
                       const SizedBox(width: 10),
                       _TotalPill(total: venta.total),
                     ],
@@ -2704,7 +2766,29 @@ class _MeseroPageState extends ConsumerState<MeseroPage> {
                     return detalleId != null && _detallesCantidadEnProceso.contains(detalleId);
                   },
                   onEliminarProducto: _processing ? null : (producto) => _eliminarProductoCuenta(cuentaSeleccionada!, producto),
+                  onDescuentoProducto: _processing || cuentaSeleccionada.pagos.isNotEmpty
+                      ? null : (producto) => _aplicarDescuentoPos(
+                          alcance: 'PRODUCTO', id: producto.detalleId!,
+                          cuentaId: cuentaSeleccionada!.cuentaId,
+                          titulo: 'Descuento · ${producto.productoNombre ?? 'Producto'}',
+                          subtotal: ((producto.valorUnitario ?? 0) +
+                              (producto.precioAdicionalUnitario ?? 0)) *
+                              (producto.cantidad ?? 0),
+                          tipoActual: producto.descuentoTipo,
+                          valorActual: producto.descuentoValor,
+                        ),
                   onMoverProducto: _processing ? null : (producto) => _moverProductoCuenta(venta, cuentaSeleccionada!, producto),
+                  onDescuentoCuenta: _processing ||
+                          cuentaSeleccionada.cuentaId == null ||
+                          cuentaSeleccionada.pagos.isNotEmpty
+                      ? null : () => _aplicarDescuentoPos(
+                          alcance: 'CUENTA', id: cuentaSeleccionada!.cuentaId!,
+                          cuentaId: cuentaSeleccionada.cuentaId,
+                          titulo: 'Descuento · ${_cuentaNombreVisible(cuentaSeleccionada)}',
+                          subtotal: cuentaSeleccionada.subtotalProductos ?? 0,
+                          tipoActual: cuentaSeleccionada.descuentoTipo,
+                          valorActual: cuentaSeleccionada.descuentoValor,
+                        ),
                   onPagarCuenta: cuentaSeleccionada.cuentaId == null || _processing
                       ? null
                       : () => _pagarCuenta(venta, cuentaSeleccionada!),
@@ -3106,6 +3190,7 @@ class _MeseroPageState extends ConsumerState<MeseroPage> {
     final confirm = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
+        scrollable: true,
         title: Text('Eliminar mesa ${mesa.mesaNumero ?? '-'}'),
         content: const Text('Si la mesa no tiene datos relacionados se eliminará. Si tiene histórico se marcará como inactiva.'),
         actions: [
@@ -3241,6 +3326,7 @@ class _MeseroPageState extends ConsumerState<MeseroPage> {
     final confirm = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
+        scrollable: true,
         title: const Text('Eliminar venta directa'),
         content: Text(
           'Se eliminará la Venta directa #$ventaId${productos > 0 ? ' y sus $productos productos pendientes' : ''}.\n\n'
@@ -3418,6 +3504,33 @@ class _MeseroPageState extends ConsumerState<MeseroPage> {
           _actualizarProductoVentaDirectaRapida(cuentaDirecta, producto, cantidad),
       onEliminarProductoExistente: (producto) =>
           _eliminarProductoVentaDirectaRapida(cuentaDirecta, producto),
+      onDescuentoCuentaExistente: () async {
+        final cuentaActual = _ventaActiva?.cuentas.firstWhere(
+          (item) => item.cuentaId == cuentaDirecta.cuentaId,
+          orElse: () => cuentaDirecta,
+        ) ?? cuentaDirecta;
+        await _aplicarDescuentoPos(
+          alcance: 'CUENTA', id: cuentaDirecta.cuentaId!,
+          cuentaId: cuentaDirecta.cuentaId,
+          titulo: 'Descuento de venta directa',
+          subtotal: cuentaActual.subtotalProductos ?? 0,
+          tipoActual: cuentaActual.descuentoTipo,
+          valorActual: cuentaActual.descuentoValor,
+        );
+        return _ventaActiva;
+      },
+      onDescuentoProductoExistente: (producto) async {
+        await _aplicarDescuentoPos(
+          alcance: 'PRODUCTO', id: producto.detalleId!,
+          cuentaId: cuentaDirecta.cuentaId,
+          titulo: 'Descuento · ${producto.productoNombre ?? 'Producto'}',
+          subtotal: ((producto.valorUnitario ?? 0) +
+              (producto.precioAdicionalUnitario ?? 0)) * (producto.cantidad ?? 0),
+          tipoActual: producto.descuentoTipo,
+          valorActual: producto.descuentoValor,
+        );
+        return _ventaActiva;
+      },
     );
 
     final size = MediaQuery.sizeOf(context);
@@ -3897,6 +4010,7 @@ class _MeseroPageState extends ConsumerState<MeseroPage> {
     final confirm = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
+        scrollable: true,
         title: const Text('Liberar mesa'),
         content: const Text(
           'Esta venta no tiene productos registrados. Se eliminarán las cuentas vacías, se cancelará la venta abierta y la mesa quedará disponible.',
@@ -3946,6 +4060,7 @@ class _MeseroPageState extends ConsumerState<MeseroPage> {
     final confirm = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
+        scrollable: true,
         title: const Text('Eliminar pago registrado'),
         content: Text(
           'Se eliminará el pago de ${CurrencyUtils.format(pago.valor)} realizado con '
@@ -4126,6 +4241,7 @@ class _MeseroPageState extends ConsumerState<MeseroPage> {
     final opcion = await showDialog<String>(
       context: context,
       builder: (ctx) => AlertDialog(
+        scrollable: true,
         title: const Text('Cobro registrado'),
         content: const Text('¿Deseas entregar un comprobante al cliente?'),
         actions: [
@@ -4167,6 +4283,7 @@ class _MeseroPageState extends ConsumerState<MeseroPage> {
     final email = await showDialog<String>(
       context: context,
       builder: (ctx) => AlertDialog(
+        scrollable: true,
         title: const Text('¿Enviar comprobante al cliente?'),
         content: Column(
           mainAxisSize: MainAxisSize.min,
@@ -4227,6 +4344,7 @@ class _MeseroPageState extends ConsumerState<MeseroPage> {
     final confirm = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
+        scrollable: true,
         title: const Text('Finalizar venta'),
         content: Text(
           _esVentaDirecta(venta)
@@ -4289,6 +4407,7 @@ class _MeseroPageState extends ConsumerState<MeseroPage> {
     final confirm = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
+        scrollable: true,
         title: const Text('Eliminar cuenta vacía'),
         content: Text(
           'Se eliminará $nombreCuenta.\n\n'
@@ -4432,6 +4551,44 @@ class _MeseroPageState extends ConsumerState<MeseroPage> {
     }
   }
 
+  Future<void> _aplicarDescuentoPos({
+    required String alcance,
+    required int id,
+    int? cuentaId,
+    required String titulo,
+    required double subtotal,
+    String? tipoActual,
+    double? valorActual,
+  }) async {
+    if (_processing || subtotal <= 0) return;
+    final input = await mostrarDialogoDescuento(context, titulo: titulo,
+      base: subtotal, tipoInicial: tipoActual, valorInicial: valorActual);
+    if (input == null || !mounted) return;
+    setState(() => _processing = true);
+    try {
+      final response = await _dataSource.aplicarDescuento(
+        alcance: alcance, id: id, cuentaId: cuentaId,
+        tipo: input.tipo, valor: input.valor, motivo: input.motivo);
+      if (!mounted) return;
+      final updated = _preservarOrdenProductosVenta(_ventaActiva, response);
+      final future = _load();
+      setState(() {
+        _ventaActiva = updated;
+        _mostrandoDetalleVenta = true;
+        _cuentaSeleccionadaId = cuentaId ?? _cuentaSeleccionadaId;
+        _future = future;
+      });
+      await future;
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Descuento actualizado correctamente.')));
+    } catch (error) {
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('No se pudo aplicar el descuento: $error')));
+    } finally {
+      if (mounted) setState(() => _processing = false);
+    }
+  }
+
   Future<void> _eliminarProductoCuenta(MeseroCuentaModel cuenta, MeseroDetalleProductoModel producto) async {
     final cuentaId = cuenta.cuentaId;
     final detalleId = producto.detalleId;
@@ -4448,6 +4605,7 @@ class _MeseroPageState extends ConsumerState<MeseroPage> {
     final confirm = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
+        scrollable: true,
         title: const Text('Eliminar producto no pagado'),
         content: Text(
           'Se eliminará de ${_cuentaEtiquetaVisible(cuenta)} el producto:\n\n'
@@ -4688,6 +4846,7 @@ class _MeseroPageState extends ConsumerState<MeseroPage> {
         builder: (context) {
           final palette = ref.watch(selectedAppPaletteProvider);
           return AlertDialog(
+        scrollable: true,
             backgroundColor: palette.surface,
             title: Text('Registrar base inicial', style: TextStyle(color: palette.textPrimary, fontWeight: FontWeight.w900)),
             content: SizedBox(
@@ -4917,6 +5076,7 @@ class _MeseroPageState extends ConsumerState<MeseroPage> {
     final confirmado = await showDialog<bool>(
       context: context,
       builder: (dialogContext) => AlertDialog(
+        scrollable: true,
         title: const Text('Anular salida de caja'),
         content: Text(
           'Se anulará ${salida.descripcion ?? 'esta salida'} por '
@@ -5664,6 +5824,7 @@ class _MeseroPageState extends ConsumerState<MeseroPage> {
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (dialogContext) => AlertDialog(
+        scrollable: true,
         title: const Text('Conciliar ventas posteriores'),
         content: SizedBox(
           width: 470,
@@ -5803,6 +5964,19 @@ class _MeseroPageState extends ConsumerState<MeseroPage> {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             header,
+            if (cerrado && cierre.ventasPendientes.isEmpty) ...[
+              const SizedBox(height: 10),
+              Text(
+                'No hay ventas posteriores pendientes de conciliación. '
+                'Al registrar otra venta finalizada de este día, actualiza '
+                'el cierre para revisarla sin modificar el arqueo original.',
+                style: TextStyle(
+                  color: palette.textSecondary,
+                  fontSize: 12,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+            ],
             if (cerrado && cierre.ventasPendientes.isNotEmpty) ...[
               const SizedBox(height: 14),
               _CierreSection(
@@ -6028,6 +6202,9 @@ class _SalidaCajaDialogState extends State<_SalidaCajaDialog> {
 
   bool get _canSubmit {
     if (_valor <= 0) return false;
+    if (_tipo == 'GASTO_TURNO') {
+      return _medioPagoId != null && _descripcionController.text.trim().isNotEmpty;
+    }
     if (_tipo == 'PAGO_GASTO') {
       return _gastoId != null && _medioPagoId != null;
     }
@@ -6061,9 +6238,12 @@ class _SalidaCajaDialogState extends State<_SalidaCajaDialog> {
     final size = MediaQuery.sizeOf(context);
     final mobile = size.width < 700;
     final dialogWidth = mobile ? size.width - 20 : 680.0;
-    final dialogHeight = mobile
-        ? size.height - 20
-        : (size.height - 48 < 720 ? size.height - 48 : 720.0);
+    // Dialog descuenta el teclado y los márgenes: no debe forzar una altura
+    // mayor que el espacio visible cuando se editan campos desde el móvil.
+    final visibleHeight = size.height - MediaQuery.viewInsetsOf(context).bottom;
+    final dialogHeight = (visibleHeight - (mobile ? 36.0 : 48.0))
+        .clamp(0.0, mobile ? visibleHeight : 720.0)
+        .toDouble();
 
     return SizedBox(
       width: dialogWidth,
@@ -6459,15 +6639,32 @@ class _SalidaCajaDialogState extends State<_SalidaCajaDialog> {
           ),
         ),
         const SizedBox(height: 12),
+        DropdownButtonFormField<int>(
+          value: _medioPagoId,
+          isExpanded: true,
+          decoration: const InputDecoration(
+            labelText: 'Medio con el que se pagó *',
+            helperText: 'Efectivo, Nequi, Daviplata, transferencia u otro.',
+            prefixIcon: Icon(Icons.account_balance_wallet_outlined),
+          ),
+          items: widget.mediosPago
+              .where((medio) => medio.medioPagoId != null)
+              .map((medio) => DropdownMenuItem<int>(
+                    value: medio.medioPagoId,
+                    child: Text(medio.nombre ?? 'Medio',
+                      overflow: TextOverflow.ellipsis),
+                  ))
+              .toList(growable: false),
+          onChanged: (value) => setState(() => _medioPagoId = value),
+        ),
+        const SizedBox(height: 12),
         amountField(),
       ],
     );
   }
 
   Widget _buildImpact(AppPalette palette) {
-    final affects = _tipo == 'GASTO_TURNO' ||
-        ((_tipo == 'PAGO_PEDIDO' || _tipo == 'PAGO_GASTO') &&
-            _esMedioPagoEfectivo(_medioPago));
+    final affects = _esMedioPagoEfectivo(_medioPago);
     final medio = _medioPago;
     final text = _tipo == 'PAGO_PEDIDO'
         ? medio == null
@@ -6485,7 +6682,13 @@ class _SalidaCajaDialogState extends State<_SalidaCajaDialog> {
                 : _esMedioPagoEfectivo(medio)
                     ? 'Registra el pago y sí afecta el efectivo del turno.'
                     : 'Registra el pago por ${medio.nombre ?? 'giro electrónico'}, pero no modifica el efectivo del cierre.'
-            : 'Descuenta efectivo y se suma a gastos variables del periodo.';
+            : medio == null
+                ? 'Selecciona el medio de pago del gasto.'
+                : _esMedioPagoEfectivo(medio)
+                    ? 'Descuenta efectivo y se suma a gastos variables del periodo.'
+                    : 'Registra gasto del turno por ' +
+                        (medio.nombre ?? 'medio digital') +
+                        ', sin descontarlo del efectivo físico.';
     return Container(
       padding: const EdgeInsets.all(13),
       decoration: BoxDecoration(
@@ -10940,6 +11143,10 @@ class _VentaInfoPanel extends ConsumerWidget {
     final ventaDirecta = (venta.tipoVenta ?? '').trim().toUpperCase() == 'DIRECTA' || venta.mesaId == null;
     final cuentas = venta.cuentas.length;
     final productos = venta.cuentas.fold<int>(0, (sum, cuenta) => sum + cuenta.productos.length);
+    final descuentoTotal = venta.cuentas.fold<double>(0, (sum, cuenta) =>
+      sum + (cuenta.descuentoAplicado ?? 0) +
+        cuenta.productos.fold<double>(0, (subtotal, p) =>
+          subtotal + (p.descuentoAplicado ?? 0)));
     final saldo = venta.saldoPendiente ?? 0;
     final pagada = venta.pagada == true || saldo <= 0.009;
 
@@ -11065,6 +11272,12 @@ class _VentaInfoPanel extends ConsumerWidget {
                     height: 1,
                   ),
                 ),
+                if (descuentoTotal > 0) ...[
+                  const SizedBox(height: 7),
+                  Text('Descuentos: -' + CurrencyUtils.format(descuentoTotal),
+                    style: TextStyle(color: palette.secondary,
+                        fontSize: 12, fontWeight: FontWeight.w900)),
+                ],
                 const SizedBox(height: 8),
                 _ResumenEstadoVentaChip(
                   label: pagada ? 'Pagada' : 'Saldo pendiente',
@@ -11642,6 +11855,8 @@ class _CuentaDetalle extends ConsumerWidget {
     this.onSumarCantidadProducto,
     this.productoActualizando,
     this.onEliminarProducto,
+    this.onDescuentoProducto,
+    this.onDescuentoCuenta,
     this.onMoverProducto,
     this.onPagarCuenta,
     this.onEliminarPago,
@@ -11656,6 +11871,8 @@ class _CuentaDetalle extends ConsumerWidget {
   final ValueChanged<MeseroDetalleProductoModel>? onSumarCantidadProducto;
   final bool Function(MeseroDetalleProductoModel)? productoActualizando;
   final ValueChanged<MeseroDetalleProductoModel>? onEliminarProducto;
+  final ValueChanged<MeseroDetalleProductoModel>? onDescuentoProducto;
+  final VoidCallback? onDescuentoCuenta;
   final ValueChanged<MeseroDetalleProductoModel>? onMoverProducto;
   final VoidCallback? onPagarCuenta;
   final ValueChanged<MeseroPagoModel>? onEliminarPago;
@@ -11695,6 +11912,7 @@ class _CuentaDetalle extends ConsumerWidget {
               onSumarCantidadProducto: onSumarCantidadProducto,
               productoActualizando: productoActualizando,
               onEliminarProducto: onEliminarProducto,
+              onDescuentoProducto: onDescuentoProducto,
               onMoverProducto: onMoverProducto,
             ),
     );
@@ -11730,6 +11948,7 @@ class _CuentaDetalle extends ConsumerWidget {
       nombreCuenta: nombreCuenta,
       cuenta: cuenta,
       onPagarCuenta: onPagarCuenta,
+      onDescuentoCuenta: onDescuentoCuenta,
       onFinalizarVenta: onFinalizarVenta,
       onLimpiarVentaSinConsumos: onLimpiarVentaSinConsumos,
     );
@@ -11997,6 +12216,7 @@ class _PosCheckoutPanel extends ConsumerWidget {
     required this.nombreCuenta,
     required this.cuenta,
     this.onPagarCuenta,
+    this.onDescuentoCuenta,
     this.onFinalizarVenta,
     this.onLimpiarVentaSinConsumos,
   });
@@ -12004,6 +12224,7 @@ class _PosCheckoutPanel extends ConsumerWidget {
   final String nombreCuenta;
   final MeseroCuentaModel cuenta;
   final VoidCallback? onPagarCuenta;
+  final VoidCallback? onDescuentoCuenta;
   final VoidCallback? onFinalizarVenta;
   final VoidCallback? onLimpiarVentaSinConsumos;
 
@@ -12045,6 +12266,11 @@ class _PosCheckoutPanel extends ConsumerWidget {
             label: 'Productos',
             value: CurrencyUtils.format(cuenta.subtotalProductos),
           ),
+          if ((cuenta.descuentoAplicado ?? 0) > 0)
+            _PosAmountRow(
+              label: 'Descuento aplicado',
+              value: '- ' + CurrencyUtils.format(cuenta.descuentoAplicado),
+            ),
           _PosAmountRow(
             label: 'Propina',
             value: CurrencyUtils.format(cuenta.propina),
@@ -12052,6 +12278,13 @@ class _PosCheckoutPanel extends ConsumerWidget {
           _PosAmountRow(
             label: 'Pagado',
             value: CurrencyUtils.format(cuenta.totalPagado),
+          ),
+          const SizedBox(height: 9),
+          OutlinedButton.icon(
+            onPressed: onDescuentoCuenta,
+            icon: const Icon(Icons.percent_rounded),
+            label: Text((cuenta.descuentoAplicado ?? 0) > 0
+                ? 'Modificar descuento' : 'Descuento de cuenta'),
           ),
           Padding(
             padding: const EdgeInsets.symmetric(vertical: 10),
@@ -12654,6 +12887,7 @@ class _CuentaProductosTabla extends ConsumerWidget {
     this.onSumarCantidadProducto,
     this.productoActualizando,
     this.onEliminarProducto,
+    this.onDescuentoProducto,
     this.onMoverProducto,
   });
 
@@ -12665,6 +12899,7 @@ class _CuentaProductosTabla extends ConsumerWidget {
   final ValueChanged<MeseroDetalleProductoModel>? onSumarCantidadProducto;
   final bool Function(MeseroDetalleProductoModel)? productoActualizando;
   final ValueChanged<MeseroDetalleProductoModel>? onEliminarProducto;
+  final ValueChanged<MeseroDetalleProductoModel>? onDescuentoProducto;
   final ValueChanged<MeseroDetalleProductoModel>? onMoverProducto;
 
   @override
@@ -12697,6 +12932,7 @@ class _CuentaProductosTabla extends ConsumerWidget {
                       onSumarCantidadProducto: onSumarCantidadProducto,
                       actualizando: productoActualizando?.call(producto) ?? false,
                       onEliminarProducto: onEliminarProducto,
+                      onDescuentoProducto: onDescuentoProducto,
                       onMoverProducto: onMoverProducto,
                     ),
                   ),
@@ -12786,6 +13022,19 @@ class _CuentaProductosTabla extends ConsumerWidget {
                     overflow: TextOverflow.ellipsis,
                     style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 12.5),
                   ),
+                ),
+                IconButton(
+                  tooltip: (producto.descuentoAplicado ?? 0) > 0
+                      ? 'Modificar descuento: ${CurrencyUtils.format(producto.descuentoAplicado)}'
+                      : 'Descuento de producto',
+                  visualDensity: VisualDensity.compact,
+                  constraints: const BoxConstraints(minWidth: 30, minHeight: 30),
+                  padding: EdgeInsets.zero,
+                  iconSize: 17,
+                  onPressed: pagado || actualizando || cuenta.pagos.isNotEmpty
+                      ? null : onDescuentoProducto == null
+                          ? null : () => onDescuentoProducto!(producto),
+                  icon: const Icon(Icons.percent_rounded),
                 ),
               ],
             ),
@@ -12923,6 +13172,19 @@ class _CuentaProductosTabla extends ConsumerWidget {
                     overflow: TextOverflow.ellipsis,
                     style: const TextStyle(fontWeight: FontWeight.w800),
                   ),
+                ),
+                IconButton(
+                  tooltip: (producto.descuentoAplicado ?? 0) > 0
+                      ? 'Modificar descuento: ${CurrencyUtils.format(producto.descuentoAplicado)}'
+                      : 'Descuento de producto',
+                  visualDensity: VisualDensity.compact,
+                  constraints: const BoxConstraints(minWidth: 30, minHeight: 30),
+                  padding: EdgeInsets.zero,
+                  iconSize: 18,
+                  onPressed: pagado || actualizando || cuenta.pagos.isNotEmpty
+                      ? null : onDescuentoProducto == null
+                          ? null : () => onDescuentoProducto!(producto),
+                  icon: const Icon(Icons.percent_rounded),
                 ),
               ],
             ),
@@ -13290,6 +13552,7 @@ class _CuentaProductoMobileRow extends StatelessWidget {
     this.onSumarCantidadProducto,
     this.actualizando = false,
     this.onEliminarProducto,
+    this.onDescuentoProducto,
     this.onMoverProducto,
   });
 
@@ -13300,6 +13563,7 @@ class _CuentaProductoMobileRow extends StatelessWidget {
   final ValueChanged<MeseroDetalleProductoModel>? onSumarCantidadProducto;
   final bool actualizando;
   final ValueChanged<MeseroDetalleProductoModel>? onEliminarProducto;
+  final ValueChanged<MeseroDetalleProductoModel>? onDescuentoProducto;
   final ValueChanged<MeseroDetalleProductoModel>? onMoverProducto;
 
   @override
@@ -13356,6 +13620,20 @@ class _CuentaProductoMobileRow extends StatelessWidget {
               const SizedBox(width: 8),
               Expanded(child: _MobileMiniMetric(label: 'Total', value: CurrencyUtils.format(producto.subtotal), alignEnd: true)),
             ],
+          ),
+          if ((producto.descuentoAplicado ?? 0) > 0)
+            Padding(
+              padding: const EdgeInsets.only(top: 8),
+              child: Text('Descuento: -' + CurrencyUtils.format(producto.descuentoAplicado),
+                style: TextStyle(color: palette.secondary, fontWeight: FontWeight.w800)),
+            ),
+          const SizedBox(height: 10),
+          OutlinedButton.icon(
+            onPressed: pagado || actualizando ? null
+                : onDescuentoProducto == null ? null : () => onDescuentoProducto!(producto),
+            icon: const Icon(Icons.percent_rounded),
+            label: Text((producto.descuentoAplicado ?? 0) > 0
+                ? 'Modificar descuento' : 'Descuento de este producto'),
           ),
           const SizedBox(height: 10),
           LayoutBuilder(
@@ -15378,6 +15656,7 @@ class _DetalleHistorialVentaPageState extends ConsumerState<_DetalleHistorialVen
     final email = await showDialog<String>(
       context: context,
       builder: (dialogContext) => AlertDialog(
+        scrollable: true,
         title: const Text('Enviar comprobante por correo'),
         content: TextField(
           controller: controller,
@@ -15567,6 +15846,20 @@ class _DetalleHistorialVentaPageState extends ConsumerState<_DetalleHistorialVen
                               unidades: totalUnidades,
                               pagos: pagos.length,
                             ),
+                            const SizedBox(height: 12),
+                            VentaHistoricaActions(
+                              ventaId: venta.ventaId ?? 0,
+                              estado: venta.estado ?? '',
+                              autorizado: autorizadoCorregirPagos,
+                              totalPagado: venta.totalPagado ?? 0,
+                              onAnulada: () async {
+                                final actualizada = await _dataSource.consultarVenta(venta.ventaId!);
+                                if (mounted) setState(() => _venta = actualizada);
+                              },
+                              onCorregida: (nuevaVentaId) async {
+                                if (mounted) Navigator.of(context).pop(nuevaVentaId);
+                              },
+                            ),
                             const SizedBox(height: 16),
                             LayoutBuilder(
                               builder: (context, constraints) {
@@ -15683,7 +15976,11 @@ class _HistorialVentaCabecera extends ConsumerWidget {
                         style: Theme.of(context).textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.w900, color: palette.textPrimary),
                       ),
                     ),
-                    _HistorialEstadoChip(pagada: pagada),
+                    const {'ANULADA', 'CANCELADA'}.contains(
+                            (venta.estado ?? '').toUpperCase())
+                        ? Chip(label: Text((venta.estado ?? '').toUpperCase()),
+                            avatar: const Icon(Icons.block_rounded, size: 16))
+                        : _HistorialEstadoChip(pagada: pagada),
                   ],
                 ),
                 const SizedBox(height: 4),
@@ -16544,6 +16841,150 @@ class _HistorialResumenMetrica extends ConsumerWidget {
   }
 }
 
+class _HistorialPagoMedioChip extends ConsumerWidget {
+  const _HistorialPagoMedioChip({required this.medio});
+
+  final HistorialMedioPagoResumen medio;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final palette = ref.watch(selectedAppPaletteProvider);
+    final importe = CurrencyUtils.format(medio.total);
+    return Tooltip(
+      message: '${medio.nombre}: $importe',
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: 310),
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+          decoration: BoxDecoration(
+            color: palette.secondary.withOpacity(0.09),
+            border: Border.all(color: palette.secondary.withOpacity(0.18)),
+            borderRadius: BorderRadius.circular(12),
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(Icons.account_balance_wallet_outlined,
+                  size: 15, color: palette.secondary),
+              const SizedBox(width: 6),
+              Flexible(
+                child: Text(
+                  medio.nombre,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    color: palette.textPrimary,
+                    fontWeight: FontWeight.w800,
+                    fontSize: 11.5,
+                  ),
+                ),
+              ),
+              const SizedBox(width: 8),
+              Text(
+                importe,
+                style: TextStyle(
+                  color: palette.secondary,
+                  fontWeight: FontWeight.w900,
+                  fontSize: 11.5,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _HistorialMediosPagoResumenPanel extends ConsumerWidget {
+  const _HistorialMediosPagoResumenPanel({
+    required this.medios,
+    required this.totalCobrado,
+  });
+
+  final List<HistorialMedioPagoResumen> medios;
+  final double totalCobrado;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final palette = ref.watch(selectedAppPaletteProvider);
+    final desglosado = totalPagosRegistrados(medios);
+    final faltante = totalCobrado - desglosado;
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: palette.surface.withOpacity(palette.darkBackground ? 0.90 : 0.98),
+        borderRadius: BorderRadius.circular(22),
+        border: Border.all(color: palette.cardBorder),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(Icons.account_balance_wallet_outlined,
+                  color: palette.secondary),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  'Pagos realizados por medio de pago',
+                  style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                    fontWeight: FontWeight.w900,
+                    color: palette.textPrimary,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 5),
+          Text(
+            'Importes de las ventas que coinciden con los filtros actuales.',
+            style: TextStyle(
+              color: palette.textSecondary,
+              fontWeight: FontWeight.w700,
+              fontSize: 11.5,
+            ),
+          ),
+          const SizedBox(height: 12),
+          if (medios.isEmpty)
+            Text(
+              totalCobrado > 0.009
+                  ? 'El historial no devolvió el detalle de los medios de pago para estas ventas.'
+                  : 'No hay pagos registrados en las ventas seleccionadas.',
+              style: TextStyle(
+                color: palette.textSecondary,
+                fontWeight: FontWeight.w700,
+              ),
+            )
+          else
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: [
+                for (final medio in medios)
+                  _HistorialPagoMedioChip(medio: medio),
+              ],
+            ),
+          if (medios.isNotEmpty && faltante.abs() > 0.01) ...[
+            const SizedBox(height: 9),
+            Text(
+              'Aviso: la suma por medios (${CurrencyUtils.format(desglosado)}) '
+              'no coincide con el total cobrado del historial '
+              '(${CurrencyUtils.format(totalCobrado)}). Revisa el detalle de las ventas.',
+              style: TextStyle(
+                color: palette.textSecondary,
+                fontSize: 11,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
 class _HistorialDiaSection extends ConsumerWidget {
   const _HistorialDiaSection({
     required this.titulo,
@@ -16562,8 +17003,13 @@ class _HistorialDiaSection extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final palette = ref.watch(selectedAppPaletteProvider);
-    final total = ventas.fold<double>(0, (sum, venta) => sum + (venta.total ?? 0));
-    final pagadas = ventas.where((venta) => venta.pagada == true || (venta.saldoPendiente ?? 0) <= 0.009).length;
+    final total = ventas.where((venta) =>
+        !const {'ANULADA', 'CANCELADA'}.contains((venta.estado ?? '').toUpperCase()))
+        .fold<double>(0, (sum, venta) => sum + (venta.total ?? 0));
+    final vigentes = ventas.where((venta) =>
+        !const {'ANULADA', 'CANCELADA'}.contains((venta.estado ?? '').toUpperCase())).toList(growable: false);
+    final pagadas = vigentes.where((venta) => venta.pagada == true
+        || (venta.saldoPendiente ?? 0) <= 0.009).length;
 
     return Container(
       width: double.infinity,
@@ -16683,13 +17129,10 @@ class _HistorialVentaListadoRow extends ConsumerWidget {
     final ventaDirecta = (venta.tipoVenta ?? '').trim().toUpperCase() == 'DIRECTA' || venta.mesaId == null;
     final productos = venta.cuentas.fold<int>(0, (sum, cuenta) => sum + cuenta.productos.length);
     final pagos = venta.cuentas.fold<int>(0, (sum, cuenta) => sum + cuenta.pagos.length);
-    final medios = venta.cuentas
-        .expand((cuenta) => cuenta.pagos)
-        .map((pago) => (pago.medioPagoNombre ?? '').trim())
-        .where((value) => value.isNotEmpty)
-        .toSet()
-        .take(2)
-        .join(', ');
+    final anulada = const {'ANULADA', 'CANCELADA'}.contains((venta.estado ?? '').toUpperCase());
+    final medios = anulada
+        ? const <HistorialMedioPagoResumen>[]
+        : resumirPagosVentas(<MeseroVentaModel>[venta]);
 
     return Material(
       color: Colors.transparent,
@@ -16730,7 +17173,10 @@ class _HistorialVentaListadoRow extends ConsumerWidget {
                         Row(
                           children: [
                             Expanded(child: Text('Venta #${venta.ventaId ?? '-'}', style: TextStyle(color: palette.textPrimary, fontWeight: FontWeight.w900, fontSize: 15))),
-                            _HistorialEstadoChip(pagada: pagada),
+                            anulada
+                                ? Chip(label: Text((venta.estado ?? '').toUpperCase()),
+                                    avatar: const Icon(Icons.block_rounded, size: 16))
+                                : _HistorialEstadoChip(pagada: pagada),
                           ],
                         ),
                         const SizedBox(height: 3),
@@ -16748,9 +17194,29 @@ class _HistorialVentaListadoRow extends ConsumerWidget {
                             _HistorialDatoInline(icon: Icons.call_split_rounded, label: 'Cuentas', value: '${venta.cuentas.length}'),
                             _HistorialDatoInline(icon: Icons.inventory_2_rounded, label: 'Productos', value: '$productos'),
                             _HistorialDatoInline(icon: Icons.payments_rounded, label: 'Pagos', value: '$pagos'),
-                            if (medios.isNotEmpty) _HistorialDatoInline(icon: Icons.account_balance_wallet_rounded, label: 'Medios', value: medios),
+
                           ],
                         ),
+                        if (medios.isNotEmpty) ...[
+                          const SizedBox(height: 10),
+                          Text(
+                            'Pagos por medio',
+                            style: TextStyle(
+                              color: palette.textSecondary,
+                              fontWeight: FontWeight.w800,
+                              fontSize: 11,
+                            ),
+                          ),
+                          const SizedBox(height: 6),
+                          Wrap(
+                            spacing: 7,
+                            runSpacing: 7,
+                            children: [
+                              for (final medio in medios)
+                                _HistorialPagoMedioChip(medio: medio),
+                            ],
+                          ),
+                        ],
                       ],
                     ),
                   ),
@@ -16800,7 +17266,9 @@ class _HistorialMesaSection extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final palette = ref.watch(selectedAppPaletteProvider);
-    final total = ventas.fold<double>(0, (sum, venta) => sum + (venta.total ?? 0));
+    final total = ventas.where((venta) =>
+        !const {'ANULADA', 'CANCELADA'}.contains((venta.estado ?? '').toUpperCase()))
+        .fold<double>(0, (sum, venta) => sum + (venta.total ?? 0));
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.all(18),
@@ -17031,7 +17499,13 @@ class _SeleccionCuentaPagoDialog extends ConsumerWidget {
     return Dialog(
       backgroundColor: Colors.transparent,
       insetPadding: const EdgeInsets.all(20),
-      child: TechGlassPanel(
+      child: ConstrainedBox(
+        constraints: BoxConstraints(
+          maxHeight: MediaQuery.sizeOf(context).height * .78,
+        ),
+        child: SingleChildScrollView(
+          key: const Key('seleccion-cuenta-pago-scroll'),
+          child: TechGlassPanel(
         maxWidth: 520,
         padding: const EdgeInsets.all(22),
         dark: true,
@@ -17061,6 +17535,8 @@ class _SeleccionCuentaPagoDialog extends ConsumerWidget {
               child: TextButton(onPressed: () => Navigator.of(context).pop(), child: const Text('Cancelar')),
             ),
           ],
+        ),
+          ),
         ),
       ),
     );
@@ -18579,6 +19055,7 @@ class _PagarCuentaDialogState extends State<_PagarCuentaDialog> {
   Future<void> _mostrarOtrosMediosPago(_PagoFormRowData pago, List<MeseroMedioPagoModel> otros) async {
     final seleccionado = await showModalBottomSheet<int>(
       context: context,
+      isScrollControlled: true,
       useSafeArea: true,
       backgroundColor: Colors.transparent,
       builder: (sheetContext) {
@@ -19681,6 +20158,7 @@ class _MoverProductoCuentaDialogState extends State<_MoverProductoCuentaDialog> 
         1;
 
     return AlertDialog(
+        scrollable: true,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
       title: const Text('Pasar producto a otra cuenta'),
       content: SizedBox(
@@ -19841,6 +20319,7 @@ class _SumarCantidadProductoDialogState extends ConsumerState<_SumarCantidadProd
     final valorUnitario = producto.valorUnitario ?? 0;
 
     return AlertDialog(
+        scrollable: true,
       backgroundColor: palette.surface.withOpacity(palette.darkBackground ? 0.97 : 0.995),
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(24),
@@ -19995,6 +20474,8 @@ class _AgregarProductosOverlayPanel extends ConsumerStatefulWidget {
     this.onConfirmarRapido,
     this.onActualizarProductoExistente,
     this.onEliminarProductoExistente,
+    this.onDescuentoCuentaExistente,
+    this.onDescuentoProductoExistente,
   });
 
   final MeseroCuentaModel cuenta;
@@ -20006,6 +20487,8 @@ class _AgregarProductosOverlayPanel extends ConsumerStatefulWidget {
   final Future<bool> Function(Map<int, double> cantidades, bool cobrar)? onConfirmarRapido;
   final Future<MeseroVentaModel?> Function(MeseroDetalleProductoModel producto, double cantidad)? onActualizarProductoExistente;
   final Future<MeseroVentaModel?> Function(MeseroDetalleProductoModel producto)? onEliminarProductoExistente;
+  final Future<MeseroVentaModel?> Function()? onDescuentoCuentaExistente;
+  final Future<MeseroVentaModel?> Function(MeseroDetalleProductoModel producto)? onDescuentoProductoExistente;
 
   @override
   ConsumerState<_AgregarProductosOverlayPanel> createState() => _AgregarProductosOverlayPanelState();
@@ -20164,6 +20647,7 @@ class _AgregarProductosOverlayPanelState extends ConsumerState<_AgregarProductos
     final confirmar = await showDialog<bool>(
       context: context,
       builder: (dialogContext) => AlertDialog(
+        scrollable: true,
         title: const Text('Quitar producto de la venta'),
         content: Text('¿Quieres eliminar $nombre de esta venta directa?'),
         actions: [
@@ -20186,6 +20670,39 @@ class _AgregarProductosOverlayPanelState extends ConsumerState<_AgregarProductos
       if (cuenta != null) _cuentaActual = cuenta;
       _guardando = false;
     });
+  }
+
+  Future<void> _descontarVentaDirecta() async {
+    if (_guardando || _cantidades.isNotEmpty ||
+        _cuentaActual.pagos.isNotEmpty || widget.onDescuentoCuentaExistente == null) return;
+    setState(() => _guardando = true);
+    try {
+      final response = await widget.onDescuentoCuentaExistente!();
+      if (!mounted) return;
+      final latest = response == null ? null : _cuentaDesdeVenta(response);
+      setState(() {
+        if (latest != null) _cuentaActual = latest;
+      });
+    } finally {
+      if (mounted) setState(() => _guardando = false);
+    }
+  }
+
+  Future<void> _descontarProductoExistente(MeseroDetalleProductoModel producto) async {
+    if (_guardando || _cantidades.isNotEmpty || producto.pagado == true ||
+        _cuentaActual.pagos.isNotEmpty ||
+        widget.onDescuentoProductoExistente == null) return;
+    setState(() => _guardando = true);
+    try {
+      final response = await widget.onDescuentoProductoExistente!(producto);
+      if (!mounted) return;
+      final latest = response == null ? null : _cuentaDesdeVenta(response);
+      setState(() {
+        if (latest != null) _cuentaActual = latest;
+      });
+    } finally {
+      if (mounted) setState(() => _guardando = false);
+    }
   }
 
   Future<void> _confirmar({bool cobrar = false}) async {
@@ -20343,6 +20860,21 @@ class _AgregarProductosOverlayPanelState extends ConsumerState<_AgregarProductos
               ),
             ],
           ),
+          if (existentes.isNotEmpty && widget.onDescuentoCuentaExistente != null) ...[
+            const SizedBox(height: 9),
+            OutlinedButton.icon(
+              onPressed: !_guardando && _cantidades.isEmpty &&
+                      _cuentaActual.pagos.isEmpty
+                  ? _descontarVentaDirecta : null,
+              icon: const Icon(Icons.percent_rounded),
+              label: Text((_cuentaActual.descuentoAplicado ?? 0) > 0
+                  ? 'Modificar descuento de venta'
+                  : 'Aplicar descuento a la venta'),
+            ),
+            if (_cantidades.isNotEmpty)
+              Text('Guarda primero los productos nuevos para poder aplicar un descuento.',
+                style: TextStyle(color: palette.textSecondary, fontSize: 11)),
+          ],
           if (tieneItems) ...[
             const SizedBox(height: 10),
             SizedBox(
@@ -20632,6 +21164,9 @@ class _AgregarProductosOverlayPanelState extends ConsumerState<_AgregarProductos
                       children: [
                         Text('Unidad ${CurrencyUtils.format(unitario)}', style: TextStyle(color: palette.textSecondary, fontWeight: FontWeight.w700, fontSize: 11)),
                         Text('Subtotal ${CurrencyUtils.format(total)}', style: TextStyle(color: palette.secondary, fontWeight: FontWeight.w900, fontSize: 11)),
+                        if ((producto.descuentoAplicado ?? 0) > 0)
+                          Text('Descuento -${CurrencyUtils.format(producto.descuentoAplicado)}',
+                            style: TextStyle(color: palette.secondary, fontWeight: FontWeight.w900, fontSize: 11)),
                       ],
                     ),
                     if (personalizacion.isNotEmpty) ...[
@@ -20701,6 +21236,14 @@ class _AgregarProductosOverlayPanelState extends ConsumerState<_AgregarProductos
                   enabled: !pagado && !_guardando,
                   primary: true,
                   onTap: () => _actualizarProductoExistente(producto, cantidad + 1),
+                ),
+                const SizedBox(width: 3),
+                _PanelQuantityButton(
+                  icon: Icons.percent_rounded,
+                  enabled: !pagado && !_guardando && _cantidades.isEmpty &&
+                      _cuentaActual.pagos.isEmpty &&
+                      widget.onDescuentoProductoExistente != null,
+                  onTap: () => _descontarProductoExistente(producto),
                 ),
                 const SizedBox(width: 3),
                 _PanelQuantityButton(
@@ -21253,6 +21796,7 @@ class _CantidadProductoExistenteDialogState extends ConsumerState<_CantidadProdu
         ((widget.producto.valorUnitario ?? 0) +
             (widget.producto.precioAdicionalUnitario ?? 0));
     return AlertDialog(
+        scrollable: true,
       backgroundColor: palette.surface.withOpacity(0.99),
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24), side: BorderSide(color: palette.secondary.withOpacity(0.18))),
       title: Text('Modificar cantidad', style: TextStyle(color: palette.textPrimary, fontWeight: FontWeight.w900)),
@@ -21440,6 +21984,7 @@ class _CantidadAgregarDesdePanelDialogState extends ConsumerState<_CantidadAgreg
     final palette = ref.watch(selectedAppPaletteProvider);
     final cantidad = _parse() ?? 0;
     return AlertDialog(
+        scrollable: true,
       backgroundColor: palette.surface.withOpacity(0.99),
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(26),
@@ -21595,6 +22140,7 @@ class _PersonalizarProductoDialogState
         .toList(growable: false);
 
     return AlertDialog(
+        scrollable: true,
       backgroundColor:
           palette.surface.withOpacity(palette.darkBackground ? .98 : 1),
       shape: RoundedRectangleBorder(
@@ -21892,6 +22438,7 @@ class _CantidadProductoDialogState extends ConsumerState<_CantidadProductoDialog
     final total = cantidad * precio;
 
     return AlertDialog(
+        scrollable: true,
       backgroundColor: palette.surface.withOpacity(palette.darkBackground ? 0.96 : 0.99),
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24), side: BorderSide(color: palette.cardBorder)),
       title: Text('Cantidad del producto', style: TextStyle(color: palette.textPrimary, fontWeight: FontWeight.w900)),
@@ -22051,12 +22598,13 @@ class _CrearMesaDialogState extends State<_CrearMesaDialog> {
   @override
   Widget build(BuildContext context) {
     final mediaWidth = MediaQuery.sizeOf(context).width;
-    final dialogWidth = mediaWidth < 560 ? mediaWidth - 48 : 460.0;
+    final dialogWidth = (mediaWidth - 128).clamp(0.0, 460.0).toDouble();
 
     return AlertDialog(
+        scrollable: true,
       title: const Text('Agregar mesa'),
       content: SizedBox(
-        width: dialogWidth > 280 ? dialogWidth : 280.0,
+        width: dialogWidth,
         child: Form(
           key: _formKey,
           child: SingleChildScrollView(
@@ -22151,12 +22699,13 @@ class _EditarMesaDialogState extends State<_EditarMesaDialog> {
   @override
   Widget build(BuildContext context) {
     final mediaWidth = MediaQuery.sizeOf(context).width;
-    final dialogWidth = mediaWidth < 560 ? mediaWidth - 48 : 460.0;
+    final dialogWidth = (mediaWidth - 128).clamp(0.0, 460.0).toDouble();
 
     return AlertDialog(
+        scrollable: true,
       title: Text('Editar mesa ${widget.mesa.mesaNumero ?? '-'}'),
       content: SizedBox(
-        width: dialogWidth > 280 ? dialogWidth : 280.0,
+        width: dialogWidth,
         child: Form(
           key: _formKey,
           child: SingleChildScrollView(
@@ -22212,6 +22761,7 @@ class _EditarMesaDialogState extends State<_EditarMesaDialog> {
               final confirm = await showDialog<bool>(
                 context: context,
                 builder: (context) => AlertDialog(
+        scrollable: true,
                   title: const Text('Eliminar o inactivar mesa'),
                   content: const Text('Si la mesa no tiene datos relacionados se eliminará. Si tiene histórico se marcará como inactiva.'),
                   actions: [
@@ -22460,6 +23010,7 @@ class _AjustarCuentasDialogState extends State<_AjustarCuentasDialog> {
 
   @override
   Widget build(BuildContext context) => AlertDialog(
+        scrollable: true,
         title: const Text('Modificar cuentas'),
         content: SizedBox(
           width: 520,
@@ -22606,6 +23157,7 @@ class _AbrirVentaDialogState extends State<_AbrirVentaDialog> {
     _syncDescriptionControllers(totalCuentas);
 
     return AlertDialog(
+        scrollable: true,
       title: Text('Mesa ${widget.mesa.mesaNumero ?? '-'}'),
       content: SizedBox(
         width: 520,

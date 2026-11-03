@@ -8,6 +8,8 @@ import '../../features/auth/presentation/pages/reset_password_page.dart';
 import '../../features/public/presentation/pages/public_landing_page.dart';
 import '../../features/eventos/presentation/evento_publico_page.dart';
 import '../../features/eventos/presentation/eventos_admin_page.dart';
+import '../../features/menu_digital/presentation/menu_digital_admin_page.dart';
+import '../../features/menu_digital/presentation/menu_digital_public_page.dart';
 import '../../features/public/presentation/pages/public_registration_page.dart';
 import '../../features/subscription/presentation/pages/subscription_activation_page.dart';
 import '../../features/subscription/presentation/pages/subscription_plans_admin_page.dart';
@@ -19,6 +21,8 @@ import '../../features/auth/presentation/providers/auth_provider.dart';
 import '../../features/navigation/presentation/providers/active_role_provider.dart';
 import '../../features/home/presentation/pages/home_page.dart';
 import '../../features/dashboard/presentation/pages/dashboard_page.dart';
+import '../../features/tesoreria/presentation/pages/tesoreria_page.dart';
+import '../../features/deportes/presentation/pages/agenda_deportiva_page.dart';
 import '../../features/admin_support/presentation/pages/admin_support_page.dart';
 import '../../features/admin_support/presentation/pages/admin_data_explorer_page.dart';
 import '../../features/admin_support/presentation/pages/admin_audit_page.dart';
@@ -148,7 +152,8 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       // comienza en autenticación y solo conserva las rutas públicas
       // necesarias para acceso, registro y recuperación de contraseña.
       final isEventPublic = path.startsWith('/evento/');
-      final isPublicRoute = isEventPublic || (kIsWeb && isLandingRoute) ||
+      final isDigitalMenuPublic = path.startsWith('/carta/');
+      final isPublicRoute = isEventPublic || isDigitalMenuPublic || (kIsWeb && isLandingRoute) ||
           isRegistrationRoute ||
           isLoginRoute ||
           isForgotPasswordRoute ||
@@ -165,7 +170,7 @@ final appRouterProvider = Provider<GoRouter>((ref) {
 
       // Una sesión con suscripción pendiente solo puede entrar a la activación.
       // El backend aplica la misma regla para impedir saltarse este control.
-      if (authState.authenticated && !authState.subscriptionActive && !isEventPublic && !isSubscriptionRoute && !isResetPasswordRoute && !(isSubscriptionPlanAdminRoute && isGlobalAdmin)) {
+      if (authState.authenticated && !authState.subscriptionActive && !isEventPublic && !isDigitalMenuPublic && !isSubscriptionRoute && !isResetPasswordRoute && !(isSubscriptionPlanAdminRoute && isGlobalAdmin)) {
         return '/activar-suscripcion';
       }
 
@@ -175,7 +180,7 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       if (authState.authenticated &&
           authState.subscriptionActive &&
           !authState.businessSetupComplete &&
-          !isEventPublic && !isBusinessSetupRoute &&
+          !isEventPublic && !isDigitalMenuPublic && !isBusinessSetupRoute &&
           !isSetupConfigurationRoute &&
           !isResetPasswordRoute) {
         return '/configurar-negocio';
@@ -224,23 +229,23 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       // Estos roles son deliberadamente operativos. Si son los únicos roles
       // activos, no deben poder abrir por URL módulos administrativos que no
       // aparecen en su menú.
-      if (authState.authenticated && inventoryOnly) {
+      if (authState.authenticated && !isDigitalMenuPublic && inventoryOnly) {
         final allowed = path == '/home' || path == '/profile' || path.startsWith('/inventario');
         if (!allowed) return '/inventario';
       }
-      if (authState.authenticated && movementsOnly) {
+      if (authState.authenticated && !isDigitalMenuPublic && movementsOnly) {
         final allowed = path == '/home' || path == '/profile' || path == '/productos' || path.startsWith('/movimientos');
         if (!allowed) return '/movimientos';
       }
-      if (authState.authenticated && pricesOnly) {
+      if (authState.authenticated && !isDigitalMenuPublic && pricesOnly) {
         final allowed = path == '/home' || path == '/profile' || path.startsWith('/precios');
         if (!allowed) return '/precios';
       }
-      if (authState.authenticated && commandsOnly) {
+      if (authState.authenticated && !isDigitalMenuPublic && commandsOnly) {
         final allowed = path == '/home' || path == '/profile' || path.startsWith('/comandas');
         if (!allowed) return '/comandas';
       }
-      if (authState.authenticated &&
+      if (authState.authenticated && !isDigitalMenuPublic &&
           restrictedOperationalOnly &&
           !inventoryOnly &&
           !movementsOnly &&
@@ -277,6 +282,10 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       GoRoute(path: '/evento/entrada/:token', builder: (context,state) => EventoEntradaPublicaPage(token: state.pathParameters['token']!)),
       GoRoute(path: '/evento/:slug', builder: (context,state) => EventoPublicoPage(slug: state.pathParameters['slug']!)),
       GoRoute(path: '/eventos', builder: (context,state) => const AppScaffold(child: EventosAdminPage())),
+      GoRoute(path: '/carta/:slug', builder: (context, state) =>
+          MenuDigitalPublicPage(slug: state.pathParameters['slug']!)),
+      GoRoute(path: '/menu_digital', builder: (context, state) =>
+          const AppScaffold(child: MenuDigitalAdminPage())),
       GoRoute(
         path: '/',
         builder: (context, state) =>
@@ -315,6 +324,8 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       GoRoute(path: '/catalogo_maestro', builder: (context, state) => AppScaffold(child: const MasterCatalogPage())),
       GoRoute(path: '/profile', builder: (context, state) => _setupAwareScaffold(ref, state, const ProfilePage())),
       GoRoute(path: '/dashboard', builder: (context, state) => const AppScaffold(child: DashboardPage())),
+      GoRoute(path: '/tesoreria', builder: (context, state) => const AppScaffold(child: TesoreriaPage())),
+      GoRoute(path: '/agenda_deportiva', builder: (context, state) => const AppScaffold(child: AgendaDeportivaPage())),
       GoRoute(path: '/reportes', builder: (context, state) => AppScaffold(child: const ReportesPage())),
       GoRoute(
         path: '/reporte_resumen_ejecutivo',

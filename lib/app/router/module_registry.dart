@@ -133,7 +133,7 @@ final cuentasventaConfig = CrudModuleConfig<CuentasVentaResponseModel>(
 
 final detallecuentaventaConfig = CrudModuleConfig<DetalleCuentaVentaResponseModel>(
   key: 'detalle_cuenta_venta',
-  title: 'Detalle de cuenta',
+  title: 'Productos por cuenta',
   basePath: '/api/v1/detallecuentaventa',
   idField: 'decvId',
   fields: const [
@@ -201,7 +201,7 @@ final empresasConfig = CrudModuleConfig<EmpresasResponseModel>(
 
 final inventarioConfig = CrudModuleConfig<InventarioResponseModel>(
   key: 'inventario',
-  title: 'Inventario',
+  title: 'Conteo de inventario',
   basePath: '/api/v1/inventario',
   idField: 'invtId',
   fields: const [
@@ -225,7 +225,7 @@ final inventarioConfig = CrudModuleConfig<InventarioResponseModel>(
 
 final marcasConfig = CrudModuleConfig<MarcasResponseModel>(
   key: 'marcas',
-  title: 'Marcas',
+  title: 'Parametrización de marcas',
   basePath: '/api/v1/marcas',
   idField: 'mrcaId',
   fields: const [
@@ -373,7 +373,7 @@ final monedasConfig = CrudModuleConfig<MonedasResponseModel>(
 
 final movimientosConfig = CrudModuleConfig<MovimientosResponseModel>(
   key: 'movimientos',
-  title: 'Movimientos',
+  title: 'Movimientos de inventario',
   basePath: '/api/v1/movimientos',
   idField: 'moviId',
   fields: const [
@@ -727,7 +727,7 @@ Map<String, dynamic> _mapToJson(Map<String, dynamic> model) => Map<String, dynam
 
 final tiposproductoConfig = CrudModuleConfig<TiposProductoResponseModel>(
   key: 'tipos_producto',
-  title: 'Tipos de producto',
+  title: 'Parametrización de tipos de producto',
   basePath: '/api/v1/tiposproducto',
   idField: 'tpprId',
   fields: const [
