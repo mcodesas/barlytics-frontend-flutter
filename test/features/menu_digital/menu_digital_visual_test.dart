@@ -49,7 +49,11 @@ void main() {
       'descripcion': 'Descripción especial de este producto',
       'tipo': 'CERVEZA',
       'precio': 5000,
+      'imagen': 'data:image/png;base64,'
+          'iVBORw0KGgoAAAANSUhEUgAAAAIAAAACCAIAAAD91Jpz'
+          'AAAAFklEQVR4nGM8WGnHwMDAxMDAwMDAAAASTQF8cCGfAgAAAABJRU5ErkJggg==',
     };
+    final semantics = tester.ensureSemantics();
     await tester.pumpWidget(MaterialApp(
       home: Scaffold(body: SizedBox(
         width: 460,
@@ -73,7 +77,9 @@ void main() {
     await tester.tap(thumbnail.first);
     await tester.pumpAndSettle();
     expect(find.text('DETALLES DEL PRODUCTO'), findsOneWidget);
+    expect(find.byType(InteractiveViewer), findsOneWidget);
     expect(find.text('Descripción especial de este producto'), findsWidgets);
     expect(find.textContaining('5.000'), findsWidgets);
+    semantics.dispose();
   });
 }
