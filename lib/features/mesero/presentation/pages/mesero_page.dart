@@ -2634,6 +2634,19 @@ class _MeseroPageState extends ConsumerState<MeseroPage> {
               LayoutBuilder(
                 builder: (context, constraints) {
                   final compactHeader = constraints.maxWidth < 620;
+                  final descuentoVentaButton = OutlinedButton.icon(
+                    onPressed: _processing || venta.ventaId == null ||
+                            venta.cuentas.any((cuenta) => cuenta.pagos.isNotEmpty)
+                        ? null
+                        : () => _aplicarDescuentoPos(
+                            alcance: 'VENTA', id: venta.ventaId!,
+                            titulo: 'Descuento de toda la venta',
+                            subtotal: venta.cuentas.fold<double>(
+                              0, (total, cuenta) => total + (cuenta.subtotalProductos ?? 0)),
+                          ),
+                    icon: const Icon(Icons.percent_rounded),
+                    label: const Text('Descuento de venta'),
+                  );
                   final modificarCuentasButton = FilledButton.tonalIcon(
                     onPressed: _processing || venta.ventaId == null ? null : () => _cambiarNumeroCuentas(venta),
                     icon: const Icon(Icons.groups_2_rounded),
@@ -2660,6 +2673,7 @@ class _MeseroPageState extends ConsumerState<MeseroPage> {
                           crossAxisAlignment: WrapCrossAlignment.center,
                           children: [
                             modificarCuentasButton,
+                            descuentoVentaButton,
                             _TotalPill(total: venta.total),
                           ],
                         ),
@@ -2677,6 +2691,8 @@ class _MeseroPageState extends ConsumerState<MeseroPage> {
                       ),
                       const SizedBox(width: 10),
                       modificarCuentasButton,
+                      const SizedBox(width: 10),
+                      descuentoVentaButton,
                       const SizedBox(width: 10),
                       _TotalPill(total: venta.total),
                     ],
@@ -2736,7 +2752,29 @@ class _MeseroPageState extends ConsumerState<MeseroPage> {
                     return detalleId != null && _detallesCantidadEnProceso.contains(detalleId);
                   },
                   onEliminarProducto: _processing ? null : (producto) => _eliminarProductoCuenta(cuentaSeleccionada!, producto),
+                  onDescuentoProducto: _processing || cuentaSeleccionada.pagos.isNotEmpty
+                      ? null : (producto) => _aplicarDescuentoPos(
+                          alcance: 'PRODUCTO', id: producto.detalleId!,
+                          cuentaId: cuentaSeleccionada!.cuentaId,
+                          titulo: 'Descuento · ${producto.productoNombre ?? 'Producto'}',
+                          subtotal: ((producto.valorUnitario ?? 0) +
+                              (producto.precioAdicionalUnitario ?? 0)) *
+                              (producto.cantidad ?? 0),
+                          tipoActual: producto.descuentoTipo,
+                          valorActual: producto.descuentoValor,
+                        ),
                   onMoverProducto: _processing ? null : (producto) => _moverProductoCuenta(venta, cuentaSeleccionada!, producto),
+                  onDescuentoCuenta: _processing ||
+                          cuentaSeleccionada.cuentaId == null ||
+                          cuentaSeleccionada.pagos.isNotEmpty
+                      ? null : () => _aplicarDescuentoPos(
+                          alcance: 'CUENTA', id: cuentaSeleccionada!.cuentaId!,
+                          cuentaId: cuentaSeleccionada.cuentaId,
+                          titulo: 'Descuento · ${_cuentaNombreVisible(cuentaSeleccionada)}',
+                          subtotal: cuentaSeleccionada.subtotalProductos ?? 0,
+                          tipoActual: cuentaSeleccionada.descuentoTipo,
+                          valorActual: cuentaSeleccionada.descuentoValor,
+                        ),
                   onPagarCuenta: cuentaSeleccionada.cuentaId == null || _processing
                       ? null
                       : () => _pagarCuenta(venta, cuentaSeleccionada!),
