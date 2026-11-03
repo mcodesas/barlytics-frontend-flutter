@@ -17,20 +17,9 @@ import '../../../core/branch/branch_scope_provider.dart';
 import '../../../core/utils/file_download_helper.dart';
 import '../data/menu_digital_api.dart';
 import 'widgets/menu_digital_catalog.dart';
+import 'widgets/menu_digital_palette.dart';
 
-class _MenuPalette {
-  const _MenuPalette(this.name, this.primary, this.background, this.text, this.card);
-  final String name, primary, background, text, card;
-}
-
-const _presets = <_MenuPalette>[
-  _MenuPalette('Océano', '#20C8C4', '#081B27', '#F8FAFC', '#112D3B'),
-  _MenuPalette('Marfil', '#9B6B3F', '#FFF9EE', '#352819', '#F2E7D5'),
-  _MenuPalette('Vino', '#E5B46B', '#29111D', '#FFF7ED', '#431E30'),
-  _MenuPalette('Bosque', '#D6B979', '#10251D', '#F7F4E9', '#1C382D'),
-  _MenuPalette('Lavanda', '#7451BB', '#F8F4FF', '#291F3E', '#EAE0F7'),
-  _MenuPalette('Terracota', '#F8A875', '#291C1B', '#FFF4E9', '#45302B'),
-];
+const _presets = menuDigitalPalettePresets;
 
 class MenuDigitalAdminPage extends ConsumerStatefulWidget {
   const MenuDigitalAdminPage({super.key});
@@ -214,7 +203,7 @@ class _MenuDigitalAdminPageState extends ConsumerState<MenuDigitalAdminPage> {
     }
   }
 
-  void _preset(_MenuPalette p) {
+  void _preset(MenuDigitalPalettePreset p) {
     _colorControllers['primario']!.text = p.primary;
     _colorControllers['fondo']!.text = p.background;
     _colorControllers['texto']!.text = p.text;
@@ -259,16 +248,22 @@ class _MenuDigitalAdminPageState extends ConsumerState<MenuDigitalAdminPage> {
       _notify('Aún no existe un enlace público.'); return;
     }
     if (!mounted) return;
+    final colors = MenuDigitalColors.fromMenu(_preview());
+    final linkColor = MenuDigitalColors.contrast(colors.accent, colors.card) >= 4.5
+        ? colors.accent : colors.text;
     final slug = (_saved?['slug'] ?? '').toString();
     final qrPreview = ref.read(menuDigitalApiProvider).server +
         '/api/v1/menu-digital/public/' + Uri.encodeComponent(slug) + '/qr';
     await showDialog<void>(context: context, builder: (dialog) => AlertDialog(
       scrollable: true,
-      title: const Text('Comparte tu menú digital'),
+      backgroundColor: colors.card,
+      surfaceTintColor: Colors.transparent,
+      title: Text('Comparte tu menú digital', style: TextStyle(color: colors.text)),
       content: ConstrainedBox(constraints: const BoxConstraints(maxWidth: 500),
         child: Column(mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start, children: [
-          const Text('Tus clientes podrán ver la carta sin iniciar sesión.'),
+          Text('Tus clientes podrán ver la carta sin iniciar sesión.',
+            style: TextStyle(color: colors.text)),
           const SizedBox(height: 15),
           Center(child: Container(
             padding: const EdgeInsets.all(11),
@@ -280,13 +275,27 @@ class _MenuDigitalAdminPageState extends ConsumerState<MenuDigitalAdminPage> {
                 child: Center(child: Text('Descarga el QR para verlo')))),
           )),
           const SizedBox(height: 15),
-          SelectableText(link),
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(color: colors.canvas,
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: colors.border)),
+            child: SelectableText(link, style: TextStyle(
+              color: MenuDigitalColors.contrast(linkColor, colors.canvas) >= 4.5
+                  ? linkColor : colors.text, fontWeight: FontWeight.w700)),
+          ),
           const SizedBox(height: 12),
-          const Text('También puedes colocar el QR impreso en cada mesa.'),
+          Text('También puedes colocar el QR impreso en cada mesa.',
+            style: TextStyle(color: colors.text)),
         ])),
       actions: [
-        TextButton(onPressed: () => Navigator.pop(dialog), child: const Text('Cerrar')),
+        TextButton(onPressed: () => Navigator.pop(dialog),
+          style: TextButton.styleFrom(foregroundColor: linkColor),
+          child: const Text('Cerrar')),
         OutlinedButton.icon(
+          style: OutlinedButton.styleFrom(foregroundColor: linkColor,
+            side: BorderSide(color: colors.border)),
           onPressed: () async {
             final uri = Uri.parse('https://wa.me/?text=' + Uri.encodeComponent(
               'Conoce nuestra carta digital:\n' + link));
@@ -294,6 +303,8 @@ class _MenuDigitalAdminPageState extends ConsumerState<MenuDigitalAdminPage> {
           },
           icon: const Icon(Icons.send_outlined), label: const Text('WhatsApp')),
         FilledButton.icon(
+          style: FilledButton.styleFrom(backgroundColor: colors.accent,
+            foregroundColor: colors.onAccent),
           onPressed: () async {
             await Clipboard.setData(ClipboardData(text: link));
             if (dialog.mounted) Navigator.pop(dialog);
@@ -371,6 +382,61 @@ class _MenuDigitalAdminPageState extends ConsumerState<MenuDigitalAdminPage> {
     decoration: pal.panelDecoration(baseRadius: 22),
     child: child,
   );
+
+  /// Muestra la combinación de cuatro tonos y sus HEX, no solo un círculo.
+  Widget _paletteChoice(MenuDigitalPalettePreset preset, AppPalette pal) {
+    final selected =
+        _colorControllers['primario']!.text.toUpperCase() == preset.primary &&
+        _colorControllers['fondo']!.text.toUpperCase() == preset.background &&
+        _colorControllers['texto']!.text.toUpperCase() == preset.text &&
+        _colorControllers['tarjeta']!.text.toUpperCase() == preset.card;
+    return InkWell(
+      onTap: () => _preset(preset),
+      borderRadius: BorderRadius.circular(15),
+      child: Container(
+        width: 162,
+        padding: const EdgeInsets.all(11),
+        decoration: BoxDecoration(
+          color: selected ? pal.secondary.withOpacity(.13)
+              : pal.textPrimary.withOpacity(.035),
+          borderRadius: BorderRadius.circular(15),
+          border: Border.all(
+            color: selected ? pal.secondary : pal.cardBorder,
+            width: selected ? 2 : 1,
+          ),
+        ),
+        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Row(children: [
+            Expanded(child: Text(preset.name,
+                maxLines: 1, overflow: TextOverflow.ellipsis,
+                style: TextStyle(color: pal.textPrimary, fontSize: 13,
+                    fontWeight: FontWeight.w800))),
+            if (selected)
+              Icon(Icons.check_circle_rounded, size: 16, color: pal.secondary),
+          ]),
+          const SizedBox(height: 8),
+          Row(children: [
+            for (final hex in <String>[
+              preset.primary, preset.background, preset.text, preset.card,
+            ]) ...[
+              Expanded(child: Container(height: 16,
+                decoration: BoxDecoration(
+                  color: _parseColor(hex),
+                  borderRadius: BorderRadius.circular(5),
+                  border: Border.all(color: pal.cardBorder),
+                ),
+              )),
+              const SizedBox(width: 4),
+            ],
+          ]),
+          const SizedBox(height: 6),
+          Text(preset.primary + ' · ' + preset.background,
+            maxLines: 1, overflow: TextOverflow.ellipsis,
+            style: TextStyle(color: pal.textSecondary, fontSize: 10)),
+        ]),
+      ),
+    );
+  }
 
   Widget _fieldColor(AppPalette pal, String name, String key) {
     final controller = _colorControllers[key]!;
@@ -476,16 +542,28 @@ class _MenuDigitalAdminPageState extends ConsumerState<MenuDigitalAdminPage> {
         Text('Paleta de colores', style: TextStyle(
             color: pal.textPrimary, fontSize: 18, fontWeight: FontWeight.w900)),
         const SizedBox(height: 7),
-        Text('Selecciona un estilo o combina tus propios colores HEX.',
+        Text('32 combinaciones con cuatro colores HEX cada una. '
+            'Elige una y modifica los tonos a tu gusto.',
             style: TextStyle(color: pal.textSecondary, fontSize: 12)),
         const SizedBox(height: 13),
         Wrap(spacing: 8, runSpacing: 9, children: [
-          for (final p in _presets)
-            ActionChip(
-              avatar: CircleAvatar(backgroundColor: _parseColor(p.primary) ?? pal.secondary,
-                radius: 12),
-              label: Text(p.name), onPressed: () => _preset(p)),
+          for (final p in _presets.take(6)) _paletteChoice(p, pal),
         ]),
+        ExpansionTile(
+          tilePadding: EdgeInsets.zero,
+          childrenPadding: const EdgeInsets.only(bottom: 12),
+          title: Text('Ver las 32 paletas de colores',
+            style: TextStyle(color: pal.secondary, fontWeight: FontWeight.w800)),
+          subtitle: Text('Claras, oscuras, elegantes y vibrantes',
+            style: TextStyle(color: pal.textSecondary, fontSize: 12)),
+          children: [
+            Align(alignment: Alignment.centerLeft,
+              child: Wrap(spacing: 8, runSpacing: 9, children: [
+                for (final p in _presets.skip(6)) _paletteChoice(p, pal),
+              ]),
+            ),
+          ],
+        ),
         const SizedBox(height: 10),
         if (!_hasReadableColors)
           Padding(
