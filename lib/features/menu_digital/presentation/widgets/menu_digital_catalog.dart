@@ -4,6 +4,8 @@ import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 
+import 'menu_digital_palette.dart';
+
 /// Render compartido: la vista previa en el editor utiliza exactamente la
 /// misma composición que la página pública del cliente.
 class MenuDigitalCatalog extends StatefulWidget {
@@ -69,85 +71,317 @@ class _MenuDigitalCatalogState extends State<MenuDigitalCatalog> {
     );
   }
 
+
+  /// Las fotos abren un visor con zoom y datos del producto.
+  /// También permite consultar los detalles cuando no hay imagen cargada.
+  Widget _productPhoto(Map<String, dynamic> product, {
+    required double width,
+    required double height,
+    double radius = 16,
+  }) {
+    final name = (product['nombre'] ?? 'Producto').toString();
+    final hasImage = _image(product['imagen']) != null;
+    return Semantics(
+      button: true,
+      label: 'Ampliar imagen y descripción de ' + name,
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          borderRadius: BorderRadius.circular(radius),
+          onTap: () => _showProductDetails(product),
+          child: Stack(
+            fit: StackFit.passthrough,
+            children: [
+              _photo(product['imagen'], width: width, height: height, radius: radius),
+              if (hasImage)
+                Positioned(
+                  right: 6, bottom: 6,
+                  child: Container(
+                    padding: const EdgeInsets.all(5),
+                    decoration: BoxDecoration(
+                      color: Colors.black.withOpacity(.66),
+                      borderRadius: BorderRadius.circular(9),
+                    ),
+                    child: const Icon(Icons.zoom_in_rounded,
+                        color: Colors.white, size: 17),
+                  ),
+                ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Future<void> _showProductDetails(Map<String, dynamic> product) async {
+    final colors = MenuDigitalColors.fromMenu(widget.menu);
+    final name = (product['nombre'] ?? 'Producto').toString();
+    final description = (product['descripcion'] ?? '').toString().trim();
+    final category = (product['tipo'] ?? 'Especialidades').toString();
+    final price = num.tryParse((product['precio'] ?? '').toString());
+    final provider = _image(product['imagen']);
+    final detailAccent = MenuDigitalColors.contrast(colors.accent, colors.card) >= 4.5
+        ? colors.accent : colors.text;
+
+    await showDialog<void>(
+      context: context,
+      builder: (dialog) => Dialog(
+        backgroundColor: colors.card,
+        surfaceTintColor: Colors.transparent,
+        insetPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 20),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(24),
+          side: BorderSide(color: colors.border),
+        ),
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 560),
+          child: SingleChildScrollView(
+            padding: const EdgeInsets.all(19),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(children: [
+                  Icon(Icons.restaurant_menu_rounded, color: detailAccent),
+                  const SizedBox(width: 8),
+                  Expanded(child: Text('DETALLES DEL PRODUCTO',
+                    style: TextStyle(color: detailAccent, fontSize: 11,
+                        fontWeight: FontWeight.w900, letterSpacing: 1.2))),
+                  IconButton(
+                    tooltip: 'Cerrar',
+                    onPressed: () => Navigator.of(dialog).pop(),
+                    color: colors.text,
+                    icon: const Icon(Icons.close_rounded),
+                  ),
+                ]),
+                const SizedBox(height: 12),
+                SizedBox(
+                  width: double.infinity,
+                  height: (MediaQuery.sizeOf(dialog).height * .44).clamp(170.0, 410.0),
+                  child: ClipRRect(
+                    borderRadius: BorderRadius.circular(18),
+                    child: Container(
+                      color: colors.secondarySurface,
+                      child: provider == null
+                          ? Center(child: Icon(Icons.restaurant_menu_rounded,
+                              color: detailAccent, size: 70))
+                          : InteractiveViewer(
+                              minScale: 1,
+                              maxScale: 4,
+                              child: Image(
+                                image: provider,
+                                width: double.infinity,
+                                height: double.infinity,
+                                fit: BoxFit.contain,
+                                errorBuilder: (context, error, stack) =>
+                                  Center(child: Icon(Icons.broken_image_outlined,
+                                    color: detailAccent, size: 60)),
+                              ),
+                            ),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 10),
+                if (provider != null)
+                  Center(child: Text('Pellizca o amplía la imagen para ver los detalles',
+                    style: TextStyle(color: colors.mutedText, fontSize: 11))),
+                const SizedBox(height: 16),
+                Text(category.toUpperCase(),
+                  style: TextStyle(color: detailAccent, fontSize: 11,
+                      letterSpacing: 1.1, fontWeight: FontWeight.w900)),
+                const SizedBox(height: 8),
+                Text(name,
+                  style: TextStyle(color: colors.text, fontSize: 24, height: 1.15,
+                      fontFamily: 'Georgia', fontWeight: FontWeight.bold)),
+                const SizedBox(height: 10),
+                Text(description.isEmpty ? 'Sin descripción adicional.' : description,
+                  style: TextStyle(color: colors.text.withOpacity(.84),
+                      fontSize: 14, height: 1.5)),
+                if (price != null) ...[
+                  const SizedBox(height: 17),
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 15, vertical: 9),
+                    decoration: BoxDecoration(
+                      color: colors.accent,
+                      borderRadius: BorderRadius.circular(13),
+                    ),
+                    child: Text(_money.format(price),
+                      style: TextStyle(color: colors.onAccent,
+                          fontSize: 18, fontWeight: FontWeight.w900)),
+                  ),
+                ],
+                const SizedBox(height: 12),
+                Align(
+                  alignment: Alignment.centerRight,
+                  child: TextButton.icon(
+                    style: TextButton.styleFrom(foregroundColor: detailAccent),
+                    onPressed: () => Navigator.of(dialog).pop(),
+                    icon: const Icon(Icons.check_rounded),
+                    label: const Text('Cerrar'),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
   Widget _storeItem(Map<String, dynamic> p, double width) {
-    final accent = _color('primario', '#14B8A6');
-    final fg = _color('texto', '#F8FAFC');
-    final bg = _color('tarjeta', '#112D3B');
+    final colors = MenuDigitalColors.fromMenu(widget.menu);
+    final accent = colors.accent;
+    final fg = colors.text;
+    final bg = colors.card;
     final name = (p['nombre'] ?? 'Producto').toString();
     final price = num.tryParse((p['precio'] ?? '').toString());
+    final description = (p['descripcion'] ?? '').toString();
     return Container(
       width: width,
+      clipBehavior: Clip.antiAlias,
       decoration: BoxDecoration(
-        color: bg, borderRadius: BorderRadius.circular(22),
-        border: Border.all(color: accent.withOpacity(0.18)),
-        boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.11),
-            blurRadius: 18, offset: const Offset(0, 8))],
+        color: bg,
+        borderRadius: BorderRadius.circular(22),
+        border: Border.all(color: colors.border),
+        boxShadow: [
+          BoxShadow(color: Colors.black.withOpacity(.09),
+              blurRadius: 20, offset: const Offset(0, 7)),
+        ],
       ),
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        _photo(p['imagen'], height: 145, width: double.infinity, radius: 19),
-        Padding(padding: const EdgeInsets.all(15), child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start, children: [
+        _productPhoto(p, width: double.infinity, height: 164, radius: 17),
+        Padding(
+          padding: const EdgeInsets.fromLTRB(17, 15, 17, 17),
+          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
             Text((p['tipo'] ?? 'Especialidades').toString().toUpperCase(),
-                maxLines: 1, overflow: TextOverflow.ellipsis,
-                style: TextStyle(color: accent, fontSize: 10,
-                    fontWeight: FontWeight.w900, letterSpacing: 1.0)),
-            const SizedBox(height: 5),
+              maxLines: 1, overflow: TextOverflow.ellipsis,
+              style: TextStyle(color: MenuDigitalColors.contrast(accent, bg) >= 4.5
+                  ? accent : fg, fontSize: 10, letterSpacing: 1.1,
+                  fontWeight: FontWeight.w900)),
+            const SizedBox(height: 7),
             Text(name, maxLines: 2, overflow: TextOverflow.ellipsis,
-                style: TextStyle(color: fg, fontWeight: FontWeight.w900, fontSize: 17)),
-            const SizedBox(height: 5),
-            Text((p['descripcion'] ?? '').toString(),
-                maxLines: 3, overflow: TextOverflow.ellipsis,
-                style: TextStyle(color: fg.withOpacity(0.71), fontSize: 12, height: 1.35)),
-            if (price != null) ...[
-              const SizedBox(height: 11),
-              Text(_money.format(price), style: TextStyle(
-                  color: accent, fontWeight: FontWeight.w900, fontSize: 19)),
-            ],
-          ],
-        )),
+              style: TextStyle(color: fg, fontFamily: 'Georgia',
+                  fontWeight: FontWeight.bold, fontSize: 19, height: 1.17)),
+            const SizedBox(height: 7),
+            Text(description.isEmpty ? 'Conoce más sobre este producto' : description,
+              maxLines: 3, overflow: TextOverflow.ellipsis,
+              style: TextStyle(color: fg.withOpacity(.77), fontSize: 12,
+                  height: 1.45)),
+            const SizedBox(height: 14),
+            Row(children: [
+              if (price != null)
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                  decoration: BoxDecoration(color: accent,
+                    borderRadius: BorderRadius.circular(12)),
+                  child: Text(_money.format(price), style: TextStyle(
+                    color: colors.onAccent, fontWeight: FontWeight.w900,
+                    fontSize: 15)),
+                ),
+              const Spacer(),
+              IconButton(
+                tooltip: 'Ver foto y descripción',
+                onPressed: () => _showProductDetails(p),
+                icon: Icon(Icons.zoom_in_rounded, color: fg),
+              ),
+            ]),
+          ]),
+        ),
       ]),
     );
   }
 
   Widget _bookSection(String category, List<Map<String, dynamic>> products) {
-    final fg = _color('texto', '#F8FAFC');
-    final accent = _color('primario', '#14B8A6');
-    final bg = _color('tarjeta', '#112D3B');
+    final colors = MenuDigitalColors.fromMenu(widget.menu);
+    final fg = colors.text;
+    final accent = colors.accent;
+    final bg = colors.card;
+    final headingAccent = MenuDigitalColors.contrast(accent, bg) >= 4.5
+        ? accent : fg;
     return Container(
+      padding: const EdgeInsets.fromLTRB(15, 22, 15, 20),
       decoration: BoxDecoration(
-        color: bg, borderRadius: BorderRadius.circular(22),
-        border: Border.all(color: accent.withOpacity(0.19)),
+        gradient: LinearGradient(
+          begin: Alignment.topCenter,
+          end: Alignment.bottomCenter,
+          colors: [bg, colors.secondarySurface],
+        ),
+        borderRadius: BorderRadius.circular(23),
+        border: Border.all(color: colors.border),
+        boxShadow: [BoxShadow(color: Colors.black.withOpacity(.075),
+          blurRadius: 22, offset: const Offset(0, 10))],
       ),
-      padding: const EdgeInsets.fromLTRB(18, 25, 18, 24),
       child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-        Center(child: Icon(Icons.auto_stories_rounded, color: accent, size: 29)),
-        const SizedBox(height: 10),
+        Center(child: Container(
+          padding: const EdgeInsets.all(12),
+          decoration: BoxDecoration(color: accent,
+            shape: BoxShape.circle),
+          child: Icon(Icons.auto_stories_rounded, color: colors.onAccent, size: 24),
+        )),
+        const SizedBox(height: 13),
         Text(category.toUpperCase(), textAlign: TextAlign.center,
-          style: TextStyle(color: fg, fontSize: 20, fontWeight: FontWeight.w900,
-            letterSpacing: 1.8)),
-        Padding(padding: const EdgeInsets.symmetric(vertical: 15),
-          child: Divider(color: accent.withOpacity(0.36), thickness: 1.2)),
+          style: TextStyle(color: fg, fontSize: 23, fontFamily: 'Georgia',
+              fontWeight: FontWeight.bold, letterSpacing: 1.5)),
+        const SizedBox(height: 7),
+        Text('SELECCIÓN · ' + products.length.toString() + ' PRODUCTOS',
+          textAlign: TextAlign.center,
+          style: TextStyle(color: headingAccent, letterSpacing: 1.3,
+            fontWeight: FontWeight.w800, fontSize: 10)),
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 15, vertical: 19),
+          child: Divider(height: 1, color: colors.border),
+        ),
         for (var i = 0; i < products.length; i++) ...[
-          Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            if (_image(products[i]['imagen']) != null) ...[
-              _photo(products[i]['imagen'], width: 74, height: 82, radius: 12),
-              const SizedBox(width: 13),
-            ],
-            Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              Text((products[i]['nombre'] ?? '').toString(),
-                style: TextStyle(color: fg, fontSize: 16, fontWeight: FontWeight.w900)),
-              const SizedBox(height: 4),
-              Text((products[i]['descripcion'] ?? '').toString(),
-                style: TextStyle(color: fg.withOpacity(0.73), fontSize: 12, height: 1.4)),
-            ])),
-            const SizedBox(width: 8),
-            if (products[i]['precio'] != null)
-              Text(_money.format(num.tryParse(products[i]['precio'].toString()) ?? 0),
-                style: TextStyle(color: accent, fontWeight: FontWeight.w900, fontSize: 13)),
-          ]),
-          if (i < products.length - 1)
-            Padding(padding: const EdgeInsets.symmetric(vertical: 14),
-                child: Divider(height: 1, color: fg.withOpacity(0.12))),
+          Container(
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: colors.card,
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(color: colors.border.withOpacity(.8)),
+              boxShadow: [BoxShadow(color: Colors.black.withOpacity(.05),
+                blurRadius: 9, offset: const Offset(0, 4))],
+            ),
+            child: LayoutBuilder(builder: (context, limits) {
+              final compact = limits.maxWidth < 340;
+              final product = products[i];
+              final price = num.tryParse((product['precio'] ?? '').toString());
+              return Row(crossAxisAlignment: CrossAxisAlignment.center, children: [
+                _productPhoto(product,
+                  width: compact ? 52 : 72,
+                  height: compact ? 62 : 76,
+                  radius: 11),
+                SizedBox(width: compact ? 9 : 13),
+                Expanded(child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start, children: [
+                    Text((product['nombre'] ?? 'Producto').toString(),
+                      style: TextStyle(color: fg, fontSize: compact ? 14 : 17,
+                          fontFamily: 'Georgia', fontWeight: FontWeight.bold,
+                          height: 1.22)),
+                    const SizedBox(height: 5),
+                    Text((product['descripcion'] ?? '').toString(),
+                      maxLines: 2, overflow: TextOverflow.ellipsis,
+                      style: TextStyle(color: fg.withOpacity(.76),
+                        fontSize: 11, height: 1.35)),
+                  ],
+                )),
+                const SizedBox(width: 7),
+                if (price != null)
+                  Container(
+                    padding: EdgeInsets.symmetric(
+                      horizontal: compact ? 7 : 11, vertical: 9),
+                    decoration: BoxDecoration(
+                      color: accent,
+                      borderRadius: BorderRadius.circular(11),
+                    ),
+                    child: Text(_money.format(price),
+                      style: TextStyle(color: colors.onAccent,
+                        fontSize: compact ? 10 : 12,
+                        fontWeight: FontWeight.w900)),
+                  ),
+              ]);
+            }),
+          ),
+          if (i < products.length - 1) const SizedBox(height: 10),
         ],
       ]),
     );
