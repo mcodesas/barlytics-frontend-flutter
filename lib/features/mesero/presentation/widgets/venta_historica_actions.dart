@@ -177,8 +177,9 @@ class _VentaHistoricaActionsState extends ConsumerState<VentaHistoricaActions> {
               const Text('No se crearán nuevos pagos ni una venta duplicada. '
                 'El dinero realmente entregado en el cierre seguirá intacto.'),
               const SizedBox(height: 10),
-              const Text('No se permite si hay una corrección vinculada, '
-                'un reembolso realizado o stock insuficiente.',
+              const Text('Si existe una corrección en borrador sin pagos, '
+                'se archivará automáticamente. No se permite si la '
+                'corrección ya se cobró, hubo reembolso o falta stock.',
                 style: TextStyle(fontWeight: FontWeight.w700)),
               const SizedBox(height: 14),
               TextField(
