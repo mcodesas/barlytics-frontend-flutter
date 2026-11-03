@@ -32,6 +32,7 @@ import '../../data/datasources/mesero_remote_datasource.dart';
 import '../../data/models/mesero_models.dart';
 import '../providers/mesero_tab_provider.dart';
 import '../utils/historial_medios_pago.dart';
+import '../widgets/descuento_venta_dialog.dart';
 
 
 bool _ventaEsDirecta(MeseroVentaModel venta) =>
@@ -4468,6 +4469,44 @@ class _MeseroPageState extends ConsumerState<MeseroPage> {
       if (mounted && _detallesCantidadEnProceso.contains(detalleId)) {
         setState(() => _detallesCantidadEnProceso.remove(detalleId));
       }
+    }
+  }
+
+  Future<void> _aplicarDescuentoPos({
+    required String alcance,
+    required int id,
+    int? cuentaId,
+    required String titulo,
+    required double subtotal,
+    String? tipoActual,
+    double? valorActual,
+  }) async {
+    if (_processing || subtotal <= 0) return;
+    final input = await mostrarDialogoDescuento(context, titulo: titulo,
+      base: subtotal, tipoInicial: tipoActual, valorInicial: valorActual);
+    if (input == null || !mounted) return;
+    setState(() => _processing = true);
+    try {
+      final response = await _dataSource.aplicarDescuento(
+        alcance: alcance, id: id, cuentaId: cuentaId,
+        tipo: input.tipo, valor: input.valor, motivo: input.motivo);
+      if (!mounted) return;
+      final updated = _preservarOrdenProductosVenta(_ventaActiva, response);
+      final future = _load();
+      setState(() {
+        _ventaActiva = updated;
+        _mostrandoDetalleVenta = true;
+        _cuentaSeleccionadaId = cuentaId ?? _cuentaSeleccionadaId;
+        _future = future;
+      });
+      await future;
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Descuento actualizado correctamente.')));
+    } catch (error) {
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('No se pudo aplicar el descuento: $error')));
+    } finally {
+      if (mounted) setState(() => _processing = false);
     }
   }
 
