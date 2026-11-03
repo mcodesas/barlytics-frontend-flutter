@@ -178,8 +178,10 @@ class _VentaHistoricaActionsState extends ConsumerState<VentaHistoricaActions> {
                 'El dinero realmente entregado en el cierre seguirá intacto.'),
               const SizedBox(height: 10),
               const Text('Si existe una corrección en borrador sin pagos, '
-                'se archivará automáticamente. No se permite si la '
-                'corrección ya se cobró, hubo reembolso o falta stock.',
+                'se archivará automáticamente. Si faltan existencias, '
+                'la desanulación registrará stock negativo pendiente de '
+                'conciliación. No se permite duplicar pagos ni ignorar '
+                'un reembolso ya realizado.',
                 style: TextStyle(fontWeight: FontWeight.w700)),
               const SizedBox(height: 14),
               TextField(
