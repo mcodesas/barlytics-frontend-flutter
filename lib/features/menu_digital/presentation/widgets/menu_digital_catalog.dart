@@ -481,7 +481,7 @@ class _MenuDigitalCatalogState extends State<MenuDigitalCatalog> {
                           fit: mobile ? BoxFit.cover : BoxFit.contain,
                           alignment: Alignment.centerRight,
                           errorBuilder: (context, error, stack) =>
-                            ColoredBox(color: colors.secondarySurface),
+                            Container(color: colors.secondarySurface),
                         ),
                       ),
                     ),
