@@ -41,6 +41,33 @@ void main() {
     expect(colors.card, const Color(0xFFF2E5CB));
   });
 
+  testWidgets('Ambos estilos muestran el producto en la vista previa',
+      (tester) async {
+    final menu = <String, dynamic>{
+      'titulo': 'Nuestra carta',
+      'sucursal': 'Sucursal demo',
+      'estilo': 'TIENDA',
+      'productos': [
+        {'id': 1, 'nombre': 'Producto demo', 'tipo': 'BEBIDA', 'precio': 1200},
+      ],
+    };
+    Future<void> render() async {
+      await tester.pumpWidget(MaterialApp(home: Scaffold(
+        body: SingleChildScrollView(
+          child: MenuDigitalCatalog(menu: menu, preview: true),
+        ),
+      )));
+      await tester.pumpAndSettle();
+    }
+    await render();
+    expect(find.text('VISTA PREVIA · MODERNO'), findsOneWidget);
+    expect(find.text('Producto demo'), findsWidgets);
+    menu['estilo'] = 'LIBRO';
+    await render();
+    expect(find.text('VISTA PREVIA · LIBRO'), findsOneWidget);
+    expect(find.text('Producto demo'), findsWidgets);
+  });
+
   testWidgets('Todos los tipos de producto son accesibles en web angosta',
       (tester) async {
     tester.view.physicalSize = const Size(390, 1300);
