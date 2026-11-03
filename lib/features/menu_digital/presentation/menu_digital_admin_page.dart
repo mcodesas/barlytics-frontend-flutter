@@ -628,7 +628,8 @@ class _MenuDigitalAdminPageState extends ConsumerState<MenuDigitalAdminPage> {
                   selectedColor: pal.secondary,
                   labelStyle: TextStyle(
                     color: _filtroPaletas == filter.$1
-                        ? pal.onSecondary : pal.textPrimary,
+                        ? MenuDigitalColors.readableOn(pal.secondary)
+                        : pal.textPrimary,
                     fontWeight: FontWeight.w700),
                   side: BorderSide(color: pal.cardBorder),
                 ),
