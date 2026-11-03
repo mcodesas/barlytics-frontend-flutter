@@ -122,7 +122,10 @@ class _MenuDigitalAdminPageState extends ConsumerState<MenuDigitalAdminPage> {
         };
         entry.value.text = admin[entry.key]?.toString() ?? fallback;
       }
-      _layout = admin['estilo']?.toString() == 'LIBRO' ? 'LIBRO' : 'TIENDA';
+      final design = (admin['estilo'] ?? 'TIENDA').toString().toUpperCase();
+      _layout = const <String>{
+        'TIENDA', 'LIBRO', 'EDITORIAL', 'GALERIA', 'MINIMALISTA',
+      }.contains(design) ? design : 'TIENDA';
       _saved = admin;
       _catalog = catalog;
       _selected = <int>{
@@ -488,97 +491,179 @@ class _MenuDigitalAdminPageState extends ConsumerState<MenuDigitalAdminPage> {
   }
 
 
+  Widget _designThumbnail(MenuDigitalColors colors, String style) {
+    final fg = colors.text;
+    final ac = colors.accent;
+    Widget line({double width = 40, double height = 5, Color? color}) =>
+        Container(width: width, height: height, decoration: BoxDecoration(
+          color: color ?? fg.withOpacity(.6),
+          borderRadius: BorderRadius.circular(3)));
+    Widget photo() => Container(
+      decoration: BoxDecoration(color: colors.secondarySurface,
+        borderRadius: BorderRadius.circular(6)),
+      child: Center(child: Icon(Icons.image_outlined,
+        color: fg.withOpacity(.65), size: 20)));
+    Widget paper() => Container(
+      padding: const EdgeInsets.all(9),
+      decoration: BoxDecoration(color: colors.card,
+        borderRadius: BorderRadius.circular(7)),
+      child: Column(children: [
+        line(width: 52, height: 7, color: ac),
+        const Spacer(),
+        for (var i = 0; i < 3; i++) ...[
+          Row(children: [
+            Expanded(child: Container(height: 4,
+              color: fg.withOpacity(.4))),
+            const SizedBox(width: 6),
+            line(width: 20, color: ac),
+          ]),
+          const SizedBox(height: 6),
+        ],
+        const Spacer(),
+      ]),
+    );
+    switch (style) {
+      case 'LIBRO':
+        return Row(children: [
+          Expanded(child: paper()),
+          const SizedBox(width: 6),
+          Expanded(child: paper()),
+        ]);
+      case 'EDITORIAL':
+        return Container(
+          padding: const EdgeInsets.all(12), color: colors.card,
+          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            line(width: 110, height: 12, color: fg),
+            const SizedBox(height: 8),
+            Container(height: 1, color: ac),
+            const Spacer(),
+            for (var i = 0; i < 2; i++) ...[
+              Row(children: [
+                Expanded(child: Container(height: 5,
+                  color: fg.withOpacity(.5))),
+                const SizedBox(width: 12),
+                line(width: 38, height: 7, color: ac),
+              ]),
+              const SizedBox(height: 8),
+            ],
+            const Spacer(),
+          ]),
+        );
+      case 'GALERIA':
+        return Row(children: [
+          Expanded(flex: 3, child: photo()),
+          const SizedBox(width: 7),
+          Expanded(flex: 2, child: Column(children: [
+            Expanded(child: photo()),
+            const SizedBox(height: 7),
+            Expanded(child: photo()),
+          ])),
+        ]);
+      case 'MINIMALISTA':
+        return Container(
+          padding: const EdgeInsets.all(12), color: colors.card,
+          child: Column(children: [
+            for (var i = 0; i < 4; i++)
+              Expanded(child: Row(children: [
+                Icon(Icons.circle, color: ac, size: 6),
+                const SizedBox(width: 8),
+                Expanded(child: Container(height: 5,
+                  color: fg.withOpacity(.55))),
+                const SizedBox(width: 11),
+                line(width: 35, height: 7, color: ac),
+              ])),
+          ]),
+        );
+      default:
+        return Row(children: [
+          for (var i = 0; i < 2; i++) ...[
+            Expanded(child: Container(
+              padding: const EdgeInsets.all(7),
+              decoration: BoxDecoration(color: colors.card,
+                borderRadius: BorderRadius.circular(7)),
+              child: Column(children: [
+                Expanded(child: photo()),
+                const SizedBox(height: 6),
+                line(width: 64),
+                const SizedBox(height: 5),
+                line(width: 42, height: 8, color: ac),
+              ]),
+            )),
+            if (i == 0) const SizedBox(width: 8),
+          ],
+        ]);
+    }
+  }
+
   Widget _designOption(AppPalette pal, MenuDigitalColors colors,
       String style, double width) {
-    final modern = style == 'TIENDA';
     final selected = _layout == style;
-    final title = modern ? 'Moderno' : 'Carta tipo libro';
+    final title = switch (style) {
+      'LIBRO' => 'Carta tipo libro',
+      'EDITORIAL' => 'Editorial elegante',
+      'GALERIA' => 'Galería fotográfica',
+      'MINIMALISTA' => 'Minimalista',
+      _ => 'Moderno',
+    };
+    final description = switch (style) {
+      'LIBRO' => 'Hojas por categoría, como una carta impresa.',
+      'EDITORIAL' => 'Tipografía protagonista y productos refinados.',
+      'GALERIA' => 'Fotografías grandes para destacar tus productos.',
+      'MINIMALISTA' => 'Lista limpia y fácil de explorar.',
+      _ => 'Tarjetas modernas con fotos y precios.',
+    };
+    final icon = switch (style) {
+      'LIBRO' => Icons.auto_stories_rounded,
+      'EDITORIAL' => Icons.article_outlined,
+      'GALERIA' => Icons.photo_library_outlined,
+      'MINIMALISTA' => Icons.view_list_outlined,
+      _ => Icons.dashboard_customize_rounded,
+    };
     return Semantics(
       button: true, selected: selected, label: 'Elegir diseño $title',
       child: InkWell(
         borderRadius: BorderRadius.circular(18),
-        onTap: () => setState(() { _layout = style; _dirty = true; }),
+        onTap: () => setState(() {
+          _layout = style;
+          _dirty = true;
+        }),
         child: AnimatedContainer(
           duration: const Duration(milliseconds: 180),
-          width: width, padding: const EdgeInsets.all(13),
+          width: width,
+          padding: const EdgeInsets.all(13),
           decoration: BoxDecoration(
             color: selected ? pal.secondary.withOpacity(.12) : pal.surface,
             borderRadius: BorderRadius.circular(18),
-            border: Border.all(color: selected ? pal.secondary : pal.cardBorder,
-                width: selected ? 2 : 1)),
+            border: Border.all(color: selected
+                ? pal.secondary : pal.cardBorder, width: selected ? 2 : 1)),
           child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
             Row(children: [
-              Icon(modern ? Icons.dashboard_customize_rounded
-                  : Icons.auto_stories_rounded, color: pal.secondary),
+              Icon(icon, color: pal.secondary),
               const SizedBox(width: 8),
-              Expanded(child: Text(title, style: TextStyle(
-                  color: pal.textPrimary, fontWeight: FontWeight.w900))),
+              Expanded(child: Text(title,
+                style: TextStyle(color: pal.textPrimary,
+                  fontWeight: FontWeight.w900))),
               Icon(selected ? Icons.radio_button_checked_rounded
                   : Icons.radio_button_unchecked_rounded,
                   color: selected ? pal.secondary : pal.textSecondary),
             ]),
             const SizedBox(height: 7),
-            Text(modern
-                ? 'Fotos, tarjetas y precios destacados.'
-                : 'Páginas por categoría, como una carta impresa.',
-                style: TextStyle(color: pal.textSecondary, fontSize: 12)),
+            Text(description, maxLines: 3,
+              style: TextStyle(color: pal.textSecondary,
+                fontSize: 11.5, height: 1.3)),
             const SizedBox(height: 10),
             Container(
-              height: 89, padding: const EdgeInsets.all(10),
+              height: 128,
+              padding: const EdgeInsets.all(10),
               decoration: BoxDecoration(color: colors.canvas,
-                  borderRadius: BorderRadius.circular(12)),
-              child: modern
-                ? Row(children: [
-                    for (int i = 0; i < 2; i++) ...[
-                      Expanded(child: Container(
-                        padding: const EdgeInsets.all(6),
-                        decoration: BoxDecoration(color: colors.card,
-                            borderRadius: BorderRadius.circular(8)),
-                        child: Column(children: [
-                          Expanded(child: Container(
-                            color: colors.secondarySurface,
-                            child: Center(child: Icon(Icons.image_outlined,
-                                size: 16, color: colors.text)))),
-                          const SizedBox(height: 5),
-                          Container(height: 6, width: double.infinity,
-                              color: colors.text.withOpacity(.65)),
-                          const SizedBox(height: 3),
-                          Container(height: 7, width: 40,
-                              color: colors.accent),
-                        ]),
-                      )),
-                      if (i == 0) const SizedBox(width: 9),
-                    ],
-                  ])
-                : Container(
-                    padding: const EdgeInsets.all(9),
-                    decoration: BoxDecoration(
-                      color: colors.card, borderRadius: BorderRadius.circular(7)),
-                    child: Column(children: [
-                      Text('NUESTRA CARTA',
-                          style: TextStyle(color: colors.text, fontSize: 10,
-                            fontWeight: FontWeight.w800)),
-                      Divider(height: 12, color: colors.border),
-                      for (int i = 0; i < 2; i++)
-                        Padding(padding: const EdgeInsets.only(bottom: 6),
-                          child: Row(children: [
-                            Icon(Icons.restaurant_menu_rounded,
-                                color: colors.text, size: 13),
-                            const SizedBox(width: 8),
-                            Expanded(child: Container(height: 4,
-                                color: colors.text.withOpacity(.6))),
-                            const SizedBox(width: 8),
-                            Container(width: 31, height: 9,
-                                color: colors.accent),
-                          ])),
-                    ]),
-                  ),
+                borderRadius: BorderRadius.circular(12)),
+              child: ClipRect(child: _designThumbnail(colors, style)),
             ),
             const SizedBox(height: 9),
             Text(selected ? 'DISEÑO SELECCIONADO' : 'Seleccionar este diseño',
-                style: TextStyle(color: selected
-                    ? pal.secondary : pal.textSecondary,
-                    fontSize: 11, fontWeight: FontWeight.w800)),
+              style: TextStyle(
+                color: selected ? pal.secondary : pal.textSecondary,
+                fontSize: 11, fontWeight: FontWeight.w800)),
           ]),
         ),
       ),
@@ -675,8 +760,8 @@ class _MenuDigitalAdminPageState extends ConsumerState<MenuDigitalAdminPage> {
                   fontSize: 18, fontWeight: FontWeight.w900))),
           ]),
           const SizedBox(height: 7),
-          Text('Elige Moderno o Libro. Los productos, los precios y '
-              'las paletas de colores son compatibles con ambos diseños.',
+          Text('Elige entre cinco diseños. Tus productos, precios y '
+              'paletas de colores se conservan al cambiar de diseño.',
               style: TextStyle(color: pal.textSecondary, fontSize: 12)),
           const SizedBox(height: 14),
           LayoutBuilder(builder: (context, limits) {
@@ -684,8 +769,10 @@ class _MenuDigitalAdminPageState extends ConsumerState<MenuDigitalAdminPage> {
                 ? limits.maxWidth : (limits.maxWidth - 12) / 2;
             final colors = MenuDigitalColors.fromMenu(_preview());
             return Wrap(spacing: 12, runSpacing: 12, children: [
-              _designOption(pal, colors, 'TIENDA', width),
-              _designOption(pal, colors, 'LIBRO', width),
+              for (final style in const <String>[
+                'TIENDA', 'LIBRO', 'EDITORIAL', 'GALERIA', 'MINIMALISTA',
+              ])
+                _designOption(pal, colors, style, width),
             ]);
           }),
           const SizedBox(height: 8),
