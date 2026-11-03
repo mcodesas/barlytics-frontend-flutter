@@ -35,7 +35,8 @@ class _VentaHistoricaActionsState extends ConsumerState<VentaHistoricaActions> {
   bool get _finalizada => widget.estado.toUpperCase() == 'FINALIZADA';
 
   Future<void> _operar({required bool corregir}) async {
-    if (_enProceso || !widget.autorizado || !_finalizada) return;
+    if (_enProceso || !widget.autorizado ||
+        !(_finalizada || (corregir && _anulada))) return;
     final motivo = TextEditingController();
     var acepto = false;
     final confirmacion = await showDialog<String>(
@@ -43,7 +44,10 @@ class _VentaHistoricaActionsState extends ConsumerState<VentaHistoricaActions> {
       builder: (dialog) => StatefulBuilder(builder: (context, refresh) =>
         AlertDialog(
           scrollable: true,
-          title: Text(corregir ? 'Corregir venta #${widget.ventaId}'
+          title: Text(corregir
+              ? (_anulada
+                  ? 'Retomar corrección #${widget.ventaId}'
+                  : 'Corregir venta #${widget.ventaId}')
               : 'Anular venta #${widget.ventaId}'),
           content: ConstrainedBox(
             constraints: const BoxConstraints(maxWidth: 520),
@@ -53,9 +57,16 @@ class _VentaHistoricaActionsState extends ConsumerState<VentaHistoricaActions> {
                   'No se borrarán la venta original, los pagos ni el cierre de caja.'),
               const SizedBox(height: 10),
               Text(corregir
-                ? 'Se anulará la original y se generará una nueva venta directa '
-                  'editable con los mismos productos, cantidades y descuentos, '
-                  'pero sin pagos. Tendrás que revisar y volver a cobrar.'
+                ? (_anulada
+                    ? 'Esta venta ya está anulada. Se abrirá la corrección '
+                      'pendiente si existe, o se creará un borrador editable '
+                      'con sus productos y descuentos. La venta original '
+                      'seguirá anulada: NO se volverá a devolver stock, '
+                      'modificar el cierre ni duplicar pagos.'
+                    : 'Se anulará la original y se generará una nueva venta '
+                      'directa editable con los mismos productos, cantidades '
+                      'y descuentos, pero sin pagos. Revisa el cobro anterior '
+                      'antes de cobrar de nuevo.')
                 : 'Se devolverá al inventario únicamente lo descontado por '
                   'la venta y se ajustarán los totales del sistema del cierre '
                   'sin modificar el dinero declarado en el arqueo.'),
@@ -82,8 +93,11 @@ class _VentaHistoricaActionsState extends ConsumerState<VentaHistoricaActions> {
                 value: acepto,
                 controlAffinity: ListTileControlAffinity.leading,
                 onChanged: (value) => refresh(() => acepto = value ?? false),
-                title: const Text('Confirmo el ajuste de inventario, '
-                    'cierre y conciliación financiera.'),
+                title: Text(_anulada && corregir
+                    ? 'Entiendo que se retoma una corrección y no se altera '
+                      'nuevamente el inventario ni el cierre.'
+                    : 'Confirmo el ajuste de inventario, cierre y '
+                      'conciliación financiera.'),
               ),
             ]),
           ),
@@ -96,7 +110,9 @@ class _VentaHistoricaActionsState extends ConsumerState<VentaHistoricaActions> {
               icon: Icon(corregir
                   ? Icons.edit_note_rounded : Icons.block_rounded),
               label: Text(corregir
-                  ? 'Anular y crear corrección' : 'Confirmar anulación'),
+                  ? (_anulada ? 'Retomar corrección'
+                      : 'Anular y crear corrección')
+                  : 'Confirmar anulación'),
             ),
           ],
         ),
@@ -114,8 +130,11 @@ class _VentaHistoricaActionsState extends ConsumerState<VentaHistoricaActions> {
         if (nueva == null) throw StateError('No se recibió la venta de reemplazo');
         if (!mounted) return;
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Venta #${widget.ventaId} anulada. '
-              'Nueva venta editable #$nueva. Revisa pagos e inventario.')));
+          SnackBar(content: Text(_anulada
+              ? 'Corrección #$nueva lista para continuar. '
+                'El stock y el cierre originales no se modificaron nuevamente.'
+              : 'Venta #${widget.ventaId} anulada. '
+                'Nueva venta editable #$nueva. Revisa pagos e inventario.')));
         await widget.onCorregida(nueva);
       } else {
         final result = await api.anularVentaFinalizada(
@@ -192,10 +211,20 @@ class _VentaHistoricaActionsState extends ConsumerState<VentaHistoricaActions> {
             children: [
               const Chip(avatar: Icon(Icons.block_rounded, size: 18),
                 label: Text('Venta anulada')),
+              FilledButton.icon(
+                onPressed: _enProceso
+                    ? null : () => _operar(corregir: true),
+                icon: const Icon(Icons.edit_note_rounded),
+                label: const Text('Retomar o corregir venta'),
+              ),
               OutlinedButton.icon(
                 onPressed: _enProceso ? null : _verAuditoria,
                 icon: const Icon(Icons.history_rounded),
                 label: const Text('Ver motivo y auditoría'),
+              ),
+              if (_enProceso) const SizedBox(
+                width: 150,
+                child: LinearProgressIndicator(),
               ),
             ],
           ),
