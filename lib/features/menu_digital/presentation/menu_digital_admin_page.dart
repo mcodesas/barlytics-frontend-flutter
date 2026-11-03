@@ -860,6 +860,118 @@ class _MenuDigitalAdminPageState extends ConsumerState<MenuDigitalAdminPage> {
         const SizedBox(height: 7),
         Text('JPG, PNG o WEBP hasta 1,5 MB. La portada aparece también al compartir.',
             style: TextStyle(color: pal.textSecondary, fontSize: 12)),
+        const SizedBox(height: 12),
+        if ((_uploadedCover ?? _cover.text).isNotEmpty)
+          _visualPreview(_uploadedCover ?? _cover.text, height: 145,
+              width: double.infinity),
+        const SizedBox(height: 16),
+        Text('CÓMO MOSTRAR LA PORTADA',
+          style: TextStyle(color: pal.secondary, fontSize: 11,
+              fontWeight: FontWeight.w900, letterSpacing: 1.1)),
+        const SizedBox(height: 9),
+        Wrap(spacing: 9, runSpacing: 9, children: [
+          ChoiceChip(
+            label: const Text('Foto completa arriba'),
+            avatar: const Icon(Icons.wallpaper_outlined, size: 19),
+            selected: _coverMode == 'COMPLETA',
+            onSelected: (_) => setState(() {
+              _coverMode = 'COMPLETA'; _dirty = true;
+            })),
+          ChoiceChip(
+            label: const Text('Encabezado dividido clásico'),
+            avatar: const Icon(Icons.view_week_outlined, size: 19),
+            selected: _coverMode == 'DIVIDIDA',
+            onSelected: (_) => setState(() {
+              _coverMode = 'DIVIDIDA'; _dirty = true;
+            })),
+        ]),
+        const SizedBox(height: 7),
+        Text('La foto completa evita recortes y deja el logo y los datos del negocio debajo. '
+             'El encabezado dividido conserva la presentación anterior.',
+          style: TextStyle(color: pal.textSecondary, fontSize: 12)),
+        const SizedBox(height: 22),
+        Text('LOGO DEL NEGOCIO',
+          style: TextStyle(color: pal.secondary, fontSize: 11,
+              fontWeight: FontWeight.w900, letterSpacing: 1.1)),
+        const SizedBox(height: 7),
+        Text('Por defecto se utiliza el logo o fotografía configurada '
+             'en la sucursal. Puedes reemplazarlo solo en esta carta.',
+          style: TextStyle(color: pal.textSecondary, fontSize: 12)),
+        const SizedBox(height: 9),
+        Wrap(crossAxisAlignment: WrapCrossAlignment.center,
+            spacing: 12, runSpacing: 10, children: [
+          _visualPreview((_customLogo?.isNotEmpty ?? false)
+              ? _customLogo : _saved?['logoSucursal']?.toString(),
+              width: 94, height: 90),
+          OutlinedButton.icon(
+            onPressed: () => _pickVisual('logo'),
+            icon: const Icon(Icons.add_photo_alternate_rounded),
+            label: const Text('Cambiar logo')),
+          if (_customLogo?.isNotEmpty == true)
+            TextButton.icon(
+              onPressed: () => setState(() {
+                _customLogo = '';
+                _dirty = true;
+              }),
+              icon: const Icon(Icons.restore_rounded),
+              label: const Text('Usar logo de sucursal')),
+        ]),
+        const SizedBox(height: 22),
+        Text('FOTOGRAFÍA DE FONDO',
+          style: TextStyle(color: pal.secondary, fontSize: 11,
+              fontWeight: FontWeight.w900, letterSpacing: 1.1)),
+        const SizedBox(height: 7),
+        Text('Opcional. Aparece suavemente detrás del contenido de la carta '
+             'y se combina con los colores de la paleta para facilitar la lectura.',
+          style: TextStyle(color: pal.textSecondary, fontSize: 12)),
+        const SizedBox(height: 9),
+        Wrap(crossAxisAlignment: WrapCrossAlignment.center,
+            spacing: 12, runSpacing: 10, children: [
+          _visualPreview(_backgroundPhoto, width: 140, height: 90),
+          OutlinedButton.icon(
+            onPressed: () => _pickVisual('fondo'),
+            icon: const Icon(Icons.wallpaper_outlined),
+            label: const Text('Subir imagen de fondo')),
+          if (_backgroundPhoto?.isNotEmpty == true)
+            TextButton.icon(
+              onPressed: () => setState(() {
+                _backgroundPhoto = '';
+                _dirty = true;
+              }),
+              icon: const Icon(Icons.delete_outline_rounded),
+              label: const Text('Quitar fondo')),
+        ]),
+        const SizedBox(height: 22),
+        Text('GALERÍA DEL NEGOCIO',
+          style: TextStyle(color: pal.secondary, fontSize: 11,
+              fontWeight: FontWeight.w900, letterSpacing: 1.1)),
+        const SizedBox(height: 7),
+        Text('Hasta 6 fotografías adicionales. Los clientes podrán abrirlas '
+             'en tamaño completo y hacer zoom. Máximo 700 KB por foto.',
+          style: TextStyle(color: pal.textSecondary, fontSize: 12)),
+        const SizedBox(height: 9),
+        Wrap(spacing: 9, runSpacing: 9, children: [
+          for (var index = 0; index < _gallery.length; index++)
+            Stack(children: [
+              _visualPreview(_gallery[index], width: 114, height: 99),
+              Positioned(
+                right: 1, top: 1,
+                child: IconButton.filledTonal(
+                  visualDensity: VisualDensity.compact,
+                  tooltip: 'Eliminar fotografía ${index + 1}',
+                  icon: const Icon(Icons.close_rounded, size: 17),
+                  onPressed: () => setState(() {
+                    _gallery.removeAt(index);
+                    _dirty = true;
+                  }),
+                )),
+            ]),
+          if (_gallery.length < 6)
+            OutlinedButton.icon(
+              onPressed: _pickGallery,
+              icon: const Icon(Icons.add_photo_alternate_outlined),
+              label: Text('Agregar fotos (${_gallery.length}/6)')),
+        ]),
       ])),
       const SizedBox(height: 13),
       _panel(pal, Column(crossAxisAlignment: CrossAxisAlignment.stretch,
