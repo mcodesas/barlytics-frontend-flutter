@@ -5,6 +5,7 @@ import 'package:url_launcher/url_launcher.dart';
 
 import '../data/menu_digital_api.dart';
 import 'widgets/menu_digital_catalog.dart';
+import 'widgets/menu_digital_palette.dart';
 
 /// La ruta /carta/:slug es pública: no exige JWT ni suscripción del visitante.
 class MenuDigitalPublicPage extends ConsumerStatefulWidget {
@@ -47,8 +48,14 @@ class _MenuDigitalPublicPageState extends ConsumerState<MenuDigitalPublicPage> {
     final link = (_menu?['enlaceCompartir'] ?? _menu?['url'] ?? '').toString();
     if (!link.startsWith('https://')) return;
     await Clipboard.setData(ClipboardData(text: link));
-    if (mounted) ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('Enlace de la carta copiado.')));
+    if (mounted) {
+      final colors = MenuDigitalColors.fromMenu(_menu ?? {});
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+        backgroundColor: colors.accent,
+        content: Text('Enlace de la carta copiado.',
+          style: TextStyle(color: colors.onAccent)),
+      ));
+    }
   }
 
   Future<void> _whatsapp() async {
@@ -86,20 +93,31 @@ class _MenuDigitalPublicPageState extends ConsumerState<MenuDigitalPublicPage> {
           ),
         )));
     }
+    final colors = MenuDigitalColors.fromMenu(data);
     return Scaffold(
-      backgroundColor: Colors.transparent,
+      backgroundColor: colors.canvas,
       body: Stack(children: [
         Positioned.fill(child: MenuDigitalCatalog(menu: data)),
         Positioned(right: 16, bottom: 20, child: SafeArea(child:
           Column(mainAxisSize: MainAxisSize.min, children: [
             FloatingActionButton.small(
-              heroTag: 'menu_copy', tooltip: 'Copiar enlace del menú',
+              heroTag: 'menu_copy',
+              tooltip: 'Copiar enlace del menú',
+              backgroundColor: colors.card,
+              foregroundColor: colors.text,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(17),
+                side: BorderSide(color: colors.border)),
               onPressed: _share,
               child: const Icon(Icons.link_rounded)),
             const SizedBox(height: 10),
             FloatingActionButton(
               heroTag: 'menu_whatsapp',
               tooltip: 'Compartir el menú por WhatsApp',
+              backgroundColor: colors.accent,
+              foregroundColor: colors.onAccent,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(18)),
               onPressed: _whatsapp,
               child: const Icon(Icons.share_rounded)),
           ]),
