@@ -3254,20 +3254,35 @@ class _CustomRoleBottomNavigation extends ConsumerWidget {
     required WidgetRef ref,
   }) async {
     var query = '';
+    final showFavorites = (ref.read(menuPreferencesProvider).valueOrNull ??
+        const MenuPreferences()).showInMenu;
+    final availableFavorites = ref.read(userMenuProvider).maybeWhen(
+      data: (menus) => menus.where((item) => item.isFavorite).toList(),
+      orElse: () => <UserMenuItem>[],
+    );
+    final allItems = <UserMenuItem>[...availableFavorites, ...items];
     await showModalBottomSheet<void>(
       context: context,
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
       builder: (sheetContext) => StatefulBuilder(
         builder: (sheetContext, setSheetState) {
-          final filtered = items
-              .where(
-                (item) => _matchesMenuSearch(
-                  query,
-                  [item.title, item.keyName, item.description],
-                ),
-              )
+          final filtered = allItems
+              .where((item) => _matchesMenuSearch(query, [
+                    item.title, item.keyName, item.description, item.groupName,
+                  ]))
               .toList(growable: false);
+          final sections = splitMoreMenuFavorites(filtered,
+              showFavoritesInMenu: showFavorites);
+          void openPath(String destination) {
+            Navigator.pop(sheetContext);
+            WidgetsBinding.instance.addPostFrameCallback((_) {
+              if (context.mounted) {
+                selectMeseroModeForMenuPath(ref, destination);
+                context.go(destination);
+              }
+            });
+          }
 
           return SafeArea(
             child: Container(
@@ -3327,28 +3342,29 @@ class _CustomRoleBottomNavigation extends ConsumerWidget {
                   ),
                   const SizedBox(height: 12),
                   Flexible(
-                    child: filtered.isEmpty
+                    child: sections.isEmpty
                         ? _emptyMenuSearchState(palette)
                         : ListView.separated(
                             shrinkWrap: true,
-                            itemCount: filtered.length,
+                            itemCount: sections.remaining.length +
+                                (sections.favorites.isNotEmpty ? 1 : 0),
                             separatorBuilder: (_, __) =>
                                 const SizedBox(height: 7),
                             itemBuilder: (itemContext, index) {
-                              final item = filtered[index];
+                              if (sections.favorites.isNotEmpty && index == 0) {
+                                return _moreFavoritesSection(
+                                  palette: palette,
+                                  favorites: sections.favorites,
+                                  selectedPath: selectedPath,
+                                  onSelect: openPath,
+                                );
+                              }
+                              final item = sections.remaining[index -
+                                  (sections.favorites.isNotEmpty ? 1 : 0)];
                               final selected = selectedPath == item.path;
                               return ListTile(
                                 selected: selected,
-                                onTap: () {
-                                  Navigator.pop(sheetContext);
-                                  WidgetsBinding.instance
-                                      .addPostFrameCallback((_) {
-                                    if (context.mounted) {
-                                      selectMeseroModeForMenuPath(ref, item.path);
-                                      context.go(item.path);
-                                    }
-                                  });
-                                },
+                                onTap: () => openPath(item.path),
                                 shape: RoundedRectangleBorder(
                                   borderRadius: BorderRadius.circular(15),
                                   side: BorderSide(
