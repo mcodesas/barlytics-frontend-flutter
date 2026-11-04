@@ -26,3 +26,21 @@ List<UserMenuItem> prioritizeBottomMenuItems(
     ...allowed.where((item) => !favoriteSet.contains(item)),
   ];
 }
+
+  
+/// Mueve un módulo a una posición humana (1 = primera fila) sin depender
+/// del arrastre. No muta la colección original.
+List<T> moveMenuItemToPosition<T>(
+  List<T> items, {
+  required int fromIndex,
+  required int position,
+}) {
+  if (fromIndex < 0 || fromIndex >= items.length ||
+      position < 1 || position > items.length) {
+    return List<T>.of(items);
+  }
+  final reordered = List<T>.of(items);
+  final item = reordered.removeAt(fromIndex);
+  reordered.insert(position - 1, item);
+  return reordered;
+}
