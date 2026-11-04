@@ -103,7 +103,8 @@ platform :ios do
       api_key: api_key,
       ipa: "../build/ios/ipa/BarLytics.ipa",
       changelog: ENV["IOS_CHANGELOG"],
-      skip_waiting_for_build_processing: true
+      # Anunciar la actualización sólo cuando TestFlight haya procesado la build.
+      skip_waiting_for_build_processing: false
     )
   end
 
