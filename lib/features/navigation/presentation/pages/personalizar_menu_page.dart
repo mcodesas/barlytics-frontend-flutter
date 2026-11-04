@@ -243,7 +243,8 @@ class _PersonalizarMenuPageState extends ConsumerState<PersonalizarMenuPage> {
               heroTag: 'guardar-menu-personalizado',
               onPressed: _saving ? null : _save,
               backgroundColor: palette.secondary,
-              foregroundColor: palette.onSecondary,
+              foregroundColor: palette.secondary.computeLuminance() > .5
+                  ? Colors.black : Colors.white,
               icon: _saving
                   ? const SizedBox(width: 18, height: 18,
                       child: CircularProgressIndicator(strokeWidth: 2))
