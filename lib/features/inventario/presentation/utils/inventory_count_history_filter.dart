@@ -17,3 +17,16 @@ bool matchesCountHistoryRow({
   return productName.toLowerCase().contains(normalized) ||
       '$countId'.contains(normalized);
 }
+
+/// La fecha elegida corresponde al día civil de la jornada y no depende de
+/// la hora en que se registraron los productos.
+bool matchesCountHistoryDay({
+  required DateTime date,
+  String? selectedDay,
+}) {
+  if (selectedDay == null) return true;
+  final key = '${date.year.toString().padLeft(4, '0')}-'
+      '${date.month.toString().padLeft(2, '0')}-'
+      '${date.day.toString().padLeft(2, '0')}';
+  return key == selectedDay;
+}
