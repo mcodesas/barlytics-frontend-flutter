@@ -326,7 +326,7 @@ class _SportsAgendaWidgetState extends ConsumerState<SportsAgendaWidget> {
           ? (width - 24) / 3
           : width >= 600
               ? (width - 12) / 2
-              : (width * .83).clamp(200.0, 320.0);
+              : (width * .83).clamp(200.0, 320.0).toDouble();
       return Container(
         padding: const EdgeInsets.fromLTRB(13, 11, 13, 10),
         decoration: BoxDecoration(
