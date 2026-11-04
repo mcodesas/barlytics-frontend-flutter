@@ -23,7 +23,26 @@ env:
   DOCKER_BUILD_RECORD_UPLOAD: "false"
 
 jobs:
+  verify:
+    name: QA - comprobación de actualizaciones
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.41.9'
+          channel: stable
+          cache: true
+      - name: Preparar dependencias
+        run: flutter pub get
+      - name: Probar detección de nuevas versiones
+        run: |
+          flutter test test/core/update/app_update_model_test.dart
+          flutter analyze lib/core/update
+          python3 -m unittest discover -s deploy/update -p 'test_*.py'
+
   android:
+    needs: verify
     name: Android - Google Play Internal
     runs-on: ubuntu-latest
     steps:
@@ -91,6 +110,7 @@ jobs:
           fastlane supply --json_key "$RUNNER_TEMP/play-service-account.json" --package_name "com.mcode.barlytics" --aab build/app/outputs/bundle/release/app-release.aab --track internal --release_status completed --skip_upload_metadata true --skip_upload_images true --skip_upload_screenshots true --skip_upload_changelogs true
 
   windows:
+    needs: verify
     name: Windows - instalador
     runs-on: windows-2022
     steps:
@@ -124,6 +144,7 @@ jobs:
           retention-days: 1
 
   linux:
+    needs: verify
     name: Linux - instalador
     runs-on: ubuntu-latest
     steps:
