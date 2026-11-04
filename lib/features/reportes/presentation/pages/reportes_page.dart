@@ -26,6 +26,7 @@ import '../utils/order_product_visibility.dart';
 import '../widgets/manual_purchase_order_dialog.dart';
 import '../widgets/order_inventory_diagnostic_table.dart';
 import '../widgets/order_history_card.dart';
+import '../widgets/report_month_selector_grid.dart';
 import '../../../subscription/presentation/providers/subscription_provider.dart';
 
 class ReportesPage extends ConsumerWidget {
@@ -1129,64 +1130,14 @@ class _ReporteDetailState extends ConsumerState<_ReporteDetail> {
                       ),
                     ),
                     const SizedBox(height: 16),
-                    GridView.builder(
-                      shrinkWrap: true,
-                      physics: const NeverScrollableScrollPhysics(),
-                      itemCount: 12,
-                      gridDelegate:
-                          const SliverGridDelegateWithFixedCrossAxisCount(
-                        crossAxisCount: 3,
-                        mainAxisSpacing: 8,
-                        crossAxisSpacing: 8,
-                        childAspectRatio: 2.35,
-                      ),
-                      itemBuilder: (_, index) {
-                        final month = index + 1;
-                        final futureMonth =
-                            selectedYear == now.year && month > now.month;
-                        final selected = selectedMonth == month;
-
-                        return Material(
-                          color: selected
-                              ? scheme.primary
-                              : scheme.surfaceContainerHighest.withOpacity(.35),
-                          borderRadius: BorderRadius.circular(12),
-                          child: InkWell(
-                            borderRadius: BorderRadius.circular(12),
-                            onTap: futureMonth
-                                ? null
-                                : () => setDialogState(
-                                      () => selectedMonth = month,
-                                    ),
-                            child: Container(
-                              alignment: Alignment.center,
-                              decoration: BoxDecoration(
-                                borderRadius: BorderRadius.circular(12),
-                                border: Border.all(
-                                  color: selected
-                                      ? scheme.primary
-                                      : scheme.outlineVariant.withOpacity(.55),
-                                ),
-                              ),
-                              child: Text(
-                                monthNames[index],
-                                textAlign: TextAlign.center,
-                                style: TextStyle(
-                                  color: futureMonth
-                                      ? scheme.onSurface.withOpacity(.30)
-                                      : selected
-                                          ? scheme.onPrimary
-                                          : scheme.onSurface,
-                                  fontWeight: selected
-                                      ? FontWeight.w900
-                                      : FontWeight.w700,
-                                  fontSize: 12,
-                                ),
-                              ),
-                            ),
-                          ),
-                        );
-                      },
+                    ReportMonthSelectorGrid(
+                      monthNames: monthNames,
+                      selectedYear: selectedYear,
+                      selectedMonth: selectedMonth,
+                      currentYear: now.year,
+                      currentMonth: now.month,
+                      onSelected: (month) =>
+                          setDialogState(() => selectedMonth = month),
                     ),
                     const SizedBox(height: 12),
                     Align(
