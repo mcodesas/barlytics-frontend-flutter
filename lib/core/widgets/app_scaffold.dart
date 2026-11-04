@@ -2164,30 +2164,113 @@ class _OperationalBottomNavigation extends ConsumerWidget {
       ],
     ];
 
-    final representedPaths = entries.map((entry) => entry.path).toSet();
-    final extraMenus = authorizedMenus.where((item) {
-      if (item.path.trim().isEmpty || item.keyName == 'mesero' ||
-          item.path == '/home' || item.keyName == 'home') return false;
-      return !representedPaths.contains(item.path);
-    }).toList(growable: false);
-    final hasExtraMenus = extraMenus.isNotEmpty;
-    final navigationEntries = <({
+    // El cajero/mesero también puede colocar sus módulos favoritos
+    // primero, sin desplazar Inicio ni eliminar los accesos restantes.
+    final preferences = ref.watch(menuPreferencesProvider).valueOrNull ??
+        const MenuPreferences();
+    final extraAllowed = authorizedMenus.where((item) =>
+        item.path.trim().isNotEmpty && item.path != '/home' &&
+        item.keyName != 'home' && item.keyName != 'mesero').toList();
+    final favorites = prioritizeBottomMenuItems(
+      authorizedMenus.where((item) =>
+          item.path.trim().isNotEmpty && item.path != '/home' &&
+          item.keyName != 'home').toList(),
+      showFavoritesInMenu: preferences.showInMenu,
+    ).where((item) => item.isFavorite && preferences.showInMenu).toList();
+
+    String canonicalPath(UserMenuItem item) => switch (item.keyName) {
+      'historial_ventas' => '/mesero/historial',
+      'cierre_caja' => '/mesero/cierre-caja',
+      'mesero_productos' => '/mesero/productos',
+      _ => item.path.trim(),
+    };
+
+    final candidates = <({
       String path,
       MeseroPageMode? mode,
       BottomNavigationBarItem item,
-    })>[
-      ...entries,
-      if (hasExtraMenus)
-        (
-          path: '__more__',
+    })>[];
+    final visited = <String>{};
+    void add(({
+      String path, MeseroPageMode? mode, BottomNavigationBarItem item
+    }) entry) {
+      if (entry.path.isNotEmpty && visited.add(entry.path)) {
+        candidates.add(entry);
+      }
+    }
+
+    // Conservar los destinos operativos originales, pero promover favoritos
+    // incluso cuando antes solo aparecían dentro de "Más".
+    for (final item in favorites) {
+      final path = canonicalPath(item);
+      if (path == '/home') continue;
+      final original = entries.where((entry) => entry.path == path);
+      if (original.isNotEmpty) {
+        add(original.first);
+      } else {
+        add((
+          path: path,
           mode: null,
-          item: const BottomNavigationBarItem(
-            icon: Icon(Icons.more_horiz_rounded),
-            label: 'Más',
+          item: BottomNavigationBarItem(
+            icon: Icon(_customRoleMenuIcon(item)),
+            label: item.title,
           ),
-        ),
+        ));
+      }
+    }
+    for (final entry in entries.skip(1)) {
+      add(entry);
+    }
+    for (final item in extraAllowed) {
+      final path = canonicalPath(item);
+      add((
+        path: path,
+        mode: null,
+        item: BottomNavigationBarItem(
+          icon: Icon(_customRoleMenuIcon(item)), label: item.title),
+      ));
+    }
+
+    // Inicio + 3 accesos prioritarios + Más: cinco botones legibles como
+    // en la vista web del usuario. Los excedentes continúan accesibles.
+    final displayed = candidates.take(3).toList(growable: false);
+    final navigationEntries = <({
+      String path, MeseroPageMode? mode, BottomNavigationBarItem item
+    })>[
+      entries.first,
+      ...displayed,
+      (
+        path: '__more__',
+        mode: null,
+        item: const BottomNavigationBarItem(
+          icon: Icon(Icons.more_horiz_rounded), label: 'Más'),
+      ),
     ];
 
+    final authorizedByPath = <String, UserMenuItem>{
+      for (final item in authorizedMenus)
+        if (item.path.isNotEmpty)
+          canonicalPath(item): item,
+    };
+    final extraMenus = <UserMenuItem>[
+      for (final item in candidates.skip(displayed.length))
+        authorizedByPath[item.path] ??
+            UserMenuItem(
+              keyName: item.path,
+              title: item.item.label ?? 'Módulo',
+              path: item.path,
+              groupCode: 'OPERACION', groupName: 'Operación',
+              menuOrder: 100,
+            ),
+      const UserMenuItem(
+        keyName: 'personalizar_menu',
+        title: 'Personalizar mi menú',
+        path: '/personalizar_menu',
+        groupCode: 'CONFIGURACION',
+        groupName: 'Configuración',
+        menuOrder: 998,
+      ),
+    ];
     // Cada ruta operativa tiene una selección inequívoca. Solo /mesero
     // permite que el provider decida cuál pestaña interna está visible.
     final effectivePath = switch (currentPath) {
@@ -2271,6 +2354,8 @@ class _OperationalBottomNavigation extends ConsumerWidget {
             }
             if (entry.mode != null) {
               ref.read(meseroSelectedModeProvider.notifier).state = entry.mode!;
+            } else {
+              selectMeseroModeForMenuPath(ref, entry.path);
             }
             context.go(entry.path);
           },
