@@ -3256,15 +3256,27 @@ class _CountDayCardState extends State<_CountDayCard> {
   // El historial debe mostrar por defecto todos los productos contados,
   // incluidos los que coinciden exactamente con el stock esperado.
   bool _onlyDifferences = false;
+  final _productSearch = TextEditingController();
+
+  @override
+  void dispose() {
+    _productSearch.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
     final day = widget.day;
     final palette = widget.palette;
     final onReview = widget.onReview;
-    final visibleRows = _onlyDifferences
-        ? day.rows.where((row) => row.hasDifference).toList(growable: false)
-        : day.rows;
+    final visibleRows = day.rows.where((row) =>
+        (!_onlyDifferences || row.hasDifference) &&
+        matchesCountHistoryRow(
+          productId: row.productId,
+          countId: row.countId,
+          productName: row.product,
+          query: _productSearch.text,
+        )).toList(growable: false);
 
     final risky = day.missingValue > 0 || day.pendingCount > 0;
     final tone = risky ? palette.warning : palette.success;
@@ -3453,7 +3465,27 @@ class _CountDayCardState extends State<_CountDayCard> {
                   fontSize: 11,
                 ),
               ),
-              const SizedBox(height: 8),
+              const SizedBox(height: 12),
+              TextField(
+                key: const ValueKey('inventory-count-day-product-search'),
+                controller: _productSearch,
+                onChanged: (_) => setState(() {}),
+                decoration: InputDecoration(
+                  labelText: 'Buscar producto en esta jornada',
+                  hintText: 'Nombre o número de conteo',
+                  prefixIcon: Icon(Icons.search_rounded,
+                    color: palette.secondary),
+                  suffixIcon: _productSearch.text.isEmpty ? null : IconButton(
+                    tooltip: 'Limpiar producto de esta jornada',
+                    onPressed: () {
+                      _productSearch.clear();
+                      setState(() {});
+                    },
+                    icon: const Icon(Icons.close_rounded),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 10),
               Wrap(
                 spacing: 8,
                 runSpacing: 6,
@@ -3480,12 +3512,27 @@ class _CountDayCardState extends State<_CountDayCard> {
                 ],
               ),
               const SizedBox(height: 9),
+              if (_productSearch.text.trim().isNotEmpty)
+                Padding(
+                  padding: const EdgeInsets.only(bottom: 8),
+                  child: Text(
+                    '${visibleRows.length} producto(s) encontrados '
+                    'en el conteo del ${DateFormat('dd/MM/yyyy').format(day.date)}.',
+                    style: TextStyle(
+                      color: palette.secondary,
+                      fontWeight: FontWeight.w800,
+                      fontSize: 12,
+                    ),
+                  ),
+                ),
               if (visibleRows.isEmpty)
                 Padding(
                   padding: const EdgeInsets.symmetric(vertical: 14),
                   child: Text(
-                    'Todos los productos de esta jornada coincidieron '
-                    'con el inventario esperado.',
+                    _productSearch.text.trim().isNotEmpty
+                        ? 'No se registró ningún producto que coincida '
+                          'con la búsqueda en esta jornada.'
+                        : 'No hay productos con diferencias para este filtro.',
                     style: TextStyle(
                       color: palette.textSecondary,
                       fontWeight: FontWeight.w700,
