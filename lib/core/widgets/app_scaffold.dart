@@ -3552,20 +3552,51 @@ class _ManagerBottomNavigation extends ConsumerWidget {
           orElse: () => const <UserMenuItem>[],
         );
 
-    // La BD decide qué grupos merecen acceso principal. El shell conserva
-    // Inicio y Más como elementos estructurales; entre ambos se muestran como
-    // máximo tres grupos para mantener siempre una barra inferior de 5 items.
+    // Primero cada favorito autorizado, respetando el orden personal. Los
+    // huecos restantes mantienen los grupos originales. Inicio y Más nunca
+    // desaparecen, incluso si el usuario tiene muchos favoritos.
+    final preferences = ref.watch(menuPreferencesProvider).valueOrNull ??
+        const MenuPreferences();
     final allBottomGroups = _buildBottomGroups(menuItems);
-    final visibleGroups = allBottomGroups.take(3).toList(growable: false);
+    final favoriteMenus = preferences.showInMenu
+        ? (menuItems.where((item) => item.isFavorite).toList()
+            ..sort(_compareMenuWithPreference))
+        : <UserMenuItem>[];
+    final featured = favoriteMenus.take(3).toList(growable: false);
+    final remainingGroups = allBottomGroups.where((group) =>
+        !featured.any((item) => group.containsPath(item.path))).toList();
+    final visibleDestinations = <({
+      String label, String path, IconData icon, List<UserMenuItem> members
+    })>[
+      for (final item in featured)
+        (
+          label: item.title,
+          path: item.path,
+          icon: _customRoleMenuIcon(item),
+          members: [item],
+        ),
+      for (final group in remainingGroups.take(3 - featured.length))
+        (
+          label: group.label,
+          path: group.primaryPath,
+          icon: _menuGroupIcon(group.iconToken),
+          members: group.items,
+        ),
+    ];
 
-    // 'Más' solamente representa destinos autorizados que no estén visibles.
     var selectedIndex = currentPath == '/home' ? 0 : -1;
     if (currentPath != '/home') {
-      final groupIndex = visibleGroups.indexWhere((group) => group.containsPath(currentPath));
-      if (groupIndex >= 0) {
-        selectedIndex = groupIndex + 1;
-      } else if (mostSpecificMenuPath(currentPath, menuItems.map((item) => item.path)) != null || currentPath == '/profile') {
-        selectedIndex = visibleGroups.length + 1;
+      final selected = visibleDestinations.indexWhere((entry) =>
+          entry.members.any((item) =>
+              currentPath == item.path ||
+              (item.path != '/home' &&
+                  currentPath.startsWith('${item.path}/'))));
+      if (selected >= 0) {
+        selectedIndex = selected + 1;
+      } else if (mostSpecificMenuPath(
+                currentPath, menuItems.map((item) => item.path)) != null ||
+          currentPath == '/profile' || currentPath == '/personalizar_menu') {
+        selectedIndex = visibleDestinations.length + 1;
       }
     }
 
@@ -3602,7 +3633,7 @@ class _ManagerBottomNavigation extends ConsumerWidget {
               return;
             }
 
-            final moreIndex = visibleGroups.length + 1;
+            final moreIndex = visibleDestinations.length + 1;
             if (index == moreIndex) {
               _showManagerMoreMenu(
                 context: context,
@@ -3613,7 +3644,9 @@ class _ManagerBottomNavigation extends ConsumerWidget {
               return;
             }
 
-            context.go(visibleGroups[index - 1].primaryPath);
+            final target = visibleDestinations[index - 1].path;
+            selectMeseroModeForMenuPath(ref, target);
+            context.go(target);
           },
           items: [
             BottomNavigationBarItem(
@@ -3628,18 +3661,18 @@ class _ManagerBottomNavigation extends ConsumerWidget {
               ),
               label: 'Inicio',
             ),
-            for (final group in visibleGroups)
+            for (final destination in visibleDestinations)
               BottomNavigationBarItem(
                 icon: Padding(
                   padding: const EdgeInsets.only(bottom: 3),
-                  child: Icon(_menuGroupIcon(group.iconToken)),
+                  child: Icon(destination.icon),
                 ),
                 activeIcon: _activeBottomIcon(
-                  icon: _menuGroupIcon(group.iconToken),
+                  icon: destination.icon,
                   palette: palette,
                   compact: compact,
                 ),
-                label: group.label,
+                label: destination.label,
               ),
             BottomNavigationBarItem(
               icon: const Padding(
@@ -3746,7 +3779,16 @@ class _ManagerBottomNavigation extends ConsumerWidget {
       system: true,
     );
 
-    final allItems = <UserMenuItem>[...managerMoreCandidates(items), profileItem];
+    final allItems = <UserMenuItem>[
+      ...managerMoreCandidates(items),
+      profileItem,
+      const UserMenuItem(
+        keyName: 'personalizar_menu', title: 'Personalizar mi menú',
+        path: '/personalizar_menu',
+        groupCode: 'CONFIGURACION', groupName: 'Configuración',
+        menuOrder: 998,
+      ),
+    ];
     var query = '';
     final destination = await showModalBottomSheet<String>(
       context: context,
