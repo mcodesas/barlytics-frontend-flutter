@@ -2390,33 +2390,94 @@ class _AdminToolbar extends StatelessWidget {
       _InventoryAdminFilter.cuadrados: 'Sin diferencias',
     };
 
+    const icons = {
+      _InventoryAdminFilter.todos: Icons.view_list_rounded,
+      _InventoryAdminFilter.pendientes: Icons.pending_actions_rounded,
+      _InventoryAdminFilter.conDiferencias: Icons.balance_rounded,
+      _InventoryAdminFilter.sincronizados: Icons.verified_rounded,
+      _InventoryAdminFilter.cuadrados: Icons.check_circle_outline_rounded,
+    };
+
     return Container(
-      padding: const EdgeInsets.all(12),
-      decoration:
-          palette.panelDecoration(baseRadius: 20, elevated: false),
-      child: Wrap(
-        spacing: 8,
-        runSpacing: 8,
-        crossAxisAlignment: WrapCrossAlignment.center,
+      padding: const EdgeInsets.all(16),
+      decoration: palette.panelDecoration(
+        baseRadius: 22, tint: palette.primary, elevated: false),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          SizedBox(
-            width: 320,
-            child: TextField(
-              controller: controller,
-              onChanged: onSearch,
-              decoration: const InputDecoration(
-                hintText: 'Buscar producto, quien contó o quien atendió',
-                prefixIcon: Icon(Icons.search_rounded),
+          Row(
+            children: [
+              Icon(Icons.manage_search_rounded,
+                color: palette.secondary, size: 23),
+              const SizedBox(width: 9),
+              Expanded(
+                child: Text(
+                  'Buscar y filtrar jornadas',
+                  style: TextStyle(
+                    color: palette.textPrimary,
+                    fontWeight: FontWeight.w900,
+                    fontSize: 15,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          TextField(
+            controller: controller,
+            maxLength: 120,
+            buildCounter: (_, {
+              required currentLength,
+              required isFocused,
+              maxLength,
+            }) => null,
+            onChanged: onSearch,
+            style: TextStyle(color: palette.textPrimary,
+              fontWeight: FontWeight.w600),
+            decoration: InputDecoration(
+              hintText: 'Producto, responsable o quien atendió',
+              prefixIcon: Icon(Icons.search_rounded,
+                color: palette.secondary),
+              suffixIcon: controller.text.isEmpty ? null : IconButton(
+                tooltip: 'Limpiar búsqueda',
+                icon: const Icon(Icons.close_rounded),
+                onPressed: () {
+                  controller.clear();
+                  onSearch('');
+                },
+              ),
+              filled: true,
+              fillColor: palette.darkBackground
+                  ? Colors.white.withOpacity(.05)
+                  : palette.background.withOpacity(.65),
+              border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(palette.radius(15)),
+                borderSide: BorderSide.none,
               ),
             ),
           ),
-          for (final value in _InventoryAdminFilter.values)
-            ChoiceChip(
-              selected: value == filter,
-              label: Text(labels[value]!),
-              onSelected: (_) => onFilter(value),
-              selectedColor: palette.secondary.withOpacity(.13),
-            ),
+          const SizedBox(height: 12),
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: [
+              for (final value in _InventoryAdminFilter.values)
+                ChoiceChip(
+                  avatar: Icon(icons[value], size: 17,
+                    color: value == filter
+                        ? palette.secondary : palette.textSecondary),
+                  selected: value == filter,
+                  label: Text(labels[value]!),
+                  onSelected: (_) => onFilter(value),
+                  selectedColor: palette.secondary.withOpacity(.17),
+                  side: BorderSide(
+                    color: value == filter
+                        ? palette.secondary.withOpacity(.48)
+                        : palette.translucentBorder,
+                  ),
+                ),
+            ],
+          ),
         ],
       ),
     );
