@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../../app/theme/app_palette.dart';
+import '../../../../core/widgets/tech_background.dart';
 import '../../../navigation/data/models/user_menu_item.dart';
 import '../../../navigation/data/models/bottom_menu_priority.dart';
 import '../../../navigation/presentation/providers/user_menu_provider.dart';
@@ -216,11 +217,17 @@ class _PersonalizarMenuPageState extends ConsumerState<PersonalizarMenuPage> {
     return Container(
       key: ValueKey<int>(item.menuId!),
       margin: const EdgeInsets.symmetric(vertical: 4),
-      decoration: BoxDecoration(
-        color: palette.surface,
-        borderRadius: BorderRadius.circular(15),
-        border: Border.all(color: fav
-          ? palette.secondary.withOpacity(.55) : palette.cardBorder)),
+      decoration: palette.panelDecoration(
+        baseRadius: 17,
+        tint: fav ? palette.secondary : palette.primary,
+        elevated: false,
+      ).copyWith(
+        border: Border.all(
+          color: fav
+              ? palette.secondary.withOpacity(.62)
+              : palette.translucentBorder,
+        ),
+      ),
       child: Padding(
         padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
         child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
@@ -297,7 +304,7 @@ class _PersonalizarMenuPageState extends ConsumerState<PersonalizarMenuPage> {
     final favorites = _items.where((item) =>
         item.menuId != null && _favorites.contains(item.menuId)).toList();
     return Scaffold(
-      backgroundColor: palette.background,
+      backgroundColor: Colors.transparent,
       floatingActionButtonLocation: FloatingActionButtonLocation.endFloat,
       floatingActionButton: _loading || _error != null
           ? null
@@ -312,7 +319,9 @@ class _PersonalizarMenuPageState extends ConsumerState<PersonalizarMenuPage> {
                       child: CircularProgressIndicator(strokeWidth: 2))
                   : const Icon(Icons.save_rounded),
               label: Text(_saving ? 'Guardando...' : 'Guardar mi menú')),
-      body: SafeArea(child: Center(child: ConstrainedBox(
+      body: TechBackground(
+        padding: EdgeInsets.zero,
+        child: Center(child: ConstrainedBox(
         constraints: const BoxConstraints(maxWidth: 850),
         child: _loading
           ? const Center(child: CircularProgressIndicator())
@@ -329,30 +338,44 @@ class _PersonalizarMenuPageState extends ConsumerState<PersonalizarMenuPage> {
               padding: const EdgeInsets.fromLTRB(16, 18, 16, 44),
               child: Column(crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  Row(children: [
-                    Icon(Icons.tune_rounded, size: 29, color: palette.secondary),
-                    const SizedBox(width: 9),
-                    Expanded(child: Text('Personalizar mi menú',
-                      style: TextStyle(fontSize: 23,
-                        fontWeight: FontWeight.w900,
-                        color: palette.textPrimary))),
-                    IconButton(
-                      tooltip: 'Regresar',
-                      onPressed: () => context.canPop()
-                          ? context.pop() : context.go('/home'),
-                      icon: const Icon(Icons.close_rounded)),
-                  ]),
-                  const SizedBox(height: 8),
-                  Text('Organiza las opciones que ya tienes autorizadas. '
-                      'Tu orden y tus favoritos se sincronizan en todos tus dispositivos.',
-                    style: TextStyle(color: palette.textSecondary, height: 1.4)),
-                  const SizedBox(height: 22),
-                  Container(
+                  TechGlassPanel(
+                    padding: const EdgeInsets.fromLTRB(16, 16, 14, 16),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(children: [
+                          const TechBrandMark(
+                            icon: Icons.tune_rounded, size: 46),
+                          const SizedBox(width: 12),
+                          Expanded(child: Text(
+                            'Personalizar mi menú',
+                            maxLines: 2,
+                            overflow: TextOverflow.ellipsis,
+                            style: TextStyle(
+                              fontSize: MediaQuery.sizeOf(context).width < 390
+                                  ? 19 : 23,
+                              fontWeight: FontWeight.w900,
+                              color: palette.textPrimary),
+                          )),
+                          IconButton(
+                            tooltip: 'Regresar',
+                            onPressed: () => context.canPop()
+                                ? context.pop() : context.go('/home'),
+                            icon: const Icon(Icons.close_rounded)),
+                        ]),
+                        const SizedBox(height: 10),
+                        Text(
+                          'Organiza las opciones que ya tienes autorizadas. '
+                          'Tu orden y tus favoritos se sincronizan en todos tus dispositivos.',
+                          style: TextStyle(
+                            color: palette.textSecondary, height: 1.4),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 20),
+                  TechGlassPanel(
                     padding: const EdgeInsets.all(16),
-                    decoration: BoxDecoration(
-                      color: palette.surface,
-                      borderRadius: BorderRadius.circular(18),
-                      border: Border.all(color: palette.cardBorder)),
                     child: Column(crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Row(children: [
@@ -362,9 +385,12 @@ class _PersonalizarMenuPageState extends ConsumerState<PersonalizarMenuPage> {
                           Expanded(child: Text('Mis favoritos',
                             style: TextStyle(color: palette.textPrimary,
                               fontWeight: FontWeight.w900, fontSize: 16))),
-                          Text('${favorites.length} seleccionados',
+                          Flexible(child: Text(
+                            '${favorites.length} seleccionados',
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
                             style: TextStyle(color: palette.textSecondary,
-                              fontSize: 12)),
+                              fontSize: 12))),
                         ]),
                         const SizedBox(height: 12),
                         favorites.isEmpty
@@ -401,7 +427,14 @@ class _PersonalizarMenuPageState extends ConsumerState<PersonalizarMenuPage> {
                         onSelected: (_) => setState(() => _visibility = option.$1)),
                   ]),
                   const SizedBox(height: 24),
-                  Row(key: _orderSectionKey, children: [
+                  Container(
+                    padding: const EdgeInsets.fromLTRB(15, 14, 15, 16),
+                    decoration: palette.panelDecoration(
+                      baseRadius: 20, elevated: false),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        Row(key: _orderSectionKey, children: [
                     Expanded(child: Text('Orden de los módulos',
                       style: TextStyle(color: palette.textPrimary,
                         fontSize: 17, fontWeight: FontWeight.w900))),
@@ -430,6 +463,10 @@ class _PersonalizarMenuPageState extends ConsumerState<PersonalizarMenuPage> {
                       onSelected: (_) => setState(() => _onlyFavorites = true)),
                   ]),
                   const SizedBox(height: 10),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 12),
                   if (_onlyFavorites)
                     for (final item in favorites)
                       _itemTile(item, _items.indexOf(item), palette,
