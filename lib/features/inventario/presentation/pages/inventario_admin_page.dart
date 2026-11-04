@@ -1,5 +1,7 @@
 import 'dart:math' as math;
+import 'dart:typed_data';
 
+import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
@@ -17,6 +19,7 @@ import '../../../../core/widgets/tech_background.dart';
 import '../../../sucursales/data/models/sucursales_response_model.dart';
 import '../../../auth/presentation/providers/auth_provider.dart';
 import '../utils/inventory_count_history_filter.dart';
+import '../utils/inventory_history_xlsx.dart';
 
 enum _InventoryHistoryView { cards, table }
 
@@ -252,6 +255,68 @@ class _InventarioAdminPageState extends ConsumerState<InventarioAdminPage> {
       }
     }
     return result;
+  }
+
+  /// Genera el archivo XLSX desde el historial previamente autorizado y
+  /// cargado en pantalla, si el endpoint de exportación responde HTTP 5xx.
+  Uint8List _localHistoryExcel(DateTime start, DateTime end,
+      {DateTime? onlyDay}) {
+    final selectedDays = onlyDay != null
+        ? <String>{DateFormat('yyyy-MM-dd').format(onlyDay)}
+        : _visibleDays.map((d) =>
+            DateFormat('yyyy-MM-dd').format(d.date)).toSet();
+    // Se incluyen todos los productos de las jornadas filtradas, también
+    // los que cuadraron; la búsqueda sólo decide qué jornadas exportar.
+    final rows = _rows.where((row) => selectedDays.contains(
+        DateFormat('yyyy-MM-dd').format(row.countDate))).toList(growable: false);
+
+    final details = <List<Object?>>[
+      const [
+        'Fecha y hora del conteo', 'Producto', 'Código producto',
+        'ID conteo', 'Contado por', 'Esperado al conteo',
+        'Cantidad contada', 'Diferencia unidades',
+        'Stock actual del sistema', 'Costo compra unitario',
+        'Valor esperado', 'Valor contado', 'Valor faltante',
+        'Valor sobrante', 'Impacto neto', 'Estado del conteo',
+        'Conciliado por', 'Fecha conciliación',
+        'Ventas del día', 'Total vendido día', 'Atendieron',
+      ],
+      for (final row in rows)
+        [
+          DateFormat('dd/MM/yyyy HH:mm').format(row.countDate),
+          row.product, row.productId, row.countId, row.countedBy,
+          row.expected, row.counted, row.difference,
+          row.hasCurrentSystemStock
+              ? row.currentSystemStock : 'Sin movimientos',
+          row.unitPurchaseCost, row.expectedValue, row.countedValue,
+          row.missingValue, row.surplusValue, row.netImpact, row.status,
+          row.synchronizedBy ?? '',
+          row.synchronizedAt == null ? ''
+              : DateFormat('dd/MM/yyyy HH:mm').format(row.synchronizedAt!),
+          row.salesDay, row.totalSoldDay, row.attendedBy,
+        ],
+    ];
+
+    double sum(double Function(_InventoryAuditRow) take) =>
+        rows.fold<double>(0, (total, row) => total + take(row));
+    final summary = <List<Object?>>[
+      const ['BARLYTICS | RESUMEN DE CONTEOS', 'Valor'],
+      ['Sucursal', _branchId ?? 'Sin sucursal'],
+      ['Desde', DateFormat('dd/MM/yyyy').format(start)],
+      ['Hasta', DateFormat('dd/MM/yyyy').format(end)],
+      ['Jornadas exportadas', selectedDays.length],
+      ['Productos contados', rows.length],
+      ['Sin diferencias', rows.where((row) => !row.hasDifference).length],
+      ['Con diferencias', rows.where((row) => row.hasDifference).length],
+      ['Valor esperado de compra', sum((row) => row.expectedValue)],
+      ['Valor contado de compra', sum((row) => row.countedValue)],
+      ['Valor faltante', sum((row) => row.missingValue)],
+      ['Valor sobrante', sum((row) => row.surplusValue)],
+      ['Impacto neto', sum((row) => row.netImpact)],
+      const ['Nota', 'Stock actual excluye conteos físicos. '
+          'Si no hay movimientos operativos se indica Sin movimientos.'],
+    ];
+    return buildInventoryHistoryXlsx(detail: details, summary: summary);
   }
 
   Future<void> _exportExcel({DateTime? onlyDay}) async {
