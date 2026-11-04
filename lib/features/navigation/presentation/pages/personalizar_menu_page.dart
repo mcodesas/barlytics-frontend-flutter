@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 
 import '../../../../app/theme/app_palette.dart';
 import '../../../navigation/data/models/user_menu_item.dart';
+import '../../../navigation/data/models/bottom_menu_priority.dart';
 import '../../../navigation/presentation/providers/user_menu_provider.dart';
 import '../../../navigation/presentation/providers/menu_preferences_provider.dart';
 
@@ -65,8 +66,8 @@ class _PersonalizarMenuPageState extends ConsumerState<PersonalizarMenuPage> {
     if (from < 0 || to < 0 || from >= _items.length || to >= _items.length ||
         from == to) return;
     setState(() {
-      final element = _items.removeAt(from);
-      _items.insert(to, element);
+      _items = moveMenuItemToPosition(_items,
+          fromIndex: from, position: to + 1);
     });
   }
 
