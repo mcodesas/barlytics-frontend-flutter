@@ -44,3 +44,46 @@ List<T> moveMenuItemToPosition<T>(
   reordered.insert(position - 1, item);
   return reordered;
 }
+
+
+/// Ordenamiento del modal "Más": favoritos primero y módulos restantes
+/// agrupados sin repetir rutas. Recibe únicamente opciones ya autorizadas.
+class MoreMenuSections {
+  const MoreMenuSections({required this.favorites, required this.remaining});
+
+  final List<UserMenuItem> favorites;
+  final List<UserMenuItem> remaining;
+
+  bool get isEmpty => favorites.isEmpty && remaining.isEmpty;
+}
+
+/// Al buscar, la lista de entrada ya contiene únicamente coincidencias.
+/// La deduplicación se hace por ruta real, también entre categorías.
+MoreMenuSections splitMoreMenuFavorites(
+  List<UserMenuItem> permittedItems, {
+  required bool showFavoritesInMenu,
+}) {
+  final unique = <String, UserMenuItem>{};
+  for (final item in permittedItems) {
+    final path = item.path.trim();
+    if (path.isEmpty) continue;
+    final previous = unique[path];
+    if (previous == null || (!previous.isFavorite && item.isFavorite)) {
+      unique[path] = item;
+    }
+  }
+  final ordered = prioritizeBottomMenuItems(
+    unique.values.toList(growable: false),
+    showFavoritesInMenu: showFavoritesInMenu,
+  );
+  final favorites = <UserMenuItem>[];
+  final remaining = <UserMenuItem>[];
+  for (final item in ordered) {
+    if (showFavoritesInMenu && item.isFavorite) {
+      favorites.add(item);
+    } else {
+      remaining.add(item);
+    }
+  }
+  return MoreMenuSections(favorites: favorites, remaining: remaining);
+}
