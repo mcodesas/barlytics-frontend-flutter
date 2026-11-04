@@ -63,13 +63,22 @@ List<UserMenuItem> personalizeAuthorizedMenu(
     );
   }).toList();
   if (preferences.entries.isEmpty) return result;
+  // List.sort no garantiza estabilidad: conservar el orden original en los
+  // módulos nuevos y no personalizados, especialmente en roles propios.
+  final originalIndex = <UserMenuItem, int>{
+    for (var i = 0; i < result.length; i++) result[i]: i,
+  };
   result.sort((a, b) {
     final orderA = a.personalOrder;
     final orderB = b.personalOrder;
-    if (orderA == null && orderB == null) return 0;
+    if (orderA == null && orderB == null) {
+      return originalIndex[a]!.compareTo(originalIndex[b]!);
+    }
     if (orderA == null) return 1;
     if (orderB == null) return -1;
-    return orderA.compareTo(orderB);
+    final order = orderA.compareTo(orderB);
+    return order != 0 ? order
+        : originalIndex[a]!.compareTo(originalIndex[b]!);
   });
   return result;
 }
