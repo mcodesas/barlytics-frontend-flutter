@@ -106,6 +106,15 @@ jobs:
           IOS_CHANGELOG: ${{ github.event.inputs.release_notes || 'Nueva versión de BarLytics con mejoras y correcciones.' }}
         run: bundle exec fastlane ios testflight
 
+      - name: Publicar versión disponible en manifiesto TestFlight
+        env:
+          VPS_HOST: ${{ secrets.VPS_HOST }}
+          VPS_USER: ${{ secrets.VPS_USER }}
+          VPS_SSH_PRIVATE_KEY: ${{ secrets.VPS_SSH_PRIVATE_KEY }}
+          VPS_KNOWN_HOSTS: ${{ secrets.VPS_KNOWN_HOSTS }}
+          IOS_UPDATE_URL: ${{ vars.BARLYTICS_IOS_TESTFLIGHT_URL || 'https://apps.apple.com/app/testflight/id899247664' }}
+        run: bash deploy/update/publish-ios-vps.sh
+
       - name: Subir IPA como artefacto
         if: always()
         uses: actions/upload-artifact@v4

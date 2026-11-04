@@ -38,6 +38,7 @@ class AppUpdateRelease {
     required this.mandatory,
     required this.releaseNotes,
     required this.publishedAt,
+    this.channel = 'production',
   });
 
   final String version;
@@ -48,6 +49,7 @@ class AppUpdateRelease {
   final bool mandatory;
   final String releaseNotes;
   final DateTime? publishedAt;
+  final String channel;
 
   String get displayVersion => '$version+$build';
 }
@@ -131,6 +133,7 @@ class AppUpdateManifest {
           ? data['releaseNotes'].toString().trim()
           : releaseNotes,
       publishedAt: DateTime.tryParse(data['publishedAt']?.toString() ?? '') ?? publishedAt,
+      channel: data['channel']?.toString().trim().toLowerCase() ?? 'production',
     );
   }
 

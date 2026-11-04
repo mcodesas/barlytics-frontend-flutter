@@ -13,6 +13,41 @@ void main() {
       expect(full, hasLength(14));
     });
 
+    test('prioriza Liga BetPlay aunque tenga inicio más tarde', () {
+      final matches = <Map<String, dynamic>>[
+        for (var i = 0; i < 8; i++)
+          {'nombre': 'Europeo $i', 'horaBogota': '2026-11-04T15:00'},
+        {
+          'nombre': 'Millonarios vs América de Cali',
+          'liga': 'Liga BetPlay (Colombia)',
+          'ligaCodigo': 'col.1',
+          'horaBogota': '2026-11-04T20:30',
+        },
+      ];
+      final compact = sportsCompactMatches(matches);
+      expect(compact, hasLength(5));
+      expect(compact.first['nombre'], 'Millonarios vs América de Cali');
+      expect(compact.where((v) => v['nombre'] == 'Millonarios vs América de Cali'),
+          hasLength(1));
+      expect(matches.first['nombre'], 'Europeo 0');
+    });
+
+    test('incluye partidos colombianos al principio respetando su orden', () {
+      final matches = <Map<String, dynamic>>[
+        {'nombre': 'Europa A', 'liga': 'Bundesliga'},
+        {'nombre': 'Cúcuta vs Santa Fe', 'ligaCodigo': 'col.1'},
+        {'nombre': 'Europa B', 'liga': 'La Liga'},
+        {'nombre': 'Millonarios vs América', 'liga': 'Liga BetPlay'},
+      ];
+      final compact = sportsCompactMatches(matches);
+      expect(compact.map((m) => m['nombre']).toList(), [
+        'Cúcuta vs Santa Fe',
+        'Millonarios vs América',
+        'Europa A',
+        'Europa B',
+      ]);
+    });
+
     test('admite día sin partidos y jornadas cortas', () {
       expect(sportsCompactMatches([]), isEmpty);
       expect(sportsCompactMatches([

@@ -23,7 +23,19 @@ DateTime sportsTodayBogota({DateTime? now}) {
 /// continúa disponible en Agenda deportiva.
 List<Map<String, dynamic>> sportsCompactMatches(
     List<Map<String, dynamic>> matches) {
-  return matches.take(5).toList(growable: false);
+  // Inicio puede tener más de cinco partidos europeos. Los encuentros
+  // colombianos deben aparecer primero en el resumen para los negocios de
+  // Colombia, aunque su hora de inicio sea posterior (p.ej. 20:30).
+  final colombia = <Map<String, dynamic>>[];
+  final others = <Map<String, dynamic>>[];
+  for (final match in matches) {
+    final code = match['ligaCodigo']?.toString().toLowerCase() ?? '';
+    final league = match['liga']?.toString().toLowerCase() ?? '';
+    final isColombia = code == 'col.1' ||
+        league.contains('betplay') || league.contains('colombia');
+    (isColombia ? colombia : others).add(match);
+  }
+  return [...colombia, ...others].take(5).toList(growable: false);
 }
 
 /// Mismo lenguaje visual del resto de BarLytics: paleta, densidad y superficies.
@@ -402,6 +414,15 @@ class _SportsAgendaWidgetState extends ConsumerState<SportsAgendaWidget> {
               child: Text(_data['errorProgramacion'].toString(),
                 maxLines: 2,
                 style: TextStyle(color: palette.warning, fontSize: 11))),
+          if (_data['fuenteColombiaDisponible'] == false)
+            Padding(
+              padding: const EdgeInsets.only(top: 8),
+              child: Text(
+                'La fuente de Liga BetPlay no respondió. '
+                'La agenda colombiana puede estar incompleta.',
+                style: TextStyle(color: palette.warning, fontSize: 11),
+              ),
+            ),
           if (visible.isNotEmpty) ...[
             const SizedBox(height: 11),
             SizedBox(
@@ -436,7 +457,7 @@ class _SportsAgendaWidgetState extends ConsumerState<SportsAgendaWidget> {
                 alignment: Alignment.centerLeft,
                 visualDensity: VisualDensity.compact,
                 padding: EdgeInsets.zero),
-              child: Text('Datos: OpenLigaDB · ODbL',
+              child: Text('Datos: OpenLigaDB · Liga colombiana: ESPN',
                 style: TextStyle(color: palette.textSecondary,
                   fontSize: 10)),
             )),
@@ -706,8 +727,10 @@ class _SportsAgendaWidgetState extends ConsumerState<SportsAgendaWidget> {
                   fontWeight: FontWeight.w900, letterSpacing: 1.1)),
             const SizedBox(height: 8),
             Text(
-              'Programación comunitaria de fútbol europeo; cobertura parcial y horarios sujetos a cambios. '
-              'Las noticias enlazan a sus editores. Confirma los derechos de exhibición en Colombia.',
+              'Programación comunitaria europea de OpenLigaDB (ODbL) y '
+              'Liga BetPlay desde datos públicos de ESPN (fuente no oficial). '
+              'Disponibilidad variable; verificar el calendario y los derechos '
+              'de exhibición comercial en Colombia.',
               style: TextStyle(color: palette.textSecondary, fontSize: 12),
             ),
             Wrap(spacing: 10, children: [

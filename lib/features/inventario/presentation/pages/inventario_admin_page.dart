@@ -1,4 +1,5 @@
 import 'dart:math' as math;
+import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -7,6 +8,7 @@ import 'package:intl/intl.dart';
 import '../../../../app/theme/app_palette.dart';
 import '../../../../core/branch/branch_scope_provider.dart';
 import '../../../../core/constants/api_paths.dart';
+import '../../../../core/errors/app_exception.dart';
 import '../../../../core/errors/error_mapper.dart';
 import '../../../../core/providers/core_providers.dart';
 import '../../../../core/utils/currency_utils.dart';
@@ -16,6 +18,8 @@ import '../../../../core/widgets/app_loader.dart';
 import '../../../../core/widgets/tech_background.dart';
 import '../../../sucursales/data/models/sucursales_response_model.dart';
 import '../../../auth/presentation/providers/auth_provider.dart';
+import '../utils/inventory_count_history_filter.dart';
+import '../utils/inventory_history_xlsx.dart';
 
 enum _InventoryHistoryView { cards, table }
 
@@ -37,6 +41,8 @@ class InventarioAdminPage extends ConsumerStatefulWidget {
 
 class _InventarioAdminPageState extends ConsumerState<InventarioAdminPage> {
   final _searchController = TextEditingController();
+  String? _selectedDayKey;
+  int? _selectedProductId;
 
   late DateTimeRange _range;
   int? _branchId;
@@ -176,9 +182,46 @@ class _InventarioAdminPageState extends ConsumerState<InventarioAdminPage> {
     return result;
   }
 
+  String? get _activeDayKey {
+    final dayKey = _selectedDayKey;
+    if (dayKey == null) return null;
+    return _days.any(
+      (day) => matchesCountHistoryDay(
+        date: day.date, selectedDay: dayKey),
+    ) ? dayKey : null;
+  }
+
+  /// El selector de productos sólo muestra los registrados en el día elegido.
+  /// Sin fecha seleccionada, se ofrecen todos los productos del período.
+  Map<int, String> get _availableCountedProducts {
+    final dayKey = _activeDayKey;
+    final products = <int, String>{};
+    for (final day in _days) {
+      if (!matchesCountHistoryDay(
+          date: day.date, selectedDay: dayKey)) continue;
+      for (final row in day.rows) {
+        products[row.productId] = row.product;
+      }
+    }
+    return products;
+  }
+
+  int? get _activeProductId {
+    final id = _selectedProductId;
+    return id != null && _availableCountedProducts.containsKey(id)
+        ? id : null;
+  }
+
   List<_InventoryCountDay> get _visibleDays {
     final query = _searchController.text.trim().toLowerCase();
-    return _days.where((day) {
+    final selectedDay = _activeDayKey;
+    final selectedProduct = _activeProductId;
+    final result = <_InventoryCountDay>[];
+
+    for (final day in _days) {
+      if (!matchesCountHistoryDay(
+          date: day.date, selectedDay: selectedDay)) continue;
+
       final filterMatches = switch (_filter) {
         _InventoryAdminFilter.todos => true,
         _InventoryAdminFilter.pendientes => day.pendingCount > 0,
@@ -186,17 +229,94 @@ class _InventarioAdminPageState extends ConsumerState<InventarioAdminPage> {
         _InventoryAdminFilter.sincronizados => day.syncedCount > 0,
         _InventoryAdminFilter.cuadrados => day.differenceCount == 0,
       };
-      if (!filterMatches) return false;
-      if (query.isEmpty) return true;
+      if (!filterMatches) continue;
 
-      return day.counters.join(' ').toLowerCase().contains(query) ||
-          day.attendants.join(' ').toLowerCase().contains(query) ||
-          day.rows.any(
-            (row) =>
-                row.product.toLowerCase().contains(query) ||
-                '${row.countId}'.contains(query),
-          );
-    }).toList(growable: false);
+      // Filtrar las filas, no únicamente la fecha. Una búsqueda por
+      // responsable mantiene los productos de la jornada y, si también se
+      // seleccionó un producto, conserva únicamente ese producto.
+      final matchingActor = query.isNotEmpty &&
+          (day.counters.join(' ').toLowerCase().contains(query) ||
+           day.attendants.join(' ').toLowerCase().contains(query));
+      final productRows = day.rows.where((row) =>
+          matchesCountHistoryRow(
+            productId: row.productId,
+            countId: row.countId,
+            productName: row.product,
+            selectedProductId: selectedProduct,
+            query: matchingActor ? '' : query,
+          )).toList(growable: false);
+
+      if (productRows.isEmpty) continue;
+      if ((query.isEmpty && selectedProduct == null) ||
+          (matchingActor && selectedProduct == null)) {
+        result.add(day);
+      } else {
+        result.add(_InventoryCountDay(date: day.date, rows: productRows));
+      }
+    }
+    return result;
+  }
+
+  /// Genera el archivo XLSX desde el historial previamente autorizado y
+  /// cargado en pantalla, si el endpoint de exportación responde HTTP 5xx.
+  Uint8List _localHistoryExcel(DateTime start, DateTime end,
+      {DateTime? onlyDay}) {
+    final selectedDays = onlyDay != null
+        ? <String>{DateFormat('yyyy-MM-dd').format(onlyDay)}
+        : _visibleDays.map((d) =>
+            DateFormat('yyyy-MM-dd').format(d.date)).toSet();
+    // Se incluyen todos los productos de las jornadas filtradas, también
+    // los que cuadraron; la búsqueda sólo decide qué jornadas exportar.
+    final rows = _rows.where((row) => selectedDays.contains(
+        DateFormat('yyyy-MM-dd').format(row.countDate))).toList(growable: false);
+
+    final details = <List<Object?>>[
+      const [
+        'Fecha y hora del conteo', 'Producto', 'Código producto',
+        'ID conteo', 'Contado por', 'Esperado al conteo',
+        'Cantidad contada', 'Diferencia unidades',
+        'Stock actual del sistema', 'Costo compra unitario',
+        'Valor esperado', 'Valor contado', 'Valor faltante',
+        'Valor sobrante', 'Impacto neto', 'Estado del conteo',
+        'Conciliado por', 'Fecha conciliación',
+        'Ventas del día', 'Total vendido día', 'Atendieron',
+      ],
+      for (final row in rows)
+        [
+          DateFormat('dd/MM/yyyy HH:mm').format(row.countDate),
+          row.product, row.productId, row.countId, row.countedBy,
+          row.expected, row.counted, row.difference,
+          row.hasCurrentSystemStock
+              ? row.currentSystemStock : 'Sin movimientos',
+          row.unitPurchaseCost, row.expectedValue, row.countedValue,
+          row.missingValue, row.surplusValue, row.netImpact, row.status,
+          row.synchronizedBy ?? '',
+          row.synchronizedAt == null ? ''
+              : DateFormat('dd/MM/yyyy HH:mm').format(row.synchronizedAt!),
+          row.salesDay, row.totalSoldDay, row.attendedBy,
+        ],
+    ];
+
+    double sum(double Function(_InventoryAuditRow) take) =>
+        rows.fold<double>(0, (total, row) => total + take(row));
+    final summary = <List<Object?>>[
+      const ['BARLYTICS | RESUMEN DE CONTEOS', 'Valor'],
+      ['Sucursal', _branchId ?? 'Sin sucursal'],
+      ['Desde', DateFormat('dd/MM/yyyy').format(start)],
+      ['Hasta', DateFormat('dd/MM/yyyy').format(end)],
+      ['Jornadas exportadas', selectedDays.length],
+      ['Productos contados', rows.length],
+      ['Sin diferencias', rows.where((row) => !row.hasDifference).length],
+      ['Con diferencias', rows.where((row) => row.hasDifference).length],
+      ['Valor esperado de compra', sum((row) => row.expectedValue)],
+      ['Valor contado de compra', sum((row) => row.countedValue)],
+      ['Valor faltante', sum((row) => row.missingValue)],
+      ['Valor sobrante', sum((row) => row.surplusValue)],
+      ['Impacto neto', sum((row) => row.netImpact)],
+      const ['Nota', 'Stock actual excluye conteos físicos. '
+          'Si no hay movimientos operativos se indica Sin movimientos.'],
+    ];
+    return buildInventoryHistoryXlsx(detail: details, summary: summary);
   }
 
   Future<void> _exportExcel({DateTime? onlyDay}) async {
@@ -218,17 +338,27 @@ class _InventarioAdminPageState extends ConsumerState<InventarioAdminPage> {
               _InventoryAdminFilter.cuadrados => 'CUADRADOS',
             }
           : 'TODOS';
-      final bytes = await ref.read(apiClientProvider).getBytes(
-        '${ApiPaths.inventario}/administracion/excel',
-        queryParameters: {
-          'sucursalId': branchId,
-          'desde': dateStart,
-          'hasta': dateEnd,
-          'filtro': filter,
-          if (onlyDay == null && _searchController.text.trim().isNotEmpty)
-            'buscar': _searchController.text.trim(),
-        },
-      );
+      Uint8List bytes;
+      var generatedLocally = false;
+      try {
+        bytes = await ref.read(apiClientProvider).getBytes(
+          '${ApiPaths.inventario}/administracion/excel',
+          queryParameters: {
+            'sucursalId': branchId,
+            'desde': dateStart,
+            'hasta': dateEnd,
+            'filtro': filter,
+            if (onlyDay == null && _searchController.text.trim().isNotEmpty)
+              'buscar': _searchController.text.trim(),
+          },
+        );
+      } on NetworkException catch (error) {
+        final status = error.statusCode ?? 0;
+        // Los errores de autorización, parámetros y permisos no se omiten.
+        if (status < 500 || status >= 600) rethrow;
+        bytes = _localHistoryExcel(start, end, onlyDay: onlyDay);
+        generatedLocally = true;
+      }
       final saved = await downloadBytesFile(
         fileName: 'BarLytics_Conteos_${branchId}_${dateStart}_${dateEnd}.xlsx',
         bytes: bytes,
@@ -239,7 +369,10 @@ class _InventarioAdminPageState extends ConsumerState<InventarioAdminPage> {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(saved
-              ? 'Historial de conteos exportado a Excel con todos los productos.'
+              ? (generatedLocally
+                  ? 'Excel generado con los conteos cargados. '
+                    'El servicio de exportación está temporalmente fallando.'
+                  : 'Historial de conteos exportado a Excel con todos los productos.')
               : 'Se canceló la descarga del Excel.'),
         ),
       );
@@ -450,7 +583,11 @@ class _InventarioAdminPageState extends ConsumerState<InventarioAdminPage> {
       saveText: 'Aplicar',
     );
     if (selected == null || !mounted) return;
-    setState(() => _range = selected);
+    setState(() {
+      _range = selected;
+      _selectedDayKey = null;
+      _selectedProductId = null;
+    });
     await _load();
   }
 
@@ -520,7 +657,11 @@ class _InventarioAdminPageState extends ConsumerState<InventarioAdminPage> {
     ref.listen<BranchScopeState>(branchScopeProvider, (previous, next) {
       final nextId = next.activeBranchId;
       if (nextId != null && nextId != _branchId && mounted) {
-        setState(() => _branchId = nextId);
+        setState(() {
+          _branchId = nextId;
+          _selectedDayKey = null;
+          _selectedProductId = null;
+        });
         _load();
       }
     });
@@ -568,10 +709,11 @@ class _InventarioAdminPageState extends ConsumerState<InventarioAdminPage> {
 
     return Scaffold(
       backgroundColor: Colors.transparent,
-      body: Stack(
-        children: [
-          const Positioned.fill(child: AppPageBackground()),
-          RefreshIndicator(
+      body: TechBackground(
+        padding: EdgeInsets.zero,
+        child: Stack(
+          children: [
+            RefreshIndicator(
             onRefresh: _load,
             color: palette.secondary,
             child: CustomScrollView(
@@ -587,7 +729,11 @@ class _InventarioAdminPageState extends ConsumerState<InventarioAdminPage> {
                       range: _range,
                       onBranchChanged: (value) {
                         if (value == null || value == _branchId) return;
-                        setState(() => _branchId = value);
+                        setState(() {
+                          _branchId = value;
+                          _selectedDayKey = null;
+                          _selectedProductId = null;
+                        });
                         _load();
                       },
                       onRange: _pickRange,
@@ -632,6 +778,22 @@ class _InventarioAdminPageState extends ConsumerState<InventarioAdminPage> {
                       palette: palette,
                       controller: _searchController,
                       filter: _filter,
+                      dates: allDays.map((day) => day.date).toList(growable: false),
+                      selectedDay: _activeDayKey,
+                      products: _availableCountedProducts,
+                      selectedProductId: _activeProductId,
+                      onDayChanged: (day) => setState(() {
+                        _selectedDayKey = day;
+                        _selectedProductId = null;
+                      }),
+                      onProductChanged: (product) =>
+                          setState(() => _selectedProductId = product),
+                      onClear: () => setState(() {
+                        _searchController.clear();
+                        _selectedDayKey = null;
+                        _selectedProductId = null;
+                        _filter = _InventoryAdminFilter.todos;
+                      }),
                       onSearch: (_) => setState(() {}),
                       onFilter: (value) => setState(() => _filter = value),
                     ),
@@ -646,10 +808,95 @@ class _InventarioAdminPageState extends ConsumerState<InventarioAdminPage> {
                       exporting: _exportingExcel,
                       canExport: days.isNotEmpty && !_loading,
                       onViewChanged: (value) => setState(() => _historyView = value),
-                      onExport: () => _exportExcel(),
+                      onExport: () => _exportExcel(
+                        onlyDay: _activeDayKey == null
+                            ? null : DateTime.parse(_activeDayKey!),
+                      ),
                     ),
                   ),
                 ),
+                if (_error != null)
+                  SliverToBoxAdapter(
+                    child: _PageWidth(
+                      child: _InlineError(
+                        palette: palette,
+                        message: _error!,
+                      ),
+                    ),
+                  ),
+                if (days.isEmpty)
+                  SliverToBoxAdapter(
+                    child: _PageWidth(
+                      child: Container(
+                        width: double.infinity,
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 20, vertical: 28),
+                        decoration: palette.panelDecoration(
+                          baseRadius: 20, elevated: false),
+                        child: Column(
+                          children: [
+                            Icon(Icons.inventory_2_outlined,
+                              color: palette.secondary, size: 36),
+                            const SizedBox(height: 10),
+                            Text(
+                              'Sin jornadas en este período',
+                              style: TextStyle(
+                                color: palette.textPrimary,
+                                fontSize: 16,
+                                fontWeight: FontWeight.w900,
+                              ),
+                            ),
+                            const SizedBox(height: 5),
+                            Text(
+                              'Cambia las fechas, la sucursal o los filtros '
+                              'para consultar otros conteos.',
+                              textAlign: TextAlign.center,
+                              style: TextStyle(
+                                color: palette.textSecondary, fontSize: 12),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  )
+                else
+                  SliverPadding(
+                    padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
+                    sliver: SliverList.builder(
+                      itemCount: days.length,
+                      itemBuilder: (context, index) => Center(
+                        child: ConstrainedBox(
+                          constraints: const BoxConstraints(maxWidth: 1360),
+                          child: Padding(
+                            padding: EdgeInsets.only(
+                              bottom: index == days.length - 1 ? 0 : 12,
+                            ),
+                            child: _CountDayCard(
+                              key: ValueKey(
+                                'conteo-${days[index].date.toIso8601String()}-'
+                                '${_activeDayKey ?? 'todos'}-'
+                                '${_activeProductId ?? 'todos'}',
+                              ),
+                              day: days[index],
+                              palette: palette,
+                              expandInitially: _activeDayKey != null ||
+                                  _activeProductId != null,
+                              tableView: _historyView == _InventoryHistoryView.table,
+                              onExportExcel: !_loading && !_exportingExcel
+                                  ? () => _exportExcel(onlyDay: days[index].date)
+                                  : null,
+                              onReview: days[index].reconciliableCount == 0 ||
+                                      _loading
+                                  ? null
+                                  : () => _reviewReconciliation(days[index]),
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                // La bitácora de sincronizaciones complementa el historial
+                // y no desplaza las jornadas de conteo fuera de pantalla.
                 SliverToBoxAdapter(
                     child: _PageWidth(
                       child: _SynchronizationHistoryPanel(
@@ -675,58 +922,7 @@ class _InventarioAdminPageState extends ConsumerState<InventarioAdminPage> {
                       ),
                     ),
                   ),
-                if (_error != null)
-                  SliverToBoxAdapter(
-                    child: _PageWidth(
-                      child: _InlineError(
-                        palette: palette,
-                        message: _error!,
-                      ),
-                    ),
-                  ),
-                if (days.isEmpty)
-                  SliverFillRemaining(
-                    hasScrollBody: false,
-                    child: Center(
-                      child: Text(
-                        'No hay jornadas de conteo para los filtros seleccionados.',
-                        style: TextStyle(
-                          color: palette.textSecondary,
-                          fontWeight: FontWeight.w700,
-                        ),
-                      ),
-                    ),
-                  )
-                else
-                  SliverPadding(
-                    padding: const EdgeInsets.fromLTRB(16, 12, 16, 34),
-                    sliver: SliverList.builder(
-                      itemCount: days.length,
-                      itemBuilder: (context, index) => Center(
-                        child: ConstrainedBox(
-                          constraints: const BoxConstraints(maxWidth: 1360),
-                          child: Padding(
-                            padding: EdgeInsets.only(
-                              bottom: index == days.length - 1 ? 0 : 12,
-                            ),
-                            child: _CountDayCard(
-                              key: ValueKey('conteo-${days[index].date.toIso8601String()}'),
-                              day: days[index],
-                              palette: palette,
-                              tableView: _historyView == _InventoryHistoryView.table,
-                              onExportExcel: !_loading && !_exportingExcel
-                                  ? () => _exportExcel(onlyDay: days[index].date)
-                                  : null,
-                              onReview: days[index].reconciliableCount == 0 ||
-                                      _loading
-                                  ? null
-                                  : () => _reviewReconciliation(days[index]),
-                            ),
-                          ),
-                        ),
-                      ),
-                    ),
-                  ),
+                const SliverToBoxAdapter(child: SizedBox(height: 28)),
               ],
             ),
           ),
@@ -741,7 +937,8 @@ class _InventarioAdminPageState extends ConsumerState<InventarioAdminPage> {
                 backgroundColor: Colors.transparent,
               ),
             ),
-        ],
+          ],
+        ),
       ),
     );
   }
@@ -1756,24 +1953,48 @@ class _InventoryAdminHeader extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final compact = MediaQuery.sizeOf(context).width < 820;
-    final title = Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
+    final title = Row(
+      crossAxisAlignment: CrossAxisAlignment.center,
       children: [
-        Text(
-          'Control administrativo de inventario',
-          style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-                color: palette.textPrimary,
-                fontWeight: FontWeight.w900,
-              ),
+        TechBrandMark(
+          icon: Icons.fact_check_rounded,
+          size: compact ? 44 : 54,
         ),
-        const SizedBox(height: 4),
-        Text(
-          'Audita qué se contó, cuánto dinero falta o sobra, quién atendió '
-          'ese día y qué diferencias ya fueron conciliadas.',
-          style: TextStyle(
-            color: palette.textSecondary,
-            fontWeight: FontWeight.w600,
-            height: 1.35,
+        const SizedBox(width: 13),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'AUDITORÍA Y TRAZABILIDAD',
+                style: TextStyle(
+                  color: palette.secondary,
+                  fontWeight: FontWeight.w900,
+                  fontSize: 10,
+                  letterSpacing: 1.1,
+                ),
+              ),
+              const SizedBox(height: 5),
+              Text(
+                'Historial de conteos',
+                style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+                      color: palette.textPrimary,
+                      fontSize: compact ? 21 : 25,
+                      fontWeight: FontWeight.w900,
+                    ),
+              ),
+              const SizedBox(height: 5),
+              Text(
+                'Revisa cada jornada, compara cantidades, identifica '
+                'faltantes y sobrantes, y consulta las conciliaciones.',
+                style: TextStyle(
+                  color: palette.textSecondary,
+                  fontWeight: FontWeight.w600,
+                  fontSize: 12,
+                  height: 1.4,
+                ),
+              ),
+            ],
           ),
         ),
       ],
@@ -1827,12 +2048,8 @@ class _InventoryAdminHeader extends StatelessWidget {
       ],
     );
 
-    return Container(
-      padding: const EdgeInsets.all(18),
-      decoration: palette.panelDecoration(
-        baseRadius: 26,
-        tint: palette.secondary,
-      ),
+    return TechGlassPanel(
+      padding: EdgeInsets.all(compact ? 15 : 18),
       child: compact
           ? Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -1919,11 +2136,15 @@ class _ExecutiveKpis extends StatelessWidget {
 
     return LayoutBuilder(
       builder: (context, constraints) {
-        final columns = constraints.maxWidth < 620
+        // Dos columnas en móvil amplio y tres en tableta. Evita tarjetas
+        // innecesariamente altas y valores truncados en pantallas pequeñas.
+        final columns = constraints.maxWidth < 390
             ? 1
-            : constraints.maxWidth < 1050
+            : constraints.maxWidth < 760
                 ? 2
-                : 5;
+                : constraints.maxWidth < 1120
+                    ? 3
+                    : 5;
         const gap = 9.0;
         final width =
             (constraints.maxWidth - gap * (columns - 1)) / columns;
@@ -1936,38 +2157,58 @@ class _ExecutiveKpis extends StatelessWidget {
               SizedBox(
                 width: width,
                 child: Container(
-                  constraints: const BoxConstraints(minHeight: 128),
-                  padding: const EdgeInsets.all(13),
+                  constraints: const BoxConstraints(minHeight: 154),
+                  padding: const EdgeInsets.all(14),
                   decoration: palette.panelDecoration(
-                    baseRadius: 18,
+                    baseRadius: 20,
                     tint: item.$5,
                     elevated: false,
                   ),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Icon(item.$4, color: item.$5, size: 21),
-                      const SizedBox(height: 9),
-                      Text(
-                        item.$2,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: TextStyle(
-                          color: palette.textPrimary,
-                          fontWeight: FontWeight.w900,
-                          fontSize: 17,
+                      Row(
+                        children: [
+                          Container(
+                            width: 35,
+                            height: 35,
+                            decoration: BoxDecoration(
+                              color: item.$5.withOpacity(.13),
+                              borderRadius: BorderRadius.circular(
+                                palette.radius(11)),
+                            ),
+                            child: Icon(item.$4, color: item.$5, size: 20),
+                          ),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: Text(
+                              item.$1,
+                              maxLines: 2,
+                              overflow: TextOverflow.ellipsis,
+                              style: TextStyle(
+                                color: palette.textSecondary,
+                                fontWeight: FontWeight.w800,
+                                fontSize: 11,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 11),
+                      FittedBox(
+                        fit: BoxFit.scaleDown,
+                        alignment: Alignment.centerLeft,
+                        child: Text(
+                          item.$2,
+                          maxLines: 1,
+                          style: TextStyle(
+                            color: palette.textPrimary,
+                            fontWeight: FontWeight.w900,
+                            fontSize: 21,
+                          ),
                         ),
                       ),
-                      const SizedBox(height: 3),
-                      Text(
-                        item.$1,
-                        style: TextStyle(
-                          color: palette.textPrimary,
-                          fontWeight: FontWeight.w800,
-                          fontSize: 11,
-                        ),
-                      ),
-                      const SizedBox(height: 3),
+                      const SizedBox(height: 5),
                       Text(
                         item.$3,
                         maxLines: 2,
@@ -1975,7 +2216,8 @@ class _ExecutiveKpis extends StatelessWidget {
                         style: TextStyle(
                           color: palette.textSecondary,
                           fontWeight: FontWeight.w600,
-                          fontSize: 9.5,
+                          fontSize: 10.5,
+                          height: 1.3,
                         ),
                       ),
                     ],
@@ -2323,6 +2565,13 @@ class _AdminToolbar extends StatelessWidget {
     required this.palette,
     required this.controller,
     required this.filter,
+    required this.dates,
+    required this.selectedDay,
+    required this.products,
+    required this.selectedProductId,
+    required this.onDayChanged,
+    required this.onProductChanged,
+    required this.onClear,
     required this.onSearch,
     required this.onFilter,
   });
@@ -2330,6 +2579,13 @@ class _AdminToolbar extends StatelessWidget {
   final AppPalette palette;
   final TextEditingController controller;
   final _InventoryAdminFilter filter;
+  final List<DateTime> dates;
+  final String? selectedDay;
+  final Map<int, String> products;
+  final int? selectedProductId;
+  final ValueChanged<String?> onDayChanged;
+  final ValueChanged<int?> onProductChanged;
+  final VoidCallback onClear;
   final ValueChanged<String> onSearch;
   final ValueChanged<_InventoryAdminFilter> onFilter;
 
@@ -2343,33 +2599,185 @@ class _AdminToolbar extends StatelessWidget {
       _InventoryAdminFilter.cuadrados: 'Sin diferencias',
     };
 
+    const icons = {
+      _InventoryAdminFilter.todos: Icons.view_list_rounded,
+      _InventoryAdminFilter.pendientes: Icons.pending_actions_rounded,
+      _InventoryAdminFilter.conDiferencias: Icons.balance_rounded,
+      _InventoryAdminFilter.sincronizados: Icons.verified_rounded,
+      _InventoryAdminFilter.cuadrados: Icons.check_circle_outline_rounded,
+    };
+
     return Container(
-      padding: const EdgeInsets.all(12),
-      decoration:
-          palette.panelDecoration(baseRadius: 20, elevated: false),
-      child: Wrap(
-        spacing: 8,
-        runSpacing: 8,
-        crossAxisAlignment: WrapCrossAlignment.center,
+      padding: const EdgeInsets.all(16),
+      decoration: palette.panelDecoration(
+        baseRadius: 22, tint: palette.primary, elevated: false),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          SizedBox(
-            width: 320,
-            child: TextField(
-              controller: controller,
-              onChanged: onSearch,
-              decoration: const InputDecoration(
-                hintText: 'Buscar producto, quien contó o quien atendió',
-                prefixIcon: Icon(Icons.search_rounded),
+          Row(
+            children: [
+              Icon(Icons.manage_search_rounded,
+                color: palette.secondary, size: 23),
+              const SizedBox(width: 9),
+              Expanded(
+                child: Text(
+                  'Buscar y filtrar jornadas',
+                  style: TextStyle(
+                    color: palette.textPrimary,
+                    fontWeight: FontWeight.w900,
+                    fontSize: 15,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          TextField(
+            controller: controller,
+            maxLength: 120,
+            buildCounter: (_, {
+              required currentLength,
+              required isFocused,
+              maxLength,
+            }) => null,
+            onChanged: onSearch,
+            style: TextStyle(color: palette.textPrimary,
+              fontWeight: FontWeight.w600),
+            decoration: InputDecoration(
+              hintText: 'Producto, responsable o quien atendió',
+              prefixIcon: Icon(Icons.search_rounded,
+                color: palette.secondary),
+              suffixIcon: controller.text.isEmpty ? null : IconButton(
+                tooltip: 'Limpiar búsqueda',
+                icon: const Icon(Icons.close_rounded),
+                onPressed: () {
+                  controller.clear();
+                  onSearch('');
+                },
+              ),
+              filled: true,
+              fillColor: palette.darkBackground
+                  ? Colors.white.withOpacity(.05)
+                  : palette.background.withOpacity(.65),
+              border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(palette.radius(15)),
+                borderSide: BorderSide.none,
               ),
             ),
           ),
-          for (final value in _InventoryAdminFilter.values)
-            ChoiceChip(
-              selected: value == filter,
-              label: Text(labels[value]!),
-              onSelected: (_) => onFilter(value),
-              selectedColor: palette.secondary.withOpacity(.13),
+          const SizedBox(height: 12),
+          LayoutBuilder(builder: (context, constraints) {
+            final width = constraints.maxWidth < 690
+                ? constraints.maxWidth
+                : (constraints.maxWidth - 12) / 2;
+            final sortedProducts = products.entries.toList()
+              ..sort((a, b) =>
+                  a.value.toLowerCase().compareTo(b.value.toLowerCase()));
+            return Wrap(
+              spacing: 12,
+              runSpacing: 12,
+              children: [
+                SizedBox(
+                  width: width,
+                  child: DropdownButtonFormField<String>(
+                    key: ValueKey('inventory-count-day-filter-$selectedDay'),
+                    value: selectedDay,
+                    hint: const Text('Todas las jornadas'),
+                    isExpanded: true,
+                    decoration: InputDecoration(
+                      labelText: 'Fecha del conteo',
+                      prefixIcon: Icon(Icons.event_available_rounded,
+                        color: palette.secondary),
+                    ),
+                    items: [
+                      const DropdownMenuItem<String>(
+                        child: Text('Todas las jornadas'),
+                      ),
+                      for (final day in dates)
+                        DropdownMenuItem<String>(
+                          value: DateFormat('yyyy-MM-dd').format(day),
+                          child: Text(DateFormat('dd/MM/yyyy').format(day)),
+                        ),
+                    ],
+                    onChanged: onDayChanged,
+                  ),
+                ),
+                SizedBox(
+                  width: width,
+                  child: DropdownButtonFormField<int>(
+                    key: ValueKey(
+                      'inventory-count-product-$selectedDay-$selectedProductId'),
+                    value: selectedProductId,
+                    hint: const Text('Todos los productos'),
+                    isExpanded: true,
+                    decoration: InputDecoration(
+                      labelText: 'Producto contado',
+                      prefixIcon: Icon(Icons.inventory_2_outlined,
+                        color: palette.secondary),
+                    ),
+                    items: [
+                      const DropdownMenuItem<int>(
+                        child: Text('Todos los productos'),
+                      ),
+                      for (final entry in sortedProducts)
+                        DropdownMenuItem<int>(
+                          value: entry.key,
+                          child: Text(entry.value,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis),
+                        ),
+                    ],
+                    onChanged: onProductChanged,
+                  ),
+                ),
+              ],
+            );
+          }),
+          const SizedBox(height: 9),
+          Text(
+            'Selecciona una fecha y luego un producto para ver '
+            'qué se registró exactamente en ese conteo. '
+            'Amplía el período superior para consultar fechas anteriores. '
+            'El Excel conserva el historial completo de la jornada.',
+            style: TextStyle(
+              color: palette.textSecondary, fontSize: 11.5),
+          ),
+          const SizedBox(height: 12),
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: [
+              for (final value in _InventoryAdminFilter.values)
+                ChoiceChip(
+                  avatar: Icon(icons[value], size: 17,
+                    color: value == filter
+                        ? palette.secondary : palette.textSecondary),
+                  selected: value == filter,
+                  label: Text(labels[value]!),
+                  onSelected: (_) => onFilter(value),
+                  selectedColor: palette.secondary.withOpacity(.17),
+                  side: BorderSide(
+                    color: value == filter
+                        ? palette.secondary.withOpacity(.48)
+                        : palette.translucentBorder,
+                  ),
+                ),
+            ],
+          ),
+          if (controller.text.trim().isNotEmpty ||
+              selectedDay != null ||
+              selectedProductId != null ||
+              filter != _InventoryAdminFilter.todos) ...[
+            const SizedBox(height: 10),
+            Align(
+              alignment: Alignment.centerRight,
+              child: TextButton.icon(
+                onPressed: onClear,
+                icon: const Icon(Icons.filter_alt_off_rounded, size: 18),
+                label: const Text('Limpiar filtros'),
+              ),
             ),
+          ],
         ],
       ),
     );
@@ -2829,11 +3237,8 @@ class _InventoryAuditTable extends StatelessWidget {
         );
 
     return Container(
-      decoration: BoxDecoration(
-        color: palette.background.withOpacity(.32),
-        borderRadius: BorderRadius.circular(15),
-        border: Border.all(color: palette.cardBorder.withOpacity(.65)),
-      ),
+      decoration: palette.panelDecoration(
+        baseRadius: 17, tint: palette.secondary, elevated: false),
       clipBehavior: Clip.antiAlias,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -2972,6 +3377,7 @@ class _CountDayCard extends StatefulWidget {
     required this.day,
     required this.palette,
     required this.tableView,
+    required this.expandInitially,
     required this.onReview,
     required this.onExportExcel,
   });
@@ -2979,6 +3385,7 @@ class _CountDayCard extends StatefulWidget {
   final _InventoryCountDay day;
   final AppPalette palette;
   final bool tableView;
+  final bool expandInitially;
   final VoidCallback? onReview;
   final VoidCallback? onExportExcel;
 
@@ -2990,15 +3397,27 @@ class _CountDayCardState extends State<_CountDayCard> {
   // El historial debe mostrar por defecto todos los productos contados,
   // incluidos los que coinciden exactamente con el stock esperado.
   bool _onlyDifferences = false;
+  final _productSearch = TextEditingController();
+
+  @override
+  void dispose() {
+    _productSearch.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
     final day = widget.day;
     final palette = widget.palette;
     final onReview = widget.onReview;
-    final visibleRows = _onlyDifferences
-        ? day.rows.where((row) => row.hasDifference).toList(growable: false)
-        : day.rows;
+    final visibleRows = day.rows.where((row) =>
+        (!_onlyDifferences || row.hasDifference) &&
+        matchesCountHistoryRow(
+          productId: row.productId,
+          countId: row.countId,
+          productName: row.product,
+          query: _productSearch.text,
+        )).toList(growable: false);
 
     final risky = day.missingValue > 0 || day.pendingCount > 0;
     final tone = risky ? palette.warning : palette.success;
@@ -3027,6 +3446,7 @@ class _CountDayCardState extends State<_CountDayCard> {
           ),
           clipBehavior: Clip.antiAlias,
           child: ExpansionTile(
+            initiallyExpanded: widget.expandInitially,
             tilePadding: EdgeInsets.fromLTRB(
               compact ? 12 : 16,
               9,
@@ -3187,7 +3607,27 @@ class _CountDayCardState extends State<_CountDayCard> {
                   fontSize: 11,
                 ),
               ),
-              const SizedBox(height: 8),
+              const SizedBox(height: 12),
+              TextField(
+                key: const ValueKey('inventory-count-day-product-search'),
+                controller: _productSearch,
+                onChanged: (_) => setState(() {}),
+                decoration: InputDecoration(
+                  labelText: 'Buscar producto en esta jornada',
+                  hintText: 'Nombre o número de conteo',
+                  prefixIcon: Icon(Icons.search_rounded,
+                    color: palette.secondary),
+                  suffixIcon: _productSearch.text.isEmpty ? null : IconButton(
+                    tooltip: 'Limpiar producto de esta jornada',
+                    onPressed: () {
+                      _productSearch.clear();
+                      setState(() {});
+                    },
+                    icon: const Icon(Icons.close_rounded),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 10),
               Wrap(
                 spacing: 8,
                 runSpacing: 6,
@@ -3214,12 +3654,27 @@ class _CountDayCardState extends State<_CountDayCard> {
                 ],
               ),
               const SizedBox(height: 9),
+              if (_productSearch.text.trim().isNotEmpty)
+                Padding(
+                  padding: const EdgeInsets.only(bottom: 8),
+                  child: Text(
+                    '${visibleRows.length} producto(s) encontrados '
+                    'en el conteo del ${DateFormat('dd/MM/yyyy').format(day.date)}.',
+                    style: TextStyle(
+                      color: palette.secondary,
+                      fontWeight: FontWeight.w800,
+                      fontSize: 12,
+                    ),
+                  ),
+                ),
               if (visibleRows.isEmpty)
                 Padding(
                   padding: const EdgeInsets.symmetric(vertical: 14),
                   child: Text(
-                    'Todos los productos de esta jornada coincidieron '
-                    'con el inventario esperado.',
+                    _productSearch.text.trim().isNotEmpty
+                        ? 'No se registró ningún producto que coincida '
+                          'con la búsqueda en esta jornada.'
+                        : 'No hay productos con diferencias para este filtro.',
                     style: TextStyle(
                       color: palette.textSecondary,
                       fontWeight: FontWeight.w700,
@@ -3308,11 +3763,8 @@ class _DayFinancialSummary extends StatelessWidget {
                 width: width,
                 child: Container(
                   padding: const EdgeInsets.all(10),
-                  decoration: BoxDecoration(
-                    color: item.$3.withOpacity(.06),
-                    borderRadius: BorderRadius.circular(13),
-                    border: Border.all(color: item.$3.withOpacity(.15)),
-                  ),
+                  decoration: palette.panelDecoration(
+                    baseRadius: 14, tint: item.$3, elevated: false),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
@@ -3381,12 +3833,9 @@ class _ProductAuditRow extends StatelessWidget {
     };
 
     return Container(
-      padding: const EdgeInsets.all(11),
-      decoration: BoxDecoration(
-        color: palette.background.withOpacity(.30),
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: palette.cardBorder.withOpacity(.65)),
-      ),
+      padding: const EdgeInsets.all(12),
+      decoration: palette.panelDecoration(
+        baseRadius: 16, tint: statusColor, elevated: false),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
