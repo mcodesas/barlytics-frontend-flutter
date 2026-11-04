@@ -1,7 +1,6 @@
 import 'dart:math' as math;
 import 'dart:typed_data';
 
-import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
@@ -9,6 +8,7 @@ import 'package:intl/intl.dart';
 import '../../../../app/theme/app_palette.dart';
 import '../../../../core/branch/branch_scope_provider.dart';
 import '../../../../core/constants/api_paths.dart';
+import '../../../../core/errors/app_exception.dart';
 import '../../../../core/errors/error_mapper.dart';
 import '../../../../core/providers/core_providers.dart';
 import '../../../../core/utils/currency_utils.dart';
@@ -352,8 +352,8 @@ class _InventarioAdminPageState extends ConsumerState<InventarioAdminPage> {
               'buscar': _searchController.text.trim(),
           },
         );
-      } on DioException catch (error) {
-        final status = error.response?.statusCode ?? 0;
+      } on NetworkException catch (error) {
+        final status = error.statusCode ?? 0;
         // Los errores de autorización, parámetros y permisos no se omiten.
         if (status < 500 || status >= 600) rethrow;
         bytes = _localHistoryExcel(start, end, onlyDay: onlyDay);
