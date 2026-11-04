@@ -6,7 +6,7 @@ FILE="build/installers/macos/BarLytics-macOS.dmg"
 test -s "$FILE"
 
 VERSION="$(sed -nE 's/^version:[[:space:]]*([^+[:space:]]+)\+([0-9]+).*/\1/p' pubspec.yaml | head -n1)"
-BUILD="$(sed -nE 's/^version:[[:space:]]*([^+[:space:]]+)\+([0-9]+).*/\2/p' pubspec.yaml | head -n1)"
+BUILD="$(bash deploy/update/release-build.sh)"
 test -n "$VERSION"
 [[ "$BUILD" =~ ^[0-9]+$ ]]
 SHA="$(sha256sum "$FILE" | awk '{print $1}')"
