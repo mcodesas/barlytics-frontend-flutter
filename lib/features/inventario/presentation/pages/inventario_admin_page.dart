@@ -2600,8 +2600,9 @@ class _AdminToolbar extends StatelessWidget {
                 SizedBox(
                   width: width,
                   child: DropdownButtonFormField<String>(
-                    key: const ValueKey('inventory-count-day-filter'),
+                    key: ValueKey('inventory-count-day-filter-$selectedDay'),
                     value: selectedDay,
+                    hint: const Text('Todas las jornadas'),
                     isExpanded: true,
                     decoration: InputDecoration(
                       labelText: 'Fecha del conteo',
@@ -2624,8 +2625,10 @@ class _AdminToolbar extends StatelessWidget {
                 SizedBox(
                   width: width,
                   child: DropdownButtonFormField<int>(
-                    key: ValueKey('inventory-count-product-$selectedDay'),
+                    key: ValueKey(
+                      'inventory-count-product-$selectedDay-$selectedProductId'),
                     value: selectedProductId,
+                    hint: const Text('Todos los productos'),
                     isExpanded: true,
                     decoration: InputDecoration(
                       labelText: 'Producto contado',
@@ -2654,6 +2657,7 @@ class _AdminToolbar extends StatelessWidget {
           Text(
             'Selecciona una fecha y luego un producto para ver '
             'qué se registró exactamente en ese conteo. '
+            'Amplía el período superior para consultar fechas anteriores. '
             'El Excel conserva el historial completo de la jornada.',
             style: TextStyle(
               color: palette.textSecondary, fontSize: 11.5),
@@ -3153,11 +3157,8 @@ class _InventoryAuditTable extends StatelessWidget {
         );
 
     return Container(
-      decoration: BoxDecoration(
-        color: palette.background.withOpacity(.32),
-        borderRadius: BorderRadius.circular(15),
-        border: Border.all(color: palette.cardBorder.withOpacity(.65)),
-      ),
+      decoration: palette.panelDecoration(
+        baseRadius: 17, tint: palette.secondary, elevated: false),
       clipBehavior: Clip.antiAlias,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -3682,11 +3683,8 @@ class _DayFinancialSummary extends StatelessWidget {
                 width: width,
                 child: Container(
                   padding: const EdgeInsets.all(10),
-                  decoration: BoxDecoration(
-                    color: item.$3.withOpacity(.06),
-                    borderRadius: BorderRadius.circular(13),
-                    border: Border.all(color: item.$3.withOpacity(.15)),
-                  ),
+                  decoration: palette.panelDecoration(
+                    baseRadius: 14, tint: item.$3, elevated: false),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
@@ -3755,12 +3753,9 @@ class _ProductAuditRow extends StatelessWidget {
     };
 
     return Container(
-      padding: const EdgeInsets.all(11),
-      decoration: BoxDecoration(
-        color: palette.background.withOpacity(.30),
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: palette.cardBorder.withOpacity(.65)),
-      ),
+      padding: const EdgeInsets.all(12),
+      decoration: palette.panelDecoration(
+        baseRadius: 16, tint: statusColor, elevated: false),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
