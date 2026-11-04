@@ -76,6 +76,32 @@ void main() {
     expect(result, ['inventario', 'reportes', 'ventas']);
   });
 
+  test('Número 1 coloca la opción indicada arriba aunque los índices cambien', () {
+    final moved = moveMenuItemByIdToPosition(
+      [sales, report, inventory, others], menuId: 13, position: 1);
+    expect(moved.map((v) => v.menuId).toList(), [13, 10, 11, 12]);
+
+    final movedAgain = moveMenuItemByIdToPosition(
+      moved, menuId: 12, position: 2);
+    expect(movedAgain.map((v) => v.menuId).toList(), [13, 12, 10, 11]);
+    expect(movedAgain.map((v) => v.menuId).toSet().length, 4);
+  });
+
+  test('Guardar aplica números pendientes sin usar ✓ ni Enter', () {
+    final result = applyMenuPositionDrafts(
+      [sales, report, inventory, others],
+      {13: 1, 10: 4},
+    );
+    expect(result.map((v) => v.menuId).toList(), [13, 11, 12, 10]);
+  });
+
+  test('La posición por ID no modifica la lista ante ID desconocido', () {
+    const original = [sales, report, inventory, others];
+    final result = moveMenuItemByIdToPosition(
+        original, menuId: 9999, position: 1);
+    expect(result, original);
+  });
+
   test('Posiciones inválidas nunca pierden ni duplican módulos', () {
     const list = ['ventas', 'inventario', 'reportes'];
     expect(moveMenuItemToPosition(list, fromIndex: 1, position: 0), list);

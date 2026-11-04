@@ -1,8 +1,11 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../../app/theme/app_palette.dart';
+import '../../../../core/widgets/tech_background.dart';
 import '../../../navigation/data/models/user_menu_item.dart';
 import '../../../navigation/data/models/bottom_menu_priority.dart';
 import '../../../navigation/presentation/providers/user_menu_provider.dart';
@@ -25,6 +28,8 @@ class _PersonalizarMenuPageState extends ConsumerState<PersonalizarMenuPage> {
   bool _saving = false;
   bool _onlyFavorites = false;
   String? _error;
+  final Map<int, String> _pendingPositionDrafts = {};
+  final GlobalKey _orderSectionKey = GlobalKey();
 
   @override
   void initState() {
@@ -47,6 +52,7 @@ class _PersonalizarMenuPageState extends ConsumerState<PersonalizarMenuPage> {
       if (!mounted) return;
       setState(() {
         _items = available;
+        _pendingPositionDrafts.clear();
         _favorites = {
           for (final item in available)
             if (item.isFavorite && item.menuId != null) item.menuId!,
@@ -63,12 +69,58 @@ class _PersonalizarMenuPageState extends ConsumerState<PersonalizarMenuPage> {
   }
 
   void _move(int from, int to) {
-    if (from < 0 || to < 0 || from >= _items.length || to >= _items.length ||
-        from == to) return;
+    if (from < 0 || from >= _items.length) return;
+    final menuId = _items[from].menuId;
+    if (menuId == null) return;
+    _moveByMenuId(menuId, to + 1, reveal: false);
+  }
+
+  // El ID es estable aunque Flutter reconstruya la lista al editar un campo.
+  // No dependemos de un índice capturado antes de otro reordenamiento.
+  void _moveByMenuId(int menuId, int position, {bool reveal = true}) {
+    final current = _items.indexWhere((item) => item.menuId == menuId);
+    if (current < 0 || position < 1 || position > _items.length) return;
+    _pendingPositionDrafts.remove(menuId);
+    if (current == position - 1) return;
     setState(() {
-      _items = moveMenuItemToPosition(_items,
-          fromIndex: from, position: to + 1);
+      _items = moveMenuItemByIdToPosition(
+          _items, menuId: menuId, position: position);
     });
+    // Al escribir 1 debe verse el elemento en el inicio del listado, no
+    // permanecer la pantalla desplazada en la ubicación anterior.
+    if (reveal && position <= 3) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted) return;
+        final target = _orderSectionKey.currentContext;
+        if (target != null) {
+          Scrollable.ensureVisible(target,
+              duration: const Duration(milliseconds: 280),
+              alignment: 0.02,
+              curve: Curves.easeOutCubic);
+        }
+      });
+    }
+  }
+
+  // Si pulsan Guardar mientras siguen escribiendo, no se pierde el número.
+  String? _applyPendingPositions() {
+    if (_pendingPositionDrafts.isEmpty) return null;
+    final pending = Map<int, String>.of(_pendingPositionDrafts);
+    for (final entry in pending.entries) {
+      final number = int.tryParse(entry.value.trim());
+      if (number == null || number < 1 || number > _items.length) {
+        return 'Escribe una posición entre 1 y ${_items.length} antes de guardar.';
+      }
+    }
+    final positions = <int, int>{
+      for (final entry in pending.entries)
+        entry.key: int.parse(entry.value.trim()),
+    };
+    setState(() {
+      _items = applyMenuPositionDrafts(_items, positions);
+      _pendingPositionDrafts.clear();
+    });
+    return null;
   }
 
   void _toggleFavorite(UserMenuItem item) {
@@ -81,6 +133,13 @@ class _PersonalizarMenuPageState extends ConsumerState<PersonalizarMenuPage> {
 
   Future<void> _save() async {
     if (_saving || _loading) return;
+    final validationError = _applyPendingPositions();
+    if (validationError != null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(validationError)));
+      return;
+    }
+    FocusManager.instance.primaryFocus?.unfocus();
     setState(() => _saving = true);
     try {
       await ref.read(menuPreferencesRepositoryProvider).save(
@@ -158,11 +217,17 @@ class _PersonalizarMenuPageState extends ConsumerState<PersonalizarMenuPage> {
     return Container(
       key: ValueKey<int>(item.menuId!),
       margin: const EdgeInsets.symmetric(vertical: 4),
-      decoration: BoxDecoration(
-        color: palette.surface,
-        borderRadius: BorderRadius.circular(15),
-        border: Border.all(color: fav
-          ? palette.secondary.withOpacity(.55) : palette.cardBorder)),
+      decoration: palette.panelDecoration(
+        baseRadius: 17,
+        tint: fav ? palette.secondary : palette.primary,
+        elevated: false,
+      ).copyWith(
+        border: Border.all(
+          color: fav
+              ? palette.secondary.withOpacity(.62)
+              : palette.translucentBorder,
+        ),
+      ),
       child: Padding(
         padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
         child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
@@ -206,11 +271,14 @@ class _PersonalizarMenuPageState extends ConsumerState<PersonalizarMenuPage> {
                 color: palette.textSecondary, fontSize: 12,
                 fontWeight: FontWeight.w700)),
               const SizedBox(width: 8),
-              _MenuPositionField(
+              MenuPositionField(
                 key: ValueKey('position-${item.menuId}'),
                 position: index + 1,
                 maxPosition: _items.length,
-                onCommit: (position) => _move(index, position - 1)),
+                onDraftChanged: (text) =>
+                    _pendingPositionDrafts[item.menuId!] = text,
+                onCommit: (position) =>
+                    _moveByMenuId(item.menuId!, position)),
               const Spacer(),
               IconButton(
                 iconSize: 21,
@@ -236,7 +304,7 @@ class _PersonalizarMenuPageState extends ConsumerState<PersonalizarMenuPage> {
     final favorites = _items.where((item) =>
         item.menuId != null && _favorites.contains(item.menuId)).toList();
     return Scaffold(
-      backgroundColor: palette.background,
+      backgroundColor: Colors.transparent,
       floatingActionButtonLocation: FloatingActionButtonLocation.endFloat,
       floatingActionButton: _loading || _error != null
           ? null
@@ -251,7 +319,9 @@ class _PersonalizarMenuPageState extends ConsumerState<PersonalizarMenuPage> {
                       child: CircularProgressIndicator(strokeWidth: 2))
                   : const Icon(Icons.save_rounded),
               label: Text(_saving ? 'Guardando...' : 'Guardar mi menú')),
-      body: SafeArea(child: Center(child: ConstrainedBox(
+      body: TechBackground(
+        padding: EdgeInsets.zero,
+        child: Center(child: ConstrainedBox(
         constraints: const BoxConstraints(maxWidth: 850),
         child: _loading
           ? const Center(child: CircularProgressIndicator())
@@ -268,30 +338,44 @@ class _PersonalizarMenuPageState extends ConsumerState<PersonalizarMenuPage> {
               padding: const EdgeInsets.fromLTRB(16, 18, 16, 44),
               child: Column(crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  Row(children: [
-                    Icon(Icons.tune_rounded, size: 29, color: palette.secondary),
-                    const SizedBox(width: 9),
-                    Expanded(child: Text('Personalizar mi menú',
-                      style: TextStyle(fontSize: 23,
-                        fontWeight: FontWeight.w900,
-                        color: palette.textPrimary))),
-                    IconButton(
-                      tooltip: 'Regresar',
-                      onPressed: () => context.canPop()
-                          ? context.pop() : context.go('/home'),
-                      icon: const Icon(Icons.close_rounded)),
-                  ]),
-                  const SizedBox(height: 8),
-                  Text('Organiza las opciones que ya tienes autorizadas. '
-                      'Tu orden y tus favoritos se sincronizan en todos tus dispositivos.',
-                    style: TextStyle(color: palette.textSecondary, height: 1.4)),
-                  const SizedBox(height: 22),
-                  Container(
+                  TechGlassPanel(
+                    padding: const EdgeInsets.fromLTRB(16, 16, 14, 16),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(children: [
+                          const TechBrandMark(
+                            icon: Icons.tune_rounded, size: 46),
+                          const SizedBox(width: 12),
+                          Expanded(child: Text(
+                            'Personalizar mi menú',
+                            maxLines: 2,
+                            overflow: TextOverflow.ellipsis,
+                            style: TextStyle(
+                              fontSize: MediaQuery.sizeOf(context).width < 390
+                                  ? 19 : 23,
+                              fontWeight: FontWeight.w900,
+                              color: palette.textPrimary),
+                          )),
+                          IconButton(
+                            tooltip: 'Regresar',
+                            onPressed: () => context.canPop()
+                                ? context.pop() : context.go('/home'),
+                            icon: const Icon(Icons.close_rounded)),
+                        ]),
+                        const SizedBox(height: 10),
+                        Text(
+                          'Organiza las opciones que ya tienes autorizadas. '
+                          'Tu orden y tus favoritos se sincronizan en todos tus dispositivos.',
+                          style: TextStyle(
+                            color: palette.textSecondary, height: 1.4),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 20),
+                  TechGlassPanel(
                     padding: const EdgeInsets.all(16),
-                    decoration: BoxDecoration(
-                      color: palette.surface,
-                      borderRadius: BorderRadius.circular(18),
-                      border: Border.all(color: palette.cardBorder)),
                     child: Column(crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Row(children: [
@@ -301,9 +385,12 @@ class _PersonalizarMenuPageState extends ConsumerState<PersonalizarMenuPage> {
                           Expanded(child: Text('Mis favoritos',
                             style: TextStyle(color: palette.textPrimary,
                               fontWeight: FontWeight.w900, fontSize: 16))),
-                          Text('${favorites.length} seleccionados',
+                          Flexible(child: Text(
+                            '${favorites.length} seleccionados',
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
                             style: TextStyle(color: palette.textSecondary,
-                              fontSize: 12)),
+                              fontSize: 12))),
                         ]),
                         const SizedBox(height: 12),
                         favorites.isEmpty
@@ -323,51 +410,83 @@ class _PersonalizarMenuPageState extends ConsumerState<PersonalizarMenuPage> {
                               ]),
                       ]),
                   ),
-                  const SizedBox(height: 22),
-                  Text('¿Dónde mostrar los favoritos?',
-                    style: TextStyle(fontWeight: FontWeight.w900,
-                      color: palette.textPrimary, fontSize: 16)),
-                  const SizedBox(height: 8),
-                  Wrap(spacing: 8, runSpacing: 8, children: [
-                    for (final option in const [
-                      ('MENU', 'Solo menú'),
-                      ('INICIO', 'Solo inicio'),
-                      ('AMBOS', 'En ambos'),
-                    ])
-                      ChoiceChip(
-                        label: Text(option.$2),
-                        selected: _visibility == option.$1,
-                        onSelected: (_) => setState(() => _visibility = option.$1)),
-                  ]),
-                  const SizedBox(height: 24),
-                  Row(children: [
-                    Expanded(child: Text('Orden de los módulos',
-                      style: TextStyle(color: palette.textPrimary,
-                        fontSize: 17, fontWeight: FontWeight.w900))),
-                    TextButton.icon(
-                      onPressed: _saving ? null : _reset,
-                      icon: const Icon(Icons.restart_alt_rounded),
-                      label: const Text('Restablecer')),
-                  ]),
-                  const SizedBox(height: 5),
-                  Text(_onlyFavorites
-                      ? 'Para cambiar el orden vuelve a Todos los módulos. '
-                        'Aquí puedes quitar favoritos con la estrella.'
-                      : 'Escribe una posición y confirma con ✓, arrastra los '
-                        'puntos o usa las flechas. Los grupos originales se mantienen.',
-                    style: TextStyle(color: palette.textSecondary, fontSize: 12)),
+                  const SizedBox(height: 18),
+                  Container(
+                    padding: const EdgeInsets.all(16),
+                    decoration: palette.panelDecoration(
+                      baseRadius: 20, elevated: false),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(children: [
+                          Icon(Icons.visibility_outlined,
+                            color: palette.secondary, size: 20),
+                          const SizedBox(width: 9),
+                          Expanded(child: Text(
+                            '¿Dónde mostrar los favoritos?',
+                            style: TextStyle(fontWeight: FontWeight.w900,
+                              color: palette.textPrimary, fontSize: 16))),
+                        ]),
+                        const SizedBox(height: 12),
+                        Wrap(spacing: 8, runSpacing: 8, children: [
+                          for (final option in const [
+                            ('MENU', 'Solo menú'),
+                            ('INICIO', 'Solo inicio'),
+                            ('AMBOS', 'En ambos'),
+                          ])
+                            ChoiceChip(
+                              label: Text(option.$2),
+                              selected: _visibility == option.$1,
+                              onSelected: (_) => setState(
+                                () => _visibility = option.$1)),
+                        ]),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 18),
+                  Container(
+                    padding: const EdgeInsets.fromLTRB(15, 14, 15, 16),
+                    decoration: palette.panelDecoration(
+                      baseRadius: 20, elevated: false),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        Row(key: _orderSectionKey, children: [
+                          Expanded(child: Text('Orden de los módulos',
+                            style: TextStyle(color: palette.textPrimary,
+                              fontSize: 17, fontWeight: FontWeight.w900))),
+                          TextButton.icon(
+                            onPressed: _saving ? null : _reset,
+                            icon: const Icon(Icons.restart_alt_rounded),
+                            label: const Text('Restablecer')),
+                        ]),
+                        const SizedBox(height: 6),
+                        Text(_onlyFavorites
+                            ? 'Para cambiar el orden vuelve a Todos los módulos. '
+                              'Aquí puedes quitar favoritos con la estrella.'
+                            : 'Escribe una posición y el módulo se moverá '
+                              'automáticamente. También puedes pulsar ✓, arrastrar '
+                              'o usar las flechas. Después pulsa Guardar mi menú.',
+                          style: TextStyle(
+                            color: palette.textSecondary, fontSize: 12)),
+                        const SizedBox(height: 12),
+                        Wrap(spacing: 9, runSpacing: 8, children: [
+                          ChoiceChip(
+                            label: const Text('Todos los módulos'),
+                            selected: !_onlyFavorites,
+                            onSelected: (_) => setState(
+                              () => _onlyFavorites = false)),
+                          ChoiceChip(
+                            label: const Text('Solo favoritos'),
+                            selected: _onlyFavorites,
+                            onSelected: (_) => setState(
+                              () => _onlyFavorites = true)),
+                        ]),
+                        const SizedBox(height: 10),
+                      ],
+                    ),
+                  ),
                   const SizedBox(height: 12),
-                  Wrap(spacing: 9, children: [
-                    ChoiceChip(
-                      label: const Text('Todos los módulos'),
-                      selected: !_onlyFavorites,
-                      onSelected: (_) => setState(() => _onlyFavorites = false)),
-                    ChoiceChip(
-                      label: const Text('Solo favoritos'),
-                      selected: _onlyFavorites,
-                      onSelected: (_) => setState(() => _onlyFavorites = true)),
-                  ]),
-                  const SizedBox(height: 10),
                   if (_onlyFavorites)
                     for (final item in favorites)
                       _itemTile(item, _items.indexOf(item), palette,
@@ -403,49 +522,73 @@ class _PersonalizarMenuPageState extends ConsumerState<PersonalizarMenuPage> {
   }
 }
 
-class _MenuPositionField extends StatefulWidget {
-  const _MenuPositionField({
+/// Campo numérico que reordena automáticamente después de terminar de
+/// escribir. El ✓, Enter, tocar fuera y Guardar también confirman el valor.
+class MenuPositionField extends StatefulWidget {
+  const MenuPositionField({
     super.key,
     required this.position,
     required this.maxPosition,
+    required this.onDraftChanged,
     required this.onCommit,
   });
 
   final int position;
   final int maxPosition;
+  final ValueChanged<String> onDraftChanged;
   final ValueChanged<int> onCommit;
 
   @override
-  State<_MenuPositionField> createState() => _MenuPositionFieldState();
+  State<MenuPositionField> createState() => _MenuPositionFieldState();
 }
 
-class _MenuPositionFieldState extends State<_MenuPositionField> {
+class _MenuPositionFieldState extends State<MenuPositionField> {
   late final TextEditingController _controller =
       TextEditingController(text: widget.position.toString());
+  Timer? _debounce;
 
   @override
-  void didUpdateWidget(covariant _MenuPositionField oldWidget) {
+  void didUpdateWidget(covariant MenuPositionField oldWidget) {
     super.didUpdateWidget(oldWidget);
-    if (oldWidget.position != widget.position &&
-        _controller.text != widget.position.toString()) {
-      _controller.text = widget.position.toString();
+    if (oldWidget.position != widget.position) {
+      _debounce?.cancel();
+      if (_controller.text != widget.position.toString()) {
+        _controller.value = TextEditingValue(
+          text: widget.position.toString(),
+          selection: TextSelection.collapsed(
+            offset: widget.position.toString().length),
+        );
+      }
     }
   }
 
   @override
   void dispose() {
+    _debounce?.cancel();
     _controller.dispose();
     super.dispose();
   }
 
+  void _onChanged(String text) {
+    widget.onDraftChanged(text);
+    _debounce?.cancel();
+    final position = int.tryParse(text.trim());
+    if (position != null && position >= 1 &&
+        position <= widget.maxPosition && position != widget.position) {
+      // Evita mover a 1 mientras la persona todavía está escribiendo 10.
+      _debounce = Timer(const Duration(milliseconds: 650), _commit);
+    }
+  }
+
   void _commit() {
+    _debounce?.cancel();
+    if (!mounted) return;
     final position = int.tryParse(_controller.text.trim());
     if (position == null ||
         position < 1 || position > widget.maxPosition) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text(
           'Escribe una posición entre 1 y ${widget.maxPosition}.')));
-      _controller.text = widget.position.toString();
       return;
     }
     widget.onCommit(position);
@@ -460,7 +603,9 @@ class _MenuPositionFieldState extends State<_MenuPositionField> {
       key: const ValueKey('menu-position-number'),
       keyboardType: TextInputType.number,
       textInputAction: TextInputAction.done,
+      onChanged: _onChanged,
       onSubmitted: (_) => _commit(),
+      onTapOutside: (_) => _commit(),
       decoration: InputDecoration(
         isDense: true,
         hintText: '1-${widget.maxPosition}',
