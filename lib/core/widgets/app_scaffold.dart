@@ -2570,10 +2570,7 @@ class _OperationalBottomNavigation extends ConsumerWidget {
     for (final entry in byCode.entries) {
       final meta = metadata[entry.key]!;
       final groupItems = List<UserMenuItem>.of(entry.value)
-        ..sort((a, b) {
-          final order = a.menuOrder.compareTo(b.menuOrder);
-          return order != 0 ? order : a.title.toLowerCase().compareTo(b.title.toLowerCase());
-        });
+        ..sort(_compareMenuWithPreference);
       groups.add(
         _MenuGroupData(
           code: entry.key,
@@ -2586,6 +2583,11 @@ class _OperationalBottomNavigation extends ConsumerWidget {
     }
 
     groups.sort((a, b) {
+      if (items.any((item) => item.personalOrder != null)) {
+        final order = _firstMenuPreference(a.items)
+            .compareTo(_firstMenuPreference(b.items));
+        if (order != 0) return order;
+      }
       final order = a.order.compareTo(b.order);
       return order != 0 ? order : a.name.toLowerCase().compareTo(b.name.toLowerCase());
     });
@@ -3694,10 +3696,13 @@ class _ManagerBottomNavigation extends ConsumerWidget {
       final meta = metadata[entry.key]!;
       final groupItems = List<UserMenuItem>.of(entry.value)
         ..sort((a, b) {
+          if (a.personalOrder != null || b.personalOrder != null) {
+            final order = (a.personalOrder ?? 999999)
+                .compareTo(b.personalOrder ?? 999999);
+            if (order != 0) return order;
+          }
           if (a.bottomPrimary != b.bottomPrimary) return a.bottomPrimary ? -1 : 1;
-          final menuOrder = a.menuOrder.compareTo(b.menuOrder);
-          if (menuOrder != 0) return menuOrder;
-          return a.title.toLowerCase().compareTo(b.title.toLowerCase());
+          return _compareMenuWithPreference(a, b);
         });
       groups.add(
         _ManagerBottomGroup(
@@ -3711,6 +3716,11 @@ class _ManagerBottomNavigation extends ConsumerWidget {
     }
 
     groups.sort((a, b) {
+      if (items.any((item) => item.personalOrder != null)) {
+        final order = _firstMenuPreference(a.items)
+            .compareTo(_firstMenuPreference(b.items));
+        if (order != 0) return order;
+      }
       final order = a.order.compareTo(b.order);
       return order != 0 ? order : a.label.toLowerCase().compareTo(b.label.toLowerCase());
     });
@@ -3948,10 +3958,7 @@ class _ManagerBottomNavigation extends ConsumerWidget {
     for (final entry in byCode.entries) {
       final meta = metadata[entry.key]!;
       final groupItems = List<UserMenuItem>.of(entry.value)
-        ..sort((a, b) {
-          final order = a.menuOrder.compareTo(b.menuOrder);
-          return order != 0 ? order : a.title.toLowerCase().compareTo(b.title.toLowerCase());
-        });
+        ..sort(_compareMenuWithPreference);
       groups.add(
         _MenuGroupData(
           code: entry.key,
@@ -3964,6 +3971,11 @@ class _ManagerBottomNavigation extends ConsumerWidget {
     }
 
     groups.sort((a, b) {
+      if (items.any((item) => item.personalOrder != null)) {
+        final order = _firstMenuPreference(a.items)
+            .compareTo(_firstMenuPreference(b.items));
+        if (order != 0) return order;
+      }
       final order = a.order.compareTo(b.order);
       return order != 0 ? order : a.name.toLowerCase().compareTo(b.name.toLowerCase());
     });
@@ -4219,6 +4231,27 @@ List<Widget> _authorizedMenuWidgets({
       ];
     },
   );
+}
+
+// Las agrupaciones configuradas en BD permanecen, pero la prioridad privada
+// del usuario se refleja también en los menús "Más" del móvil.
+int _compareMenuWithPreference(UserMenuItem a, UserMenuItem b) {
+  if (a.personalOrder != null || b.personalOrder != null) {
+    final order = (a.personalOrder ?? 999999)
+        .compareTo(b.personalOrder ?? 999999);
+    if (order != 0) return order;
+  }
+  final fallback = a.menuOrder.compareTo(b.menuOrder);
+  return fallback == 0
+      ? a.title.toLowerCase().compareTo(b.title.toLowerCase())
+      : fallback;
+}
+
+int _firstMenuPreference(List<UserMenuItem> items) {
+  return items.fold<int>(999999, (value, item) {
+    final order = item.personalOrder ?? 999999;
+    return value < order ? value : order;
+  });
 }
 
 class _MenuGroupData {
