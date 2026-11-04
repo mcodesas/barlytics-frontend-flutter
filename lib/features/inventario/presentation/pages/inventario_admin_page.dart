@@ -1941,11 +1941,15 @@ class _ExecutiveKpis extends StatelessWidget {
 
     return LayoutBuilder(
       builder: (context, constraints) {
-        final columns = constraints.maxWidth < 620
+        // Dos columnas en móvil amplio y tres en tableta. Evita tarjetas
+        // innecesariamente altas y valores truncados en pantallas pequeñas.
+        final columns = constraints.maxWidth < 390
             ? 1
-            : constraints.maxWidth < 1050
+            : constraints.maxWidth < 760
                 ? 2
-                : 5;
+                : constraints.maxWidth < 1120
+                    ? 3
+                    : 5;
         const gap = 9.0;
         final width =
             (constraints.maxWidth - gap * (columns - 1)) / columns;
@@ -1958,38 +1962,58 @@ class _ExecutiveKpis extends StatelessWidget {
               SizedBox(
                 width: width,
                 child: Container(
-                  constraints: const BoxConstraints(minHeight: 128),
-                  padding: const EdgeInsets.all(13),
+                  constraints: const BoxConstraints(minHeight: 154),
+                  padding: const EdgeInsets.all(14),
                   decoration: palette.panelDecoration(
-                    baseRadius: 18,
+                    baseRadius: 20,
                     tint: item.$5,
                     elevated: false,
                   ),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Icon(item.$4, color: item.$5, size: 21),
-                      const SizedBox(height: 9),
-                      Text(
-                        item.$2,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: TextStyle(
-                          color: palette.textPrimary,
-                          fontWeight: FontWeight.w900,
-                          fontSize: 17,
+                      Row(
+                        children: [
+                          Container(
+                            width: 35,
+                            height: 35,
+                            decoration: BoxDecoration(
+                              color: item.$5.withOpacity(.13),
+                              borderRadius: BorderRadius.circular(
+                                palette.radius(11)),
+                            ),
+                            child: Icon(item.$4, color: item.$5, size: 20),
+                          ),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: Text(
+                              item.$1,
+                              maxLines: 2,
+                              overflow: TextOverflow.ellipsis,
+                              style: TextStyle(
+                                color: palette.textSecondary,
+                                fontWeight: FontWeight.w800,
+                                fontSize: 11,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 11),
+                      FittedBox(
+                        fit: BoxFit.scaleDown,
+                        alignment: Alignment.centerLeft,
+                        child: Text(
+                          item.$2,
+                          maxLines: 1,
+                          style: TextStyle(
+                            color: palette.textPrimary,
+                            fontWeight: FontWeight.w900,
+                            fontSize: 21,
+                          ),
                         ),
                       ),
-                      const SizedBox(height: 3),
-                      Text(
-                        item.$1,
-                        style: TextStyle(
-                          color: palette.textPrimary,
-                          fontWeight: FontWeight.w800,
-                          fontSize: 11,
-                        ),
-                      ),
-                      const SizedBox(height: 3),
+                      const SizedBox(height: 5),
                       Text(
                         item.$3,
                         maxLines: 2,
@@ -1997,7 +2021,8 @@ class _ExecutiveKpis extends StatelessWidget {
                         style: TextStyle(
                           color: palette.textSecondary,
                           fontWeight: FontWeight.w600,
-                          fontSize: 9.5,
+                          fontSize: 10.5,
+                          height: 1.3,
                         ),
                       ),
                     ],
