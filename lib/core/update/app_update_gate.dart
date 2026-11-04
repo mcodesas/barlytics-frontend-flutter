@@ -71,7 +71,10 @@ class _AppUpdateGateState extends ConsumerState<AppUpdateGate>
         if (dialogContext != null) break;
         await Future<void>.delayed(const Duration(milliseconds: 500));
       }
+      // El BuildContext del overlay debe seguir montado después de las
+      // esperas asíncronas; comprobar solo el State no es suficiente.
       if (!mounted || dialogContext == null) return;
+      if (!dialogContext.mounted) return;
 
       _dialogVisible = true;
       try {
