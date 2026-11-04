@@ -58,6 +58,20 @@ List<UserMenuItem> moveMenuItemByIdToPosition(
     items, fromIndex: fromIndex, position: position);
 }
 
+/// Aplica los números pendientes al guardar, incluso sin pulsar ✓ ni Enter.
+/// Cada cambio se resuelve por ID para que no dependa del índice anterior.
+List<UserMenuItem> applyMenuPositionDrafts(
+  List<UserMenuItem> items,
+  Map<int, int> positions,
+) {
+  var ordered = List<UserMenuItem>.of(items);
+  for (final entry in positions.entries) {
+    ordered = moveMenuItemByIdToPosition(
+      ordered, menuId: entry.key, position: entry.value);
+  }
+  return ordered;
+}
+
 /// Ordenamiento del modal "Más": favoritos primero y módulos restantes
 /// agrupados sin repetir rutas. Recibe únicamente opciones ya autorizadas.
 class MoreMenuSections {
