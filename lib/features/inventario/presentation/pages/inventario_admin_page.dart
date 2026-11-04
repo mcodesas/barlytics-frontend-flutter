@@ -338,17 +338,27 @@ class _InventarioAdminPageState extends ConsumerState<InventarioAdminPage> {
               _InventoryAdminFilter.cuadrados => 'CUADRADOS',
             }
           : 'TODOS';
-      final bytes = await ref.read(apiClientProvider).getBytes(
-        '${ApiPaths.inventario}/administracion/excel',
-        queryParameters: {
-          'sucursalId': branchId,
-          'desde': dateStart,
-          'hasta': dateEnd,
-          'filtro': filter,
-          if (onlyDay == null && _searchController.text.trim().isNotEmpty)
-            'buscar': _searchController.text.trim(),
-        },
-      );
+      Uint8List bytes;
+      var generatedLocally = false;
+      try {
+        bytes = await ref.read(apiClientProvider).getBytes(
+          '${ApiPaths.inventario}/administracion/excel',
+          queryParameters: {
+            'sucursalId': branchId,
+            'desde': dateStart,
+            'hasta': dateEnd,
+            'filtro': filter,
+            if (onlyDay == null && _searchController.text.trim().isNotEmpty)
+              'buscar': _searchController.text.trim(),
+          },
+        );
+      } on DioException catch (error) {
+        final status = error.response?.statusCode ?? 0;
+        // Los errores de autorización, parámetros y permisos no se omiten.
+        if (status < 500 || status >= 600) rethrow;
+        bytes = _localHistoryExcel(start, end, onlyDay: onlyDay);
+        generatedLocally = true;
+      }
       final saved = await downloadBytesFile(
         fileName: 'BarLytics_Conteos_${branchId}_${dateStart}_${dateEnd}.xlsx',
         bytes: bytes,
@@ -359,7 +369,10 @@ class _InventarioAdminPageState extends ConsumerState<InventarioAdminPage> {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(saved
-              ? 'Historial de conteos exportado a Excel con todos los productos.'
+              ? (generatedLocally
+                  ? 'Excel generado con los conteos cargados. '
+                    'El servicio de exportación está temporalmente fallando.'
+                  : 'Historial de conteos exportado a Excel con todos los productos.')
               : 'Se canceló la descarga del Excel.'),
         ),
       );
