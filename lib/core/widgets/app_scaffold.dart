@@ -3584,6 +3584,8 @@ class _AdminBottomNavigation extends ConsumerWidget {
           data: (items) => items,
           orElse: () => const <UserMenuItem>[],
         );
+    final showFavorites = (ref.read(menuPreferencesProvider).valueOrNull ??
+        const MenuPreferences()).showInMenu;
     final entries = <_AdminNavigationItem>[
       ..._coreItems.where((item) =>
           item.path != '/home' && item.path != '__more__'),
@@ -3617,9 +3619,28 @@ class _AdminBottomNavigation extends ConsumerWidget {
       backgroundColor: Colors.transparent,
       builder: (sheetContext) => StatefulBuilder(
         builder: (sheetContext, setSheetState) {
-          final filteredItems = unique.values.where((item) {
-            return _matchesMenuSearch(query, [item.label, item.path, item.searchTerms]);
-          }).toList(growable: false);
+          final matchedFavorites = authorized.where((item) =>
+              _matchesMenuSearch(query, [
+                item.title, item.keyName, item.description, item.groupName,
+              ])).toList();
+          final favorites = splitMoreMenuFavorites(matchedFavorites,
+              showFavoritesInMenu: showFavorites).favorites;
+          final favoritePaths = favorites.map((item) => item.path).toSet();
+          final filteredItems = unique.values.where((item) =>
+              !favoritePaths.contains(item.path) &&
+              _matchesMenuSearch(query, [
+                item.label, item.path, item.searchTerms,
+              ])).toList(growable: false);
+
+          void openDestination(String destination) {
+            Navigator.pop(sheetContext);
+            WidgetsBinding.instance.addPostFrameCallback((_) {
+              if (context.mounted) {
+                selectMeseroModeForMenuPath(ref, destination);
+                context.go(destination);
+              }
+            });
+          }
 
           return Padding(
             padding: EdgeInsets.only(bottom: MediaQuery.viewInsetsOf(sheetContext).bottom),
@@ -3656,10 +3677,21 @@ class _AdminBottomNavigation extends ConsumerWidget {
                     ),
                     const SizedBox(height: 12),
                     Flexible(
-                      child: filteredItems.isEmpty
+                      child: filteredItems.isEmpty && favorites.isEmpty
                           ? _emptyMenuSearchState(palette)
-                          : GridView.builder(
+                          : ListView(
                               shrinkWrap: true,
+                              children: [
+                                if (favorites.isNotEmpty)
+                                  _moreFavoritesSection(
+                                    palette: palette,
+                                    favorites: favorites,
+                                    onSelect: openDestination,
+                                  ),
+                                if (filteredItems.isNotEmpty)
+                                  GridView.builder(
+                              shrinkWrap: true,
+                              physics: const NeverScrollableScrollPhysics(),
                               gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
                                 crossAxisCount: MediaQuery.sizeOf(sheetContext).width >= 760 ? 3 : 2,
                                 crossAxisSpacing: 9,
@@ -3670,13 +3702,7 @@ class _AdminBottomNavigation extends ConsumerWidget {
                               itemBuilder: (itemContext, index) {
                                 final item = filteredItems[index];
                                 return InkWell(
-                                  onTap: () {
-                                    final destination = item.path;
-                                    Navigator.pop(sheetContext);
-                                    WidgetsBinding.instance.addPostFrameCallback((_) {
-                                      if (context.mounted) context.go(destination);
-                                    });
-                                  },
+                                  onTap: () => openDestination(item.path),
                                   borderRadius: BorderRadius.circular(16),
                                   child: Container(
                                     padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 9),
@@ -3702,6 +3728,8 @@ class _AdminBottomNavigation extends ConsumerWidget {
                                   ),
                                 );
                               },
+                            ),
+                              ],
                             ),
                     ),
                   ],
