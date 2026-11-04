@@ -79,6 +79,30 @@ void main() {
     );
   });
 
+  test('Fecha específica muestra solo esa jornada de conteo', () {
+    expect(
+      matchesCountHistoryDay(
+        date: DateTime(2026, 11, 4, 23, 30),
+        selectedDay: '2026-11-04',
+      ),
+      isTrue,
+    );
+    expect(
+      matchesCountHistoryDay(
+        date: DateTime(2026, 11, 3, 23, 30),
+        selectedDay: '2026-11-04',
+      ),
+      isFalse,
+    );
+  });
+
+  test('Sin fecha seleccionada incluye cualquier jornada', () {
+    expect(
+      matchesCountHistoryDay(date: DateTime(2025, 6, 9)),
+      isTrue,
+    );
+  });
+
   test('Sin criterios conserva todos los productos de la jornada', () {
     expect(
       matchesCountHistoryRow(
