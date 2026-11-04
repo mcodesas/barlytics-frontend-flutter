@@ -728,31 +728,6 @@ class _InventarioAdminPageState extends ConsumerState<InventarioAdminPage> {
                     ),
                   ),
                 ),
-                SliverToBoxAdapter(
-                    child: _PageWidth(
-                      child: _SynchronizationHistoryPanel(
-                        rows: _synchronizations,
-                        palette: palette,
-                        canUndo: _canUndoSynchronization && !_undoingSynchronization,
-                        onUndo: _undoSynchronization,
-                        onUndoSelected: _undoSelectedSynchronizations,
-                        allHistorical: _allSynchronizationHistory,
-                        onAllHistoricalChanged: (all) {
-                          setState(() => _allSynchronizationHistory = all);
-                          _load();
-                        },
-                      ),
-                    ),
-                  ),
-                if (_synchronizationWarning != null)
-                  SliverToBoxAdapter(
-                    child: _PageWidth(
-                      child: _InlineError(
-                        palette: palette,
-                        message: _synchronizationWarning!,
-                      ),
-                    ),
-                  ),
                 if (_error != null)
                   SliverToBoxAdapter(
                     child: _PageWidth(
@@ -763,21 +738,43 @@ class _InventarioAdminPageState extends ConsumerState<InventarioAdminPage> {
                     ),
                   ),
                 if (days.isEmpty)
-                  SliverFillRemaining(
-                    hasScrollBody: false,
-                    child: Center(
-                      child: Text(
-                        'No hay jornadas de conteo para los filtros seleccionados.',
-                        style: TextStyle(
-                          color: palette.textSecondary,
-                          fontWeight: FontWeight.w700,
+                  SliverToBoxAdapter(
+                    child: _PageWidth(
+                      child: Container(
+                        width: double.infinity,
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 20, vertical: 28),
+                        decoration: palette.panelDecoration(
+                          baseRadius: 20, elevated: false),
+                        child: Column(
+                          children: [
+                            Icon(Icons.inventory_2_outlined,
+                              color: palette.secondary, size: 36),
+                            const SizedBox(height: 10),
+                            Text(
+                              'Sin jornadas en este período',
+                              style: TextStyle(
+                                color: palette.textPrimary,
+                                fontSize: 16,
+                                fontWeight: FontWeight.w900,
+                              ),
+                            ),
+                            const SizedBox(height: 5),
+                            Text(
+                              'Cambia las fechas, la sucursal o los filtros '
+                              'para consultar otros conteos.',
+                              textAlign: TextAlign.center,
+                              style: TextStyle(
+                                color: palette.textSecondary, fontSize: 12),
+                            ),
+                          ],
                         ),
                       ),
                     ),
                   )
                 else
                   SliverPadding(
-                    padding: const EdgeInsets.fromLTRB(16, 12, 16, 34),
+                    padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
                     sliver: SliverList.builder(
                       itemCount: days.length,
                       itemBuilder: (context, index) => Center(
@@ -811,6 +808,34 @@ class _InventarioAdminPageState extends ConsumerState<InventarioAdminPage> {
                       ),
                     ),
                   ),
+                // La bitácora de sincronizaciones complementa el historial
+                // y no desplaza las jornadas de conteo fuera de pantalla.
+                SliverToBoxAdapter(
+                    child: _PageWidth(
+                      child: _SynchronizationHistoryPanel(
+                        rows: _synchronizations,
+                        palette: palette,
+                        canUndo: _canUndoSynchronization && !_undoingSynchronization,
+                        onUndo: _undoSynchronization,
+                        onUndoSelected: _undoSelectedSynchronizations,
+                        allHistorical: _allSynchronizationHistory,
+                        onAllHistoricalChanged: (all) {
+                          setState(() => _allSynchronizationHistory = all);
+                          _load();
+                        },
+                      ),
+                    ),
+                  ),
+                if (_synchronizationWarning != null)
+                  SliverToBoxAdapter(
+                    child: _PageWidth(
+                      child: _InlineError(
+                        palette: palette,
+                        message: _synchronizationWarning!,
+                      ),
+                    ),
+                  ),
+                const SliverToBoxAdapter(child: SizedBox(height: 28)),
               ],
             ),
           ),
