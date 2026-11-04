@@ -139,3 +139,13 @@ el enlace de procedencia de los datos. No se cambia el backend deportivo.
 - Cobertura añadida: `test/features/navigation/menu_position_field_test.dart` y casos en `bottom_menu_priority_test.dart`.
 
 Validación pendiente en entorno Flutter: `flutter test test/features/navigation/menu_position_field_test.dart test/features/navigation/bottom_menu_priority_test.dart` y `flutter analyze lib/features/navigation`.
+
+
+## Consistencia visual de Personalizar mi menú (2026-11-04)
+
+- La pantalla ahora utiliza `TechBackground`, el mismo fondo ilustrado de bar con patrón, luces y degradados que el resto de módulos; respeta `selectedAppPaletteProvider` y la preferencia `showBackgroundPattern`.
+- El `Scaffold` permanece transparente para no tapar la ilustración.
+- Cabecera y resumen de favoritos usan `TechGlassPanel` y `TechBrandMark`, componentes existentes del diseño de BarLytics.
+- El panel de orden y cada módulo usan `palette.panelDecoration` y bordes temáticos; se preserva la distinción de favoritos.
+- Se conserva el botón flotante **Guardar mi menú**, el reordenamiento por número, arrastre y flechas, el listado de favoritos y el filtro de visibilidad.
+- QA visual pendiente de ejecución con Flutter: probar 320/390/768/1440 px; paletas oscuras y claras; estilo de superficie Plano, Suave y Cristal; patrón de fondo activado y desactivado; lista larga, teclado numérico móvil, botón flotante y guardado.
