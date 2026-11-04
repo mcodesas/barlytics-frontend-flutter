@@ -3824,6 +3824,7 @@ class _ManagerBottomNavigation extends ConsumerWidget {
                 palette: palette,
                 items: menuItems,
                 selectedPath: currentPath,
+                ref: ref,
               );
               return;
             }
@@ -3949,6 +3950,7 @@ class _ManagerBottomNavigation extends ConsumerWidget {
     required AppPalette palette,
     required List<UserMenuItem> items,
     required String selectedPath,
+    required WidgetRef ref,
   }) async {
     const profileItem = UserMenuItem(
       keyName: 'profile',
@@ -3964,6 +3966,9 @@ class _ManagerBottomNavigation extends ConsumerWidget {
     );
 
     final allItems = <UserMenuItem>[
+      // Incluir favoritos presentes en la barra principal también aquí.
+      ...items.where((item) => item.isFavorite &&
+          item.path.trim().isNotEmpty),
       ...managerMoreCandidates(items),
       profileItem,
       const UserMenuItem(
@@ -3974,6 +3979,8 @@ class _ManagerBottomNavigation extends ConsumerWidget {
       ),
     ];
     var query = '';
+    final showFavorites = (ref.read(menuPreferencesProvider).valueOrNull ??
+        const MenuPreferences()).showInMenu;
     final destination = await showModalBottomSheet<String>(
       context: context,
       backgroundColor: Colors.transparent,
@@ -3991,7 +3998,9 @@ class _ManagerBottomNavigation extends ConsumerWidget {
               item.path,
             ]);
           }).toList(growable: false);
-          final groups = _groupMoreItems(filtered);
+          final sections = splitMoreMenuFavorites(filtered,
+              showFavoritesInMenu: showFavorites);
+          final groups = _groupMoreItems(sections.remaining);
 
           return Padding(
             padding: EdgeInsets.only(bottom: MediaQuery.viewInsetsOf(sheetContext).bottom),
@@ -4050,13 +4059,23 @@ class _ManagerBottomNavigation extends ConsumerWidget {
                     ),
                     const SizedBox(height: 12),
                     Flexible(
-                      child: groups.isEmpty
+                      child: sections.isEmpty
                           ? _emptyMenuSearchState(palette)
                           : ListView.builder(
                               shrinkWrap: true,
-                              itemCount: groups.length,
+                              itemCount: groups.length +
+                                  (sections.favorites.isNotEmpty ? 1 : 0),
                               itemBuilder: (itemContext, index) {
-                                final group = groups[index];
+                                if (sections.favorites.isNotEmpty && index == 0) {
+                                  return _moreFavoritesSection(
+                                    palette: palette,
+                                    favorites: sections.favorites,
+                                    selectedPath: selectedPath,
+                                    onSelect: (path) =>
+                                        Navigator.of(sheetContext).pop(path));
+                                }
+                                final group = groups[index -
+                                    (sections.favorites.isNotEmpty ? 1 : 0)];
                                 return Container(
                                   margin: const EdgeInsets.only(bottom: 10),
                                   padding: const EdgeInsets.fromLTRB(10, 10, 10, 6),
@@ -4166,6 +4185,7 @@ class _ManagerBottomNavigation extends ConsumerWidget {
     );
 
     if (destination != null && context.mounted) {
+      selectMeseroModeForMenuPath(ref, destination);
       context.go(destination);
     }
   }
@@ -4478,6 +4498,70 @@ int _firstMenuPreference(List<UserMenuItem> items) {
     final order = item.personalOrder ?? 999999;
     return value < order ? value : order;
   });
+}
+
+/// Favoritos al principio de "Más". Los destinos siguen siendo los
+/// módulos autorizados para el usuario y el rol activo.
+Widget _moreFavoritesSection({
+  required AppPalette palette,
+  required List<UserMenuItem> favorites,
+  required ValueChanged<String> onSelect,
+  String? selectedPath,
+}) {
+  return Container(
+    margin: const EdgeInsets.only(bottom: 11),
+    padding: const EdgeInsets.fromLTRB(10, 10, 10, 7),
+    decoration: BoxDecoration(
+      color: palette.secondary.withOpacity(
+          palette.darkBackground ? .11 : .07),
+      borderRadius: BorderRadius.circular(palette.radius(19)),
+      border: Border.all(color: palette.secondary.withOpacity(.28)),
+    ),
+    child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+      Padding(
+        padding: const EdgeInsets.fromLTRB(5, 3, 6, 8),
+        child: Row(children: [
+          const Icon(Icons.star_rounded,
+              color: Color(0xFFE0A12A), size: 21),
+          const SizedBox(width: 8),
+          Expanded(child: Text('Mis favoritos',
+            style: TextStyle(color: palette.textPrimary,
+                fontSize: 14, fontWeight: FontWeight.w900))),
+          Text('${favorites.length}',
+            style: TextStyle(color: palette.textSecondary,
+                fontSize: 12, fontWeight: FontWeight.w800)),
+        ]),
+      ),
+      for (final item in favorites)
+        Material(
+          color: selectedPath == item.path
+              ? palette.secondary.withOpacity(.13)
+              : Colors.transparent,
+          borderRadius: BorderRadius.circular(12),
+          child: ListTile(
+            dense: true,
+            visualDensity: const VisualDensity(vertical: -2),
+            shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(12)),
+            contentPadding: const EdgeInsets.symmetric(horizontal: 8),
+            leading: Icon(_customRoleMenuIcon(item),
+                color: palette.secondary, size: 20),
+            title: Text(item.title,
+              maxLines: 2, overflow: TextOverflow.ellipsis,
+              style: TextStyle(color: palette.textPrimary,
+                  fontWeight: FontWeight.w800, fontSize: 13)),
+            subtitle: item.description?.trim().isNotEmpty == true
+              ? Text(item.description!,
+                maxLines: 1, overflow: TextOverflow.ellipsis,
+                style: TextStyle(color: palette.textSecondary, fontSize: 11))
+              : null,
+            trailing: Icon(Icons.chevron_right_rounded,
+                color: palette.textSecondary),
+            onTap: () => onSelect(item.path),
+          ),
+        ),
+    ]),
+  );
 }
 
 class _MenuGroupData {
