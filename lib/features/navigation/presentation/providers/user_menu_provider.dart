@@ -31,17 +31,15 @@ final userMenuProvider = FutureProvider<List<UserMenuItem>>((ref) async {
           (customIds.length == 1 ||
            selection.any((value) => normalizeRoleName(value) == 'PERSONALIZADO'))));
 
-  final allItems = await ref.watch(userMenuRepositoryProvider).findMyMenu(
-        preserveBackendOrder: onlyCustomView,
-      );
-  // Si el backend antiguo aún no sirve las preferencias, se conserva el
-  // menú autorizado sin bloquear la aplicación.
-  MenuPreferences preferences;
-  try {
-    preferences = await ref.watch(menuPreferencesProvider.future);
-  } catch (_) {
-    preferences = const MenuPreferences();
-  }
+  // Capturar dependencias de Riverpod ANTES de cualquier await.
+  final repository = ref.watch(userMenuRepositoryProvider);
+  // Si aún no se desplegó el endpoint nuevo, conservar el menú tradicional.
+  final preferencesFuture = ref.watch(menuPreferencesProvider.future)
+      .catchError((_) => const MenuPreferences());
+  final allItems = await repository.findMyMenu(
+    preserveBackendOrder: onlyCustomView,
+  );
+  final preferences = await preferencesFuture;
   final filteredItems = filterMenusBySelectedRoles(allItems, selection);
 
   final customFiltered = onlyCustomView
