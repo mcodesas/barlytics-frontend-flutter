@@ -284,8 +284,11 @@ class _PersonalizarMenuPageState extends ConsumerState<PersonalizarMenuPage> {
                               children: [
                                 for (final item in favorites)
                                   InputChip(
-                                    label: Text(item.title,
-                                      overflow: TextOverflow.ellipsis),
+                                    label: ConstrainedBox(
+                                      constraints: BoxConstraints(
+                                        maxWidth: MediaQuery.sizeOf(context).width * .54),
+                                      child: Text(item.title, maxLines: 1,
+                                        overflow: TextOverflow.ellipsis)),
                                     onDeleted: () => _toggleFavorite(item),
                                   ),
                               ]),
@@ -318,8 +321,11 @@ class _PersonalizarMenuPageState extends ConsumerState<PersonalizarMenuPage> {
                       label: const Text('Restablecer')),
                   ]),
                   const SizedBox(height: 5),
-                  Text('Arrastra el icono de puntos o usa las flechas para ordenar. '
-                      'Los cambios se aplican al guardar.',
+                  Text(_onlyFavorites
+                      ? 'Para cambiar el orden vuelve a Todos los módulos. '
+                        'Aquí puedes quitar favoritos con la estrella.'
+                      : 'Arrastra los puntos o usa las flechas para dar prioridad '
+                        'a categorías y módulos. Los grupos originales se mantienen.',
                     style: TextStyle(color: palette.textSecondary, fontSize: 12)),
                   const SizedBox(height: 12),
                   Wrap(spacing: 9, children: [
