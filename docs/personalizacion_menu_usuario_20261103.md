@@ -5,10 +5,19 @@
 ## Uso
 
 Desde cualquier menú autorizado abre **Personalizar mi menú**. La pantalla permite
-arrastrar los módulos, usar flechas para cambiar posiciones, marcarlos con
+arrastrar los módulos, usar flechas o **escribir directamente una posición**
+(1 es el primer puesto) y confirmar con ✓ / Enter. También permite marcar
 estrellas y seleccionar dónde aparecerán tus favoritos: **Solo menú**, **Solo
-inicio**, **En ambos**. En Inicio se muestran hasta seis accesos favoritos;
-en el menú lateral/móvil aparecen antes de las categorías del catálogo.
+inicio**, **En ambos**. El botón flotante **Guardar mi menú** permanece visible
+en toda la pantalla, incluso al final de listas largas.
+
+En Inicio se muestran hasta seis accesos favoritos; en el menú lateral/móvil
+aparecen antes de las categorías del catálogo. **En la barra inferior de
+Gerente, Administrador, Cajero, Mesero, Inventario y roles personalizados**
+los favoritos también tienen prioridad y respetan el número de posición.
+**Inicio** permanece primero y **Más** permanece al final. Caben hasta tres
+accesos personalizados entre ambos en la barra inferior del gerente; los
+módulos restantes se encuentran en Más.
 
 Los módulos siguen agrupados por las categorías definidas en `commerce.menus`.
 El orden personal establece la prioridad de los grupos y, dentro de cada
@@ -61,3 +70,23 @@ roles, de modo que cambiar de rol no revela accesos adicionales.
 
 **Los tests se han agregado, pero no se han ejecutado desde el entorno de
 ChatGPT**. No crear PR ni desplegar sin autorización posterior.
+
+## QA adicional: barra inferior y edición
+
+10. Gerente: marcar Inventario y Reportes como favoritos; configurar posiciones
+    1 y 2, guardar, ir a Inicio y verificar `Inicio | Inventario | Reportes |
+    ... | Más` (prioridad de favoritos sobre grupos normales).
+11. Marcando más de 3 favoritos, comprobar que los excedentes continúan
+    disponibles en Más; no ocultar módulos autorizados.
+12. Revisar perfiles Administrador, Cajero, Mesero, Inventario y roles propios
+    en barra inferior, dispositivos de 320/390/768/1440 px.
+13. Introducir posición 1 en un módulo lejano y pulsar ✓; comprobar movimiento,
+    números recalculados y que no se duplican módulos.
+14. Introducir posición 0, negativa, vacía o mayor que la lista: presentar
+    advertencia sin perder el orden.
+15. Desplazarse hasta cualquier punto de una lista larga: el botón flotante
+    Guardar debe permanecer visible y habilitado.
+16. Seleccionar `Solo inicio` y verificar que la barra inferior conserva
+    los accesos normales y los favoritos aparecen únicamente en Inicio.
+17. Abrir Personalizar mi menú desde Más cuando no cabe en la barra y
+    después regresar a la pantalla anterior.
