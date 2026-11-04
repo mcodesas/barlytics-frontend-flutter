@@ -971,9 +971,13 @@ class _MeseroPageState extends ConsumerState<MeseroPage> {
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (!mounted || ref.read(meseroSelectedModeProvider) != nuevo) return;
         if (nuevo == MeseroPageMode.cierreCaja) {
-          setState(() => _cierreCajaFuture = _cargarCierreCaja());
+          setState(() {
+            _cierreCajaFuture = _cargarCierreCaja();
+          });
         } else {
-          setState(() => _historialVentasFuture = _cargarHistorialVentas());
+          setState(() {
+            _historialVentasFuture = _cargarHistorialVentas();
+          });
         }
       });
     });
