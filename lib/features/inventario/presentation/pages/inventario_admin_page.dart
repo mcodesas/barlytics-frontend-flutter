@@ -708,6 +708,12 @@ class _InventarioAdminPageState extends ConsumerState<InventarioAdminPage> {
                       }),
                       onProductChanged: (product) =>
                           setState(() => _selectedProductId = product),
+                      onClear: () => setState(() {
+                        _searchController.clear();
+                        _selectedDayKey = null;
+                        _selectedProductId = null;
+                        _filter = _InventoryAdminFilter.todos;
+                      }),
                       onSearch: (_) => setState(() {}),
                       onFilter: (value) => setState(() => _filter = value),
                     ),
@@ -2485,6 +2491,7 @@ class _AdminToolbar extends StatelessWidget {
     required this.selectedProductId,
     required this.onDayChanged,
     required this.onProductChanged,
+    required this.onClear,
     required this.onSearch,
     required this.onFilter,
   });
@@ -2498,6 +2505,7 @@ class _AdminToolbar extends StatelessWidget {
   final int? selectedProductId;
   final ValueChanged<String?> onDayChanged;
   final ValueChanged<int?> onProductChanged;
+  final VoidCallback onClear;
   final ValueChanged<String> onSearch;
   final ValueChanged<_InventoryAdminFilter> onFilter;
 
@@ -2672,6 +2680,20 @@ class _AdminToolbar extends StatelessWidget {
                 ),
             ],
           ),
+          if (controller.text.trim().isNotEmpty ||
+              selectedDay != null ||
+              selectedProductId != null ||
+              filter != _InventoryAdminFilter.todos) ...[
+            const SizedBox(height: 10),
+            Align(
+              alignment: Alignment.centerRight,
+              child: TextButton.icon(
+                onPressed: onClear,
+                icon: const Icon(Icons.filter_alt_off_rounded, size: 18),
+                label: const Text('Limpiar filtros'),
+              ),
+            ),
+          ],
         ],
       ),
     );
