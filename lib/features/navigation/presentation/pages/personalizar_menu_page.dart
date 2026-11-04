@@ -163,52 +163,66 @@ class _PersonalizarMenuPageState extends ConsumerState<PersonalizarMenuPage> {
         border: Border.all(color: fav
           ? palette.secondary.withOpacity(.55) : palette.cardBorder)),
       child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 7),
-        child: Row(children: [
-          Container(
-            padding: const EdgeInsets.all(10),
-            decoration: BoxDecoration(
-              color: palette.secondary.withOpacity(.1),
-              borderRadius: BorderRadius.circular(12)),
-            child: Icon(_iconFor(item), size: 19, color: palette.secondary)),
-          const SizedBox(width: 9),
-          Expanded(child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start, children: [
-              Text(item.title, maxLines: 2, overflow: TextOverflow.ellipsis,
-                style: TextStyle(color: palette.textPrimary,
-                  fontWeight: FontWeight.w800)),
-              Text(item.groupName, maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: TextStyle(color: palette.textSecondary,
-                  fontSize: 11)),
-            ],
-          )),
-          IconButton(
-            tooltip: fav ? 'Quitar de favoritos' : 'Marcar como favorito',
-            onPressed: () => _toggleFavorite(item),
-            icon: Icon(fav ? Icons.star_rounded : Icons.star_border_rounded,
-              color: fav ? const Color(0xFFE0A12A) : palette.textSecondary)),
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+        child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+          Row(children: [
+            Container(
+              padding: const EdgeInsets.all(9),
+              decoration: BoxDecoration(
+                color: palette.secondary.withOpacity(.1),
+                borderRadius: BorderRadius.circular(12)),
+              child: Icon(_iconFor(item), size: 19, color: palette.secondary)),
+            const SizedBox(width: 9),
+            Expanded(child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start, children: [
+                Text(item.title, maxLines: 2, overflow: TextOverflow.ellipsis,
+                  style: TextStyle(color: palette.textPrimary,
+                    fontWeight: FontWeight.w800)),
+                Text(item.groupName, maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(color: palette.textSecondary,
+                    fontSize: 11)),
+              ],
+            )),
+            IconButton(
+              tooltip: fav ? 'Quitar de favoritos' : 'Marcar como favorito',
+              onPressed: () => _toggleFavorite(item),
+              icon: Icon(fav ? Icons.star_rounded : Icons.star_border_rounded,
+                color: fav ? const Color(0xFFE0A12A) : palette.textSecondary)),
+            if (reorderable)
+              ReorderableDragStartListener(
+                index: index,
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 6),
+                  child: Icon(Icons.drag_indicator_rounded,
+                      color: palette.textSecondary)),
+              ),
+          ]),
           if (reorderable) ...[
-            Column(mainAxisSize: MainAxisSize.min, children: [
+            const SizedBox(height: 5),
+            Row(children: [
+              Text('Posición', style: TextStyle(
+                color: palette.textSecondary, fontSize: 12,
+                fontWeight: FontWeight.w700)),
+              const SizedBox(width: 8),
+              _MenuPositionField(
+                key: ValueKey('position-${item.menuId}'),
+                position: index + 1,
+                maxPosition: _items.length,
+                onCommit: (position) => _move(index, position - 1)),
+              const Spacer(),
               IconButton(
-                iconSize: 17,
-                visualDensity: VisualDensity.compact,
+                iconSize: 21,
                 tooltip: 'Subir módulo',
                 onPressed: index == 0 ? null : () => _move(index, index - 1),
                 icon: const Icon(Icons.keyboard_arrow_up_rounded)),
               IconButton(
-                iconSize: 17,
-                visualDensity: VisualDensity.compact,
+                iconSize: 21,
                 tooltip: 'Bajar módulo',
                 onPressed: index == _items.length - 1
                     ? null : () => _move(index, index + 1),
                 icon: const Icon(Icons.keyboard_arrow_down_rounded)),
             ]),
-            ReorderableDragStartListener(
-              index: index, child: Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 8),
-                child: Icon(Icons.drag_indicator_rounded,
-                    color: palette.textSecondary))),
           ],
         ]),
       ),
@@ -222,6 +236,19 @@ class _PersonalizarMenuPageState extends ConsumerState<PersonalizarMenuPage> {
         item.menuId != null && _favorites.contains(item.menuId)).toList();
     return Scaffold(
       backgroundColor: palette.background,
+      floatingActionButtonLocation: FloatingActionButtonLocation.endFloat,
+      floatingActionButton: _loading || _error != null
+          ? null
+          : FloatingActionButton.extended(
+              heroTag: 'guardar-menu-personalizado',
+              onPressed: _saving ? null : _save,
+              backgroundColor: palette.secondary,
+              foregroundColor: palette.onSecondary,
+              icon: _saving
+                  ? const SizedBox(width: 18, height: 18,
+                      child: CircularProgressIndicator(strokeWidth: 2))
+                  : const Icon(Icons.save_rounded),
+              label: Text(_saving ? 'Guardando...' : 'Guardar mi menú')),
       body: SafeArea(child: Center(child: ConstrainedBox(
         constraints: const BoxConstraints(maxWidth: 850),
         child: _loading
@@ -324,8 +351,8 @@ class _PersonalizarMenuPageState extends ConsumerState<PersonalizarMenuPage> {
                   Text(_onlyFavorites
                       ? 'Para cambiar el orden vuelve a Todos los módulos. '
                         'Aquí puedes quitar favoritos con la estrella.'
-                      : 'Arrastra los puntos o usa las flechas para dar prioridad '
-                        'a categorías y módulos. Los grupos originales se mantienen.',
+                      : 'Escribe una posición y confirma con ✓, arrastra los '
+                        'puntos o usa las flechas. Los grupos originales se mantienen.',
                     style: TextStyle(color: palette.textSecondary, fontSize: 12)),
                   const SizedBox(height: 12),
                   Wrap(spacing: 9, children: [
@@ -361,23 +388,92 @@ class _PersonalizarMenuPageState extends ConsumerState<PersonalizarMenuPage> {
                     const Padding(
                       padding: EdgeInsets.all(18),
                       child: Text('No hay módulos disponibles para este usuario.')),
-                  const SizedBox(height: 22),
-                  Wrap(spacing: 10, runSpacing: 10,
-                    alignment: WrapAlignment.end, children: [
-                      OutlinedButton(
-                        onPressed: _saving ? null : () => context.go('/home'),
-                        child: const Text('Volver')),
-                      FilledButton.icon(
-                        onPressed: _saving ? null : _save,
-                        icon: _saving
-                            ? const SizedBox(width: 16, height: 16,
-                                child: CircularProgressIndicator(strokeWidth: 2))
-                            : const Icon(Icons.save_outlined),
-                        label: const Text('Guardar mi menú')),
-                    ]),
+                  const SizedBox(height: 92),
+                  Align(alignment: Alignment.centerRight,
+                    child: Text('El botón Guardar permanece visible mientras navegas.',
+                      style: TextStyle(color: palette.textSecondary,
+                        fontSize: 11))),
+
                 ]),
             ),
       ))),
     );
   }
+}
+
+class _MenuPositionField extends StatefulWidget {
+  const _MenuPositionField({
+    super.key,
+    required this.position,
+    required this.maxPosition,
+    required this.onCommit,
+  });
+
+  final int position;
+  final int maxPosition;
+  final ValueChanged<int> onCommit;
+
+  @override
+  State<_MenuPositionField> createState() => _MenuPositionFieldState();
+}
+
+class _MenuPositionFieldState extends State<_MenuPositionField> {
+  late final TextEditingController _controller =
+      TextEditingController(text: widget.position.toString());
+
+  @override
+  void didUpdateWidget(covariant _MenuPositionField oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.position != widget.position &&
+        _controller.text != widget.position.toString()) {
+      _controller.text = widget.position.toString();
+    }
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  void _commit() {
+    final position = int.tryParse(_controller.text.trim());
+    if (position == null ||
+        position < 1 || position > widget.maxPosition) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(
+          'Escribe una posición entre 1 y ${widget.maxPosition}.')));
+      _controller.text = widget.position.toString();
+      return;
+    }
+    widget.onCommit(position);
+    FocusManager.instance.primaryFocus?.unfocus();
+  }
+
+  @override
+  Widget build(BuildContext context) => SizedBox(
+    width: 112,
+    child: TextField(
+      controller: _controller,
+      key: const ValueKey('menu-position-number'),
+      keyboardType: TextInputType.number,
+      textInputAction: TextInputAction.done,
+      onSubmitted: (_) => _commit(),
+      decoration: InputDecoration(
+        isDense: true,
+        hintText: '1-${widget.maxPosition}',
+        contentPadding: const EdgeInsets.symmetric(
+          horizontal: 10, vertical: 10),
+        border: const OutlineInputBorder(),
+        suffixIconConstraints: const BoxConstraints(
+          minWidth: 34, minHeight: 36),
+        suffixIcon: IconButton(
+          tooltip: 'Mover a posición',
+          iconSize: 19,
+          padding: EdgeInsets.zero,
+          onPressed: _commit,
+          icon: const Icon(Icons.check_circle_outline_rounded)),
+      ),
+    ),
+  );
 }
