@@ -1,6 +1,7 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../../core/providers/core_providers.dart';
+import '../../../../core/network/api_client.dart';
 import '../../../auth/presentation/providers/auth_provider.dart';
 import '../../data/models/user_menu_item.dart';
 
@@ -79,7 +80,7 @@ final menuPreferencesRepositoryProvider = Provider<MenuPreferencesRepository>((r
 
 class MenuPreferencesRepository {
   const MenuPreferencesRepository(this._api);
-  final dynamic _api;
+  final ApiClient _api;
 
   Future<MenuPreferences> load() async {
     final response = await _api.get<MenuPreferences>(
