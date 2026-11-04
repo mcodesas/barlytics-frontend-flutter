@@ -18,6 +18,7 @@ import '../../features/navigation/domain/menu_path_selection.dart';
 import '../../features/navigation/domain/manager_navigation_filters.dart';
 import '../../features/navigation/presentation/providers/user_menu_provider.dart';
 import '../../features/navigation/presentation/providers/menu_preferences_provider.dart';
+import '../../features/navigation/data/models/bottom_menu_priority.dart';
 import '../../features/navigation/presentation/providers/active_role_provider.dart';
 import '../../features/navigation/presentation/providers/user_assigned_roles_provider.dart';
 import '../../features/profile/presentation/providers/profile_header_provider.dart';
@@ -2923,7 +2924,15 @@ class _CustomRoleBottomNavigation extends ConsumerWidget {
       if (path.isEmpty || path == '/home' || item.keyName == 'home') continue;
       uniqueByPath.putIfAbsent(path, () => item);
     }
-    final allItems = uniqueByPath.values.toList(growable: false);
+    final preferences = ref.watch(menuPreferencesProvider).valueOrNull ??
+        const MenuPreferences();
+    final rawItems = uniqueByPath.values.toList(growable: false);
+    final allItems = <UserMenuItem>[
+      rawItems.first, // Inicio siempre queda primero.
+      ...prioritizeBottomMenuItems(
+        rawItems.skip(1).toList(),
+        showFavoritesInMenu: preferences.showInMenu),
+    ];
     if (allItems.isEmpty) return const SizedBox.shrink();
     final selectedPath =
         mostSpecificMenuPath(effectivePath, allItems.map((item) => item.path));
@@ -2990,14 +2999,25 @@ class _CustomRoleBottomNavigation extends ConsumerWidget {
         : width >= 720
             ? 5
             : 4;
-    final hasOverflow = allItems.length > maxSlots;
-    final visibleCount =
-        hasOverflow ? maxSlots - 1 : allItems.length;
+    // Reservar "Más" para las opciones restantes y el acceso a personalizar,
+    // incluso cuando todos los módulos caben en la barra.
+    final hasOverflow = allItems.length > 1;
+    final visibleCount = hasOverflow
+        ? (allItems.length < maxSlots ? allItems.length : maxSlots - 1)
+        : allItems.length;
     final visibleItems =
         allItems.take(visibleCount).toList(growable: false);
-    final overflowItems = hasOverflow
-        ? allItems.skip(visibleCount).toList(growable: false)
-        : const <UserMenuItem>[];
+    final overflowItems = <UserMenuItem>[
+      ...allItems.skip(visibleCount),
+      if (hasOverflow)
+        const UserMenuItem(
+          keyName: 'personalizar_menu',
+          title: 'Personalizar mi menú',
+          path: '/personalizar_menu',
+          groupCode: 'CONFIGURACION',
+          groupName: 'Configuración',
+          menuOrder: 998),
+    ];
 
     // No seleccionar /mesero cuando existe /mesero/productos (o cierre,
     // historial, etc.). Buscar primero entre TODOS los destinos autorizados.
