@@ -130,7 +130,10 @@ jobs:
           $epoch = [long](git show -s --format=%ct HEAD)
           $build = [long](2002000000 + [math]::Floor(($epoch - 1767225600) / 2))
           if ($build -le 2000000692 -or $build -ge 2100000000) { throw 'Build Windows fuera de rango' }
-          flutter build windows --release --build-name="$version" --build-number="$build" --dart-define=ENV=prod --dart-define=BARLYTICS_APP_VERSION="$version" --dart-define=BARLYTICS_APP_BUILD="$build"
+          # Windows VERSIONINFO acepta sólo números 0..65535 en cada componente.
+          # La comparación real del actualizador usa el build completo inyectado.
+          $nativeBuild = [long](($build % 65000) + 1)
+          flutter build windows --release --build-name="$version" --build-number="$nativeBuild" --dart-define=ENV=prod --dart-define=BARLYTICS_APP_VERSION="$version" --dart-define=BARLYTICS_APP_BUILD="$build"
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           choco install innosetup -y --no-progress
           $iscc = "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe"
