@@ -2343,7 +2343,10 @@ class _OperationalBottomNavigation extends ConsumerWidget {
               _showOperationalMoreMenu(
                 context: context,
                 palette: palette,
-                items: extraMenus,
+                items: [
+                  ...authorizedMenus.where((item) => item.isFavorite),
+                  ...extraMenus,
+                ],
                 currentPath: currentPath,
                 ref: ref,
               );
@@ -2374,6 +2377,8 @@ class _OperationalBottomNavigation extends ConsumerWidget {
     required WidgetRef ref,
   }) async {
     var query = '';
+    final showFavorites = (ref.read(menuPreferencesProvider).valueOrNull ??
+        const MenuPreferences()).showInMenu;
     var expandedCode = '';
     for (final item in items) {
       if (currentPath == item.path || currentPath.startsWith('${item.path}/')) {
@@ -2399,7 +2404,9 @@ class _OperationalBottomNavigation extends ConsumerWidget {
               item.path,
             ]);
           }).toList(growable: false);
-          final groups = _groupOperationalMoreItems(filteredItems);
+          final sections = splitMoreMenuFavorites(filteredItems,
+              showFavoritesInMenu: showFavorites);
+          final groups = _groupOperationalMoreItems(sections.remaining);
 
           final openCode = expandedCode;
 
@@ -2460,13 +2467,23 @@ class _OperationalBottomNavigation extends ConsumerWidget {
                     ),
                     const SizedBox(height: 12),
                     Flexible(
-                      child: groups.isEmpty
+                      child: sections.isEmpty
                           ? _emptyMenuSearchState(palette)
                           : ListView.builder(
                               shrinkWrap: true,
-                              itemCount: groups.length,
+                              itemCount: groups.length +
+                                  (sections.favorites.isNotEmpty ? 1 : 0),
                               itemBuilder: (itemContext, index) {
-                                final group = groups[index];
+                                if (sections.favorites.isNotEmpty && index == 0) {
+                                  return _moreFavoritesSection(
+                                    palette: palette,
+                                    favorites: sections.favorites,
+                                    selectedPath: currentPath,
+                                    onSelect: (path) =>
+                                        Navigator.of(sheetContext).pop(path));
+                                }
+                                final group = groups[index -
+                                    (sections.favorites.isNotEmpty ? 1 : 0)];
                                 final expanded = searchActive || group.code == openCode;
                                 final selected = group.items.any(
                                   (item) => currentPath == item.path || currentPath.startsWith('${item.path}/'),
