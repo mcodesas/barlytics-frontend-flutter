@@ -38,3 +38,20 @@ Ruta: `/inventario_admin`
   `flutter test test/features/inventario/inventory_count_history_filter_test.dart`.
 
 **Nota:** sólo hay comprobación estática hasta que estas pruebas se ejecuten con el SDK Flutter; no se ha creado PR ni fusionado a `main`.
+
+## Descarga Excel: recuperación ante HTTP 500
+
+- El frontend conserva la descarga oficial mediante `GET /api/v1/inventario/administracion/excel`.
+- El cliente `ApiClient.getBytes` captura las fallas de red como `NetworkException(statusCode)`. Para códigos **500–599**, el módulo genera un archivo `.xlsx` en el dispositivo con los conteos previamente cargados para la sucursal autorizada.
+- La recuperación no se activa ante 400, 401, 403 ni fallos de permisos.
+- El archivo XLSX local contiene dos hojas (**Todos los conteos** y **Resumen**), columnas de esperado/contado/diferencia, stock operativo independiente, costos, estados, responsable y resumen económico.
+- Todos los productos de una jornada visible se incluyen aunque la búsqueda por producto se aplique a la pantalla. No se recalculan inventarios ni se modifica la base.
+- La implementación usa `archive: 4.0.9` (versión ya presente en `pubspec.lock`) como dependencia directa.
+- El usuario recibe un mensaje diferenciado cuando el Excel se generó localmente a causa del error del servidor.
+
+### Validación pendiente
+
+- `flutter test test/features/inventario/inventory_history_xlsx_test.dart`
+- `flutter analyze lib/features/inventario/presentation`
+- Simular exportación exitosa, error 500 y error 403; abrir los archivos en Excel y verificar ambas hojas.
+- Consultar el **stacktrace del backend** para corregir de raíz el HTTP 500. La captura de Dio por sí sola no identifica la excepción del servidor.
