@@ -304,18 +304,18 @@ jobs:
                 work="$(mktemp -d)"
                 docker cp "$container_id:/usr/share/nginx/html/downloads/latest.json" "$work/latest.json"
                 python3 - "$work/latest.json" "$ios_release" <<'PY'
-              import json,sys
-              from pathlib import Path
-              file,source=map(Path,sys.argv[1:])
-              data=json.loads(file.read_text(encoding="utf-8"))
-              published=json.loads(source.read_text(encoding="utf-8"))
-              current=data.setdefault("platforms",{}).get("ios",{})
-              if (published.get("enabled") is True and
-                  (current.get("version") != published.get("version") or
-                   int(current.get("build",0)) < int(published.get("build",0)))):
-                  data["platforms"]["ios"]=published
-                  file.write_text(json.dumps(data,ensure_ascii=False,indent=2)+"\n",encoding="utf-8")
-              PY
+          import json,sys
+          from pathlib import Path
+          file,source=map(Path,sys.argv[1:])
+          data=json.loads(file.read_text(encoding="utf-8"))
+          published=json.loads(source.read_text(encoding="utf-8"))
+          current=data.setdefault("platforms",{}).get("ios",{})
+          if (published.get("enabled") is True and
+              (current.get("version") != published.get("version") or
+               int(current.get("build",0)) < int(published.get("build",0)))):
+              data["platforms"]["ios"]=published
+              file.write_text(json.dumps(data,ensure_ascii=False,indent=2)+"\n",encoding="utf-8")
+          PY
                 docker cp "$work/latest.json" "$container_id:/usr/share/nginx/html/downloads/latest.json.new"
                 docker exec "$container_id" mv -f \
                   /usr/share/nginx/html/downloads/latest.json.new \
