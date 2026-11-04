@@ -296,6 +296,32 @@ jobs:
               docker exec "$container_id" test -s /usr/share/nginx/html/downloads/BarLytics-Windows-Setup.exe
               docker exec "$container_id" test -s /usr/share/nginx/html/downloads/barlytics-linux-amd64.deb
               docker exec "$container_id" test -s /usr/share/nginx/html/downloads/latest.json
+              # El pipeline TestFlight es independiente. Si publicó una build
+              # mientras se construía el frontend web, restaurar los metadatos
+              # persistidos antes de terminar el despliegue.
+              ios_release="/opt/barlytics/downloads/ios/last-release.json"
+              if [ -s "$ios_release" ]; then
+                work="$(mktemp -d)"
+                docker cp "$container_id:/usr/share/nginx/html/downloads/latest.json" "$work/latest.json"
+                python3 - "$work/latest.json" "$ios_release" <<'PY'
+              import json,sys
+              from pathlib import Path
+              file,source=map(Path,sys.argv[1:])
+              data=json.loads(file.read_text(encoding="utf-8"))
+              published=json.loads(source.read_text(encoding="utf-8"))
+              current=data.setdefault("platforms",{}).get("ios",{})
+              if (published.get("enabled") is True and
+                  (current.get("version") != published.get("version") or
+                   int(current.get("build",0)) < int(published.get("build",0)))):
+                  data["platforms"]["ios"]=published
+                  file.write_text(json.dumps(data,ensure_ascii=False,indent=2)+"\n",encoding="utf-8")
+              PY
+                docker cp "$work/latest.json" "$container_id:/usr/share/nginx/html/downloads/latest.json.new"
+                docker exec "$container_id" mv -f \
+                  /usr/share/nginx/html/downloads/latest.json.new \
+                  /usr/share/nginx/html/downloads/latest.json
+                rm -rf "$work"
+              fi
               echo "Frontend web desplegado correctamente."
               exit 0
             fi
