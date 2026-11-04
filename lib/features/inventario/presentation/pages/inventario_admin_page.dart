@@ -242,7 +242,7 @@ class _InventarioAdminPageState extends ConsumerState<InventarioAdminPage> {
            day.attendants.join(' ').toLowerCase().contains(query));
 
       if (productRows.isEmpty && !matchingActor) continue;
-      if (query.isEmpty && selectedProduct == null || matchingActor) {
+      if ((query.isEmpty && selectedProduct == null) || matchingActor) {
         result.add(day);
       } else {
         result.add(_InventoryCountDay(date: day.date, rows: productRows));
@@ -721,7 +721,10 @@ class _InventarioAdminPageState extends ConsumerState<InventarioAdminPage> {
                       exporting: _exportingExcel,
                       canExport: days.isNotEmpty && !_loading,
                       onViewChanged: (value) => setState(() => _historyView = value),
-                      onExport: () => _exportExcel(),
+                      onExport: () => _exportExcel(
+                        onlyDay: _activeDayKey == null
+                            ? null : DateTime.parse(_activeDayKey!),
+                      ),
                     ),
                   ),
                 ),
@@ -785,9 +788,15 @@ class _InventarioAdminPageState extends ConsumerState<InventarioAdminPage> {
                               bottom: index == days.length - 1 ? 0 : 12,
                             ),
                             child: _CountDayCard(
-                              key: ValueKey('conteo-${days[index].date.toIso8601String()}'),
+                              key: ValueKey(
+                                'conteo-${days[index].date.toIso8601String()}-'
+                                '${_activeDayKey ?? 'todos'}-'
+                                '${_activeProductId ?? 'todos'}',
+                              ),
                               day: days[index],
                               palette: palette,
+                              expandInitially: _activeDayKey != null ||
+                                  _activeProductId != null,
                               tableView: _historyView == _InventoryHistoryView.table,
                               onExportExcel: !_loading && !_exportingExcel
                                   ? () => _exportExcel(onlyDay: days[index].date)
@@ -2610,7 +2619,8 @@ class _AdminToolbar extends StatelessWidget {
           const SizedBox(height: 9),
           Text(
             'Selecciona una fecha y luego un producto para ver '
-            'qué se registró exactamente en ese conteo.',
+            'qué se registró exactamente en ese conteo. '
+            'El Excel conserva el historial completo de la jornada.',
             style: TextStyle(
               color: palette.textSecondary, fontSize: 11.5),
           ),
@@ -3238,6 +3248,7 @@ class _CountDayCard extends StatefulWidget {
     required this.day,
     required this.palette,
     required this.tableView,
+    required this.expandInitially,
     required this.onReview,
     required this.onExportExcel,
   });
@@ -3245,6 +3256,7 @@ class _CountDayCard extends StatefulWidget {
   final _InventoryCountDay day;
   final AppPalette palette;
   final bool tableView;
+  final bool expandInitially;
   final VoidCallback? onReview;
   final VoidCallback? onExportExcel;
 
@@ -3305,6 +3317,7 @@ class _CountDayCardState extends State<_CountDayCard> {
           ),
           clipBehavior: Clip.antiAlias,
           child: ExpansionTile(
+            initiallyExpanded: widget.expandInitially,
             tilePadding: EdgeInsets.fromLTRB(
               compact ? 12 : 16,
               9,
