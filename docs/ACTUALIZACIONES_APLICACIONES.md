@@ -1,87 +1,88 @@
 # Actualizaciones de aplicaciones BarLytics
 
-## Flujo de escritorio
+## Motivo de la corrección (2026-11-04)
 
-Cada `push` a `main` generado después del merge de un Pull Request:
+El manifiesto `/downloads/latest.json` publicaba siempre el build fijo de
+`pubspec.yaml` (`1.0.0+1`) para Windows, Linux y macOS, aunque el ejecutable
+cambiara con cada merge. El comparador no encontraba ninguna versión nueva.
+Además, Android e iOS figuraban explícitamente con `enabled: false`.
 
-1. Ejecuta pruebas Flutter.
-2. Compila Windows, Linux y macOS en release.
-3. Genera:
-   - `BarLytics-Windows-Setup.exe`
-   - `barlytics-linux-amd64.deb`
-   - `BarLytics-macOS.dmg`
-4. Calcula SHA-256 de cada instalador.
-5. Genera `/downloads/latest.json`.
-6. Publica instaladores y manifiesto dentro del frontend de producción.
+**Regla:** una actualización se anuncia solamente después de que el artefacto
+esté disponible para el dispositivo. Un cambio sin merge ni publicación NO
+debe generar aviso a usuarios finales.
 
-La versión funcional se toma de `pubspec.yaml` y el build de producción usa
-`GITHUB_RUN_NUMBER`. De esta forma cada despliegue a `main` tiene un build
-monótonamente creciente aunque no se cambie manualmente el `+build` de
-`pubspec.yaml`.
+## Cómo se versiona
 
-## Comportamiento del cliente
+- Una integración nueva a `main` crea un commit nuevo.
+- `deploy/update/release-build.sh` calcula un build monótono a partir de la
+  fecha UTC del commit. Usa base `2002000000` para quedar por encima de los
+  antiguos códigos Android `2001000000+...`. Todos los jobs del mismo commit
+  comparten idéntico build y manifest.
+- En Windows, el recurso nativo usa un número `1..65000` compatible con
+  VERSIONINFO; `BARLYTICS_APP_BUILD` conserva el build completo para la
+  comprobación de actualizaciones.
+- Linux publica versión DEB `1.0.0+<build>`, no una versión fija.
+- macOS usa el mismo build para el DMG. Si la versión macOS es anterior, el
+  manifiesto conserva su versión real y SHA-256; no finge que sea nueva.
+- Android genera un AAB con el build del commit. El job de imagen web espera la
+  publicación correcta en Google Play **Internal Testing** antes de marcar la
+  versión Android como disponible.
+- iOS continúa con el número de build cronológico de TestFlight.
+  `ios-testflight.yml` espera el procesamiento de App Store Connect y
+  posteriormente registra la versión en el manifiesto. Se conserva copia en
+  `/opt/barlytics/downloads/ios/last-release.json` para evitar que otro
+  despliegue web elimine el aviso iOS.
 
-Las aplicaciones instalables consultan al iniciar el parámetro público
-`BARLYTICS_UPDATE_MANIFEST_URL`, cuyo valor por defecto es:
+## Actualizaciones por plataforma
 
-`https://www.barlytics.com.co/downloads/latest.json`
+| Plataforma | Distribución y acción |
+|---|---|
+| Windows | Diálogo; descarga EXE, verifica SHA256 e inicia Inno Setup |
+| Linux | Diálogo; descarga DEB, verifica SHA256 y abre el instalador |
+| macOS | Diálogo; descarga DMG, verifica SHA256 y lo abre |
+| Android | Diálogo tras publicación en Google Play Internal Testing; abre Google Play |
+| iOS | Diálogo tras procesamiento de TestFlight; abre enlace de TestFlight configurado |
 
-Si la versión/build publicada es superior a la instalada:
+Para iOS puede definirse Repository Variable
+`BARLYTICS_IOS_TESTFLIGHT_URL` con el enlace específico de la beta.
+Sin esa variable se utiliza la ficha oficial de TestFlight:
+`https://apps.apple.com/app/testflight/id899247664`.
+Eso abre TestFlight, pero el usuario debe estar autorizado como tester.
 
-- Windows: muestra `Actualizar ahora`, descarga el EXE, valida SHA-256, inicia
-  Inno Setup en modo silencioso, cierra BarLytics y lo vuelve a abrir al terminar.
-- macOS: descarga el DMG, valida SHA-256 y lo abre. La sustitución final de la
-  aplicación continúa bajo las reglas de macOS. Para actualización totalmente
-  transparente se requerirá firma/notarización y un framework como Sparkle.
-- Linux: descarga el DEB, valida SHA-256 y lo abre con el instalador del sistema.
-  La instalación puede solicitar autorización administrativa.
-- Android/iOS: abre la tienda configurada en los parámetros públicos. Las
-  actualizaciones automáticas reales las administra Google Play/App Store según
-  la configuración del dispositivo.
+En dispositivos ya en producción estable, el enlace y número de versión
+deberán corresponder a la publicación **App Store/Google Play de producción**,
+no a versiones de pruebas internas. Estas ramas publican actualmente en canales
+de pruebas, no en tiendas públicas.
 
-`Más tarde` pospone el aviso de esa versión durante 8 horas. Una actualización
-marcada como obligatoria no permite posponerla.
+## Detección
 
-## Activar actualizaciones móviles
+Se consulta el manifiesto HTTPS al entrar en la app, cada 30 minutos y al
+volver del segundo plano. La comparación es
+`version/build_instalado < version/build_publicado`.
+El aviso opcional permite posponer esa misma versión 8 horas; una build nueva
+utiliza otra clave de posposición.
+En Flutter Web no existe instalador nativo; los cambios web se reciben al
+recargar el sitio y la gestión de caché corresponde al navegador.
 
-Las URLs ya se administran en base de datos mediante:
+En **debug** la detección está desactivada por defecto. Para probarla en local:
 
-- `BARLYTICS_DOWNLOAD_ANDROID_URL`
-- `BARLYTICS_DOWNLOAD_IOS_URL`
-
-Para evitar avisar a usuarios antes de que la nueva versión esté realmente en
-la tienda, el manifiesto móvil está deshabilitado por defecto. Cuando el proceso
-de publicación esté listo, crear estas Repository Variables en GitHub:
-
-- `BARLYTICS_ANDROID_UPDATE_ENABLED=true`
-- `BARLYTICS_IOS_UPDATE_ENABLED=true`
-
-Actualmente el repositorio incluye Android, por lo que CI genera también un
-`.aab`. El proyecto entregado todavía no contiene la carpeta `ios/`; la rama iOS
-del actualizador queda implementada, pero no se puede generar/publicar un IPA
-hasta incorporar la plataforma iOS, firma y credenciales de App Store Connect.
-
-## Actualización obligatoria
-
-Para una versión crítica se puede definir temporalmente:
-
-- `BARLYTICS_UPDATE_MANDATORY=true`
-
-El siguiente deploy generará `latest.json` con `mandatory: true`. Después del
-release crítico conviene volver la variable a `false`.
-
-## Pruebas locales
-
-En `debug` el actualizador se deshabilita para no interrumpir el desarrollo.
-Para probarlo explícitamente:
-
-```bash
-flutter run -d windows \
-  --dart-define=ENV=prod \
-  --dart-define=BARLYTICS_ENABLE_UPDATES=true \
-  --dart-define=BARLYTICS_APP_VERSION=0.9.0 \
-  --dart-define=BARLYTICS_APP_BUILD=1
+```powershell
+flutter run -d windows --dart-define=ENV=prod --dart-define=BARLYTICS_ENABLE_UPDATES=true --dart-define=BARLYTICS_APP_VERSION=0.9.0 --dart-define=BARLYTICS_APP_BUILD=1
 ```
 
-La prueba usa el manifiesto público de producción, por lo que debe existir
-`/downloads/latest.json`.
+## Verificación de QA
+
+- `flutter test test/core/update/app_update_model_test.dart`
+- `flutter analyze lib/core/update`
+- `python3 -m unittest discover -s deploy/update -p 'test_*.py'`
+- Comprobar el `latest.json` publicado: Windows/Linux/Android con misma
+  versión/build del commit; macOS con versión y checksum del DMG publicado e
+  iOS con build procesada en TestFlight.
+- Instalar una versión anterior en cada plataforma y confirmar que se presenta
+  el aviso. Verificar **Más tarde**, actualización correcta, versión igual y
+  error temporal de red.
+- Confirmar que el botón de actualización abre el instalador o tienda que
+  corresponde y que nunca se anuncia un archivo no publicado.
+
+**La revisión de código no equivale a una prueba E2E en dispositivos reales.**
+No hacer merge hasta verificar CI y tener la autorización del responsable.

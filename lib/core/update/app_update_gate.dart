@@ -20,7 +20,8 @@ class AppUpdateGate extends ConsumerStatefulWidget {
   ConsumerState<AppUpdateGate> createState() => _AppUpdateGateState();
 }
 
-class _AppUpdateGateState extends ConsumerState<AppUpdateGate> {
+class _AppUpdateGateState extends ConsumerState<AppUpdateGate>
+    with WidgetsBindingObserver {
   Timer? _periodicTimer;
   bool _checking = false;
   bool _dialogVisible = false;
@@ -29,17 +30,28 @@ class _AppUpdateGateState extends ConsumerState<AppUpdateGate> {
   void initState() {
     super.initState();
     if (kIsWeb) return;
+    WidgetsBinding.instance.addObserver(this);
     WidgetsBinding.instance.addPostFrameCallback((_) {
       Future<void>.delayed(const Duration(seconds: 2), _checkForUpdates);
     });
     _periodicTimer = Timer.periodic(
-      const Duration(hours: 4),
+      const Duration(minutes: 30),
       (_) => _checkForUpdates(),
     );
   }
 
   @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed && mounted && !kIsWeb) {
+      // Al volver a abrir la app instalada (o desde la tienda), detectar
+      // un nuevo release sin esperar a que venza el temporizador.
+      _checkForUpdates();
+    }
+  }
+
+  @override
   void dispose() {
+    if (!kIsWeb) WidgetsBinding.instance.removeObserver(this);
     _periodicTimer?.cancel();
     super.dispose();
   }
@@ -209,7 +221,9 @@ class _AppUpdateDialogState extends State<_AppUpdateDialog> {
                     ? candidate.platform == AppUpdatePlatform.windows
                         ? 'Al actualizar, BarLytics descargará el instalador, cerrará esta ventana, instalará la nueva versión y volverá a abrir la aplicación.'
                         : 'BarLytics descargará y abrirá el instalador de la nueva versión.'
-                    : 'La actualización se realizará desde la tienda oficial de tu dispositivo.',
+                    : candidate.platform == AppUpdatePlatform.ios && release.channel == 'testflight'
+                        ? 'Esta versión se distribuye en TestFlight. Abre TestFlight para instalar la build disponible para tu cuenta de pruebas.'
+                        : 'La actualización se realizará desde la tienda oficial de tu dispositivo.',
                 style: theme.textTheme.bodySmall,
                 textAlign: TextAlign.center,
               ),
@@ -246,7 +260,11 @@ class _AppUpdateDialogState extends State<_AppUpdateDialog> {
           FilledButton.icon(
             onPressed: _updating ? null : _updateNow,
             icon: Icon(desktop ? Icons.download_rounded : Icons.open_in_new_rounded),
-            label: Text(desktop ? 'Actualizar ahora' : 'Ir a la tienda'),
+            label: Text(desktop
+                ? 'Actualizar ahora'
+                : candidate.platform == AppUpdatePlatform.ios && release.channel == 'testflight'
+                    ? 'Abrir TestFlight'
+                    : 'Ir a la tienda'),
           ),
         ],
       ),

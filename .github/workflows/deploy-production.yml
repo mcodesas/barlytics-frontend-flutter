@@ -23,7 +23,26 @@ env:
   DOCKER_BUILD_RECORD_UPLOAD: "false"
 
 jobs:
+  verify:
+    name: QA - comprobación de actualizaciones
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.41.9'
+          channel: stable
+          cache: true
+      - name: Preparar dependencias
+        run: flutter pub get
+      - name: Probar detección de nuevas versiones
+        run: |
+          flutter test test/core/update/app_update_model_test.dart
+          flutter analyze lib/core/update
+          python3 -m unittest discover -s deploy/update -p 'test_*.py'
+
   android:
+    needs: verify
     name: Android - Google Play Internal
     runs-on: ubuntu-latest
     steps:
@@ -68,9 +87,7 @@ jobs:
       - name: Compilar Android App Bundle
         run: |
           VERSION="$(sed -nE 's/^version:[[:space:]]*([^+[:space:]]+).*/\1/p' pubspec.yaml | head -n1)"
-          BASE_EPOCH=1767225600
-          NOW_EPOCH="$(date +%s)"
-          BUILD="$((2001000000 + (NOW_EPOCH - BASE_EPOCH) / 2))"
+          BUILD="$(bash deploy/update/release-build.sh)"
           if [ "$BUILD" -le 2000000692 ] || [ "$BUILD" -gt 2100000000 ]; then
             echo "ERROR: versionCode Android fuera de rango seguro: $BUILD"
             exit 1
@@ -93,6 +110,7 @@ jobs:
           fastlane supply --json_key "$RUNNER_TEMP/play-service-account.json" --package_name "com.mcode.barlytics" --aab build/app/outputs/bundle/release/app-release.aab --track internal --release_status completed --skip_upload_metadata true --skip_upload_images true --skip_upload_screenshots true --skip_upload_changelogs true
 
   windows:
+    needs: verify
     name: Windows - instalador
     runs-on: windows-2022
     steps:
@@ -107,10 +125,16 @@ jobs:
         run: |
           flutter config --enable-windows-desktop
           flutter pub get
-          flutter build windows --release --dart-define=ENV=prod
-          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           $versionLine = Select-String -Path pubspec.yaml -Pattern '^version:\s*([0-9]+\.[0-9]+\.[0-9]+)'
           $version = $versionLine.Matches[0].Groups[1].Value
+          $epoch = [long](git show -s --format=%ct HEAD)
+          $build = [long](2002000000 + [math]::Floor(($epoch - 1767225600) / 2))
+          if ($build -le 2000000692 -or $build -ge 2100000000) { throw 'Build Windows fuera de rango' }
+          # Windows VERSIONINFO acepta sólo números 0..65535 en cada componente.
+          # La comparación real del actualizador usa el build completo inyectado.
+          $nativeBuild = [long](($build % 65000) + 1)
+          flutter build windows --release --build-name="$version" --build-number="$nativeBuild" --dart-define=ENV=prod --dart-define=BARLYTICS_APP_VERSION="$version" --dart-define=BARLYTICS_APP_BUILD="$build"
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           choco install innosetup -y --no-progress
           $iscc = "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe"
           $buildDir = (Resolve-Path 'build\windows\x64\runner\Release').Path
@@ -123,6 +147,7 @@ jobs:
           retention-days: 1
 
   linux:
+    needs: verify
     name: Linux - instalador
     runs-on: ubuntu-latest
     steps:
@@ -145,9 +170,10 @@ jobs:
           flutter config --enable-linux-desktop
           flutter create --platforms=linux .
           flutter pub get
-          flutter build linux --release --dart-define=ENV=prod
           VERSION="$(sed -nE 's/^version:[[:space:]]*([0-9]+\.[0-9]+\.[0-9]+).*/\1/p' pubspec.yaml | head -n1)"
-          bash deploy/linux/build-deb.sh "$VERSION"
+          BUILD="$(bash deploy/update/release-build.sh)"
+          flutter build linux --release --build-name="$VERSION" --build-number="$BUILD" --dart-define=ENV=prod --dart-define=BARLYTICS_APP_VERSION="$VERSION" --dart-define=BARLYTICS_APP_BUILD="$BUILD"
+          bash deploy/linux/build-deb.sh "$VERSION+$BUILD"
       - uses: actions/upload-artifact@v4
         with:
           name: barlytics-linux-installer
@@ -155,7 +181,8 @@ jobs:
           retention-days: 1
 
   image:
-    needs: [windows, linux]
+    # Esperar a la publicación efectiva en Google Play antes de anunciar el build.
+    needs: [windows, linux, android]
     runs-on: ubuntu-latest
     outputs:
       tag: sha-${{ github.sha }}
@@ -175,70 +202,52 @@ jobs:
           name: barlytics-linux-installer
           path: web/downloads
 
-      - name: Conservar instalador macOS si sigue publicado
+      - name: Conservar manifiesto y DMG publicados
         run: |
           mkdir -p web/downloads
-          if curl --fail --location --retry 2 -o web/downloads/BarLytics-macOS.dmg https://www.barlytics.com.co/downloads/BarLytics-macOS.dmg; then
-            echo "Instalador macOS conservado."
+          curl --fail --location --retry 3 -o /tmp/barlytics-previous-latest.json \
+            https://www.barlytics.com.co/downloads/latest.json || rm -f /tmp/barlytics-previous-latest.json
+          if curl --fail --location --retry 2 -o web/downloads/BarLytics-macOS.dmg \
+            https://www.barlytics.com.co/downloads/BarLytics-macOS.dmg; then
+            echo "Conservando DMG publicado."
           else
             rm -f web/downloads/BarLytics-macOS.dmg
-            echo "Aviso: no hay instalador macOS publicado; no se bloqueará el despliegue web."
           fi
 
-      - name: Generar manifiesto de actualizaciones
+      - name: Generar manifiesto con builds publicados reales
+        env:
+          BARLYTICS_UPDATE_MANDATORY: ${{ vars.BARLYTICS_UPDATE_MANDATORY || 'false' }}
         run: |
           set -euo pipefail
           VERSION="$(sed -nE 's/^version:[[:space:]]*([^+[:space:]]+).*/\1/p' pubspec.yaml | head -n1)"
-          BUILD="$(sed -nE 's/^version:[[:space:]]*[^+[:space:]]+\+([0-9]+).*/\1/p' pubspec.yaml | head -n1)"
+          BUILD="$(bash deploy/update/release-build.sh)"
           test -n "$VERSION"
-          test -n "$BUILD"
           test -s web/downloads/BarLytics-Windows-Setup.exe
           test -s web/downloads/barlytics-linux-amd64.deb
-
           WINDOWS_SHA="$(sha256sum web/downloads/BarLytics-Windows-Setup.exe | awk '{print $1}')"
           LINUX_SHA="$(sha256sum web/downloads/barlytics-linux-amd64.deb | awk '{print $1}')"
-          PUBLISHED_AT="$(date -u +'%Y-%m-%dT%H:%M:%SZ')"
-
-          MACOS_JSON='{"enabled":false}'
+          MACOS_SHA=""
           if [ -s web/downloads/BarLytics-macOS.dmg ]; then
             MACOS_SHA="$(sha256sum web/downloads/BarLytics-macOS.dmg | awk '{print $1}')"
-            MACOS_JSON="{\"version\":\"$VERSION\",\"build\":$BUILD,\"url\":\"https://www.barlytics.com.co/downloads/BarLytics-macOS.dmg\",\"sha256\":\"$MACOS_SHA\",\"enabled\":true}"
           fi
-
-          cat > web/downloads/latest.json <<EOF
-          {
-            "version": "$VERSION",
-            "build": $BUILD,
-            "mandatory": false,
-            "releaseNotes": "Actualización de BarLytics",
-            "publishedAt": "$PUBLISHED_AT",
-            "platforms": {
-              "windows": {
-                "version": "$VERSION",
-                "build": $BUILD,
-                "url": "https://www.barlytics.com.co/downloads/BarLytics-Windows-Setup.exe",
-                "sha256": "$WINDOWS_SHA",
-                "enabled": true
-              },
-              "linux": {
-                "version": "$VERSION",
-                "build": $BUILD,
-                "url": "https://www.barlytics.com.co/downloads/barlytics-linux-amd64.deb",
-                "sha256": "$LINUX_SHA",
-                "enabled": true
-              },
-              "macos": ${MACOS_JSON},
-              "android": {
-                "enabled": false
-              },
-              "ios": {
-                "enabled": false
-              }
-            }
-          }
-          EOF
-
-          test -s web/downloads/latest.json
+          python3 deploy/update/generate-manifest.py \
+            --version "$VERSION" --build "$BUILD" \
+            --windows-sha "$WINDOWS_SHA" --linux-sha "$LINUX_SHA" \
+            --macos-sha "$MACOS_SHA" \
+            --previous /tmp/barlytics-previous-latest.json \
+            --output web/downloads/latest.json
+          python3 - <<'PY'
+          import json
+          m = json.load(open('web/downloads/latest.json', encoding='utf-8'))
+          p = m['platforms']
+          assert all(p[k]['enabled'] and p[k]['build'] == m['build']
+                     for k in ('windows', 'linux', 'android'))
+          assert p['android']['url'].startswith('https://play.google.com/')
+          if p['macos']['enabled']:
+              assert len(p['macos']['sha256']) == 64
+          print('Release verificado', m['version'], m['build'],
+                {k: v.get('build') for k, v in p.items()})
+          PY
 
       - name: Docker Buildx
         uses: docker/setup-buildx-action@v3
@@ -311,6 +320,32 @@ jobs:
               docker exec "$container_id" test -s /usr/share/nginx/html/downloads/BarLytics-Windows-Setup.exe
               docker exec "$container_id" test -s /usr/share/nginx/html/downloads/barlytics-linux-amd64.deb
               docker exec "$container_id" test -s /usr/share/nginx/html/downloads/latest.json
+              # El pipeline TestFlight es independiente. Si publicó una build
+              # mientras se construía el frontend web, restaurar los metadatos
+              # persistidos antes de terminar el despliegue.
+              ios_release="/opt/barlytics/downloads/ios/last-release.json"
+              if [ -s "$ios_release" ]; then
+                work="$(mktemp -d)"
+                docker cp "$container_id:/usr/share/nginx/html/downloads/latest.json" "$work/latest.json"
+                python3 - "$work/latest.json" "$ios_release" <<'PY'
+          import json,sys
+          from pathlib import Path
+          file,source=map(Path,sys.argv[1:])
+          data=json.loads(file.read_text(encoding="utf-8"))
+          published=json.loads(source.read_text(encoding="utf-8"))
+          current=data.setdefault("platforms",{}).get("ios",{})
+          if (published.get("enabled") is True and
+              (current.get("version") != published.get("version") or
+               int(current.get("build",0)) < int(published.get("build",0)))):
+              data["platforms"]["ios"]=published
+              file.write_text(json.dumps(data,ensure_ascii=False,indent=2)+"\n",encoding="utf-8")
+          PY
+                docker cp "$work/latest.json" "$container_id:/usr/share/nginx/html/downloads/latest.json.new"
+                docker exec "$container_id" mv -f \
+                  /usr/share/nginx/html/downloads/latest.json.new \
+                  /usr/share/nginx/html/downloads/latest.json
+                rm -rf "$work"
+              fi
               echo "Frontend web desplegado correctamente."
               exit 0
             fi
