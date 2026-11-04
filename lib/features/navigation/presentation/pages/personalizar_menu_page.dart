@@ -414,8 +414,9 @@ class _PersonalizarMenuPageState extends ConsumerState<PersonalizarMenuPage> {
                   Text(_onlyFavorites
                       ? 'Para cambiar el orden vuelve a Todos los módulos. '
                         'Aquí puedes quitar favoritos con la estrella.'
-                      : 'Escribe una posición y confirma con ✓, arrastra los '
-                        'puntos o usa las flechas. Los grupos originales se mantienen.',
+                      : 'Escribe una posición y el módulo se moverá '
+                        'automáticamente. También puedes pulsar ✓, arrastrar '
+                        'o usar las flechas. Después pulsa Guardar mi menú.',
                     style: TextStyle(color: palette.textSecondary, fontSize: 12)),
                   const SizedBox(height: 12),
                   Wrap(spacing: 9, children: [
