@@ -2734,30 +2734,53 @@ class _InventoryBottomNavigation extends ConsumerWidget {
 
     // El orden puede ser conocido, pero la existencia de cada opción depende
     // exclusivamente de los menús autorizados por el backend.
-    final allItems = byPath.values.toList()
+    final orderedStandard = byPath.values.toList()
       ..sort((a, b) {
         final ai = _standardItems.indexWhere((item) => item.path == a.path);
         final bi = _standardItems.indexWhere((item) => item.path == b.path);
         final ap = ai < 0 ? 999 : ai;
         final bp = bi < 0 ? 999 : bi;
         final byPriority = ap.compareTo(bp);
-        return byPriority != 0 ? byPriority : a.label.toLowerCase().compareTo(b.label.toLowerCase());
+        return byPriority != 0 ? byPriority
+            : a.label.toLowerCase().compareTo(b.label.toLowerCase());
       });
+    final preferences = ref.watch(menuPreferencesProvider).valueOrNull ??
+        const MenuPreferences();
+    final favoriteItems = prioritizeBottomMenuItems(
+      authorizedMenus.where((item) =>
+          item.path.isNotEmpty && item.path != '/home').toList(),
+      showFavoritesInMenu: preferences.showInMenu,
+    ).where((item) => preferences.showInMenu && item.isFavorite).toList();
+    final usedPaths = <String>{'/home'};
+    final allItems = <({String label, IconData icon, String path})>[
+      byPath['/home']!,
+      for (final favorite in favoriteItems)
+        if (byPath.containsKey(favorite.path) &&
+            usedPaths.add(favorite.path))
+          byPath[favorite.path]!,
+      for (final item in orderedStandard)
+        if (usedPaths.add(item.path)) item,
+    ];
 
     final maxVisible = width >= 1280
         ? 7
         : width >= 720
             ? 5
             : 4;
-    final hasOverflow = allItems.length > maxVisible;
-    final visibleCount = hasOverflow ? maxVisible - 1 : allItems.length;
+    final hasOverflow = allItems.length > 1;
+    final visibleCount = hasOverflow
+        ? (allItems.length < maxVisible ? allItems.length : maxVisible - 1)
+        : allItems.length;
     final visibleItems = allItems.take(visibleCount).toList(growable: false);
-    final overflowItems = hasOverflow
-        ? allItems.skip(visibleCount).toList(growable: false)
-        : const <({String label, IconData icon, String path})>[];
+    final overflowItems = <({String label, IconData icon, String path})>[
+      ...allItems.skip(visibleCount),
+      if (hasOverflow)
+        (label: 'Personalizar mi menú',
+          icon: Icons.tune_rounded, path: '/personalizar_menu'),
+    ];
     final navigationItems = <({String label, IconData icon, String path})>[
       ...visibleItems,
-      if (overflowItems.isNotEmpty) _moreItem,
+      if (hasOverflow) _moreItem,
     ];
 
     final selectedPath = _inventorySelectedPath(currentPath, allItems);
@@ -2838,6 +2861,7 @@ class _InventoryBottomNavigation extends ConsumerWidget {
     List<({String label, IconData icon, String path})> allItems,
   ) {
     if (currentPath == '/home') return '/home';
+    if (currentPath == '/personalizar_menu') return '/personalizar_menu';
 
     if (currentPath == '/tablas_parametricas' ||
         currentPath.startsWith('/tipos_producto') ||
