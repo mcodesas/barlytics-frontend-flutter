@@ -111,10 +111,14 @@ class _PersonalizarMenuPageState extends ConsumerState<PersonalizarMenuPage> {
         return 'Escribe una posición entre 1 y ${_items.length} antes de guardar.';
       }
     }
-    for (final entry in pending.entries) {
-      _moveByMenuId(entry.key, int.parse(entry.value.trim()), reveal: false);
-    }
-    _pendingPositionDrafts.clear();
+    final positions = <int, int>{
+      for (final entry in pending.entries)
+        entry.key: int.parse(entry.value.trim()),
+    };
+    setState(() {
+      _items = applyMenuPositionDrafts(_items, positions);
+      _pendingPositionDrafts.clear();
+    });
     return null;
   }
 
