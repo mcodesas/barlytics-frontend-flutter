@@ -2844,6 +2844,9 @@ class _InventoryBottomNavigation extends ConsumerWidget {
                 palette: palette,
                 items: overflowItems,
                 selectedPath: selectedPath,
+                favoriteItems: authorizedMenus.where(
+                    (item) => item.isFavorite).toList(),
+                showFavoritesInMenu: preferences.showInMenu,
               );
               return;
             }
@@ -2900,6 +2903,8 @@ class _InventoryBottomNavigation extends ConsumerWidget {
     required AppPalette palette,
     required List<({String label, IconData icon, String path})> items,
     required String selectedPath,
+    required List<UserMenuItem> favoriteItems,
+    required bool showFavoritesInMenu,
   }) async {
     var query = '';
     final destination = await showModalBottomSheet<String>(
@@ -2908,9 +2913,17 @@ class _InventoryBottomNavigation extends ConsumerWidget {
       isScrollControlled: true,
       builder: (sheetContext) => StatefulBuilder(
         builder: (sheetContext, setSheetState) {
-          final filteredItems = items.where((item) {
-            return _matchesMenuSearch(query, [item.label, item.path]);
-          }).toList(growable: false);
+          final favoritesMatchingSearch = favoriteItems.where((item) =>
+              _matchesMenuSearch(query, [
+                item.title, item.keyName, item.description, item.groupName,
+              ])).toList();
+          final favorites = splitMoreMenuFavorites(favoritesMatchingSearch,
+              showFavoritesInMenu: showFavoritesInMenu).favorites;
+          final favoritePaths = favorites.map((item) => item.path).toSet();
+          final filteredItems = items.where((item) =>
+              !favoritePaths.contains(item.path) &&
+              _matchesMenuSearch(query, [item.label, item.path]))
+              .toList(growable: false);
 
           return Padding(
             padding: EdgeInsets.only(bottom: MediaQuery.viewInsetsOf(sheetContext).bottom),
@@ -2958,11 +2971,19 @@ class _InventoryBottomNavigation extends ConsumerWidget {
                     ),
                     const SizedBox(height: 12),
                     Flexible(
-                      child: filteredItems.isEmpty
+                      child: filteredItems.isEmpty && favorites.isEmpty
                           ? _emptyMenuSearchState(palette)
                           : ListView(
                               shrinkWrap: true,
                               children: [
+                                if (favorites.isNotEmpty)
+                                  _moreFavoritesSection(
+                                    palette: palette,
+                                    favorites: favorites,
+                                    selectedPath: selectedPath,
+                                    onSelect: (path) =>
+                                        Navigator.of(sheetContext).pop(path),
+                                  ),
                                 for (final item in filteredItems)
                                   Padding(
                                     padding: const EdgeInsets.only(bottom: 7),
