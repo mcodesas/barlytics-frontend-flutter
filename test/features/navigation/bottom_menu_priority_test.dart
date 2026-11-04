@@ -87,6 +87,14 @@ void main() {
     expect(movedAgain.map((v) => v.menuId).toSet().length, 4);
   });
 
+  test('Guardar aplica números pendientes sin usar ✓ ni Enter', () {
+    final result = applyMenuPositionDrafts(
+      [sales, report, inventory, others],
+      {13: 1, 10: 4},
+    );
+    expect(result.map((v) => v.menuId).toList(), [13, 11, 12, 10]);
+  });
+
   test('La posición por ID no modifica la lista ante ID desconocido', () {
     const original = [sales, report, inventory, others];
     final result = moveMenuItemByIdToPosition(
