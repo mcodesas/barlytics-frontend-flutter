@@ -410,23 +410,40 @@ class _PersonalizarMenuPageState extends ConsumerState<PersonalizarMenuPage> {
                               ]),
                       ]),
                   ),
-                  const SizedBox(height: 22),
-                  Text('¿Dónde mostrar los favoritos?',
-                    style: TextStyle(fontWeight: FontWeight.w900,
-                      color: palette.textPrimary, fontSize: 16)),
-                  const SizedBox(height: 8),
-                  Wrap(spacing: 8, runSpacing: 8, children: [
-                    for (final option in const [
-                      ('MENU', 'Solo menú'),
-                      ('INICIO', 'Solo inicio'),
-                      ('AMBOS', 'En ambos'),
-                    ])
-                      ChoiceChip(
-                        label: Text(option.$2),
-                        selected: _visibility == option.$1,
-                        onSelected: (_) => setState(() => _visibility = option.$1)),
-                  ]),
-                  const SizedBox(height: 24),
+                  const SizedBox(height: 18),
+                  Container(
+                    padding: const EdgeInsets.all(16),
+                    decoration: palette.panelDecoration(
+                      baseRadius: 20, elevated: false),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(children: [
+                          Icon(Icons.visibility_outlined,
+                            color: palette.secondary, size: 20),
+                          const SizedBox(width: 9),
+                          Expanded(child: Text(
+                            '¿Dónde mostrar los favoritos?',
+                            style: TextStyle(fontWeight: FontWeight.w900,
+                              color: palette.textPrimary, fontSize: 16))),
+                        ]),
+                        const SizedBox(height: 12),
+                        Wrap(spacing: 8, runSpacing: 8, children: [
+                          for (final option in const [
+                            ('MENU', 'Solo menú'),
+                            ('INICIO', 'Solo inicio'),
+                            ('AMBOS', 'En ambos'),
+                          ])
+                            ChoiceChip(
+                              label: Text(option.$2),
+                              selected: _visibility == option.$1,
+                              onSelected: (_) => setState(
+                                () => _visibility = option.$1)),
+                        ]),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 18),
                   Container(
                     padding: const EdgeInsets.fromLTRB(15, 14, 15, 16),
                     decoration: palette.panelDecoration(
@@ -435,34 +452,37 @@ class _PersonalizarMenuPageState extends ConsumerState<PersonalizarMenuPage> {
                       crossAxisAlignment: CrossAxisAlignment.stretch,
                       children: [
                         Row(key: _orderSectionKey, children: [
-                    Expanded(child: Text('Orden de los módulos',
-                      style: TextStyle(color: palette.textPrimary,
-                        fontSize: 17, fontWeight: FontWeight.w900))),
-                    TextButton.icon(
-                      onPressed: _saving ? null : _reset,
-                      icon: const Icon(Icons.restart_alt_rounded),
-                      label: const Text('Restablecer')),
-                  ]),
-                  const SizedBox(height: 5),
-                  Text(_onlyFavorites
-                      ? 'Para cambiar el orden vuelve a Todos los módulos. '
-                        'Aquí puedes quitar favoritos con la estrella.'
-                      : 'Escribe una posición y el módulo se moverá '
-                        'automáticamente. También puedes pulsar ✓, arrastrar '
-                        'o usar las flechas. Después pulsa Guardar mi menú.',
-                    style: TextStyle(color: palette.textSecondary, fontSize: 12)),
-                  const SizedBox(height: 12),
-                  Wrap(spacing: 9, children: [
-                    ChoiceChip(
-                      label: const Text('Todos los módulos'),
-                      selected: !_onlyFavorites,
-                      onSelected: (_) => setState(() => _onlyFavorites = false)),
-                    ChoiceChip(
-                      label: const Text('Solo favoritos'),
-                      selected: _onlyFavorites,
-                      onSelected: (_) => setState(() => _onlyFavorites = true)),
-                  ]),
-                  const SizedBox(height: 10),
+                          Expanded(child: Text('Orden de los módulos',
+                            style: TextStyle(color: palette.textPrimary,
+                              fontSize: 17, fontWeight: FontWeight.w900))),
+                          TextButton.icon(
+                            onPressed: _saving ? null : _reset,
+                            icon: const Icon(Icons.restart_alt_rounded),
+                            label: const Text('Restablecer')),
+                        ]),
+                        const SizedBox(height: 6),
+                        Text(_onlyFavorites
+                            ? 'Para cambiar el orden vuelve a Todos los módulos. '
+                              'Aquí puedes quitar favoritos con la estrella.'
+                            : 'Escribe una posición y el módulo se moverá '
+                              'automáticamente. También puedes pulsar ✓, arrastrar '
+                              'o usar las flechas. Después pulsa Guardar mi menú.',
+                          style: TextStyle(
+                            color: palette.textSecondary, fontSize: 12)),
+                        const SizedBox(height: 12),
+                        Wrap(spacing: 9, runSpacing: 8, children: [
+                          ChoiceChip(
+                            label: const Text('Todos los módulos'),
+                            selected: !_onlyFavorites,
+                            onSelected: (_) => setState(
+                              () => _onlyFavorites = false)),
+                          ChoiceChip(
+                            label: const Text('Solo favoritos'),
+                            selected: _onlyFavorites,
+                            onSelected: (_) => setState(
+                              () => _onlyFavorites = true)),
+                        ]),
+                        const SizedBox(height: 10),
                       ],
                     ),
                   ),
