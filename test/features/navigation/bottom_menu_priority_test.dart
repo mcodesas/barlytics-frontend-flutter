@@ -35,6 +35,33 @@ void main() {
     expect(list.any((v) => v.menuId == 11), false);
   });
 
+  test('En Más los favoritos aparecen primero y no se repiten en categorías', () {
+    final menu = splitMoreMenuFavorites(
+      [sales, report, inventory, report, others],
+      showFavoritesInMenu: true,
+    );
+    expect(menu.favorites.map((m) => m.menuId), [12, 11]);
+    expect(menu.remaining.map((m) => m.menuId), [10, 13]);
+    expect([...menu.favorites, ...menu.remaining]
+        .map((m) => m.path).toSet().length, 4);
+  });
+
+  test('Favoritos de Solo inicio siguen como módulos normales en Más', () {
+    final menu = splitMoreMenuFavorites(
+      [sales, report, inventory],
+      showFavoritesInMenu: false,
+    );
+    expect(menu.favorites, isEmpty);
+    expect(menu.remaining.map((m) => m.menuId), [10, 11, 12]);
+  });
+
+  test('La búsqueda conserva el favorito aunque la categoría no coincida', () {
+    final menu = splitMoreMenuFavorites([report],
+      showFavoritesInMenu: true);
+    expect(menu.favorites.single.title, 'Reportes');
+    expect(menu.remaining, isEmpty);
+  });
+
   test('Posición 1 mueve un módulo al principio sin arrastrar', () {
     final result = moveMenuItemToPosition(
       ['ventas', 'inventario', 'reportes', 'pedidos'],
