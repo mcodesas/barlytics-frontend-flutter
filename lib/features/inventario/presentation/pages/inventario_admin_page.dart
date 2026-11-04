@@ -228,22 +228,24 @@ class _InventarioAdminPageState extends ConsumerState<InventarioAdminPage> {
       };
       if (!filterMatches) continue;
 
-      // Filtrar las filas, no únicamente la fecha. De esta forma se muestran
-      // el esperado, contado, diferencia y stock del producto solicitado.
+      // Filtrar las filas, no únicamente la fecha. Una búsqueda por
+      // responsable mantiene los productos de la jornada y, si también se
+      // seleccionó un producto, conserva únicamente ese producto.
+      final matchingActor = query.isNotEmpty &&
+          (day.counters.join(' ').toLowerCase().contains(query) ||
+           day.attendants.join(' ').toLowerCase().contains(query));
       final productRows = day.rows.where((row) =>
           matchesCountHistoryRow(
             productId: row.productId,
             countId: row.countId,
             productName: row.product,
             selectedProductId: selectedProduct,
-            query: query,
+            query: matchingActor ? '' : query,
           )).toList(growable: false);
-      final matchingActor = query.isNotEmpty && selectedProduct == null &&
-          (day.counters.join(' ').toLowerCase().contains(query) ||
-           day.attendants.join(' ').toLowerCase().contains(query));
 
-      if (productRows.isEmpty && !matchingActor) continue;
-      if ((query.isEmpty && selectedProduct == null) || matchingActor) {
+      if (productRows.isEmpty) continue;
+      if ((query.isEmpty && selectedProduct == null) ||
+          (matchingActor && selectedProduct == null)) {
         result.add(day);
       } else {
         result.add(_InventoryCountDay(date: day.date, rows: productRows));
