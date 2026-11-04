@@ -183,7 +183,8 @@ class _InventarioAdminPageState extends ConsumerState<InventarioAdminPage> {
     final dayKey = _selectedDayKey;
     if (dayKey == null) return null;
     return _days.any(
-      (day) => DateFormat('yyyy-MM-dd').format(day.date) == dayKey,
+      (day) => matchesCountHistoryDay(
+        date: day.date, selectedDay: dayKey),
     ) ? dayKey : null;
   }
 
@@ -193,8 +194,8 @@ class _InventarioAdminPageState extends ConsumerState<InventarioAdminPage> {
     final dayKey = _activeDayKey;
     final products = <int, String>{};
     for (final day in _days) {
-      if (dayKey != null &&
-          DateFormat('yyyy-MM-dd').format(day.date) != dayKey) continue;
+      if (!matchesCountHistoryDay(
+          date: day.date, selectedDay: dayKey)) continue;
       for (final row in day.rows) {
         products[row.productId] = row.product;
       }
@@ -215,8 +216,8 @@ class _InventarioAdminPageState extends ConsumerState<InventarioAdminPage> {
     final result = <_InventoryCountDay>[];
 
     for (final day in _days) {
-      if (selectedDay != null &&
-          DateFormat('yyyy-MM-dd').format(day.date) != selectedDay) continue;
+      if (!matchesCountHistoryDay(
+          date: day.date, selectedDay: selectedDay)) continue;
 
       final filterMatches = switch (_filter) {
         _InventoryAdminFilter.todos => true,
