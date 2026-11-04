@@ -2345,6 +2345,7 @@ class _OperationalBottomNavigation extends ConsumerWidget {
                 palette: palette,
                 items: extraMenus,
                 currentPath: currentPath,
+                ref: ref,
               );
               return;
             }
@@ -2370,6 +2371,7 @@ class _OperationalBottomNavigation extends ConsumerWidget {
     required AppPalette palette,
     required List<UserMenuItem> items,
     required String currentPath,
+    required WidgetRef ref,
   }) async {
     var query = '';
     var expandedCode = '';
@@ -2636,6 +2638,7 @@ class _OperationalBottomNavigation extends ConsumerWidget {
     );
 
     if (destination != null && context.mounted) {
+      selectMeseroModeForMenuPath(ref, destination);
       context.go(destination);
     }
   }
