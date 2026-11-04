@@ -16,6 +16,7 @@ import '../../../../core/widgets/app_loader.dart';
 import '../../../../core/widgets/tech_background.dart';
 import '../../../sucursales/data/models/sucursales_response_model.dart';
 import '../../../auth/presentation/providers/auth_provider.dart';
+import '../utils/inventory_count_history_filter.dart';
 
 enum _InventoryHistoryView { cards, table }
 
@@ -37,6 +38,8 @@ class InventarioAdminPage extends ConsumerStatefulWidget {
 
 class _InventarioAdminPageState extends ConsumerState<InventarioAdminPage> {
   final _searchController = TextEditingController();
+  String? _selectedDayKey;
+  int? _selectedProductId;
 
   late DateTimeRange _range;
   int? _branchId;
@@ -176,9 +179,45 @@ class _InventarioAdminPageState extends ConsumerState<InventarioAdminPage> {
     return result;
   }
 
+  String? get _activeDayKey {
+    final dayKey = _selectedDayKey;
+    if (dayKey == null) return null;
+    return _days.any(
+      (day) => DateFormat('yyyy-MM-dd').format(day.date) == dayKey,
+    ) ? dayKey : null;
+  }
+
+  /// El selector de productos sólo muestra los registrados en el día elegido.
+  /// Sin fecha seleccionada, se ofrecen todos los productos del período.
+  Map<int, String> get _availableCountedProducts {
+    final dayKey = _activeDayKey;
+    final products = <int, String>{};
+    for (final day in _days) {
+      if (dayKey != null &&
+          DateFormat('yyyy-MM-dd').format(day.date) != dayKey) continue;
+      for (final row in day.rows) {
+        products[row.productId] = row.product;
+      }
+    }
+    return products;
+  }
+
+  int? get _activeProductId {
+    final id = _selectedProductId;
+    return id != null && _availableCountedProducts.containsKey(id)
+        ? id : null;
+  }
+
   List<_InventoryCountDay> get _visibleDays {
     final query = _searchController.text.trim().toLowerCase();
-    return _days.where((day) {
+    final selectedDay = _activeDayKey;
+    final selectedProduct = _activeProductId;
+    final result = <_InventoryCountDay>[];
+
+    for (final day in _days) {
+      if (selectedDay != null &&
+          DateFormat('yyyy-MM-dd').format(day.date) != selectedDay) continue;
+
       final filterMatches = switch (_filter) {
         _InventoryAdminFilter.todos => true,
         _InventoryAdminFilter.pendientes => day.pendingCount > 0,
@@ -186,17 +225,30 @@ class _InventarioAdminPageState extends ConsumerState<InventarioAdminPage> {
         _InventoryAdminFilter.sincronizados => day.syncedCount > 0,
         _InventoryAdminFilter.cuadrados => day.differenceCount == 0,
       };
-      if (!filterMatches) return false;
-      if (query.isEmpty) return true;
+      if (!filterMatches) continue;
 
-      return day.counters.join(' ').toLowerCase().contains(query) ||
-          day.attendants.join(' ').toLowerCase().contains(query) ||
-          day.rows.any(
-            (row) =>
-                row.product.toLowerCase().contains(query) ||
-                '${row.countId}'.contains(query),
-          );
-    }).toList(growable: false);
+      // Filtrar las filas, no únicamente la fecha. De esta forma se muestran
+      // el esperado, contado, diferencia y stock del producto solicitado.
+      final productRows = day.rows.where((row) =>
+          matchesCountHistoryRow(
+            productId: row.productId,
+            countId: row.countId,
+            productName: row.product,
+            selectedProductId: selectedProduct,
+            query: query,
+          )).toList(growable: false);
+      final matchingActor = query.isNotEmpty && selectedProduct == null &&
+          (day.counters.join(' ').toLowerCase().contains(query) ||
+           day.attendants.join(' ').toLowerCase().contains(query));
+
+      if (productRows.isEmpty && !matchingActor) continue;
+      if (query.isEmpty && selectedProduct == null || matchingActor) {
+        result.add(day);
+      } else {
+        result.add(_InventoryCountDay(date: day.date, rows: productRows));
+      }
+    }
+    return result;
   }
 
   Future<void> _exportExcel({DateTime? onlyDay}) async {
@@ -450,7 +502,11 @@ class _InventarioAdminPageState extends ConsumerState<InventarioAdminPage> {
       saveText: 'Aplicar',
     );
     if (selected == null || !mounted) return;
-    setState(() => _range = selected);
+    setState(() {
+      _range = selected;
+      _selectedDayKey = null;
+      _selectedProductId = null;
+    });
     await _load();
   }
 
@@ -520,7 +576,11 @@ class _InventarioAdminPageState extends ConsumerState<InventarioAdminPage> {
     ref.listen<BranchScopeState>(branchScopeProvider, (previous, next) {
       final nextId = next.activeBranchId;
       if (nextId != null && nextId != _branchId && mounted) {
-        setState(() => _branchId = nextId);
+        setState(() {
+          _branchId = nextId;
+          _selectedDayKey = null;
+          _selectedProductId = null;
+        });
         _load();
       }
     });
@@ -588,7 +648,11 @@ class _InventarioAdminPageState extends ConsumerState<InventarioAdminPage> {
                       range: _range,
                       onBranchChanged: (value) {
                         if (value == null || value == _branchId) return;
-                        setState(() => _branchId = value);
+                        setState(() {
+                          _branchId = value;
+                          _selectedDayKey = null;
+                          _selectedProductId = null;
+                        });
                         _load();
                       },
                       onRange: _pickRange,
