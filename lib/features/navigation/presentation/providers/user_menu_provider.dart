@@ -6,6 +6,7 @@ import '../../data/models/user_menu_item.dart';
 import '../../data/repositories/user_menu_repository.dart';
 import 'active_role_provider.dart';
 import 'user_assigned_roles_provider.dart';
+import 'menu_preferences_provider.dart';
 
 final userMenuRepositoryProvider = Provider<UserMenuRepository>((ref) {
   return UserMenuRepository(ref.watch(apiClientProvider));
@@ -33,6 +34,14 @@ final userMenuProvider = FutureProvider<List<UserMenuItem>>((ref) async {
   final allItems = await ref.watch(userMenuRepositoryProvider).findMyMenu(
         preserveBackendOrder: onlyCustomView,
       );
+  // Si el backend antiguo aún no sirve las preferencias, se conserva el
+  // menú autorizado sin bloquear la aplicación.
+  MenuPreferences preferences;
+  try {
+    preferences = await ref.watch(menuPreferencesProvider.future);
+  } catch (_) {
+    preferences = const MenuPreferences();
+  }
   final filteredItems = filterMenusBySelectedRoles(allItems, selection);
 
   final customFiltered = onlyCustomView
@@ -48,13 +57,13 @@ final userMenuProvider = FutureProvider<List<UserMenuItem>>((ref) async {
         (role) => const {'COCINA', 'BARRA', 'COMANDAS'}.contains(role),
       );
   if (commandsOnly) {
-    return withCommands
+    return personalizeAuthorizedMenu(withCommands
         .where((item) => item.keyName == 'comandas')
-        .toList(growable: false);
+        .toList(growable: false), preferences);
   }
 
-  // Los nombres y destinos se toman exclusivamente de commerce.menus.
-  return withCommands;
+  // La personalización se aplica DESPUÉS de filtrar por rol.
+  return personalizeAuthorizedMenu(withCommands, preferences);
 });
 
 
