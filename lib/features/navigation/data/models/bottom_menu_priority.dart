@@ -46,6 +46,18 @@ List<T> moveMenuItemToPosition<T>(
 }
 
 
+/// Mueve el módulo identificado por su ID real, no por un índice de widget
+/// que podría haber cambiado durante una reconstrucción de la lista.
+List<UserMenuItem> moveMenuItemByIdToPosition(
+  List<UserMenuItem> items, {
+  required int menuId,
+  required int position,
+}) {
+  final fromIndex = items.indexWhere((item) => item.menuId == menuId);
+  return moveMenuItemToPosition(
+    items, fromIndex: fromIndex, position: position);
+}
+
 /// Ordenamiento del modal "Más": favoritos primero y módulos restantes
 /// agrupados sin repetir rutas. Recibe únicamente opciones ya autorizadas.
 class MoreMenuSections {
