@@ -356,7 +356,7 @@ class _SportsAgendaWidgetState extends ConsumerState<SportsAgendaWidget> {
                   style: TextStyle(color: palette.textSecondary,
                     fontSize: 11, fontWeight: FontWeight.w600)),
               ]),
-            )),
+            ),
             Container(
               padding: const EdgeInsets.symmetric(
                   horizontal: 8, vertical: 5),
