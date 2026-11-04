@@ -3371,8 +3371,54 @@ class _AdminBottomNavigation extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final palette = ref.watch(selectedAppPaletteProvider);
     final currentPath = GoRouterState.of(context).uri.path;
-    final selectedIndex = _selectedIndex(currentPath);
     final compact = MediaQuery.sizeOf(context).width < 720;
+    final preferences = ref.watch(menuPreferencesProvider).valueOrNull ??
+        const MenuPreferences();
+    final authorized = ref.watch(userMenuProvider).maybeWhen(
+          data: (items) => items,
+          orElse: () => const <UserMenuItem>[],
+        );
+    final favorites = prioritizeBottomMenuItems(
+      authorized.where((item) => item.path.isNotEmpty &&
+          item.path != '/home').toList(),
+      showFavoritesInMenu: preferences.showInMenu,
+    ).where((item) => preferences.showInMenu && item.isFavorite).toList();
+
+    final candidates = <_AdminNavigationItem>[
+      for (final item in favorites)
+        _AdminNavigationItem(
+          label: item.title,
+          icon: _customRoleMenuIcon(item),
+          path: item.path),
+      ..._coreItems.where((item) =>
+          item.path != '/home' && item.path != '__more__'),
+    ];
+    final unique = <String, _AdminNavigationItem>{};
+    for (final item in candidates) {
+      unique.putIfAbsent(item.path, () => item);
+    }
+    final visibleDestinations = <_AdminNavigationItem>[
+      _coreItems.first, // Inicio fijo.
+      ...unique.values.take(3),
+      _coreItems.last, // Más siempre disponible.
+    ];
+
+    var selectedIndex = currentPath == '/home' ? 0
+        : visibleDestinations.length - 1;
+    if (currentPath != '/home') {
+      final index = visibleDestinations.indexWhere((item) {
+        if (item.path == '/home' || item.path == '__more__') return false;
+        if (currentPath == item.path ||
+            currentPath.startsWith('${item.path}/')) return true;
+        return switch (item.path) {
+          '/empresas' => _selectedIndex(currentPath) == 1,
+          '/usuarios' => _selectedIndex(currentPath) == 2,
+          '/soporte_global' => _selectedIndex(currentPath) == 3,
+          _ => false,
+        };
+      });
+      if (index >= 0) selectedIndex = index;
+    }
     return Container(
       decoration: BoxDecoration(
         color: palette.surface.withOpacity(palette.darkBackground ? .96 : .99),
@@ -3401,15 +3447,16 @@ class _AdminBottomNavigation extends ConsumerWidget {
           showSelectedLabels: true,
           showUnselectedLabels: true,
           onTap: (index) {
-            final item = _coreItems[index];
+            final item = visibleDestinations[index];
             if (item.path == '__more__') {
               _showMore(context, ref, palette);
               return;
             }
+            selectMeseroModeForMenuPath(ref, item.path);
             context.go(item.path);
           },
           items: [
-            for (final item in _coreItems)
+            for (final item in visibleDestinations)
               BottomNavigationBarItem(
                 icon: Padding(padding: const EdgeInsets.only(bottom: 3), child: Icon(item.icon)),
                 activeIcon: Container(
@@ -3457,6 +3504,11 @@ class _AdminBottomNavigation extends ConsumerWidget {
           orElse: () => const <UserMenuItem>[],
         );
     final entries = <_AdminNavigationItem>[
+      ..._coreItems.where((item) =>
+          item.path != '/home' && item.path != '__more__'),
+      const _AdminNavigationItem(
+          label: 'Personalizar mi menú', icon: Icons.tune_rounded,
+          path: '/personalizar_menu'),
       const _AdminNavigationItem(label: 'Catálogo maestro', icon: Icons.category_outlined, path: '/catalogo_maestro'),
       const _AdminNavigationItem(label: 'Sincronizar catálogo', icon: Icons.sync_alt_rounded, path: '/sincronizar_catalogo'),
       const _AdminNavigationItem(label: 'Explorador de datos', icon: Icons.storage_rounded, path: '/explorador_datos'),
