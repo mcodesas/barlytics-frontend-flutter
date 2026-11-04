@@ -697,6 +697,16 @@ class _InventarioAdminPageState extends ConsumerState<InventarioAdminPage> {
                       palette: palette,
                       controller: _searchController,
                       filter: _filter,
+                      dates: allDays.map((day) => day.date).toList(growable: false),
+                      selectedDay: _activeDayKey,
+                      products: _availableCountedProducts,
+                      selectedProductId: _activeProductId,
+                      onDayChanged: (day) => setState(() {
+                        _selectedDayKey = day;
+                        _selectedProductId = null;
+                      }),
+                      onProductChanged: (product) =>
+                          setState(() => _selectedProductId = product),
                       onSearch: (_) => setState(() {}),
                       onFilter: (value) => setState(() => _filter = value),
                     ),
@@ -2434,6 +2444,12 @@ class _AdminToolbar extends StatelessWidget {
     required this.palette,
     required this.controller,
     required this.filter,
+    required this.dates,
+    required this.selectedDay,
+    required this.products,
+    required this.selectedProductId,
+    required this.onDayChanged,
+    required this.onProductChanged,
     required this.onSearch,
     required this.onFilter,
   });
@@ -2441,6 +2457,12 @@ class _AdminToolbar extends StatelessWidget {
   final AppPalette palette;
   final TextEditingController controller;
   final _InventoryAdminFilter filter;
+  final List<DateTime> dates;
+  final String? selectedDay;
+  final Map<int, String> products;
+  final int? selectedProductId;
+  final ValueChanged<String?> onDayChanged;
+  final ValueChanged<int?> onProductChanged;
   final ValueChanged<String> onSearch;
   final ValueChanged<_InventoryAdminFilter> onFilter;
 
@@ -2519,6 +2541,78 @@ class _AdminToolbar extends StatelessWidget {
                 borderSide: BorderSide.none,
               ),
             ),
+          ),
+          const SizedBox(height: 12),
+          LayoutBuilder(builder: (context, constraints) {
+            final width = constraints.maxWidth < 690
+                ? constraints.maxWidth
+                : (constraints.maxWidth - 12) / 2;
+            final sortedProducts = products.entries.toList()
+              ..sort((a, b) =>
+                  a.value.toLowerCase().compareTo(b.value.toLowerCase()));
+            return Wrap(
+              spacing: 12,
+              runSpacing: 12,
+              children: [
+                SizedBox(
+                  width: width,
+                  child: DropdownButtonFormField<String>(
+                    key: const ValueKey('inventory-count-day-filter'),
+                    value: selectedDay,
+                    isExpanded: true,
+                    decoration: InputDecoration(
+                      labelText: 'Fecha del conteo',
+                      prefixIcon: Icon(Icons.event_available_rounded,
+                        color: palette.secondary),
+                    ),
+                    items: [
+                      const DropdownMenuItem<String>(
+                        child: Text('Todas las jornadas'),
+                      ),
+                      for (final day in dates)
+                        DropdownMenuItem<String>(
+                          value: DateFormat('yyyy-MM-dd').format(day),
+                          child: Text(DateFormat('dd/MM/yyyy').format(day)),
+                        ),
+                    ],
+                    onChanged: onDayChanged,
+                  ),
+                ),
+                SizedBox(
+                  width: width,
+                  child: DropdownButtonFormField<int>(
+                    key: ValueKey('inventory-count-product-$selectedDay'),
+                    value: selectedProductId,
+                    isExpanded: true,
+                    decoration: InputDecoration(
+                      labelText: 'Producto contado',
+                      prefixIcon: Icon(Icons.inventory_2_outlined,
+                        color: palette.secondary),
+                    ),
+                    items: [
+                      const DropdownMenuItem<int>(
+                        child: Text('Todos los productos'),
+                      ),
+                      for (final entry in sortedProducts)
+                        DropdownMenuItem<int>(
+                          value: entry.key,
+                          child: Text(entry.value,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis),
+                        ),
+                    ],
+                    onChanged: onProductChanged,
+                  ),
+                ),
+              ],
+            );
+          }),
+          const SizedBox(height: 9),
+          Text(
+            'Selecciona una fecha y luego un producto para ver '
+            'qué se registró exactamente en ese conteo.',
+            style: TextStyle(
+              color: palette.textSecondary, fontSize: 11.5),
           ),
           const SizedBox(height: 12),
           Wrap(
