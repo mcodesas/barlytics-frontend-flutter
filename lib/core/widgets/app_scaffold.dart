@@ -4721,7 +4721,8 @@ class _NavTile extends ConsumerWidget {
       pathNow,
       <String>['/home', ...authorized.map((item) => item.path)],
     );
-    final selected = selectedPath == path;
+    final selected = selectedPath == path ||
+        (path == '/personalizar_menu' && pathNow == path);
     final foreground = dark ? Colors.white : appPalette.textPrimary;
     final selectedForeground = _selectedMenuForeground(appPalette);
 
