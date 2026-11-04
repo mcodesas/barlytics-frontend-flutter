@@ -17,6 +17,7 @@ import '../../features/navigation/data/models/user_menu_item.dart';
 import '../../features/navigation/domain/menu_path_selection.dart';
 import '../../features/navigation/domain/manager_navigation_filters.dart';
 import '../../features/navigation/presentation/providers/user_menu_provider.dart';
+import '../../features/navigation/presentation/providers/menu_preferences_provider.dart';
 import '../../features/navigation/presentation/providers/active_role_provider.dart';
 import '../../features/navigation/presentation/providers/user_assigned_roles_provider.dart';
 import '../../features/profile/presentation/providers/profile_header_provider.dart';
@@ -4159,6 +4160,11 @@ List<Widget> _authorizedMenuWidgets({
             ),
           ],
     data: (items) {
+      final preferences = ref.watch(menuPreferencesProvider).valueOrNull ??
+          const MenuPreferences();
+      final favorites = items.where((item) =>
+          item.isFavorite && item.path.isNotEmpty &&
+          item.path != '/home' && item.keyName != 'home').toList();
       if (items.isEmpty) {
         return compact
             ? [const SizedBox.shrink()]
@@ -4174,12 +4180,41 @@ List<Widget> _authorizedMenuWidgets({
       }
 
       return [
+        if (preferences.showInMenu && favorites.isNotEmpty) ...[
+          if (!compact)
+            Padding(
+              padding: const EdgeInsets.fromLTRB(11, 12, 8, 5),
+              child: Row(children: [
+                const Icon(Icons.star_rounded, size: 19,
+                    color: Color(0xFFE0A12A)),
+                const SizedBox(width: 7),
+                Text('MIS FAVORITOS',
+                  style: TextStyle(color: palette.textSecondary,
+                    fontSize: 11, letterSpacing: 1,
+                    fontWeight: FontWeight.w900)),
+              ]),
+            ),
+          for (final item in favorites)
+            _NavTile(
+              title: item.title, keyName: item.keyName,
+              path: item.path, dark: dark,
+              compact: compact, palette: palette,
+            ),
+          if (!compact) const Divider(height: 18),
+        ],
         _AuthorizedMenuGroups(
           items: items,
           dark: dark,
           compact: compact,
           palette: palette,
           preserveExactOrder: preserveExactOrder,
+        ),
+        const SizedBox(height: 12),
+        _NavTile(
+          title: 'Personalizar mi menú',
+          keyName: 'personalizar_menu',
+          path: '/personalizar_menu',
+          dark: dark, compact: compact, palette: palette,
         ),
       ];
     },
@@ -4257,7 +4292,10 @@ class _AuthorizedMenuGroupsState extends State<_AuthorizedMenuGroups> {
           .toList(growable: true);
       final activePath = mostSpecificMenuPath(path, orderedItems.map((item) => item.path));
       final activeIndex = orderedItems.indexWhere((item) => item.path == activePath);
-      if (activeIndex > 0) {
+      // Respetar el orden explícito. El rol sigue determinando qué módulos
+      // puede ver, pero no reordena una personalización de su usuario.
+      if (activeIndex > 0 &&
+          !orderedItems.any((item) => item.personalOrder != null)) {
         final active = orderedItems.removeAt(activeIndex);
         orderedItems.insert(0, active);
       }
@@ -4299,10 +4337,17 @@ class _AuthorizedMenuGroupsState extends State<_AuthorizedMenuGroups> {
     }
 
     final groups = <_MenuGroupData>[];
+    final hasPersonalOrder = widget.items.any((item) =>
+        item.personalOrder != null);
     for (final entry in byCode.entries) {
       final meta = metadata[entry.key]!;
       final items = List<UserMenuItem>.of(entry.value)
         ..sort((a, b) {
+          if (hasPersonalOrder) {
+            final preference = (a.personalOrder ?? 999999)
+                .compareTo(b.personalOrder ?? 999999);
+            if (preference != 0) return preference;
+          }
           final order = a.menuOrder.compareTo(b.menuOrder);
           return order != 0 ? order : a.title.toLowerCase().compareTo(b.title.toLowerCase());
         });
@@ -4319,18 +4364,28 @@ class _AuthorizedMenuGroupsState extends State<_AuthorizedMenuGroups> {
       _currentPath(), widget.items.map((item) => item.path),
     );
     groups.sort((a, b) {
-      // Priorizar el grupo que contiene la ruta actualmente abierta.
-      final aSelected = a.items.any((item) => item.path == selectedPath);
-      final bSelected = b.items.any((item) => item.path == selectedPath);
-      if (aSelected != bSelected) return aSelected ? -1 : 1;
+      if (hasPersonalOrder) {
+        int firstOrder(_MenuGroupData group) => group.items
+            .map((item) => item.personalOrder ?? 999999)
+            .reduce((a, b) => a < b ? a : b);
+        final customOrder = firstOrder(a).compareTo(firstOrder(b));
+        if (customOrder != 0) return customOrder;
+      } else {
+        // Comportamiento original cuando todavía no existe personalización.
+        final aSelected = a.items.any((item) => item.path == selectedPath);
+        final bSelected = b.items.any((item) => item.path == selectedPath);
+        if (aSelected != bSelected) return aSelected ? -1 : 1;
+      }
       final order = a.order.compareTo(b.order);
       return order != 0 ? order : a.name.toLowerCase().compareTo(b.name.toLowerCase());
     });
-    for (final group in groups) {
-      final selectedIndex = group.items.indexWhere((item) => item.path == selectedPath);
-      if (selectedIndex > 0) {
-        final selectedItem = group.items.removeAt(selectedIndex);
-        group.items.insert(0, selectedItem);
+    if (!hasPersonalOrder) {
+      for (final group in groups) {
+        final selectedIndex = group.items.indexWhere((item) => item.path == selectedPath);
+        if (selectedIndex > 0) {
+          final selectedItem = group.items.removeAt(selectedIndex);
+          group.items.insert(0, selectedItem);
+        }
       }
     }
     return groups;
