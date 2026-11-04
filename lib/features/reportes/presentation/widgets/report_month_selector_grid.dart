@@ -41,7 +41,6 @@ class ReportMonthSelectorGrid extends StatelessWidget {
                     child: Padding(
                       padding: EdgeInsets.only(right: column == 2 ? 0 : 8),
                       child: _monthButton(
-                        context,
                         scheme,
                         row * 3 + column + 1,
                       ),
@@ -54,8 +53,7 @@ class ReportMonthSelectorGrid extends StatelessWidget {
     );
   }
 
-  Widget _monthButton(
-      BuildContext context, ColorScheme scheme, int month) {
+  Widget _monthButton(ColorScheme scheme, int month) {
     final futureMonth =
         selectedYear == currentYear && month > currentMonth;
     final selected = selectedMonth == month;
