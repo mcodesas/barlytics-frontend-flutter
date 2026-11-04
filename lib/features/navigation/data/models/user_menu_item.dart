@@ -12,6 +12,8 @@ class UserMenuItem {
     this.roleIds = const <int>[],
     this.customOrderByRole = const <int, int>{},
     this.customOrder,
+    this.personalOrder,
+    this.isFavorite = false,
     this.groupCode = 'OTROS',
     this.groupName = 'Otros',
     this.groupIcon = 'more_horiz',
@@ -38,6 +40,8 @@ class UserMenuItem {
   final List<int> roleIds;
   final Map<int, int> customOrderByRole;
   final int? customOrder;
+  final int? personalOrder;
+  final bool isFavorite;
   final String groupCode;
   final String groupName;
   final String groupIcon;
@@ -93,6 +97,8 @@ class UserMenuItem {
     List<int>? roleIds,
     Map<int, int>? customOrderByRole,
     int? customOrder,
+    int? personalOrder,
+    bool? isFavorite,
     String? groupCode,
     String? groupName,
     String? groupIcon,
@@ -118,6 +124,8 @@ class UserMenuItem {
         roleIds: roleIds ?? this.roleIds,
         customOrderByRole: customOrderByRole ?? this.customOrderByRole,
         customOrder: customOrder ?? this.customOrder,
+        personalOrder: personalOrder ?? this.personalOrder,
+        isFavorite: isFavorite ?? this.isFavorite,
         groupCode: groupCode ?? this.groupCode,
         groupName: groupName ?? this.groupName,
         groupIcon: groupIcon ?? this.groupIcon,

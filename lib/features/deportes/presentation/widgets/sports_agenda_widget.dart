@@ -19,6 +19,13 @@ DateTime sportsTodayBogota({DateTime? now}) {
   return DateTime(colombia.year, colombia.month, colombia.day);
 }
 
+/// Máximo cinco encuentros en la portada; el calendario completo
+/// continúa disponible en Agenda deportiva.
+List<Map<String, dynamic>> sportsCompactMatches(
+    List<Map<String, dynamic>> matches) {
+  return matches.take(5).toList(growable: false);
+}
+
 /// Mismo lenguaje visual del resto de BarLytics: paleta, densidad y superficies.
 /// En Inicio se presenta un resumen; la pantalla propia permite consultar todo.
 class SportsAgendaWidget extends ConsumerStatefulWidget {
@@ -308,11 +315,202 @@ class _SportsAgendaWidgetState extends ConsumerState<SportsAgendaWidget> {
     );
   }
 
+  /// Resumen de Inicio: encabezado bajo y partidos en desplazamiento
+  /// horizontal. Evita que la agenda ocupe varias pantallas en móvil.
+  Widget _compactHomeMatches(
+      List<Map<String, dynamic>> matches, AppPalette palette) {
+    final visible = sportsCompactMatches(matches);
+    return LayoutBuilder(builder: (context, constraints) {
+      final width = constraints.maxWidth;
+      final cardWidth = width >= 900
+          ? (width - 24) / 3
+          : width >= 600
+              ? (width - 12) / 2
+              : (width * .83).clamp(200.0, 320.0).toDouble();
+      return Container(
+        padding: const EdgeInsets.fromLTRB(13, 11, 13, 10),
+        decoration: BoxDecoration(
+          color: palette.surface,
+          borderRadius: BorderRadius.circular(palette.radius(17)),
+          border: Border.all(color: palette.cardBorder),
+        ),
+        child: Column(crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+          Row(children: [
+            Container(
+              width: 38, height: 38,
+              decoration: BoxDecoration(
+                color: palette.secondary.withOpacity(.13),
+                borderRadius: BorderRadius.circular(12)),
+              child: Icon(Icons.sports_soccer_rounded,
+                color: palette.secondary, size: 22)),
+            const SizedBox(width: 10),
+            Expanded(child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start, children: [
+                Text('Partidos de hoy', maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(color: palette.textPrimary,
+                    fontWeight: FontWeight.w900,
+                    fontSize: 15 * palette.fontScale)),
+                Text(DateFormat('EEE d MMM', 'es_CO').format(_date),
+                  style: TextStyle(color: palette.textSecondary,
+                    fontSize: 11, fontWeight: FontWeight.w600)),
+              ]),
+            ),
+            Container(
+              padding: const EdgeInsets.symmetric(
+                  horizontal: 8, vertical: 5),
+              decoration: BoxDecoration(
+                color: palette.secondary.withOpacity(.09),
+                borderRadius: BorderRadius.circular(14)),
+              child: Text('${matches.length}',
+                style: TextStyle(color: palette.secondary,
+                    fontSize: 12, fontWeight: FontWeight.w900)),
+            ),
+            const SizedBox(width: 3),
+            IconButton(
+              tooltip: 'Actualizar partidos de hoy',
+              onPressed: _busy ? null : _load,
+              visualDensity: VisualDensity.compact,
+              icon: Icon(Icons.refresh_rounded,
+                  color: palette.textSecondary, size: 19)),
+            IconButton(
+              tooltip: 'Abrir agenda deportiva completa',
+              onPressed: () => context.go('/agenda_deportiva'),
+              visualDensity: VisualDensity.compact,
+              icon: Icon(Icons.arrow_forward_rounded,
+                  color: palette.secondary, size: 20)),
+          ]),
+          if (_busy) ...[
+            const SizedBox(height: 7),
+            LinearProgressIndicator(color: palette.secondary,
+              minHeight: 2),
+          ],
+          if (_error != null) ...[
+            const SizedBox(height: 8),
+            Row(children: [
+              Icon(Icons.wifi_off_outlined,
+                size: 17, color: palette.danger),
+              const SizedBox(width: 7),
+              Expanded(child: Text(_error!, maxLines: 2,
+                style: TextStyle(color: palette.textSecondary,
+                  fontSize: 11))),
+              TextButton(onPressed: _load, child: const Text('Reintentar')),
+            ]),
+          ] else if (_data['errorProgramacion']?.toString().isNotEmpty == true)
+            Padding(padding: const EdgeInsets.only(top: 8),
+              child: Text(_data['errorProgramacion'].toString(),
+                maxLines: 2,
+                style: TextStyle(color: palette.warning, fontSize: 11))),
+          if (visible.isNotEmpty) ...[
+            const SizedBox(height: 11),
+            SizedBox(
+              height: 106,
+              child: ListView.separated(
+                scrollDirection: Axis.horizontal,
+                itemCount: visible.length,
+                separatorBuilder: (_, __) => const SizedBox(width: 9),
+                itemBuilder: (context, index) => SizedBox(
+                  width: cardWidth,
+                  child: _compactMatchTile(visible[index], palette),
+                ),
+              ),
+            ),
+          ] else if (!_busy && _error == null &&
+              _data['errorProgramacion']?.toString().isNotEmpty != true) ...[
+            const SizedBox(height: 9),
+            Row(children: [
+              Icon(Icons.event_available_outlined,
+                  size: 18, color: palette.textSecondary),
+              const SizedBox(width: 8),
+              Expanded(child: Text('Sin encuentros disponibles por ahora.',
+                style: TextStyle(color: palette.textSecondary,
+                    fontSize: 12))),
+            ]),
+          ],
+          const SizedBox(height: 3),
+          Row(children: [
+            Expanded(child: TextButton(
+              onPressed: () => _open('https://www.openligadb.de/'),
+              style: TextButton.styleFrom(
+                alignment: Alignment.centerLeft,
+                visualDensity: VisualDensity.compact,
+                padding: EdgeInsets.zero),
+              child: Text('Datos: OpenLigaDB · ODbL',
+                style: TextStyle(color: palette.textSecondary,
+                  fontSize: 10)),
+            )),
+            TextButton.icon(
+              onPressed: () => context.go('/agenda_deportiva'),
+              style: TextButton.styleFrom(
+                  visualDensity: VisualDensity.compact),
+              icon: const Icon(Icons.open_in_new_rounded, size: 15),
+              label: const Text('Ver todos',
+                style: TextStyle(fontWeight: FontWeight.w800,
+                    fontSize: 11)),
+            ),
+          ]),
+        ]),
+      );
+    });
+  }
+
+  Widget _compactMatchTile(
+      Map<String, dynamic> match, AppPalette palette) {
+    final local = match['local']?.toString().trim() ?? '';
+    final visitor = match['visitante']?.toString().trim() ?? '';
+    final teams = local.isNotEmpty && visitor.isNotEmpty
+        ? '$local  vs  $visitor'
+        : (match['nombre']?.toString() ?? 'Partido');
+    final league = match['liga']?.toString().trim() ?? '';
+    final state = match['estado']?.toString().trim() ?? '';
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 9),
+      decoration: BoxDecoration(
+        color: palette.background.withOpacity(
+            palette.darkBackground ? .48 : .72),
+        border: Border.all(color: palette.cardBorder),
+        borderRadius: BorderRadius.circular(palette.radius(13)),
+      ),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Row(children: [
+          Icon(Icons.sports_soccer_outlined,
+              color: palette.secondary, size: 14),
+          const SizedBox(width: 5),
+          Expanded(child: Text(
+            league.isEmpty ? 'Fútbol' : league,
+            maxLines: 1, overflow: TextOverflow.ellipsis,
+            style: TextStyle(color: palette.secondary,
+              fontSize: 10, fontWeight: FontWeight.w900))),
+          const SizedBox(width: 5),
+          Text(_hour(match['horaBogota']),
+            style: TextStyle(color: palette.textPrimary,
+              fontSize: 10, fontWeight: FontWeight.w800)),
+        ]),
+        const SizedBox(height: 7),
+        Text(teams, maxLines: 2,
+          overflow: TextOverflow.ellipsis,
+          style: TextStyle(color: palette.textPrimary,
+            fontSize: 12.5 * palette.fontScale,
+            height: 1.2, fontWeight: FontWeight.w800)),
+        if (state.isNotEmpty) ...[
+          const Spacer(),
+          Text(state, maxLines: 1, overflow: TextOverflow.ellipsis,
+            style: TextStyle(color: palette.textSecondary,
+              fontSize: 10)),
+        ],
+      ]),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final palette = ref.watch(selectedAppPaletteProvider);
     final matches = _rows(_data['partidos']);
     final news = _rows(_data['noticias']);
+    if (widget.compact) {
+      return _compactHomeMatches(matches, palette);
+    }
     final matchLimit = widget.compact ? 4 : 30;
     const newsLimit = 12;
 

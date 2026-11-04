@@ -20,6 +20,7 @@ import '../../features/business_setup/presentation/providers/business_setup_prov
 import '../../features/auth/presentation/providers/auth_provider.dart';
 import '../../features/navigation/presentation/providers/active_role_provider.dart';
 import '../../features/home/presentation/pages/home_page.dart';
+import '../../features/navigation/presentation/pages/personalizar_menu_page.dart';
 import '../../features/dashboard/presentation/pages/dashboard_page.dart';
 import '../../features/tesoreria/presentation/pages/tesoreria_page.dart';
 import '../../features/deportes/presentation/pages/agenda_deportiva_page.dart';
@@ -230,19 +231,19 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       // activos, no deben poder abrir por URL módulos administrativos que no
       // aparecen en su menú.
       if (authState.authenticated && !isDigitalMenuPublic && inventoryOnly) {
-        final allowed = path == '/home' || path == '/profile' || path.startsWith('/inventario');
+        final allowed = path == '/home' || path == '/profile' || path == '/personalizar_menu' || path.startsWith('/inventario');
         if (!allowed) return '/inventario';
       }
       if (authState.authenticated && !isDigitalMenuPublic && movementsOnly) {
-        final allowed = path == '/home' || path == '/profile' || path == '/productos' || path.startsWith('/movimientos');
+        final allowed = path == '/home' || path == '/profile' || path == '/personalizar_menu' || path == '/productos' || path.startsWith('/movimientos');
         if (!allowed) return '/movimientos';
       }
       if (authState.authenticated && !isDigitalMenuPublic && pricesOnly) {
-        final allowed = path == '/home' || path == '/profile' || path.startsWith('/precios');
+        final allowed = path == '/home' || path == '/profile' || path == '/personalizar_menu' || path.startsWith('/precios');
         if (!allowed) return '/precios';
       }
       if (authState.authenticated && !isDigitalMenuPublic && commandsOnly) {
-        final allowed = path == '/home' || path == '/profile' || path.startsWith('/comandas');
+        final allowed = path == '/home' || path == '/profile' || path == '/personalizar_menu' || path.startsWith('/comandas');
         if (!allowed) return '/comandas';
       }
       if (authState.authenticated && !isDigitalMenuPublic &&
@@ -252,6 +253,7 @@ final appRouterProvider = Provider<GoRouter>((ref) {
           !pricesOnly) {
         final allowed = path == '/home' ||
             path == '/profile' ||
+            path == '/personalizar_menu' ||
             (isInventario && path.startsWith('/inventario')) ||
             (hasMovementRole && (path == '/productos' || path.startsWith('/movimientos'))) ||
             (hasPriceRole && path.startsWith('/precios'));
@@ -306,6 +308,8 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       GoRoute(path: '/forgot-password', builder: (context, state) => const ForgotPasswordPage()),
       GoRoute(path: '/reset-password', builder: (context, state) => ResetPasswordPage(code: _recoveryCodeFromState(state))),
       GoRoute(path: '/home', builder: (context, state) => const HomePage()),
+      GoRoute(path: '/personalizar_menu', builder: (context, state) =>
+          const AppScaffold(child: PersonalizarMenuPage())),
       GoRoute(path: '/soporte_global', builder: (context, state) => AppScaffold(child: const AdminSupportPage())),
       GoRoute(
         path: '/explorador_datos',

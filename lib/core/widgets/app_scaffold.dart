@@ -17,6 +17,8 @@ import '../../features/navigation/data/models/user_menu_item.dart';
 import '../../features/navigation/domain/menu_path_selection.dart';
 import '../../features/navigation/domain/manager_navigation_filters.dart';
 import '../../features/navigation/presentation/providers/user_menu_provider.dart';
+import '../../features/navigation/presentation/providers/menu_preferences_provider.dart';
+import '../../features/navigation/data/models/bottom_menu_priority.dart';
 import '../../features/navigation/presentation/providers/active_role_provider.dart';
 import '../../features/navigation/presentation/providers/user_assigned_roles_provider.dart';
 import '../../features/profile/presentation/providers/profile_header_provider.dart';
@@ -2162,30 +2164,113 @@ class _OperationalBottomNavigation extends ConsumerWidget {
       ],
     ];
 
-    final representedPaths = entries.map((entry) => entry.path).toSet();
-    final extraMenus = authorizedMenus.where((item) {
-      if (item.path.trim().isEmpty || item.keyName == 'mesero' ||
-          item.path == '/home' || item.keyName == 'home') return false;
-      return !representedPaths.contains(item.path);
-    }).toList(growable: false);
-    final hasExtraMenus = extraMenus.isNotEmpty;
-    final navigationEntries = <({
+    // El cajero/mesero también puede colocar sus módulos favoritos
+    // primero, sin desplazar Inicio ni eliminar los accesos restantes.
+    final preferences = ref.watch(menuPreferencesProvider).valueOrNull ??
+        const MenuPreferences();
+    final extraAllowed = authorizedMenus.where((item) =>
+        item.path.trim().isNotEmpty && item.path != '/home' &&
+        item.keyName != 'home' && item.keyName != 'mesero').toList();
+    final favorites = prioritizeBottomMenuItems(
+      authorizedMenus.where((item) =>
+          item.path.trim().isNotEmpty && item.path != '/home' &&
+          item.keyName != 'home').toList(),
+      showFavoritesInMenu: preferences.showInMenu,
+    ).where((item) => item.isFavorite && preferences.showInMenu).toList();
+
+    String canonicalPath(UserMenuItem item) => switch (item.keyName) {
+      'historial_ventas' => '/mesero/historial',
+      'cierre_caja' => '/mesero/cierre-caja',
+      'mesero_productos' => '/mesero/productos',
+      _ => item.path.trim(),
+    };
+
+    final candidates = <({
       String path,
       MeseroPageMode? mode,
       BottomNavigationBarItem item,
-    })>[
-      ...entries,
-      if (hasExtraMenus)
-        (
-          path: '__more__',
+    })>[];
+    final visited = <String>{};
+    void add(({
+      String path, MeseroPageMode? mode, BottomNavigationBarItem item
+    }) entry) {
+      if (entry.path.isNotEmpty && visited.add(entry.path)) {
+        candidates.add(entry);
+      }
+    }
+
+    // Conservar los destinos operativos originales, pero promover favoritos
+    // incluso cuando antes solo aparecían dentro de "Más".
+    for (final item in favorites) {
+      final path = canonicalPath(item);
+      if (path == '/home') continue;
+      final original = entries.where((entry) => entry.path == path);
+      if (original.isNotEmpty) {
+        add(original.first);
+      } else {
+        add((
+          path: path,
           mode: null,
-          item: const BottomNavigationBarItem(
-            icon: Icon(Icons.more_horiz_rounded),
-            label: 'Más',
+          item: BottomNavigationBarItem(
+            icon: Icon(_customRoleMenuIcon(item)),
+            label: item.title,
           ),
-        ),
+        ));
+      }
+    }
+    for (final entry in entries.skip(1)) {
+      add(entry);
+    }
+    for (final item in extraAllowed) {
+      final path = canonicalPath(item);
+      add((
+        path: path,
+        mode: null,
+        item: BottomNavigationBarItem(
+          icon: Icon(_customRoleMenuIcon(item)), label: item.title),
+      ));
+    }
+
+    // Inicio + 3 accesos prioritarios + Más: cinco botones legibles como
+    // en la vista web del usuario. Los excedentes continúan accesibles.
+    final displayed = candidates.take(3).toList(growable: false);
+    final navigationEntries = <({
+      String path, MeseroPageMode? mode, BottomNavigationBarItem item
+    })>[
+      entries.first,
+      ...displayed,
+      (
+        path: '__more__',
+        mode: null,
+        item: const BottomNavigationBarItem(
+          icon: Icon(Icons.more_horiz_rounded), label: 'Más'),
+      ),
     ];
 
+    final authorizedByPath = <String, UserMenuItem>{
+      for (final item in authorizedMenus)
+        if (item.path.isNotEmpty)
+          canonicalPath(item): item,
+    };
+    final extraMenus = <UserMenuItem>[
+      for (final item in candidates.skip(displayed.length))
+        authorizedByPath[item.path] ??
+            UserMenuItem(
+              keyName: item.path,
+              title: item.item.label ?? 'Módulo',
+              path: item.path,
+              groupCode: 'OPERACION', groupName: 'Operación',
+              menuOrder: 100,
+            ),
+      const UserMenuItem(
+        keyName: 'personalizar_menu',
+        title: 'Personalizar mi menú',
+        path: '/personalizar_menu',
+        groupCode: 'CONFIGURACION',
+        groupName: 'Configuración',
+        menuOrder: 998,
+      ),
+    ];
     // Cada ruta operativa tiene una selección inequívoca. Solo /mesero
     // permite que el provider decida cuál pestaña interna está visible.
     final effectivePath = switch (currentPath) {
@@ -2258,8 +2343,12 @@ class _OperationalBottomNavigation extends ConsumerWidget {
               _showOperationalMoreMenu(
                 context: context,
                 palette: palette,
-                items: extraMenus,
+                items: [
+                  ...authorizedMenus.where((item) => item.isFavorite),
+                  ...extraMenus,
+                ],
                 currentPath: currentPath,
+                ref: ref,
               );
               return;
             }
@@ -2269,6 +2358,8 @@ class _OperationalBottomNavigation extends ConsumerWidget {
             }
             if (entry.mode != null) {
               ref.read(meseroSelectedModeProvider.notifier).state = entry.mode!;
+            } else {
+              selectMeseroModeForMenuPath(ref, entry.path);
             }
             context.go(entry.path);
           },
@@ -2283,8 +2374,11 @@ class _OperationalBottomNavigation extends ConsumerWidget {
     required AppPalette palette,
     required List<UserMenuItem> items,
     required String currentPath,
+    required WidgetRef ref,
   }) async {
     var query = '';
+    final showFavorites = (ref.read(menuPreferencesProvider).valueOrNull ??
+        const MenuPreferences()).showInMenu;
     var expandedCode = '';
     for (final item in items) {
       if (currentPath == item.path || currentPath.startsWith('${item.path}/')) {
@@ -2310,7 +2404,9 @@ class _OperationalBottomNavigation extends ConsumerWidget {
               item.path,
             ]);
           }).toList(growable: false);
-          final groups = _groupOperationalMoreItems(filteredItems);
+          final sections = splitMoreMenuFavorites(filteredItems,
+              showFavoritesInMenu: showFavorites);
+          final groups = _groupOperationalMoreItems(sections.remaining);
 
           final openCode = expandedCode;
 
@@ -2371,13 +2467,23 @@ class _OperationalBottomNavigation extends ConsumerWidget {
                     ),
                     const SizedBox(height: 12),
                     Flexible(
-                      child: groups.isEmpty
+                      child: sections.isEmpty
                           ? _emptyMenuSearchState(palette)
                           : ListView.builder(
                               shrinkWrap: true,
-                              itemCount: groups.length,
+                              itemCount: groups.length +
+                                  (sections.favorites.isNotEmpty ? 1 : 0),
                               itemBuilder: (itemContext, index) {
-                                final group = groups[index];
+                                if (sections.favorites.isNotEmpty && index == 0) {
+                                  return _moreFavoritesSection(
+                                    palette: palette,
+                                    favorites: sections.favorites,
+                                    selectedPath: currentPath,
+                                    onSelect: (path) =>
+                                        Navigator.of(sheetContext).pop(path));
+                                }
+                                final group = groups[index -
+                                    (sections.favorites.isNotEmpty ? 1 : 0)];
                                 final expanded = searchActive || group.code == openCode;
                                 final selected = group.items.any(
                                   (item) => currentPath == item.path || currentPath.startsWith('${item.path}/'),
@@ -2549,6 +2655,7 @@ class _OperationalBottomNavigation extends ConsumerWidget {
     );
 
     if (destination != null && context.mounted) {
+      selectMeseroModeForMenuPath(ref, destination);
       context.go(destination);
     }
   }
@@ -2569,10 +2676,7 @@ class _OperationalBottomNavigation extends ConsumerWidget {
     for (final entry in byCode.entries) {
       final meta = metadata[entry.key]!;
       final groupItems = List<UserMenuItem>.of(entry.value)
-        ..sort((a, b) {
-          final order = a.menuOrder.compareTo(b.menuOrder);
-          return order != 0 ? order : a.title.toLowerCase().compareTo(b.title.toLowerCase());
-        });
+        ..sort(_compareMenuWithPreference);
       groups.add(
         _MenuGroupData(
           code: entry.key,
@@ -2585,6 +2689,11 @@ class _OperationalBottomNavigation extends ConsumerWidget {
     }
 
     groups.sort((a, b) {
+      if (items.any((item) => item.personalOrder != null)) {
+        final order = _firstMenuPreference(a.items)
+            .compareTo(_firstMenuPreference(b.items));
+        if (order != 0) return order;
+      }
       final order = a.order.compareTo(b.order);
       return order != 0 ? order : a.name.toLowerCase().compareTo(b.name.toLowerCase());
     });
@@ -2642,30 +2751,53 @@ class _InventoryBottomNavigation extends ConsumerWidget {
 
     // El orden puede ser conocido, pero la existencia de cada opción depende
     // exclusivamente de los menús autorizados por el backend.
-    final allItems = byPath.values.toList()
+    final orderedStandard = byPath.values.toList()
       ..sort((a, b) {
         final ai = _standardItems.indexWhere((item) => item.path == a.path);
         final bi = _standardItems.indexWhere((item) => item.path == b.path);
         final ap = ai < 0 ? 999 : ai;
         final bp = bi < 0 ? 999 : bi;
         final byPriority = ap.compareTo(bp);
-        return byPriority != 0 ? byPriority : a.label.toLowerCase().compareTo(b.label.toLowerCase());
+        return byPriority != 0 ? byPriority
+            : a.label.toLowerCase().compareTo(b.label.toLowerCase());
       });
+    final preferences = ref.watch(menuPreferencesProvider).valueOrNull ??
+        const MenuPreferences();
+    final favoriteItems = prioritizeBottomMenuItems(
+      authorizedMenus.where((item) =>
+          item.path.isNotEmpty && item.path != '/home').toList(),
+      showFavoritesInMenu: preferences.showInMenu,
+    ).where((item) => preferences.showInMenu && item.isFavorite).toList();
+    final usedPaths = <String>{'/home'};
+    final allItems = <({String label, IconData icon, String path})>[
+      byPath['/home']!,
+      for (final favorite in favoriteItems)
+        if (byPath.containsKey(favorite.path) &&
+            usedPaths.add(favorite.path))
+          byPath[favorite.path]!,
+      for (final item in orderedStandard)
+        if (usedPaths.add(item.path)) item,
+    ];
 
     final maxVisible = width >= 1280
         ? 7
         : width >= 720
             ? 5
             : 4;
-    final hasOverflow = allItems.length > maxVisible;
-    final visibleCount = hasOverflow ? maxVisible - 1 : allItems.length;
+    final hasOverflow = allItems.length > 1;
+    final visibleCount = hasOverflow
+        ? (allItems.length < maxVisible ? allItems.length : maxVisible - 1)
+        : allItems.length;
     final visibleItems = allItems.take(visibleCount).toList(growable: false);
-    final overflowItems = hasOverflow
-        ? allItems.skip(visibleCount).toList(growable: false)
-        : const <({String label, IconData icon, String path})>[];
+    final overflowItems = <({String label, IconData icon, String path})>[
+      ...allItems.skip(visibleCount),
+      if (hasOverflow)
+        (label: 'Personalizar mi menú',
+          icon: Icons.tune_rounded, path: '/personalizar_menu'),
+    ];
     final navigationItems = <({String label, IconData icon, String path})>[
       ...visibleItems,
-      if (overflowItems.isNotEmpty) _moreItem,
+      if (hasOverflow) _moreItem,
     ];
 
     final selectedPath = _inventorySelectedPath(currentPath, allItems);
@@ -2712,6 +2844,9 @@ class _InventoryBottomNavigation extends ConsumerWidget {
                 palette: palette,
                 items: overflowItems,
                 selectedPath: selectedPath,
+                favoriteItems: authorizedMenus.where(
+                    (item) => item.isFavorite).toList(),
+                showFavoritesInMenu: preferences.showInMenu,
               );
               return;
             }
@@ -2746,6 +2881,7 @@ class _InventoryBottomNavigation extends ConsumerWidget {
     List<({String label, IconData icon, String path})> allItems,
   ) {
     if (currentPath == '/home') return '/home';
+    if (currentPath == '/personalizar_menu') return '/personalizar_menu';
 
     if (currentPath == '/tablas_parametricas' ||
         currentPath.startsWith('/tipos_producto') ||
@@ -2767,6 +2903,8 @@ class _InventoryBottomNavigation extends ConsumerWidget {
     required AppPalette palette,
     required List<({String label, IconData icon, String path})> items,
     required String selectedPath,
+    required List<UserMenuItem> favoriteItems,
+    required bool showFavoritesInMenu,
   }) async {
     var query = '';
     final destination = await showModalBottomSheet<String>(
@@ -2775,9 +2913,17 @@ class _InventoryBottomNavigation extends ConsumerWidget {
       isScrollControlled: true,
       builder: (sheetContext) => StatefulBuilder(
         builder: (sheetContext, setSheetState) {
-          final filteredItems = items.where((item) {
-            return _matchesMenuSearch(query, [item.label, item.path]);
-          }).toList(growable: false);
+          final favoritesMatchingSearch = favoriteItems.where((item) =>
+              _matchesMenuSearch(query, [
+                item.title, item.keyName, item.description, item.groupName,
+              ])).toList();
+          final favorites = splitMoreMenuFavorites(favoritesMatchingSearch,
+              showFavoritesInMenu: showFavoritesInMenu).favorites;
+          final favoritePaths = favorites.map((item) => item.path).toSet();
+          final filteredItems = items.where((item) =>
+              !favoritePaths.contains(item.path) &&
+              _matchesMenuSearch(query, [item.label, item.path]))
+              .toList(growable: false);
 
           return Padding(
             padding: EdgeInsets.only(bottom: MediaQuery.viewInsetsOf(sheetContext).bottom),
@@ -2825,11 +2971,19 @@ class _InventoryBottomNavigation extends ConsumerWidget {
                     ),
                     const SizedBox(height: 12),
                     Flexible(
-                      child: filteredItems.isEmpty
+                      child: filteredItems.isEmpty && favorites.isEmpty
                           ? _emptyMenuSearchState(palette)
                           : ListView(
                               shrinkWrap: true,
                               children: [
+                                if (favorites.isNotEmpty)
+                                  _moreFavoritesSection(
+                                    palette: palette,
+                                    favorites: favorites,
+                                    selectedPath: selectedPath,
+                                    onSelect: (path) =>
+                                        Navigator.of(sheetContext).pop(path),
+                                  ),
                                 for (final item in filteredItems)
                                   Padding(
                                     padding: const EdgeInsets.only(bottom: 7),
@@ -2920,7 +3074,15 @@ class _CustomRoleBottomNavigation extends ConsumerWidget {
       if (path.isEmpty || path == '/home' || item.keyName == 'home') continue;
       uniqueByPath.putIfAbsent(path, () => item);
     }
-    final allItems = uniqueByPath.values.toList(growable: false);
+    final preferences = ref.watch(menuPreferencesProvider).valueOrNull ??
+        const MenuPreferences();
+    final rawItems = uniqueByPath.values.toList(growable: false);
+    final allItems = <UserMenuItem>[
+      rawItems.first, // Inicio siempre queda primero.
+      ...prioritizeBottomMenuItems(
+        rawItems.skip(1).toList(),
+        showFavoritesInMenu: preferences.showInMenu),
+    ];
     if (allItems.isEmpty) return const SizedBox.shrink();
     final selectedPath =
         mostSpecificMenuPath(effectivePath, allItems.map((item) => item.path));
@@ -2987,14 +3149,25 @@ class _CustomRoleBottomNavigation extends ConsumerWidget {
         : width >= 720
             ? 5
             : 4;
-    final hasOverflow = allItems.length > maxSlots;
-    final visibleCount =
-        hasOverflow ? maxSlots - 1 : allItems.length;
+    // Reservar "Más" para las opciones restantes y el acceso a personalizar,
+    // incluso cuando todos los módulos caben en la barra.
+    final hasOverflow = allItems.length > 1;
+    final visibleCount = hasOverflow
+        ? (allItems.length < maxSlots ? allItems.length : maxSlots - 1)
+        : allItems.length;
     final visibleItems =
         allItems.take(visibleCount).toList(growable: false);
-    final overflowItems = hasOverflow
-        ? allItems.skip(visibleCount).toList(growable: false)
-        : const <UserMenuItem>[];
+    final overflowItems = <UserMenuItem>[
+      ...allItems.skip(visibleCount),
+      if (hasOverflow)
+        const UserMenuItem(
+          keyName: 'personalizar_menu',
+          title: 'Personalizar mi menú',
+          path: '/personalizar_menu',
+          groupCode: 'CONFIGURACION',
+          groupName: 'Configuración',
+          menuOrder: 998),
+    ];
 
     // No seleccionar /mesero cuando existe /mesero/productos (o cierre,
     // historial, etc.). Buscar primero entre TODOS los destinos autorizados.
@@ -3102,20 +3275,35 @@ class _CustomRoleBottomNavigation extends ConsumerWidget {
     required WidgetRef ref,
   }) async {
     var query = '';
+    final showFavorites = (ref.read(menuPreferencesProvider).valueOrNull ??
+        const MenuPreferences()).showInMenu;
+    final availableFavorites = ref.read(userMenuProvider).maybeWhen(
+      data: (menus) => menus.where((item) => item.isFavorite).toList(),
+      orElse: () => <UserMenuItem>[],
+    );
+    final allItems = <UserMenuItem>[...availableFavorites, ...items];
     await showModalBottomSheet<void>(
       context: context,
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
       builder: (sheetContext) => StatefulBuilder(
         builder: (sheetContext, setSheetState) {
-          final filtered = items
-              .where(
-                (item) => _matchesMenuSearch(
-                  query,
-                  [item.title, item.keyName, item.description],
-                ),
-              )
+          final filtered = allItems
+              .where((item) => _matchesMenuSearch(query, [
+                    item.title, item.keyName, item.description, item.groupName,
+                  ]))
               .toList(growable: false);
+          final sections = splitMoreMenuFavorites(filtered,
+              showFavoritesInMenu: showFavorites);
+          void openPath(String destination) {
+            Navigator.pop(sheetContext);
+            WidgetsBinding.instance.addPostFrameCallback((_) {
+              if (context.mounted) {
+                selectMeseroModeForMenuPath(ref, destination);
+                context.go(destination);
+              }
+            });
+          }
 
           return SafeArea(
             child: Container(
@@ -3175,28 +3363,29 @@ class _CustomRoleBottomNavigation extends ConsumerWidget {
                   ),
                   const SizedBox(height: 12),
                   Flexible(
-                    child: filtered.isEmpty
+                    child: sections.isEmpty
                         ? _emptyMenuSearchState(palette)
                         : ListView.separated(
                             shrinkWrap: true,
-                            itemCount: filtered.length,
+                            itemCount: sections.remaining.length +
+                                (sections.favorites.isNotEmpty ? 1 : 0),
                             separatorBuilder: (_, __) =>
                                 const SizedBox(height: 7),
                             itemBuilder: (itemContext, index) {
-                              final item = filtered[index];
+                              if (sections.favorites.isNotEmpty && index == 0) {
+                                return _moreFavoritesSection(
+                                  palette: palette,
+                                  favorites: sections.favorites,
+                                  selectedPath: selectedPath,
+                                  onSelect: openPath,
+                                );
+                              }
+                              final item = sections.remaining[index -
+                                  (sections.favorites.isNotEmpty ? 1 : 0)];
                               final selected = selectedPath == item.path;
                               return ListTile(
                                 selected: selected,
-                                onTap: () {
-                                  Navigator.pop(sheetContext);
-                                  WidgetsBinding.instance
-                                      .addPostFrameCallback((_) {
-                                    if (context.mounted) {
-                                      selectMeseroModeForMenuPath(ref, item.path);
-                                      context.go(item.path);
-                                    }
-                                  });
-                                },
+                                onTap: () => openPath(item.path),
                                 shape: RoundedRectangleBorder(
                                   borderRadius: BorderRadius.circular(15),
                                   side: BorderSide(
@@ -3263,8 +3452,54 @@ class _AdminBottomNavigation extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final palette = ref.watch(selectedAppPaletteProvider);
     final currentPath = GoRouterState.of(context).uri.path;
-    final selectedIndex = _selectedIndex(currentPath);
     final compact = MediaQuery.sizeOf(context).width < 720;
+    final preferences = ref.watch(menuPreferencesProvider).valueOrNull ??
+        const MenuPreferences();
+    final authorized = ref.watch(userMenuProvider).maybeWhen(
+          data: (items) => items,
+          orElse: () => const <UserMenuItem>[],
+        );
+    final favorites = prioritizeBottomMenuItems(
+      authorized.where((item) => item.path.isNotEmpty &&
+          item.path != '/home').toList(),
+      showFavoritesInMenu: preferences.showInMenu,
+    ).where((item) => preferences.showInMenu && item.isFavorite).toList();
+
+    final candidates = <_AdminNavigationItem>[
+      for (final item in favorites)
+        _AdminNavigationItem(
+          label: item.title,
+          icon: _customRoleMenuIcon(item),
+          path: item.path),
+      ..._coreItems.where((item) =>
+          item.path != '/home' && item.path != '__more__'),
+    ];
+    final unique = <String, _AdminNavigationItem>{};
+    for (final item in candidates) {
+      unique.putIfAbsent(item.path, () => item);
+    }
+    final visibleDestinations = <_AdminNavigationItem>[
+      _coreItems.first, // Inicio fijo.
+      ...unique.values.take(3),
+      _coreItems.last, // Más siempre disponible.
+    ];
+
+    var selectedIndex = currentPath == '/home' ? 0
+        : visibleDestinations.length - 1;
+    if (currentPath != '/home') {
+      final index = visibleDestinations.indexWhere((item) {
+        if (item.path == '/home' || item.path == '__more__') return false;
+        if (currentPath == item.path ||
+            currentPath.startsWith('${item.path}/')) return true;
+        return switch (item.path) {
+          '/empresas' => _selectedIndex(currentPath) == 1,
+          '/usuarios' => _selectedIndex(currentPath) == 2,
+          '/soporte_global' => _selectedIndex(currentPath) == 3,
+          _ => false,
+        };
+      });
+      if (index >= 0) selectedIndex = index;
+    }
     return Container(
       decoration: BoxDecoration(
         color: palette.surface.withOpacity(palette.darkBackground ? .96 : .99),
@@ -3293,15 +3528,16 @@ class _AdminBottomNavigation extends ConsumerWidget {
           showSelectedLabels: true,
           showUnselectedLabels: true,
           onTap: (index) {
-            final item = _coreItems[index];
+            final item = visibleDestinations[index];
             if (item.path == '__more__') {
               _showMore(context, ref, palette);
               return;
             }
+            selectMeseroModeForMenuPath(ref, item.path);
             context.go(item.path);
           },
           items: [
-            for (final item in _coreItems)
+            for (final item in visibleDestinations)
               BottomNavigationBarItem(
                 icon: Padding(padding: const EdgeInsets.only(bottom: 3), child: Icon(item.icon)),
                 activeIcon: Container(
@@ -3348,7 +3584,14 @@ class _AdminBottomNavigation extends ConsumerWidget {
           data: (items) => items,
           orElse: () => const <UserMenuItem>[],
         );
+    final showFavorites = (ref.read(menuPreferencesProvider).valueOrNull ??
+        const MenuPreferences()).showInMenu;
     final entries = <_AdminNavigationItem>[
+      ..._coreItems.where((item) =>
+          item.path != '/home' && item.path != '__more__'),
+      const _AdminNavigationItem(
+          label: 'Personalizar mi menú', icon: Icons.tune_rounded,
+          path: '/personalizar_menu'),
       const _AdminNavigationItem(label: 'Catálogo maestro', icon: Icons.category_outlined, path: '/catalogo_maestro'),
       const _AdminNavigationItem(label: 'Sincronizar catálogo', icon: Icons.sync_alt_rounded, path: '/sincronizar_catalogo'),
       const _AdminNavigationItem(label: 'Explorador de datos', icon: Icons.storage_rounded, path: '/explorador_datos'),
@@ -3376,9 +3619,28 @@ class _AdminBottomNavigation extends ConsumerWidget {
       backgroundColor: Colors.transparent,
       builder: (sheetContext) => StatefulBuilder(
         builder: (sheetContext, setSheetState) {
-          final filteredItems = unique.values.where((item) {
-            return _matchesMenuSearch(query, [item.label, item.path, item.searchTerms]);
-          }).toList(growable: false);
+          final matchedFavorites = authorized.where((item) =>
+              _matchesMenuSearch(query, [
+                item.title, item.keyName, item.description, item.groupName,
+              ])).toList();
+          final favorites = splitMoreMenuFavorites(matchedFavorites,
+              showFavoritesInMenu: showFavorites).favorites;
+          final favoritePaths = favorites.map((item) => item.path).toSet();
+          final filteredItems = unique.values.where((item) =>
+              !favoritePaths.contains(item.path) &&
+              _matchesMenuSearch(query, [
+                item.label, item.path, item.searchTerms,
+              ])).toList(growable: false);
+
+          void openDestination(String destination) {
+            Navigator.pop(sheetContext);
+            WidgetsBinding.instance.addPostFrameCallback((_) {
+              if (context.mounted) {
+                selectMeseroModeForMenuPath(ref, destination);
+                context.go(destination);
+              }
+            });
+          }
 
           return Padding(
             padding: EdgeInsets.only(bottom: MediaQuery.viewInsetsOf(sheetContext).bottom),
@@ -3415,10 +3677,21 @@ class _AdminBottomNavigation extends ConsumerWidget {
                     ),
                     const SizedBox(height: 12),
                     Flexible(
-                      child: filteredItems.isEmpty
+                      child: filteredItems.isEmpty && favorites.isEmpty
                           ? _emptyMenuSearchState(palette)
-                          : GridView.builder(
+                          : ListView(
                               shrinkWrap: true,
+                              children: [
+                                if (favorites.isNotEmpty)
+                                  _moreFavoritesSection(
+                                    palette: palette,
+                                    favorites: favorites,
+                                    onSelect: openDestination,
+                                  ),
+                                if (filteredItems.isNotEmpty)
+                                  GridView.builder(
+                              shrinkWrap: true,
+                              physics: const NeverScrollableScrollPhysics(),
                               gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
                                 crossAxisCount: MediaQuery.sizeOf(sheetContext).width >= 760 ? 3 : 2,
                                 crossAxisSpacing: 9,
@@ -3429,13 +3702,7 @@ class _AdminBottomNavigation extends ConsumerWidget {
                               itemBuilder: (itemContext, index) {
                                 final item = filteredItems[index];
                                 return InkWell(
-                                  onTap: () {
-                                    final destination = item.path;
-                                    Navigator.pop(sheetContext);
-                                    WidgetsBinding.instance.addPostFrameCallback((_) {
-                                      if (context.mounted) context.go(destination);
-                                    });
-                                  },
+                                  onTap: () => openDestination(item.path),
                                   borderRadius: BorderRadius.circular(16),
                                   child: Container(
                                     padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 9),
@@ -3461,6 +3728,8 @@ class _AdminBottomNavigation extends ConsumerWidget {
                                   ),
                                 );
                               },
+                            ),
+                              ],
                             ),
                     ),
                   ],
@@ -3549,20 +3818,51 @@ class _ManagerBottomNavigation extends ConsumerWidget {
           orElse: () => const <UserMenuItem>[],
         );
 
-    // La BD decide qué grupos merecen acceso principal. El shell conserva
-    // Inicio y Más como elementos estructurales; entre ambos se muestran como
-    // máximo tres grupos para mantener siempre una barra inferior de 5 items.
+    // Primero cada favorito autorizado, respetando el orden personal. Los
+    // huecos restantes mantienen los grupos originales. Inicio y Más nunca
+    // desaparecen, incluso si el usuario tiene muchos favoritos.
+    final preferences = ref.watch(menuPreferencesProvider).valueOrNull ??
+        const MenuPreferences();
     final allBottomGroups = _buildBottomGroups(menuItems);
-    final visibleGroups = allBottomGroups.take(3).toList(growable: false);
+    final favoriteMenus = preferences.showInMenu
+        ? (menuItems.where((item) => item.isFavorite).toList()
+            ..sort(_compareMenuWithPreference))
+        : <UserMenuItem>[];
+    final featured = favoriteMenus.take(3).toList(growable: false);
+    final remainingGroups = allBottomGroups.where((group) =>
+        !featured.any((item) => group.containsPath(item.path))).toList();
+    final visibleDestinations = <({
+      String label, String path, IconData icon, List<UserMenuItem> members
+    })>[
+      for (final item in featured)
+        (
+          label: item.title,
+          path: item.path,
+          icon: _customRoleMenuIcon(item),
+          members: [item],
+        ),
+      for (final group in remainingGroups.take(3 - featured.length))
+        (
+          label: group.label,
+          path: group.primaryPath,
+          icon: _menuGroupIcon(group.iconToken),
+          members: group.items,
+        ),
+    ];
 
-    // 'Más' solamente representa destinos autorizados que no estén visibles.
     var selectedIndex = currentPath == '/home' ? 0 : -1;
     if (currentPath != '/home') {
-      final groupIndex = visibleGroups.indexWhere((group) => group.containsPath(currentPath));
-      if (groupIndex >= 0) {
-        selectedIndex = groupIndex + 1;
-      } else if (mostSpecificMenuPath(currentPath, menuItems.map((item) => item.path)) != null || currentPath == '/profile') {
-        selectedIndex = visibleGroups.length + 1;
+      final selected = visibleDestinations.indexWhere((entry) =>
+          entry.members.any((item) =>
+              currentPath == item.path ||
+              (item.path != '/home' &&
+                  currentPath.startsWith('${item.path}/'))));
+      if (selected >= 0) {
+        selectedIndex = selected + 1;
+      } else if (mostSpecificMenuPath(
+                currentPath, menuItems.map((item) => item.path)) != null ||
+          currentPath == '/profile' || currentPath == '/personalizar_menu') {
+        selectedIndex = visibleDestinations.length + 1;
       }
     }
 
@@ -3599,18 +3899,21 @@ class _ManagerBottomNavigation extends ConsumerWidget {
               return;
             }
 
-            final moreIndex = visibleGroups.length + 1;
+            final moreIndex = visibleDestinations.length + 1;
             if (index == moreIndex) {
               _showManagerMoreMenu(
                 context: context,
                 palette: palette,
                 items: menuItems,
                 selectedPath: currentPath,
+                ref: ref,
               );
               return;
             }
 
-            context.go(visibleGroups[index - 1].primaryPath);
+            final target = visibleDestinations[index - 1].path;
+            selectMeseroModeForMenuPath(ref, target);
+            context.go(target);
           },
           items: [
             BottomNavigationBarItem(
@@ -3625,18 +3928,18 @@ class _ManagerBottomNavigation extends ConsumerWidget {
               ),
               label: 'Inicio',
             ),
-            for (final group in visibleGroups)
+            for (final destination in visibleDestinations)
               BottomNavigationBarItem(
                 icon: Padding(
                   padding: const EdgeInsets.only(bottom: 3),
-                  child: Icon(_menuGroupIcon(group.iconToken)),
+                  child: Icon(destination.icon),
                 ),
                 activeIcon: _activeBottomIcon(
-                  icon: _menuGroupIcon(group.iconToken),
+                  icon: destination.icon,
                   palette: palette,
                   compact: compact,
                 ),
-                label: group.label,
+                label: destination.label,
               ),
             BottomNavigationBarItem(
               icon: const Padding(
@@ -3693,10 +3996,13 @@ class _ManagerBottomNavigation extends ConsumerWidget {
       final meta = metadata[entry.key]!;
       final groupItems = List<UserMenuItem>.of(entry.value)
         ..sort((a, b) {
+          if (a.personalOrder != null || b.personalOrder != null) {
+            final order = (a.personalOrder ?? 999999)
+                .compareTo(b.personalOrder ?? 999999);
+            if (order != 0) return order;
+          }
           if (a.bottomPrimary != b.bottomPrimary) return a.bottomPrimary ? -1 : 1;
-          final menuOrder = a.menuOrder.compareTo(b.menuOrder);
-          if (menuOrder != 0) return menuOrder;
-          return a.title.toLowerCase().compareTo(b.title.toLowerCase());
+          return _compareMenuWithPreference(a, b);
         });
       groups.add(
         _ManagerBottomGroup(
@@ -3710,6 +4016,11 @@ class _ManagerBottomNavigation extends ConsumerWidget {
     }
 
     groups.sort((a, b) {
+      if (items.any((item) => item.personalOrder != null)) {
+        final order = _firstMenuPreference(a.items)
+            .compareTo(_firstMenuPreference(b.items));
+        if (order != 0) return order;
+      }
       final order = a.order.compareTo(b.order);
       return order != 0 ? order : a.label.toLowerCase().compareTo(b.label.toLowerCase());
     });
@@ -3721,6 +4032,7 @@ class _ManagerBottomNavigation extends ConsumerWidget {
     required AppPalette palette,
     required List<UserMenuItem> items,
     required String selectedPath,
+    required WidgetRef ref,
   }) async {
     const profileItem = UserMenuItem(
       keyName: 'profile',
@@ -3735,8 +4047,22 @@ class _ManagerBottomNavigation extends ConsumerWidget {
       system: true,
     );
 
-    final allItems = <UserMenuItem>[...managerMoreCandidates(items), profileItem];
+    final allItems = <UserMenuItem>[
+      // Incluir favoritos presentes en la barra principal también aquí.
+      ...items.where((item) => item.isFavorite &&
+          item.path.trim().isNotEmpty),
+      ...managerMoreCandidates(items),
+      profileItem,
+      const UserMenuItem(
+        keyName: 'personalizar_menu', title: 'Personalizar mi menú',
+        path: '/personalizar_menu',
+        groupCode: 'CONFIGURACION', groupName: 'Configuración',
+        menuOrder: 998,
+      ),
+    ];
     var query = '';
+    final showFavorites = (ref.read(menuPreferencesProvider).valueOrNull ??
+        const MenuPreferences()).showInMenu;
     final destination = await showModalBottomSheet<String>(
       context: context,
       backgroundColor: Colors.transparent,
@@ -3754,7 +4080,9 @@ class _ManagerBottomNavigation extends ConsumerWidget {
               item.path,
             ]);
           }).toList(growable: false);
-          final groups = _groupMoreItems(filtered);
+          final sections = splitMoreMenuFavorites(filtered,
+              showFavoritesInMenu: showFavorites);
+          final groups = _groupMoreItems(sections.remaining);
 
           return Padding(
             padding: EdgeInsets.only(bottom: MediaQuery.viewInsetsOf(sheetContext).bottom),
@@ -3813,13 +4141,23 @@ class _ManagerBottomNavigation extends ConsumerWidget {
                     ),
                     const SizedBox(height: 12),
                     Flexible(
-                      child: groups.isEmpty
+                      child: sections.isEmpty
                           ? _emptyMenuSearchState(palette)
                           : ListView.builder(
                               shrinkWrap: true,
-                              itemCount: groups.length,
+                              itemCount: groups.length +
+                                  (sections.favorites.isNotEmpty ? 1 : 0),
                               itemBuilder: (itemContext, index) {
-                                final group = groups[index];
+                                if (sections.favorites.isNotEmpty && index == 0) {
+                                  return _moreFavoritesSection(
+                                    palette: palette,
+                                    favorites: sections.favorites,
+                                    selectedPath: selectedPath,
+                                    onSelect: (path) =>
+                                        Navigator.of(sheetContext).pop(path));
+                                }
+                                final group = groups[index -
+                                    (sections.favorites.isNotEmpty ? 1 : 0)];
                                 return Container(
                                   margin: const EdgeInsets.only(bottom: 10),
                                   padding: const EdgeInsets.fromLTRB(10, 10, 10, 6),
@@ -3929,6 +4267,7 @@ class _ManagerBottomNavigation extends ConsumerWidget {
     );
 
     if (destination != null && context.mounted) {
+      selectMeseroModeForMenuPath(ref, destination);
       context.go(destination);
     }
   }
@@ -3947,10 +4286,7 @@ class _ManagerBottomNavigation extends ConsumerWidget {
     for (final entry in byCode.entries) {
       final meta = metadata[entry.key]!;
       final groupItems = List<UserMenuItem>.of(entry.value)
-        ..sort((a, b) {
-          final order = a.menuOrder.compareTo(b.menuOrder);
-          return order != 0 ? order : a.title.toLowerCase().compareTo(b.title.toLowerCase());
-        });
+        ..sort(_compareMenuWithPreference);
       groups.add(
         _MenuGroupData(
           code: entry.key,
@@ -3963,6 +4299,11 @@ class _ManagerBottomNavigation extends ConsumerWidget {
     }
 
     groups.sort((a, b) {
+      if (items.any((item) => item.personalOrder != null)) {
+        final order = _firstMenuPreference(a.items)
+            .compareTo(_firstMenuPreference(b.items));
+        if (order != 0) return order;
+      }
       final order = a.order.compareTo(b.order);
       return order != 0 ? order : a.name.toLowerCase().compareTo(b.name.toLowerCase());
     });
@@ -4159,6 +4500,11 @@ List<Widget> _authorizedMenuWidgets({
             ),
           ],
     data: (items) {
+      final preferences = ref.watch(menuPreferencesProvider).valueOrNull ??
+          const MenuPreferences();
+      final favorites = items.where((item) =>
+          item.isFavorite && item.path.isNotEmpty &&
+          item.path != '/home' && item.keyName != 'home').toList();
       if (items.isEmpty) {
         return compact
             ? [const SizedBox.shrink()]
@@ -4174,6 +4520,28 @@ List<Widget> _authorizedMenuWidgets({
       }
 
       return [
+        if (preferences.showInMenu && favorites.isNotEmpty) ...[
+          if (!compact)
+            Padding(
+              padding: const EdgeInsets.fromLTRB(11, 12, 8, 5),
+              child: Row(children: [
+                const Icon(Icons.star_rounded, size: 19,
+                    color: Color(0xFFE0A12A)),
+                const SizedBox(width: 7),
+                Text('MIS FAVORITOS',
+                  style: TextStyle(color: palette.textSecondary,
+                    fontSize: 11, letterSpacing: 1,
+                    fontWeight: FontWeight.w900)),
+              ]),
+            ),
+          for (final item in favorites)
+            _NavTile(
+              title: item.title, keyName: item.keyName,
+              path: item.path, dark: dark,
+              compact: compact, palette: palette,
+            ),
+          if (!compact) const Divider(height: 18),
+        ],
         _AuthorizedMenuGroups(
           items: items,
           dark: dark,
@@ -4181,8 +4549,100 @@ List<Widget> _authorizedMenuWidgets({
           palette: palette,
           preserveExactOrder: preserveExactOrder,
         ),
+        const SizedBox(height: 12),
+        _NavTile(
+          title: 'Personalizar mi menú',
+          keyName: 'personalizar_menu',
+          path: '/personalizar_menu',
+          dark: dark, compact: compact, palette: palette,
+        ),
       ];
     },
+  );
+}
+
+// Las agrupaciones configuradas en BD permanecen, pero la prioridad privada
+// del usuario se refleja también en los menús "Más" del móvil.
+int _compareMenuWithPreference(UserMenuItem a, UserMenuItem b) {
+  if (a.personalOrder != null || b.personalOrder != null) {
+    final order = (a.personalOrder ?? 999999)
+        .compareTo(b.personalOrder ?? 999999);
+    if (order != 0) return order;
+  }
+  final fallback = a.menuOrder.compareTo(b.menuOrder);
+  return fallback == 0
+      ? a.title.toLowerCase().compareTo(b.title.toLowerCase())
+      : fallback;
+}
+
+int _firstMenuPreference(List<UserMenuItem> items) {
+  return items.fold<int>(999999, (value, item) {
+    final order = item.personalOrder ?? 999999;
+    return value < order ? value : order;
+  });
+}
+
+/// Favoritos al principio de "Más". Los destinos siguen siendo los
+/// módulos autorizados para el usuario y el rol activo.
+Widget _moreFavoritesSection({
+  required AppPalette palette,
+  required List<UserMenuItem> favorites,
+  required ValueChanged<String> onSelect,
+  String? selectedPath,
+}) {
+  return Container(
+    margin: const EdgeInsets.only(bottom: 11),
+    padding: const EdgeInsets.fromLTRB(10, 10, 10, 7),
+    decoration: BoxDecoration(
+      color: palette.secondary.withOpacity(
+          palette.darkBackground ? .11 : .07),
+      borderRadius: BorderRadius.circular(palette.radius(19)),
+      border: Border.all(color: palette.secondary.withOpacity(.28)),
+    ),
+    child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+      Padding(
+        padding: const EdgeInsets.fromLTRB(5, 3, 6, 8),
+        child: Row(children: [
+          const Icon(Icons.star_rounded,
+              color: Color(0xFFE0A12A), size: 21),
+          const SizedBox(width: 8),
+          Expanded(child: Text('Mis favoritos',
+            style: TextStyle(color: palette.textPrimary,
+                fontSize: 14, fontWeight: FontWeight.w900))),
+          Text('${favorites.length}',
+            style: TextStyle(color: palette.textSecondary,
+                fontSize: 12, fontWeight: FontWeight.w800)),
+        ]),
+      ),
+      for (final item in favorites)
+        Material(
+          color: selectedPath == item.path
+              ? palette.secondary.withOpacity(.13)
+              : Colors.transparent,
+          borderRadius: BorderRadius.circular(12),
+          child: ListTile(
+            dense: true,
+            visualDensity: const VisualDensity(vertical: -2),
+            shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(12)),
+            contentPadding: const EdgeInsets.symmetric(horizontal: 8),
+            leading: Icon(_customRoleMenuIcon(item),
+                color: palette.secondary, size: 20),
+            title: Text(item.title,
+              maxLines: 2, overflow: TextOverflow.ellipsis,
+              style: TextStyle(color: palette.textPrimary,
+                  fontWeight: FontWeight.w800, fontSize: 13)),
+            subtitle: item.description?.trim().isNotEmpty == true
+              ? Text(item.description!,
+                maxLines: 1, overflow: TextOverflow.ellipsis,
+                style: TextStyle(color: palette.textSecondary, fontSize: 11))
+              : null,
+            trailing: Icon(Icons.chevron_right_rounded,
+                color: palette.textSecondary),
+            onTap: () => onSelect(item.path),
+          ),
+        ),
+    ]),
   );
 }
 
@@ -4257,7 +4717,10 @@ class _AuthorizedMenuGroupsState extends State<_AuthorizedMenuGroups> {
           .toList(growable: true);
       final activePath = mostSpecificMenuPath(path, orderedItems.map((item) => item.path));
       final activeIndex = orderedItems.indexWhere((item) => item.path == activePath);
-      if (activeIndex > 0) {
+      // Respetar el orden explícito. El rol sigue determinando qué módulos
+      // puede ver, pero no reordena una personalización de su usuario.
+      if (activeIndex > 0 &&
+          !orderedItems.any((item) => item.personalOrder != null)) {
         final active = orderedItems.removeAt(activeIndex);
         orderedItems.insert(0, active);
       }
@@ -4299,10 +4762,17 @@ class _AuthorizedMenuGroupsState extends State<_AuthorizedMenuGroups> {
     }
 
     final groups = <_MenuGroupData>[];
+    final hasPersonalOrder = widget.items.any((item) =>
+        item.personalOrder != null);
     for (final entry in byCode.entries) {
       final meta = metadata[entry.key]!;
       final items = List<UserMenuItem>.of(entry.value)
         ..sort((a, b) {
+          if (hasPersonalOrder) {
+            final preference = (a.personalOrder ?? 999999)
+                .compareTo(b.personalOrder ?? 999999);
+            if (preference != 0) return preference;
+          }
           final order = a.menuOrder.compareTo(b.menuOrder);
           return order != 0 ? order : a.title.toLowerCase().compareTo(b.title.toLowerCase());
         });
@@ -4319,18 +4789,28 @@ class _AuthorizedMenuGroupsState extends State<_AuthorizedMenuGroups> {
       _currentPath(), widget.items.map((item) => item.path),
     );
     groups.sort((a, b) {
-      // Priorizar el grupo que contiene la ruta actualmente abierta.
-      final aSelected = a.items.any((item) => item.path == selectedPath);
-      final bSelected = b.items.any((item) => item.path == selectedPath);
-      if (aSelected != bSelected) return aSelected ? -1 : 1;
+      if (hasPersonalOrder) {
+        int firstOrder(_MenuGroupData group) => group.items
+            .map((item) => item.personalOrder ?? 999999)
+            .reduce((a, b) => a < b ? a : b);
+        final customOrder = firstOrder(a).compareTo(firstOrder(b));
+        if (customOrder != 0) return customOrder;
+      } else {
+        // Comportamiento original cuando todavía no existe personalización.
+        final aSelected = a.items.any((item) => item.path == selectedPath);
+        final bSelected = b.items.any((item) => item.path == selectedPath);
+        if (aSelected != bSelected) return aSelected ? -1 : 1;
+      }
       final order = a.order.compareTo(b.order);
       return order != 0 ? order : a.name.toLowerCase().compareTo(b.name.toLowerCase());
     });
-    for (final group in groups) {
-      final selectedIndex = group.items.indexWhere((item) => item.path == selectedPath);
-      if (selectedIndex > 0) {
-        final selectedItem = group.items.removeAt(selectedIndex);
-        group.items.insert(0, selectedItem);
+    if (!hasPersonalOrder) {
+      for (final group in groups) {
+        final selectedIndex = group.items.indexWhere((item) => item.path == selectedPath);
+        if (selectedIndex > 0) {
+          final selectedItem = group.items.removeAt(selectedIndex);
+          group.items.insert(0, selectedItem);
+        }
       }
     }
     return groups;
@@ -4666,7 +5146,8 @@ class _NavTile extends ConsumerWidget {
       pathNow,
       <String>['/home', ...authorized.map((item) => item.path)],
     );
-    final selected = selectedPath == path;
+    final selected = selectedPath == path ||
+        (path == '/personalizar_menu' && pathNow == path);
     final foreground = dark ? Colors.white : appPalette.textPrimary;
     final selectedForeground = _selectedMenuForeground(appPalette);
 

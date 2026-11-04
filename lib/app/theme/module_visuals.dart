@@ -19,6 +19,10 @@ class ModuleVisual {
 class ModuleVisuals {
   static ModuleVisual byKey(String key) {
     switch (key) {
+      case 'personalizar_menu':
+        return const ModuleVisual(
+          icon: Icons.tune_rounded, color: Color(0xFF0D9488),
+          description: 'Organiza tus módulos y selecciona tus favoritos');
       case 'soporte_global':
         return const ModuleVisual(icon: Icons.help_outline_rounded, color: Color(0xFF2563EB), description: 'Centro global para atender cualquier cliente');
       case 'soporte_clientes':

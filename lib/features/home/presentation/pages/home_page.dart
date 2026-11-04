@@ -1,9 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 
 import '../../../../core/widgets/app_error_view.dart';
 import '../../../../core/widgets/app_loader.dart';
 import '../../../../core/widgets/app_scaffold.dart';
+import '../../../../app/theme/app_palette.dart';
+import '../../../navigation/presentation/providers/menu_preferences_provider.dart';
+import '../../../mesero/presentation/providers/mesero_tab_provider.dart';
 import '../../../auth/presentation/providers/auth_provider.dart';
 import '../../../navigation/data/models/user_menu_item.dart';
 import '../../../navigation/presentation/providers/user_menu_provider.dart';
@@ -46,29 +50,111 @@ class HomePage extends ConsumerWidget {
           ),
         ),
         data: (items) {
+          final preferences = ref.watch(menuPreferencesProvider).valueOrNull ??
+              const MenuPreferences();
+          final favorites = preferences.showOnHome
+              ? items.where((item) => item.isFavorite &&
+                  item.path != '/home' && item.path.isNotEmpty)
+                  .take(6).toList()
+              : <UserMenuItem>[];
+          final Widget content;
           if (isGlobalAdmin) {
-            return AdminHomePage(
+            content = AdminHomePage(
               items: _sortAdminItems(items),
               rolesCount: activeRoles.length,
             );
-          }
-          if (isManager) {
-            return ManagerHomePage(
+          } else if (isManager) {
+            content = ManagerHomePage(
               items: _sortManagerItems(items),
               rolesCount: activeRoles.length,
             );
+          } else {
+            content = RoleHomePage(items: items, roles: activeRoles);
           }
-
-          return RoleHomePage(
-            items: items,
-            roles: activeRoles,
-          );
+          if (favorites.isEmpty) return content;
+          return Column(children: [
+            _PersonalFavoritesHomeBar(items: favorites),
+            Expanded(child: content),
+          ]);
         },
       ),
     );
   }
 }
 
+
+
+class _PersonalFavoritesHomeBar extends ConsumerWidget {
+  const _PersonalFavoritesHomeBar({required this.items});
+  final List<UserMenuItem> items;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final palette = ref.watch(selectedAppPaletteProvider);
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.fromLTRB(14, 10, 14, 10),
+      decoration: BoxDecoration(
+        color: palette.surface,
+        border: Border(bottom: BorderSide(color: palette.cardBorder)),
+      ),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Row(children: [
+          const Icon(Icons.star_rounded, size: 21,
+              color: Color(0xFFE0A12A)),
+          const SizedBox(width: 7),
+          Expanded(child: Text('Mis accesos favoritos',
+            style: TextStyle(color: palette.textPrimary,
+              fontWeight: FontWeight.w900))),
+          TextButton.icon(
+            onPressed: () => context.go('/personalizar_menu'),
+            icon: const Icon(Icons.tune_rounded, size: 16),
+            label: const Text('Editar')),
+        ]),
+        SizedBox(
+          height: 68,
+          child: ListView.separated(
+            scrollDirection: Axis.horizontal,
+            itemCount: items.length,
+            separatorBuilder: (_, __) => const SizedBox(width: 8),
+            itemBuilder: (context, index) {
+              final item = items[index];
+              return SizedBox(
+                width: MediaQuery.sizeOf(context).width < 450 ? 146 : 180,
+                child: Material(
+                  color: palette.secondary.withOpacity(.09),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(13),
+                    side: BorderSide(color: palette.cardBorder)),
+                  child: InkWell(
+                    borderRadius: BorderRadius.circular(13),
+                    onTap: () {
+                      selectMeseroModeForMenuPath(ref, item.path);
+                      context.go(item.path);
+                    },
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 12, vertical: 8),
+                      child: Row(children: [
+                        Icon(Icons.star_rounded, size: 17,
+                          color: palette.secondary),
+                        const SizedBox(width: 8),
+                        Expanded(child: Text(item.title,
+                          maxLines: 2, overflow: TextOverflow.ellipsis,
+                          style: TextStyle(color: palette.textPrimary,
+                            fontWeight: FontWeight.w800, fontSize: 12))),
+                      ]),
+                    ),
+                  ),
+                ),
+              );
+            },
+          ),
+        ),
+      ]),
+    );
+  }
+}
 
 bool _isPersonalizedRole(String role) {
   final normalized = _normalizeRole(role).replaceFirst(RegExp(r'^ROLE_'), '');
