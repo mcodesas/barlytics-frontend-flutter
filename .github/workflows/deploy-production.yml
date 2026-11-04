@@ -108,7 +108,7 @@ jobs:
           $versionLine = Select-String -Path pubspec.yaml -Pattern '^version:\s*([0-9]+\.[0-9]+\.[0-9]+)'
           $version = $versionLine.Matches[0].Groups[1].Value
           $epoch = [long](git show -s --format=%ct HEAD)
-          $build = [long](2001000000 + [math]::Floor(($epoch - 1767225600) / 2))
+          $build = [long](2002000000 + [math]::Floor(($epoch - 1767225600) / 2))
           if ($build -le 2000000692 -or $build -ge 2100000000) { throw 'Build Windows fuera de rango' }
           flutter build windows --release --build-name="$version" --build-number="$build" --dart-define=ENV=prod --dart-define=BARLYTICS_APP_VERSION="$version" --dart-define=BARLYTICS_APP_BUILD="$build"
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
