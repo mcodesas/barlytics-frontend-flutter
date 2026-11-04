@@ -568,10 +568,11 @@ class _InventarioAdminPageState extends ConsumerState<InventarioAdminPage> {
 
     return Scaffold(
       backgroundColor: Colors.transparent,
-      body: Stack(
-        children: [
-          const Positioned.fill(child: AppPageBackground()),
-          RefreshIndicator(
+      body: TechBackground(
+        padding: EdgeInsets.zero,
+        child: Stack(
+          children: [
+            RefreshIndicator(
             onRefresh: _load,
             color: palette.secondary,
             child: CustomScrollView(
@@ -741,7 +742,8 @@ class _InventarioAdminPageState extends ConsumerState<InventarioAdminPage> {
                 backgroundColor: Colors.transparent,
               ),
             ),
-        ],
+          ],
+        ),
       ),
     );
   }
@@ -1756,24 +1758,48 @@ class _InventoryAdminHeader extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final compact = MediaQuery.sizeOf(context).width < 820;
-    final title = Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
+    final title = Row(
+      crossAxisAlignment: CrossAxisAlignment.center,
       children: [
-        Text(
-          'Control administrativo de inventario',
-          style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-                color: palette.textPrimary,
-                fontWeight: FontWeight.w900,
-              ),
+        TechBrandMark(
+          icon: Icons.fact_check_rounded,
+          size: compact ? 44 : 54,
         ),
-        const SizedBox(height: 4),
-        Text(
-          'Audita qué se contó, cuánto dinero falta o sobra, quién atendió '
-          'ese día y qué diferencias ya fueron conciliadas.',
-          style: TextStyle(
-            color: palette.textSecondary,
-            fontWeight: FontWeight.w600,
-            height: 1.35,
+        const SizedBox(width: 13),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'AUDITORÍA Y TRAZABILIDAD',
+                style: TextStyle(
+                  color: palette.secondary,
+                  fontWeight: FontWeight.w900,
+                  fontSize: 10,
+                  letterSpacing: 1.1,
+                ),
+              ),
+              const SizedBox(height: 5),
+              Text(
+                'Historial de conteos',
+                style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+                      color: palette.textPrimary,
+                      fontSize: compact ? 21 : 25,
+                      fontWeight: FontWeight.w900,
+                    ),
+              ),
+              const SizedBox(height: 5),
+              Text(
+                'Revisa cada jornada, compara cantidades, identifica '
+                'faltantes y sobrantes, y consulta las conciliaciones.',
+                style: TextStyle(
+                  color: palette.textSecondary,
+                  fontWeight: FontWeight.w600,
+                  fontSize: 12,
+                  height: 1.4,
+                ),
+              ),
+            ],
           ),
         ),
       ],
@@ -1827,12 +1853,8 @@ class _InventoryAdminHeader extends StatelessWidget {
       ],
     );
 
-    return Container(
-      padding: const EdgeInsets.all(18),
-      decoration: palette.panelDecoration(
-        baseRadius: 26,
-        tint: palette.secondary,
-      ),
+    return TechGlassPanel(
+      padding: EdgeInsets.all(compact ? 15 : 18),
       child: compact
           ? Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
