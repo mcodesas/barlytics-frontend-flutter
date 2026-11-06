@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../../app/theme/app_palette.dart';
 import '../../../../core/widgets/tech_background.dart';
+import '../../../../core/telemetry/error_telemetry.dart';
 import '../../data/error_center_repository.dart';
 import '../widgets/error_issue_detail_dialog.dart';
 
@@ -153,6 +154,20 @@ class _ErrorCenterPageState extends ConsumerState<ErrorCenterPage> {
                                       fontSize: 12)),
                                 ],
                               )),
+                              IconButton(
+                                tooltip: 'Enviar evento de prueba desde este dispositivo',
+                                onPressed: () async {
+                                  final ok = await ErrorTelemetry.instance
+                                      .sendDiagnostic();
+                                  if (!context.mounted) return;
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    SnackBar(content: Text(ok
+                                      ? 'Evento de prueba recibido por el backend.'
+                                      : 'No se pudo enviar la prueba. Comprueba sesión y conectividad.')));
+                                  if (ok) _load(silent: true);
+                                },
+                                icon: const Icon(Icons.science_rounded),
+                              ),
                               IconButton(
                                 tooltip: 'Actualizar incidencias',
                                 onPressed: () => _load(),
