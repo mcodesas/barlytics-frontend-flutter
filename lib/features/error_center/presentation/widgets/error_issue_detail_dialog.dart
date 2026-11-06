@@ -26,6 +26,7 @@ class ErrorIssueDetailDialog extends ConsumerStatefulWidget {
 
 class _ErrorIssueDetailDialogState
     extends ConsumerState<ErrorIssueDetailDialog> {
+  final _noteController = TextEditingController();
   Map<String, dynamic> _data = {};
   bool _loading = true;
   bool _saving = false;
@@ -35,6 +36,12 @@ class _ErrorIssueDetailDialogState
   void initState() {
     super.initState();
     _load();
+  }
+
+  @override
+  void dispose() {
+    _noteController.dispose();
+    super.dispose();
   }
 
   Future<void> _load() async {
@@ -76,6 +83,27 @@ class _ErrorIssueDetailDialogState
     }
   }
 
+  Future<void> _addNote() async {
+    final note = _noteController.text.trim();
+    if (note.isEmpty || _saving) return;
+    setState(() => _saving = true);
+    try {
+      await ref.read(errorCenterRepositoryProvider).addNote(widget.id, note);
+      if (!mounted) return;
+      _noteController.clear();
+      widget.onChanged();
+      await _load();
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Nota técnica registrada.')));
+      }
+    } catch (error) {
+      if (mounted) setState(() => _error = error.toString());
+    } finally {
+      if (mounted) setState(() => _saving = false);
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final palette = ref.watch(selectedAppPaletteProvider);
@@ -87,6 +115,7 @@ class _ErrorIssueDetailDialogState
     final versions = ErrorCenterRepository.rows(
         _data['samplesByVersion']);
     final timeline = ErrorCenterRepository.rows(_data['timeline']);
+    final notes = ErrorCenterRepository.rows(_data['notes']);
     final status = issue['status']?.toString() ?? 'OPEN';
 
     return Dialog(
@@ -200,6 +229,7 @@ class _ErrorIssueDetailDialogState
                             fontWeight: FontWeight.w900)),
                         const SizedBox(height: 8),
                         DropdownButtonFormField<String>(
+                          key: ValueKey('incident-status-' + status),
                           value: const {
                             'OPEN','INVESTIGATING','RESOLVED','IGNORED',
                           }.contains(status) ? status : 'OPEN',
@@ -227,6 +257,54 @@ class _ErrorIssueDetailDialogState
                           const Padding(
                             padding: EdgeInsets.only(top: 8),
                             child: LinearProgressIndicator(minHeight: 2)),
+                        const SizedBox(height: 19),
+                        Text('Bitácora de investigación',
+                          style: TextStyle(color: palette.textPrimary,
+                            fontWeight: FontWeight.w900, fontSize: 15)),
+                        const SizedBox(height: 8),
+                        TextField(
+                          controller: _noteController,
+                          maxLength: 1000,
+                          minLines: 2,
+                          maxLines: 4,
+                          decoration: const InputDecoration(
+                            labelText: 'Hallazgo, pasos de reproducción o corrección aplicada',
+                            prefixIcon: Icon(Icons.edit_note_rounded)),
+                        ),
+                        Align(
+                          alignment: Alignment.centerRight,
+                          child: FilledButton.icon(
+                            onPressed: _saving ? null : _addNote,
+                            icon: const Icon(Icons.save_rounded),
+                            label: const Text('Guardar nota'),
+                          ),
+                        ),
+                        if (notes.isEmpty)
+                          Text('Aún no hay notas de seguimiento.',
+                            style: TextStyle(color: palette.textSecondary,
+                              fontSize: 11))
+                        else
+                          for (final note in notes.take(25))
+                            ListTile(
+                              dense: true,
+                              leading: Icon(
+                                note['action'] == 'STATUS'
+                                  ? Icons.swap_horiz_rounded
+                                  : Icons.description_outlined,
+                                color: palette.secondary,
+                              ),
+                              title: Text(note['action'] == 'STATUS'
+                                  ? (note['previousStatus']?.toString() ?? '') +
+                                    ' → ' + (note['newStatus']?.toString() ?? '')
+                                  : note['note']?.toString() ?? ''),
+                              subtitle: Text(
+                                'Administrador ID ' +
+                                (note['actorUserId']?.toString() ?? '') +
+                                ' · ' + (note['createdAt']?.toString() ?? ''),
+                                style: TextStyle(
+                                  color: palette.textSecondary,
+                                  fontSize: 10)),
+                            ),
                         const SizedBox(height: 19),
                         Text('Versiones y dispositivos afectados (muestras)',
                           style: TextStyle(color: palette.textPrimary,
