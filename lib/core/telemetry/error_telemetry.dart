@@ -287,7 +287,8 @@ class ErrorTelemetry {
             caseSensitive: false), '[EMAIL]')
         .replaceAll(RegExp(r'https?://\S+', caseSensitive: false), '[URL]')
         .replaceAll(RegExp(r'\b(?:\d[ -]*?){13,19}\b'), '[NUMERO]')
-        .replaceAll(RegExp(r'[\x00-\x1f]'), ' ');
+        // Conservar saltos de línea para que la traza sea investigable.
+        .replaceAll(RegExp(r'[\x00-\x09\x0b-\x1f]'), ' ');
     if (clean.length > limit) clean = clean.substring(0, limit);
     return clean;
   }
