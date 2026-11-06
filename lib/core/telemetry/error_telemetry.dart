@@ -286,7 +286,12 @@ class ErrorTelemetry {
         .replaceAll(RegExp(r'[a-z0-9._%+-]+@[a-z0-9.-]+\.[a-z]{2,}',
             caseSensitive: false), '[EMAIL]')
         .replaceAll(RegExp(r'https?://\S+', caseSensitive: false), '[URL]')
+        .replaceAll(RegExp(r'[A-Z]:\\\\Users\\\\[^\\\s]+',
+            caseSensitive: false), '[RUTA_USUARIO]')
+        .replaceAll(RegExp(r'/(?:home|Users)/[^/\s]+',
+            caseSensitive: false), '/[USUARIO]')
         .replaceAll(RegExp(r'\b(?:\d[ -]*?){13,19}\b'), '[NUMERO]')
+        .replaceAll(RegExp(r'\b(?:\d{1,3}\.){3}\d{1,3}\b'), '[IP]')
         // Conservar saltos de línea para que la traza sea investigable.
         .replaceAll(RegExp(r'[\x00-\x09\x0b-\x1f]'), ' ');
     if (clean.length > limit) clean = clean.substring(0, limit);
