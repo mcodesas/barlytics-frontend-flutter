@@ -306,7 +306,7 @@ class _ErrorIssueDetailDialogState
                                   fontSize: 10)),
                             ),
                         const SizedBox(height: 19),
-                        Text('Versiones y dispositivos afectados (muestras)',
+                        Text('Versiones y dispositivos afectados (conteo exacto)',
                           style: TextStyle(color: palette.textPrimary,
                             fontWeight: FontWeight.w900, fontSize: 15)),
                         const SizedBox(height: 7),
@@ -327,7 +327,7 @@ class _ErrorIssueDetailDialogState
                               subtitle: Text('Última muestra: ' +
                                   (version['lastSeen']?.toString() ?? '—')),
                               trailing: Text(
-                                version['samples']?.toString() ?? '0'),
+                                version['occurrences']?.toString() ?? '0'),
                             ),
                         const SizedBox(height: 13),
                         Text('Frecuencia horaria (últimos 7 días)',
