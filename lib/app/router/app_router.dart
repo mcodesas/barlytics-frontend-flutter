@@ -2,6 +2,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import '../../core/telemetry/error_telemetry.dart';
 import '../../features/auth/presentation/pages/login_page.dart';
 import '../../features/auth/presentation/pages/forgot_password_page.dart';
 import '../../features/auth/presentation/pages/reset_password_page.dart';
@@ -135,6 +136,7 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       if (authState.restoringSession) return null;
 
       final path = state.uri.path;
+      ErrorTelemetry.instance.navigation(path);
       final matchedLocation = state.matchedLocation;
       final isLandingRoute = path == '/' || matchedLocation == '/';
       final isRegistrationRoute = path == '/registro' || matchedLocation == '/registro';
