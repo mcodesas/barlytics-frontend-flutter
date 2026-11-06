@@ -108,7 +108,12 @@ class AuthInterceptor extends Interceptor {
     // 401 = token ausente/expirado/inválido.
     // 403 = sesión válida sin permiso: se conserva la sesión y la pantalla puede
     // mostrar el error funcional sin expulsar al usuario.
-    final mustInvalidateSession = hadAuthenticatedRequest && statusCode == 401;
+    // Los reportes de monitoreo son auxiliares: un 401 específico de esta
+    // ruta no puede expulsar al usuario ni interrumpir una venta en curso.
+    final telemetryRequest =
+        err.requestOptions.extra['skipTelemetry'] == true;
+    final mustInvalidateSession =
+        !telemetryRequest && hadAuthenticatedRequest && statusCode == 401;
 
     if (mustInvalidateSession && err.requestOptions.extra['sessionRetried'] != true) {
       final pendingRefresh = _refreshInFlight ??= _refreshDeviceSession();
