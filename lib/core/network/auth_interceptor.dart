@@ -2,6 +2,7 @@ import 'package:dio/dio.dart';
 import 'package:flutter/foundation.dart';
 
 import '../config/app_config.dart';
+import '../telemetry/error_telemetry.dart';
 
 import '../constants/api_paths.dart';
 import '../constants/storage_keys.dart';
@@ -88,6 +89,18 @@ class AuthInterceptor extends Interceptor {
       }
     }
     options.headers['Accept'] = 'application/json';
+    if (options.extra['skipTelemetry'] == true &&
+        options.path == '/api/v1/error-center/report' &&
+        options.headers['Authorization'] == null) {
+      // Si no se ha iniciado sesión, conservar la cola en memoria y no
+      // generar una cadena de HTTP 401 mientras la página es pública.
+      handler.reject(DioException(
+        requestOptions: options,
+        type: DioExceptionType.cancel,
+        message: 'Telemetría pendiente de autenticación',
+      ));
+      return;
+    }
     super.onRequest(options, handler);
   }
 
@@ -176,6 +189,7 @@ class AuthInterceptor extends Interceptor {
   Future<void> _invalidateSessionOnce() async {
     if (_invalidatingSession) return;
     _invalidatingSession = true;
+    ErrorTelemetry.instance.clearSession();
 
     // La navegación debe reaccionar en el mismo instante en que llega el 401.
     // No esperamos a Secure Storage ni mostramos primero el error de la vista.
