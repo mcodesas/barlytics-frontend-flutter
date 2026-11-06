@@ -6,6 +6,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../../app/theme/app_palette.dart';
 import '../../../../core/widgets/tech_background.dart';
 import '../../../../core/telemetry/error_telemetry.dart';
+import '../../../../core/telemetry/error_telemetry.dart';
 import '../../data/error_center_repository.dart';
 import '../widgets/error_issue_detail_dialog.dart';
 
@@ -169,6 +170,20 @@ class _ErrorCenterPageState extends ConsumerState<ErrorCenterPage> {
                                 icon: const Icon(Icons.science_rounded),
                               ),
                               IconButton(
+                                tooltip: 'Enviar evento de prueba',
+                                onPressed: () async {
+                                  final ok = await ErrorTelemetry.instance.sendDiagnostic();
+                                  if (!context.mounted) return;
+                                  ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+                                    content: Text(ok
+                                      ? 'Evento de diagnóstico aceptado. Actualiza las incidencias.'
+                                      : 'El servidor rechazó la prueba o no hay sesión activa.'),
+                                  ));
+                                  if (ok) _load(silent: true);
+                                },
+                                icon: const Icon(Icons.science_outlined),
+                              ),
+                              IconButton(
                                 tooltip: 'Actualizar incidencias',
                                 onPressed: () => _load(),
                                 icon: const Icon(Icons.refresh_rounded),
@@ -325,6 +340,33 @@ class _ErrorCenterPageState extends ConsumerState<ErrorCenterPage> {
                               height: 1.35, fontSize: 11)),
                         ],
                       ),
+                    ),
+                  ),
+                ),
+              ),
+              SliverToBoxAdapter(
+                child: _PageWidth(
+                  child: Padding(
+                    padding: const EdgeInsets.fromLTRB(16, 0, 16, 10),
+                    child: Wrap(
+                      spacing: 8,
+                      runSpacing: 8,
+                      children: [
+                        for (final item in ErrorCenterRepository.rows(_metrics['platforms']))
+                          Chip(
+                            avatar: Icon(Icons.devices_other_rounded,
+                              size: 16, color: palette.secondary),
+                            label: Text((item['platform']?.toString() ?? 'Otro') +
+                              ': ' + (item['occurrences']?.toString() ?? '0')),
+                          ),
+                        for (final item in ErrorCenterRepository.rows(_metrics['categories']).take(6))
+                          Chip(
+                            avatar: Icon(Icons.sell_outlined,
+                              size: 16, color: palette.secondary),
+                            label: Text((item['category']?.toString() ?? 'Otra') +
+                              ': ' + (item['occurrences']?.toString() ?? '0')),
+                          ),
+                      ],
                     ),
                   ),
                 ),
