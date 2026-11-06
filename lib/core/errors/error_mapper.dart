@@ -7,15 +7,7 @@ class ErrorMapper {
   static Failure map(Object error) {
     if (error is AppException) {
       final statusCode = error.statusCode ?? 0;
-      if (statusCode >= 500) {
-        ErrorTelemetry.instance.capture(
-          category: 'handled_http_5xx',
-          errorType: error.runtimeType.toString(),
-          message: 'Error HTTP ' + statusCode.toString(),
-          module: 'error_mapper',
-          httpStatus: statusCode,
-        );
-      }
+      // Los HTTP 5xx ya se registran en Dio con su endpoint y latencia.
 
       return switch (statusCode) {
         401 => UnauthorizedFailure(error.message, code: error.code, statusCode: error.statusCode),
