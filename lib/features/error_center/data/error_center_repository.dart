@@ -60,6 +60,14 @@ class ErrorCenterRepository {
     );
   }
 
+  Future<void> addNote(int id, String note) async {
+    await _client.post<Map<String, dynamic>>(
+      '/api/v1/error-center/issues/$id/notes',
+      {'note': note},
+      _map,
+    );
+  }
+
   static List<Map<String, dynamic>> rows(Object? raw) =>
       (raw is List ? raw : const <Object>[])
           .whereType<Map>()
