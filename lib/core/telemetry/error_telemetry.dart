@@ -332,7 +332,7 @@ class ErrorTelemetry {
         .replaceAll(RegExp(r'[a-z0-9._%+-]+@[a-z0-9.-]+\.[a-z]{2,}',
             caseSensitive: false), '[EMAIL]')
         .replaceAll(RegExp(r'https?://\S+', caseSensitive: false), '[URL]')
-        .replaceAll(RegExp(r'[A-Z]:\\Users\\[^\\\s]+',
+        .replaceAll(RegExp(r'[A-Z]:\\Users\\[^\s]+',
             caseSensitive: false), '[RUTA_USUARIO]')
         .replaceAll(RegExp(r'/(?:home|Users)/[^/\s]+',
             caseSensitive: false), '/[USUARIO]')
