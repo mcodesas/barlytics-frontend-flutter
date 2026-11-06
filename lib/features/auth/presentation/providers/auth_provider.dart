@@ -10,6 +10,7 @@ import '../../../../core/errors/error_mapper.dart';
 import '../../../../core/errors/failure.dart';
 import '../../../../core/providers/core_providers.dart';
 import '../../../../core/network/session_expiration_notifier.dart';
+import '../../../../core/telemetry/error_telemetry.dart';
 import '../../data/datasources/auth_remote_datasource.dart';
 import '../../data/models/google_auth_models.dart';
 import '../../data/models/login_response_model.dart';
@@ -431,6 +432,7 @@ class AuthController extends StateNotifier<AuthState> {
   }
 
   Future<void> logout() async {
+    ErrorTelemetry.instance.clearSession();
     // El router escucha este estado. Se cambia primero para que el usuario vaya
     // al login de inmediato, sin esperar red, timeout ni respuesta del backend.
     _ref.invalidate(branchScopeProvider);
