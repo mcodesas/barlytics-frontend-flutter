@@ -1,4 +1,5 @@
 import 'package:dio/dio.dart';
+import '../telemetry/error_telemetry.dart';
 
 import '../config/app_config.dart';
 import '../storage/secure_storage_service.dart';
@@ -22,7 +23,9 @@ class DioClient {
     dio.interceptors.addAll([
       ApiInterceptor(),
       AuthInterceptor(storage, sessionExpirationNotifier, dio),
+      ErrorTelemetryInterceptor(),
     ]);
+    ErrorTelemetry.instance.attach(dio);
     return dio;
   }
 }
