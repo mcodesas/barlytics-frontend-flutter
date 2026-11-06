@@ -179,6 +179,48 @@ class ErrorTelemetry {
     flush();
   }
 
+  /// Evita que el error de una sesión aparezca asignado a otro usuario.
+  void clearSession() {
+    _pending.clear();
+    _recent.clear();
+    _breadcrumbs.clear();
+    _route = '';
+  }
+
+  /// Prueba de punta a punta iniciada por el administrador global.
+  /// Funciona incluso con Flutter en debug y no provoca una excepción real.
+  Future<bool> sendDiagnostic() async {
+    final dio = _dio;
+    if (dio == null) return false;
+    try {
+      await dio.post<void>(
+        '/api/v1/error-center/report',
+        data: {
+          'origin': 'flutter',
+          'category': 'diagnostic',
+          'errorType': 'TelemetrySelfTest',
+          'message': 'Prueba controlada de monitoreo ejecutada desde el panel',
+          'stacktrace': 'Sin excepción: verificación manual del transporte.',
+          'module': 'centro_errores',
+          'route': '/centro_errores',
+          'platform': kIsWeb ? 'web' : defaultTargetPlatform.name,
+          'appVersion': const String.fromEnvironment(
+              'BARLYTICS_APP_VERSION', defaultValue: '1.0.0'),
+          'appBuild': const String.fromEnvironment(
+              'BARLYTICS_APP_BUILD', defaultValue: '1'),
+          'deviceContext': sanitize(errorDeviceContext(), 120),
+          'lastAction': 'prueba_manual',
+          'breadcrumbs': 'Prueba solicitada por administrador global',
+        },
+        options: Options(extra: const {'skipTelemetry': true},
+          sendTimeout: const Duration(seconds: 8)),
+      );
+      return true;
+    } catch (_) {
+      return false;
+    }
+  }
+
   void flush() {
     if (!enabled || _sending || _dio == null || _pending.isEmpty) return;
     _sending = true;
