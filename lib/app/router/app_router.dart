@@ -147,6 +147,7 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       final isSubscriptionPlanAdminRoute = path == '/planes_suscripcion' || matchedLocation == '/planes_suscripcion';
       final activeRoles = ref.read(activeRolesProvider);
       final isGlobalAdmin = activeRoles.any(_isGlobalAdminRole);
+      final isSuperAdmin = activeRoles.any(_isSuperAdminRole);
       final isPlatformAdminRoute = _isPlatformAdminRoute(path);
       final isSetupConfigurationRoute = _isBusinessSetupConfigurationRoute(path);
       final isForgotPasswordRoute = path == '/forgot-password' || matchedLocation == '/forgot-password';
@@ -167,6 +168,9 @@ final appRouterProvider = Provider<GoRouter>((ref) {
 
       // Planes comerciales y soporte global son funciones exclusivas del
       // administrador de plataforma. Un GERENTE no puede entrar por URL directa.
+      if (authState.authenticated && path.startsWith('/centro_errores') && !isSuperAdmin) {
+        return authState.businessSetupComplete ? '/home' : '/configurar-negocio';
+      }
       if (authState.authenticated && isPlatformAdminRoute && !isGlobalAdmin) {
         if (!authState.subscriptionActive) return '/activar-suscripcion';
         return authState.businessSetupComplete ? '/home' : '/configurar-negocio';
@@ -734,6 +738,11 @@ Widget _setupAwareScaffold(ProviderRef<GoRouter> ref, GoRouterState state, Widge
   return AppScaffold(child: child);
 }
 
+
+bool _isSuperAdminRole(String role) {
+  final normalized = role.toUpperCase().trim().replaceFirst(RegExp(r'^ROLE_'), '');
+  return normalized == 'SUPERADMIN' || normalized == 'SUPER_ADMIN';
+}
 
 bool _isGlobalAdminRole(String role) {
   final normalized = role.toUpperCase().trim().replaceFirst(RegExp(r'^ROLE_'), '');
