@@ -116,6 +116,7 @@ class _ErrorIssueDetailDialogState
         _data['samplesByVersion']);
     final timeline = ErrorCenterRepository.rows(_data['timeline']);
     final notes = ErrorCenterRepository.rows(_data['notes']);
+    final branches = ErrorCenterRepository.rows(_data['branches']);
     final status = issue['status']?.toString() ?? 'OPEN';
 
     return Dialog(
@@ -330,6 +331,25 @@ class _ErrorIssueDetailDialogState
                                 version['occurrences']?.toString() ?? '0'),
                             ),
                         const SizedBox(height: 13),
+                        Text('Sucursales afectadas (conteo exacto)',
+                          style: TextStyle(color: palette.textPrimary,
+                            fontWeight: FontWeight.w900, fontSize: 15)),
+                        if (branches.isEmpty)
+                          Text('Sin sucursales identificadas.',
+                            style: TextStyle(color: palette.textSecondary))
+                        else
+                          for (final branch in branches)
+                            ListTile(
+                              dense: true,
+                              leading: const Icon(Icons.storefront_rounded),
+                              title: Text('Sucursal ' +
+                                (branch['branchId'] == 0
+                                  ? 'sin identificar'
+                                  : branch['branchId'].toString())),
+                              trailing: Text((branch['occurrences']?.toString()
+                                ?? '0') + ' fallos'),
+                            ),
+                        const SizedBox(height: 13),
                         Text('Frecuencia horaria (últimos 7 días)',
                           style: TextStyle(color: palette.textPrimary,
                             fontWeight: FontWeight.w900, fontSize: 15)),
@@ -462,6 +482,8 @@ class _Evidence extends StatelessWidget {
         childrenPadding: const EdgeInsets.fromLTRB(14, 0, 14, 15),
         children: [
           _EvidenceRow('Dispositivo y SO', event['deviceContext']),
+          _EvidenceRow('Usuario ID', event['reporterUserId']),
+          _EvidenceRow('Sucursal ID', event['sucursalId']),
           _EvidenceRow('Pantalla lógica',
             (event['screenWidth']?.toString() ?? '—') + ' × ' +
             (event['screenHeight']?.toString() ?? '—')),
