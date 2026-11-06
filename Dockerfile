@@ -16,13 +16,19 @@ RUN if [ -d "test" ]; then \
 FROM base AS build
 ARG APP_ENV=prod
 ARG API_BASE_URL=
+ARG BARLYTICS_APP_VERSION=1.0.0
+ARG BARLYTICS_APP_BUILD=1
 RUN if [ -n "$API_BASE_URL" ]; then \
       flutter build web --release \
         --dart-define=ENV="$APP_ENV" \
+        --dart-define=BARLYTICS_APP_VERSION="$BARLYTICS_APP_VERSION" \
+        --dart-define=BARLYTICS_APP_BUILD="$BARLYTICS_APP_BUILD" \
         --dart-define=API_BASE_URL="$API_BASE_URL"; \
     else \
       flutter build web --release \
-        --dart-define=ENV="$APP_ENV"; \
+        --dart-define=ENV="$APP_ENV" \
+        --dart-define=BARLYTICS_APP_VERSION="$BARLYTICS_APP_VERSION" \
+        --dart-define=BARLYTICS_APP_BUILD="$BARLYTICS_APP_BUILD"; \
     fi
 
 # Flutter conserva los recursos de web/, pero esta copia explícita garantiza que
