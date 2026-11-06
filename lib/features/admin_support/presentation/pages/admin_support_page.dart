@@ -240,6 +240,12 @@ class _SupportHero extends StatelessWidget {
                     style: OutlinedButton.styleFrom(minimumSize: const Size(0, 40)),
                   ),
                   OutlinedButton.icon(
+                    onPressed: () => context.go('/centro_errores'),
+                    icon: const Icon(Icons.bug_report_rounded, size: 18),
+                    label: const Text('Centro de errores'),
+                    style: OutlinedButton.styleFrom(minimumSize: const Size(0, 40)),
+                  ),
+                  OutlinedButton.icon(
                     onPressed: () => context.go('/auditoria_soporte'),
                     icon: const Icon(Icons.history_rounded, size: 18),
                     label: const Text('Auditoría'),
