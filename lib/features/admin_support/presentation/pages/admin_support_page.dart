@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../../app/theme/app_palette.dart';
+import '../../../navigation/presentation/providers/active_role_provider.dart';
 import '../../../../app/theme/module_visuals.dart';
 import '../../data/admin_support_repository.dart';
 
@@ -32,6 +33,10 @@ class _AdminSupportPageState extends ConsumerState<AdminSupportPage> {
   @override
   Widget build(BuildContext context) {
     final palette = ref.watch(selectedAppPaletteProvider);
+    final isSuperAdmin = ref.watch(activeRolesProvider).any((role) {
+      final value = role.toUpperCase().trim().replaceFirst(RegExp(r'^ROLE_'), '');
+      return value == 'SUPERADMIN' || value == 'SUPER_ADMIN';
+    });
     return Scaffold(
       backgroundColor: Colors.transparent,
       body: FutureBuilder<List<Map<String, dynamic>>>(
@@ -239,7 +244,7 @@ class _SupportHero extends StatelessWidget {
                     label: const Text('Diagnóstico'),
                     style: OutlinedButton.styleFrom(minimumSize: const Size(0, 40)),
                   ),
-                  OutlinedButton.icon(
+                  if (isSuperAdmin) OutlinedButton.icon(
                     onPressed: () => context.go('/centro_errores'),
                     icon: const Icon(Icons.bug_report_rounded, size: 18),
                     label: const Text('Centro de errores'),
