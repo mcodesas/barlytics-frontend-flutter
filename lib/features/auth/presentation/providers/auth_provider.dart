@@ -229,6 +229,8 @@ class AuthController extends StateNotifier<AuthState> {
       final setupComplete = response.subscriptionActive
           ? await _refreshBusinessSetupValue()
           : false;
+      // No atribuir fallos de un usuario público/anterior a esta sesión.
+      ErrorTelemetry.instance.clearSession();
       state = AuthState(
         authenticated: true,
         roles: response.roles,
@@ -261,6 +263,8 @@ class AuthController extends StateNotifier<AuthState> {
       final setupComplete = response.subscriptionActive
           ? await _refreshBusinessSetupValue()
           : false;
+      // No atribuir fallos de un usuario público/anterior a esta sesión.
+      ErrorTelemetry.instance.clearSession();
       state = AuthState(
         authenticated: true,
         roles: response.roles,
@@ -293,6 +297,8 @@ class AuthController extends StateNotifier<AuthState> {
       final setupComplete = response.subscriptionActive
           ? await _refreshBusinessSetupValue()
           : false;
+      // No atribuir fallos de un usuario público/anterior a esta sesión.
+      ErrorTelemetry.instance.clearSession();
       state = AuthState(
         authenticated: true,
         roles: response.roles,
