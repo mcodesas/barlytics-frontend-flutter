@@ -26,6 +26,8 @@ class ErrorTelemetry {
   final Queue<String> _breadcrumbs = Queue<String>();
   final Map<String, DateTime> _recent = <String, DateTime>{};
   Dio? _dio;
+  CancelToken? _inFlight;
+  int _sessionEpoch = 0;
   Timer? _retryTimer;
   bool _sending = false;
   String _route = '';
@@ -181,6 +183,9 @@ class ErrorTelemetry {
 
   /// Evita que el error de una sesión aparezca asignado a otro usuario.
   void clearSession() {
+    _sessionEpoch++;
+    _inFlight?.cancel('Cambio de sesión');
+    _inFlight = null;
     _pending.clear();
     _recent.clear();
     _breadcrumbs.clear();
@@ -228,34 +233,47 @@ class ErrorTelemetry {
   }
 
   Future<void> _sendQueued() async {
+    final epoch = _sessionEpoch;
     try {
-      while (_pending.isNotEmpty && _dio != null) {
+      while (_pending.isNotEmpty && _dio != null && epoch == _sessionEpoch) {
+        final event = _pending.first;
+        final cancel = CancelToken();
+        _inFlight = cancel;
         try {
           await _dio!.post<void>(
             '/api/v1/error-center/report',
-            data: _pending.first,
+            data: event,
+            cancelToken: cancel,
             options: Options(
               extra: const {'skipTelemetry': true},
               sendTimeout: const Duration(seconds: 5),
               receiveTimeout: const Duration(seconds: 5),
             ),
           );
-          _pending.removeFirst();
-        } on DioException catch (e) {
-          final status = e.response?.statusCode;
-          // Fallos permanentes de formato se descartan, nunca en bucle.
-          if (status == 400 || status == 413 || status == 422) {
+          if (_pending.isNotEmpty && identical(_pending.first, event)) {
             _pending.removeFirst();
+          }
+        } on DioException catch (error) {
+          if (epoch != _sessionEpoch) break;
+          final status = error.response?.statusCode;
+          if (status == 400 || status == 413 || status == 422) {
+            if (_pending.isNotEmpty && identical(_pending.first, event)) {
+              _pending.removeFirst();
+            }
             continue;
           }
-          // 401, 403, 429, falta de red o 5xx reintentan más tarde.
+          // 401, 403, 429 y pérdida de red reintentan cuando corresponda.
           break;
         } catch (_) {
           break;
+        } finally {
+          if (identical(_inFlight, cancel)) _inFlight = null;
         }
       }
     } finally {
       _sending = false;
+      // Una sesión nueva pudo crear eventos mientras se cancelaba el envío.
+      if (_pending.isNotEmpty && epoch != _sessionEpoch) flush();
     }
   }
 
