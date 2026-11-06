@@ -2,23 +2,27 @@ import 'dart:async';
 import 'dart:ui';
 
 import 'package:flutter/material.dart';
-import 'core/telemetry/error_telemetry.dart';
 import 'package:flutter/painting.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'app/bootstrap/bootstrap.dart';
 import 'app/app.dart';
+import 'core/telemetry/error_telemetry.dart';
 
 /// Punto de entrada principal de BarLytics.
 Future<void> main() async {
-  runZonedGuarded<Future<void>>(() async {
+  await runZonedGuarded<Future<void>>(() async {
     WidgetsFlutterBinding.ensureInitialized();
     final previousHandler = FlutterError.onError;
     FlutterError.onError = (details) {
-      if (previousHandler != null) {
-        previousHandler(details);
-      } else {
-        FlutterError.presentError(details);
+      try {
+        if (previousHandler != null) {
+          previousHandler(details);
+        } else {
+          FlutterError.presentError(details);
+        }
+      } catch (_) {
+        // La visualización de un error no debe bloquear su registro.
       }
       try {
         ErrorTelemetry.instance.frameworkError(details);
@@ -45,5 +49,5 @@ Future<void> main() async {
     try {
       ErrorTelemetry.instance.uncaughtError(error, stack, module: 'zone');
     } catch (_) {}
-  });
+  }) ?? Future<void>.value();
 }
