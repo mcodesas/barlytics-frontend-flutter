@@ -92,6 +92,8 @@ class ErrorTelemetry {
     if (options.extra['skipTelemetry'] == true ||
         options.uri.path.startsWith('/api/v1/error-center/')) return;
     final status = error.response?.statusCode;
+    // Cancelar una solicitud al cambiar de pantalla no es un fallo.
+    if (error.type == DioExceptionType.cancel) return;
     // Validaciones, autenticaciones y errores funcionales 4xx no son bugs.
     if (status != null && status < 500) return;
     final started = options.extra['telemetryStartMs'];
