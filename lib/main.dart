@@ -11,7 +11,7 @@ import 'core/telemetry/error_telemetry.dart';
 
 /// Punto de entrada principal de BarLytics.
 Future<void> main() async {
-  await runZonedGuarded<Future<void>>(() async {
+  await (runZonedGuarded<Future<void>>(() async {
     WidgetsFlutterBinding.ensureInitialized();
     final previousHandler = FlutterError.onError;
     FlutterError.onError = (details) {
@@ -49,5 +49,5 @@ Future<void> main() async {
     try {
       ErrorTelemetry.instance.uncaughtError(error, stack, module: 'zone');
     } catch (_) {}
-  }) ?? Future<void>.value();
+  }) ?? Future<void>.value());
 }
