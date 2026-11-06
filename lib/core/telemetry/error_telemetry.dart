@@ -267,15 +267,39 @@ class ErrorTelemetry {
     if (parts.length >= 3 &&
         parts[0].toLowerCase() == 'api' &&
         parts[1].toLowerCase() == 'v1') {
-      // No perder el endpoint al reportar un HTTP 500. El módulo y algunas
-      // acciones son nombres estáticos; IDs, slugs y tokens se sustituyen.
+      // Conservar el endpoint sin introducir identificadores de clientes.
       final module = parts[2].toLowerCase();
-      if (!RegExp(r'^[a-z][a-z_-]{1,49}
+      if (!RegExp(r'^[a-z][a-z_-]{1,49}$').hasMatch(module)) {
+        return '/api/v1/:modulo';
+      }
+      const actions = <String>{
+        'administracion', 'excel', 'inventario', 'productos', 'historial',
+        'conteos', 'movimientos', 'ventas', 'pedidos', 'pagos', 'cierres',
+        'resumen', 'reportes', 'usuarios', 'sucursales', 'configuracion',
+        'public', 'login', 'auth', 'me', 'menus', 'datos', 'exportar',
+        'compras', 'consultar', 'importar', 'publicar', 'recibir',
+        'precios', 'saldos', 'descargas', 'catalogo', 'detalle', 'estado',
+        'facturas', 'caja', 'medios', 'proveedores', 'reservas',
+        'eventos', 'actualizar',
+      };
+      final segments = <String>['api', 'v1', module];
+      for (final segment in parts.skip(3).take(3)) {
+        final item = segment.toLowerCase();
+        segments.add(actions.contains(item) ? item : ':id');
+      }
+      return '/' + segments.join('/');
+    }
+
+    final first = parts.first.toLowerCase();
+    if (!RegExp(r'^[a-z_]{2,45}$').hasMatch(first)) return '/modulo';
+    const known = <String>{
       'historial', 'productos', 'inventario', 'admin', 'conteos',
       'editar', 'crear', 'ventas', 'pedidos', 'detalle', 'reportes',
     };
-    final extra = parts.length >= 2 && known.contains(parts[1].toLowerCase())
-        ? '/' + parts[1].toLowerCase() : '';
+    final extra = parts.length >= 2 &&
+            known.contains(parts[1].toLowerCase())
+        ? '/' + parts[1].toLowerCase()
+        : '';
     return '/' + first + extra;
   }
 
