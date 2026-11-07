@@ -1143,6 +1143,7 @@ class _RoleHomeProfile {
       final clean = role.replaceFirst('ROLE_', '');
       return clean == 'ADMIN' ||
           clean == 'ADMINISTRADOR' ||
+          clean == 'ADMIN_Y_SOPORTE' ||
           clean == 'SUPERADMIN' ||
           clean == 'SUPER_ADMIN';
     })) {
