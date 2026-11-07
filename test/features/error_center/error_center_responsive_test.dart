@@ -29,6 +29,8 @@ class _FakeErrorCenterRepository extends ErrorCenterRepository {
     String status = '',
     String severity = '',
     String platform = '',
+    String origin = '',
+    String category = '',
     String search = '',
     int? companyId,
     int page = 0,
