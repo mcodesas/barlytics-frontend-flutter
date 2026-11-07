@@ -165,6 +165,7 @@ bool _isGlobalAdminRole(String role) {
   final normalized = _normalizeRole(role).replaceFirst(RegExp(r'^ROLE_'), '');
   return normalized == 'ADMIN' ||
       normalized == 'ADMINISTRADOR' ||
+      normalized == 'ADMIN_Y_SOPORTE' ||
       normalized == 'SUPERADMIN' ||
       normalized == 'SUPER_ADMIN';
 }
