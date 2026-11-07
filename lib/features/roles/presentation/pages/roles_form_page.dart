@@ -142,7 +142,7 @@ class _RolesFormPageState extends ConsumerState<RolesFormPage> {
   @override
   Widget build(BuildContext context) {
     if (widget.id == null) {
-      return const DynamicCrudFormPage(config: rolesConfig);
+      return DynamicCrudFormPage(config: rolesConfig);
     }
     final palette = ref.watch(selectedAppPaletteProvider);
     final authorized = ref.watch(activeRolesProvider).any((role) =>
