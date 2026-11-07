@@ -143,9 +143,6 @@ class _RolesFormPageState extends ConsumerState<RolesFormPage> {
 
   @override
   Widget build(BuildContext context) {
-    if (widget.id == null) {
-      return DynamicCrudFormPage(config: rolesConfig);
-    }
     final palette = ref.watch(selectedAppPaletteProvider);
     final authorized = ref.watch(activeRolesProvider).any((role) =>
       const {'ADMIN', 'ADMINISTRADOR', 'SUPERADMIN', 'SUPER_ADMIN',
@@ -153,6 +150,9 @@ class _RolesFormPageState extends ConsumerState<RolesFormPage> {
     if (!authorized) {
       return const Scaffold(body: Center(child:
         Text('Solo el administrador del sistema puede editar permisos nativos.')));
+    }
+    if (widget.id == null) {
+      return DynamicCrudFormPage(config: rolesConfig);
     }
     final grouped = <String, List<Map<String, dynamic>>>{};
     for (final item in _menus) {
