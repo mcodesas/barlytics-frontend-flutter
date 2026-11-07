@@ -191,8 +191,18 @@ List<UserMenuItem> _sortAdminItems(List<UserMenuItem> items) {
     'parametros': 16,
   };
   final sorted = List<UserMenuItem>.of(items);
+  final hasRoleOrder = items.any((item) => item.defaultRoleOrder != null);
+  final indices = <UserMenuItem, int>{
+    for (var i = 0; i < items.length; i++) items[i]: i,
+  };
   sorted.sort((a, b) {
-    final byPriority = (priority[a.keyName] ?? 999).compareTo(priority[b.keyName] ?? 999);
+    // Roles debe figurar primero en el inicio administrativo.
+    if (a.keyName == 'roles' && b.keyName != 'roles') return -1;
+    if (b.keyName == 'roles' && a.keyName != 'roles') return 1;
+    // Para el resto, respetar la prioridad del rol o vista seleccionada.
+    if (hasRoleOrder) return indices[a]!.compareTo(indices[b]!);
+    final byPriority = (priority[a.keyName] ?? 999)
+        .compareTo(priority[b.keyName] ?? 999);
     if (byPriority != 0) return byPriority;
     return a.title.compareTo(b.title);
   });
