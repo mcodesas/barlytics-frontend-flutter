@@ -739,7 +739,7 @@ Widget _setupAwareScaffold(ProviderRef<GoRouter> ref, GoRouterState state, Widge
 
 
 bool _isSuperAdminRole(String role) {
-  final normalized = role.toUpperCase().trim().replaceFirst(RegExp(r'^ROLE_'), '');
+  final normalized = normalizeRoleName(role);
   return normalized == 'SUPERADMIN' || normalized == 'SUPER_ADMIN';
 }
 
