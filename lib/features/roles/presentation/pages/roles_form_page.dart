@@ -367,9 +367,10 @@ class _RolesFormPageState extends ConsumerState<RolesFormPage> {
                                   if (menu['restricted'] == true) continue;
                                   final id = DefaultRolesRepository.asInt(menu['menuId']);
                                   if (checked) {
-                                    _selected.add(id);
+                                    if (_selected.add(id)) _selectedOrder.add(id);
                                   } else {
                                     _selected.remove(id);
+                                    _selectedOrder.remove(id);
                                   }
                                 }
                               });
