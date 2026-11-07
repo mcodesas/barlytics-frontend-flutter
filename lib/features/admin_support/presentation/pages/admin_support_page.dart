@@ -35,7 +35,7 @@ class _AdminSupportPageState extends ConsumerState<AdminSupportPage> {
     final palette = ref.watch(selectedAppPaletteProvider);
     final isSuperAdmin = ref.watch(activeRolesProvider).any((role) {
       final value = role.toUpperCase().trim().replaceFirst(RegExp(r'^ROLE_'), '');
-      return value == 'SUPERADMIN' || value == 'SUPER_ADMIN';
+      return const {'ADMIN', 'ADMINISTRADOR', 'SUPERADMIN', 'SUPER_ADMIN'}.contains(value);
     });
     return Scaffold(
       backgroundColor: Colors.transparent,
