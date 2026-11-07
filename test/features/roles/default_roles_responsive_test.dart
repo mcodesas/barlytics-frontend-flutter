@@ -65,6 +65,19 @@ class _FakeRepository extends DefaultRolesRepository {
 }
 
 void main() {
+  testWidgets('Un rol operativo no puede abrir el panel nativo', (tester) async {
+    await tester.pumpWidget(ProviderScope(
+      overrides: [
+        activeRolesProvider.overrideWithValue(['GERENTE']),
+        defaultRolesRepositoryProvider.overrideWithValue(_FakeRepository()),
+      ],
+      child: const MaterialApp(home: RolesListPage()),
+    ));
+    await tester.pumpAndSettle();
+    expect(find.textContaining('Solo administración del sistema'), findsOneWidget);
+    await tester.pumpWidget(const SizedBox.shrink());
+  });
+
   for (final width in [320.0, 390.0, 768.0, 1200.0]) {
     testWidgets('Panel de roles adaptable a ${width.toInt()} px', (tester) async {
       tester.view.physicalSize = Size(width, 850);
@@ -99,7 +112,7 @@ void main() {
       ));
       await tester.pumpAndSettle();
       expect(find.text('Guardar cambios'), findsOneWidget);
-      expect(find.text('Configuración de rol predefinido'), findsNothing);
+      expect(find.text('CAJERO'), findsOneWidget);
       expect(tester.takeException(), isNull);
       await tester.pumpWidget(const SizedBox.shrink());
     });
