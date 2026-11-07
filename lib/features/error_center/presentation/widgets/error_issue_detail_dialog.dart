@@ -177,6 +177,9 @@ class _ErrorIssueDetailDialogState
                           _Tag('Estado ' + status, palette.secondary),
                           _Tag(issue['severity']?.toString() ?? 'ERROR',
                               Colors.redAccent),
+                          if (ErrorCenterRepository.number(issue['reopenCount']) > 0)
+                            _Tag('Reincidencias ' +
+                              issue['reopenCount'].toString(), Colors.deepOrange),
                           _Tag('Ocurrencias ' +
                               (issue['occurrences']?.toString() ?? '0'),
                               palette.primary),
