@@ -63,7 +63,7 @@ class _AdminSupportPageState extends ConsumerState<AdminSupportPage> {
             child: CustomScrollView(
               physics: const AlwaysScrollableScrollPhysics(),
               slivers: [
-                SliverToBoxAdapter(child: _SupportHero(palette: palette, onRefresh: _reload)),
+                SliverToBoxAdapter(child: _SupportHero(palette: palette, onRefresh: _reload, isSuperAdmin: isSuperAdmin)),
                 SliverToBoxAdapter(
                   child: Padding(
                     padding: const EdgeInsets.fromLTRB(16, 16, 16, 0),
@@ -189,9 +189,10 @@ class _AdminSupportPageState extends ConsumerState<AdminSupportPage> {
 }
 
 class _SupportHero extends StatelessWidget {
-  const _SupportHero({required this.palette, required this.onRefresh});
+  const _SupportHero({required this.palette, required this.onRefresh, required this.isSuperAdmin});
   final AppPalette palette;
   final Future<void> Function() onRefresh;
+  final bool isSuperAdmin;
 
   @override
   Widget build(BuildContext context) {
