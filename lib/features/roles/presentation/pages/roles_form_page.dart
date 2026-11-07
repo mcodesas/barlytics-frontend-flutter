@@ -26,6 +26,8 @@ class _RolesFormPageState extends ConsumerState<RolesFormPage> {
   List<Map<String, dynamic>> _menus = [];
   Set<int> _selected = {};
   Set<int> _initial = {};
+  List<int> _selectedOrder = [];
+  List<int> _initialOrder = [];
   bool _loading = true;
   bool _saving = false;
   String _query = '';
@@ -34,7 +36,27 @@ class _RolesFormPageState extends ConsumerState<RolesFormPage> {
   int? get _id => int.tryParse(widget.id ?? '');
   bool get _dirty => _selected.length != _initial.length ||
     !_selected.containsAll(_initial) ||
+    _selectedOrder.length != _initialOrder.length ||
+    !_sameOrder() ||
     _description.text.trim() != (_role['roleDescripcion']?.toString() ?? '').trim();
+
+  bool _sameOrder() {
+    for (var index = 0; index < _selectedOrder.length; index++) {
+      if (index >= _initialOrder.length ||
+          _selectedOrder[index] != _initialOrder[index]) return false;
+    }
+    return true;
+  }
+
+  void _moveMenu(int id, int position) {
+    final previous = _selectedOrder.indexOf(id);
+    if (previous < 0 || position < 0 ||
+        position >= _selectedOrder.length || previous == position) return;
+    setState(() {
+      _selectedOrder.removeAt(previous);
+      _selectedOrder.insert(position, id);
+    });
+  }
 
   @override
   void initState() {
@@ -67,14 +89,21 @@ class _RolesFormPageState extends ConsumerState<RolesFormPage> {
       if (!mounted) return;
       final role = DefaultRolesRepository.toMap(result['role']);
       final menus = DefaultRolesRepository.toList(result['menus']);
-      final selected = menus.where((menu) => menu['assigned'] == true)
-        .map((menu) => DefaultRolesRepository.asInt(menu['menuId']))
-        .toSet();
+      // El backend devuelve el orden existente por rol. Al migrar desde
+      // versiones sin prioridad, usa el orden de catálogo como valor inicial.
+      final selectedMenus = menus.where((menu) => menu['assigned'] == true)
+          .toList(growable: false);
+      final orderedIds = selectedMenus
+          .map((menu) => DefaultRolesRepository.asInt(menu['menuId']))
+          .toList(growable: false);
+      final selected = orderedIds.toSet();
       setState(() {
         _role = role;
         _menus = menus;
         _selected = selected;
         _initial = {...selected};
+        _selectedOrder = [...orderedIds];
+        _initialOrder = [...orderedIds];
         _description.text = role['roleDescripcion']?.toString() ?? '';
         _loading = false;
       });
@@ -92,9 +121,10 @@ class _RolesFormPageState extends ConsumerState<RolesFormPage> {
     if (menu['restricted'] == true && selected) return;
     setState(() {
       if (selected) {
-        _selected.add(id);
+        if (_selected.add(id)) _selectedOrder.add(id);
       } else {
         _selected.remove(id);
+        _selectedOrder.remove(id);
       }
     });
   }
@@ -128,7 +158,7 @@ class _RolesFormPageState extends ConsumerState<RolesFormPage> {
     setState(() => _saving = true);
     try {
       await ref.read(defaultRolesRepositoryProvider).save(
-        id, _selected.toList()..sort(), description);
+        id, List<int>.of(_selectedOrder), description);
       if (!mounted) return;
       ref.invalidate(userMenuProvider);
       ScaffoldMessenger.of(context).showSnackBar(
@@ -160,8 +190,11 @@ class _RolesFormPageState extends ConsumerState<RolesFormPage> {
       final group = title == null || title.isEmpty ? 'Otros' : title;
       grouped.putIfAbsent(group, () => []).add(item);
     }
-    final selectedMenus = _menus.where((menu) =>
-      _selected.contains(DefaultRolesRepository.asInt(menu['menuId']))).toList();
+    final selectedMenus = [
+      for (final id in _selectedOrder)
+        ..._menus.where((menu) =>
+          DefaultRolesRepository.asInt(menu['menuId']) == id),
+    ];
     final filter = _query.trim().toLowerCase();
     final availableCount = _menus.where((m) => m['restricted'] != true).length;
     return Scaffold(
@@ -267,9 +300,14 @@ class _RolesFormPageState extends ConsumerState<RolesFormPage> {
                             setState(() => _error = null), child: const Text('Cerrar'))]),
                       ],
                       const SizedBox(height: 18),
-                      Text('Vista previa de los accesos',
+                      Text('Prioridad y visibilidad del menú',
                         style: Theme.of(context).textTheme.titleLarge?.copyWith(
                           color: palette.textPrimary, fontWeight: FontWeight.w900)),
+                      const SizedBox(height: 5),
+                      Text('Activa o desactiva opciones abajo. Aquí puedes '
+                        'moverlas o asignarles una posición directamente: '
+                        '1 aparece primero para este rol.',
+                        style: TextStyle(color: palette.textSecondary)),
                       const SizedBox(height: 8),
                       Container(
                         padding: const EdgeInsets.all(13),
@@ -278,12 +316,220 @@ class _RolesFormPageState extends ConsumerState<RolesFormPage> {
                         child: selectedMenus.isEmpty
                           ? Text('Este rol no tiene módulos asignados.',
                               style: TextStyle(color: palette.textSecondary))
-                          : Wrap(spacing: 7, runSpacing: 7, children: [
-                              for (final menu in selectedMenus)
-                                Chip(visualDensity: VisualDensity.compact,
-                                  avatar: const Icon(Icons.check_circle_outline,
-                                    size: 16),
-                                  label: Text(menu['nombre']?.toString() ?? 'Opción')),
+                          : Column(children: [
+                              for (var i = 0; i < selectedMenus.length; i++) ...[
+                                if (i > 0) const Divider(height: 10),
+                                Row(children: [
+                                  SizedBox(width: 62, child: DropdownButton<int>(
+                                    value: i + 1,
+                                    isExpanded: true,
+                                    underline: const SizedBox.shrink(),
+                                    items: [
+                                      for (var position = 1;
+                                          position <= selectedMenus.length;
+                                          position++)
+                                        DropdownMenuItem(
+                                          value: position,
+                                          child: Text('
+                      const SizedBox(height: 18),
+                      TextField(
+                        controller: _search,
+                        onChanged: (value) => setState(() => _query = value),
+                        decoration: InputDecoration(
+                          labelText: 'Buscar opciones de menú',
+                          prefixIcon: const Icon(Icons.search_rounded),
+                          suffixIcon: filter.isEmpty ? null : IconButton(
+                            onPressed: () {
+                              _search.clear();
+                              setState(() => _query = '');
+                            }, icon: const Icon(Icons.clear_rounded)),
+                        ),
+                      ),
+                      const SizedBox(height: 16),
+                      for (final entry in grouped.entries) ...[
+                        if (entry.value.any((menu) =>
+                          '${menu['nombre']} ${menu['descripcion']} ${menu['parametro']}'
+                            .toLowerCase().contains(filter))) ...[
+                          _GroupCard(
+                            title: entry.key,
+                            menus: entry.value.where((menu) =>
+                              '${menu['nombre']} ${menu['descripcion']} ${menu['parametro']}'
+                                .toLowerCase().contains(filter)).toList(),
+                            selected: _selected,
+                            palette: palette,
+                            onToggle: _setChecked,
+                            onSelectGroup: (checked) {
+                              setState(() {
+                                for (final menu in entry.value) {
+                                  if (menu['restricted'] == true) continue;
+                                  final id = DefaultRolesRepository.asInt(menu['menuId']);
+                                  if (checked) {
+                                    if (_selected.add(id)) _selectedOrder.add(id);
+                                  } else {
+                                    _selected.remove(id);
+                                    _selectedOrder.remove(id);
+                                  }
+                                }
+                              });
+                            },
+                          ),
+                          const SizedBox(height: 14),
+                        ],
+                      ],
+                      const SizedBox(height: 12),
+                    ]),
+                  )),
+                ],
+              ),
+      ),
+    );
+  }
+}
+
+class _GroupCard extends StatelessWidget {
+  const _GroupCard({required this.title, required this.menus,
+    required this.selected, required this.palette,
+    required this.onToggle, required this.onSelectGroup});
+  final String title;
+  final List<Map<String, dynamic>> menus;
+  final Set<int> selected;
+  final AppPalette palette;
+  final void Function(Map<String, dynamic>, bool) onToggle;
+  final ValueChanged<bool> onSelectGroup;
+
+  @override
+  Widget build(BuildContext context) {
+    final assignable = menus.where((m) => m['restricted'] != true).toList();
+    final picked = menus.where((m) =>
+      selected.contains(DefaultRolesRepository.asInt(m['menuId']))).length;
+    final complete = assignable.isNotEmpty && assignable.every((m) =>
+      selected.contains(DefaultRolesRepository.asInt(m['menuId'])));
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: palette.panelDecoration(baseRadius: 21,
+        tint: palette.secondary, elevated: false),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Wrap(spacing: 8, runSpacing: 8, crossAxisAlignment: WrapCrossAlignment.center,
+          children: [
+            Icon(Icons.folder_copy_outlined, color: palette.primary),
+            Text(title, style: Theme.of(context).textTheme.titleMedium
+              ?.copyWith(color: palette.textPrimary,
+                fontWeight: FontWeight.w900)),
+            Chip(label: Text('$picked/${menus.length}')),
+            TextButton.icon(
+              onPressed: assignable.isEmpty ? null :
+                () => onSelectGroup(!complete),
+              icon: Icon(complete ? Icons.deselect_rounded
+                : Icons.done_all_rounded),
+              label: Text(complete ? 'Quitar grupo' : 'Seleccionar grupo')),
+          ]),
+        const SizedBox(height: 10),
+        LayoutBuilder(builder: (context, constraints) {
+          final cols = constraints.maxWidth >= 920 ? 3
+            : constraints.maxWidth >= 540 ? 2 : 1;
+          final width = (constraints.maxWidth - (cols - 1) * 10) / cols;
+          return Wrap(spacing: 10, runSpacing: 10, children: [
+            for (final menu in menus)
+              SizedBox(width: width, child: _MenuOption(
+                menu: menu, palette: palette,
+                selected: selected.contains(
+                  DefaultRolesRepository.asInt(menu['menuId'])),
+                onToggle: (checked) => onToggle(menu, checked))),
+          ]);
+        }),
+      ]),
+    );
+  }
+}
+
+class _MenuOption extends StatelessWidget {
+  const _MenuOption({required this.menu, required this.palette,
+    required this.selected, required this.onToggle});
+  final Map<String, dynamic> menu;
+  final AppPalette palette;
+  final bool selected;
+  final ValueChanged<bool> onToggle;
+
+  @override
+  Widget build(BuildContext context) {
+    final restricted = menu['restricted'] == true;
+    final enabled = !restricted || selected;
+    return InkWell(
+      onTap: enabled ? () => onToggle(!selected) : null,
+      borderRadius: BorderRadius.circular(16),
+      child: Container(
+        padding: const EdgeInsets.all(12),
+        decoration: palette.panelDecoration(baseRadius: 16,
+          tint: selected ? palette.primary : null, elevated: false),
+        child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Checkbox(value: selected,
+            onChanged: enabled ? (checked) => onToggle(checked == true) : null),
+          const SizedBox(width: 4),
+          Expanded(child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Text(menu['nombre']?.toString() ?? 'Opción',
+                style: TextStyle(color: palette.textPrimary,
+                  fontWeight: FontWeight.w800, fontSize: 13)),
+              const SizedBox(height: 4),
+              Text(menu['descripcion']?.toString() ?? '',
+                maxLines: 2, overflow: TextOverflow.ellipsis,
+                style: TextStyle(color: palette.textSecondary,
+                  fontSize: 11, height: 1.3)),
+              if (restricted) ...[
+                const SizedBox(height: 6),
+                Text('Reservado para administración',
+                  style: TextStyle(color: palette.secondary,
+                    fontSize: 10, fontWeight: FontWeight.w800)),
+              ],
+            ],
+          )),
+        ]),
+      ),
+    );
+  }
+}
+ + 'position')),
+                                    ],
+                                    onChanged: _saving ? null : (value) {
+                                      if (value != null) {
+                                        _moveMenu(_selectedOrder[i], value - 1);
+                                      }
+                                    },
+                                  )),
+                                  const SizedBox(width: 9),
+                                  Expanded(child: Column(
+                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    children: [
+                                      Text(selectedMenus[i]['nombre']
+                                              ?.toString() ?? 'Opción',
+                                        maxLines: 2,
+                                        overflow: TextOverflow.ellipsis,
+                                        style: TextStyle(
+                                          color: palette.textPrimary,
+                                          fontWeight: FontWeight.w800)),
+                                      Text(selectedMenus[i]['grupo']
+                                              ?.toString() ?? '',
+                                        style: TextStyle(
+                                          color: palette.textSecondary,
+                                          fontSize: 11)),
+                                    ])),
+                                  IconButton(
+                                    tooltip: 'Subir prioridad',
+                                    onPressed: _saving || i == 0 ? null
+                                      : () => _moveMenu(_selectedOrder[i], i - 1),
+                                    icon: const Icon(Icons.arrow_upward_rounded)),
+                                  IconButton(
+                                    tooltip: 'Bajar prioridad',
+                                    onPressed: _saving || i == selectedMenus.length - 1
+                                      ? null : () => _moveMenu(_selectedOrder[i], i + 1),
+                                    icon: const Icon(Icons.arrow_downward_rounded)),
+                                  IconButton(
+                                    tooltip: 'Ocultar módulo para este rol',
+                                    onPressed: _saving ? null : () =>
+                                      _setChecked(selectedMenus[i], false),
+                                    icon: const Icon(Icons.visibility_off_outlined)),
+                                ]),
+                              ],
                             ]),
                       ),
                       const SizedBox(height: 18),
