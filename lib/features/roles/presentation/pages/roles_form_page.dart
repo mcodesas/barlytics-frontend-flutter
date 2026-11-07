@@ -7,6 +7,7 @@ import '../../../../app/theme/app_palette.dart';
 import '../../../../core/widgets/dynamic_crud_form_page.dart';
 import '../../../../core/widgets/tech_background.dart';
 import '../../../navigation/presentation/providers/active_role_provider.dart';
+import '../../../navigation/presentation/providers/user_menu_provider.dart';
 import '../../data/default_roles_repository.dart';
 
 /// Editor visual de permisos nativos. No cambia el identificador técnico del rol.
@@ -129,6 +130,7 @@ class _RolesFormPageState extends ConsumerState<RolesFormPage> {
       await ref.read(defaultRolesRepositoryProvider).save(
         id, _selected.toList()..sort(), description);
       if (!mounted) return;
+      ref.invalidate(userMenuProvider);
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Permisos del rol actualizados correctamente.')));
       context.go('/roles');
