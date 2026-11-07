@@ -12,6 +12,7 @@ class UserMenuItem {
     this.roleIds = const <int>[],
     this.customOrderByRole = const <int, int>{},
     this.customOrder,
+    this.defaultRoleOrder,
     this.personalOrder,
     this.isFavorite = false,
     this.groupCode = 'OTROS',
@@ -40,6 +41,7 @@ class UserMenuItem {
   final List<int> roleIds;
   final Map<int, int> customOrderByRole;
   final int? customOrder;
+  final int? defaultRoleOrder;
   final int? personalOrder;
   final bool isFavorite;
   final String groupCode;
@@ -74,6 +76,7 @@ class UserMenuItem {
           .map((key, value) => MapEntry(int.tryParse(key.toString()) ?? -1, _toInt(value) ?? 0))
           ..remove(-1),
       customOrder: _toInt(json['ordenPersonalizado']),
+      defaultRoleOrder: _toInt(json['ordenPredefinido']),
       groupCode: _text(json['grupoCodigo'], 'OTROS'),
       groupName: _text(json['grupoNombre'], 'Otros'),
       groupIcon: _text(json['grupoIcono'], 'more_horiz'),
@@ -97,6 +100,7 @@ class UserMenuItem {
     List<int>? roleIds,
     Map<int, int>? customOrderByRole,
     int? customOrder,
+    int? defaultRoleOrder,
     int? personalOrder,
     bool? isFavorite,
     String? groupCode,
@@ -124,6 +128,7 @@ class UserMenuItem {
         roleIds: roleIds ?? this.roleIds,
         customOrderByRole: customOrderByRole ?? this.customOrderByRole,
         customOrder: customOrder ?? this.customOrder,
+        defaultRoleOrder: defaultRoleOrder ?? this.defaultRoleOrder,
         personalOrder: personalOrder ?? this.personalOrder,
         isFavorite: isFavorite ?? this.isFavorite,
         groupCode: groupCode ?? this.groupCode,
