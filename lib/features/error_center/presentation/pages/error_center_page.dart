@@ -6,7 +6,6 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../../app/theme/app_palette.dart';
 import '../../../../core/widgets/tech_background.dart';
 import '../../../../core/telemetry/error_telemetry.dart';
-import '../../../../core/telemetry/error_telemetry.dart';
 import '../../data/error_center_repository.dart';
 import '../widgets/error_issue_detail_dialog.dart';
 
