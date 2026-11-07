@@ -319,58 +319,18 @@ class _RolesFormPageState extends ConsumerState<RolesFormPage> {
                           : Column(children: [
                               for (var i = 0; i < selectedMenus.length; i++) ...[
                                 if (i > 0) const Divider(height: 10),
-                                Row(children: [
-                                  SizedBox(width: 62, child: DropdownButton<int>(
-                                    value: i + 1,
-                                    isExpanded: true,
-                                    underline: const SizedBox.shrink(),
-                                    items: [
-                                      for (var position = 1;
-                                          position <= selectedMenus.length;
-                                          position++)
-                                        DropdownMenuItem(
-                                          value: position,
-                                          child: Text(position.toString())),
-                                    ],
-                                    onChanged: _saving ? null : (value) {
-                                      if (value != null) {
-                                        _moveMenu(_selectedOrder[i], value - 1);
-                                      }
-                                    },
-                                  )),
-                                  const SizedBox(width: 9),
-                                  Expanded(child: Column(
-                                    crossAxisAlignment: CrossAxisAlignment.start,
-                                    children: [
-                                      Text(selectedMenus[i]['nombre']
-                                              ?.toString() ?? 'Opción',
-                                        maxLines: 2,
-                                        overflow: TextOverflow.ellipsis,
-                                        style: TextStyle(
-                                          color: palette.textPrimary,
-                                          fontWeight: FontWeight.w800)),
-                                      Text(selectedMenus[i]['grupo']
-                                              ?.toString() ?? '',
-                                        style: TextStyle(
-                                          color: palette.textSecondary,
-                                          fontSize: 11)),
-                                    ])),
-                                  IconButton(
-                                    tooltip: 'Subir prioridad',
-                                    onPressed: _saving || i == 0 ? null
-                                      : () => _moveMenu(_selectedOrder[i], i - 1),
-                                    icon: const Icon(Icons.arrow_upward_rounded)),
-                                  IconButton(
-                                    tooltip: 'Bajar prioridad',
-                                    onPressed: _saving || i == selectedMenus.length - 1
-                                      ? null : () => _moveMenu(_selectedOrder[i], i + 1),
-                                    icon: const Icon(Icons.arrow_downward_rounded)),
-                                  IconButton(
-                                    tooltip: 'Ocultar módulo para este rol',
-                                    onPressed: _saving ? null : () =>
-                                      _setChecked(selectedMenus[i], false),
-                                    icon: const Icon(Icons.visibility_off_outlined)),
-                                ]),
+                                _RoleMenuOrderRow(
+                                  menu: selectedMenus[i],
+                                  position: i + 1,
+                                  total: selectedMenus.length,
+                                  saving: _saving,
+                                  palette: palette,
+                                  onPosition: (position) =>
+                                    _moveMenu(_selectedOrder[i], position - 1),
+                                  onUp: () => _moveMenu(_selectedOrder[i], i - 1),
+                                  onDown: () => _moveMenu(_selectedOrder[i], i + 1),
+                                  onRemove: () => _setChecked(selectedMenus[i], false),
+                                ),
                               ],
                             ]),
                       ),
@@ -425,6 +385,109 @@ class _RolesFormPageState extends ConsumerState<RolesFormPage> {
               ),
       ),
     );
+  }
+}
+
+class _RoleMenuOrderRow extends StatelessWidget {
+  const _RoleMenuOrderRow({
+    required this.menu,
+    required this.position,
+    required this.total,
+    required this.saving,
+    required this.palette,
+    required this.onPosition,
+    required this.onUp,
+    required this.onDown,
+    required this.onRemove,
+  });
+
+  final Map<String, dynamic> menu;
+  final int position;
+  final int total;
+  final bool saving;
+  final AppPalette palette;
+  final ValueChanged<int> onPosition;
+  final VoidCallback onUp;
+  final VoidCallback onDown;
+  final VoidCallback onRemove;
+
+  @override
+  Widget build(BuildContext context) {
+    final picker = SizedBox(
+      width: 68,
+      child: DropdownButton<int>(
+        value: position,
+        isExpanded: true,
+        underline: const SizedBox.shrink(),
+        items: [
+          for (var number = 1; number <= total; number++)
+            DropdownMenuItem(value: number, child: Text(number.toString())),
+        ],
+        onChanged: saving ? null : (value) {
+          if (value != null) onPosition(value);
+        },
+      ),
+    );
+    final title = Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(menu['nombre']?.toString() ?? 'Opción',
+          maxLines: 2, overflow: TextOverflow.ellipsis,
+          style: TextStyle(color: palette.textPrimary,
+            fontWeight: FontWeight.w800)),
+        Text(menu['grupo']?.toString() ?? '',
+          maxLines: 1, overflow: TextOverflow.ellipsis,
+          style: TextStyle(color: palette.textSecondary, fontSize: 11)),
+      ],
+    );
+    final up = IconButton(
+      tooltip: 'Subir prioridad',
+      iconSize: 20,
+      onPressed: saving || position <= 1 ? null : onUp,
+      icon: const Icon(Icons.arrow_upward_rounded),
+    );
+    final down = IconButton(
+      tooltip: 'Bajar prioridad',
+      iconSize: 20,
+      onPressed: saving || position >= total ? null : onDown,
+      icon: const Icon(Icons.arrow_downward_rounded),
+    );
+    final remove = IconButton(
+      tooltip: 'Ocultar módulo para este rol',
+      iconSize: 20,
+      onPressed: saving ? null : onRemove,
+      icon: const Icon(Icons.visibility_off_outlined),
+    );
+
+    return LayoutBuilder(builder: (context, constraints) {
+      if (constraints.maxWidth < 560) {
+        return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Row(children: [
+            const Icon(Icons.check_circle_outline_rounded, size: 17),
+            const SizedBox(width: 8),
+            Expanded(child: title),
+            remove,
+          ]),
+          Row(children: [
+            Text('Posición', style: TextStyle(color: palette.textSecondary,
+              fontSize: 11)),
+            const SizedBox(width: 9),
+            picker,
+            const Spacer(),
+            up,
+            down,
+          ]),
+        ]);
+      }
+      return Row(children: [
+        picker,
+        const SizedBox(width: 12),
+        Expanded(child: title),
+        up,
+        down,
+        remove,
+      ]);
+    });
   }
 }
 
