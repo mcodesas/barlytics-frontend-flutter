@@ -168,7 +168,7 @@ final appRouterProvider = Provider<GoRouter>((ref) {
 
       // Planes comerciales y soporte global son funciones exclusivas del
       // administrador de plataforma. Un GERENTE no puede entrar por URL directa.
-      if (authState.authenticated && path.startsWith('/centro_errores') && !isSuperAdmin) {
+      if (authState.authenticated && path.startsWith('/centro_errores') && !isGlobalAdmin) {
         return authState.businessSetupComplete ? '/home' : '/configurar-negocio';
       }
       if (authState.authenticated && isPlatformAdminRoute && !isGlobalAdmin) {
