@@ -40,6 +40,10 @@ jobs:
           flutter test test/core/update/app_update_model_test.dart
           flutter analyze lib/core/update
           python3 -m unittest discover -s deploy/update -p 'test_*.py'
+      - name: Verificar módulos de telemetría, soporte y roles antes de publicar
+        run: |
+          flutter analyze --no-fatal-infos --no-fatal-warnings lib/features/admin_support lib/features/error_center lib/features/roles lib/features/navigation lib/core/telemetry lib/app/router
+          flutter test test/core/telemetry/error_telemetry_test.dart test/features/error_center/error_center_responsive_test.dart test/features/roles/default_roles_responsive_test.dart
 
   android:
     needs: verify
