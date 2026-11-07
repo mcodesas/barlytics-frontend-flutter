@@ -3573,6 +3573,7 @@ class _AdminBottomNavigation extends ConsumerWidget {
         path.startsWith('/soporte_mantenimiento') ||
         path.startsWith('/explorador_datos') ||
         path.startsWith('/diagnostico_sistema') ||
+        path.startsWith('/centro_errores') ||
         path.startsWith('/auditoria_soporte') ||
         path.startsWith('/sincronizar_catalogo') ||
         path.startsWith('/catalogo_maestro')) return 3;
@@ -3596,10 +3597,11 @@ class _AdminBottomNavigation extends ConsumerWidget {
       const _AdminNavigationItem(label: 'Sincronizar catálogo', icon: Icons.sync_alt_rounded, path: '/sincronizar_catalogo'),
       const _AdminNavigationItem(label: 'Explorador de datos', icon: Icons.storage_rounded, path: '/explorador_datos'),
       const _AdminNavigationItem(label: 'Diagnóstico', icon: Icons.monitor_heart_rounded, path: '/diagnostico_sistema'),
+      const _AdminNavigationItem(label: 'Centro de errores', icon: Icons.bug_report_rounded, path: '/centro_errores'),
       const _AdminNavigationItem(label: 'Auditoría', icon: Icons.history_rounded, path: '/auditoria_soporte'),
       for (final item in authorized)
         if (item.path.trim().isNotEmpty &&
-            !const {'/home', '/empresas', '/usuarios', '/soporte_global', '/explorador_datos', '/diagnostico_sistema', '/auditoria_soporte', '/sincronizar_catalogo'}.contains(item.path))
+            !const {'/home', '/empresas', '/usuarios', '/soporte_global', '/explorador_datos', '/diagnostico_sistema', '/auditoria_soporte', '/centro_errores', '/sincronizar_catalogo'}.contains(item.path))
           _AdminNavigationItem(
             label: item.title.trim().isEmpty ? item.keyName : item.title.trim(),
             icon: _customRoleMenuIcon(item),
