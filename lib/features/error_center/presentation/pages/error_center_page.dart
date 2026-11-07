@@ -30,6 +30,8 @@ class _ErrorCenterPageState extends ConsumerState<ErrorCenterPage> {
   String _status = '';
   String _severity = '';
   String _platform = '';
+  String _origin = '';
+  String _category = '';
   int _page = 0;
   int _request = 0;
 
@@ -75,6 +77,8 @@ class _ErrorCenterPageState extends ConsumerState<ErrorCenterPage> {
           status: _status,
           severity: _severity,
           platform: _platform,
+          origin: _origin,
+          category: _category,
           search: _search.text,
           companyId: int.tryParse(_company.text.trim()),
           page: _page,
@@ -102,6 +106,8 @@ class _ErrorCenterPageState extends ConsumerState<ErrorCenterPage> {
     _status = '';
     _severity = '';
     _platform = '';
+    _origin = '';
+    _category = '';
     _load(resetPage: true);
   }
 
@@ -243,6 +249,31 @@ class _ErrorCenterPageState extends ConsumerState<ErrorCenterPage> {
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
+                          Text('Origen del error',
+                            style: TextStyle(color: palette.textPrimary,
+                              fontSize: 15, fontWeight: FontWeight.w900)),
+                          const SizedBox(height: 10),
+                          Wrap(spacing: 9, runSpacing: 9, children: [
+                            for (final source in const <(String, String, IconData)>[
+                              ('', 'Todos', Icons.layers_rounded),
+                              ('flutter', 'Aplicaciones · Frontend', Icons.devices_rounded),
+                              ('backend', 'Servidor · Backend', Icons.dns_rounded),
+                            ])
+                              ChoiceChip(
+                                avatar: Icon(source.$3, size: 17),
+                                label: Text(source.$2),
+                                selected: _origin == source.$1,
+                                onSelected: (_) {
+                                  setState(() {
+                                    _origin = source.$1;
+                                    _platform = '';
+                                    _category = '';
+                                  });
+                                  _load(resetPage: true);
+                                },
+                              ),
+                          ]),
+                          const SizedBox(height: 15),
                           Text('Filtros y búsqueda',
                             style: TextStyle(color: palette.textPrimary,
                               fontSize: 15, fontWeight: FontWeight.w900)),
@@ -292,6 +323,27 @@ class _ErrorCenterPageState extends ConsumerState<ErrorCenterPage> {
                                   },
                                   onChanged: (value) {
                                     setState(() => _severity = value);
+                                    _load(resetPage: true);
+                                  }),
+                                _Filter(
+                                  width: width,
+                                  label: 'Tipo de problema',
+                                  value: _category,
+                                  choices: const {
+                                    '': 'Todos los tipos',
+                                    'layout': 'Interfaz y desbordamientos',
+                                    'flutter_framework': 'Flutter framework',
+                                    'uncaught': 'Excepciones no controladas',
+                                    'network': 'Conectividad',
+                                    'http_5xx': 'HTTP 5xx del cliente',
+                                    'handled_http_5xx': 'HTTP 5xx controlados',
+                                    'handled_unexpected': 'Fallos inesperados',
+                                    'http_500': 'Excepciones del servidor',
+                                    'error_log': 'Tareas internas del servidor',
+                                    'diagnostic': 'Pruebas de diagnóstico',
+                                  },
+                                  onChanged: (value) {
+                                    setState(() => _category = value);
                                     _load(resetPage: true);
                                   }),
                                 _Filter(
