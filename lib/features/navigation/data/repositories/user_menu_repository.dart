@@ -110,7 +110,8 @@ class UserMenuRepository {
   List<UserMenuItem> _sortByDatabaseNavigation(Iterable<UserMenuItem> items) {
     final list = items.toList(growable: false);
     final hasDatabaseOrder = list.any((item) =>
-        item.groupCode != 'OTROS' || item.groupOrder != 99 || item.menuOrder != 99);
+        item.defaultRoleOrder != null || item.groupCode != 'OTROS' ||
+        item.groupOrder != 99 || item.menuOrder != 99);
     if (hasDatabaseOrder) {
       list.sort((a, b) {
         // Preferencias base del rol antes que orden global de MENUS.
