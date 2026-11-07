@@ -97,7 +97,7 @@ bool _isOperationalRole(String role) =>
 
 bool _isGlobalAdminRole(String role) {
   final normalized = _normalizedRoleToken(role);
-  return const {'ADMIN', 'ADMINISTRADOR', 'SUPERADMIN', 'SUPER_ADMIN'}.contains(normalized);
+  return const {'ADMIN', 'ADMINISTRADOR', 'SUPERADMIN', 'SUPER_ADMIN', 'ADMIN_Y_SOPORTE'}.contains(normalized);
 }
 
 
