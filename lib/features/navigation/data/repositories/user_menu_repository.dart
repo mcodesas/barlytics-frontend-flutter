@@ -55,6 +55,8 @@ class UserMenuRepository {
           roleTypes: <String>{...previous.roleTypes, ...normalizedItem.roleTypes}.toList(growable: false),
           roleIds: <int>{...previous.roleIds, ...normalizedItem.roleIds}.toList(growable: false),
           customOrderByRole: {...previous.customOrderByRole, ...normalizedItem.customOrderByRole},
+          defaultOrderByRole: {...previous.defaultOrderByRole,
+              ...normalizedItem.defaultOrderByRole},
           defaultRoleOrder: previous.defaultRoleOrder == null
               ? normalizedItem.defaultRoleOrder
               : normalizedItem.defaultRoleOrder == null
