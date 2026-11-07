@@ -3442,6 +3442,7 @@ class _AdminBottomNavigation extends ConsumerWidget {
 
   static const _coreItems = <_AdminNavigationItem>[
     _AdminNavigationItem(label: 'Inicio', icon: Icons.home_rounded, path: '/home'),
+    _AdminNavigationItem(label: 'Roles', icon: Icons.admin_panel_settings_rounded, path: '/roles'),
     _AdminNavigationItem(label: 'Clientes', icon: Icons.business_rounded, path: '/empresas'),
     _AdminNavigationItem(label: 'Usuarios', icon: Icons.manage_accounts_rounded, path: '/usuarios'),
     _AdminNavigationItem(label: 'Soporte', icon: Icons.help_outline_rounded, path: '/soporte_global'),
@@ -3466,6 +3467,8 @@ class _AdminBottomNavigation extends ConsumerWidget {
     ).where((item) => preferences.showInMenu && item.isFavorite).toList();
 
     final candidates = <_AdminNavigationItem>[
+      // Administración de roles primero, sin desplazar el botón Inicio.
+      _coreItems[1],
       for (final item in favorites)
         _AdminNavigationItem(
           label: item.title,
@@ -3492,9 +3495,10 @@ class _AdminBottomNavigation extends ConsumerWidget {
         if (currentPath == item.path ||
             currentPath.startsWith('${item.path}/')) return true;
         return switch (item.path) {
-          '/empresas' => _selectedIndex(currentPath) == 1,
-          '/usuarios' => _selectedIndex(currentPath) == 2,
-          '/soporte_global' => _selectedIndex(currentPath) == 3,
+          '/roles' => _selectedIndex(currentPath) == 1,
+          '/empresas' => _selectedIndex(currentPath) == 2,
+          '/usuarios' => _selectedIndex(currentPath) == 3,
+          '/soporte_global' => _selectedIndex(currentPath) == 4,
           _ => false,
         };
       });
@@ -3559,12 +3563,10 @@ class _AdminBottomNavigation extends ConsumerWidget {
 
   int _selectedIndex(String path) {
     if (path == '/home') return 0;
-    if (path.startsWith('/empresas') || path.startsWith('/sucursales')) return 1;
-    if (path.startsWith('/usuarios') ||
-        path.startsWith('/roles') ||
-        path.startsWith('/tipos_usuario') ||
-        path.startsWith('/menus') ||
-        path.startsWith('/opciones_menu')) return 2;
+    if (path.startsWith('/roles') || path.startsWith('/menus') ||
+        path.startsWith('/opciones_menu') || path.startsWith('/tipos_usuario')) return 1;
+    if (path.startsWith('/empresas') || path.startsWith('/sucursales')) return 2;
+    if (path.startsWith('/usuarios')) return 3;
     if (path.startsWith('/soporte_global') ||
         path.startsWith('/soporte_clientes') ||
         path.startsWith('/soporte_accesos') ||
@@ -3576,7 +3578,7 @@ class _AdminBottomNavigation extends ConsumerWidget {
         path.startsWith('/centro_errores') ||
         path.startsWith('/auditoria_soporte') ||
         path.startsWith('/sincronizar_catalogo') ||
-        path.startsWith('/catalogo_maestro')) return 3;
+        path.startsWith('/catalogo_maestro')) return 4;
     return 4;
   }
 
@@ -3601,7 +3603,7 @@ class _AdminBottomNavigation extends ConsumerWidget {
       const _AdminNavigationItem(label: 'Auditoría', icon: Icons.history_rounded, path: '/auditoria_soporte'),
       for (final item in authorized)
         if (item.path.trim().isNotEmpty &&
-            !const {'/home', '/empresas', '/usuarios', '/soporte_global', '/explorador_datos', '/diagnostico_sistema', '/auditoria_soporte', '/centro_errores', '/sincronizar_catalogo'}.contains(item.path))
+            !const {'/home', '/roles', '/empresas', '/usuarios', '/soporte_global', '/explorador_datos', '/diagnostico_sistema', '/auditoria_soporte', '/centro_errores', '/sincronizar_catalogo'}.contains(item.path))
           _AdminNavigationItem(
             label: item.title.trim().isEmpty ? item.keyName : item.title.trim(),
             icon: _customRoleMenuIcon(item),
