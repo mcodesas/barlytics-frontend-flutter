@@ -175,20 +175,6 @@ class _ErrorCenterPageState extends ConsumerState<ErrorCenterPage> {
                                 icon: const Icon(Icons.science_rounded),
                               ),
                               IconButton(
-                                tooltip: 'Enviar evento de prueba',
-                                onPressed: () async {
-                                  final ok = await ErrorTelemetry.instance.sendDiagnostic();
-                                  if (!context.mounted) return;
-                                  ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-                                    content: Text(ok
-                                      ? 'Evento de diagnóstico aceptado. Actualiza las incidencias.'
-                                      : 'El servidor rechazó la prueba o no hay sesión activa.'),
-                                  ));
-                                  if (ok) _load(silent: true);
-                                },
-                                icon: const Icon(Icons.science_outlined),
-                              ),
-                              IconButton(
                                 tooltip: 'Actualizar incidencias',
                                 onPressed: () => _load(),
                                 icon: const Icon(Icons.refresh_rounded),
@@ -555,6 +541,7 @@ class _IssueCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final reopened = ErrorCenterRepository.number(issue['reopenCount']);
     final severity = issue['severity']?.toString() ?? 'ERROR';
     final color = severity == 'CRITICAL'
         ? Colors.redAccent
@@ -579,6 +566,10 @@ class _IssueCard extends StatelessWidget {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Wrap(spacing: 9, runSpacing: 6, children: [
+                    if (reopened > 0)
+                      Text('REINCIDENTE · $reopened reapertura(s)',
+                        style: const TextStyle(color: Colors.deepOrange,
+                          fontWeight: FontWeight.w900, fontSize: 11)),
                     Text(severity + ' · ' +
                         (issue['status']?.toString() ?? 'OPEN'),
                       style: TextStyle(color: color,
