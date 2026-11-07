@@ -55,6 +55,12 @@ class UserMenuRepository {
           roleTypes: <String>{...previous.roleTypes, ...normalizedItem.roleTypes}.toList(growable: false),
           roleIds: <int>{...previous.roleIds, ...normalizedItem.roleIds}.toList(growable: false),
           customOrderByRole: {...previous.customOrderByRole, ...normalizedItem.customOrderByRole},
+          defaultRoleOrder: previous.defaultRoleOrder == null
+              ? normalizedItem.defaultRoleOrder
+              : normalizedItem.defaultRoleOrder == null
+                  ? previous.defaultRoleOrder
+                  : (previous.defaultRoleOrder! < normalizedItem.defaultRoleOrder!
+                      ? previous.defaultRoleOrder : normalizedItem.defaultRoleOrder),
           customOrder: previous.customOrder == null
               ? normalizedItem.customOrder
               : normalizedItem.customOrder == null
@@ -105,6 +111,14 @@ class UserMenuRepository {
         item.groupCode != 'OTROS' || item.groupOrder != 99 || item.menuOrder != 99);
     if (hasDatabaseOrder) {
       list.sort((a, b) {
+        // Preferencias base del rol antes que orden global de MENUS.
+        // La personalización individual se aplica más adelante.
+        if (a.defaultRoleOrder != null || b.defaultRoleOrder != null) {
+          final rankA = a.defaultRoleOrder ?? 0x7fffffff;
+          final rankB = b.defaultRoleOrder ?? 0x7fffffff;
+          final byRole = rankA.compareTo(rankB);
+          if (byRole != 0) return byRole;
+        }
         final group = a.groupOrder.compareTo(b.groupOrder);
         if (group != 0) return group;
         final menu = a.menuOrder.compareTo(b.menuOrder);
