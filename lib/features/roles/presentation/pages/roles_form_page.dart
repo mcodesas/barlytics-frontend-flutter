@@ -208,20 +208,44 @@ class _RolesFormPageState extends ConsumerState<RolesFormPage> {
               blurRadius: 15, offset: Offset(0, -4))]),
           child: Center(heightFactor: 1, child: ConstrainedBox(
             constraints: const BoxConstraints(maxWidth: 1190),
-            child: Row(children: [
-              Expanded(child: Text('${_selected.length} opciones seleccionadas',
+            child: LayoutBuilder(builder: (context, limits) {
+              final selectionLabel = Text(
+                '${_selected.length} opciones seleccionadas',
+                maxLines: 2, overflow: TextOverflow.ellipsis,
                 style: TextStyle(color: palette.textPrimary,
-                  fontWeight: FontWeight.w800))),
-              TextButton(onPressed: _saving ? null :
-                () => context.go('/roles'), child: const Text('Cancelar')),
-              const SizedBox(width: 8),
-              FilledButton.icon(onPressed: !_dirty || _saving ? null : _save,
+                  fontWeight: FontWeight.w800));
+              final cancel = TextButton(
+                onPressed: _saving ? null : () => context.go('/roles'),
+                child: const Text('Cancelar'));
+              final save = FilledButton.icon(
+                onPressed: !_dirty || _saving ? null : _save,
                 icon: _saving
                     ? const SizedBox(width: 15, height: 15,
                         child: CircularProgressIndicator(strokeWidth: 2))
                     : const Icon(Icons.save_rounded),
-                label: const Text('Guardar cambios')),
-            ]),
+                label: const Text('Guardar cambios'));
+              if (limits.maxWidth < 520) {
+                return Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    selectionLabel,
+                    const SizedBox(height: 6),
+                    Row(children: [
+                      cancel,
+                      const SizedBox(width: 8),
+                      Expanded(child: save),
+                    ]),
+                  ],
+                );
+              }
+              return Row(children: [
+                Expanded(child: selectionLabel),
+                cancel,
+                const SizedBox(width: 8),
+                save,
+              ]);
+            }),
           )),
         ),
       ),
@@ -469,15 +493,18 @@ class _RoleMenuOrderRow extends StatelessWidget {
             Expanded(child: title),
             remove,
           ]),
-          Row(children: [
-            Text('Posición', style: TextStyle(color: palette.textSecondary,
-              fontSize: 11)),
-            const SizedBox(width: 9),
-            picker,
-            const Spacer(),
-            up,
-            down,
-          ]),
+          Wrap(
+            crossAxisAlignment: WrapCrossAlignment.center,
+            spacing: 6,
+            runSpacing: 4,
+            children: [
+              Text('Posición', style: TextStyle(color: palette.textSecondary,
+                fontSize: 11)),
+              picker,
+              up,
+              down,
+            ],
+          ),
         ]);
       }
       return Row(children: [
