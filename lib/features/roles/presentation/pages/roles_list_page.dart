@@ -198,12 +198,13 @@ class _Metric extends StatelessWidget {
     child: Row(mainAxisSize: MainAxisSize.min, children: [
       Icon(icon, color: palette.primary, size: 21),
       const SizedBox(width: 9),
-      Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+      Flexible(child: Column(crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisSize: MainAxisSize.min, children: [
         Text(value, style: TextStyle(color: palette.textPrimary,
           fontSize: 22, fontWeight: FontWeight.w900)),
-        Text(label, style: TextStyle(color: palette.textSecondary,
-          fontSize: 11)),
-      ]),
+        Text(label, maxLines: 2, overflow: TextOverflow.ellipsis,
+          style: TextStyle(color: palette.textSecondary, fontSize: 11)),
+      ])),
     ]),
   );
 }
@@ -259,10 +260,11 @@ class _RoleCard extends StatelessWidget {
             ]),
             const SizedBox(height: 10),
             Row(children: [
-              Text('Administrar opciones de menú',
+              Expanded(child: Text('Administrar opciones de menú',
+                maxLines: 2, overflow: TextOverflow.ellipsis,
                 style: TextStyle(color: palette.primary,
-                  fontWeight: FontWeight.w800, fontSize: 12)),
-              const Spacer(),
+                  fontWeight: FontWeight.w800, fontSize: 12))),
+              const SizedBox(width: 6),
               Icon(Icons.arrow_forward_rounded, color: palette.primary),
             ]),
           ]),
