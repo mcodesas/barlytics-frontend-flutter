@@ -10,9 +10,10 @@ on:
       - 'README*'
   workflow_dispatch:
 
-# No lanzar la distribución macOS en paralelo con otro despliegue web.
+# macOS y Web usan grupos independientes: un push no debe cancelar
+# el despliegue Frontend Production mientras macOS sigue compilando.
 concurrency:
-  group: barlytics-frontend-production
+  group: barlytics-macos-production
   cancel-in-progress: false
 
 permissions:
