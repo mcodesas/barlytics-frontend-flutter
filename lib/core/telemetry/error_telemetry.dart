@@ -17,14 +17,19 @@ class ErrorTelemetry {
   ErrorTelemetry._();
   static final ErrorTelemetry instance = ErrorTelemetry._();
 
+  // También en flutter run -d chrome: los fallos de layout y render
+  // ocurren en depuración y deben llegar al mismo Centro de errores.
+  // Puede desactivarse expresamente con --dart-define=BARLYTICS_TELEMETRY_ENABLED=false.
   static const bool enabled = bool.fromEnvironment(
     'BARLYTICS_TELEMETRY_ENABLED',
-    defaultValue: !kDebugMode,
+    defaultValue: true,
   );
 
   final Queue<Map<String, Object?>> _pending = Queue<Map<String, Object?>>();
   final Queue<String> _breadcrumbs = Queue<String>();
   final Map<String, DateTime> _recent = <String, DateTime>{};
+  DateTime? _lastLayoutRootAt;
+  String _lastLayoutRootRoute = '';
   Dio? _dio;
   CancelToken? _inFlight;
   int _sessionEpoch = 0;
@@ -61,18 +66,56 @@ class ErrorTelemetry {
     _breadcrumbs.addLast(now + ' ' + text);
   }
 
+  /// Clasificación de fallos del motor de renderizado. Capturar también
+  /// LayoutBuilder / SliverFillRemaining y no solo RenderFlex overflowed.
+  static String frameworkCategory(String message) {
+    const layoutPatterns = <String>[
+      'LayoutBuilder does not support returning intrinsic dimensions',
+      'RenderFlex', 'overflowed', 'RenderBox was not laid out',
+      'RenderViewport', 'NEEDS-LAYOUT', 'BoxConstraints forces an infinite',
+    ];
+    return layoutPatterns.any(message.contains) ? 'layout' : 'flutter_framework';
+  }
+
+  /// Errores secundarios producidos por un RenderViewport ya inconsistente.
+  /// No ocultar fallos diferentes: exige misma pantalla y raíz reciente.
+  static bool isRenderingCascade(String message, String stack) {
+    final downstream =
+        message.contains('Unexpected null value') ||
+        message.contains('!_debugDuringDeviceUpdate');
+    final enginePath =
+        stack.contains('rendering/viewport.dart') ||
+        stack.contains('rendering/mouse_tracker.dart');
+    return downstream && enginePath;
+  }
+
   void frameworkError(FlutterErrorDetails details) {
     final message = details.exceptionAsString();
+    final category = frameworkCategory(message);
+    final route = normalizeRoute(_route);
+    final now = DateTime.now();
+    // Flutter puede emitir centenares de errores de gestos/pintado a causa
+    // del primer error de layout. Reportar la causa raíz, no su cascada.
+    if (_lastLayoutRootAt != null &&
+        now.difference(_lastLayoutRootAt!) < const Duration(seconds: 90) &&
+        route == _lastLayoutRootRoute &&
+        isRenderingCascade(message, details.stack?.toString() ?? '')) {
+      return;
+    }
+    if (category == 'layout') {
+      _lastLayoutRootAt = now;
+      _lastLayoutRootRoute = route;
+    }
+    final module = route == '/' ? (details.library ?? 'flutter') :
+        route.split('/').where((part) => part.isNotEmpty).first;
     capture(
-      category: message.contains('RenderFlex') ||
-              message.contains('overflowed') ||
-              message.contains('RenderBox was not laid out')
-          ? 'layout'
-          : 'flutter_framework',
+      category: category,
       errorType: details.exception.runtimeType.toString(),
       message: message,
-      stacktrace: details.stack?.toString(),
-      module: details.library ?? 'flutter',
+      // FlutterErrorDetails incluye widget causante, archivo, línea y traza;
+      // el saneamiento y límite de tamaño se aplican en capture().
+      stacktrace: details.toString(),
+      module: module,
     );
   }
 
@@ -192,6 +235,8 @@ class ErrorTelemetry {
     _recent.clear();
     _breadcrumbs.clear();
     _route = '';
+    _lastLayoutRootAt = null;
+    _lastLayoutRootRoute = '';
   }
 
   /// Prueba de punta a punta iniciada por el administrador global.
