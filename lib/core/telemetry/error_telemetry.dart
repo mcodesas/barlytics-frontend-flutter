@@ -46,6 +46,18 @@ class ErrorTelemetry {
     flush();
   }
 
+  /// Permite verificar transporte real en pruebas, sin dejar temporizadores.
+  @visibleForTesting
+  void detachForTesting() {
+    _retryTimer?.cancel();
+    _retryTimer = null;
+    _inFlight?.cancel('Finalizó la prueba');
+    _inFlight = null;
+    _dio = null;
+    _sending = false;
+    clearSession();
+  }
+
   /// Registrar solo el nombre del módulo/ruta, nunca sus parámetros.
   void navigation(String path) {
     final clean = normalizeRoute(path);
@@ -114,7 +126,7 @@ class ErrorTelemetry {
       message: message,
       // FlutterErrorDetails incluye widget causante, archivo, línea y traza;
       // el saneamiento y límite de tamaño se aplican en capture().
-      stacktrace: details.toString(),
+      stacktrace: '$message\n${details.toString()}',
       module: module,
     );
   }
@@ -297,12 +309,20 @@ class ErrorTelemetry {
               receiveTimeout: const Duration(seconds: 5),
             ),
           );
+          if (kDebugMode) {
+            debugPrint('[Centro de errores] Reporte recibido (HTTP 202).');
+          }
           if (_pending.isNotEmpty && identical(_pending.first, event)) {
             _pending.removeFirst();
           }
         } on DioException catch (error) {
           if (epoch != _sessionEpoch) break;
           final status = error.response?.statusCode;
+          if (kDebugMode) {
+            debugPrint('[Centro de errores] Envío no confirmado '
+                '(HTTP ${status ?? 'sin respuesta'}). '
+                'Pendientes: ${_pending.length}.');
+          }
           if (status == 400 || status == 413 || status == 422) {
             if (_pending.isNotEmpty && identical(_pending.first, event)) {
               _pending.removeFirst();
