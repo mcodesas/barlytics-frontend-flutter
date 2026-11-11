@@ -55,6 +55,14 @@ class UserMenuRepository {
           roleTypes: <String>{...previous.roleTypes, ...normalizedItem.roleTypes}.toList(growable: false),
           roleIds: <int>{...previous.roleIds, ...normalizedItem.roleIds}.toList(growable: false),
           customOrderByRole: {...previous.customOrderByRole, ...normalizedItem.customOrderByRole},
+          defaultOrderByRole: {...previous.defaultOrderByRole,
+              ...normalizedItem.defaultOrderByRole},
+          defaultRoleOrder: previous.defaultRoleOrder == null
+              ? normalizedItem.defaultRoleOrder
+              : normalizedItem.defaultRoleOrder == null
+                  ? previous.defaultRoleOrder
+                  : (previous.defaultRoleOrder! < normalizedItem.defaultRoleOrder!
+                      ? previous.defaultRoleOrder : normalizedItem.defaultRoleOrder),
           customOrder: previous.customOrder == null
               ? normalizedItem.customOrder
               : normalizedItem.customOrder == null
@@ -102,9 +110,18 @@ class UserMenuRepository {
   List<UserMenuItem> _sortByDatabaseNavigation(Iterable<UserMenuItem> items) {
     final list = items.toList(growable: false);
     final hasDatabaseOrder = list.any((item) =>
-        item.groupCode != 'OTROS' || item.groupOrder != 99 || item.menuOrder != 99);
+        item.defaultRoleOrder != null || item.groupCode != 'OTROS' ||
+        item.groupOrder != 99 || item.menuOrder != 99);
     if (hasDatabaseOrder) {
       list.sort((a, b) {
+        // Preferencias base del rol antes que orden global de MENUS.
+        // La personalización individual se aplica más adelante.
+        if (a.defaultRoleOrder != null || b.defaultRoleOrder != null) {
+          final rankA = a.defaultRoleOrder ?? 0x7fffffff;
+          final rankB = b.defaultRoleOrder ?? 0x7fffffff;
+          final byRole = rankA.compareTo(rankB);
+          if (byRole != 0) return byRole;
+        }
         final group = a.groupOrder.compareTo(b.groupOrder);
         if (group != 0) return group;
         final menu = a.menuOrder.compareTo(b.menuOrder);
@@ -139,6 +156,7 @@ class UserMenuRepository {
       'explorador_datos': moduleRegistry.length + 18,
       'auditoria_soporte': moduleRegistry.length + 19,
       'diagnostico_sistema': moduleRegistry.length + 20,
+      'centro_errores': moduleRegistry.length + 20,
       'soporte_clientes': moduleRegistry.length + 21,
       'soporte_accesos': moduleRegistry.length + 22,
       'soporte_operacion': moduleRegistry.length + 23,
@@ -207,6 +225,8 @@ const moduleAliases = <String, String>{
   'auditoria_soporte': 'auditoria_soporte',
   'diagnosticosistema': 'diagnostico_sistema',
   'diagnostico_sistema': 'diagnostico_sistema',
+  'centroerrores': 'centro_errores',
+  'centro_errores': 'centro_errores',
   'soporteclientes': 'soporte_clientes',
   'soporte_clientes': 'soporte_clientes',
   'soporteaccesos': 'soporte_accesos',

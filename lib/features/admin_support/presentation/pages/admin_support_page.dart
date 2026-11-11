@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../../app/theme/app_palette.dart';
+import '../../../navigation/presentation/providers/active_role_provider.dart';
 import '../../../../app/theme/module_visuals.dart';
 import '../../data/admin_support_repository.dart';
 
@@ -32,6 +33,10 @@ class _AdminSupportPageState extends ConsumerState<AdminSupportPage> {
   @override
   Widget build(BuildContext context) {
     final palette = ref.watch(selectedAppPaletteProvider);
+    final isSuperAdmin = ref.watch(activeRolesProvider).any((role) {
+      final value = role.toUpperCase().trim().replaceFirst(RegExp(r'^ROLE_'), '');
+      return const {'ADMIN', 'ADMINISTRADOR', 'SUPERADMIN', 'SUPER_ADMIN', 'ADMIN Y SOPORTE', 'ADMIN_Y_SOPORTE'}.contains(value);
+    });
     return Scaffold(
       backgroundColor: Colors.transparent,
       body: FutureBuilder<List<Map<String, dynamic>>>(
@@ -58,7 +63,7 @@ class _AdminSupportPageState extends ConsumerState<AdminSupportPage> {
             child: CustomScrollView(
               physics: const AlwaysScrollableScrollPhysics(),
               slivers: [
-                SliverToBoxAdapter(child: _SupportHero(palette: palette, onRefresh: _reload)),
+                SliverToBoxAdapter(child: _SupportHero(palette: palette, onRefresh: _reload, isSuperAdmin: isSuperAdmin)),
                 SliverToBoxAdapter(
                   child: Padding(
                     padding: const EdgeInsets.fromLTRB(16, 16, 16, 0),
@@ -184,9 +189,10 @@ class _AdminSupportPageState extends ConsumerState<AdminSupportPage> {
 }
 
 class _SupportHero extends StatelessWidget {
-  const _SupportHero({required this.palette, required this.onRefresh});
+  const _SupportHero({required this.palette, required this.onRefresh, required this.isSuperAdmin});
   final AppPalette palette;
   final Future<void> Function() onRefresh;
+  final bool isSuperAdmin;
 
   @override
   Widget build(BuildContext context) {
@@ -237,6 +243,12 @@ class _SupportHero extends StatelessWidget {
                     onPressed: () => context.go('/diagnostico_sistema'),
                     icon: const Icon(Icons.monitor_heart_rounded, size: 18),
                     label: const Text('Diagnóstico'),
+                    style: OutlinedButton.styleFrom(minimumSize: const Size(0, 40)),
+                  ),
+                  if (isSuperAdmin) OutlinedButton.icon(
+                    onPressed: () => context.go('/centro_errores'),
+                    icon: const Icon(Icons.bug_report_rounded, size: 18),
+                    label: const Text('Centro de errores'),
                     style: OutlinedButton.styleFrom(minimumSize: const Size(0, 40)),
                   ),
                   OutlinedButton.icon(

@@ -232,11 +232,24 @@ class _AdminHero extends StatelessWidget {
                 runSpacing: 9,
                 children: [
                   _HeroAction(
+                    icon: Icons.admin_panel_settings_rounded,
+                    label: 'Administrar roles',
+                    onPressed: () => context.go('/roles'),
+                    palette: palette,
+                    primary: true,
+                  ),
+                  _HeroAction(
+                    icon: Icons.bug_report_rounded,
+                    label: 'Centro de errores',
+                    onPressed: () => context.go('/centro_errores'),
+                    palette: palette,
+                  ),
+                  _HeroAction(
                     icon: Icons.help_outline_rounded,
                     label: 'Centro de soporte',
                     onPressed: () => context.go('/soporte_global'),
                     palette: palette,
-                    primary: true,
+                    
                   ),
                   _HeroAction(
                     icon: Icons.storage_rounded,

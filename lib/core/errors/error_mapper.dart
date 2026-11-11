@@ -1,11 +1,13 @@
 import 'app_exception.dart';
 import 'failure.dart';
+import '../telemetry/error_telemetry.dart';
 
 /// Convierte excepciones técnicas en fallos funcionales para la UI.
 class ErrorMapper {
   static Failure map(Object error) {
     if (error is AppException) {
       final statusCode = error.statusCode ?? 0;
+      // Los HTTP 5xx ya se registran en Dio con su endpoint y latencia.
 
       return switch (statusCode) {
         401 => UnauthorizedFailure(error.message, code: error.code, statusCode: error.statusCode),
@@ -15,6 +17,15 @@ class ErrorMapper {
         _ => ValidationFailure(error.message, code: error.code, statusCode: error.statusCode),
       };
     }
+    // Errores que fueron atrapados y mostrados en pantalla también deben
+    // reportarse: sin esto el manejador global nunca los recibe.
+    ErrorTelemetry.instance.capture(
+      category: 'handled_unexpected',
+      errorType: error.runtimeType.toString(),
+      message: error.toString(),
+      stacktrace: StackTrace.current.toString(),
+      module: 'error_mapper',
+    );
     return ServerFailure(error.toString());
   }
 }

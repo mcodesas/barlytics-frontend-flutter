@@ -39,6 +39,8 @@ class ModuleVisuals {
         return const ModuleVisual(icon: Icons.storage_rounded, color: Color(0xFF7C3AED), description: 'Todas las tablas y registros con auditoría');
       case 'auditoria_soporte':
         return const ModuleVisual(icon: Icons.history_rounded, color: Color(0xFF0F766E), description: 'Historial de cambios administrativos');
+      case 'centro_errores':
+        return const ModuleVisual(icon: Icons.bug_report_rounded, color: Color(0xFFDC2626), description: 'Incidencias, trazas, seguimiento y reincidencias');
       case 'diagnostico_sistema':
         return const ModuleVisual(icon: Icons.monitor_heart_rounded, color: Color(0xFFDC2626), description: 'Integridad, permisos y secuencias');
       case 'sincronizar_catalogo':

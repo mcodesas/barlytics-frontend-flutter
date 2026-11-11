@@ -48,7 +48,11 @@ final userMenuProvider = FutureProvider<List<UserMenuItem>>((ref) async {
       : filteredItems;
 
   final normalizedActive = activeRoles.map(normalizeRoleName).toSet();
-  final withCommands = customFiltered;
+  // Si el usuario selecciona una vista de rol nativo, su prioridad de menú
+  // prevalece sobre la de los demás roles que tenga asignados.
+  final withCommands = onlyCustomView
+      ? customFiltered
+      : orderMenusForSelectedDefaultRoles(customFiltered, selection);
 
   final commandsOnly = normalizedActive.isNotEmpty &&
       normalizedActive.every(
@@ -64,6 +68,37 @@ final userMenuProvider = FutureProvider<List<UserMenuItem>>((ref) async {
   return personalizeAuthorizedMenu(withCommands, preferences);
 });
 
+
+/// Aplica posiciones guardadas por rol predefinido en cada vista.
+/// El orden personal/favoritos del usuario sigue aplicándose posteriormente.
+List<UserMenuItem> orderMenusForSelectedDefaultRoles(
+    Iterable<UserMenuItem> items, Set<String>? selection) {
+  final values = List<UserMenuItem>.of(items);
+  if (selection == null || selection.isEmpty) return values;
+  final selectedIds = selection.map(systemRoleIdFromSelection)
+      .whereType<int>().toSet();
+  if (selectedIds.isEmpty) return values;
+  int? position(UserMenuItem item) {
+    final positions = [
+      for (final id in selectedIds)
+        if (item.defaultOrderByRole[id] != null) item.defaultOrderByRole[id]!,
+    ];
+    if (positions.isEmpty) return null;
+    positions.sort();
+    return positions.first;
+  }
+  if (!values.any((item) => position(item) != null)) return values;
+  final indices = <UserMenuItem, int>{
+    for (var i = 0; i < values.length; i++) values[i]: i,
+  };
+  values.sort((a, b) {
+    final byRole = (position(a) ?? 0x7fffffff)
+        .compareTo(position(b) ?? 0x7fffffff);
+    if (byRole != 0) return byRole;
+    return indices[a]!.compareTo(indices[b]!);
+  });
+  return values;
+}
 
 /// Respeta la secuencia guardada en OPCIONMENU para cada rol personalizado.
 /// El menú 'home' no se inserta ni se reordena artificialmente.

@@ -182,10 +182,16 @@ class _PreciosListPageState extends ConsumerState<PreciosListPage> {
                   ),
                 ),
                 if (visible.isEmpty)
-                  SliverFillRemaining(
-                    hasScrollBody: false,
-                    child: AppEmptyView(
-                      message: _emptyMessage(pageProducts),
+                  // AppEmptyView utiliza LayoutBuilder: SliverFillRemaining
+                  // (hasScrollBody:false) solicita su altura intrínseca y
+                  // provoca "LayoutBuilder does not support returning intrinsic
+                  // dimensions". SliverToBoxAdapter mide al hijo normalmente.
+                  SliverToBoxAdapter(
+                    child: SizedBox(
+                      height: 290,
+                      child: AppEmptyView(
+                        message: _emptyMessage(pageProducts),
+                      ),
                     ),
                   )
                 else

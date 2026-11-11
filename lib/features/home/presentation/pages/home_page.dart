@@ -165,32 +165,44 @@ bool _isGlobalAdminRole(String role) {
   final normalized = _normalizeRole(role).replaceFirst(RegExp(r'^ROLE_'), '');
   return normalized == 'ADMIN' ||
       normalized == 'ADMINISTRADOR' ||
+      normalized == 'ADMIN_Y_SOPORTE' ||
       normalized == 'SUPERADMIN' ||
       normalized == 'SUPER_ADMIN';
 }
 
 List<UserMenuItem> _sortAdminItems(List<UserMenuItem> items) {
   const priority = <String, int>{
-    'soporte_global': 0,
-    'diagnostico_sistema': 1,
-    'explorador_datos': 2,
-    'auditoria_soporte': 3,
-    'empresas': 4,
-    'sucursales': 5,
-    'usuarios': 6,
-    'roles': 7,
-    'roles_personalizados': 8,
-    'menus': 9,
-    'opciones_menu': 10,
-    'ventas': 11,
-    'pagos': 12,
-    'inventario': 13,
-    'movimientos': 14,
-    'parametros': 15,
+    'roles': 0,
+    'roles_personalizados': 1,
+    'usuarios': 2,
+    'menus': 3,
+    'opciones_menu': 4,
+    'soporte_global': 5,
+    'centro_errores': 6,
+    'diagnostico_sistema': 7,
+    'explorador_datos': 8,
+    'auditoria_soporte': 9,
+    'empresas': 10,
+    'sucursales': 11,
+    'ventas': 12,
+    'pagos': 13,
+    'inventario': 14,
+    'movimientos': 15,
+    'parametros': 16,
   };
   final sorted = List<UserMenuItem>.of(items);
+  final hasRoleOrder = items.any((item) => item.defaultRoleOrder != null);
+  final indices = <UserMenuItem, int>{
+    for (var i = 0; i < items.length; i++) items[i]: i,
+  };
   sorted.sort((a, b) {
-    final byPriority = (priority[a.keyName] ?? 999).compareTo(priority[b.keyName] ?? 999);
+    // Roles debe figurar primero en el inicio administrativo.
+    if (a.keyName == 'roles' && b.keyName != 'roles') return -1;
+    if (b.keyName == 'roles' && a.keyName != 'roles') return 1;
+    // Para el resto, respetar la prioridad del rol o vista seleccionada.
+    if (hasRoleOrder) return indices[a]!.compareTo(indices[b]!);
+    final byPriority = (priority[a.keyName] ?? 999)
+        .compareTo(priority[b.keyName] ?? 999);
     if (byPriority != 0) return byPriority;
     return a.title.compareTo(b.title);
   });
