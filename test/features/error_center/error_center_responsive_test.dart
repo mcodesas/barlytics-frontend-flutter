@@ -83,6 +83,7 @@ void main() {
         scrollable: find.byType(Scrollable).first,
       );
       await tester.pumpAndSettle();
+      expect(find.text('Origen del error'), findsOneWidget);
       expect(find.text('Filtros y búsqueda'), findsOneWidget);
       expect(tester.takeException(), isNull);
       await tester.pumpWidget(const SizedBox.shrink());
