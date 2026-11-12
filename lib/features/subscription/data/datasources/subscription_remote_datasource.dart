@@ -6,6 +6,45 @@ class SubscriptionRemoteDataSource {
   SubscriptionRemoteDataSource(this._api);
   final ApiClient _api;
 
+
+  /// Solo se listan productos realmente habilitados y vinculados en el backend.
+  Future<List<Map<String, dynamic>>> storeProducts(String provider) async {
+    final response = await _api.get<List<Map<String, dynamic>>>(
+      '/api/v1/subscriptions/store/products',
+      (json) => (json as List? ?? const [])
+          .whereType<Map>()
+          .map((item) => Map<String, dynamic>.from(item))
+          .toList(growable: false),
+      queryParameters: <String, dynamic>{'provider': provider},
+    );
+    return response.data ?? const <Map<String, dynamic>>[];
+  }
+
+  Future<String> prepareStorePurchase(String provider, String productId) async {
+    final response = await _api.post<Map<String, dynamic>>(
+      '/api/v1/subscriptions/store/prepare',
+      <String, dynamic>{'provider': provider, 'productId': productId},
+      (json) => Map<String, dynamic>.from(json as Map),
+    );
+    final token = response.data?['appAccountToken']?.toString() ?? '';
+    if (token.isEmpty) throw StateError('No se pudo asociar el pago a la empresa.');
+    return token;
+  }
+
+  Future<bool> confirmStorePurchase(String provider, String productId,
+      String reference) async {
+    final response = await _api.post<Map<String, dynamic>>(
+      '/api/v1/subscriptions/store/confirm',
+      <String, dynamic>{
+        'provider': provider,
+        'productId': productId,
+        'purchaseReference': reference,
+      },
+      (json) => Map<String, dynamic>.from(json as Map),
+    );
+    return response.data?['active'] == true;
+  }
+
   Future<SubscriptionModel> current() async {
     final response = await _api.get<SubscriptionModel>(
       ApiPaths.subscriptionMe,
