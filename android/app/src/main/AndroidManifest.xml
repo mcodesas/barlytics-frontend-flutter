@@ -1,5 +1,8 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
 	<uses-permission android:name="android.permission.CAMERA" />
+    <!-- Permite activar la configuración de productos y suscripciones
+         en Google Play Console al subir un AAB con Play Billing. -->
+    <uses-permission android:name="com.android.vending.BILLING" />
     <application
         android:label="BarLytics"
         android:name="${applicationName}"
