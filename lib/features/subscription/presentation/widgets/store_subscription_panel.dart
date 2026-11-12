@@ -33,7 +33,7 @@ class StoreSubscriptionPanel extends ConsumerStatefulWidget {
 }
 
 class _StoreSubscriptionPanelState extends ConsumerState<StoreSubscriptionPanel> {
-  final InAppPurchase _iap = InAppPurchase.instance;
+  late final InAppPurchase _iap;
   StreamSubscription<List<PurchaseDetails>>? _updates;
   bool _loading = true;
   bool _busy = false;
@@ -49,6 +49,7 @@ class _StoreSubscriptionPanelState extends ConsumerState<StoreSubscriptionPanel>
   void initState() {
     super.initState();
     if (StoreSubscriptionPanel.availablePlatform) {
+      _iap = InAppPurchase.instance;
       // Es indispensable suscribirse antes de abrir StoreKit / Billing.
       _updates = _iap.purchaseStream.listen(_purchaseUpdates,
           onError: (Object error) {
