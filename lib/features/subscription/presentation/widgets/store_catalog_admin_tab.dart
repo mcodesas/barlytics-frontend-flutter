@@ -114,7 +114,7 @@ class _StoreCatalogAdminTabState extends ConsumerState<StoreCatalogAdminTab> {
       builder: (dialogContext) => StatefulBuilder(
         builder: (context, change) => AlertDialog(
           title: Row(children: [
-            Icon(provider == 'APPLE' ? Icons.apple_rounded : Icons.android_rounded),
+            Icon(provider == 'APPLE' ? Icons.apple : Icons.android_rounded),
             const SizedBox(width: 10),
             Expanded(child: Text('Sincronizar con ${provider == 'APPLE' ? 'App Store' : 'Google Play'}',
                 style: const TextStyle(fontSize: 18))),
@@ -264,7 +264,7 @@ class _StoreCatalogAdminTabState extends ConsumerState<StoreCatalogAdminTab> {
         border: Border.all(color: palette.cardBorder)),
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
         Row(children: [
-          Icon(apple ? Icons.apple_rounded : Icons.android_rounded,
+          Icon(apple ? Icons.apple : Icons.android_rounded,
               size: 23, color: palette.textPrimary),
           const SizedBox(width: 9),
           Expanded(child: Text(apple ? 'App Store' : 'Google Play',
@@ -407,7 +407,7 @@ class _StoreCatalogAdminTabState extends ConsumerState<StoreCatalogAdminTab> {
                     Icons.sync_rounded,_readiness['catalogEnabled']==true),
                 _statusTile(palette,'Apple API',
                     _readiness['appleConfigured']==true?'Configurada':'Pendiente',
-                    Icons.apple_rounded,_readiness['appleConfigured']==true),
+                    Icons.apple,_readiness['appleConfigured']==true),
                 _statusTile(palette,'Google API',
                     _readiness['googleConfigured']==true?'Configurada':'Pendiente',
                     Icons.android_rounded,_readiness['googleConfigured']==true),
