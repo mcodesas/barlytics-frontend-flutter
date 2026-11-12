@@ -234,14 +234,17 @@ class _StoreCatalogAdminTabState extends ConsumerState<StoreCatalogAdminTab> {
       child: Row(mainAxisSize: MainAxisSize.min, children: [
         Icon(icon, size: 19, color: ready ? palette.success : palette.textSecondary),
         const SizedBox(width: 8),
-        Flexible(child: Column(crossAxisAlignment: CrossAxisAlignment.start,
-          mainAxisSize: MainAxisSize.min, children: [
-          Text(label, style: TextStyle(fontSize: 11,
-              color: palette.textSecondary)),
-          Text(value, maxLines: 2, overflow: TextOverflow.ellipsis,
-              style: TextStyle(color: palette.textPrimary,
-                  fontWeight: FontWeight.w800, fontSize: 12)),
-        ])),
+        ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 190),
+          child: Column(crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisSize: MainAxisSize.min, children: [
+            Text(label, style: TextStyle(fontSize: 11,
+                color: palette.textSecondary)),
+            Text(value, maxLines: 2, overflow: TextOverflow.ellipsis,
+                style: TextStyle(color: palette.textPrimary,
+                    fontWeight: FontWeight.w800, fontSize: 12)),
+          ]),
+        ),
       ]),
     );
   }
