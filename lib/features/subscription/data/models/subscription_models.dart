@@ -18,6 +18,7 @@ class SubscriptionModel {
     this.frequencyType = 'months',
     this.trialDays = 0,
     this.paymentMethod,
+    this.provider,
     this.automaticRenewal = false,
     this.currentPeriodStart,
     this.currentPeriodEnd,
@@ -53,6 +54,8 @@ class SubscriptionModel {
   final String frequencyType;
   final int trialDays;
   final String? paymentMethod;
+  /// Proveedor que gestiona la renovación de la empresa (APPLE, GOOGLE o MERCADOPAGO).
+  final String? provider;
   final bool automaticRenewal;
   final DateTime? currentPeriodStart;
   final DateTime? currentPeriodEnd;
@@ -91,6 +94,7 @@ class SubscriptionModel {
         frequencyType: json['frequencyType']?.toString() ?? 'months',
         trialDays: (json['trialDays'] as num?)?.toInt() ?? 0,
         paymentMethod: json['paymentMethod']?.toString(),
+        provider: json['provider']?.toString().trim().toUpperCase(),
         automaticRenewal: json['automaticRenewal'] == true,
         currentPeriodStart: DateTime.tryParse(json['currentPeriodStart']?.toString() ?? ''),
         currentPeriodEnd: DateTime.tryParse(json['currentPeriodEnd']?.toString() ?? ''),
