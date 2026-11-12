@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -16,6 +17,7 @@ import '../../../auth/presentation/providers/auth_provider.dart';
 import '../../data/models/subscription_models.dart';
 import '../providers/subscription_provider.dart';
 import '../widgets/mercado_pago_recurring_brick.dart';
+import '../widgets/store_subscription_panel.dart';
 
 class SubscriptionActivationPage extends ConsumerStatefulWidget {
   const SubscriptionActivationPage({super.key});
@@ -1072,10 +1074,13 @@ class _SubscriptionActivationPageState extends ConsumerState<SubscriptionActivat
 
   Widget _progressCard(AppPalette palette, {required int active}) {
     final phone = MediaQuery.sizeOf(context).width < 600;
+    final storePayment = StoreSubscriptionPanel.availablePlatform;
     final steps = <({IconData icon, String title, String subtitle})>[
       (icon: Icons.person_outline_rounded, title: 'Cuenta y datos', subtitle: 'Revisa tu información'),
       (icon: Icons.workspace_premium_outlined, title: 'Plan', subtitle: 'Confirma o cámbialo'),
-      (icon: Icons.lock_outline_rounded, title: 'Pago', subtitle: 'Mercado Pago'),
+      (icon: Icons.lock_outline_rounded, title: 'Pago',
+        subtitle: storePayment ? (defaultTargetPlatform == TargetPlatform.iOS
+          ? 'App Store' : 'Google Play') : 'Mercado Pago'),
     ];
 
     if (phone) {
@@ -1588,6 +1593,13 @@ class _SubscriptionActivationPageState extends ConsumerState<SubscriptionActivat
   }
 
   Widget _paymentPanel(AppPalette palette) {
+    if (StoreSubscriptionPanel.availablePlatform) {
+      return StoreSubscriptionPanel(
+        key: ValueKey(_currentPlan()?.code ?? _subscription?.planCode),
+        planCode: _currentPlan()?.code ?? _subscription?.planCode,
+        onConfirmed: _load,
+      );
+    }
     final phone = MediaQuery.sizeOf(context).width < 600;
     final currentPlan = _currentPlan();
     final frequency = currentPlan?.frequency ?? _subscription?.frequency ?? 1;
@@ -2447,6 +2459,25 @@ class _SubscriptionActivationPageState extends ConsumerState<SubscriptionActivat
               ),
             ],
           ),
+          if (const {'APPLE', 'GOOGLE'}.contains(
+                (subscription.provider ?? '').toUpperCase())) ...[
+            const SizedBox(height: 12),
+            Text(
+              'Suscripción administrada por ${subscription.provider == 'APPLE' ? 'App Store' : 'Google Play'}. '
+              'El cobro mensual y la cancelación se controlan desde tu cuenta de esa tienda.',
+              style: TextStyle(color: palette.textSecondary, fontSize: 12),
+            ),
+            TextButton.icon(
+              onPressed: () => launchUrl(
+                Uri.parse(subscription.provider == 'APPLE'
+                  ? 'https://apps.apple.com/account/subscriptions'
+                  : 'https://play.google.com/store/account/subscriptions'),
+                mode: LaunchMode.externalApplication,
+              ),
+              icon: const Icon(Icons.open_in_new_rounded),
+              label: const Text('Administrar suscripción en la tienda'),
+            ),
+          ],
           if (subscription.nextChargeAt != null) ...[
             const SizedBox(height: 14),
             Text(
