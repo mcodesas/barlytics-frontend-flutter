@@ -198,7 +198,9 @@ class _StoreCatalogAdminTabState extends ConsumerState<StoreCatalogAdminTab> {
     );
     // El identificador de la ruta no lo puede elegir el cliente:
     // se toma exclusivamente del catálogo autenticado.
-    controller.dispose();
+    // El Future del diálogo puede completar antes de terminar su animación
+    // inversa. No liberar el controlador mientras TextField siga en el árbol.
+    Future<void>.delayed(const Duration(milliseconds: 400), controller.dispose);
     if (changes == null || !mounted) return;
     final id = _number(plan['planId']).toInt();
     if (id <= 0) return;
