@@ -43,6 +43,7 @@ class _StoreSubscriptionPanelState extends ConsumerState<StoreSubscriptionPanel>
   ProductDetails? _product;
   final Set<String> _allowedProductIds = <String>{};
   final Set<String> _processingPurchases = <String>{};
+  final List<PurchaseDetails> _awaitingCatalog = <PurchaseDetails>[];
 
   @override
   void initState() {
@@ -111,6 +112,11 @@ class _StoreSubscriptionPanelState extends ConsumerState<StoreSubscriptionPanel>
         _product = details.first;
         _loading = false;
       });
+      if (_awaitingCatalog.isNotEmpty) {
+        final awaiting = List<PurchaseDetails>.of(_awaitingCatalog);
+        _awaitingCatalog.clear();
+        _purchaseUpdates(awaiting);
+      }
     } catch (error) {
       if (!mounted) return;
       setState(() {
@@ -118,6 +124,8 @@ class _StoreSubscriptionPanelState extends ConsumerState<StoreSubscriptionPanel>
         _storeAvailable = false;
         _message = error.toString().replaceFirst('Bad state: ', '');
       });
+      // El catálogo aún no está habilitado. La compra anterior queda sin
+      // acknowledgement, para verificarla cuando el backend esté disponible.
     }
   }
 
@@ -170,6 +178,12 @@ class _StoreSubscriptionPanelState extends ConsumerState<StoreSubscriptionPanel>
   }
 
   void _purchaseUpdates(List<PurchaseDetails> purchases) {
+    // Las tiendas pueden reenviar transacciones anteriores al cargar la
+    // pantalla. Esperar al catálogo habilitado del backend, sin perderlas.
+    if (_loading) {
+      _awaitingCatalog.addAll(purchases);
+      return;
+    }
     for (final purchase in purchases) {
       switch (purchase.status) {
         case PurchaseStatus.pending:
