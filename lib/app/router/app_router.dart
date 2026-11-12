@@ -291,7 +291,12 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       GoRoute(path: '/evento/:slug', builder: (context,state) => EventoPublicoPage(slug: state.pathParameters['slug']!)),
       GoRoute(path: '/eventos', builder: (context,state) => const AppScaffold(child: EventosAdminPage())),
       GoRoute(path: '/carta/:slug', builder: (context, state) =>
-          MenuDigitalPublicPage(slug: state.pathParameters['slug']!)),
+          MenuDigitalPublicPage(
+            slug: state.pathParameters['slug']!,
+            // Los enlaces públicos/QR no llevan el indicador de vista interna.
+            // Solo al abrir desde el panel se muestra navegación de regreso.
+            internalPreview: state.uri.queryParameters['vista_previa'] == '1',
+          )),
       GoRoute(path: '/menu_digital', builder: (context, state) =>
           const AppScaffold(child: MenuDigitalAdminPage())),
       GoRoute(
