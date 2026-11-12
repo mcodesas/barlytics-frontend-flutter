@@ -1296,8 +1296,18 @@ class _MenuDigitalAdminPageState extends ConsumerState<MenuDigitalAdminPage> {
                         child: TextButton.icon(
                           style: TextButton.styleFrom(
                             foregroundColor: menuColors.text),
-                          onPressed: () => context.go('/carta/' +
-                            (_saved?['slug'] ?? '').toString()),
+                          // Mantener la pantalla de administración en el historial:
+                          // go() reemplazaba la ruta y dejaba al usuario
+                          // atrapado en la carta pública en móvil y escritorio.
+                          onPressed: () {
+                            final slug = (_saved?['slug'] ?? '').toString().trim();
+                            if (slug.isEmpty) {
+                              _notify('La carta aún no tiene un enlace válido.');
+                              return;
+                            }
+                            context.push('/carta/${Uri.encodeComponent(slug)}'
+                                '?vista_previa=1');
+                          },
                           icon: const Icon(Icons.open_in_new_rounded),
                           label: const Text('Ver como cliente')),
                       ),
