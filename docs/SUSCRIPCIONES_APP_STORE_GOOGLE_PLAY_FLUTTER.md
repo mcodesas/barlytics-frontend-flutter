@@ -35,3 +35,31 @@ Consulta la guía completa `docs/SUSCRIPCIONES_APP_STORE_GOOGLE_PLAY.md` en el r
 - La restauración y la validación de compras incompletas dependen de la conectividad y de la asociación previa con la empresa. No finalizar transacciones no verificadas.
 - El upgrade / downgrade de un plan activo en la tienda requiere una implementación separada del flujo de cambio de base-plan / grupo de suscripciones. No permitir un cobro nuevo a la vez que una suscripción de otro proveedor está vigente.
 - No mezclar claves de tienda ni secretos en Flutter: solo en el backend.
+
+
+## Administración visual y sincronización automática del catálogo
+
+La ruta existente **/planes_suscripcion** (acceso ADMIN Y SOPORTE) incorpora una tercera pestaña: **App Store y Google Play**. Esta pantalla no realiza pagos: crea productos en las tiendas mediante endpoints exclusivos del backend.
+
+El nuevo panel incluye, por cada plan mensual activo:
+- Dos tarjetas independientes (Apple y Google), con estado, SKU copiable, precio COP verificado y avisos de sincronización.
+- Estado de habilitación del módulo y de credenciales por proveedor, sin exponer secretos.
+- Diálogo de confirmación para crear productos, aplicar el precio válido de Apple y, en Google, aceptar el cálculo regional o activar el plan base mensual.
+- Botón de volver a consultar el estado remoto, indicador de errores y un historial de operaciones.
+- Diseño responsivo para móviles y escritorio, con scroll interior en la pestaña.
+- Controles desactivados cuando `BARLYTICS_IAP_CATALOG_SYNC_ENABLED=false` o faltan credenciales.
+
+### Protección de suscriptores existentes
+
+Al actualizar el precio base de BarLytics, el servidor contrasta el precio publicado. Si difiere, aparece `PRICE_CHANGE_REVIEW`. Los cambios de precio a **planes existentes con suscriptores** no se publican silenciosamente: podrían requerir consentimiento del cliente o migración de cohortes en las tiendas. Por ahora, deben confirmarse y administrarse de forma controlada en la consola correspondiente.
+
+### Configuración inicial en tu servidor
+
+Consulta `docs/SUSCRIPCIONES_APP_STORE_GOOGLE_PLAY.md` del backend para:
+- Clave **App Store Connect API** separada de la clave **App Store Server API**.
+- Cuenta de servicio Play Developer API.
+- Variables `BARLYTICS_ASC_ISSUER_ID`, `BARLYTICS_ASC_KEY_ID`, `BARLYTICS_ASC_PRIVATE_KEY_P8_BASE64`, `GOOGLE_APPLICATION_CREDENTIALS`.
+- `BARLYTICS_IAP_CATALOG_SYNC_ENABLED=true` para sincronizar productos sin abrir cobros.
+- `BARLYTICS_IAP_ENABLED=false` hasta aprobación final de Apple/Google y QA de pagos en Sandbox/TestFlight/Internal Testing.
+
+**Esta integración no requiere añadir otro menú a la BD:** se incorpora al módulo de Planes y suscripciones ya autorizado, manteniendo el control por rol global en el backend.
