@@ -47,7 +47,7 @@ class _MesasListPageState extends ConsumerState<MesasListPage> {
         RegExp(r'^ROLE_'), '',
       );
       return const <String>{
-        'GERENTE', 'CAJERO', 'CAJERA',
+        'GERENTE', 'MANAGER', 'SUPERVISOR', 'CAJERO', 'CAJERA',
         'ADMIN', 'ADMINISTRADOR', 'SUPERADMIN', 'SUPER_ADMIN',
       }.contains(name);
     });
