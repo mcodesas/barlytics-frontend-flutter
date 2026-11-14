@@ -525,33 +525,39 @@ class _MesasListPageState extends ConsumerState<MesasListPage> {
 
     final api = ref.read(apiClientProvider);
     final today = DateFormat('yyyy-MM-dd').format(DateTime.now());
-    try {
-      final responses = await Future.wait([
-        api.get<List<Map<String, dynamic>>>(
-          '${ApiPaths.mesas}/sucursal/$branchId',
-          _parseMapList,
-        ),
-        api.get<List<Map<String, dynamic>>>(
-          '${ApiPaths.reportes}/ventas/tiempo-real',
-          _parseMapList,
-          queryParameters: {'sucursalId': branchId},
-        ),
-        api.get<List<Map<String, dynamic>>>(
-          '${ApiPaths.reportes}/ventas/detalle',
-          _parseMapList,
-          queryParameters: {
-            'inicio': today,
-            'fin': today,
-            'sucursalId': branchId,
-            'limite': 500,
-          },
-        ),
-      ]);
-      if (!mounted) return;
 
-      final rawTables = responses[0].data as List<Map<String, dynamic>>? ?? const [];
-      final rawLive = responses[1].data as List<Map<String, dynamic>>? ?? const [];
-      final rawHistory = responses[2].data as List<Map<String, dynamic>>? ?? const [];
+    // Los reportes son información complementaria. Un rol personalizado
+    // puede tener Mesas sin tener Reportes; un 403 en los KPI no debe impedir
+    // listar las mesas ni abrir el formulario para crearlas o editarlas.
+    Future<List<Map<String, dynamic>>> optionalReport(
+      String url, Map<String, dynamic> query,
+    ) async {
+      try {
+        final response = await api.get<List<Map<String, dynamic>>>(
+          url, _parseMapList, queryParameters: query,
+        );
+        return response.data ?? const <Map<String, dynamic>>[];
+      } catch (_) {
+        return const <Map<String, dynamic>>[];
+      }
+    }
+
+    final liveFuture = optionalReport(
+      '${ApiPaths.reportes}/ventas/tiempo-real', {'sucursalId': branchId},
+    );
+    final historyFuture = optionalReport(
+      '${ApiPaths.reportes}/ventas/detalle',
+      {'inicio': today, 'fin': today, 'sucursalId': branchId, 'limite': 500},
+    );
+    try {
+      // La consulta principal sí es obligatoria y conserva sus errores.
+      final response = await api.get<List<Map<String, dynamic>>>(
+        '${ApiPaths.mesas}/sucursal/$branchId', _parseMapList,
+      );
+      final rawTables = response.data ?? const <Map<String, dynamic>>[];
+      final rawLive = await liveFuture;
+      final rawHistory = await historyFuture;
+      if (!mounted) return;
       final liveByTable = <int, _LiveTableSale>{};
       for (final row in rawLive) {
         final live = _LiveTableSale.fromJson(row);
