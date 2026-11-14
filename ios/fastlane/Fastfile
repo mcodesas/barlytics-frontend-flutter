@@ -64,6 +64,7 @@ platform :ios do
     profile_name = ENV["sigh_com.mcode.barlytics_appstore_profile-name"]
     UI.user_error!("Fastlane Match no entregó el provisioning profile de com.mcode.barlytics") if profile_name.to_s.empty?
 
+    sh("cd .. && bash scripts/ios/generate-app-icons.sh")
     sh("cd .. && flutter pub get")
     sh(
       "cd .. && flutter build ios --release --no-codesign " \
