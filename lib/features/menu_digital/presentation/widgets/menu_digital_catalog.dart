@@ -408,28 +408,7 @@ class _MenuDigitalCatalogState extends State<MenuDigitalCatalog> {
     ]);
   }
 
-  IconData _iconForCategory(String category) {
-    final name = category.toUpperCase();
-    if (name == 'TODOS') return Icons.check_circle_outline_rounded;
-    if (name.contains('CERVEZA')) return Icons.sports_bar_rounded;
-    if (name.contains('COCTEL') || name.contains('CÓCTEL')) {
-      return Icons.local_bar_rounded;
-    }
-    if (name.contains('COMIDA') || name.contains('PASABOCAS')) {
-      return Icons.tapas_rounded;
-    }
-    if (name.contains('BEBIDA') || name.contains('JUGO')) {
-      return Icons.local_drink_rounded;
-    }
-    if (name.contains('WHISKY') || name.contains('LICOR') ||
-        name.contains('AGUARDIENTE') || name.contains('RON')) {
-      return Icons.wine_bar_rounded;
-    }
-    if (name.contains('CIGARRILLO')) return Icons.smoking_rooms_rounded;
-    return Icons.restaurant_menu_rounded;
-  }
-
-  void _selectBookPage(int page, List<String> categories) {
+    void _selectBookPage(int page, List<String> categories) {
     if (categories.isEmpty || page < 0 || page >= categories.length) return;
     setState(() {
       _bookPage = page;
@@ -514,7 +493,7 @@ class _MenuDigitalCatalogState extends State<MenuDigitalCatalog> {
 
   Widget _fullCoverHeader(
       MenuDigitalColors colors, Color canvas, Color fg, Color accent,
-      bool mobile, String style) {
+      bool mobile) {
     final slideshow = <String>[
       if (_image(widget.menu['portada']) != null)
         widget.menu['portada'].toString(),
@@ -656,23 +635,7 @@ class _MenuDigitalCatalogState extends State<MenuDigitalCatalog> {
               style: TextStyle(color: fg.withOpacity(.85),
                 fontSize: 13, height: 1.5)),
           ],
-          const SizedBox(height: 13),
-          Container(
-            padding: const EdgeInsets.symmetric(
-                horizontal: 12, vertical: 8),
-            decoration: BoxDecoration(
-              color: accent, borderRadius: BorderRadius.circular(20)),
-            child: Text(
-              switch (style) {
-                'LIBRO' => 'CARTA TIPO LIBRO',
-                'EDITORIAL' => 'CARTA EDITORIAL',
-                'GALERIA' => 'GALERÍA DE PRODUCTOS',
-                'MINIMALISTA' => 'CARTA MINIMALISTA',
-                _ => 'CARTA MODERNA',
-              },
-              style: TextStyle(color: colors.onAccent,
-                fontSize: 11, fontWeight: FontWeight.w900)),
-          ),
+
         ]),
       ),
     ]);
@@ -809,12 +772,12 @@ class _MenuDigitalCatalogState extends State<MenuDigitalCatalog> {
                   borderRadius: BorderRadius.circular(26),
                   border: Border.all(color: colors.border),
                   boxShadow: [BoxShadow(
-                    color: Colors.black.withOpacity(.12),
-                    blurRadius: 24, offset: const Offset(0, 10),
+                    color: Colors.black.withOpacity(.06),
+                    blurRadius: 18, offset: const Offset(0, 5),
                   )],
                 ),
                 child: fullCover
-                    ? _fullCoverHeader(colors, canvas, fg, accent, mobile, style)
+                    ? _fullCoverHeader(colors, canvas, fg, accent, mobile)
                     : Stack(children: [
                   if (coverHasImage)
                     Positioned.fill(
@@ -884,24 +847,7 @@ class _MenuDigitalCatalogState extends State<MenuDigitalCatalog> {
                                 maxLines: 3, overflow: TextOverflow.ellipsis,
                                 style: TextStyle(color: fg.withOpacity(.84),
                                   fontSize: 14, height: 1.5)),
-                            const SizedBox(height: 18),
-                            Container(
-                              padding: const EdgeInsets.symmetric(
-                                  horizontal: 14, vertical: 9),
-                              decoration: BoxDecoration(
-                                color: accent,
-                                borderRadius: BorderRadius.circular(24)),
-                              child: Row(mainAxisSize: MainAxisSize.min, children: [
-                                Icon(book ? Icons.menu_book_rounded
-                                  : Icons.storefront_outlined,
-                                  color: colors.onAccent, size: 16),
-                                const SizedBox(width: 8),
-                                Text(book ? 'CARTA TIPO LIBRO' : 'CATÁLOGO MODERNO',
-                                  style: TextStyle(color: colors.onAccent,
-                                    fontSize: 11, fontWeight: FontWeight.w900,
-                                    letterSpacing: .6)),
-                              ]),
-                            ),
+
                           ],
                         ),
                       ),
