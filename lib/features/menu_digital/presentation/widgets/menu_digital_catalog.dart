@@ -861,6 +861,7 @@ class _MenuDigitalCatalogState extends State<MenuDigitalCatalog> {
                   onChanged: (value) => setState(() {
                     _search = value;
                     _bookPage = 0;
+                    _category = 'Todos';
                   }),
                   cursorColor: accent,
                   style: TextStyle(color: fg, fontSize: 15),
