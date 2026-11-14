@@ -745,8 +745,11 @@ class _MenuDigitalCatalogState extends State<MenuDigitalCatalog> {
     final style = (widget.menu['estilo'] ?? 'TIENDA').toString().toUpperCase();
     final book = style == 'LIBRO';
     final items = _products;
-    final cats = <String>['Todos', ...items.map((p) =>
-        (p['tipo'] ?? 'Especialidades').toString()).toSet()];
+    final preferredCategories = (widget.menu['ordenTipos'] as List? ?? const [])
+        .whereType<String>().toList();
+    final cats = <String>['Todos',
+      ...MenuDigitalOrdering.categories(items, preferredCategories)];
+    final selectedCategory = cats.contains(_category) ? _category : 'Todos';
     final searched = items.where((p) =>
         _search.isEmpty ||
         (p['nombre']?.toString().toLowerCase().contains(_search.toLowerCase()) ?? false) ||
@@ -754,16 +757,17 @@ class _MenuDigitalCatalogState extends State<MenuDigitalCatalog> {
     ).toList();
     // No filtrar las hojas por el chip activo: las otras categorías
     // deben seguir existiendo para poder navegar hacia ellas.
-    final bookCategories = <String>{
-      for (final p in searched) (p['tipo'] ?? 'Especialidades').toString(),
-    }.toList();
+    final bookCategories =
+        MenuDigitalOrdering.categories(searched, preferredCategories);
     final currentBookPage = bookCategories.isEmpty
         ? 0 : _bookPage.clamp(0, bookCategories.length - 1).toInt();
     final activeBookCategory = bookCategories.isEmpty
         ? '' : bookCategories[currentBookPage];
     final filtered = book ? searched : searched.where((p) =>
-        _category == 'Todos' ||
-        (p['tipo'] ?? 'Especialidades').toString() == _category).toList();
+        selectedCategory == 'Todos' ||
+        MenuDigitalOrdering.category(p) == selectedCategory).toList();
+    final visibleCategories =
+        MenuDigitalOrdering.categories(filtered, preferredCategories);
 
     return Container(
       decoration: BoxDecoration(
@@ -906,9 +910,6 @@ class _MenuDigitalCatalogState extends State<MenuDigitalCatalog> {
                 ]),
               ),
               const SizedBox(height: 18),
-              _venueGallery(colors, mobile),
-              if ((widget.menu['galeria'] as List? ?? const []).isNotEmpty)
-                const SizedBox(height: 22),
               if (!widget.preview) ...[
                 TextField(
                   onChanged: (value) => setState(() {
@@ -936,122 +937,71 @@ class _MenuDigitalCatalogState extends State<MenuDigitalCatalog> {
                   ),
                 ),
                 const SizedBox(height: 13),
-                // En la web el carrusel horizontal ocultaba las categorías
-                // que quedaban a la derecha (sin indicador de desplazamiento).
-                // El menú se distribuye en varias filas y ninguna opción
-                // queda fuera de la pantalla, también con ventana estrecha.
                 Container(
-                  width: double.infinity,
-                  padding: const EdgeInsets.fromLTRB(14, 14, 14, 15),
+                  padding: const EdgeInsets.fromLTRB(17, 16, 17, 17),
                   decoration: BoxDecoration(
-                    color: colors.secondarySurface,
-                    borderRadius: BorderRadius.circular(19),
+                    color: colors.card,
                     border: Border.all(color: colors.border),
+                    borderRadius: BorderRadius.circular(18),
                   ),
                   child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: [
-                      Row(children: [
-                        Icon(Icons.category_outlined,
-                            color: colors.text, size: 19),
-                        const SizedBox(width: 8),
-                        Expanded(child: Text(
-                          'Tipos de productos',
-                          style: TextStyle(
-                            color: fg, fontSize: mobile ? 15 : 16,
-                            fontWeight: FontWeight.w900),
-                        )),
-                        Container(
-                          padding: const EdgeInsets.symmetric(
-                              horizontal: 10, vertical: 5),
-                          decoration: BoxDecoration(
-                            color: accent,
-                            borderRadius: BorderRadius.circular(14),
-                          ),
-                          child: Text(
-                            '${cats.length - 1} tipos',
-                            style: TextStyle(
-                              color: colors.onAccent, fontSize: 11,
-                              fontWeight: FontWeight.w800),
-                          ),
-                        ),
-                      ]),
+                      Text('Encuentra lo que te gusta',
+                        style: TextStyle(color: fg, fontSize: 17,
+                          fontWeight: FontWeight.w800)),
                       const SizedBox(height: 5),
-                      Text(
-                        'Selecciona una categoría para explorar los productos.',
+                      Text(book
+                          ? 'Elige un capítulo o pasa de página.'
+                          : 'Explora todas las secciones o elige una en particular.',
                         style: TextStyle(
-                          color: fg.withOpacity(.75),
-                          fontSize: 12, height: 1.35,
+                          color: fg.withOpacity(.7), fontSize: 12)),
+                      const SizedBox(height: 14),
+                      DropdownButtonFormField<String>(
+                        value: book
+                            ? (bookCategories.isEmpty ? null : activeBookCategory)
+                            : selectedCategory,
+                        isExpanded: true,
+                        dropdownColor: colors.card,
+                        icon: Icon(Icons.expand_more_rounded, color: fg),
+                        style: TextStyle(color: fg, fontSize: 14,
+                          fontWeight: FontWeight.w700),
+                        decoration: InputDecoration(
+                          labelText: book ? 'Capítulo' : 'Ver sección',
+                          labelStyle: TextStyle(color: fg.withOpacity(.72)),
+                          prefixIcon: Icon(Icons.menu_book_outlined, color: fg),
+                          filled: true,
+                          fillColor: colors.canvas.withOpacity(.5),
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(12),
+                            borderSide: BorderSide(color: colors.border)),
+                          enabledBorder: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(12),
+                            borderSide: BorderSide(color: colors.border)),
+                          contentPadding: const EdgeInsets.symmetric(
+                            vertical: 13, horizontal: 12),
                         ),
+                        items: [
+                          for (final cat in (book ? bookCategories : cats))
+                            DropdownMenuItem<String>(
+                              value: cat,
+                              child: Text(cat == 'Todos'
+                                  ? 'Toda nuestra carta' : cat,
+                                maxLines: 1, overflow: TextOverflow.ellipsis)),
+                        ],
+                        onChanged: (cat) {
+                          if (cat == null) return;
+                          if (book) {
+                            _selectBookPage(bookCategories.indexOf(cat),
+                                bookCategories);
+                          } else {
+                            setState(() {
+                              _category = cat;
+                              _bookPage = 0;
+                            });
+                          }
+                        },
                       ),
-                      const SizedBox(height: 12),
-                      LayoutBuilder(builder: (context, limits) {
-                        // Un nombre largo puede ocupar hasta dos líneas.
-                        // La restricción evita que un solo chip desborde
-                        // el ancho en navegadores o teléfonos pequeños.
-                        final maxLabelWidth =
-                            (limits.maxWidth - 90).clamp(72.0, 238.0).toDouble();
-                        return Wrap(
-                          alignment: WrapAlignment.start,
-                          spacing: 8,
-                          runSpacing: 8,
-                          children: [
-                            for (final cat in (book ? bookCategories : cats))
-                              Tooltip(
-                                message: cat,
-                                child: ChoiceChip(
-                                  label: ConstrainedBox(
-                                    constraints: BoxConstraints(
-                                      maxWidth: maxLabelWidth),
-                                    child: Text(
-                                      cat,
-                                      maxLines: 2,
-                                      softWrap: true,
-                                      overflow: TextOverflow.ellipsis,
-                                    ),
-                                  ),
-                                  selected: book ? activeBookCategory == cat : _category == cat,
-                                  showCheckmark: false,
-                                  avatar: Icon(
-                                    _iconForCategory(cat),
-                                    size: 17,
-                                    color: (book ? activeBookCategory == cat : _category == cat)
-                                        ? colors.onAccent : fg,
-                                  ),
-                                  onSelected: (_) {
-                                    if (book) {
-                                      _selectBookPage(bookCategories.indexOf(cat),
-                                          bookCategories);
-                                    } else {
-                                      setState(() {
-                                        _category = cat;
-                                        _bookPage = 0;
-                                      });
-                                    }
-                                  },
-                                  selectedColor: accent,
-                                  backgroundColor: colors.card,
-                                  side: BorderSide(
-                                    color: (book ? activeBookCategory == cat : _category == cat)
-                                        ? accent : colors.border,
-                                    width: (book ? activeBookCategory == cat : _category == cat)
-                                        ? 1.5 : 1,
-                                  ),
-                                  shape: RoundedRectangleBorder(
-                                    borderRadius: BorderRadius.circular(22)),
-                                  padding: const EdgeInsets.symmetric(
-                                    horizontal: 10, vertical: 8),
-                                  labelStyle: TextStyle(
-                                    color: (book ? activeBookCategory == cat : _category == cat)
-                                        ? colors.onAccent : fg,
-                                    fontWeight: FontWeight.w800,
-                                    fontSize: 12.5,
-                                  ),
-                                ),
-                              ),
-                          ],
-                        );
-                      }),
                     ],
                   ),
                 ),
@@ -1061,7 +1011,7 @@ class _MenuDigitalCatalogState extends State<MenuDigitalCatalog> {
                 Icon(book ? Icons.auto_stories_rounded : Icons.grid_view_rounded,
                   color: accent),
                 const SizedBox(width: 9),
-                Expanded(child: Text(book ? 'Explora nuestra carta' : 'Nuestros productos',
+                Expanded(child: Text(book ? 'Explora nuestra carta' : 'Nuestra selección',
                   style: TextStyle(color: fg, fontFamily: 'Georgia',
                     fontWeight: FontWeight.bold, fontSize: 23))),
                 Container(
@@ -1118,39 +1068,26 @@ class _MenuDigitalCatalogState extends State<MenuDigitalCatalog> {
                     icon: const Icon(Icons.chevron_right_rounded),
                   ),
                 ]),
-              ] else if (style == 'EDITORIAL')
-                MenuDigitalExtraLayouts.editorial(
-                  products: filtered,
-                  colors: colors,
-                  image: (p, w, h) => _productPhoto(
-                    p, width: w, height: h, radius: 10),
-                  onDetails: _showProductDetails,
-                )
-              else if (style == 'MINIMALISTA')
-                MenuDigitalExtraLayouts.minimalist(
-                  products: filtered,
-                  colors: colors,
-                  image: (p, w, h) => _productPhoto(
-                    p, width: w, height: h, radius: 8),
-                  onDetails: _showProductDetails,
-                )
-              else if (style == 'GALERIA')
-                Wrap(spacing: gap, runSpacing: gap, children: [
-                  for (final p in filtered)
-                    MenuDigitalExtraLayouts.galleryItem(
-                      product: p,
-                      width: itemWidth,
-                      colors: colors,
-                      image: (product, w, h) => _productPhoto(
-                        product, width: w, height: h, radius: 12),
-                      onDetails: _showProductDetails,
-                    ),
-                ])
-              else
-                Wrap(spacing: gap, runSpacing: gap, children: [
-                  for (final p in filtered)
-                    _storeItem(p, itemWidth),
-                ]),
+              ] else ...[
+                for (final category in visibleCategories) ...[
+                  _categoryTitle(category,
+                    filtered.where((p) =>
+                      MenuDigitalOrdering.category(p) == category).length,
+                    colors),
+                  _productsForStyle(
+                    style,
+                    filtered.where((p) =>
+                      MenuDigitalOrdering.category(p) == category).toList(),
+                    colors, itemWidth, gap,
+                  ),
+                  const SizedBox(height: 13),
+                ],
+              ],
+              if ((widget.menu['galeria'] as List? ?? const []).isNotEmpty) ...[
+                const SizedBox(height: 30),
+                _venueGallery(colors, mobile),
+                const SizedBox(height: 10),
+              ],
               if (!widget.preview) ...[
                 const SizedBox(height: 35),
                 Divider(color: fg.withOpacity(0.16)),
