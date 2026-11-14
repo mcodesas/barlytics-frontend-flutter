@@ -87,6 +87,43 @@ class _MenuDigitalOrderEditorState extends State<MenuDigitalOrderEditor> {
     });
   }
 
+  /// Salto directo a una posición, útil cuando la carta contiene muchos platos.
+  Future<void> _choosePosition(
+    int current, int count, void Function(int, int) change,
+  ) async {
+    final controller = TextEditingController(text: '${current + 1}');
+    final target = await showDialog<int>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Mover a una posición'),
+        content: Column(mainAxisSize: MainAxisSize.min, children: [
+          Text('Introduce un número entre 1 y ${count}.'),
+          const SizedBox(height: 10),
+          TextField(
+            controller: controller,
+            autofocus: true,
+            keyboardType: TextInputType.number,
+            decoration: const InputDecoration(
+              labelText: 'Nueva posición',
+              prefixIcon: Icon(Icons.format_list_numbered_rounded),
+            ),
+          ),
+        ]),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(context),
+            child: const Text('Cancelar')),
+          FilledButton(onPressed: () {
+            final position = int.tryParse(controller.text.trim());
+            if (position == null || position < 1 || position > count) return;
+            Navigator.pop(context, position - 1);
+          }, child: const Text('Mover')),
+        ],
+      ),
+    );
+    controller.dispose();
+    if (!mounted || target == null || target == current) return;
+    change(current, target > current ? target + 1 : target);
+  }
   Widget _reorderControls(
     int index, int count, void Function(int, int) change,
   ) => Row(mainAxisSize: MainAxisSize.min, children: [
@@ -204,9 +241,10 @@ class _MenuDigitalOrderEditorState extends State<MenuDigitalOrderEditor> {
                               child: Text('${i + 1}')),
                           title: Text(types[i], maxLines: 2,
                               overflow: TextOverflow.ellipsis),
+                          onTap: () => _choosePosition(i, types.length, _moveType),
                           subtitle: Text(
                             '${widget.products.where((p) =>
-                                MenuDigitalOrdering.category(p) == types[i]).length} productos'),
+                                MenuDigitalOrdering.category(p) == types[i]).length} productos · Toca para mover'),
                           trailing: _reorderControls(i, types.length, _moveType),
                         ),
                       ),
@@ -231,6 +269,8 @@ class _MenuDigitalOrderEditorState extends State<MenuDigitalOrderEditor> {
                                 child: Text('${i + 1}')),
                             title: Text((item['nombre'] ?? 'Producto').toString(),
                                 maxLines: 2, overflow: TextOverflow.ellipsis),
+                            subtitle: Text('Posición ${i + 1} · Toca para mover'),
+                            onTap: () => _choosePosition(i, ids.length, _moveProduct),
                             trailing: _reorderControls(i, ids.length, _moveProduct),
                           ),
                         );
