@@ -89,3 +89,38 @@ flutter test test/features/menu_digital
 Matriz manual por ejecutar: Android/iOS/web/escritorio; anchos 320, 390, 768 y 1440; diez diseños; categorías y productos ordenados; categoría sin tipo; listas grandes; colores claros y oscuros; cambios de sucursal; búsqueda tras filtrar; orden conservado tras recargar; compatibilidad de enlace público/QR; cliente antiguo que edita una carta; subida y visualización de imágenes; modo libro; accesibilidad y diálogos con teclado.
 
 Se incorporaron pruebas de ordenamiento en Flutter, ampliación del test visual de dos a cinco diseños, y pruebas JUnit de validación de categorías. No se pudo ejecutar Flutter, Gradle ni un QA de navegador/dispositivos desde este entorno; se requiere CI local o ejecución en una copia de pruebas antes del merge.
+
+
+## Correcciones de QA (14-11-2026)
+
+- **Miniaturas del editor**: `MenuDigitalDesignThumbnail` encapsula cada
+  composición en un lienzo de 280 × 156 píxeles, escalado con `FittedBox`
+  dentro del espacio disponible. El texto decorativo de la miniatura
+  mantiene tamaño fijo para no desbordar cuando crece la fuente del sistema.
+  Los textos accesibles del selector (título y descripción) no se alteran.
+  Cubre especialmente `ELEGANTE` y las filas comprimidas de `BISTRO`/
+  `NOCTURNO`, donde se reportó `RenderFlex overflow`.
+- **Fotos del móvil**: portada, logo, imagen de fondo y galería pasan de
+  `FilePicker` tipo documento al paquete oficial `image_picker ^1.2.4`,
+  usando la fototeca del dispositivo (`ImageSource.gallery` y selección
+  múltiple cuando hay cupo). iOS ya incluye
+  `NSPhotoLibraryUsageDescription`, y Android no requiere permisos extra.
+  El selector **en Flutter web sigue dependiendo del navegador/OS**; no
+  se puede forzar la aplicación de galería si el navegador elige Archivos.
+- **Tamaño y seguridad**: se pide redimensionar/comprimir en la selección;
+  se verifican firmas JPG/PNG/WEBP y se mantienen topes originales:
+  portada/fondo 1,5 MB, logo 900 KB, galería 700 KB y máximo seis fotos.
+  Se informa cuando una foto no cumple.
+- **Regresión**: hay pruebas para las diez miniaturas a tres anchuras,
+  tres estilos con texto ampliado, y límites y tipos de imágenes.
+- **Entorno**: antes de ejecutar Flutter tras cambiar de rama, ejecutar
+  `flutter pub get` para instalar `image_picker` y actualizar el
+  `pubspec.lock` local. En este entorno de edición remota no se dispone
+  de Flutter/Dart ni de emulador para ejecutar los tests o verificar
+  la interfaz real; no se realizó PR, merge ni despliegue.
+
+Los avisos `[Centro de errores] HTTP sin respuesta` pertenecen a la
+telemetría y no son un mensaje del selector de imágenes. Los posteriores
+`HTTP 202` prueban que se recibieron algunos de los reportes, pero no
+descartan pérdidas temporales de conectividad; se debe diagnosticar el
+centro de errores de manera independiente si persisten.
