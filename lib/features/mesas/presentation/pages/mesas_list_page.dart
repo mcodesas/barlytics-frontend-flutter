@@ -18,6 +18,9 @@ import '../../../../core/utils/input_constraints.dart';
 import '../../../../core/widgets/app_error_view.dart';
 import '../../../../core/widgets/app_loader.dart';
 import '../../../../core/widgets/tech_background.dart';
+import '../../../navigation/presentation/providers/active_role_provider.dart';
+import '../../../navigation/presentation/providers/user_menu_provider.dart';
+import '../../../mesero/domain/mesas_permission_policy.dart';
 
 /// Centro de control de mesas para GERENTE.
 ///
@@ -33,6 +36,25 @@ class MesasListPage extends ConsumerStatefulWidget {
 class _MesasListPageState extends ConsumerState<MesasListPage> {
   static const _refreshInterval = Duration(seconds: 5);
   static const _pageSize = 18;
+
+  bool _canChangeTableState() {
+    final keys = ref.read(userMenuProvider).maybeWhen(
+      data: (items) => items.map((item) => item.keyName).toSet(),
+      orElse: () => const <String>{},
+    );
+    final privilegedRole = ref.read(activeRolesProvider).any((role) {
+      final name = role.trim().toUpperCase().replaceFirst(
+        RegExp(r'^ROLE_'), '',
+      );
+      return const <String>{
+        'GERENTE', 'CAJERO', 'CAJERA',
+        'ADMIN', 'ADMINISTRADOR', 'SUPERADMIN', 'SUPER_ADMIN',
+      }.contains(name);
+    });
+    return MesasPermissionPolicy.canDeleteOrChangeState(
+      menuKeys: keys, isCashier: privilegedRole,
+    );
+  }
 
   final _searchController = TextEditingController();
   Timer? _timer;
@@ -67,6 +89,8 @@ class _MesasListPageState extends ConsumerState<MesasListPage> {
   Widget build(BuildContext context) {
     final palette = ref.watch(selectedAppPaletteProvider);
     final branchState = ref.watch(branchScopeProvider);
+    ref.watch(userMenuProvider);
+    ref.watch(activeRolesProvider);
 
     ref.listen<int?>(
       branchScopeProvider.select((state) => state.activeBranchId),
@@ -450,7 +474,8 @@ class _MesasListPageState extends ConsumerState<MesasListPage> {
                   palette: palette,
                   onOpen: () => _openTableDetail(table),
                   onEdit: () => _openEditSheet(table),
-                  onDeactivate: table.isInactive ? null : () => _deactivateTable(table),
+                  onDeactivate: table.isInactive || !_canChangeTableState()
+                      ? null : () => _deactivateTable(table),
                 ),
               ),
           ],
@@ -717,7 +742,8 @@ class _MesasListPageState extends ConsumerState<MesasListPage> {
       useSafeArea: true,
       backgroundColor: Colors.transparent,
       barrierColor: Colors.black.withOpacity(0.58),
-      builder: (_) => _TableFormSheet(branchId: branchId),
+      builder: (_) => _TableFormSheet(
+        branchId: branchId, canChangeState: _canChangeTableState()),
     );
     if (saved == true && mounted) {
       _showSuccess('Mesa creada correctamente.');
@@ -734,7 +760,9 @@ class _MesasListPageState extends ConsumerState<MesasListPage> {
       useSafeArea: true,
       backgroundColor: Colors.transparent,
       barrierColor: Colors.black.withOpacity(0.58),
-      builder: (_) => _TableFormSheet(branchId: branchId, table: table),
+      builder: (_) => _TableFormSheet(
+        branchId: branchId, table: table,
+        canChangeState: _canChangeTableState()),
     );
     if (saved == true && mounted) {
       _showSuccess('Mesa actualizada correctamente.');
@@ -743,6 +771,10 @@ class _MesasListPageState extends ConsumerState<MesasListPage> {
   }
 
   Future<void> _deactivateTable(_ManagerTable table) async {
+    if (!_canChangeTableState()) {
+      _showError('Tu rol no permite inactivar mesas.');
+      return;
+    }
     if (table.isOccupied) {
       _showError('No se puede inactivar una mesa con una venta abierta.');
       return;
@@ -1123,9 +1155,14 @@ class _TableDetailSheetState extends ConsumerState<_TableDetailSheet> {
 }
 
 class _TableFormSheet extends ConsumerStatefulWidget {
-  const _TableFormSheet({required this.branchId, this.table});
+  const _TableFormSheet({
+    required this.branchId,
+    required this.canChangeState,
+    this.table,
+  });
 
   final int branchId;
+  final bool canChangeState;
   final _ManagerTable? table;
 
   @override
@@ -1259,7 +1296,8 @@ class _TableFormSheetState extends ConsumerState<_TableFormSheet> {
                                 DropdownMenuItem(value: 'OCUPADA', child: Text('Ocupada')),
                                 DropdownMenuItem(value: 'INACTIVA', child: Text('Inactiva')),
                               ],
-                              onChanged: widget.table?.isOccupied == true
+                              onChanged: !widget.canChangeState ||
+                                  widget.table?.isOccupied == true
                                   ? null
                                   : (value) => setState(() => _state = value ?? 'DISPONIBLE'),
                             ),
