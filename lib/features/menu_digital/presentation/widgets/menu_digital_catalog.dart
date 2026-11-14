@@ -367,7 +367,7 @@ class _MenuDigitalCatalogState extends State<MenuDigitalCatalog> {
           style: TextStyle(color: colors.text, fontSize: 23,
             fontFamily: 'Georgia', fontWeight: FontWeight.bold))),
         const SizedBox(width: 6),
-        Text('$'+'{count} opciones',
+        Text('${count} opciones',
           style: TextStyle(color: colors.text.withOpacity(.66),
             fontSize: 11)),
       ]),
@@ -408,7 +408,7 @@ class _MenuDigitalCatalogState extends State<MenuDigitalCatalog> {
     ]);
   }
 
-    void _selectBookPage(int page, List<String> categories) {
+  void _selectBookPage(int page, List<String> categories) {
     if (categories.isEmpty || page < 0 || page >= categories.length) return;
     setState(() {
       _bookPage = page;
