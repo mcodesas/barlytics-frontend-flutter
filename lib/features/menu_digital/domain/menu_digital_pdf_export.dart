@@ -109,10 +109,6 @@ class MenuDigitalPdfExport {
       final source = _value(menu[field]);
       if (source.isNotEmpty) sources.add(source);
     }
-    for (final galleryItem in (menu['galeria'] as List? ?? const [])) {
-      final source = _value(galleryItem);
-      if (source.isNotEmpty && sources.length < 10) sources.add(source);
-    }
     // Las fotos son opcionales y el documento puede contener miles de filas.
     // Se acota la precarga de fotos, NO la cantidad de productos exportados.
     for (final product in products) {
@@ -134,8 +130,10 @@ class MenuDigitalPdfExport {
       }));
     }
     pw.MemoryImage? photo(dynamic source) => images[_value(source)];
-    final coverPhoto =
-        photo(menu['portada']) ?? photo(menu['fondoImagen']);
+    // La foto de fondo se imprime detrás del contenido en todas las hojas.
+    final coverPhoto = photo(menu['portada']);
+    final wallpaper = photo(menu['fondoImagen']) ??
+        (visual.elegant ? coverPhoto : null);
     final title = _value(menu['titulo'], 'Nuestra carta');
     final branch = _value(menu['sucursal']);
     final description = _value(menu['descripcion']);
@@ -149,7 +147,7 @@ class MenuDigitalPdfExport {
     );
     const format = PdfPageFormat.a4;
 
-    document.addPage(pw.Page(
+    if (!visual.elegant) document.addPage(pw.Page(
       pageFormat: format,
       margin: pw.EdgeInsets.zero,
       build: (_) => pw.Container(
@@ -211,7 +209,17 @@ class MenuDigitalPdfExport {
     ));
 
     final content = <pw.Widget>[];
-    if (description.length > 180) {
+    // Elegante comparte la portada, descripción y categorías en el mismo
+    // lienzo, igual que el catálogo web: evita una portada PDF adicional.
+    if (visual.elegant) {
+      content.add(_elegantIntro(
+        title: title, branch: branch, description: description,
+        visual: visual, logo: photo(menu['logo']),
+        regular: serif, bold: bold,
+      ));
+      content.add(pw.SizedBox(height: 24));
+    }
+    if (!visual.elegant && description.length > 180) {
       content.add(pw.Padding(padding: const pw.EdgeInsets.only(bottom: 18),
         child: pw.Text(description,
           style: pw.TextStyle(color: visual.ink, font: serif,
@@ -220,6 +228,18 @@ class MenuDigitalPdfExport {
     for (final category in categories) {
       final entries = products.where(
         (item) => MenuDigitalOrdering.category(item) == category).toList();
+      if (visual.elegant) {
+        content.add(pw.SizedBox(height: 18));
+        content.add(pw.Inseparable(child: pw.Column(children: [
+          _elegantCategoryHeader(category, visual, bold),
+          _elegantProduct(entries.first, visual, serif, bold),
+        ])));
+        for (final product in entries.skip(1)) {
+          content.add(_elegantProduct(product, visual, serif, bold));
+        }
+        content.add(_elegantCategoryFooter(visual));
+        continue;
+      }
       content.add(pw.SizedBox(height: 20));
       content.add(pw.Container(
         width: double.infinity,
@@ -259,35 +279,6 @@ class MenuDigitalPdfExport {
         content.add(pw.SizedBox(height: 11));
       }
     }
-    final gallery = (menu['galeria'] as List? ?? const [])
-        .map(photo).whereType<pw.MemoryImage>().toList();
-    if (gallery.isNotEmpty) {
-      content.add(pw.SizedBox(height: 22));
-      content.add(pw.Container(
-        width: double.infinity,
-        padding: const pw.EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-        decoration: pw.BoxDecoration(
-          color: visual.section,
-          borderRadius: pw.BorderRadius.circular(7)),
-        child: pw.Text('CONOCE NUESTRO LUGAR',
-          style: pw.TextStyle(
-            font: bold, fontSize: 15, color: visual.sectionInk)),
-      ));
-      content.add(pw.SizedBox(height: 12));
-      for (var i = 0; i < gallery.length; i += 2) {
-        content.add(pw.Row(children: [
-          for (var j = 0; j < 2; j++) ...[
-            pw.Expanded(child: i + j < gallery.length
-                ? pw.Container(height: 165,
-                    child: pw.Image(gallery[i + j], fit: pw.BoxFit.cover))
-                : pw.SizedBox()),
-            if (j == 0) pw.SizedBox(width: 12),
-          ],
-        ]));
-        content.add(pw.SizedBox(height: 12));
-      }
-    }
-
     if (link.startsWith('https://')) {
       content.add(pw.SizedBox(height: 22));
       content.add(pw.Center(child: pw.Column(
@@ -313,8 +304,7 @@ class MenuDigitalPdfExport {
       pageTheme: pw.PageTheme(
         pageFormat: format,
         margin: const pw.EdgeInsets.fromLTRB(36, 42, 36, 47),
-        buildBackground: (_) => pw.FullPage(ignoreMargins: true,
-          child: pw.Container(color: visual.background)),
+        buildBackground: (_) => _pageBackground(visual, wallpaper),
       ),
       maxPages: 250,
       header: (_) => pw.Row(children: [
@@ -419,9 +409,11 @@ class _MenuPdfVisual {
 
   final String name;
   final PdfColor background, card, ink, accent, section, sectionInk, border;
+  bool get elegant => name == 'ELEGANTE';
+  PdfColor get muted => PdfColor.fromHex('#B5B2AB');
 
   bool get serif => <String>{
-    'LIBRO', 'DOCUMENTO', 'ELEGANTE', 'BISTRO', 'EDITORIAL'
+    'LIBRO', 'DOCUMENTO', 'BISTRO', 'EDITORIAL'
   }.contains(name);
 
   bool get grid => <String>{
@@ -450,7 +442,7 @@ class _MenuPdfVisual {
   };
 
   static String _card(String s, Map<String, dynamic> m) => switch (s) {
-    'ELEGANTE' => '#242A2D',
+    'ELEGANTE' => '#171C20',
     'NOCTURNO' => '#1B2830',
     'DOCUMENTO' => '#FFFFFF',
     'BISTRO' => '#F4EBDC',
@@ -496,5 +488,5 @@ class _MenuPdfVisual {
 
   static String _border(String s, Map<String, dynamic> m) =>
       <String>{'ELEGANTE', 'NOCTURNO'}.contains(s)
-          ? '#497078' : '#D8DEDF';
+          ? '#5A5040' : '#D8DEDF';
 }
