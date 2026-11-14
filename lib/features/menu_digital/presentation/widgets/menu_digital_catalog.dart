@@ -492,6 +492,91 @@ class _MenuDigitalCatalogState extends State<MenuDigitalCatalog> {
     );
   }
 
+  /// Los estilos de papel y alta cocina tienen cabecera propia;
+  /// conservar una portada tipo tienda rompía su identidad visual.
+  Widget _signatureHeader(String style, bool mobile) {
+    final pdf = style == 'DOCUMENTO';
+    final background = pdf ? const Color(0xFFFFFCF6) : const Color(0xFF171C20);
+    final foreground = pdf ? const Color(0xFF26322E) : const Color(0xFFF8F1E6);
+    final muted = pdf ? const Color(0xFF65716C) : const Color(0xFFB5B2AB);
+    final defaultAccent = pdf
+        ? const Color(0xFF64563E) : const Color(0xFFE3C48B);
+    final paletteAccent = MenuDigitalColors.fromMenu(widget.menu).accent;
+    final accent = MenuDigitalColors.contrast(paletteAccent, background) >= 4.5
+        ? paletteAccent : defaultAccent;
+    final logo = _image(widget.menu['logo']);
+    final cover = _image(widget.menu['portada']);
+    final branch = (widget.menu['sucursal'] ?? '').toString();
+    final title = (widget.menu['titulo'] ?? 'Nuestra carta').toString();
+    final description = (widget.menu['descripcion'] ?? '').toString().trim();
+    return Container(
+      width: double.infinity,
+      color: background,
+      padding: EdgeInsets.symmetric(
+        horizontal: mobile ? 18 : 46, vertical: mobile ? 27 : 38),
+      child: Column(children: [
+        if (logo != null) ...[
+          Container(
+            width: 65, height: 65, padding: const EdgeInsets.all(5),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(pdf ? 8 : 32)),
+            child: ClipRRect(
+              borderRadius: BorderRadius.circular(pdf ? 5 : 28),
+              child: Image(image: logo, fit: BoxFit.contain,
+                errorBuilder: (_, __, ___) =>
+                    const Icon(Icons.storefront_rounded)),
+            ),
+          ),
+          const SizedBox(height: 13),
+        ],
+        if (!pdf) ...[
+          Icon(Icons.diamond_outlined, color: accent, size: 23),
+          const SizedBox(height: 12),
+        ],
+        Text(branch.toUpperCase(), textAlign: TextAlign.center,
+          style: TextStyle(color: accent, fontSize: 10,
+            fontWeight: FontWeight.w800, letterSpacing: 2)),
+        const SizedBox(height: 12),
+        Text(title, textAlign: TextAlign.center,
+          style: TextStyle(color: foreground,
+            fontFamily: 'Georgia', fontSize: mobile ? 30 : 42,
+            fontWeight: FontWeight.bold, height: 1.14)),
+        const SizedBox(height: 13),
+        Container(width: 85, height: 1, color: accent.withOpacity(.7)),
+        if (description.isNotEmpty) ...[
+          const SizedBox(height: 12),
+          ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 640),
+            child: Text(description, textAlign: TextAlign.center,
+              maxLines: 4, overflow: TextOverflow.ellipsis,
+              style: TextStyle(color: muted, height: 1.6, fontSize: 13)),
+          ),
+        ],
+        if (cover != null) ...[
+          const SizedBox(height: 19),
+          ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 680),
+            child: InkWell(
+              onTap: () => _openVenuePhoto(
+                [widget.menu['portada'].toString()], 0),
+              child: Container(
+                constraints: BoxConstraints(
+                  maxHeight: mobile ? 170 : 220),
+                width: double.infinity,
+                decoration: BoxDecoration(
+                  border: Border.all(color: accent.withOpacity(.25))),
+                child: Image(image: cover, fit: BoxFit.contain,
+                  errorBuilder: (_, __, ___) =>
+                      Icon(Icons.image_outlined, color: muted)),
+              ),
+            ),
+          ),
+        ],
+      ]),
+    );
+  }
+
   Widget _fullCoverHeader(
       MenuDigitalColors colors, Color canvas, Color fg, Color accent,
       bool mobile) {
@@ -785,7 +870,9 @@ class _MenuDigitalCatalogState extends State<MenuDigitalCatalog> {
                     blurRadius: 18, offset: const Offset(0, 5),
                   )],
                 ),
-                child: fullCover
+                child: (style == 'DOCUMENTO' || style == 'ELEGANTE')
+                    ? _signatureHeader(style, mobile)
+                    : fullCover
                     ? _fullCoverHeader(colors, canvas, fg, accent, mobile)
                     : Stack(children: [
                   if (coverHasImage)
