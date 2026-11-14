@@ -847,7 +847,7 @@ class _MenuDigitalCatalogState extends State<MenuDigitalCatalog> {
             padding: EdgeInsets.fromLTRB(mobile ? 16 : 24, 24, mobile ? 16 : 24, 55),
             children: [
               if (widget.preview) ...[
-                Text('VISTA PREVIA · ' + switch (style) {
+                Text('VISTA PREVIA · ' + (switch (style) {
                   'TIENDA' => 'MODERNO',
                   'TIENDA_WEB' => 'TIENDA WEB',
                   'DOCUMENTO' => 'DOCUMENTO',
@@ -855,7 +855,7 @@ class _MenuDigitalCatalogState extends State<MenuDigitalCatalog> {
                   'BISTRO' => 'BISTRO',
                   'NOCTURNO' => 'NOCTURNO',
                   _ => style,
-                },
+                }),
                   style: TextStyle(color: accent, fontSize: 11, fontWeight: FontWeight.w900)),
                 const SizedBox(height: 10),
               ],
