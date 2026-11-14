@@ -607,6 +607,12 @@ class _MenuDigitalAdminPageState extends ConsumerState<MenuDigitalAdminPage> {
     try {
       final menu = _preview();
       menu['productos'] = _orderedSelection;
+      // El QR dentro del PDF solo aparece si la carta está publicada.
+      // Una carta en borrador también puede exportarse sin enlace.
+      if (_saved?['publicado'] == true) {
+        menu['url'] = _saved?['url'];
+        menu['enlaceCompartir'] = _saved?['enlaceCompartir'];
+      }
       final pdf = await MenuDigitalPdfExport.create(menu: menu);
       if (!mounted) return;
       final title = _title.text.trim().toLowerCase()
@@ -1360,6 +1366,12 @@ class _MenuDigitalAdminPageState extends ConsumerState<MenuDigitalAdminPage> {
                           ? 'Preparando carta PDF...'
                           : 'Descargar carta completa PDF')),
 
+                    Text(
+                      'El PDF incluye todos los productos, imágenes disponibles, '
+                      'categorías y colores del diseño actual. '
+                      'También funciona si la carta está en borrador.',
+                      style: TextStyle(color: palette.textSecondary, fontSize: 12),
+                    ),
                     if (_saved?['publicado'] == true)
                       Container(
                         decoration: BoxDecoration(
