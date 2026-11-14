@@ -122,3 +122,33 @@ no se admiten SVG ni rutas `file:`.
 
 **Ejecución automatizada pendiente** en Flutter y PostgreSQL; validar sobre
 una copia de datos antes de desplegar.
+
+
+## Exportación de la carta completa en PDF y QR PNG offline
+
+- **Descargar carta completa PDF** es independiente de los botones del QR.
+  Exporta a A4 imprimible todos los productos seleccionados (no los seis de
+  la vista previa administrativa), agrupados y ordenados por categoría;
+  incluye nombres, descripciones, precios, imágenes disponibles, portada,
+  logo, galería y un tratamiento gráfico propio de cada uno de los diez
+  estilos. Mantiene la paleta configurada en el diseño **TIENDA**.
+  El PDF adapta la presentación responsiva a hojas paginadas; no es una
+  captura del viewport ni tiene elementos interactivos de búsqueda o filtro.
+- Se puede generar desde **borrador**, sin necesidad de publicar. Si la
+  carta está publicada, se añade al final un QR con el enlace público.
+  Las fotos remotas se cargan de forma opcional y con límites de tamaño/
+  tiempo; si alguna falla por conexión/CORS, los productos siempre se
+  exportan con sus datos y precio.
+- **Descargar QR PNG** ya no llama al endpoint HTTP antiguo: genera
+  localmente un QR PNG de 760 × 760 con quiet zone blanca en Flutter
+  Web, Android, iOS y escritorio. El diálogo **Compartir** también presenta
+  el código localmente, incluso si el backend presenta un HTTP 500.
+- El backend conserva `GET /api/v1/menu-digital/public/{slug}/qr` para
+  clientes antiguos. Genera el PNG sin `java.awt` ni `ImageIO`, y solo
+  consulta que el menú esté publicado y su sucursal activa, sin cargar
+  fotos ni productos. Si hay una excepción, registra su causa en logs.
+- Nueva dependencia Flutter: `qr_flutter ^4.1.0`. Después del
+  `git pull` ejecutar `flutter pub get` y reiniciar la aplicación;
+  **hot restart no instala dependencias**.
+- Los nuevos tests de PDF y QR forman parte del paso `verify` del
+  workflow `deploy-production.yml` al integrar la rama a main.
