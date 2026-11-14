@@ -113,7 +113,16 @@ jobs:
           VPS_SSH_PRIVATE_KEY: ${{ secrets.VPS_SSH_PRIVATE_KEY }}
           VPS_KNOWN_HOSTS: ${{ secrets.VPS_KNOWN_HOSTS }}
           IOS_UPDATE_URL: ${{ vars.BARLYTICS_IOS_TESTFLIGHT_URL || 'https://apps.apple.com/app/testflight/id899247664' }}
-        run: bash deploy/update/publish-ios-vps.sh
+        shell: bash
+        run: |
+          # Missing VPS credentials must not mark a successful Apple upload as failed.
+          # The update manifest is optional and is never silently reported as published.
+          if [[ -z "${VPS_HOST:-}" || -z "${VPS_USER:-}" ||
+                -z "${VPS_SSH_PRIVATE_KEY:-}" || -z "${VPS_KNOWN_HOSTS:-}" ]]; then
+            echo "::warning::IPA publicado en TestFlight, pero se omitió latest.json: faltan secretos VPS_HOST, VPS_USER, VPS_SSH_PRIVATE_KEY o VPS_KNOWN_HOSTS."
+            exit 0
+          fi
+          bash deploy/update/publish-ios-vps.sh
 
       - name: Subir IPA como artefacto
         if: always()

@@ -13,7 +13,11 @@ test -f "$CATALOG/Contents.json" || { echo "Missing iOS icon manifest" >&2; exit
 command -v swift >/dev/null || { echo "Swift is required to prepare the opaque Apple icon" >&2; exit 1; }
 command -v sips >/dev/null || { echo "sips is required on macOS" >&2; exit 1; }
 
-swift "$ROOT/scripts/ios/render-opaque-icon.swift" "$SOURCE" "$MASTER"
+ICON_TMP="$(mktemp -d)"
+trap 'rm -rf "$ICON_TMP"' EXIT
+swift "$ROOT/scripts/ios/render-opaque-icon.swift" "$SOURCE" "$ICON_TMP/master.jpg"
+# Converting JPEG to PNG produces a three-channel PNG (no alpha), as Apple requires.
+sips -s format png "$ICON_TMP/master.jpg" --out "$MASTER" >/dev/null
 
 python3 - "$CATALOG" <<'PY'
 import json
