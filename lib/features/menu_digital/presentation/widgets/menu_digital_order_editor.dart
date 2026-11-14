@@ -51,7 +51,7 @@ class _MenuDigitalOrderEditorState extends State<MenuDigitalOrderEditor> {
     final result = [...source];
     if (to > from) to -= 1;
     if (from < 0 || from >= result.length) return result;
-    to = to.clamp(0, result.length - 1);
+    to = to.clamp(0, result.length - 1).toInt();
     final item = result.removeAt(from);
     result.insert(to, item);
     return result;
