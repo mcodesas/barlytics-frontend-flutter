@@ -7,6 +7,7 @@ import 'package:intl/intl.dart';
 import 'menu_digital_palette.dart';
 import '../../domain/menu_digital_ordering.dart';
 import 'menu_digital_extra_layouts.dart';
+import 'menu_digital_signature_layouts.dart';
 
 /// Render compartido: la vista previa en el editor utiliza exactamente la
 /// misma composición que la página pública del cliente.
@@ -761,7 +762,15 @@ class _MenuDigitalCatalogState extends State<MenuDigitalCatalog> {
             padding: EdgeInsets.fromLTRB(mobile ? 16 : 24, 24, mobile ? 16 : 24, 55),
             children: [
               if (widget.preview) ...[
-                Text('VISTA PREVIA · ' + (style == 'TIENDA' ? 'MODERNO' : style),
+                Text('VISTA PREVIA · ' + switch (style) {
+                  'TIENDA' => 'MODERNO',
+                  'TIENDA_WEB' => 'TIENDA WEB',
+                  'DOCUMENTO' => 'DOCUMENTO',
+                  'ELEGANTE' => 'ALTA COCINA',
+                  'BISTRO' => 'BISTRO',
+                  'NOCTURNO' => 'NOCTURNO',
+                  _ => style,
+                },
                   style: TextStyle(color: accent, fontSize: 11, fontWeight: FontWeight.w900)),
                 const SizedBox(height: 10),
               ],
@@ -1017,17 +1026,30 @@ class _MenuDigitalCatalogState extends State<MenuDigitalCatalog> {
                 ]),
               ] else ...[
                 for (final category in visibleCategories) ...[
-                  _categoryTitle(category,
-                    filtered.where((p) =>
-                      MenuDigitalOrdering.category(p) == category).length,
-                    colors),
-                  _productsForStyle(
-                    style,
-                    filtered.where((p) =>
-                      MenuDigitalOrdering.category(p) == category).toList(),
-                    colors, itemWidth, gap,
-                  ),
-                  const SizedBox(height: 13),
+                  if (MenuDigitalSignatureLayouts.supports(style))
+                    MenuDigitalSignatureLayouts.section(
+                      style: style,
+                      category: category,
+                      products: filtered.where((p) =>
+                        MenuDigitalOrdering.category(p) == category).toList(),
+                      colors: colors,
+                      image: (p, w, h) => _productPhoto(
+                        p, width: w, height: h, radius: 12),
+                      onDetails: _showProductDetails,
+                    )
+                  else ...[
+                    _categoryTitle(category,
+                      filtered.where((p) =>
+                        MenuDigitalOrdering.category(p) == category).length,
+                      colors),
+                    _productsForStyle(
+                      style,
+                      filtered.where((p) =>
+                        MenuDigitalOrdering.category(p) == category).toList(),
+                      colors, itemWidth, gap,
+                    ),
+                  ],
+                  const SizedBox(height: 20),
                 ],
               ],
               if ((widget.menu['galeria'] as List? ?? const []).isNotEmpty) ...[
