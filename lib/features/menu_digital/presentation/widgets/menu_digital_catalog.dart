@@ -979,7 +979,7 @@ class _MenuDigitalCatalogState extends State<MenuDigitalCatalog> {
                 // no un catálogo de tarjetas disfrazado de libro.
                 _bookSection(bookCategories[currentBookPage],
                   filtered.where((p) =>
-                    (p['tipo'] ?? 'Especialidades') == bookCategories[currentBookPage]).toList()),
+                    MenuDigitalOrdering.category(p) == bookCategories[currentBookPage]).toList()),
                 const SizedBox(height: 15),
                 Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
                   IconButton.filledTonal(
