@@ -176,15 +176,18 @@ void main() {
     )));
     await tester.pumpAndSettle();
 
-    // En libro cada tipo es una hoja: las diez categorías quedan visibles
-    // sin desplazamiento horizontal, con su propio botón seleccionado.
-    expect(find.byType(ChoiceChip), findsNWidgets(tipos.length));
-    expect(find.text('Tipos de productos'), findsOneWidget);
-    expect(find.text('SIN ALCOHOL'), findsOneWidget);
-    await tester.ensureVisible(find.text('SIN ALCOHOL'));
-    await tester.tap(find.text('SIN ALCOHOL'));
+    // La selección se realiza desde un desplegable con todas las categorías
+    // (no desde una fila de chips que se desborde en móvil).
+    expect(find.byType(ChoiceChip), findsNothing);
+    expect(find.byType(DropdownButtonFormField<String>), findsOneWidget);
+    expect(find.text('Encuentra lo que te gusta'), findsOneWidget);
+    await tester.ensureVisible(find.byType(DropdownButtonFormField<String>));
+    await tester.tap(find.byType(DropdownButtonFormField<String>));
     await tester.pumpAndSettle();
-    expect(find.text('Producto SIN ALCOHOL'), findsWidgets);
+    expect(find.text('SIN ALCOHOL'), findsWidgets);
+    await tester.tap(find.text('BEBIDA').last);
+    await tester.pumpAndSettle();
+    expect(find.text('Producto BEBIDA'), findsWidgets);
   });
 
   testWidgets('Pasar hoja también selecciona su categoría',
@@ -202,18 +205,19 @@ void main() {
       })),
     )));
     await tester.pumpAndSettle();
-    expect(tester.widget<ChoiceChip>(
-        find.widgetWithText(ChoiceChip, 'AGUARDIENTE')).selected, isTrue);
+    expect(find.byType(DropdownButtonFormField<String>), findsOneWidget);
+    expect(find.text('AGUARDIENTE'), findsWidgets);
     await tester.ensureVisible(find.byTooltip('Página siguiente'));
     await tester.tap(find.byTooltip('Página siguiente'));
     await tester.pumpAndSettle();
-    expect(tester.widget<ChoiceChip>(
-        find.widgetWithText(ChoiceChip, 'BEBIDA')).selected, isTrue);
+    expect(find.text('BEBIDA'), findsWidgets);
     expect(find.text('Producto B'), findsWidgets);
-    await tester.tap(find.widgetWithText(ChoiceChip, 'WHISKY'));
+    await tester.ensureVisible(find.byType(DropdownButtonFormField<String>));
+    await tester.tap(find.byType(DropdownButtonFormField<String>));
     await tester.pumpAndSettle();
-    expect(tester.widget<ChoiceChip>(
-        find.widgetWithText(ChoiceChip, 'WHISKY')).selected, isTrue);
+    await tester.tap(find.text('WHISKY').last);
+    await tester.pumpAndSettle();
+    expect(find.text('WHISKY'), findsWidgets);
     expect(find.text('Producto C'), findsWidgets);
   });
 
