@@ -40,6 +40,11 @@ jobs:
           flutter test test/core/update/app_update_model_test.dart
           flutter analyze lib/core/update
           python3 -m unittest discover -s deploy/update -p 'test_*.py'
+      - name: Verificar PDF completo y QR local de menú digital
+        run: |
+          flutter analyze --no-fatal-infos --no-fatal-warnings lib/features/menu_digital
+          flutter test test/features/menu_digital/menu_digital_pdf_export_test.dart test/features/menu_digital/menu_digital_qr_image_test.dart
+
       - name: Verificar módulos de telemetría, soporte y roles antes de publicar
         run: |
           flutter analyze --no-fatal-infos --no-fatal-warnings lib/features/admin_support lib/features/error_center lib/features/roles lib/features/navigation lib/core/telemetry lib/app/router lib/features/precios
