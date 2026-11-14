@@ -65,6 +65,42 @@ void main() {
     expect(bytes.length, greaterThan(4000));
   });
 
+  test('Elegante repite fondo de la web sin incluir fotos de Conoce el lugar',
+      () async {
+    final menu = carta('ELEGANTE', count: 14);
+    const background = 'data:image/png;base64,'
+        'iVBORw0KGgoAAAANSUhEUgAAAAwAAAAMCAIAAADZF8uw'
+        'AAAAFklEQVR4nGPUkFNmIASYCKoYVTQAigDL2wCBulvhWQAAAABJRU5ErkJggg==';
+    const gallery = 'https://ejemplo.com/conoce-el-lugar.jpg';
+    menu['fondoImagen'] = background;
+    menu['galeria'] = [gallery];
+    final requested = <String>[];
+    final bytes = await MenuDigitalPdfExport.create(
+      menu: menu,
+      loadImage: (url) async {
+        requested.add(url);
+        if (url == background) {
+          return base64Decode(background.split(',').last);
+        }
+        return null;
+      },
+    );
+    expect(utf8.decode(bytes.take(5).toList()), '%PDF-');
+    expect(requested, contains(background));
+    expect(requested, isNot(contains(gallery)),
+        reason: 'Las fotografías de Conoce el lugar no van en el PDF');
+  });
+
+  test('Elegante distribuye carta larga en hojas sin recortar productos',
+      () async {
+    final bytes = await MenuDigitalPdfExport.create(
+      menu: carta('ELEGANTE', count: 65),
+      loadImage: (_) async => null,
+    );
+    expect(utf8.decode(bytes.take(5).toList()), '%PDF-');
+    expect(bytes.length, greaterThan(6500));
+  });
+
   test('No crea una carta incompleta sin productos', () async {
     await expectLater(
       MenuDigitalPdfExport.create(
