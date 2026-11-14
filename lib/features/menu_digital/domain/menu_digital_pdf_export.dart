@@ -109,6 +109,10 @@ class MenuDigitalPdfExport {
       final source = _value(menu[field]);
       if (source.isNotEmpty) sources.add(source);
     }
+    for (final galleryItem in (menu['galeria'] as List? ?? const [])) {
+      final source = _value(galleryItem);
+      if (source.isNotEmpty && sources.length < 10) sources.add(source);
+    }
     // Las fotos son opcionales y el documento puede contener miles de filas.
     // Se acota la precarga de fotos, NO la cantidad de productos exportados.
     for (final product in products) {
@@ -185,9 +189,9 @@ class MenuDigitalPdfExport {
               pw.SizedBox(height: 18),
               if (description.isNotEmpty)
                 pw.Text(
-                  description.length > 330
-                      ? description.substring(0, 330) + '…' : description,
-                  textAlign: pw.TextAlign.center, maxLines: 8,
+                  description.length > 180
+                      ? description.substring(0, 180) + '…' : description,
+                  textAlign: pw.TextAlign.center, maxLines: 4,
                   style: pw.TextStyle(color: visual.ink, font: serif,
                     fontSize: 12, lineSpacing: 4)),
               pw.Spacer(),
@@ -205,7 +209,7 @@ class MenuDigitalPdfExport {
     ));
 
     final content = <pw.Widget>[];
-    if (description.length > 330) {
+    if (description.length > 180) {
       content.add(pw.Padding(padding: const pw.EdgeInsets.only(bottom: 18),
         child: pw.Text(description,
           style: pw.TextStyle(color: visual.ink, font: serif,
@@ -253,6 +257,35 @@ class MenuDigitalPdfExport {
         content.add(pw.SizedBox(height: 11));
       }
     }
+    final gallery = (menu['galeria'] as List? ?? const [])
+        .map(photo).whereType<pw.MemoryImage>().toList();
+    if (gallery.isNotEmpty) {
+      content.add(pw.SizedBox(height: 22));
+      content.add(pw.Container(
+        width: double.infinity,
+        padding: const pw.EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+        decoration: pw.BoxDecoration(
+          color: visual.section,
+          borderRadius: pw.BorderRadius.circular(7)),
+        child: pw.Text('CONOCE NUESTRO LUGAR',
+          style: pw.TextStyle(
+            font: bold, fontSize: 15, color: visual.sectionInk)),
+      ));
+      content.add(pw.SizedBox(height: 12));
+      for (var i = 0; i < gallery.length; i += 2) {
+        content.add(pw.Row(children: [
+          for (var j = 0; j < 2; j++) ...[
+            pw.Expanded(child: i + j < gallery.length
+                ? pw.Container(height: 165,
+                    child: pw.Image(gallery[i + j], fit: pw.BoxFit.cover))
+                : pw.SizedBox()),
+            if (j == 0) pw.SizedBox(width: 12),
+          ],
+        ]));
+        content.add(pw.SizedBox(height: 12));
+      }
+    }
+
     if (link.startsWith('https://')) {
       content.add(pw.SizedBox(height: 22));
       content.add(pw.Center(child: pw.Column(
