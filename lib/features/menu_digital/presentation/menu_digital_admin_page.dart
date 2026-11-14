@@ -16,6 +16,8 @@ import '../../../app/theme/app_palette.dart';
 import '../../../core/branch/branch_scope_provider.dart';
 import '../../../core/utils/file_download_helper.dart';
 import '../data/menu_digital_api.dart';
+import '../domain/menu_digital_ordering.dart';
+import 'widgets/menu_digital_order_editor.dart';
 import 'widgets/menu_digital_catalog.dart';
 import 'widgets/menu_digital_palette.dart';
 
@@ -42,6 +44,8 @@ class _MenuDigitalAdminPageState extends ConsumerState<MenuDigitalAdminPage> {
   };
   List<Map<String, dynamic>> _catalog = [];
   Set<int> _selected = {};
+  List<int> _productOrder = [];
+  List<String> _categoryOrder = [];
   Map<String, dynamic>? _saved;
   String _layout = 'TIENDA';
   bool _loading = true, _saving = false, _dirty = false;
@@ -86,12 +90,57 @@ class _MenuDigitalAdminPageState extends ConsumerState<MenuDigitalAdminPage> {
         .showSnackBar(SnackBar(content: Text(text)));
   }
 
+  List<int> get _selectedOrder {
+    final ordered = _productOrder.where(_selected.contains).toList();
+    final seen = ordered.toSet();
+    for (final product in _catalog) {
+      final id = _id(product['id']);
+      if (id != null && _selected.contains(id) && seen.add(id)) {
+        ordered.add(id);
+      }
+    }
+    return ordered;
+  }
+
+  List<Map<String, dynamic>> get _orderedSelection {
+    final byId = <int, Map<String, dynamic>>{
+      for (final product in _catalog)
+        if (_id(product['id']) != null) _id(product['id'])!: product,
+    };
+    return MenuDigitalOrdering.arrange([
+      for (final id in _selectedOrder)
+        if (byId[id] != null) byId[id]!,
+    ], productIds: _selectedOrder, categoryOrder: _categoryOrder);
+  }
+
+  Future<void> _openOrdering() async {
+    if (_selected.isEmpty) {
+      _notify('Selecciona primero los productos de la carta.');
+      return;
+    }
+    await showDialog<void>(
+      context: context,
+      builder: (dialogContext) => MenuDigitalOrderEditor(
+        products: _orderedSelection,
+        categoryOrder: _categoryOrder,
+        onApply: (categories, products) {
+          setState(() {
+            _categoryOrder = categories;
+            _productOrder = products;
+            _dirty = true;
+          });
+        },
+      ),
+    );
+  }
+
   Future<void> _load() async {
     final branch = ref.read(branchScopeProvider).activeBranchId;
     final seq = ++_generation;
     if (branch == null) {
       setState(() { _loading = false; _loadedBranch = null;
         _catalog = []; _saved = null; _selected = {};
+        _productOrder = []; _categoryOrder = [];
         _uploadedCover = null; _customLogo = null;
         _backgroundPhoto = null; _gallery = [];
         _coverMode = 'COMPLETA'; _galleryOnTop = false;
@@ -105,6 +154,8 @@ class _MenuDigitalAdminPageState extends ConsumerState<MenuDigitalAdminPage> {
       _saved = null;
       _catalog = [];
       _selected = {};
+      _productOrder = [];
+      _categoryOrder = [];
       _uploadedCover = null;
       _customLogo = null;
       _backgroundPhoto = null;
@@ -148,10 +199,13 @@ class _MenuDigitalAdminPageState extends ConsumerState<MenuDigitalAdminPage> {
       }.contains(design) ? design : 'TIENDA';
       _saved = admin;
       _catalog = catalog;
-      _selected = <int>{
+      _productOrder = [
         for (final value in (admin['productos'] as List? ?? []))
           if (_id(value) != null) _id(value)!,
-      };
+      ];
+      _selected = _productOrder.toSet();
+      _categoryOrder = (admin['ordenTipos'] as List? ?? const [])
+          .whereType<String>().toList();
       setState(() { _dirty = false; _loading = false; _error = null; });
     } catch (e) {
       if (!mounted || seq != _generation ||
@@ -172,11 +226,11 @@ class _MenuDigitalAdminPageState extends ConsumerState<MenuDigitalAdminPage> {
     'portadaModo': _coverMode,
     'galeriaArriba': _galleryOnTop,
     'estilo': _layout,
+    'ordenTipos': List<String>.from(_categoryOrder),
     for (final entry in _colorControllers.entries)
       entry.key: entry.value.text.trim(),
     'productos': [
-      for (final item in _catalog)
-        if (_selected.contains(_id(item['id']))) _id(item['id']),
+      for (final item in _orderedSelection) _id(item['id']),
     ],
   };
 
@@ -806,10 +860,7 @@ class _MenuDigitalAdminPageState extends ConsumerState<MenuDigitalAdminPage> {
   }
 
   Map<String, dynamic> _preview() {
-    final selectedProducts = <Map<String, dynamic>>[
-      for (final item in _catalog)
-        if (_selected.contains(_id(item['id']))) item,
-    ].take(6).toList();
+    final selectedProducts = _orderedSelection.take(6).toList();
     return {
       'titulo': _title.text.trim().isEmpty ? 'Nuestra carta' : _title.text.trim(),
       'descripcion': _description.text,
@@ -821,6 +872,7 @@ class _MenuDigitalAdminPageState extends ConsumerState<MenuDigitalAdminPage> {
       'portadaModo': _coverMode,
       'galeriaArriba': _galleryOnTop,
       'estilo': _layout,
+      'ordenTipos': List<String>.from(_categoryOrder),
       'sucursal': ref.read(branchScopeProvider).activeBranch?.sucuNombre ?? '',
       for (final entry in _colorControllers.entries) entry.key: entry.value.text.trim(),
       'productos': selectedProducts,
@@ -1125,8 +1177,24 @@ class _MenuDigitalAdminPageState extends ConsumerState<MenuDigitalAdminPage> {
             style: TextStyle(color: pal.secondary, fontWeight: FontWeight.w800)),
         ]),
         const SizedBox(height: 9),
-        Text('Usa productos activos del catálogo real de esta sucursal.',
+        Text('Selecciona los productos y decide qué categorías y platos '
+            'aparecen primero. El orden se refleja en la carta pública.',
             style: TextStyle(color: pal.textSecondary, fontSize: 12)),
+        const SizedBox(height: 12),
+        OutlinedButton.icon(
+          onPressed: _selected.isEmpty ? null : _openOrdering,
+          icon: const Icon(Icons.format_list_numbered_rounded),
+          label: const Text('Ordenar categorías y productos'),
+        ),
+        if (_selected.isNotEmpty)
+          Padding(
+            padding: const EdgeInsets.only(top: 8),
+            child: Text('Primero en la carta: ' +
+                _orderedSelection.take(3).map((p) =>
+                    (p['nombre'] ?? '').toString()).join(' · '),
+              maxLines: 2, overflow: TextOverflow.ellipsis,
+              style: TextStyle(color: pal.textSecondary, fontSize: 11)),
+          ),
         const SizedBox(height: 13),
         TextField(controller: _search,
           decoration: const InputDecoration(
