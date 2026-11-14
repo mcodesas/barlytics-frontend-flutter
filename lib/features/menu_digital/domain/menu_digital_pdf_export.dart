@@ -332,6 +332,158 @@ class MenuDigitalPdfExport {
     return document.save();
   }
 
+  /// Fondo repetido en A4: el mismo fondoImagen del catálogo público.
+  /// El velo deja leer el texto y mantiene visible la fotografía detrás.
+  static pw.Widget _pageBackground(
+      _MenuPdfVisual visual, pw.MemoryImage? backgroundPhoto) {
+    return pw.FullPage(
+      ignoreMargins: true,
+      child: pw.Stack(fit: pw.StackFit.expand, children: [
+        pw.Container(color: visual.background),
+        if (backgroundPhoto != null)
+          pw.Opacity(
+            opacity: visual.elegant ? .17 : .10,
+            child: pw.Image(backgroundPhoto, fit: pw.BoxFit.cover),
+          ),
+      ]),
+    );
+  }
+
+  /// La cabecera centrada reproduce el estilo Alta cocina de la web.
+  static pw.Widget _elegantIntro({
+    required String title,
+    required String branch,
+    required String description,
+    required _MenuPdfVisual visual,
+    required pw.MemoryImage? logo,
+    required pw.Font regular,
+    required pw.Font bold,
+  }) {
+    return pw.Column(
+      crossAxisAlignment: pw.CrossAxisAlignment.stretch,
+      children: [
+        if (logo != null) ...[
+          pw.Center(child: pw.Container(
+            width: 55, height: 55,
+            child: pw.Image(logo, fit: pw.BoxFit.contain))),
+          pw.SizedBox(height: 12),
+        ],
+        if (branch.isNotEmpty)
+          pw.Text(branch, textAlign: pw.TextAlign.center,
+            style: pw.TextStyle(
+              font: bold, color: visual.ink, fontSize: 20)),
+        pw.SizedBox(height: 9),
+        pw.Text(title, textAlign: pw.TextAlign.center,
+          style: pw.TextStyle(
+            font: bold, color: visual.accent,
+            fontSize: 13, letterSpacing: 2)),
+        if (description.isNotEmpty) ...[
+          pw.SizedBox(height: 13),
+          pw.Text(description, textAlign: pw.TextAlign.center,
+            style: pw.TextStyle(font: regular,
+              color: visual.ink, fontSize: 11, lineSpacing: 4)),
+        ],
+        pw.SizedBox(height: 15),
+        pw.Center(child: pw.Container(
+          width: 85, height: .7, color: visual.accent)),
+      ],
+    );
+  }
+
+  static pw.Widget _elegantCategoryHeader(
+      String category, _MenuPdfVisual visual, pw.Font bold) {
+    return pw.Container(
+      width: double.infinity,
+      decoration: pw.BoxDecoration(
+        color: visual.card,
+        border: pw.Border(
+          top: pw.BorderSide(color: visual.accent, width: .65),
+          left: pw.BorderSide(color: visual.border, width: .65),
+          right: pw.BorderSide(color: visual.border, width: .65),
+        ),
+      ),
+      padding: const pw.EdgeInsets.fromLTRB(22, 23, 22, 13),
+      child: pw.Column(children: [
+        // Diamante geométrico, sin depender de glifos de otra fuente.
+        pw.Transform.rotate(
+          angle: .78539816339,
+          child: pw.Container(
+            width: 10, height: 10,
+            decoration: pw.BoxDecoration(
+              border: pw.Border.all(color: visual.accent, width: 1.3)),
+          ),
+        ),
+        pw.SizedBox(height: 13),
+        pw.Text('LA CARTA', textAlign: pw.TextAlign.center,
+          style: pw.TextStyle(font: bold,
+            color: visual.accent, fontSize: 9, letterSpacing: 2.7)),
+        pw.SizedBox(height: 9),
+        pw.Text(category, textAlign: pw.TextAlign.center,
+          style: pw.TextStyle(font: bold,
+            color: visual.ink, fontSize: 23)),
+        pw.SizedBox(height: 15),
+        pw.Center(child: pw.Container(
+          width: 85, height: .7, color: visual.accent)),
+      ]),
+    );
+  }
+
+  static pw.Widget _elegantProduct(
+      Map<String, dynamic> product, _MenuPdfVisual visual,
+      pw.Font regular, pw.Font bold) {
+    final description = _value(product['descripcion']);
+    final price = num.tryParse(_value(product['precio']));
+    return pw.Container(
+      width: double.infinity,
+      decoration: pw.BoxDecoration(
+        color: visual.card,
+        border: pw.Border(
+          left: pw.BorderSide(color: visual.border, width: .65),
+          right: pw.BorderSide(color: visual.border, width: .65),
+        ),
+      ),
+      padding: const pw.EdgeInsets.fromLTRB(22, 13, 22, 13),
+      child: pw.Column(children: [
+        pw.Text(_value(product['nombre'], 'Producto'),
+          textAlign: pw.TextAlign.center,
+          style: pw.TextStyle(
+            font: bold, color: visual.ink, fontSize: 15)),
+        if (description.isNotEmpty) ...[
+          pw.SizedBox(height: 7),
+          pw.Text(description, textAlign: pw.TextAlign.center,
+            maxLines: 5,
+            style: pw.TextStyle(
+              font: regular, color: visual.muted,
+              fontSize: 10, lineSpacing: 3)),
+        ],
+        if (price != null) ...[
+          pw.SizedBox(height: 10),
+          pw.Text(_money.format(price), textAlign: pw.TextAlign.center,
+            style: pw.TextStyle(
+              font: bold, color: visual.accent, fontSize: 12)),
+        ],
+        pw.SizedBox(height: 13),
+        pw.Center(child: pw.Container(
+          width: 26, height: .5, color: visual.border)),
+      ]),
+    );
+  }
+
+  static pw.Widget _elegantCategoryFooter(_MenuPdfVisual visual) {
+    return pw.Container(
+      width: double.infinity,
+      height: 15,
+      decoration: pw.BoxDecoration(
+        color: visual.card,
+        border: pw.Border(
+          bottom: pw.BorderSide(color: visual.border, width: .65),
+          left: pw.BorderSide(color: visual.border, width: .65),
+          right: pw.BorderSide(color: visual.border, width: .65),
+        ),
+      ),
+    );
+  }
+
   static pw.Widget _productCard(
     Map<String, dynamic> product,
     _MenuPdfVisual visual,
