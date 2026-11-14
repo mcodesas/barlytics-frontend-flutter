@@ -14,7 +14,9 @@ Había dos restricciones que impedían operar con roles personalizados:
 2. La vista `/mesas` cargaba las mesas en paralelo con dos endpoints de
    **Reportes** usando un mismo `Future.wait`. Un 403 por no tener el
    permiso de Reportes fallaba toda la carga e impedía interactuar con
-   las mesas, aunque el rol sí tuviera permiso de Mesas.
+   las mesas, aunque el rol sí tuviera permiso de Mesas. Ahora las
+   consultas de reportes son opcionales, los KPI se indican como no
+   disponibles (no como valores cero) y no se repite el 403 en cada ciclo.
 
 ## Contrato de permisos corregido
 
@@ -24,6 +26,13 @@ Había dos restricciones que impedían operar con roles personalizados:
 | Personalizado con `administrar_mesas` | Sí | Sí | Sí | Sí | Sí |
 | Cajero | Sí | Sí | Sí | Sí | Sí |
 | Sin permiso de Mesas | Sin acciones autorizadas | No en POS | No en POS | No en POS | No en POS |
+
+La API general `/api/v1/mesas` también separa permisos: los roles
+que disponen de la opción `mesas` pueden crear y editar mesas de su
+sucursal, pero no cambiarles el estado ni inactivarlas sin acceso
+administrativo. El formulario `/mesas` refleja ese límite, sin ofrecer
+acciones que el servidor rechazaría. La API no acepta escritura de roles
+sin permiso de Mesas ni de Administración.
 
 La operación siempre debe respetar la empresa y sucursal elegida. En
 `MeseroService.findOperador` se reemplazó la validación de `usuario.sucuId`
@@ -44,9 +53,11 @@ requiriendo permiso elevado; la creación básica solo permite estado
    descripción y comprobar persistencia tras actualizar.
 3. Entrar por `/mesero` (si el rol tiene acceso a esa ruta): debe aparecer
    **Agregar mesa** o botón flotante; crear y editar mesa activa.
-4. Confirmar que el rol de solo Mesas no ve **Eliminar** ni selector de
-   estado en el POS y que un `DELETE /api/v1/mesero/mesas/{id}`
-   responde 403.
+4. Confirmar que el rol de solo Mesas no ve **Eliminar** en el POS
+   ni **Inactivar** en `/mesas`, y que el selector de estado de
+   `/mesas` permanece deshabilitado. Los dos endpoints de eliminación
+   (`/api/v1/mesero/mesas/{id}` y `/api/v1/mesas/{id}`)
+   deben denegar acciones destructivas a ese rol.
 5. Comprobar que `POST` de mesa con estado `INACTIVA` u `OCUPADA`
    se rechaza cuando el permiso es únicamente `mesas`.
 6. Iniciar sesión como cajero y administrador: crear/editar y
@@ -60,9 +71,10 @@ requiriendo permiso elevado; la creación básica solo permite estado
 
 - Flutter: `test/features/mesero/mesas_permission_policy_test.dart`
   cubre solo Mesas, solo Administración, sin permiso y cajero.
-- Backend:
-  `MeseroControllerMesasPermissionsTest` comprueba expresiones
-  de seguridad sobre crear, editar y eliminar.
+- Backend: `MeseroControllerMesasPermissionsTest` comprueba expresiones
+  de seguridad sobre crear, editar y eliminar; `MesaServicePermissionsTest`
+  valida creación/edición descriptiva y rechaza cambios de estado y
+  operaciones sin permiso en la API general.
 
 En el entorno de esta edición no se pudo ejecutar la suite Flutter/Java,
 ni autenticarse con un rol de prueba. Se requieren tests y QA de integración
