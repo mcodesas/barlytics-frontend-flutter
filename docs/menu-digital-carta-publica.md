@@ -129,9 +129,12 @@ una copia de datos antes de desplegar.
 - **Descargar carta completa PDF** es independiente de los botones del QR.
   Exporta a A4 imprimible todos los productos seleccionados (no los seis de
   la vista previa administrativa), agrupados y ordenados por categoría;
-  incluye nombres, descripciones, precios, imágenes disponibles, portada,
-  logo, galería y un tratamiento gráfico propio de cada uno de los diez
-  estilos. Mantiene la paleta configurada en el diseño **TIENDA**.
+  incluye nombres, descripciones, precios, fotografías de productos cuando
+  el diseño las utiliza, portada y logo. **No incluye las fotografías de
+  «Conoce el lugar»**. Repite la imagen de fondo configurada de forma tenue
+  detrás del contenido en todas las páginas y adapta el aspecto de los diez
+  estilos (incluido **ELEGANTE**, con cabeceras, productos y precios centrados).
+  Mantiene la paleta configurada en el diseño **TIENDA**.
   El PDF adapta la presentación responsiva a hojas paginadas; no es una
   captura del viewport ni tiene elementos interactivos de búsqueda o filtro.
 - Se puede generar desde **borrador**, sin necesidad de publicar. Si la
@@ -152,3 +155,18 @@ una copia de datos antes de desplegar.
   **hot restart no instala dependencias**.
 - Los nuevos tests de PDF y QR forman parte del paso `verify` del
   workflow `deploy-production.yml` al integrar la rama a main.
+
+### Fidelidad visual de PDF Elegante (14-11-2026)
+
+- No crea una portada adicional antes del catálogo: abre con nombre, título y
+  descripción sobre la misma fotografía de fondo atenuada que utiliza la web.
+- Cada categoría presenta el diamante ornamental, «LA CARTA», título centrado,
+  líneas finas doradas y productos sin fotografías, con textos y precios
+  centrados, como el diseño de alta cocina público.
+- Repite la foto de fondo `fondoImagen` en **cada hoja A4**, con el velo oscuro
+  del diseño público. Si la imagen no está disponible, utiliza el color oscuro
+  original sin bloquear la exportación.
+- La galería «Conoce el lugar» permanece en la **web pública**, pero no se
+  descarga ni incorpora al PDF de la carta.
+- Se verifican mediante pruebas: carga del fondo, ausencia de descargas de
+  galería, exportación de diez estilos y paginación de una carta de 65 productos.
