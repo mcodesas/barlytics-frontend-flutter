@@ -80,4 +80,31 @@ void main() {
     });
   }
 
+  testWidgets('Tienda web abre detalles y no presenta compra ficticia',
+      (tester) async {
+    tester.view.physicalSize = const Size(768, 1024);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    await tester.pumpWidget(MaterialApp(
+      home: Scaffold(
+        body: SingleChildScrollView(
+          child: MenuDigitalCatalog(
+            menu: demo('TIENDA_WEB'),
+            preview: true,
+          ),
+        ),
+      ),
+    ));
+    await tester.pumpAndSettle();
+    expect(find.text('Ver detalles'), findsOneWidget);
+    expect(find.text('Añadir al carrito'), findsNothing);
+    await tester.ensureVisible(find.text('Ver detalles'));
+    await tester.tap(find.text('Ver detalles'));
+    await tester.pumpAndSettle();
+    expect(find.text('DETALLES DEL PRODUCTO'), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
+
 }
