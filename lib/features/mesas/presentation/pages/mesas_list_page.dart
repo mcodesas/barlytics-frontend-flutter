@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'dart:math' as math;
 
 import 'package:file_picker/file_picker.dart';
+import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -61,6 +62,8 @@ class _MesasListPageState extends ConsumerState<MesasListPage> {
   bool _loading = true;
   bool _liveLoading = false;
   bool _autoRefresh = true;
+  bool _reportsUnavailable = false;
+  bool _reportAccessLimited = false;
   String? _error;
   DateTime? _updatedAt;
   int? _loadedBranchId;
@@ -142,9 +145,20 @@ class _MesasListPageState extends ConsumerState<MesasListPage> {
                           _InlineMessage(message: _error!, palette: palette, warning: true),
                         ],
                         const SizedBox(height: 12),
-                        _buildKpis(palette),
-                        const SizedBox(height: 12),
-                        _buildAlerts(palette),
+                        if (_reportsUnavailable)
+                          _InlineMessage(
+                            message: _reportAccessLimited
+                                ? 'Tu rol permite administrar las mesas, pero '
+                                  'no consultar los indicadores de Reportes.'
+                                : 'Los indicadores de ventas no están disponibles. '
+                                  'Puedes seguir creando y editando mesas.',
+                            palette: palette, warning: true,
+                          )
+                        else ...[
+                          _buildKpis(palette),
+                          const SizedBox(height: 12),
+                          _buildAlerts(palette),
+                        ],
                         const SizedBox(height: 12),
                         _buildFilters(palette),
                         const SizedBox(height: 12),
@@ -551,6 +565,8 @@ class _MesasListPageState extends ConsumerState<MesasListPage> {
     final api = ref.read(apiClientProvider);
     final today = DateFormat('yyyy-MM-dd').format(DateTime.now());
 
+    var reportError = false;
+    var reportForbidden = false;
     // Los reportes son información complementaria. Un rol personalizado
     // puede tener Mesas sin tener Reportes; un 403 en los KPI no debe impedir
     // listar las mesas ni abrir el formulario para crearlas o editarlas.
@@ -562,7 +578,11 @@ class _MesasListPageState extends ConsumerState<MesasListPage> {
           url, _parseMapList, queryParameters: query,
         );
         return response.data ?? const <Map<String, dynamic>>[];
-      } catch (_) {
+      } catch (error) {
+        reportError = true;
+        if (error is DioException && error.response?.statusCode == 403) {
+          reportForbidden = true;
+        }
         return const <Map<String, dynamic>>[];
       }
     }
@@ -611,6 +631,8 @@ class _MesasListPageState extends ConsumerState<MesasListPage> {
         _updatedAt = DateTime.now();
         _loading = false;
         _liveLoading = false;
+        _reportsUnavailable = reportError;
+        _reportAccessLimited = reportForbidden;
         _error = null;
         _page = 0;
       });
@@ -625,7 +647,8 @@ class _MesasListPageState extends ConsumerState<MesasListPage> {
   }
 
   Future<void> _refreshLive() async {
-    if (_liveLoading || !mounted) return;
+    // Sin autorización de Reportes no generar un HTTP 403 cada cinco segundos.
+    if (_liveLoading || !mounted || _reportAccessLimited) return;
     final branchId = ref.read(branchScopeProvider).activeBranchId;
     if (branchId == null) return;
     setState(() => _liveLoading = true);
@@ -653,7 +676,14 @@ class _MesasListPageState extends ConsumerState<MesasListPage> {
       if (!mounted) return;
       setState(() {
         _liveLoading = false;
-        _error = ErrorMapper.map(error).message;
+        if (error is DioException && error.response?.statusCode == 403) {
+          _reportAccessLimited = true;
+          _reportsUnavailable = true;
+          // El módulo Mesas sigue siendo funcional; no reemplazarlo por 403.
+          _error = null;
+        } else {
+          _error = ErrorMapper.map(error).message;
+        }
       });
     }
   }
