@@ -482,7 +482,7 @@ class _MenuDigitalAdminPageState extends ConsumerState<MenuDigitalAdminPage> {
             decoration: BoxDecoration(color: Colors.white,
                 borderRadius: BorderRadius.circular(16)),
             child: MenuDigitalQrImage.preview(link, size: 180)),
-          )),
+          ),
           const SizedBox(height: 15),
           Container(
             width: double.infinity,
