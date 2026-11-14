@@ -24,6 +24,7 @@ dependencies:
   archive: 4.0.9
   file_picker: ^8.3.7
   image_picker: ^1.2.4
+  qr_flutter: ^4.1.0
   pdf: ^3.11.1
   printing: ^5.14.2
   url_launcher: ^6.3.1
