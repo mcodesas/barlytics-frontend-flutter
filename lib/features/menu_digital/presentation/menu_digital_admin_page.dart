@@ -1,7 +1,4 @@
 import 'dart:convert';
-import 'dart:typed_data';
-
-import 'package:dio/dio.dart';
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -16,6 +13,8 @@ import '../../../core/branch/branch_scope_provider.dart';
 import '../../../core/utils/file_download_helper.dart';
 import '../data/menu_digital_api.dart';
 import '../domain/menu_digital_ordering.dart';
+import '../domain/menu_digital_pdf_export.dart';
+import '../domain/menu_digital_qr_image.dart';
 import '../domain/menu_digital_save_errors.dart';
 import 'widgets/menu_digital_order_editor.dart';
 import 'widgets/menu_digital_catalog.dart';
@@ -52,6 +51,7 @@ class _MenuDigitalAdminPageState extends ConsumerState<MenuDigitalAdminPage> {
   String _layout = 'TIENDA';
   String _designGroup = 'TODOS';
   bool _loading = true, _saving = false, _dirty = false;
+  bool _exportingPdf = false;
   String? _error;
   int? _loadedBranch;
   int _generation = 0;
@@ -465,9 +465,6 @@ class _MenuDigitalAdminPageState extends ConsumerState<MenuDigitalAdminPage> {
     final colors = MenuDigitalColors.fromMenu(_preview());
     final linkColor = MenuDigitalColors.contrast(colors.accent, colors.card) >= 4.5
         ? colors.accent : colors.text;
-    final slug = (_saved?['slug'] ?? '').toString();
-    final qrPreview = ref.read(menuDigitalApiProvider).server +
-        '/api/v1/menu-digital/public/' + Uri.encodeComponent(slug) + '/qr';
     await showDialog<void>(context: context, builder: (dialog) => AlertDialog(
       scrollable: true,
       backgroundColor: colors.card,
@@ -483,11 +480,8 @@ class _MenuDigitalAdminPageState extends ConsumerState<MenuDigitalAdminPage> {
             padding: const EdgeInsets.all(11),
             decoration: BoxDecoration(color: Colors.white,
                 borderRadius: BorderRadius.circular(16)),
-            child: Image.network(qrPreview, width: 180, height: 180,
-              errorBuilder: (context, error, stack) => const SizedBox(
-                width: 180, height: 180,
-                child: Center(child: Text('Descarga el QR para verlo')))),
-          )),
+            child: MenuDigitalQrImage.preview(link, size: 180)),
+          ),
           const SizedBox(height: 15),
           Container(
             width: double.infinity,
@@ -531,22 +525,31 @@ class _MenuDigitalAdminPageState extends ConsumerState<MenuDigitalAdminPage> {
 
   Future<void> _downloadQrPng() async {
     if (_dirty || _saved?['publicado'] != true) {
-      _notify('Guarda y publica el menú antes de descargar el QR.'); return;
+      _notify('Guarda y publica el menú antes de descargar el QR.');
+      return;
     }
-    final slug = (_saved?['slug'] ?? '').toString();
-    if (slug.isEmpty) return;
+    final link = (_saved?['enlaceCompartir'] ?? '').toString();
+    if (!link.startsWith('https://')) {
+      _notify('No hay un enlace público válido para este QR.');
+      return;
+    }
     try {
-      final response = await ref.read(menuDigitalApiProvider).dio.get<List<int>>(
-        '/api/v1/menu-digital/public/' + Uri.encodeComponent(slug) + '/qr',
-        options: Options(responseType: ResponseType.bytes),
-      );
-      final bytes = response.data;
-      if (bytes == null || bytes.isEmpty) throw StateError('El QR no contiene datos.');
+      // Se genera directamente en el dispositivo: no requiere pedir
+      // /public/{slug}/qr y evita el HTTP 500 de versiones anteriores.
+      final bytes = await MenuDigitalQrImage.png(link);
+      if (!mounted) return;
       final ok = await downloadBytesFile(
-        fileName: 'menu-digital-qr.png', bytes: Uint8List.fromList(bytes),
-        mimeType: 'image/png');
-      if (ok) _notify('QR descargado en PNG. Puedes imprimirlo en las mesas.');
-    } catch (e) { _notify('No fue posible descargar el PNG: ' + e.toString()); }
+        fileName: 'menu-digital-qr.png', bytes: bytes,
+        mimeType: 'image/png',
+      );
+      if (ok) {
+        _notify('QR descargado en PNG para imprimir o compartir.');
+      }
+    } catch (error) {
+      debugPrint('Menú digital: error generando QR PNG: $error');
+      _notify('No se pudo generar el QR en este dispositivo. '
+          'Comprueba el enlace público y vuelve a intentarlo.');
+    }
   }
 
   Future<void> _downloadQr() async {
@@ -588,6 +591,48 @@ class _MenuDigitalAdminPageState extends ConsumerState<MenuDigitalAdminPage> {
       if (ok) _notify('Código QR descargado. Ya puedes imprimirlo o compartirlo.');
     } catch (e) {
       _notify('No se pudo descargar el QR: ' + e.toString());
+    }
+  }
+
+  /// Exporta la carta COMPLETA, no los seis productos del preview.
+  /// Admite carta en borrador y refleja los cambios actuales del editor.
+  Future<void> _downloadFullMenuPdf() async {
+    if (_exportingPdf) return;
+    if (_selected.isEmpty) {
+      _notify('Selecciona al menos un producto antes de exportar la carta.');
+      return;
+    }
+    setState(() => _exportingPdf = true);
+    try {
+      final menu = _preview();
+      menu['productos'] = _orderedSelection;
+      // El QR dentro del PDF solo aparece si la carta está publicada.
+      // Una carta en borrador también puede exportarse sin enlace.
+      if (_saved?['publicado'] == true) {
+        menu['url'] = _saved?['url'];
+        menu['enlaceCompartir'] = _saved?['enlaceCompartir'];
+      }
+      final pdf = await MenuDigitalPdfExport.create(menu: menu);
+      if (!mounted) return;
+      final title = _title.text.trim().toLowerCase()
+          .replaceAll(RegExp(r'[^a-z0-9áéíóúüñ-]+'), '-')
+          .replaceAll(RegExp(r'^-+|-+$'), '');
+      final fileName = 'carta-' +
+          (title.isEmpty ? 'menu-digital' :
+              title.substring(0, title.length > 55 ? 55 : title.length)) +
+          '.pdf';
+      final ok = await downloadBytesFile(
+        fileName: fileName, bytes: pdf, mimeType: 'application/pdf');
+      if (ok) {
+        _notify('Carta completa descargada en PDF. Incluye ' +
+            _orderedSelection.length.toString() + ' productos.');
+      }
+    } catch (error, stack) {
+      debugPrint('Menú digital: error exportando carta PDF: $error\n$stack');
+      _notify('No se pudo generar el PDF de la carta. '
+          'Revisa las imágenes y vuelve a intentarlo.');
+    } finally {
+      if (mounted) setState(() => _exportingPdf = false);
     }
   }
 
@@ -1304,12 +1349,32 @@ class _MenuDigitalAdminPageState extends ConsumerState<MenuDigitalAdminPage> {
                       onPressed: _saved?['publicado'] == true ? _share : null,
                       icon: const Icon(Icons.share_outlined),
                       label: const Text('Compartir')),
-                    FilledButton.tonalIcon(onPressed: _saved?['publicado'] == true ? _downloadQrPng : null,
+                    FilledButton.icon(
+                      style: FilledButton.styleFrom(
+                        backgroundColor: menuColors.accent,
+                        foregroundColor: menuColors.onAccent,
+                      ),
+                      onPressed: _exportingPdf || _saving || _selected.isEmpty
+                          ? null : _downloadFullMenuPdf,
+                      icon: Icon(_exportingPdf
+                          ? Icons.hourglass_top_rounded
+                          : Icons.picture_as_pdf_rounded),
+                      label: Text(_exportingPdf
+                          ? 'Preparando carta PDF...'
+                          : 'Descargar carta completa PDF')),
+                    FilledButton.tonalIcon(
+                      onPressed: _saved?['publicado'] == true ? _downloadQrPng : null,
                       icon: const Icon(Icons.qr_code_2_rounded),
                       label: const Text('Descargar QR PNG')),
-                    OutlinedButton.icon(onPressed: _saved?['publicado'] == true ? _downloadQr : null,
+                    OutlinedButton.icon(
+                      onPressed: _saved?['publicado'] == true ? _downloadQr : null,
                       icon: const Icon(Icons.qr_code_2_rounded),
                       label: const Text('Descargar QR PDF')),
+                    SizedBox(width: double.infinity,
+                      child: Text('PDF completo: portada, categorías, todos '
+                        'los productos y precios del diseño actual. '
+                        'Disponible incluso en borrador.',
+                        style: TextStyle(color: palette.textSecondary, fontSize: 12))),
                     if (_saved?['publicado'] == true)
                       Container(
                         decoration: BoxDecoration(
