@@ -48,6 +48,7 @@ class _MenuDigitalAdminPageState extends ConsumerState<MenuDigitalAdminPage> {
   List<String> _categoryOrder = [];
   Map<String, dynamic>? _saved;
   String _layout = 'TIENDA';
+  String _designGroup = 'TODOS';
   bool _loading = true, _saving = false, _dirty = false;
   String? _error;
   int? _loadedBranch;
@@ -196,6 +197,7 @@ class _MenuDigitalAdminPageState extends ConsumerState<MenuDigitalAdminPage> {
       final design = (admin['estilo'] ?? 'TIENDA').toString().toUpperCase();
       _layout = const <String>{
         'TIENDA', 'LIBRO', 'EDITORIAL', 'GALERIA', 'MINIMALISTA',
+        'DOCUMENTO', 'ELEGANTE', 'TIENDA_WEB', 'BISTRO', 'NOCTURNO',
       }.contains(design) ? design : 'TIENDA';
       _saved = admin;
       _catalog = catalog;
@@ -696,6 +698,157 @@ class _MenuDigitalAdminPageState extends ConsumerState<MenuDigitalAdminPage> {
       ]),
     );
     switch (style) {
+      case 'DOCUMENTO':
+        return Center(child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 115),
+          child: Container(
+            padding: const EdgeInsets.all(10),
+            decoration: BoxDecoration(color: const Color(0xFFFFFCF6),
+              border: Border.all(color: const Color(0xFFE4DCD0)),
+              boxShadow: [BoxShadow(
+                color: Colors.black.withOpacity(.1), blurRadius: 4)]),
+            child: Column(children: [
+              const Text('CARTA', style: TextStyle(
+                color: Color(0xFF293632), fontSize: 10,
+                fontWeight: FontWeight.w900, letterSpacing: 2)),
+              const SizedBox(height: 5),
+              Container(height: 1, color: const Color(0xFF917B55)),
+              const SizedBox(height: 7),
+              for (var i = 0; i < 4; i++) ...[
+                Row(children: [
+                  Expanded(child: Container(height: 3,
+                    color: const Color(0xFF716B62))),
+                  const SizedBox(width: 9),
+                  Container(width: 18, height: 3,
+                    color: const Color(0xFF716B62)),
+                ]),
+                const SizedBox(height: 8),
+              ],
+              const Spacer(),
+              const Text('MENÚ', style: TextStyle(
+                color: Color(0xFF746F63), fontSize: 7)),
+            ]),
+          ),
+        ));
+      case 'ELEGANTE':
+        return Container(
+          color: const Color(0xFF171C20),
+          padding: const EdgeInsets.all(13),
+          child: Column(mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              const Icon(Icons.diamond_outlined,
+                color: Color(0xFFE3C48B), size: 17),
+              const SizedBox(height: 6),
+              const Text('ALTA COCINA', style: TextStyle(
+                color: Color(0xFFE3C48B), letterSpacing: 2, fontSize: 8)),
+              const SizedBox(height: 6),
+              const Text('Nuestra selección', style: TextStyle(
+                color: Color(0xFFF8F1E6), fontFamily: 'Georgia',
+                fontSize: 14)),
+              const SizedBox(height: 10),
+              Container(height: 1, width: 70,
+                color: const Color(0xFFE3C48B)),
+              const SizedBox(height: 10),
+              const Text('Plato de la casa', style: TextStyle(
+                color: Color(0xFFF8F1E6), fontSize: 10)),
+              const SizedBox(height: 4),
+              const Text(r'$ 38.000', style: TextStyle(
+                color: Color(0xFFE3C48B), fontSize: 9)),
+            ]),
+        );
+      case 'TIENDA_WEB':
+        return Row(children: [
+          for (var i = 0; i < 2; i++) ...[
+            Expanded(child: Container(
+              padding: const EdgeInsets.all(6),
+              decoration: BoxDecoration(color: colors.card,
+                borderRadius: BorderRadius.circular(8)),
+              child: Column(children: [
+                Expanded(child: photo()),
+                const SizedBox(height: 7),
+                line(width: 67, height: 6, color: fg),
+                const SizedBox(height: 5),
+                line(width: 35, height: 7, color: ac),
+                const SizedBox(height: 7),
+                Container(height: 14,
+                  decoration: BoxDecoration(color: ac,
+                    borderRadius: BorderRadius.circular(4)),
+                  child: Center(child: Text('VER DETALLES',
+                    style: TextStyle(color: colors.onAccent,
+                      fontSize: 6, fontWeight: FontWeight.w900)))),
+              ]),
+            )),
+            if (i == 0) const SizedBox(width: 7),
+          ],
+        ]);
+      case 'BISTRO':
+        return Container(
+          color: const Color(0xFFFAF6EE),
+          padding: const EdgeInsets.all(11),
+          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            const Text('Bistro & café',
+              style: TextStyle(color: Color(0xFF2E2923),
+                fontFamily: 'Georgia', fontSize: 13,
+                fontWeight: FontWeight.bold)),
+            const SizedBox(height: 8),
+            for (var i = 0; i < 2; i++) ...[
+              Expanded(child: Row(children: [
+                Container(width: 45, decoration: BoxDecoration(
+                  color: const Color(0xFFD9C8AD),
+                  borderRadius: BorderRadius.circular(5)),
+                  child: const Center(child: Icon(Icons.restaurant_menu,
+                    color: Color(0xFF85512E), size: 18))),
+                const SizedBox(width: 8),
+                Expanded(child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Container(height: 5, width: 80,
+                      color: const Color(0xFF2E2923)),
+                    const SizedBox(height: 6),
+                    Container(height: 4, width: 40,
+                      color: const Color(0xFF85512E)),
+                  ])),
+              ])),
+              if (i == 0) const SizedBox(height: 6),
+            ],
+          ]),
+        );
+      case 'NOCTURNO':
+        return Container(
+          color: const Color(0xFF101820),
+          padding: const EdgeInsets.all(10),
+          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            const Text('NIGHT MENU', style: TextStyle(
+              color: Color(0xFF71E4DA), fontSize: 10,
+              fontWeight: FontWeight.w900, letterSpacing: 2)),
+            const SizedBox(height: 10),
+            for (var i = 0; i < 2; i++) ...[
+              Expanded(child: Container(
+                padding: const EdgeInsets.all(6),
+                decoration: BoxDecoration(
+                  color: const Color(0xFF1B2830),
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(color: const Color(0xFF407E7A))),
+                child: Row(children: [
+                  Container(width: 42, color: const Color(0xFF35494D),
+                    child: const Icon(Icons.local_bar_rounded,
+                      color: Color(0xFF71E4DA), size: 19)),
+                  const SizedBox(width: 8),
+                  Expanded(child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    crossAxisAlignment: CrossAxisAlignment.start, children: [
+                    Container(height: 5, color: Colors.white),
+                    const SizedBox(height: 7),
+                    Container(height: 5, width: 35,
+                      color: const Color(0xFF71E4DA)),
+                  ])),
+                ]),
+              )),
+              if (i == 0) const SizedBox(height: 7),
+            ],
+          ]),
+        );
       case 'LIBRO':
         return Row(children: [
           Expanded(child: paper()),
@@ -772,6 +925,11 @@ class _MenuDigitalAdminPageState extends ConsumerState<MenuDigitalAdminPage> {
       String style, double width) {
     final selected = _layout == style;
     final title = switch (style) {
+      'DOCUMENTO' => 'Documento · estilo PDF',
+      'ELEGANTE' => 'Alta cocina · elegante',
+      'TIENDA_WEB' => 'Tienda web · catálogo',
+      'BISTRO' => 'Bistro · café moderno',
+      'NOCTURNO' => 'Nocturno · bar & cócteles',
       'LIBRO' => 'Carta tipo libro',
       'EDITORIAL' => 'Editorial elegante',
       'GALERIA' => 'Galería fotográfica',
@@ -779,6 +937,11 @@ class _MenuDigitalAdminPageState extends ConsumerState<MenuDigitalAdminPage> {
       _ => 'Moderno',
     };
     final description = switch (style) {
+      'DOCUMENTO' => 'Como una carta impresa: papel, tipografía y precios alineados.',
+      'ELEGANTE' => 'Experiencia de autor: tinta oscura, detalles dorados y elegancia.',
+      'TIENDA_WEB' => 'Catálogo web con fotos, precios y botón para ver detalles.',
+      'BISTRO' => 'Diseño cálido, fotos laterales y estilo de cafetería.',
+      'NOCTURNO' => 'Bar moderno: contrastes oscuros, acentos y producto protagonista.',
       'LIBRO' => 'Hojas por categoría, como una carta impresa.',
       'EDITORIAL' => 'Tipografía protagonista y productos refinados.',
       'GALERIA' => 'Fotografías grandes para destacar tus productos.',
@@ -786,6 +949,11 @@ class _MenuDigitalAdminPageState extends ConsumerState<MenuDigitalAdminPage> {
       _ => 'Tarjetas modernas con fotos y precios.',
     };
     final icon = switch (style) {
+      'DOCUMENTO' => Icons.picture_as_pdf_outlined,
+      'ELEGANTE' => Icons.diamond_outlined,
+      'TIENDA_WEB' => Icons.shopping_bag_outlined,
+      'BISTRO' => Icons.local_cafe_outlined,
+      'NOCTURNO' => Icons.nightlife_rounded,
       'LIBRO' => Icons.auto_stories_rounded,
       'EDITORIAL' => Icons.article_outlined,
       'GALERIA' => Icons.photo_library_outlined,
@@ -1065,19 +1233,40 @@ class _MenuDigitalAdminPageState extends ConsumerState<MenuDigitalAdminPage> {
                   fontSize: 18, fontWeight: FontWeight.w900))),
           ]),
           const SizedBox(height: 7),
-          Text('Elige entre cinco diseños. Tus productos, precios y '
+          Text('Elige entre diez diseños, incluidos cinco totalmente nuevos. Tus productos, precios y '
               'paletas de colores se conservan al cambiar de diseño.',
               style: TextStyle(color: pal.textSecondary, fontSize: 12)),
           const SizedBox(height: 14),
+          Wrap(spacing: 8, runSpacing: 8, children: [
+            for (final option in const <(String, String)>[
+              ('TODOS', 'Todos (10)'),
+              ('NUEVOS', 'Nuevos (5)'),
+              ('CLASICOS', 'Originales (5)'),
+            ])
+              ChoiceChip(
+                label: Text(option.$2),
+                selected: _designGroup == option.$1,
+                showCheckmark: false,
+                onSelected: (_) => setState(() => _designGroup = option.$1),
+              ),
+          ]),
+          const SizedBox(height: 12),
           LayoutBuilder(builder: (context, limits) {
             final width = limits.maxWidth < 470
                 ? limits.maxWidth : (limits.maxWidth - 12) / 2;
             final colors = MenuDigitalColors.fromMenu(_preview());
+            const newStyles = <String>[
+              'DOCUMENTO', 'ELEGANTE', 'TIENDA_WEB', 'BISTRO', 'NOCTURNO',
+            ];
             return Wrap(spacing: 12, runSpacing: 12, children: [
               for (final style in const <String>[
+                'DOCUMENTO', 'ELEGANTE', 'TIENDA_WEB', 'BISTRO', 'NOCTURNO',
                 'TIENDA', 'LIBRO', 'EDITORIAL', 'GALERIA', 'MINIMALISTA',
               ])
-                _designOption(pal, colors, style, width),
+                if (_designGroup == 'TODOS' ||
+                    (_designGroup == 'NUEVOS' && newStyles.contains(style)) ||
+                    (_designGroup == 'CLASICOS' && !newStyles.contains(style)))
+                  _designOption(pal, colors, style, width),
             ]);
           }),
           const SizedBox(height: 8),
