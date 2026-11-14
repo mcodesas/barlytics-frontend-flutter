@@ -29,6 +29,9 @@ jobs:
   testflight:
     name: Compilar IPA y publicar en TestFlight
     runs-on: macos-latest
+    # Las credenciales VPS están asociadas al environment production.
+    # Sin él, la subida a Apple funciona pero latest.json no se actualiza.
+    environment: production
     timeout-minutes: 60
 
     steps:
