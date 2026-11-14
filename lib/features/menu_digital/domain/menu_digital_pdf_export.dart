@@ -105,7 +105,7 @@ class MenuDigitalPdfExport {
     final visual = _MenuPdfVisual(_value(menu['estilo'], 'TIENDA'), menu);
     final images = <String, pw.MemoryImage?>{};
     final sources = <String>{};
-    for (final field in ['portada', 'logo']) {
+    for (final field in ['portada', 'logo', 'fondoImagen']) {
       final source = _value(menu[field]);
       if (source.isNotEmpty) sources.add(source);
     }
@@ -134,6 +134,8 @@ class MenuDigitalPdfExport {
       }));
     }
     pw.MemoryImage? photo(dynamic source) => images[_value(source)];
+    final coverPhoto =
+        photo(menu['portada']) ?? photo(menu['fondoImagen']);
     final title = _value(menu['titulo'], 'Nuestra carta');
     final branch = _value(menu['sucursal']);
     final description = _value(menu['descripcion']);
@@ -173,9 +175,9 @@ class MenuDigitalPdfExport {
               pw.SizedBox(height: 23),
               pw.Container(height: 4, color: visual.accent),
               pw.SizedBox(height: 20),
-              if (photo(menu['portada']) != null)
+              if (coverPhoto != null)
                 pw.Container(height: 305,
-                  child: pw.Image(photo(menu['portada'])!, fit: pw.BoxFit.cover))
+                  child: pw.Image(coverPhoto, fit: pw.BoxFit.cover))
               else
                 pw.Container(height: 305,
                   color: visual.card,
