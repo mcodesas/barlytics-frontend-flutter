@@ -23,7 +23,7 @@ Map<String, dynamic> demo(String style) => {
 };
 
 void main() {
-  for (final style in ['TIENDA', 'LIBRO']) {
+  for (final style in ['TIENDA', 'LIBRO', 'EDITORIAL', 'GALERIA', 'MINIMALISTA']) {
     testWidgets('Menú digital ' + style + ' conserva paleta y productos',
         (tester) async {
       tester.view.physicalSize = const Size(390, 850);
