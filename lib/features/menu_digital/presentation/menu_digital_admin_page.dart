@@ -3,7 +3,6 @@ import 'dart:typed_data';
 
 import 'package:dio/dio.dart';
 
-import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -16,8 +15,13 @@ import '../../../app/theme/app_palette.dart';
 import '../../../core/branch/branch_scope_provider.dart';
 import '../../../core/utils/file_download_helper.dart';
 import '../data/menu_digital_api.dart';
+import '../domain/menu_digital_ordering.dart';
+import '../domain/menu_digital_save_errors.dart';
+import 'widgets/menu_digital_order_editor.dart';
 import 'widgets/menu_digital_catalog.dart';
 import 'widgets/menu_digital_palette.dart';
+import 'widgets/menu_digital_design_thumbnail.dart';
+import 'widgets/menu_digital_image_selection.dart';
 
 const _presets = menuDigitalPalettePresets;
 
@@ -42,8 +46,11 @@ class _MenuDigitalAdminPageState extends ConsumerState<MenuDigitalAdminPage> {
   };
   List<Map<String, dynamic>> _catalog = [];
   Set<int> _selected = {};
+  List<int> _productOrder = [];
+  List<String> _categoryOrder = [];
   Map<String, dynamic>? _saved;
   String _layout = 'TIENDA';
+  String _designGroup = 'TODOS';
   bool _loading = true, _saving = false, _dirty = false;
   String? _error;
   int? _loadedBranch;
@@ -86,12 +93,57 @@ class _MenuDigitalAdminPageState extends ConsumerState<MenuDigitalAdminPage> {
         .showSnackBar(SnackBar(content: Text(text)));
   }
 
+  List<int> get _selectedOrder {
+    final ordered = _productOrder.where(_selected.contains).toList();
+    final seen = ordered.toSet();
+    for (final product in _catalog) {
+      final id = _id(product['id']);
+      if (id != null && _selected.contains(id) && seen.add(id)) {
+        ordered.add(id);
+      }
+    }
+    return ordered;
+  }
+
+  List<Map<String, dynamic>> get _orderedSelection {
+    final byId = <int, Map<String, dynamic>>{
+      for (final product in _catalog)
+        if (_id(product['id']) != null) _id(product['id'])!: product,
+    };
+    return MenuDigitalOrdering.arrange([
+      for (final id in _selectedOrder)
+        if (byId[id] != null) byId[id]!,
+    ], productIds: _selectedOrder, categoryOrder: _categoryOrder);
+  }
+
+  Future<void> _openOrdering() async {
+    if (_selected.isEmpty) {
+      _notify('Selecciona primero los productos de la carta.');
+      return;
+    }
+    await showDialog<void>(
+      context: context,
+      builder: (dialogContext) => MenuDigitalOrderEditor(
+        products: _orderedSelection,
+        categoryOrder: _categoryOrder,
+        onApply: (categories, products) {
+          setState(() {
+            _categoryOrder = categories;
+            _productOrder = products;
+            _dirty = true;
+          });
+        },
+      ),
+    );
+  }
+
   Future<void> _load() async {
     final branch = ref.read(branchScopeProvider).activeBranchId;
     final seq = ++_generation;
     if (branch == null) {
       setState(() { _loading = false; _loadedBranch = null;
         _catalog = []; _saved = null; _selected = {};
+        _productOrder = []; _categoryOrder = [];
         _uploadedCover = null; _customLogo = null;
         _backgroundPhoto = null; _gallery = [];
         _coverMode = 'COMPLETA'; _galleryOnTop = false;
@@ -105,6 +157,8 @@ class _MenuDigitalAdminPageState extends ConsumerState<MenuDigitalAdminPage> {
       _saved = null;
       _catalog = [];
       _selected = {};
+      _productOrder = [];
+      _categoryOrder = [];
       _uploadedCover = null;
       _customLogo = null;
       _backgroundPhoto = null;
@@ -145,13 +199,17 @@ class _MenuDigitalAdminPageState extends ConsumerState<MenuDigitalAdminPage> {
       final design = (admin['estilo'] ?? 'TIENDA').toString().toUpperCase();
       _layout = const <String>{
         'TIENDA', 'LIBRO', 'EDITORIAL', 'GALERIA', 'MINIMALISTA',
+        'DOCUMENTO', 'ELEGANTE', 'TIENDA_WEB', 'BISTRO', 'NOCTURNO',
       }.contains(design) ? design : 'TIENDA';
       _saved = admin;
       _catalog = catalog;
-      _selected = <int>{
+      _productOrder = [
         for (final value in (admin['productos'] as List? ?? []))
           if (_id(value) != null) _id(value)!,
-      };
+      ];
+      _selected = _productOrder.toSet();
+      _categoryOrder = (admin['ordenTipos'] as List? ?? const [])
+          .whereType<String>().toList();
       setState(() { _dirty = false; _loading = false; _error = null; });
     } catch (e) {
       if (!mounted || seq != _generation ||
@@ -172,11 +230,11 @@ class _MenuDigitalAdminPageState extends ConsumerState<MenuDigitalAdminPage> {
     'portadaModo': _coverMode,
     'galeriaArriba': _galleryOnTop,
     'estilo': _layout,
+    'ordenTipos': List<String>.from(_categoryOrder),
     for (final entry in _colorControllers.entries)
       entry.key: entry.value.text.trim(),
     'productos': [
-      for (final item in _catalog)
-        if (_selected.contains(_id(item['id']))) _id(item['id']),
+      for (final item in _orderedSelection) _id(item['id']),
     ],
   };
 
@@ -206,7 +264,7 @@ class _MenuDigitalAdminPageState extends ConsumerState<MenuDigitalAdminPage> {
       });
       _notify('Menú digital guardado correctamente.');
     } catch (e) {
-      _notify('No se pudo guardar el menú: ' + e.toString());
+      _notify(menuDigitalSaveErrorMessage(e, style: _layout));
     } finally {
       if (mounted) setState(() => _saving = false);
     }
@@ -258,26 +316,29 @@ class _MenuDigitalAdminPageState extends ConsumerState<MenuDigitalAdminPage> {
 
   Future<void> _pickCover() async {
     try {
-      final result = await FilePicker.platform.pickFiles(
-        type: FileType.custom, allowedExtensions: const ['png', 'jpg', 'jpeg', 'webp'],
-        withData: true,
+      final photos = await MenuDigitalImageSelection.fromGallery(
+        maxDimension: 1600, quality: 75,
       );
-      if (result == null || result.files.isEmpty) return;
-      final file = result.files.single;
-      final bytes = file.bytes;
-      if (bytes == null || bytes.isEmpty || bytes.length > 1500000) {
-        _notify('Usa una imagen de hasta 1,5 MB.'); return;
+      if (photos.isEmpty) return;
+      final bytes = await photos.first.readAsBytes();
+      if (!mounted) return;
+      final encoded = MenuDigitalImageSelection.dataUri(
+        bytes, maxBytes: 1500000,
+      );
+      if (encoded == null) {
+        _notify('Usa una foto JPG, PNG o WEBP de hasta 1,5 MB. '
+            'Si es muy grande, reduce su resolución.');
+        return;
       }
-      final extension = file.extension?.toLowerCase() ?? '';
-      final mime = extension == 'png' ? 'image/png'
-          : extension == 'webp' ? 'image/webp' : 'image/jpeg';
       setState(() {
-        _uploadedCover = 'data:' + mime + ';base64,' + base64Encode(bytes);
+        _uploadedCover = encoded;
         _cover.clear();
         _dirty = true;
       });
       _notify('Portada seleccionada. Guarda para publicarla.');
-    } catch (e) { _notify('No se pudo seleccionar la imagen: ' + e.toString()); }
+    } catch (e) {
+      _notify('No se pudo abrir la galería: $e');
+    }
   }
 
   void _removeCover() {
@@ -312,23 +373,23 @@ class _MenuDigitalAdminPageState extends ConsumerState<MenuDigitalAdminPage> {
 
   Future<void> _pickVisual(String target) async {
     try {
-      final result = await FilePicker.platform.pickFiles(
-        type: FileType.custom,
-        allowedExtensions: const ['png', 'jpg', 'jpeg', 'webp'],
-        withData: true,
+      final photos = await MenuDigitalImageSelection.fromGallery(
+        maxDimension: target == 'logo' ? 1100 : 1600,
+        quality: target == 'logo' ? 80 : 75,
       );
-      if (result == null || result.files.isEmpty) return;
-      final file = result.files.first;
+      if (photos.isEmpty) return;
+      final bytes = await photos.first.readAsBytes();
+      if (!mounted) return;
       final limit = target == 'logo' ? 900000 : 1500000;
-      if (file.bytes == null || file.bytes!.isEmpty || file.bytes!.length > limit) {
-        _notify('Imagen demasiado grande. Logo máximo 900 KB; fondo máximo 1,5 MB.');
+      final encoded = MenuDigitalImageSelection.dataUri(
+        bytes, maxBytes: limit,
+      );
+      if (encoded == null) {
+        _notify(target == 'logo'
+            ? 'Elige una foto JPG, PNG o WEBP de máximo 900 KB para el logo.'
+            : 'Elige una foto JPG, PNG o WEBP de máximo 1,5 MB para el fondo.');
         return;
       }
-      final ext = file.extension?.toLowerCase() ?? '';
-      final mime = ext == 'png' ? 'image/png' :
-          ext == 'webp' ? 'image/webp' : 'image/jpeg';
-      final encoded = 'data:$mime;base64,${base64Encode(file.bytes!)}';
-      if (!mounted) return;
       setState(() {
         if (target == 'logo') {
           _customLogo = encoded;
@@ -338,43 +399,57 @@ class _MenuDigitalAdminPageState extends ConsumerState<MenuDigitalAdminPage> {
         _dirty = true;
       });
     } catch (e) {
-      _notify('No fue posible cargar la imagen: $e');
+      _notify('No fue posible abrir la galería: $e');
     }
   }
 
   Future<void> _pickGallery() async {
-    if (_gallery.length >= 6) {
-      _notify('La galería permite máximo 6 fotografías.'); return;
+    final remaining = 6 - _gallery.length;
+    if (remaining <= 0) {
+      _notify('La galería permite máximo 6 fotografías.');
+      return;
     }
     try {
-      final result = await FilePicker.platform.pickFiles(
-        type: FileType.custom,
-        allowedExtensions: const ['png', 'jpg', 'jpeg', 'webp'],
-        allowMultiple: true,
-        withData: true,
+      final photos = await MenuDigitalImageSelection.fromGallery(
+        limit: remaining, maxDimension: 1200, quality: 62,
       );
-      if (result == null || result.files.isEmpty) return;
+      if (photos.isEmpty) return;
       final added = <String>[];
-      for (final file in result.files) {
-        if (_gallery.length + added.length >= 6) break;
-        final bytes = file.bytes;
-        if (bytes == null || bytes.isEmpty || bytes.length > 700000) {
-          _notify('Algunas fotografías superan 700 KB y se omitieron.');
-          continue;
+      var oversized = 0;
+      var unsupported = 0;
+      for (final photo in photos) {
+        if (added.length >= remaining) break;
+        final bytes = await photo.readAsBytes();
+        final encoded = MenuDigitalImageSelection.dataUri(
+          bytes, maxBytes: 700000,
+        );
+        if (encoded == null) {
+          if (bytes.length > 700000) {
+            oversized++;
+          } else {
+            unsupported++;
+          }
+        } else {
+          added.add(encoded);
         }
-        final ext = file.extension?.toLowerCase() ?? '';
-        final mime = ext == 'png' ? 'image/png' :
-            ext == 'webp' ? 'image/webp' : 'image/jpeg';
-        added.add('data:$mime;base64,${base64Encode(bytes)}');
       }
-      if (mounted && added.isNotEmpty) {
+      if (!mounted) return;
+      if (added.isNotEmpty) {
         setState(() {
           _gallery = [..._gallery, ...added];
           _dirty = true;
         });
       }
+      if (oversized > 0) {
+        _notify('$oversized fotos superaron los 700 KB incluso reducidas. '
+            'Prueba con imágenes de menor tamaño.');
+      }
+      if (unsupported > 0) {
+        _notify('$unsupported fotos no tienen un formato JPG, PNG o WEBP '
+            'compatible con la carta.');
+      }
     } catch (e) {
-      _notify('No fue posible cargar la galería: $e');
+      _notify('No fue posible abrir la galería: $e');
     }
   }
 
@@ -610,114 +685,16 @@ class _MenuDigitalAdminPageState extends ConsumerState<MenuDigitalAdminPage> {
   }
 
 
-  Widget _designThumbnail(MenuDigitalColors colors, String style) {
-    final fg = colors.text;
-    final ac = colors.accent;
-    Widget line({double width = 40, double height = 5, Color? color}) =>
-        Container(width: width, height: height, decoration: BoxDecoration(
-          color: color ?? fg.withOpacity(.6),
-          borderRadius: BorderRadius.circular(3)));
-    Widget photo() => Container(
-      decoration: BoxDecoration(color: colors.secondarySurface,
-        borderRadius: BorderRadius.circular(6)),
-      child: Center(child: Icon(Icons.image_outlined,
-        color: fg.withOpacity(.65), size: 20)));
-    Widget paper() => Container(
-      padding: const EdgeInsets.all(9),
-      decoration: BoxDecoration(color: colors.card,
-        borderRadius: BorderRadius.circular(7)),
-      child: Column(children: [
-        line(width: 52, height: 7, color: ac),
-        const Spacer(),
-        for (var i = 0; i < 3; i++) ...[
-          Row(children: [
-            Expanded(child: Container(height: 4,
-              color: fg.withOpacity(.4))),
-            const SizedBox(width: 6),
-            line(width: 20, color: ac),
-          ]),
-          const SizedBox(height: 6),
-        ],
-        const Spacer(),
-      ]),
-    );
-    switch (style) {
-      case 'LIBRO':
-        return Row(children: [
-          Expanded(child: paper()),
-          const SizedBox(width: 6),
-          Expanded(child: paper()),
-        ]);
-      case 'EDITORIAL':
-        return Container(
-          padding: const EdgeInsets.all(12), color: colors.card,
-          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            line(width: 110, height: 12, color: fg),
-            const SizedBox(height: 8),
-            Container(height: 1, color: ac),
-            const Spacer(),
-            for (var i = 0; i < 2; i++) ...[
-              Row(children: [
-                Expanded(child: Container(height: 5,
-                  color: fg.withOpacity(.5))),
-                const SizedBox(width: 12),
-                line(width: 38, height: 7, color: ac),
-              ]),
-              const SizedBox(height: 8),
-            ],
-            const Spacer(),
-          ]),
-        );
-      case 'GALERIA':
-        return Row(children: [
-          Expanded(flex: 3, child: photo()),
-          const SizedBox(width: 7),
-          Expanded(flex: 2, child: Column(children: [
-            Expanded(child: photo()),
-            const SizedBox(height: 7),
-            Expanded(child: photo()),
-          ])),
-        ]);
-      case 'MINIMALISTA':
-        return Container(
-          padding: const EdgeInsets.all(12), color: colors.card,
-          child: Column(children: [
-            for (var i = 0; i < 4; i++)
-              Expanded(child: Row(children: [
-                Icon(Icons.circle, color: ac, size: 6),
-                const SizedBox(width: 8),
-                Expanded(child: Container(height: 5,
-                  color: fg.withOpacity(.55))),
-                const SizedBox(width: 11),
-                line(width: 35, height: 7, color: ac),
-              ])),
-          ]),
-        );
-      default:
-        return Row(children: [
-          for (var i = 0; i < 2; i++) ...[
-            Expanded(child: Container(
-              padding: const EdgeInsets.all(7),
-              decoration: BoxDecoration(color: colors.card,
-                borderRadius: BorderRadius.circular(7)),
-              child: Column(children: [
-                Expanded(child: photo()),
-                const SizedBox(height: 6),
-                line(width: 64),
-                const SizedBox(height: 5),
-                line(width: 42, height: 8, color: ac),
-              ]),
-            )),
-            if (i == 0) const SizedBox(width: 8),
-          ],
-        ]);
-    }
-  }
 
   Widget _designOption(AppPalette pal, MenuDigitalColors colors,
       String style, double width) {
     final selected = _layout == style;
     final title = switch (style) {
+      'DOCUMENTO' => 'Documento · estilo PDF',
+      'ELEGANTE' => 'Alta cocina · elegante',
+      'TIENDA_WEB' => 'Tienda web · catálogo',
+      'BISTRO' => 'Bistro · café moderno',
+      'NOCTURNO' => 'Nocturno · bar & cócteles',
       'LIBRO' => 'Carta tipo libro',
       'EDITORIAL' => 'Editorial elegante',
       'GALERIA' => 'Galería fotográfica',
@@ -725,6 +702,11 @@ class _MenuDigitalAdminPageState extends ConsumerState<MenuDigitalAdminPage> {
       _ => 'Moderno',
     };
     final description = switch (style) {
+      'DOCUMENTO' => 'Como una carta impresa: papel, tipografía y precios alineados.',
+      'ELEGANTE' => 'Experiencia de autor: tinta oscura, detalles dorados y elegancia.',
+      'TIENDA_WEB' => 'Catálogo web con fotos, precios y botón para ver detalles.',
+      'BISTRO' => 'Diseño cálido, fotos laterales y estilo de cafetería.',
+      'NOCTURNO' => 'Bar moderno: contrastes oscuros, acentos y producto protagonista.',
       'LIBRO' => 'Hojas por categoría, como una carta impresa.',
       'EDITORIAL' => 'Tipografía protagonista y productos refinados.',
       'GALERIA' => 'Fotografías grandes para destacar tus productos.',
@@ -732,6 +714,11 @@ class _MenuDigitalAdminPageState extends ConsumerState<MenuDigitalAdminPage> {
       _ => 'Tarjetas modernas con fotos y precios.',
     };
     final icon = switch (style) {
+      'DOCUMENTO' => Icons.picture_as_pdf_outlined,
+      'ELEGANTE' => Icons.diamond_outlined,
+      'TIENDA_WEB' => Icons.shopping_bag_outlined,
+      'BISTRO' => Icons.local_cafe_outlined,
+      'NOCTURNO' => Icons.nightlife_rounded,
       'LIBRO' => Icons.auto_stories_rounded,
       'EDITORIAL' => Icons.article_outlined,
       'GALERIA' => Icons.photo_library_outlined,
@@ -776,7 +763,8 @@ class _MenuDigitalAdminPageState extends ConsumerState<MenuDigitalAdminPage> {
               padding: const EdgeInsets.all(10),
               decoration: BoxDecoration(color: colors.canvas,
                 borderRadius: BorderRadius.circular(12)),
-              child: ClipRect(child: _designThumbnail(colors, style)),
+              child: ClipRect(child: MenuDigitalDesignThumbnail(
+                  colors: colors, style: style)),
             ),
             const SizedBox(height: 9),
             Text(selected ? 'DISEÑO SELECCIONADO' : 'Seleccionar este diseño',
@@ -806,10 +794,7 @@ class _MenuDigitalAdminPageState extends ConsumerState<MenuDigitalAdminPage> {
   }
 
   Map<String, dynamic> _preview() {
-    final selectedProducts = <Map<String, dynamic>>[
-      for (final item in _catalog)
-        if (_selected.contains(_id(item['id']))) item,
-    ].take(6).toList();
+    final selectedProducts = _orderedSelection.take(6).toList();
     return {
       'titulo': _title.text.trim().isEmpty ? 'Nuestra carta' : _title.text.trim(),
       'descripcion': _description.text,
@@ -821,6 +806,7 @@ class _MenuDigitalAdminPageState extends ConsumerState<MenuDigitalAdminPage> {
       'portadaModo': _coverMode,
       'galeriaArriba': _galleryOnTop,
       'estilo': _layout,
+      'ordenTipos': List<String>.from(_categoryOrder),
       'sucursal': ref.read(branchScopeProvider).activeBranch?.sucuNombre ?? '',
       for (final entry in _colorControllers.entries) entry.key: entry.value.text.trim(),
       'productos': selectedProducts,
@@ -1013,19 +999,40 @@ class _MenuDigitalAdminPageState extends ConsumerState<MenuDigitalAdminPage> {
                   fontSize: 18, fontWeight: FontWeight.w900))),
           ]),
           const SizedBox(height: 7),
-          Text('Elige entre cinco diseños. Tus productos, precios y '
+          Text('Elige entre diez diseños, incluidos cinco totalmente nuevos. Tus productos, precios y '
               'paletas de colores se conservan al cambiar de diseño.',
               style: TextStyle(color: pal.textSecondary, fontSize: 12)),
           const SizedBox(height: 14),
+          Wrap(spacing: 8, runSpacing: 8, children: [
+            for (final option in const <(String, String)>[
+              ('TODOS', 'Todos (10)'),
+              ('NUEVOS', 'Nuevos (5)'),
+              ('CLASICOS', 'Originales (5)'),
+            ])
+              ChoiceChip(
+                label: Text(option.$2),
+                selected: _designGroup == option.$1,
+                showCheckmark: false,
+                onSelected: (_) => setState(() => _designGroup = option.$1),
+              ),
+          ]),
+          const SizedBox(height: 12),
           LayoutBuilder(builder: (context, limits) {
             final width = limits.maxWidth < 470
                 ? limits.maxWidth : (limits.maxWidth - 12) / 2;
             final colors = MenuDigitalColors.fromMenu(_preview());
+            const newStyles = <String>[
+              'DOCUMENTO', 'ELEGANTE', 'TIENDA_WEB', 'BISTRO', 'NOCTURNO',
+            ];
             return Wrap(spacing: 12, runSpacing: 12, children: [
               for (final style in const <String>[
+                'DOCUMENTO', 'ELEGANTE', 'TIENDA_WEB', 'BISTRO', 'NOCTURNO',
                 'TIENDA', 'LIBRO', 'EDITORIAL', 'GALERIA', 'MINIMALISTA',
               ])
-                _designOption(pal, colors, style, width),
+                if (_designGroup == 'TODOS' ||
+                    (_designGroup == 'NUEVOS' && newStyles.contains(style)) ||
+                    (_designGroup == 'CLASICOS' && !newStyles.contains(style)))
+                  _designOption(pal, colors, style, width),
             ]);
           }),
           const SizedBox(height: 8),
@@ -1125,8 +1132,24 @@ class _MenuDigitalAdminPageState extends ConsumerState<MenuDigitalAdminPage> {
             style: TextStyle(color: pal.secondary, fontWeight: FontWeight.w800)),
         ]),
         const SizedBox(height: 9),
-        Text('Usa productos activos del catálogo real de esta sucursal.',
+        Text('Selecciona los productos y decide qué categorías y platos '
+            'aparecen primero. El orden se refleja en la carta pública.',
             style: TextStyle(color: pal.textSecondary, fontSize: 12)),
+        const SizedBox(height: 12),
+        OutlinedButton.icon(
+          onPressed: _selected.isEmpty ? null : _openOrdering,
+          icon: const Icon(Icons.format_list_numbered_rounded),
+          label: const Text('Ordenar categorías y productos'),
+        ),
+        if (_selected.isNotEmpty)
+          Padding(
+            padding: const EdgeInsets.only(top: 8),
+            child: Text('Primero en la carta: ' +
+                _orderedSelection.take(3).map((p) =>
+                    (p['nombre'] ?? '').toString()).join(' · '),
+              maxLines: 2, overflow: TextOverflow.ellipsis,
+              style: TextStyle(color: pal.textSecondary, fontSize: 11)),
+          ),
         const SizedBox(height: 13),
         TextField(controller: _search,
           decoration: const InputDecoration(

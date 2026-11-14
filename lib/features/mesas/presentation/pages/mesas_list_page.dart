@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'dart:math' as math;
 
 import 'package:file_picker/file_picker.dart';
+import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -18,6 +19,9 @@ import '../../../../core/utils/input_constraints.dart';
 import '../../../../core/widgets/app_error_view.dart';
 import '../../../../core/widgets/app_loader.dart';
 import '../../../../core/widgets/tech_background.dart';
+import '../../../navigation/presentation/providers/active_role_provider.dart';
+import '../../../navigation/presentation/providers/user_menu_provider.dart';
+import '../../../mesero/domain/mesas_permission_policy.dart';
 
 /// Centro de control de mesas para GERENTE.
 ///
@@ -34,11 +38,32 @@ class _MesasListPageState extends ConsumerState<MesasListPage> {
   static const _refreshInterval = Duration(seconds: 5);
   static const _pageSize = 18;
 
+  bool _canChangeTableState() {
+    final keys = ref.read(userMenuProvider).maybeWhen(
+      data: (items) => items.map((item) => item.keyName).toSet(),
+      orElse: () => const <String>{},
+    );
+    final privilegedRole = ref.read(activeRolesProvider).any((role) {
+      final name = role.trim().toUpperCase().replaceFirst(
+        RegExp(r'^ROLE_'), '',
+      );
+      return const <String>{
+        'GERENTE', 'MANAGER', 'SUPERVISOR', 'CAJERO', 'CAJERA',
+        'ADMIN', 'ADMINISTRADOR', 'SUPERADMIN', 'SUPER_ADMIN',
+      }.contains(name);
+    });
+    return MesasPermissionPolicy.canDeleteOrChangeState(
+      menuKeys: keys, isCashier: privilegedRole,
+    );
+  }
+
   final _searchController = TextEditingController();
   Timer? _timer;
   bool _loading = true;
   bool _liveLoading = false;
   bool _autoRefresh = true;
+  bool _reportsUnavailable = false;
+  bool _reportAccessLimited = false;
   String? _error;
   DateTime? _updatedAt;
   int? _loadedBranchId;
@@ -67,6 +92,8 @@ class _MesasListPageState extends ConsumerState<MesasListPage> {
   Widget build(BuildContext context) {
     final palette = ref.watch(selectedAppPaletteProvider);
     final branchState = ref.watch(branchScopeProvider);
+    ref.watch(userMenuProvider);
+    ref.watch(activeRolesProvider);
 
     ref.listen<int?>(
       branchScopeProvider.select((state) => state.activeBranchId),
@@ -118,9 +145,20 @@ class _MesasListPageState extends ConsumerState<MesasListPage> {
                           _InlineMessage(message: _error!, palette: palette, warning: true),
                         ],
                         const SizedBox(height: 12),
-                        _buildKpis(palette),
-                        const SizedBox(height: 12),
-                        _buildAlerts(palette),
+                        if (_reportsUnavailable)
+                          _InlineMessage(
+                            message: _reportAccessLimited
+                                ? 'Tu rol permite administrar las mesas, pero '
+                                  'no consultar los indicadores de Reportes.'
+                                : 'Los indicadores de ventas no están disponibles. '
+                                  'Puedes seguir creando y editando mesas.',
+                            palette: palette, warning: true,
+                          )
+                        else ...[
+                          _buildKpis(palette),
+                          const SizedBox(height: 12),
+                          _buildAlerts(palette),
+                        ],
                         const SizedBox(height: 12),
                         _buildFilters(palette),
                         const SizedBox(height: 12),
@@ -450,7 +488,8 @@ class _MesasListPageState extends ConsumerState<MesasListPage> {
                   palette: palette,
                   onOpen: () => _openTableDetail(table),
                   onEdit: () => _openEditSheet(table),
-                  onDeactivate: table.isInactive ? null : () => _deactivateTable(table),
+                  onDeactivate: table.isInactive || !_canChangeTableState()
+                      ? null : () => _deactivateTable(table),
                 ),
               ),
           ],
@@ -525,33 +564,45 @@ class _MesasListPageState extends ConsumerState<MesasListPage> {
 
     final api = ref.read(apiClientProvider);
     final today = DateFormat('yyyy-MM-dd').format(DateTime.now());
-    try {
-      final responses = await Future.wait([
-        api.get<List<Map<String, dynamic>>>(
-          '${ApiPaths.mesas}/sucursal/$branchId',
-          _parseMapList,
-        ),
-        api.get<List<Map<String, dynamic>>>(
-          '${ApiPaths.reportes}/ventas/tiempo-real',
-          _parseMapList,
-          queryParameters: {'sucursalId': branchId},
-        ),
-        api.get<List<Map<String, dynamic>>>(
-          '${ApiPaths.reportes}/ventas/detalle',
-          _parseMapList,
-          queryParameters: {
-            'inicio': today,
-            'fin': today,
-            'sucursalId': branchId,
-            'limite': 500,
-          },
-        ),
-      ]);
-      if (!mounted) return;
 
-      final rawTables = responses[0].data as List<Map<String, dynamic>>? ?? const [];
-      final rawLive = responses[1].data as List<Map<String, dynamic>>? ?? const [];
-      final rawHistory = responses[2].data as List<Map<String, dynamic>>? ?? const [];
+    var reportError = false;
+    var reportForbidden = false;
+    // Los reportes son información complementaria. Un rol personalizado
+    // puede tener Mesas sin tener Reportes; un 403 en los KPI no debe impedir
+    // listar las mesas ni abrir el formulario para crearlas o editarlas.
+    Future<List<Map<String, dynamic>>> optionalReport(
+      String url, Map<String, dynamic> query,
+    ) async {
+      try {
+        final response = await api.get<List<Map<String, dynamic>>>(
+          url, _parseMapList, queryParameters: query,
+        );
+        return response.data ?? const <Map<String, dynamic>>[];
+      } catch (error) {
+        reportError = true;
+        if (error is DioException && error.response?.statusCode == 403) {
+          reportForbidden = true;
+        }
+        return const <Map<String, dynamic>>[];
+      }
+    }
+
+    final liveFuture = optionalReport(
+      '${ApiPaths.reportes}/ventas/tiempo-real', {'sucursalId': branchId},
+    );
+    final historyFuture = optionalReport(
+      '${ApiPaths.reportes}/ventas/detalle',
+      {'inicio': today, 'fin': today, 'sucursalId': branchId, 'limite': 500},
+    );
+    try {
+      // La consulta principal sí es obligatoria y conserva sus errores.
+      final response = await api.get<List<Map<String, dynamic>>>(
+        '${ApiPaths.mesas}/sucursal/$branchId', _parseMapList,
+      );
+      final rawTables = response.data ?? const <Map<String, dynamic>>[];
+      final rawLive = await liveFuture;
+      final rawHistory = await historyFuture;
+      if (!mounted) return;
       final liveByTable = <int, _LiveTableSale>{};
       for (final row in rawLive) {
         final live = _LiveTableSale.fromJson(row);
@@ -580,6 +631,8 @@ class _MesasListPageState extends ConsumerState<MesasListPage> {
         _updatedAt = DateTime.now();
         _loading = false;
         _liveLoading = false;
+        _reportsUnavailable = reportError;
+        _reportAccessLimited = reportForbidden;
         _error = null;
         _page = 0;
       });
@@ -594,7 +647,8 @@ class _MesasListPageState extends ConsumerState<MesasListPage> {
   }
 
   Future<void> _refreshLive() async {
-    if (_liveLoading || !mounted) return;
+    // Sin autorización de Reportes no generar un HTTP 403 cada cinco segundos.
+    if (_liveLoading || !mounted || _reportAccessLimited) return;
     final branchId = ref.read(branchScopeProvider).activeBranchId;
     if (branchId == null) return;
     setState(() => _liveLoading = true);
@@ -622,7 +676,14 @@ class _MesasListPageState extends ConsumerState<MesasListPage> {
       if (!mounted) return;
       setState(() {
         _liveLoading = false;
-        _error = ErrorMapper.map(error).message;
+        if (error is DioException && error.response?.statusCode == 403) {
+          _reportAccessLimited = true;
+          _reportsUnavailable = true;
+          // El módulo Mesas sigue siendo funcional; no reemplazarlo por 403.
+          _error = null;
+        } else {
+          _error = ErrorMapper.map(error).message;
+        }
       });
     }
   }
@@ -711,7 +772,8 @@ class _MesasListPageState extends ConsumerState<MesasListPage> {
       useSafeArea: true,
       backgroundColor: Colors.transparent,
       barrierColor: Colors.black.withOpacity(0.58),
-      builder: (_) => _TableFormSheet(branchId: branchId),
+      builder: (_) => _TableFormSheet(
+        branchId: branchId, canChangeState: _canChangeTableState()),
     );
     if (saved == true && mounted) {
       _showSuccess('Mesa creada correctamente.');
@@ -728,7 +790,9 @@ class _MesasListPageState extends ConsumerState<MesasListPage> {
       useSafeArea: true,
       backgroundColor: Colors.transparent,
       barrierColor: Colors.black.withOpacity(0.58),
-      builder: (_) => _TableFormSheet(branchId: branchId, table: table),
+      builder: (_) => _TableFormSheet(
+        branchId: branchId, table: table,
+        canChangeState: _canChangeTableState()),
     );
     if (saved == true && mounted) {
       _showSuccess('Mesa actualizada correctamente.');
@@ -737,6 +801,10 @@ class _MesasListPageState extends ConsumerState<MesasListPage> {
   }
 
   Future<void> _deactivateTable(_ManagerTable table) async {
+    if (!_canChangeTableState()) {
+      _showError('Tu rol no permite inactivar mesas.');
+      return;
+    }
     if (table.isOccupied) {
       _showError('No se puede inactivar una mesa con una venta abierta.');
       return;
@@ -1117,9 +1185,14 @@ class _TableDetailSheetState extends ConsumerState<_TableDetailSheet> {
 }
 
 class _TableFormSheet extends ConsumerStatefulWidget {
-  const _TableFormSheet({required this.branchId, this.table});
+  const _TableFormSheet({
+    required this.branchId,
+    required this.canChangeState,
+    this.table,
+  });
 
   final int branchId;
+  final bool canChangeState;
   final _ManagerTable? table;
 
   @override
@@ -1253,7 +1326,8 @@ class _TableFormSheetState extends ConsumerState<_TableFormSheet> {
                                 DropdownMenuItem(value: 'OCUPADA', child: Text('Ocupada')),
                                 DropdownMenuItem(value: 'INACTIVA', child: Text('Inactiva')),
                               ],
-                              onChanged: widget.table?.isOccupied == true
+                              onChanged: !widget.canChangeState ||
+                                  widget.table?.isOccupied == true
                                   ? null
                                   : (value) => setState(() => _state = value ?? 'DISPONIBLE'),
                             ),

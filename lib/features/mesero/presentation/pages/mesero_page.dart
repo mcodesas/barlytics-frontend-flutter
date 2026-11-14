@@ -30,6 +30,7 @@ import '../../../navigation/presentation/providers/user_menu_provider.dart';
 import '../../../pagos/presentation/pages/pagos_list_page.dart';
 import '../../data/datasources/mesero_remote_datasource.dart';
 import '../../data/models/mesero_models.dart';
+import '../../domain/mesas_permission_policy.dart';
 import '../providers/mesero_tab_provider.dart';
 import '../utils/historial_medios_pago.dart';
 import '../widgets/descuento_venta_dialog.dart';
@@ -936,10 +937,17 @@ class _MeseroPageState extends ConsumerState<MeseroPage> {
         );
   }
 
-  bool _canManageTables() {
-    return _isCajeroOperativo() ||
-        _authorizedMenuKeys().contains('administrar_mesas');
-  }
+  /// La opción Mesas permite crear/editar, sin dar permisos de eliminación.
+  bool _canEditTables() => MesasPermissionPolicy.canCreateOrEdit(
+        menuKeys: _authorizedMenuKeys(),
+        isCashier: _isCajeroOperativo(),
+      );
+
+  /// Eliminar/inactivar y cambiar estado requieren administración explícita.
+  bool _canManageTables() => MesasPermissionPolicy.canDeleteOrChangeState(
+        menuKeys: _authorizedMenuKeys(),
+        isCashier: _isCajeroOperativo(),
+      );
 
   bool _esVentaDirecta(MeseroVentaModel venta) =>
       (venta.tipoVenta ?? '').trim().toUpperCase() == 'DIRECTA' || venta.mesaId == null;
@@ -1028,7 +1036,8 @@ class _MeseroPageState extends ConsumerState<MeseroPage> {
           return content;
         }
 
-        if (selectedMode == MeseroPageMode.mesas && isCajero && !_mostrandoDetalleVenta) {
+        if (selectedMode == MeseroPageMode.mesas &&
+            _canEditTables() && !_mostrandoDetalleVenta) {
           return Stack(
             fit: StackFit.expand,
             children: [
@@ -1135,10 +1144,11 @@ class _MeseroPageState extends ConsumerState<MeseroPage> {
                   (context, index) {
                     final mesa = mesasVisibles[index];
                     final isCajero = _canManageTables();
+                    final canEdit = _canEditTables();
                     final inactiva = _mesaInactiva(mesa);
                     return _MesaCard(
                       mesa: mesa,
-                      canEdit: !inactiva || isCajero,
+                      canEdit: canEdit && (!inactiva || isCajero),
                       canDelete: isCajero,
                       onEdit: () => _editarMesa(mesa, isCajero: isCajero),
                       onDelete: isCajero ? () => _eliminarMesa(mesa) : null,
@@ -1301,7 +1311,7 @@ class _MeseroPageState extends ConsumerState<MeseroPage> {
           ],
         );
 
-        final addMesaButton = _canManageTables()
+        final addMesaButton = _canEditTables()
             ? FilledButton.icon(
                 onPressed: _processing ? null : _crearMesa,
                 icon: const Icon(Icons.add_rounded, size: 18),
@@ -1385,10 +1395,11 @@ class _MeseroPageState extends ConsumerState<MeseroPage> {
                 itemBuilder: (context, index) {
                   final mesa = mesasVisibles[index];
                   final isCajero = _canManageTables();
+                  final canEdit = _canEditTables();
                   final inactiva = _mesaInactiva(mesa);
                   return _MesaCard(
                     mesa: mesa,
-                    canEdit: !inactiva || isCajero,
+                    canEdit: canEdit && (!inactiva || isCajero),
                     canDelete: isCajero,
                     onEdit: () => _editarMesa(mesa, isCajero: isCajero),
                     onDelete: isCajero ? () => _eliminarMesa(mesa) : null,

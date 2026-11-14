@@ -34,45 +34,31 @@ class MenuDigitalExtraLayouts {
     required MenuProductDetail onDetails,
   }) {
     return Container(
-      padding: const EdgeInsets.fromLTRB(18, 24, 18, 24),
+      padding: const EdgeInsets.fromLTRB(17, 8, 17, 8),
       decoration: BoxDecoration(
         color: colors.card,
-        borderRadius: BorderRadius.circular(20),
+        borderRadius: BorderRadius.circular(17),
         border: Border.all(color: colors.border)),
       child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-        Text('UNA EXPERIENCIA PARA DISFRUTAR',
-          textAlign: TextAlign.center,
-          style: TextStyle(color: colors.text.withOpacity(.72),
-            fontSize: 10, letterSpacing: 2.1, fontWeight: FontWeight.bold)),
-        const SizedBox(height: 9),
-        Text('Nuestra selección',
-          textAlign: TextAlign.center,
-          style: TextStyle(color: colors.text, fontSize: 30,
-            fontFamily: 'Georgia', fontWeight: FontWeight.bold)),
-        const SizedBox(height: 12),
-        Divider(color: colors.accent, thickness: 1.5),
-        const SizedBox(height: 16),
+        // La cabecera de cada categoría se dibuja fuera de la lista.
+        // Aquí solo se muestra cada producto, sin adornos repetidos.
         for (final p in products) ...[
           InkWell(
             borderRadius: BorderRadius.circular(12),
             onTap: () => onDetails(p),
             child: Padding(
-              padding: const EdgeInsets.symmetric(vertical: 10),
+              padding: const EdgeInsets.symmetric(vertical: 13),
               child: LayoutBuilder(builder: (context, limits) {
                 final compact = limits.maxWidth < 360;
                 return Row(crossAxisAlignment: CrossAxisAlignment.center, children: [
-                  image(p, compact ? 62 : 84, compact ? 68 : 78),
+                  image(p, compact ? 58 : 76, compact ? 64 : 74),
                   const SizedBox(width: 13),
                   Expanded(child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text((p['tipo'] ?? 'Especialidades').toString().toUpperCase(),
-                        maxLines: 1, overflow: TextOverflow.ellipsis,
-                        style: TextStyle(color: colors.accent, fontSize: 10,
-                          fontWeight: FontWeight.w900, letterSpacing: 1)),
-                      const SizedBox(height: 4),
+ 
                       Text(name(p), style: TextStyle(color: colors.text,
-                        fontSize: compact ? 15 : 19, fontFamily: 'Georgia',
+                        fontSize: compact ? 15 : 18, fontFamily: 'Georgia',
                         fontWeight: FontWeight.bold)),
                       if (description(p).isNotEmpty) ...[
                         const SizedBox(height: 4),
@@ -111,12 +97,12 @@ class MenuDigitalExtraLayouts {
     required MenuProductPhoto image,
     required MenuProductDetail onDetails,
   }) {
-    final photoHeight = width < 260 ? 160.0 : 230.0;
+    final photoHeight = width < 260 ? 155.0 : 195.0;
     return SizedBox(
       width: width,
       child: Material(
         color: colors.card,
-        borderRadius: BorderRadius.circular(20),
+        borderRadius: BorderRadius.circular(17),
         clipBehavior: Clip.antiAlias,
         child: InkWell(
           onTap: () => onDetails(product),
@@ -126,13 +112,9 @@ class MenuDigitalExtraLayouts {
               padding: const EdgeInsets.all(17),
               child: Column(crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text((product['tipo'] ?? 'Especialidades').toString().toUpperCase(),
-                    style: TextStyle(color: colors.text.withOpacity(.7),
-                      fontSize: 10, letterSpacing: 1.2,
-                      fontWeight: FontWeight.w900)),
-                  const SizedBox(height: 8),
+ 
                   Text(name(product), style: TextStyle(color: colors.text,
-                    fontSize: 21, fontFamily: 'Georgia',
+                    fontSize: 19, fontFamily: 'Georgia',
                     fontWeight: FontWeight.bold)),
                   if (description(product).isNotEmpty) ...[
                     const SizedBox(height: 7),
@@ -146,7 +128,7 @@ class MenuDigitalExtraLayouts {
                     Row(children: [
                       Expanded(child: Text(price(product),
                         style: TextStyle(color: colors.text,
-                          fontWeight: FontWeight.w900, fontSize: 18))),
+                          fontWeight: FontWeight.w900, fontSize: 16))),
                       Icon(Icons.zoom_in_rounded, color: colors.text),
                     ]),
                   ],

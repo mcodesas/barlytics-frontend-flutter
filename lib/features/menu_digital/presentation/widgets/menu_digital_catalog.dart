@@ -5,7 +5,9 @@ import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 
 import 'menu_digital_palette.dart';
+import '../../domain/menu_digital_ordering.dart';
 import 'menu_digital_extra_layouts.dart';
+import 'menu_digital_signature_layouts.dart';
 
 /// Render compartido: la vista previa en el editor utiliza exactamente la
 /// misma composición que la página pública del cliente.
@@ -37,7 +39,12 @@ class _MenuDigitalCatalogState extends State<MenuDigitalCatalog> {
   List<Map<String, dynamic>> get _products {
     final raw = widget.menu['productos'];
     if (raw is! List) return [];
-    return raw.whereType<Map>().map((r) => Map<String, dynamic>.from(r)).toList();
+
+    final products = raw.whereType<Map>()
+        .map((r) => Map<String, dynamic>.from(r)).toList();
+    final order = (widget.menu['ordenTipos'] as List? ?? const [])
+        .whereType<String>().toList();
+    return MenuDigitalOrdering.arrange(products, categoryOrder: order);
   }
 
   ImageProvider? _image(dynamic value) {
@@ -232,182 +239,174 @@ class _MenuDigitalCatalogState extends State<MenuDigitalCatalog> {
 
   Widget _storeItem(Map<String, dynamic> p, double width) {
     final colors = MenuDigitalColors.fromMenu(widget.menu);
-    final accent = colors.accent;
     final fg = colors.text;
-    final bg = colors.card;
+    final accent = MenuDigitalColors.contrast(colors.accent, colors.card) >= 4.5
+        ? colors.accent : fg;
     final name = (p['nombre'] ?? 'Producto').toString();
     final price = num.tryParse((p['precio'] ?? '').toString());
-    final description = (p['descripcion'] ?? '').toString();
-    return Container(
+    final description = (p['descripcion'] ?? '').toString().trim();
+    return SizedBox(
       width: width,
-      clipBehavior: Clip.antiAlias,
-      decoration: BoxDecoration(
-        color: bg,
-        borderRadius: BorderRadius.circular(22),
-        border: Border.all(color: colors.border),
-        boxShadow: [
-          BoxShadow(color: Colors.black.withOpacity(.09),
-              blurRadius: 20, offset: const Offset(0, 7)),
-        ],
-      ),
-      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        _productPhoto(p, width: double.infinity, height: 164, radius: 17),
-        Padding(
-          padding: const EdgeInsets.fromLTRB(17, 15, 17, 17),
-          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            Text((p['tipo'] ?? 'Especialidades').toString().toUpperCase(),
-              maxLines: 1, overflow: TextOverflow.ellipsis,
-              style: TextStyle(color: MenuDigitalColors.contrast(accent, bg) >= 4.5
-                  ? accent : fg, fontSize: 10, letterSpacing: 1.1,
-                  fontWeight: FontWeight.w900)),
-            const SizedBox(height: 7),
-            Text(name, maxLines: 2, overflow: TextOverflow.ellipsis,
-              style: TextStyle(color: fg, fontFamily: 'Georgia',
-                  fontWeight: FontWeight.bold, fontSize: 19, height: 1.17)),
-            const SizedBox(height: 7),
-            Text(description.isEmpty ? 'Conoce más sobre este producto' : description,
-              maxLines: 3, overflow: TextOverflow.ellipsis,
-              style: TextStyle(color: fg.withOpacity(.77), fontSize: 12,
-                  height: 1.45)),
-            const SizedBox(height: 14),
-            Row(children: [
-              if (price != null)
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                  decoration: BoxDecoration(color: accent,
-                    borderRadius: BorderRadius.circular(12)),
-                  child: Text(_money.format(price), style: TextStyle(
-                    color: colors.onAccent, fontWeight: FontWeight.w900,
-                    fontSize: 15)),
+      child: Material(
+        color: colors.card,
+        borderRadius: BorderRadius.circular(18),
+        clipBehavior: Clip.antiAlias,
+        child: InkWell(
+          onTap: () => _showProductDetails(p),
+          child: Container(
+            decoration: BoxDecoration(
+              border: Border.all(color: colors.border),
+              borderRadius: BorderRadius.circular(18),
+            ),
+            child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+              _productPhoto(p, width: double.infinity, height: 152, radius: 12),
+              Padding(
+                padding: const EdgeInsets.fromLTRB(15, 14, 15, 17),
+                child: Column(crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(name, maxLines: 2, overflow: TextOverflow.ellipsis,
+                      style: TextStyle(color: fg, fontSize: 18,
+                          fontWeight: FontWeight.w800, height: 1.2)),
+                    if (description.isNotEmpty) ...[
+                      const SizedBox(height: 6),
+                      Text(description, maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(color: fg.withOpacity(.72),
+                          fontSize: 12, height: 1.45)),
+                    ],
+                    const SizedBox(height: 12),
+                    Row(children: [
+                      if (price != null)
+                        Expanded(child: Text(_money.format(price),
+                          style: TextStyle(color: accent, fontSize: 17,
+                            fontWeight: FontWeight.w900))),
+                      Icon(Icons.arrow_outward_rounded,
+                        color: fg.withOpacity(.65), size: 19),
+                    ]),
+                  ],
                 ),
-              const Spacer(),
-              IconButton(
-                tooltip: 'Ver foto y descripción',
-                onPressed: () => _showProductDetails(p),
-                icon: Icon(Icons.zoom_in_rounded, color: fg),
               ),
             ]),
-          ]),
+          ),
         ),
-      ]),
+      ),
     );
   }
 
   Widget _bookSection(String category, List<Map<String, dynamic>> products) {
     final colors = MenuDigitalColors.fromMenu(widget.menu);
     final fg = colors.text;
-    final accent = colors.accent;
-    final bg = colors.card;
-    final headingAccent = MenuDigitalColors.contrast(accent, bg) >= 4.5
-        ? accent : fg;
+    final accent = MenuDigitalColors.contrast(colors.accent, colors.card) >= 4.5
+        ? colors.accent : fg;
     return Container(
-      padding: const EdgeInsets.fromLTRB(15, 22, 15, 20),
+      padding: const EdgeInsets.fromLTRB(20, 25, 20, 20),
       decoration: BoxDecoration(
-        gradient: LinearGradient(
-          begin: Alignment.topCenter,
-          end: Alignment.bottomCenter,
-          colors: [bg, colors.secondarySurface],
-        ),
-        borderRadius: BorderRadius.circular(23),
+        color: colors.card,
+        borderRadius: BorderRadius.circular(22),
         border: Border.all(color: colors.border),
-        boxShadow: [BoxShadow(color: Colors.black.withOpacity(.075),
-          blurRadius: 22, offset: const Offset(0, 10))],
       ),
       child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-        Center(child: Container(
-          padding: const EdgeInsets.all(12),
-          decoration: BoxDecoration(color: accent,
-            shape: BoxShape.circle),
-          child: Icon(Icons.auto_stories_rounded, color: colors.onAccent, size: 24),
-        )),
-        const SizedBox(height: 13),
-        Text(category.toUpperCase(), textAlign: TextAlign.center,
-          style: TextStyle(color: fg, fontSize: 23, fontFamily: 'Georgia',
-              fontWeight: FontWeight.bold, letterSpacing: 1.5)),
-        const SizedBox(height: 7),
-        Text('SELECCIÓN · ' + products.length.toString() + ' PRODUCTOS',
+        Text('NUESTRA SELECCIÓN',
           textAlign: TextAlign.center,
-          style: TextStyle(color: headingAccent, letterSpacing: 1.3,
-            fontWeight: FontWeight.w800, fontSize: 10)),
-        Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 15, vertical: 19),
-          child: Divider(height: 1, color: colors.border),
-        ),
-        for (var i = 0; i < products.length; i++) ...[
-          Container(
-            padding: const EdgeInsets.all(12),
-            decoration: BoxDecoration(
-              color: colors.card,
-              borderRadius: BorderRadius.circular(16),
-              border: Border.all(color: colors.border.withOpacity(.8)),
-              boxShadow: [BoxShadow(color: Colors.black.withOpacity(.05),
-                blurRadius: 9, offset: const Offset(0, 4))],
-            ),
-            child: LayoutBuilder(builder: (context, limits) {
-              final compact = limits.maxWidth < 340;
-              final product = products[i];
-              final price = num.tryParse((product['precio'] ?? '').toString());
-              return Row(crossAxisAlignment: CrossAxisAlignment.center, children: [
-                _productPhoto(product,
-                  width: compact ? 52 : 72,
-                  height: compact ? 62 : 76,
-                  radius: 11),
-                SizedBox(width: compact ? 9 : 13),
+          style: TextStyle(color: accent, fontSize: 10,
+            fontWeight: FontWeight.w800, letterSpacing: 2)),
+        const SizedBox(height: 8),
+        Text(category, textAlign: TextAlign.center,
+          style: TextStyle(color: fg, fontSize: 28,
+            fontFamily: 'Georgia', fontWeight: FontWeight.bold)),
+        const SizedBox(height: 18),
+        Divider(color: colors.border, height: 1),
+        for (final p in products) ...[
+          InkWell(
+            borderRadius: BorderRadius.circular(12),
+            onTap: () => _showProductDetails(p),
+            child: Padding(
+              padding: const EdgeInsets.symmetric(vertical: 14),
+              child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                _productPhoto(p, width: 72, height: 75, radius: 10),
+                const SizedBox(width: 13),
                 Expanded(child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start, children: [
-                    Text((product['nombre'] ?? 'Producto').toString(),
-                      style: TextStyle(color: fg, fontSize: compact ? 14 : 17,
-                          fontFamily: 'Georgia', fontWeight: FontWeight.bold,
-                          height: 1.22)),
-                    const SizedBox(height: 5),
-                    Text((product['descripcion'] ?? '').toString(),
+                    Text((p['nombre'] ?? 'Producto').toString(),
                       maxLines: 2, overflow: TextOverflow.ellipsis,
-                      style: TextStyle(color: fg.withOpacity(.76),
-                        fontSize: 11, height: 1.35)),
+                      style: TextStyle(color: fg, fontSize: 16,
+                        fontWeight: FontWeight.w800)),
+                    if ((p['descripcion'] ?? '').toString().trim().isNotEmpty) ...[
+                      const SizedBox(height: 4),
+                      Text(p['descripcion'].toString(),
+                        maxLines: 2, overflow: TextOverflow.ellipsis,
+                        style: TextStyle(color: fg.withOpacity(.7),
+                          fontSize: 12, height: 1.4)),
+                    ],
+                    if (num.tryParse((p['precio'] ?? '').toString()) != null) ...[
+                      const SizedBox(height: 7),
+                      Text(_money.format(num.parse(p['precio'].toString())),
+                        style: TextStyle(color: accent, fontSize: 15,
+                          fontWeight: FontWeight.w900)),
+                    ],
                   ],
                 )),
-                const SizedBox(width: 7),
-                if (price != null)
-                  Container(
-                    padding: EdgeInsets.symmetric(
-                      horizontal: compact ? 7 : 11, vertical: 9),
-                    decoration: BoxDecoration(
-                      color: accent,
-                      borderRadius: BorderRadius.circular(11),
-                    ),
-                    child: Text(_money.format(price),
-                      style: TextStyle(color: colors.onAccent,
-                        fontSize: compact ? 10 : 12,
-                        fontWeight: FontWeight.w900)),
-                  ),
-              ]);
-            }),
+              ]),
+            ),
           ),
-          if (i < products.length - 1) const SizedBox(height: 10),
+          Divider(color: colors.border, height: 1),
         ],
       ]),
     );
   }
 
-  IconData _iconForCategory(String category) {
-    final name = category.toUpperCase();
-    if (name == 'TODOS') return Icons.check_circle_outline_rounded;
-    if (name.contains('CERVEZA')) return Icons.sports_bar_rounded;
-    if (name.contains('COCTEL') || name.contains('CÓCTEL')) {
-      return Icons.local_bar_rounded;
+  Widget _categoryTitle(String category, int count,
+      MenuDigitalColors colors) {
+    return Padding(
+      padding: const EdgeInsets.only(top: 18, bottom: 14),
+      child: Row(crossAxisAlignment: CrossAxisAlignment.center, children: [
+        Container(width: 4, height: 38,
+          decoration: BoxDecoration(
+            color: colors.accent, borderRadius: BorderRadius.circular(4))),
+        const SizedBox(width: 12),
+        Expanded(child: Text(category,
+          style: TextStyle(color: colors.text, fontSize: 23,
+            fontFamily: 'Georgia', fontWeight: FontWeight.bold))),
+        const SizedBox(width: 6),
+        Text('${count} opciones',
+          style: TextStyle(color: colors.text.withOpacity(.66),
+            fontSize: 11)),
+      ]),
+    );
+  }
+
+  Widget _productsForStyle(
+    String style, List<Map<String, dynamic>> products,
+    MenuDigitalColors colors, double itemWidth, double gap,
+  ) {
+    if (style == 'EDITORIAL') {
+      return MenuDigitalExtraLayouts.editorial(
+        products: products, colors: colors,
+        image: (p, w, h) => _productPhoto(p,
+          width: w, height: h, radius: 10),
+        onDetails: _showProductDetails,
+      );
     }
-    if (name.contains('COMIDA') || name.contains('PASABOCAS')) {
-      return Icons.tapas_rounded;
+    if (style == 'MINIMALISTA') {
+      return MenuDigitalExtraLayouts.minimalist(
+        products: products, colors: colors,
+        image: (p, w, h) => _productPhoto(p,
+          width: w, height: h, radius: 8),
+        onDetails: _showProductDetails,
+      );
     }
-    if (name.contains('BEBIDA') || name.contains('JUGO')) {
-      return Icons.local_drink_rounded;
-    }
-    if (name.contains('WHISKY') || name.contains('LICOR') ||
-        name.contains('AGUARDIENTE') || name.contains('RON')) {
-      return Icons.wine_bar_rounded;
-    }
-    if (name.contains('CIGARRILLO')) return Icons.smoking_rooms_rounded;
-    return Icons.restaurant_menu_rounded;
+    return Wrap(spacing: gap, runSpacing: gap, children: [
+      for (final p in products)
+        if (style == 'GALERIA')
+          MenuDigitalExtraLayouts.galleryItem(
+            product: p, width: itemWidth, colors: colors,
+            image: (product, w, h) => _productPhoto(
+              product, width: w, height: h, radius: 12),
+            onDetails: _showProductDetails,
+          )
+        else
+          _storeItem(p, itemWidth),
+    ]);
   }
 
   void _selectBookPage(int page, List<String> categories) {
@@ -493,9 +492,94 @@ class _MenuDigitalCatalogState extends State<MenuDigitalCatalog> {
     );
   }
 
+  /// Los estilos de papel y alta cocina tienen cabecera propia;
+  /// conservar una portada tipo tienda rompía su identidad visual.
+  Widget _signatureHeader(String style, bool mobile) {
+    final pdf = style == 'DOCUMENTO';
+    final background = pdf ? const Color(0xFFFFFCF6) : const Color(0xFF171C20);
+    final foreground = pdf ? const Color(0xFF26322E) : const Color(0xFFF8F1E6);
+    final muted = pdf ? const Color(0xFF65716C) : const Color(0xFFB5B2AB);
+    final defaultAccent = pdf
+        ? const Color(0xFF64563E) : const Color(0xFFE3C48B);
+    final paletteAccent = MenuDigitalColors.fromMenu(widget.menu).accent;
+    final accent = MenuDigitalColors.contrast(paletteAccent, background) >= 4.5
+        ? paletteAccent : defaultAccent;
+    final logo = _image(widget.menu['logo']);
+    final cover = _image(widget.menu['portada']);
+    final branch = (widget.menu['sucursal'] ?? '').toString();
+    final title = (widget.menu['titulo'] ?? 'Nuestra carta').toString();
+    final description = (widget.menu['descripcion'] ?? '').toString().trim();
+    return Container(
+      width: double.infinity,
+      color: background,
+      padding: EdgeInsets.symmetric(
+        horizontal: mobile ? 18 : 46, vertical: mobile ? 27 : 38),
+      child: Column(children: [
+        if (logo != null) ...[
+          Container(
+            width: 65, height: 65, padding: const EdgeInsets.all(5),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(pdf ? 8 : 32)),
+            child: ClipRRect(
+              borderRadius: BorderRadius.circular(pdf ? 5 : 28),
+              child: Image(image: logo, fit: BoxFit.contain,
+                errorBuilder: (_, __, ___) =>
+                    const Icon(Icons.storefront_rounded)),
+            ),
+          ),
+          const SizedBox(height: 13),
+        ],
+        if (!pdf) ...[
+          Icon(Icons.diamond_outlined, color: accent, size: 23),
+          const SizedBox(height: 12),
+        ],
+        Text(branch.toUpperCase(), textAlign: TextAlign.center,
+          style: TextStyle(color: accent, fontSize: 10,
+            fontWeight: FontWeight.w800, letterSpacing: 2)),
+        const SizedBox(height: 12),
+        Text(title, textAlign: TextAlign.center,
+          style: TextStyle(color: foreground,
+            fontFamily: 'Georgia', fontSize: mobile ? 30 : 42,
+            fontWeight: FontWeight.bold, height: 1.14)),
+        const SizedBox(height: 13),
+        Container(width: 85, height: 1, color: accent.withOpacity(.7)),
+        if (description.isNotEmpty) ...[
+          const SizedBox(height: 12),
+          ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 640),
+            child: Text(description, textAlign: TextAlign.center,
+              maxLines: 4, overflow: TextOverflow.ellipsis,
+              style: TextStyle(color: muted, height: 1.6, fontSize: 13)),
+          ),
+        ],
+        if (cover != null) ...[
+          const SizedBox(height: 19),
+          ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 680),
+            child: InkWell(
+              onTap: () => _openVenuePhoto(
+                [widget.menu['portada'].toString()], 0),
+              child: Container(
+                constraints: BoxConstraints(
+                  maxHeight: mobile ? 170 : 220),
+                width: double.infinity,
+                decoration: BoxDecoration(
+                  border: Border.all(color: accent.withOpacity(.25))),
+                child: Image(image: cover, fit: BoxFit.contain,
+                  errorBuilder: (_, __, ___) =>
+                      Icon(Icons.image_outlined, color: muted)),
+              ),
+            ),
+          ),
+        ],
+      ]),
+    );
+  }
+
   Widget _fullCoverHeader(
       MenuDigitalColors colors, Color canvas, Color fg, Color accent,
-      bool mobile, String style) {
+      bool mobile) {
     final slideshow = <String>[
       if (_image(widget.menu['portada']) != null)
         widget.menu['portada'].toString(),
@@ -637,23 +721,7 @@ class _MenuDigitalCatalogState extends State<MenuDigitalCatalog> {
               style: TextStyle(color: fg.withOpacity(.85),
                 fontSize: 13, height: 1.5)),
           ],
-          const SizedBox(height: 13),
-          Container(
-            padding: const EdgeInsets.symmetric(
-                horizontal: 12, vertical: 8),
-            decoration: BoxDecoration(
-              color: accent, borderRadius: BorderRadius.circular(20)),
-            child: Text(
-              switch (style) {
-                'LIBRO' => 'CARTA TIPO LIBRO',
-                'EDITORIAL' => 'CARTA EDITORIAL',
-                'GALERIA' => 'GALERÍA DE PRODUCTOS',
-                'MINIMALISTA' => 'CARTA MINIMALISTA',
-                _ => 'CARTA MODERNA',
-              },
-              style: TextStyle(color: colors.onAccent,
-                fontSize: 11, fontWeight: FontWeight.w900)),
-          ),
+
         ]),
       ),
     ]);
@@ -726,8 +794,11 @@ class _MenuDigitalCatalogState extends State<MenuDigitalCatalog> {
     final style = (widget.menu['estilo'] ?? 'TIENDA').toString().toUpperCase();
     final book = style == 'LIBRO';
     final items = _products;
-    final cats = <String>['Todos', ...items.map((p) =>
-        (p['tipo'] ?? 'Especialidades').toString()).toSet()];
+    final preferredCategories = (widget.menu['ordenTipos'] as List? ?? const [])
+        .whereType<String>().toList();
+    final cats = <String>['Todos',
+      ...MenuDigitalOrdering.categories(items, preferredCategories)];
+    final selectedCategory = cats.contains(_category) ? _category : 'Todos';
     final searched = items.where((p) =>
         _search.isEmpty ||
         (p['nombre']?.toString().toLowerCase().contains(_search.toLowerCase()) ?? false) ||
@@ -735,16 +806,17 @@ class _MenuDigitalCatalogState extends State<MenuDigitalCatalog> {
     ).toList();
     // No filtrar las hojas por el chip activo: las otras categorías
     // deben seguir existiendo para poder navegar hacia ellas.
-    final bookCategories = <String>{
-      for (final p in searched) (p['tipo'] ?? 'Especialidades').toString(),
-    }.toList();
+    final bookCategories =
+        MenuDigitalOrdering.categories(searched, preferredCategories);
     final currentBookPage = bookCategories.isEmpty
         ? 0 : _bookPage.clamp(0, bookCategories.length - 1).toInt();
     final activeBookCategory = bookCategories.isEmpty
         ? '' : bookCategories[currentBookPage];
     final filtered = book ? searched : searched.where((p) =>
-        _category == 'Todos' ||
-        (p['tipo'] ?? 'Especialidades').toString() == _category).toList();
+        selectedCategory == 'Todos' ||
+        MenuDigitalOrdering.category(p) == selectedCategory).toList();
+    final visibleCategories =
+        MenuDigitalOrdering.categories(filtered, preferredCategories);
 
     return Container(
       decoration: BoxDecoration(
@@ -775,7 +847,15 @@ class _MenuDigitalCatalogState extends State<MenuDigitalCatalog> {
             padding: EdgeInsets.fromLTRB(mobile ? 16 : 24, 24, mobile ? 16 : 24, 55),
             children: [
               if (widget.preview) ...[
-                Text('VISTA PREVIA · ' + (style == 'TIENDA' ? 'MODERNO' : style),
+                Text('VISTA PREVIA · ' + (switch (style) {
+                  'TIENDA' => 'MODERNO',
+                  'TIENDA_WEB' => 'TIENDA WEB',
+                  'DOCUMENTO' => 'DOCUMENTO',
+                  'ELEGANTE' => 'ALTA COCINA',
+                  'BISTRO' => 'BISTRO',
+                  'NOCTURNO' => 'NOCTURNO',
+                  _ => style,
+                }),
                   style: TextStyle(color: accent, fontSize: 11, fontWeight: FontWeight.w900)),
                 const SizedBox(height: 10),
               ],
@@ -786,12 +866,14 @@ class _MenuDigitalCatalogState extends State<MenuDigitalCatalog> {
                   borderRadius: BorderRadius.circular(26),
                   border: Border.all(color: colors.border),
                   boxShadow: [BoxShadow(
-                    color: Colors.black.withOpacity(.12),
-                    blurRadius: 24, offset: const Offset(0, 10),
+                    color: Colors.black.withOpacity(.06),
+                    blurRadius: 18, offset: const Offset(0, 5),
                   )],
                 ),
-                child: fullCover
-                    ? _fullCoverHeader(colors, canvas, fg, accent, mobile, style)
+                child: (style == 'DOCUMENTO' || style == 'ELEGANTE')
+                    ? _signatureHeader(style, mobile)
+                    : fullCover
+                    ? _fullCoverHeader(colors, canvas, fg, accent, mobile)
                     : Stack(children: [
                   if (coverHasImage)
                     Positioned.fill(
@@ -861,24 +943,7 @@ class _MenuDigitalCatalogState extends State<MenuDigitalCatalog> {
                                 maxLines: 3, overflow: TextOverflow.ellipsis,
                                 style: TextStyle(color: fg.withOpacity(.84),
                                   fontSize: 14, height: 1.5)),
-                            const SizedBox(height: 18),
-                            Container(
-                              padding: const EdgeInsets.symmetric(
-                                  horizontal: 14, vertical: 9),
-                              decoration: BoxDecoration(
-                                color: accent,
-                                borderRadius: BorderRadius.circular(24)),
-                              child: Row(mainAxisSize: MainAxisSize.min, children: [
-                                Icon(book ? Icons.menu_book_rounded
-                                  : Icons.storefront_outlined,
-                                  color: colors.onAccent, size: 16),
-                                const SizedBox(width: 8),
-                                Text(book ? 'CARTA TIPO LIBRO' : 'CATÁLOGO MODERNO',
-                                  style: TextStyle(color: colors.onAccent,
-                                    fontSize: 11, fontWeight: FontWeight.w900,
-                                    letterSpacing: .6)),
-                              ]),
-                            ),
+
                           ],
                         ),
                       ),
@@ -887,14 +952,12 @@ class _MenuDigitalCatalogState extends State<MenuDigitalCatalog> {
                 ]),
               ),
               const SizedBox(height: 18),
-              _venueGallery(colors, mobile),
-              if ((widget.menu['galeria'] as List? ?? const []).isNotEmpty)
-                const SizedBox(height: 22),
               if (!widget.preview) ...[
                 TextField(
                   onChanged: (value) => setState(() {
                     _search = value;
                     _bookPage = 0;
+                    _category = 'Todos';
                   }),
                   cursorColor: accent,
                   style: TextStyle(color: fg, fontSize: 15),
@@ -917,122 +980,71 @@ class _MenuDigitalCatalogState extends State<MenuDigitalCatalog> {
                   ),
                 ),
                 const SizedBox(height: 13),
-                // En la web el carrusel horizontal ocultaba las categorías
-                // que quedaban a la derecha (sin indicador de desplazamiento).
-                // El menú se distribuye en varias filas y ninguna opción
-                // queda fuera de la pantalla, también con ventana estrecha.
                 Container(
-                  width: double.infinity,
-                  padding: const EdgeInsets.fromLTRB(14, 14, 14, 15),
+                  padding: const EdgeInsets.fromLTRB(17, 16, 17, 17),
                   decoration: BoxDecoration(
-                    color: colors.secondarySurface,
-                    borderRadius: BorderRadius.circular(19),
+                    color: colors.card,
                     border: Border.all(color: colors.border),
+                    borderRadius: BorderRadius.circular(18),
                   ),
                   child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: [
-                      Row(children: [
-                        Icon(Icons.category_outlined,
-                            color: colors.text, size: 19),
-                        const SizedBox(width: 8),
-                        Expanded(child: Text(
-                          'Tipos de productos',
-                          style: TextStyle(
-                            color: fg, fontSize: mobile ? 15 : 16,
-                            fontWeight: FontWeight.w900),
-                        )),
-                        Container(
-                          padding: const EdgeInsets.symmetric(
-                              horizontal: 10, vertical: 5),
-                          decoration: BoxDecoration(
-                            color: accent,
-                            borderRadius: BorderRadius.circular(14),
-                          ),
-                          child: Text(
-                            '${cats.length - 1} tipos',
-                            style: TextStyle(
-                              color: colors.onAccent, fontSize: 11,
-                              fontWeight: FontWeight.w800),
-                          ),
-                        ),
-                      ]),
+                      Text('Encuentra lo que te gusta',
+                        style: TextStyle(color: fg, fontSize: 17,
+                          fontWeight: FontWeight.w800)),
                       const SizedBox(height: 5),
-                      Text(
-                        'Selecciona una categoría para explorar los productos.',
+                      Text(book
+                          ? 'Elige un capítulo o pasa de página.'
+                          : 'Explora todas las secciones o elige una en particular.',
                         style: TextStyle(
-                          color: fg.withOpacity(.75),
-                          fontSize: 12, height: 1.35,
+                          color: fg.withOpacity(.7), fontSize: 12)),
+                      const SizedBox(height: 14),
+                      DropdownButtonFormField<String>(
+                        value: book
+                            ? (bookCategories.isEmpty ? null : activeBookCategory)
+                            : selectedCategory,
+                        isExpanded: true,
+                        dropdownColor: colors.card,
+                        icon: Icon(Icons.expand_more_rounded, color: fg),
+                        style: TextStyle(color: fg, fontSize: 14,
+                          fontWeight: FontWeight.w700),
+                        decoration: InputDecoration(
+                          labelText: book ? 'Capítulo' : 'Ver sección',
+                          labelStyle: TextStyle(color: fg.withOpacity(.72)),
+                          prefixIcon: Icon(Icons.menu_book_outlined, color: fg),
+                          filled: true,
+                          fillColor: colors.canvas.withOpacity(.5),
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(12),
+                            borderSide: BorderSide(color: colors.border)),
+                          enabledBorder: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(12),
+                            borderSide: BorderSide(color: colors.border)),
+                          contentPadding: const EdgeInsets.symmetric(
+                            vertical: 13, horizontal: 12),
                         ),
+                        items: [
+                          for (final cat in (book ? bookCategories : cats))
+                            DropdownMenuItem<String>(
+                              value: cat,
+                              child: Text(cat == 'Todos'
+                                  ? 'Toda nuestra carta' : cat,
+                                maxLines: 1, overflow: TextOverflow.ellipsis)),
+                        ],
+                        onChanged: (cat) {
+                          if (cat == null) return;
+                          if (book) {
+                            _selectBookPage(bookCategories.indexOf(cat),
+                                bookCategories);
+                          } else {
+                            setState(() {
+                              _category = cat;
+                              _bookPage = 0;
+                            });
+                          }
+                        },
                       ),
-                      const SizedBox(height: 12),
-                      LayoutBuilder(builder: (context, limits) {
-                        // Un nombre largo puede ocupar hasta dos líneas.
-                        // La restricción evita que un solo chip desborde
-                        // el ancho en navegadores o teléfonos pequeños.
-                        final maxLabelWidth =
-                            (limits.maxWidth - 90).clamp(72.0, 238.0).toDouble();
-                        return Wrap(
-                          alignment: WrapAlignment.start,
-                          spacing: 8,
-                          runSpacing: 8,
-                          children: [
-                            for (final cat in (book ? bookCategories : cats))
-                              Tooltip(
-                                message: cat,
-                                child: ChoiceChip(
-                                  label: ConstrainedBox(
-                                    constraints: BoxConstraints(
-                                      maxWidth: maxLabelWidth),
-                                    child: Text(
-                                      cat,
-                                      maxLines: 2,
-                                      softWrap: true,
-                                      overflow: TextOverflow.ellipsis,
-                                    ),
-                                  ),
-                                  selected: book ? activeBookCategory == cat : _category == cat,
-                                  showCheckmark: false,
-                                  avatar: Icon(
-                                    _iconForCategory(cat),
-                                    size: 17,
-                                    color: (book ? activeBookCategory == cat : _category == cat)
-                                        ? colors.onAccent : fg,
-                                  ),
-                                  onSelected: (_) {
-                                    if (book) {
-                                      _selectBookPage(bookCategories.indexOf(cat),
-                                          bookCategories);
-                                    } else {
-                                      setState(() {
-                                        _category = cat;
-                                        _bookPage = 0;
-                                      });
-                                    }
-                                  },
-                                  selectedColor: accent,
-                                  backgroundColor: colors.card,
-                                  side: BorderSide(
-                                    color: (book ? activeBookCategory == cat : _category == cat)
-                                        ? accent : colors.border,
-                                    width: (book ? activeBookCategory == cat : _category == cat)
-                                        ? 1.5 : 1,
-                                  ),
-                                  shape: RoundedRectangleBorder(
-                                    borderRadius: BorderRadius.circular(22)),
-                                  padding: const EdgeInsets.symmetric(
-                                    horizontal: 10, vertical: 8),
-                                  labelStyle: TextStyle(
-                                    color: (book ? activeBookCategory == cat : _category == cat)
-                                        ? colors.onAccent : fg,
-                                    fontWeight: FontWeight.w800,
-                                    fontSize: 12.5,
-                                  ),
-                                ),
-                              ),
-                          ],
-                        );
-                      }),
                     ],
                   ),
                 ),
@@ -1042,7 +1054,7 @@ class _MenuDigitalCatalogState extends State<MenuDigitalCatalog> {
                 Icon(book ? Icons.auto_stories_rounded : Icons.grid_view_rounded,
                   color: accent),
                 const SizedBox(width: 9),
-                Expanded(child: Text(book ? 'Explora nuestra carta' : 'Nuestros productos',
+                Expanded(child: Text(book ? 'Explora nuestra carta' : 'Nuestra selección',
                   style: TextStyle(color: fg, fontFamily: 'Georgia',
                     fontWeight: FontWeight.bold, fontSize: 23))),
                 Container(
@@ -1064,7 +1076,7 @@ class _MenuDigitalCatalogState extends State<MenuDigitalCatalog> {
                 // no un catálogo de tarjetas disfrazado de libro.
                 _bookSection(bookCategories[currentBookPage],
                   filtered.where((p) =>
-                    (p['tipo'] ?? 'Especialidades') == bookCategories[currentBookPage]).toList()),
+                    MenuDigitalOrdering.category(p) == bookCategories[currentBookPage]).toList()),
                 const SizedBox(height: 15),
                 Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
                   IconButton.filledTonal(
@@ -1099,39 +1111,39 @@ class _MenuDigitalCatalogState extends State<MenuDigitalCatalog> {
                     icon: const Icon(Icons.chevron_right_rounded),
                   ),
                 ]),
-              ] else if (style == 'EDITORIAL')
-                MenuDigitalExtraLayouts.editorial(
-                  products: filtered,
-                  colors: colors,
-                  image: (p, w, h) => _productPhoto(
-                    p, width: w, height: h, radius: 10),
-                  onDetails: _showProductDetails,
-                )
-              else if (style == 'MINIMALISTA')
-                MenuDigitalExtraLayouts.minimalist(
-                  products: filtered,
-                  colors: colors,
-                  image: (p, w, h) => _productPhoto(
-                    p, width: w, height: h, radius: 8),
-                  onDetails: _showProductDetails,
-                )
-              else if (style == 'GALERIA')
-                Wrap(spacing: gap, runSpacing: gap, children: [
-                  for (final p in filtered)
-                    MenuDigitalExtraLayouts.galleryItem(
-                      product: p,
-                      width: itemWidth,
+              ] else ...[
+                for (final category in visibleCategories) ...[
+                  if (MenuDigitalSignatureLayouts.supports(style))
+                    MenuDigitalSignatureLayouts.section(
+                      style: style,
+                      category: category,
+                      products: filtered.where((p) =>
+                        MenuDigitalOrdering.category(p) == category).toList(),
                       colors: colors,
-                      image: (product, w, h) => _productPhoto(
-                        product, width: w, height: h, radius: 12),
+                      image: (p, w, h) => _productPhoto(
+                        p, width: w, height: h, radius: 12),
                       onDetails: _showProductDetails,
+                    )
+                  else ...[
+                    _categoryTitle(category,
+                      filtered.where((p) =>
+                        MenuDigitalOrdering.category(p) == category).length,
+                      colors),
+                    _productsForStyle(
+                      style,
+                      filtered.where((p) =>
+                        MenuDigitalOrdering.category(p) == category).toList(),
+                      colors, itemWidth, gap,
                     ),
-                ])
-              else
-                Wrap(spacing: gap, runSpacing: gap, children: [
-                  for (final p in filtered)
-                    _storeItem(p, itemWidth),
-                ]),
+                  ],
+                  const SizedBox(height: 20),
+                ],
+              ],
+              if ((widget.menu['galeria'] as List? ?? const []).isNotEmpty) ...[
+                const SizedBox(height: 30),
+                _venueGallery(colors, mobile),
+                const SizedBox(height: 10),
+              ],
               if (!widget.preview) ...[
                 const SizedBox(height: 35),
                 Divider(color: fg.withOpacity(0.16)),
