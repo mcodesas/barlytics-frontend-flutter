@@ -16,6 +16,7 @@ import '../../../core/branch/branch_scope_provider.dart';
 import '../../../core/utils/file_download_helper.dart';
 import '../data/menu_digital_api.dart';
 import '../domain/menu_digital_ordering.dart';
+import '../domain/menu_digital_save_errors.dart';
 import 'widgets/menu_digital_order_editor.dart';
 import 'widgets/menu_digital_catalog.dart';
 import 'widgets/menu_digital_palette.dart';
@@ -263,7 +264,7 @@ class _MenuDigitalAdminPageState extends ConsumerState<MenuDigitalAdminPage> {
       });
       _notify('Menú digital guardado correctamente.');
     } catch (e) {
-      _notify('No se pudo guardar el menú: ' + e.toString());
+      _notify(menuDigitalSaveErrorMessage(e, style: _layout));
     } finally {
       if (mounted) setState(() => _saving = false);
     }
