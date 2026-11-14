@@ -3,7 +3,6 @@ import 'dart:typed_data';
 
 import 'package:dio/dio.dart';
 
-import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -21,6 +20,7 @@ import 'widgets/menu_digital_order_editor.dart';
 import 'widgets/menu_digital_catalog.dart';
 import 'widgets/menu_digital_palette.dart';
 import 'widgets/menu_digital_design_thumbnail.dart';
+import 'widgets/menu_digital_image_selection.dart';
 
 const _presets = menuDigitalPalettePresets;
 
@@ -315,26 +315,29 @@ class _MenuDigitalAdminPageState extends ConsumerState<MenuDigitalAdminPage> {
 
   Future<void> _pickCover() async {
     try {
-      final result = await FilePicker.platform.pickFiles(
-        type: FileType.custom, allowedExtensions: const ['png', 'jpg', 'jpeg', 'webp'],
-        withData: true,
+      final photos = await MenuDigitalImageSelection.fromGallery(
+        maxDimension: 1600, quality: 75,
       );
-      if (result == null || result.files.isEmpty) return;
-      final file = result.files.single;
-      final bytes = file.bytes;
-      if (bytes == null || bytes.isEmpty || bytes.length > 1500000) {
-        _notify('Usa una imagen de hasta 1,5 MB.'); return;
+      if (photos.isEmpty) return;
+      final bytes = await photos.first.readAsBytes();
+      if (!mounted) return;
+      final encoded = MenuDigitalImageSelection.dataUri(
+        bytes, maxBytes: 1500000,
+      );
+      if (encoded == null) {
+        _notify('Usa una foto JPG, PNG o WEBP de hasta 1,5 MB. '
+            'Si es muy grande, reduce su resolución.');
+        return;
       }
-      final extension = file.extension?.toLowerCase() ?? '';
-      final mime = extension == 'png' ? 'image/png'
-          : extension == 'webp' ? 'image/webp' : 'image/jpeg';
       setState(() {
-        _uploadedCover = 'data:' + mime + ';base64,' + base64Encode(bytes);
+        _uploadedCover = encoded;
         _cover.clear();
         _dirty = true;
       });
       _notify('Portada seleccionada. Guarda para publicarla.');
-    } catch (e) { _notify('No se pudo seleccionar la imagen: ' + e.toString()); }
+    } catch (e) {
+      _notify('No se pudo abrir la galería: $e');
+    }
   }
 
   void _removeCover() {
@@ -369,23 +372,23 @@ class _MenuDigitalAdminPageState extends ConsumerState<MenuDigitalAdminPage> {
 
   Future<void> _pickVisual(String target) async {
     try {
-      final result = await FilePicker.platform.pickFiles(
-        type: FileType.custom,
-        allowedExtensions: const ['png', 'jpg', 'jpeg', 'webp'],
-        withData: true,
+      final photos = await MenuDigitalImageSelection.fromGallery(
+        maxDimension: target == 'logo' ? 1100 : 1600,
+        quality: target == 'logo' ? 80 : 75,
       );
-      if (result == null || result.files.isEmpty) return;
-      final file = result.files.first;
+      if (photos.isEmpty) return;
+      final bytes = await photos.first.readAsBytes();
+      if (!mounted) return;
       final limit = target == 'logo' ? 900000 : 1500000;
-      if (file.bytes == null || file.bytes!.isEmpty || file.bytes!.length > limit) {
-        _notify('Imagen demasiado grande. Logo máximo 900 KB; fondo máximo 1,5 MB.');
+      final encoded = MenuDigitalImageSelection.dataUri(
+        bytes, maxBytes: limit,
+      );
+      if (encoded == null) {
+        _notify(target == 'logo'
+            ? 'Elige una foto JPG, PNG o WEBP de máximo 900 KB para el logo.'
+            : 'Elige una foto JPG, PNG o WEBP de máximo 1,5 MB para el fondo.');
         return;
       }
-      final ext = file.extension?.toLowerCase() ?? '';
-      final mime = ext == 'png' ? 'image/png' :
-          ext == 'webp' ? 'image/webp' : 'image/jpeg';
-      final encoded = 'data:$mime;base64,${base64Encode(file.bytes!)}';
-      if (!mounted) return;
       setState(() {
         if (target == 'logo') {
           _customLogo = encoded;
@@ -395,43 +398,57 @@ class _MenuDigitalAdminPageState extends ConsumerState<MenuDigitalAdminPage> {
         _dirty = true;
       });
     } catch (e) {
-      _notify('No fue posible cargar la imagen: $e');
+      _notify('No fue posible abrir la galería: $e');
     }
   }
 
   Future<void> _pickGallery() async {
-    if (_gallery.length >= 6) {
-      _notify('La galería permite máximo 6 fotografías.'); return;
+    final remaining = 6 - _gallery.length;
+    if (remaining <= 0) {
+      _notify('La galería permite máximo 6 fotografías.');
+      return;
     }
     try {
-      final result = await FilePicker.platform.pickFiles(
-        type: FileType.custom,
-        allowedExtensions: const ['png', 'jpg', 'jpeg', 'webp'],
-        allowMultiple: true,
-        withData: true,
+      final photos = await MenuDigitalImageSelection.fromGallery(
+        limit: remaining, maxDimension: 1200, quality: 62,
       );
-      if (result == null || result.files.isEmpty) return;
+      if (photos.isEmpty) return;
       final added = <String>[];
-      for (final file in result.files) {
-        if (_gallery.length + added.length >= 6) break;
-        final bytes = file.bytes;
-        if (bytes == null || bytes.isEmpty || bytes.length > 700000) {
-          _notify('Algunas fotografías superan 700 KB y se omitieron.');
-          continue;
+      var oversized = 0;
+      var unsupported = 0;
+      for (final photo in photos) {
+        if (added.length >= remaining) break;
+        final bytes = await photo.readAsBytes();
+        final encoded = MenuDigitalImageSelection.dataUri(
+          bytes, maxBytes: 700000,
+        );
+        if (encoded == null) {
+          if (bytes.length > 700000) {
+            oversized++;
+          } else {
+            unsupported++;
+          }
+        } else {
+          added.add(encoded);
         }
-        final ext = file.extension?.toLowerCase() ?? '';
-        final mime = ext == 'png' ? 'image/png' :
-            ext == 'webp' ? 'image/webp' : 'image/jpeg';
-        added.add('data:$mime;base64,${base64Encode(bytes)}');
       }
-      if (mounted && added.isNotEmpty) {
+      if (!mounted) return;
+      if (added.isNotEmpty) {
         setState(() {
           _gallery = [..._gallery, ...added];
           _dirty = true;
         });
       }
+      if (oversized > 0) {
+        _notify('$oversized fotos superaron los 700 KB incluso reducidas. '
+            'Prueba con imágenes de menor tamaño.');
+      }
+      if (unsupported > 0) {
+        _notify('$unsupported fotos no tienen un formato JPG, PNG o WEBP '
+            'compatible con la carta.');
+      }
     } catch (e) {
-      _notify('No fue posible cargar la galería: $e');
+      _notify('No fue posible abrir la galería: $e');
     }
   }
 
