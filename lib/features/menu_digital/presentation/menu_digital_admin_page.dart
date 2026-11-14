@@ -1349,13 +1349,11 @@ class _MenuDigitalAdminPageState extends ConsumerState<MenuDigitalAdminPage> {
                       onPressed: _saved?['publicado'] == true ? _share : null,
                       icon: const Icon(Icons.share_outlined),
                       label: const Text('Compartir')),
-                    FilledButton.tonalIcon(onPressed: _saved?['publicado'] == true ? _downloadQrPng : null,
-                      icon: const Icon(Icons.qr_code_2_rounded),
-                      label: const Text('Descargar QR PNG')),
-                    OutlinedButton.icon(onPressed: _saved?['publicado'] == true ? _downloadQr : null,
-                      icon: const Icon(Icons.qr_code_2_rounded),
-                      label: const Text('Descargar QR PDF')),
-                    OutlinedButton.icon(
+                    FilledButton.icon(
+                      style: FilledButton.styleFrom(
+                        backgroundColor: menuColors.accent,
+                        foregroundColor: menuColors.onAccent,
+                      ),
                       onPressed: _exportingPdf || _saving || _selected.isEmpty
                           ? null : _downloadFullMenuPdf,
                       icon: Icon(_exportingPdf
@@ -1364,13 +1362,19 @@ class _MenuDigitalAdminPageState extends ConsumerState<MenuDigitalAdminPage> {
                       label: Text(_exportingPdf
                           ? 'Preparando carta PDF...'
                           : 'Descargar carta completa PDF')),
-
-                    Text(
-                      'El PDF incluye todos los productos, imágenes disponibles, '
-                      'categorías y colores del diseño actual. '
-                      'También funciona si la carta está en borrador.',
-                      style: TextStyle(color: palette.textSecondary, fontSize: 12),
-                    ),
+                    FilledButton.tonalIcon(
+                      onPressed: _saved?['publicado'] == true ? _downloadQrPng : null,
+                      icon: const Icon(Icons.qr_code_2_rounded),
+                      label: const Text('Descargar QR PNG')),
+                    OutlinedButton.icon(
+                      onPressed: _saved?['publicado'] == true ? _downloadQr : null,
+                      icon: const Icon(Icons.qr_code_2_rounded),
+                      label: const Text('Descargar QR PDF')),
+                    SizedBox(width: double.infinity,
+                      child: Text('PDF completo: portada, categorías, todos '
+                        'los productos y precios del diseño actual. '
+                        'Disponible incluso en borrador.',
+                        style: TextStyle(color: palette.textSecondary, fontSize: 12))),
                     if (_saved?['publicado'] == true)
                       Container(
                         decoration: BoxDecoration(
