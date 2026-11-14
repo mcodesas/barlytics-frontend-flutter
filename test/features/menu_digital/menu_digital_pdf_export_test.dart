@@ -53,6 +53,18 @@ void main() {
     });
   }
 
+  test('Carta publicada incluye enlace QR sin reemplazar su contenido', () async {
+    final menu = carta('BISTRO', count: 12);
+    menu['url'] =
+        'https://www.barlytics.com.co/#/carta/123e4567-e89b-12d3-a456-426614174000';
+    final bytes = await MenuDigitalPdfExport.create(
+      menu: menu,
+      loadImage: (_) async => null,
+    );
+    expect(utf8.decode(bytes.take(5).toList()), '%PDF-');
+    expect(bytes.length, greaterThan(4000));
+  });
+
   test('No crea una carta incompleta sin productos', () async {
     await expectLater(
       MenuDigitalPdfExport.create(
