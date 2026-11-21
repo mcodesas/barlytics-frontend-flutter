@@ -46,5 +46,13 @@ end
 post_install do |installer|
   installer.pods_project.targets.each do |target|
     flutter_additional_ios_build_settings(target)
+
+    # Xcode 27 solo acepta iOS 15+ como deployment target.
+    # Algunos plugins CocoaPods siguen declarando iOS 9/10/12/13;
+    # normalizar los targets de Pods sin alterar la compatibilidad
+    # minima de BarLytics (platform :ios, '15.0').
+    target.build_configurations.each do |config|
+      config.build_settings['IPHONEOS_DEPLOYMENT_TARGET'] = '15.0'
+    end
   end
 end
