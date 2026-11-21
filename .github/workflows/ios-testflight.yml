@@ -28,7 +28,7 @@ concurrency:
 jobs:
   testflight:
     name: Compilar IPA y publicar en TestFlight
-    runs-on: macos-latest
+    runs-on: xcode-27
     # Las credenciales VPS están asociadas al environment production.
     # Sin él, la subida a Apple funciona pero latest.json no se actualiza.
     environment: production
@@ -37,6 +37,20 @@ jobs:
     steps:
       - name: Descargar proyecto
         uses: actions/checkout@v4
+
+      - name: Verificar Xcode 27, SDK de iOS y pantalla de inicio
+        shell: bash
+        run: |
+          set -euo pipefail
+          xcodebuild -version
+          SDK_VERSION="$(xcrun --sdk iphoneos --show-sdk-version)"
+          echo "SDK para compilar BarLytics: iOS $SDK_VERSION"
+          if [[ "${SDK_VERSION%%.*}" -lt 27 ]]; then
+            echo "::error::ITMS-90725: se requiere el SDK de iOS 27 o posterior."
+            exit 1
+          fi
+          # iOS 27 exige una pantalla de inicio declarada en Info.plist.
+          test "$(plutil -extract UILaunchStoryboardName raw ios/Runner/Info.plist)" = "LaunchScreen"
 
       - name: Configurar Flutter
         uses: subosito/flutter-action@v2
