@@ -2202,6 +2202,31 @@ class _Footer extends StatelessWidget {
                   ],
                 ),
               );
+              final legalLinks = Wrap(
+                alignment: compact ? WrapAlignment.center : WrapAlignment.start,
+                spacing: 4,
+                runSpacing: 2,
+                children: [
+                  _FooterPublicLink(palette: palette, label: 'Política de privacidad', path: '/privacidad/'),
+                  _FooterPublicLink(palette: palette, label: 'Opciones de privacidad', path: '/opciones-de-privacidad/'),
+                  _FooterPublicLink(palette: palette, label: 'Términos y condiciones', path: '/terminos/'),
+                ],
+              );
+              final legalStrip = Padding(
+                padding: const EdgeInsets.only(top: 16),
+                child: Column(
+                  crossAxisAlignment: compact ? CrossAxisAlignment.center : CrossAxisAlignment.start,
+                  children: [
+                    Divider(color: palette.translucentBorder),
+                    const SizedBox(height: 5),
+                    Text(
+                      '© BarLytics · Colombia',
+                      style: TextStyle(color: palette.textSecondary, fontSize: 10.5),
+                    ),
+                    legalLinks,
+                  ],
+                ),
+              );
               if (compact) {
                 return Column(
                   children: [
@@ -2212,21 +2237,27 @@ class _Footer extends StatelessWidget {
                     publicLinks,
                     const SizedBox(height: 18),
                     signature,
+                    legalStrip,
                   ],
                 );
               }
-              return Row(
-                crossAxisAlignment: CrossAxisAlignment.center,
+              return Column(
                 children: [
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      mainAxisSize: MainAxisSize.min,
-                      children: [brand, const SizedBox(height: 8), text, const SizedBox(height: 8), publicLinks],
-                    ),
+                  Row(
+                    crossAxisAlignment: CrossAxisAlignment.center,
+                    children: [
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          mainAxisSize: MainAxisSize.min,
+                          children: [brand, const SizedBox(height: 8), text, const SizedBox(height: 8), publicLinks],
+                        ),
+                      ),
+                      const SizedBox(width: 18),
+                      signature,
+                    ],
                   ),
-                  const SizedBox(width: 18),
-                  signature,
+                  legalStrip,
                 ],
               );
             },

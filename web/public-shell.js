@@ -95,6 +95,14 @@
               <span><strong>Desarrollado por MCode SAS</strong><small>Innovación en cada línea</small></span>
             </div>
           </div>
+          <div class="container footer-legal">
+            <span>© BarLytics · Colombia</span>
+            <nav aria-label="Enlaces legales">
+              <a href="/privacidad/">Política de privacidad</a>
+              <a href="/opciones-de-privacidad/">Opciones de privacidad</a>
+              <a href="/terminos/">Términos y condiciones</a>
+            </nav>
+          </div>
         </footer>`;
     }
   }
