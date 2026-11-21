@@ -20,7 +20,7 @@
     phone: '<svg viewBox="0 0 24 24" aria-hidden="true"><rect x="7" y="2" width="10" height="20" rx="2"/><path d="M11 18h2"/></svg>'
   };
   const PUBLIC_ROUTES = new Set([
-    '/software-para-bares/', '/funcionalidades/', '/nosotros/', '/planes/', '/descargas/', '/contacto/', '/preguntas-frecuentes/', '/documentacion/', '/privacidad/', '/opciones-de-privacidad/', '/terminos/'
+    '/software-para-bares/', '/funcionalidades/', '/nosotros/', '/planes/', '/descargas/', '/contacto/', '/preguntas-frecuentes/', '/documentacion/', '/privacidad/', '/terminos/'
   ]);
 
   const FEATURES = [
