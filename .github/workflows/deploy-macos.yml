@@ -8,6 +8,7 @@ on:
       - '.github/workflows/**'
       - 'docs/**'
       - 'README*'
+      - 'ios/**'
   workflow_dispatch:
 
 # macOS y Web usan grupos independientes: un push no debe cancelar
