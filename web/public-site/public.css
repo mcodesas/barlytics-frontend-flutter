@@ -916,3 +916,13 @@ details p { padding: 0 20px 18px; margin: 0; color: var(--muted); line-height: 1
 .protected-download__button{margin-right:10px}
 .protected-download__button:disabled{opacity:.45;cursor:not-allowed}
 @media(max-width:680px){.protected-download__panel{padding:24px 18px}.protected-download__button{width:100%;margin:0 0 10px}.protected-download__panel>.button--ghost{width:100%}}
+
+/* Centro de privacidad: reutiliza la misma paleta y tarjetas del sitio público. */
+.legal-section ol { display:grid; gap:9px; margin:13px 0 16px; padding-left:22px; color:var(--muted); line-height:1.68; }
+.legal-section ol li::marker { color:var(--accent); font-weight:800; }
+.privacy-actions { display:flex; flex-wrap:wrap; align-items:center; gap:12px; margin-top:19px; }
+.privacy-actions .button { text-align:center; }
+.legal-callout a { color:#8df4df; text-decoration:underline; text-underline-offset:3px; }
+@media (max-width:620px) {
+  .privacy-actions .button { width:100%; justify-content:center; }
+}
