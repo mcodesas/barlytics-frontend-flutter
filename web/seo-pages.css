@@ -558,3 +558,10 @@ h2 { font-size: clamp(27px, 3.6vw, 42px); }
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { scroll-behavior: auto !important; animation-duration: .01ms !important; transition-duration: .01ms !important; }
 }
+
+/* Enlaces legales visibles también en el footer de páginas SEO heredadas. */
+.footer-legal { display:flex; justify-content:space-between; align-items:center; gap:10px 20px; flex-wrap:wrap; margin-top:22px; padding-top:15px; border-top:1px solid var(--border); color:var(--muted); font-size:11px; }
+.footer-legal nav { display:flex; flex-wrap:wrap; gap:8px 18px; }
+.footer-legal a { color:var(--muted); text-decoration:none; font-weight:800; }
+.footer-legal a:hover { color:var(--primary); }
+@media (max-width:560px) { .footer-legal { justify-content:center; text-align:center; } .footer-legal nav { justify-content:center; } }
