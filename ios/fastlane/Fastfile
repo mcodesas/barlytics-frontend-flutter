@@ -50,6 +50,11 @@ platform :ios do
     version = ENV.fetch("IOS_VERSION")
     build_number = ENV.fetch("IOS_BUILD_NUMBER")
 
+    # ITMS-90725: el SDK depende de Xcode, no del deployment target.
+    sdk_version = sh("xcrun --sdk iphoneos --show-sdk-version").strip
+    UI.user_error!("ITMS-90725: el SDK iOS #{sdk_version} es anterior a iOS 27. Usa Xcode 27 o posterior.") if sdk_version.split(".").first.to_i < 27
+    UI.message("Compilando BarLytics con SDK iOS #{sdk_version}")
+
     match(
       api_key: api_key,
       type: "appstore",
