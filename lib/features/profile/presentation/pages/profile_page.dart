@@ -1480,7 +1480,9 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
                       ),
                       const SizedBox(height: 10),
                       Text(
-                        '${_subscriptionMoney(subscription.price, subscription.currency)} · ${_periodLabel(subscription.frequency, subscription.frequencyType)}',
+                        subscription.provider?.toUpperCase() == 'APPSTORE'
+                            ? 'Precio y renovación gestionados por App Store'
+                            : '${_subscriptionMoney(subscription.price, subscription.currency)} · ${_periodLabel(subscription.frequency, subscription.frequencyType)}',
                         style: TextStyle(color: palette.textPrimary, fontSize: 15, fontWeight: FontWeight.w800),
                       ),
                       if (subscription.planDescription?.trim().isNotEmpty == true) ...[
