@@ -1357,6 +1357,42 @@ class _SubscriptionActivationPageState extends ConsumerState<SubscriptionActivat
     SubscriptionModel subscription,
     SubscriptionPlanModel? plan,
   ) {
+    if (_appleNative) {
+      final features = plan?.features ?? subscription.planFeatures;
+      return Container(
+        padding: const EdgeInsets.all(18),
+        decoration: BoxDecoration(
+          color: palette.surface,
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(color: palette.translucentBorder),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text('Tu plan BarLytics', style: Theme.of(context).textTheme.titleLarge),
+            const SizedBox(height: 8),
+            Text(plan?.name ?? subscription.planName ?? 'Suscripción'),
+            const SizedBox(height: 10),
+            const Text(
+              'El precio, impuestos, duración y posibles ofertas se muestran '
+              'en la sección de compra de App Store según tu país. '
+              'No se aplican los precios de Mercado Pago al pagar con Apple.',
+            ),
+            for (final feature in features)
+              Padding(
+                padding: const EdgeInsets.only(top: 7),
+                child: Row(
+                  children: [
+                    Icon(Icons.check_circle_outline, size: 17, color: palette.success),
+                    const SizedBox(width: 7),
+                    Expanded(child: Text(feature)),
+                  ],
+                ),
+              ),
+          ],
+        ),
+      );
+    }
     final price = plan?.price ?? subscription.price ?? 0;
     final regularPrice = plan?.regularPrice ?? subscription.regularPrice ?? price;
     final discountPercentage = plan?.discountPercentage ?? subscription.discountPercentage;
