@@ -32,6 +32,7 @@ class _AppleStoreSubscriptionPanelState extends ConsumerState<AppleStoreSubscrip
   bool _busy = false;
   String? _message;
   bool _serverReady = false;
+  bool _blockedByMercadoPago = false;
 
   @override
   void initState() {
@@ -66,6 +67,10 @@ class _AppleStoreSubscriptionPanelState extends ConsumerState<AppleStoreSubscrip
       );
       final mapped = response.data ?? const <_ApplePlan>[];
       final ready = mapped.any((plan) => plan.backendReady);
+      final current = await ref.read(subscriptionRemoteDataSourceProvider).current();
+      final blocked = current.active &&
+          current.provider?.toUpperCase() == 'MERCADOPAGO' &&
+          current.automaticRenewal;
       if (!mounted) return;
       if (!await _store.isAvailable()) {
         throw StateError('La tienda App Store no está disponible en este dispositivo.');
@@ -89,12 +94,16 @@ class _AppleStoreSubscriptionPanelState extends ConsumerState<AppleStoreSubscrip
       setState(() {
         _mapped = mapped;
         _serverReady = ready;
+        _blockedByMercadoPago = blocked;
         _products = {for (final product in queried.productDetails) product.id: product};
         if (queried.productDetails.isEmpty) {
           _message = 'Apple todavía no ofrece estos productos. Comprueba '
               'el grupo, los precios, el contrato comercial y la disponibilidad en App Store Connect.';
         } else if (!ready) {
           _message = 'Falta configurar la verificación de compras Apple en el servidor.';
+        } else if (blocked) {
+          _message = 'La renovación de Mercado Pago sigue activa. Cancela primero '
+              'esa renovación y termina el periodo pagado para evitar un doble cobro.';
         }
       });
     } catch (error) {
@@ -105,7 +114,7 @@ class _AppleStoreSubscriptionPanelState extends ConsumerState<AppleStoreSubscrip
   }
 
   Future<void> _buy(ProductDetails product) async {
-    if (_busy || !_serverReady) return;
+    if (_busy || !_serverReady || _blockedByMercadoPago) return;
     setState(() {
       _busy = true;
       _message = null;
@@ -297,10 +306,12 @@ class _AppleStoreSubscriptionPanelState extends ConsumerState<AppleStoreSubscrip
                         ? product.description
                         : 'Suscripción auto-renovable de BarLytics'),
                     const SizedBox(height: 8),
-                    Text(product.price, style: theme.textTheme.titleLarge),
+                    Text(product.price + ' / ' + plan.periodLabel,
+                        style: theme.textTheme.titleLarge),
                     const SizedBox(height: 8),
                     FilledButton.icon(
-                      onPressed: _busy || !_serverReady ? null : () => _buy(product),
+                      onPressed: _busy || !_serverReady || _blockedByMercadoPago
+                          ? null : () => _buy(product),
                       icon: const Icon(Icons.apple),
                       label: const Text('Suscribirme con Apple'),
                     ),
@@ -338,11 +349,28 @@ class _AppleStoreSubscriptionPanelState extends ConsumerState<AppleStoreSubscrip
         ),
         const SizedBox(height: 6),
         const Text(
-          'Puedes cancelar desde Ajustes > Apple ID > Suscripciones. '
-          'El acceso se conserva hasta el final del periodo pagado. '
-          'Condiciones: barlytics.com.co/terminos/ · '
-          'Privacidad: barlytics.com.co/privacidad/',
+          'La renovación se cancela desde Ajustes > Apple ID > Suscripciones; '
+          'el acceso continúa hasta terminar el periodo ya pagado.',
           style: TextStyle(fontSize: 11),
+        ),
+        Wrap(
+          spacing: 8,
+          children: [
+            TextButton(
+              onPressed: () => launchUrl(
+                Uri.parse('https://www.barlytics.com.co/terminos/'),
+                mode: LaunchMode.externalApplication,
+              ),
+              child: const Text('Términos de uso'),
+            ),
+            TextButton(
+              onPressed: () => launchUrl(
+                Uri.parse('https://www.barlytics.com.co/privacidad/'),
+                mode: LaunchMode.externalApplication,
+              ),
+              child: const Text('Política de privacidad'),
+            ),
+          ],
         ),
       ],
     );
@@ -354,14 +382,31 @@ class _ApplePlan {
     required this.productId,
     required this.planName,
     required this.backendReady,
+    required this.frequency,
+    required this.frequencyType,
   });
   final String productId;
   final String planName;
   final bool backendReady;
+  final int frequency;
+  final String frequencyType;
+
+  String get periodLabel {
+    if (frequencyType == 'months') {
+      if (frequency == 12) return 'año';
+      return frequency == 1 ? 'mes' : frequency.toString() + ' meses';
+    }
+    if (frequencyType == 'days') {
+      return frequency == 7 ? 'semana' : frequency.toString() + ' días';
+    }
+    return 'periodo';
+  }
 
   factory _ApplePlan.fromJson(Map<String, dynamic> json) => _ApplePlan(
         productId: json['productId']?.toString() ?? '',
         planName: json['planName']?.toString() ?? 'Plan BarLytics',
         backendReady: json['backendReady'] == true,
+        frequency: (json['frequency'] as num?)?.toInt() ?? 1,
+        frequencyType: json['frequencyType']?.toString() ?? 'months',
       );
 }
