@@ -214,7 +214,13 @@ class _AppleStoreSubscriptionPanelState extends ConsumerState<AppleStoreSubscrip
     });
     try {
       await _store.restorePurchases();
-      // La actualización se recibe en purchaseStream.
+      // Los resultados de restauración se entregan en purchaseStream.
+      // La ausencia de recibos no debe bloquear indefinidamente el botón.
+      if (mounted && _busy) setState(() {
+        _busy = false;
+        _message = 'Si Apple encuentra compras asociadas, las validaremos automáticamente. '
+            'También puedes usar Sincronizar para verificar tu cuenta actual.';
+      });
     } catch (error) {
       if (mounted) setState(() {
         _busy = false;
