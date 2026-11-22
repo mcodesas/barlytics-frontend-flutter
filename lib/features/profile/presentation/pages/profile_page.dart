@@ -941,9 +941,10 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
       builder: (dialogContext) => StatefulBuilder(
         builder: (dialogContext, setDialogState) => AlertDialog(
           title: const Text('Eliminar mi cuenta'),
-          content: ConstrainedBox(
-            constraints: const BoxConstraints(maxWidth: 450),
-            child: Column(
+          content: SingleChildScrollView(
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 450),
+              child: Column(
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
@@ -980,6 +981,7 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
                   onChanged: (_) => setDialogState(() {}),
                 ),
               ],
+              ),
             ),
           ),
           actions: [
