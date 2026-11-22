@@ -170,49 +170,138 @@ class _AppleSubscriptionAdminTabState extends ConsumerState<AppleSubscriptionAdm
   /// precio de Apple por territorio; jamás convierte el precio COP local.
   Future<void> _editPrice(Map<String, dynamic> plan) async {
     if (_busy) return;
-    final territoryController = TextEditingController(text: 'COL');
-    final selectedTerritory = await showDialog<String>(
+    final territoryInput = TextEditingController(text: 'COL');
+    final territory = await showDialog<String>(
       context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('Seleccionar territorio de App Store'),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            TextField(
-              controller: territoryController,
-              textCapitalization: TextCapitalization.characters,
-              maxLength: 3,
-              decoration: const InputDecoration(
-                labelText: 'Código ISO del territorio',
-                hintText: 'COL',
-                helperText: 'COL = Colombia, USA = Estados Unidos, MEX = México',
-              ),
-            ),
-            const Text(
-              'Apple administra precios distintos para cada país. '
-              'Selecciona un precio oficial de la tienda.',
-            ),
-          ],
+      builder: (dialog) => AlertDialog(
+        title: const Text('Territorio de Apple'),
+        content: TextField(
+          controller: territoryInput,
+          maxLength: 3,
+          textCapitalization: TextCapitalization.characters,
+          decoration: const InputDecoration(
+            labelText: 'Código de territorio ISO3',
+            hintText: 'COL',
+          ),
         ),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Cancelar')),
+          TextButton(onPressed: () => Navigator.pop(dialog), child: const Text('Cancelar')),
           FilledButton(
-            onPressed: () => Navigator.pop(ctx, territoryController.text.trim().toUpperCase()),
-            child: const Text('Consultar'),
+            onPressed: () => Navigator.pop(dialog, territoryInput.text.trim().toUpperCase()),
+            child: const Text('Consultar precios'),
           ),
         ],
       ),
     );
-    territoryController.dispose();
-    if (selectedTerritory == null || !RegExp(r'^[A-Z]{3}
-    await _action(() async {
-      final result = await ref.read(apiClientProvider).get<List<Map<String, dynamic>>>(
-        '/api/v1/subscriptions/admin/apple/catalog',
-        (json) => (json as List? ?? const []).whereType<Map>()
-            .map((row) => Map<String, dynamic>.from(row)).toList(),
+    territoryInput.dispose();
+    if (territory == null || !RegExp(r'^[A-Z]{3}$').hasMatch(territory) || !mounted) return;
+
+    List<Map<String, dynamic>> prices;
+    try {
+      final response = await ref.read(apiClientProvider).get<List<Map<String, dynamic>>>(
+        '/api/v1/subscriptions/admin/apple/plans/' + plan['id'].toString() +
+            '/price-points?territory=' + territory,
+        (json) => (json as List? ?? const [])
+            .whereType<Map>()
+            .map((row) => Map<String, dynamic>.from(row))
+            .toList(),
       );
-      if (mounted) setState(() => _remote = result.data ?? const []);
-    }, 'Catálogo de Apple actualizado.');
+      prices = response.data ?? const [];
+    } catch (error) {
+      if (mounted) setState(() => _notice = 'No fue posible consultar precios: $error');
+      return;
+    }
+    if (!mounted) return;
+    if (prices.isEmpty) {
+      setState(() => _notice = 'Apple no devolvió niveles de precio para este país.');
+      return;
+    }
+
+    String? chosen;
+    bool preserve = true;
+    final selected = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, rebuild) => AlertDialog(
+          title: const Text('Precio oficial de App Store'),
+          content: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text('Plan: ' + (plan['name'] ?? '').toString()),
+                Text('Territorio: ' + territory),
+                DropdownButtonFormField<String>(
+                  isExpanded: true,
+                  value: chosen,
+                  hint: const Text('Seleccionar precio'),
+                  items: prices.map((row) => DropdownMenuItem<String>(
+                    value: row['id']?.toString(),
+                    child: Text((row['customerPrice'] ?? '').toString() +
+                        ' · ingreso estimado ' + (row['proceeds'] ?? '').toString()),
+                  )).toList(),
+                  onChanged: (v) => rebuild(() => chosen = v),
+                ),
+                CheckboxListTile(
+                  title: const Text('Preservar precio de suscriptores anteriores'),
+                  subtitle: const Text('Para aumentos, según reglas de Apple.'),
+                  value: preserve,
+                  onChanged: (v) => rebuild(() => preserve = v ?? true),
+                ),
+                const Text(
+                  'Cambiar precios puede afectar cobros futuros. '
+                  'Apple gestionará avisos o consentimiento del suscriptor.',
+                ),
+              ],
+            ),
+          ),
+          actions: [
+            TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancelar')),
+            FilledButton(
+              onPressed: chosen == null ? null : () => Navigator.pop(ctx, true),
+              child: const Text('Revisar cambio'),
+            ),
+          ],
+        ),
+      ),
+    );
+    if (selected != true || chosen == null || !mounted) return;
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('¿Aplicar precio en App Store?'),
+        content: Text('El precio de Apple cambiará en ' + territory +
+            '. Puede afectar a nuevas compras y futuras renovaciones.'),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('No cambiar')),
+          FilledButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Confirmar cambio'),
+          ),
+        ],
+      ),
+    );
+    if (confirm != true || !mounted) return;
+    final chosenId = chosen!;
+    await _action(() async {
+      await ref.read(apiClientProvider).post(
+        '/api/v1/subscriptions/admin/apple/plans/' + plan['id'].toString() + '/price',
+        {'territory': territory, 'pricePointId': chosenId, 'preserveCurrentPrice': preserve},
+        (json) => json,
+      );
+    }, 'Precio actualizado en App Store Connect.');
+  }
+
+  Future<void> _catalog() async {
+    await _action(() async {
+      final response = await ref.read(apiClientProvider).get<List<Map<String, dynamic>>>(
+        '/api/v1/subscriptions/admin/apple/catalog',
+        (json) => (json as List? ?? const [])
+            .whereType<Map>()
+            .map((row) => Map<String, dynamic>.from(row))
+            .toList(),
+      );
+      if (mounted) setState(() => _remote = response.data ?? const []);
+    }, 'Catálogo Apple actualizado.');
   }
 
   @override
