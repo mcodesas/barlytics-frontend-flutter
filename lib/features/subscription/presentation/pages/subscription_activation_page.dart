@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -16,6 +17,7 @@ import '../../../auth/presentation/providers/auth_provider.dart';
 import '../../data/models/subscription_models.dart';
 import '../providers/subscription_provider.dart';
 import '../widgets/mercado_pago_recurring_brick.dart';
+import '../widgets/apple_store_subscription_panel.dart';
 
 class SubscriptionActivationPage extends ConsumerStatefulWidget {
   const SubscriptionActivationPage({super.key});
@@ -58,6 +60,7 @@ class _SubscriptionActivationPageState extends ConsumerState<SubscriptionActivat
   String? _companyError;
 
   AppPalette get _palette => appPalettes.first;
+  bool get _appleNative => !kIsWeb && defaultTargetPlatform == TargetPlatform.iOS;
 
   bool get _reactivationMode {
     final params = _returnParameters();
@@ -98,6 +101,7 @@ class _SubscriptionActivationPageState extends ConsumerState<SubscriptionActivat
       final remote = ref.read(subscriptionRemoteDataSourceProvider);
 
       Future<SubscriptionModel> loadCurrentSubscription() async {
+        if (_appleNative) return remote.current();
         if (returnedFromPayment) {
           return remote.sync(
             paymentId: paymentId,
@@ -125,7 +129,7 @@ class _SubscriptionActivationPageState extends ConsumerState<SubscriptionActivat
       if (!mounted) return;
       _plans = results[1] as List<SubscriptionPlanModel>;
       await _loadProfileSummary();
-      await _refreshPaymentConfig();
+      if (!_appleNative) await _refreshPaymentConfig();
       await _applySubscription(
         results[0] as SubscriptionModel,
         navigateIfActivated: returnedFromPayment || !ref.read(authControllerProvider).subscriptionActive,
@@ -1001,7 +1005,7 @@ class _SubscriptionActivationPageState extends ConsumerState<SubscriptionActivat
       children: [
         _progressCard(palette, active: _reactivationMode ? 3 : (subscription.active ? 4 : 2)),
         const SizedBox(height: 14),
-        if (_reactivationMode) ...[
+        if (_reactivationMode && !_appleNative) ...[
           Container(
             padding: const EdgeInsets.all(14),
             decoration: BoxDecoration(
@@ -1588,6 +1592,9 @@ class _SubscriptionActivationPageState extends ConsumerState<SubscriptionActivat
   }
 
   Widget _paymentPanel(AppPalette palette) {
+    if (_appleNative) {
+      return AppleStoreSubscriptionPanel(onConfirmed: _load);
+    }
     final phone = MediaQuery.sizeOf(context).width < 600;
     final currentPlan = _currentPlan();
     final frequency = currentPlan?.frequency ?? _subscription?.frequency ?? 1;
