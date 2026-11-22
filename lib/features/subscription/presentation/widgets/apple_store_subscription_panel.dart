@@ -69,8 +69,7 @@ class _AppleStoreSubscriptionPanelState extends ConsumerState<AppleStoreSubscrip
       final ready = mapped.any((plan) => plan.backendReady);
       final current = await ref.read(subscriptionRemoteDataSourceProvider).current();
       final blocked = current.active &&
-          current.provider?.toUpperCase() == 'MERCADOPAGO' &&
-          current.automaticRenewal;
+          current.provider?.toUpperCase() == 'MERCADOPAGO';
       if (!mounted) return;
       if (!await _store.isAvailable()) {
         throw StateError('La tienda App Store no está disponible en este dispositivo.');
@@ -102,8 +101,8 @@ class _AppleStoreSubscriptionPanelState extends ConsumerState<AppleStoreSubscrip
         } else if (!ready) {
           _message = 'Falta configurar la verificación de compras Apple en el servidor.';
         } else if (blocked) {
-          _message = 'La renovación de Mercado Pago sigue activa. Cancela primero '
-              'esa renovación y termina el periodo pagado para evitar un doble cobro.';
+          _message = 'Hay un período pagado de Mercado Pago vigente. Cancela su renovación '
+              'y espera hasta que finalice antes de contratar con Apple.';
         }
       });
     } catch (error) {
