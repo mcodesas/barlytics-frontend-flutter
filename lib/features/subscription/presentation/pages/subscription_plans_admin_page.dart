@@ -9,6 +9,7 @@ import '../../../../core/providers/core_providers.dart';
 import '../../../../core/utils/input_constraints.dart';
 import '../../../../core/widgets/app_loader.dart';
 import '../../../../core/widgets/tech_background.dart';
+import '../widgets/apple_subscription_admin_tab.dart';
 
 class SubscriptionPlansAdminPage extends ConsumerStatefulWidget {
   const SubscriptionPlansAdminPage({super.key});
@@ -35,7 +36,7 @@ class _SubscriptionPlansAdminPageState extends ConsumerState<SubscriptionPlansAd
   @override
   void initState() {
     super.initState();
-    _tabController = TabController(length: 2, vsync: this);
+    _tabController = TabController(length: 3, vsync: this);
     _load();
   }
 
@@ -351,6 +352,7 @@ class _SubscriptionPlansAdminPageState extends ConsumerState<SubscriptionPlansAd
                                     children: [
                                       _buildLocalPlans(palette),
                                       _buildProviderPlans(palette),
+                                      const AppleSubscriptionAdminTab(),
                                     ],
                                   ),
                                 ),
@@ -1063,6 +1065,7 @@ class _Tabs extends StatelessWidget {
             tabs: const [
               Tab(icon: Icon(Icons.view_agenda_outlined, size: 19), text: 'Planes BarLytics'),
               Tab(icon: Icon(Icons.account_balance_wallet_outlined, size: 19), text: 'Mercado Pago'),
+              Tab(icon: Icon(Icons.apple, size: 19), text: 'App Store'),
             ],
           ),
         ),
