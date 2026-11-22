@@ -49,6 +49,7 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
   bool _loading = true;
   bool _savingProfile = false;
   bool _savingPassword = false;
+  bool _deletingAccount = false;
   bool _passwordChangeEnabled = false;
   bool _hideCurrentPassword = true;
   bool _hideNewPassword = true;
@@ -929,6 +930,139 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
     }
   }
 
+  /// Solicitud destructiva iniciada por el propio titular en Mi perfil.
+  /// No debe reutilizar el borrado administrativo de usuarios.
+  Future<void> _deleteMyAccount() async {
+    if (_deletingAccount) return;
+    final controller = TextEditingController();
+    final confirmed = await showDialog<bool>(
+      context: context,
+      barrierDismissible: false,
+      builder: (dialogContext) => StatefulBuilder(
+        builder: (dialogContext, setDialogState) => AlertDialog(
+          title: const Text('Eliminar mi cuenta'),
+          content: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 450),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text(
+                  'Esta acción es irreversible. Se desactivará tu acceso y se '
+                  'eliminarán tus datos personales y métodos de inicio de sesión.',
+                ),
+                const SizedBox(height: 12),
+                const Text(
+                  'Los registros de ventas, pagos y auditoría que deban '
+                  'conservarse por obligaciones comerciales o legales permanecerán '
+                  'asociados al negocio.',
+                ),
+                const SizedBox(height: 12),
+                const Text(
+                  'Eliminar tu usuario no cancela automáticamente una suscripción '
+                  'empresarial. Si la administras, cancela antes la renovación '
+                  'desde Mi perfil para evitar cobros futuros.',
+                  style: TextStyle(fontWeight: FontWeight.w600),
+                ),
+                const SizedBox(height: 16),
+                const Text('Escribe ELIMINAR para confirmar:'),
+                const SizedBox(height: 6),
+                TextField(
+                  controller: controller,
+                  autofocus: false,
+                  autocorrect: false,
+                  enableSuggestions: false,
+                  textCapitalization: TextCapitalization.characters,
+                  decoration: const InputDecoration(
+                    border: OutlineInputBorder(),
+                    hintText: 'ELIMINAR',
+                  ),
+                  onChanged: (_) => setDialogState(() {}),
+                ),
+              ],
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(dialogContext).pop(false),
+              child: const Text('Conservar mi cuenta'),
+            ),
+            FilledButton(
+              onPressed: controller.text.trim() == 'ELIMINAR'
+                  ? () => Navigator.of(dialogContext).pop(true)
+                  : null,
+              style: FilledButton.styleFrom(backgroundColor: Colors.red.shade700),
+              child: const Text('Eliminar definitivamente'),
+            ),
+          ],
+        ),
+      ),
+    );
+    controller.dispose();
+    if (confirmed != true || !mounted) return;
+    setState(() => _deletingAccount = true);
+    try {
+      await ref.read(apiClientProvider).post(
+        ApiPaths.profileDeleteAccount,
+        {'confirmation': 'ELIMINAR'},
+        (json) => json,
+      );
+      if (!mounted) return;
+      await ref.read(authControllerProvider.notifier).logout();
+      // El router redirige al acceso público y SecureStorage queda limpio.
+    } catch (error) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('No fue posible eliminar tu cuenta: $error')),
+      );
+    } finally {
+      if (mounted) setState(() => _deletingAccount = false);
+    }
+  }
+
+  Widget _deleteAccountPanel(AppPalette palette) {
+    return TechGlassPanel(
+      dark: palette.darkBackground,
+      padding: const EdgeInsets.all(20),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          _sectionHeading(
+            palette: palette,
+            icon: Icons.privacy_tip_outlined,
+            title: 'Privacidad y cuenta',
+            subtitle: 'Administra tus datos personales y la eliminación de tu cuenta.',
+          ),
+          const SizedBox(height: 14),
+          Text(
+            'Puedes eliminar definitivamente tu cuenta de BarLytics. '
+            'Se revocarán tus accesos sin borrar el historial comercial '
+            'que el negocio debe conservar.',
+            style: TextStyle(color: palette.textSecondary, height: 1.4),
+          ),
+          const SizedBox(height: 16),
+          Align(
+            alignment: Alignment.centerLeft,
+            child: OutlinedButton.icon(
+              onPressed: _deletingAccount ? null : _deleteMyAccount,
+              icon: _deletingAccount
+                  ? const SizedBox(
+                      height: 18, width: 18,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    )
+                  : const Icon(Icons.delete_forever_outlined),
+              label: Text(_deletingAccount ? 'Eliminando cuenta…' : 'Eliminar mi cuenta'),
+              style: OutlinedButton.styleFrom(
+                foregroundColor: Colors.red.shade700,
+                side: BorderSide(color: Colors.red.shade300),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   @override
   void dispose() {
     for (final controller in [
@@ -1027,6 +1161,8 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
               ],
               const SizedBox(height: 16),
               _passwordPanel(palette),
+              const SizedBox(height: 16),
+              _deleteAccountPanel(palette),
             ],
           ),
         ),
