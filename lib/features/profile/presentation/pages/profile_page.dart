@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 import '../../../../app/theme/app_palette.dart';
 import '../../../../core/constants/api_paths.dart';
@@ -597,9 +598,23 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
     context.go('/activar-suscripcion?reactivar=1');
   }
 
+  Future<void> _manageAppStoreSubscription() async {
+    final url = Uri.parse('https://apps.apple.com/account/subscriptions');
+    final opened = await launchUrl(url, mode: LaunchMode.externalApplication);
+    if (!opened && mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('No fue posible abrir las suscripciones de Apple.')),
+      );
+    }
+  }
+
   Future<void> _cancelSubscription() async {
     final subscription = _subscription;
     if (subscription == null || _cancellingSubscription || subscription.cancellationScheduled) return;
+    if (subscription.provider?.toUpperCase() == 'APPSTORE') {
+      await _manageAppStoreSubscription();
+      return;
+    }
 
     final paidUntil = subscription.currentPeriodEnd;
     final keepsPaidAccess = paidUntil != null && subscription.active;
@@ -1573,7 +1588,13 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
               runSpacing: 10,
               alignment: WrapAlignment.end,
               children: [
-                if (subscription.cancellationScheduled)
+                if (subscription.provider?.toUpperCase() == 'APPSTORE')
+                  OutlinedButton.icon(
+                    onPressed: _manageAppStoreSubscription,
+                    icon: const Icon(Icons.apple),
+                    label: const Text('Gestionar suscripción en Apple'),
+                  )
+                else if (subscription.cancellationScheduled)
                   FilledButton.icon(
                     onPressed: _reactivateSubscription,
                     icon: const Icon(Icons.autorenew_rounded),
