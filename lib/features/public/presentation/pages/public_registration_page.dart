@@ -650,47 +650,58 @@ class _PublicRegistrationPageState extends ConsumerState<PublicRegistrationPage>
 
   Widget _googleRegistrationOption(AppPalette palette) {
     final config = ref.watch(googleAuthConfigProvider);
-    return config.when(
-      loading: () => const SizedBox(
-        height: 52,
-        child: Center(child: CircularProgressIndicator(strokeWidth: 2)),
-      ),
-      error: (_, __) => const SizedBox.shrink(),
-      data: (google) {
-        if (!google.enabled) return const SizedBox.shrink();
-        return Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            if (BarLyticsAppleSignInButton.supported) ...[
-              BarLyticsAppleSignInButton(
-                loading: _googleLoading,
-                onCredential: _handleAppleCredential,
-                onError: (error) => _showMessage(
-                  error.toString().replaceFirst('Bad state: ', '').replaceFirst('Exception: ', ''),
-                ),
-              ),
-              const SizedBox(height: 8),
-            ],
-            BarLyticsGoogleSignInButton(
-              webClientId: google.webClientId,
-              iosClientId: google.iosClientId,
-              desktopClientId: google.desktopClientId,
-              desktopClientSecret: google.desktopClientSecret,
-              loading: _googleLoading,
-              onIdToken: _handleGoogleIdToken,
-              onError: (error) => _showMessage(
-                error.toString().replaceFirst('Bad state: ', '').replaceFirst('Exception: ', ''),
-              ),
+    final appleAvailable = BarLyticsAppleSignInButton.supported;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        // Apple NO depende de la configuración del proveedor Google.
+        // En iOS la opción continúa disponible aunque Google esté deshabilitado.
+        if (appleAvailable) ...[
+          BarLyticsAppleSignInButton(
+            loading: _googleLoading,
+            onCredential: _handleAppleCredential,
+            onError: (error) => _showMessage(
+              error.toString().replaceFirst('Bad state: ', '')
+                  .replaceFirst('Exception: ', ''),
             ),
-            const SizedBox(height: 8),
-            Text(
-              'Con Google solicitamos nombre, correo y foto de perfil. Con Apple puedes ocultar tu correo usando el relay privado de Apple.',
-              textAlign: TextAlign.center,
-              style: TextStyle(color: palette.textSecondary, fontSize: 10.5, height: 1.4),
+          ),
+          const SizedBox(height: 8),
+        ],
+        config.when(
+          loading: () => const SizedBox(
+            height: 40,
+            child: Center(child: CircularProgressIndicator(strokeWidth: 2)),
+          ),
+          error: (_, __) => const SizedBox.shrink(),
+          data: (google) => google.enabled
+              ? BarLyticsGoogleSignInButton(
+                  webClientId: google.webClientId,
+                  iosClientId: google.iosClientId,
+                  desktopClientId: google.desktopClientId,
+                  desktopClientSecret: google.desktopClientSecret,
+                  loading: _googleLoading,
+                  onIdToken: _handleGoogleIdToken,
+                  onError: (error) => _showMessage(
+                    error.toString().replaceFirst('Bad state: ', '')
+                        .replaceFirst('Exception: ', ''),
+                  ),
+                )
+              : const SizedBox.shrink(),
+        ),
+        if (appleAvailable) ...[
+          const SizedBox(height: 8),
+          Text(
+            'Con Apple puedes proteger tu privacidad usando un correo '
+            'privado de retransmisión. También puedes continuar con tu correo.',
+            textAlign: TextAlign.center,
+            style: TextStyle(
+              color: palette.textSecondary,
+              fontSize: 10.5,
+              height: 1.4,
             ),
-          ],
-        );
-      },
+          ),
+        ],
+      ],
     );
   }
 
