@@ -2,6 +2,8 @@ import 'dart:convert';
 
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart';
+import 'package:sign_in_with_apple/sign_in_with_apple.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -980,6 +982,12 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
                   'desde Mi perfil para evitar cobros futuros.',
                   style: TextStyle(fontWeight: FontWeight.w600),
                 ),
+                const SizedBox(height: 12),
+                const Text(
+                  'Si ingresaste con Apple, se solicitará una última '
+                  'autorización biométrica para revocar tu acceso en Apple.',
+                  style: TextStyle(fontSize: 12),
+                ),
                 const SizedBox(height: 16),
                 const Text('Escribe ELIMINAR para confirmar:'),
                 const SizedBox(height: 6),
@@ -1019,9 +1027,40 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
     if (confirmed != true || !mounted) return;
     setState(() => _deletingAccount = true);
     try {
-      await ref.read(apiClientProvider).post(
+      final api = ref.read(apiClientProvider);
+      final linked = await api.get<Map<String, dynamic>>(
+        '/api/v1/profile/deletion-providers',
+        (json) => Map<String, dynamic>.from(json as Map),
+      );
+      final payload = <String, dynamic>{'confirmation': 'ELIMINAR'};
+      if (linked.data?['appleLinked'] == true) {
+        if (kIsWeb || defaultTargetPlatform != TargetPlatform.iOS) {
+          throw StateError(
+            'Esta cuenta está vinculada a Iniciar sesión con Apple. '
+            'Para revocar también la autorización de Apple, elimina tu cuenta '
+            'desde BarLytics en un iPhone o iPad.',
+          );
+        }
+        // Apple emite un código de uso único: el backend verifica el subject,
+        // intercambia el código y revoca el refresh token antes de borrar datos.
+        final appleGrant = await SignInWithApple.getAppleIDCredential(
+          scopes: const [AppleIDAuthorizationScopes.email],
+        );
+        final identityToken = appleGrant.identityToken;
+        final authorizationCode = appleGrant.authorizationCode;
+        if (identityToken == null || identityToken.isEmpty ||
+            authorizationCode.isEmpty) {
+          throw StateError(
+            'Apple no confirmó la autorización de esta cuenta. '
+            'No se realizó ninguna eliminación.',
+          );
+        }
+        payload['appleIdentityToken'] = identityToken;
+        payload['appleAuthorizationCode'] = authorizationCode;
+      }
+      await api.post(
         ApiPaths.profileDeleteAccount,
-        {'confirmation': 'ELIMINAR'},
+        payload,
         (json) => json,
       );
       if (!mounted) return;
