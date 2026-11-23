@@ -58,6 +58,22 @@ class MenuDigitalApi {
       _row((await dio.get<dynamic>(
         '/api/v1/menu-digital/public/' + Uri.encodeComponent(slug))).data);
 
+  Future<void> reportarContenido(String slug, String motivo, String detalles) async {
+    if (!RegExp(r'^[a-fA-F0-9-]{36}
+      'https://www.barlytics.com.co/#/carta/' + Uri.encodeComponent(slug);
+}
+).hasMatch(slug)) {
+      throw StateError('El enlace de la carta no es válido.');
+    }
+    await dio.post<dynamic>(
+      '/api/v1/menu-digital/public/' + Uri.encodeComponent(slug) + '/report',
+      data: <String, dynamic>{
+        'motivo': motivo,
+        'detalles': detalles.trim(),
+      },
+    );
+  }
+
   String publicUrl(String slug) =>
       'https://www.barlytics.com.co/#/carta/' + Uri.encodeComponent(slug);
 }
