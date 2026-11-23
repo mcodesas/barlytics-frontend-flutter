@@ -26,6 +26,7 @@ import '../../features/dashboard/presentation/pages/dashboard_page.dart';
 import '../../features/tesoreria/presentation/pages/tesoreria_page.dart';
 import '../../features/deportes/presentation/pages/agenda_deportiva_page.dart';
 import '../../features/admin_support/presentation/pages/admin_support_page.dart';
+import '../../features/admin_support/presentation/pages/content_reports_moderation_page.dart';
 import '../../features/error_center/presentation/pages/error_center_page.dart';
 import '../../features/admin_support/presentation/pages/admin_data_explorer_page.dart';
 import '../../features/admin_support/presentation/pages/admin_audit_page.dart';
@@ -325,6 +326,8 @@ final appRouterProvider = Provider<GoRouter>((ref) {
           child: AdminDataExplorerPage(initialTable: state.uri.queryParameters['table']),
         ),
       ),
+      GoRoute(path: '/moderacion_contenido', builder: (context, state) =>
+          const AppScaffold(child: ContentReportsModerationPage())),
       GoRoute(path: '/auditoria_soporte', builder: (context, state) => AppScaffold(child: const AdminAuditPage())),
       GoRoute(path: '/diagnostico_sistema', builder: (context, state) => AppScaffold(child: const AdminDiagnosticsPage())),
       GoRoute(path: '/soporte_clientes', builder: (context, state) => AppScaffold(child: const AdminSupportWorkspacePage(type: AdminSupportWorkspaceType.clients))),
@@ -764,6 +767,7 @@ bool _isPlatformAdminRoute(String path) {
       path.startsWith('/soporte_configuracion') ||
       path.startsWith('/soporte_mantenimiento') ||
       path.startsWith('/explorador_datos') ||
+      path.startsWith('/moderacion_contenido') ||
       path.startsWith('/auditoria_soporte') ||
       path.startsWith('/diagnostico_sistema');
 }
