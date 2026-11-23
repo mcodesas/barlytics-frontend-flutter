@@ -20,6 +20,7 @@ class _MenuDigitalPublicPageState extends ConsumerState<MenuDigitalPublicPage> {
   Map<String, dynamic>? _menu;
   bool _loading = true;
   String? _error;
+  bool _reportBusy = false;
 
   @override
   void initState() {
@@ -66,6 +67,100 @@ class _MenuDigitalPublicPageState extends ConsumerState<MenuDigitalPublicPage> {
     await launchUrl(uri, mode: LaunchMode.externalApplication);
   }
 
+  Future<void> _reportContent() async {
+    if (_reportBusy) return;
+    String selected = 'INAPROPIADO';
+    String details = '';
+    final report = await showDialog<Map<String, String>>(
+      context: context,
+      builder: (dialog) => StatefulBuilder(
+        builder: (dialog, refresh) => AlertDialog(
+          title: const Text('Reportar contenido de la carta'),
+          content: SingleChildScrollView(
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 440),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  const Text(
+                    'Puedes reportar contenido ofensivo, engañoso o '
+                    'inapropiado. Lo revisará el equipo de BarLytics.',
+                  ),
+                  const SizedBox(height: 12),
+                  DropdownButtonFormField<String>(
+                    value: selected,
+                    isExpanded: true,
+                    decoration: const InputDecoration(labelText: 'Motivo'),
+                    items: const [
+                      DropdownMenuItem(value: 'INAPROPIADO',
+                          child: Text('Contenido inapropiado')),
+                      DropdownMenuItem(value: 'OFENSIVO',
+                          child: Text('Contenido ofensivo')),
+                      DropdownMenuItem(value: 'ENGANOSO',
+                          child: Text('Contenido engañoso')),
+                      DropdownMenuItem(value: 'OTRO',
+                          child: Text('Otro motivo')),
+                    ],
+                    onChanged: (value) => refresh(() => selected = value ?? 'INAPROPIADO'),
+                  ),
+                  const SizedBox(height: 12),
+                  TextField(
+                    maxLength: 1000,
+                    maxLines: 4,
+                    decoration: const InputDecoration(
+                      labelText: 'Descripción (opcional)',
+                      hintText: 'Describe brevemente el contenido que deseas reportar',
+                    ),
+                    onChanged: (text) => details = text,
+                  ),
+                  const Text(
+                    'No incluyas información personal. '
+                    'Tu reporte no se mostrará públicamente.',
+                    style: TextStyle(fontSize: 12),
+                  ),
+                ],
+              ),
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(dialog),
+              child: const Text('Cancelar'),
+            ),
+            FilledButton.icon(
+              onPressed: () => Navigator.pop(dialog, <String, String>{
+                'motivo': selected, 'detalles': details,
+              }),
+              icon: const Icon(Icons.flag_outlined),
+              label: const Text('Enviar reporte'),
+            ),
+          ],
+        ),
+      ),
+    );
+    if (report == null || !mounted) return;
+    setState(() => _reportBusy = true);
+    try {
+      await ref.read(menuDigitalApiProvider).reportarContenido(
+        widget.slug,
+        report['motivo'] ?? 'OTRO',
+        report['detalles'] ?? '',
+      );
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Reporte recibido. Revisaremos el contenido.')),
+      );
+    } catch (error) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('No se pudo enviar el reporte: $error')),
+      );
+    } finally {
+      if (mounted) setState(() => _reportBusy = false);
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final data = _menu;
@@ -100,6 +195,17 @@ class _MenuDigitalPublicPageState extends ConsumerState<MenuDigitalPublicPage> {
         Positioned.fill(child: MenuDigitalCatalog(menu: data)),
         Positioned(right: 16, bottom: 20, child: SafeArea(child:
           Column(mainAxisSize: MainAxisSize.min, children: [
+            FloatingActionButton.small(
+              heroTag: 'menu_report',
+              tooltip: 'Reportar contenido inapropiado',
+              backgroundColor: colors.card,
+              foregroundColor: colors.text,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(17),
+                side: BorderSide(color: colors.border)),
+              onPressed: _reportBusy ? null : _reportContent,
+              child: const Icon(Icons.flag_outlined)),
+            const SizedBox(height: 10),
             FloatingActionButton.small(
               heroTag: 'menu_copy',
               tooltip: 'Copiar enlace del menú',
