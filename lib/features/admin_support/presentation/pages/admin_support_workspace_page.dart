@@ -842,6 +842,12 @@ class _WorkspaceConfig {
               '/auditoria_soporte',
             ),
             _WorkspaceAction(
+              'Moderación de cartas digitales',
+              'Revisar denuncias públicas y registrar decisiones.',
+              Icons.flag_outlined,
+              '/moderacion_contenido',
+            ),
+            _WorkspaceAction(
               'Explorador de datos',
               'Consulta y corrección avanzada de registros.',
               Icons.storage_rounded,
