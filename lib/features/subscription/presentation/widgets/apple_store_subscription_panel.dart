@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:in_app_purchase/in_app_purchase.dart';
+import 'package:intl/intl.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../../../../core/providers/core_providers.dart';
@@ -33,6 +34,8 @@ class _AppleStoreSubscriptionPanelState extends ConsumerState<AppleStoreSubscrip
   String? _message;
   bool _serverReady = false;
   bool _blockedByMercadoPago = false;
+  List<Map<String, dynamic>> _history = const [];
+  bool _historyBusy = false;
 
   @override
   void initState() {
@@ -49,6 +52,7 @@ class _AppleStoreSubscriptionPanelState extends ConsumerState<AppleStoreSubscrip
       },
     );
     _loadProducts();
+    _loadHistory();
   }
 
   Future<void> _loadProducts() async {
@@ -109,6 +113,38 @@ class _AppleStoreSubscriptionPanelState extends ConsumerState<AppleStoreSubscrip
       if (mounted) setState(() => _message = 'No se pudo cargar App Store: $error');
     } finally {
       if (mounted) setState(() => _loading = false);
+    }
+  }
+
+  Future<void> _loadHistory() async {
+    if (_historyBusy) return;
+    if (mounted) setState(() => _historyBusy = true);
+    try {
+      final response = await ref.read(apiClientProvider).get<List<Map<String, dynamic>>>(
+        '/api/v1/subscriptions/apple/payments',
+        (json) => (json as List? ?? const <dynamic>[])
+            .whereType<Map>()
+            .map((row) => Map<String, dynamic>.from(row)).toList(growable: false),
+      );
+      if (mounted) setState(() => _history = response.data ?? const []);
+    } catch (_) {
+      // Un error del historial no debe bloquear la compra ni restauración.
+    } finally {
+      if (mounted) setState(() => _historyBusy = false);
+    }
+  }
+
+  String _signedAmount(Map<String, dynamic> row) {
+    final milli = row['priceMilliunits'];
+    final currency = row['currency']?.toString() ?? '';
+    if (milli is! num || currency.length != 3) return 'Importe no informado';
+    try {
+      final amount = milli.toDouble() / 1000.0;
+      return NumberFormat.currency(
+        locale: 'es_CO', name: currency, decimalDigits: 2,
+      ).format(amount);
+    } catch (_) {
+      return '$currency ${(milli.toDouble() / 1000).toStringAsFixed(2)}';
     }
   }
 
@@ -189,6 +225,7 @@ class _AppleStoreSubscriptionPanelState extends ConsumerState<AppleStoreSubscrip
           await _store.completePurchase(purchase);
         }
         await _refreshEntitlement();
+        await _loadHistory();
         if (mounted) setState(() {
           _busy = false;
           _message = 'Suscripción verificada y sincronizada con App Store.';
@@ -247,6 +284,7 @@ class _AppleStoreSubscriptionPanelState extends ConsumerState<AppleStoreSubscrip
         (json) => Map<String, dynamic>.from(json as Map),
       );
       await _refreshEntitlement();
+      await _loadHistory();
       if (mounted) setState(() => _message = response.data?['active'] == true
           ? 'Tu suscripción está activa y verificada en App Store.'
           : 'No se encontró una suscripción de Apple vigente vinculada a este negocio.');
@@ -344,6 +382,47 @@ class _AppleStoreSubscriptionPanelState extends ConsumerState<AppleStoreSubscrip
               icon: const Icon(Icons.open_in_new),
               label: const Text('Gestionar en Apple'),
             ),
+          ],
+        ),
+        const SizedBox(height: 16),
+        ExpansionTile(
+          tilePadding: EdgeInsets.zero,
+          title: const Text('Historial de movimientos de App Store'),
+          subtitle: const Text('Importes de transacciones firmadas por Apple; '
+              'no son ingresos netos ni sustituyen informes fiscales.'),
+          trailing: _historyBusy
+              ? const SizedBox(width: 18, height: 18,
+                  child: CircularProgressIndicator(strokeWidth: 2))
+              : IconButton(
+                  tooltip: 'Actualizar historial',
+                  onPressed: _loadHistory,
+                  icon: const Icon(Icons.refresh),
+                ),
+          children: [
+            if (_history.isEmpty)
+              const Padding(
+                padding: EdgeInsets.all(12),
+                child: Text('No hay movimientos Apple registrados para esta empresa.'),
+              ),
+            for (final entry in _history)
+              ListTile(
+                leading: Icon(
+                  entry['revoked'] == true ? Icons.money_off_outlined
+                      : Icons.receipt_long_outlined,
+                ),
+                title: Text(_signedAmount(entry)),
+                subtitle: Text(
+                  (entry['productId']?.toString() ?? '') + ' · ' +
+                  (entry['purchasedAt']?.toString() ?? 'Sin fecha'),
+                ),
+                trailing: Text(
+                  entry['revoked'] == true
+                      ? 'Revocada'
+                      : entry['environment'] == 'SANDBOX'
+                          ? 'Prueba'
+                          : 'Confirmada',
+                ),
+              ),
           ],
         ),
         const SizedBox(height: 6),
