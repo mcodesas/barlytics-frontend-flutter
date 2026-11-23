@@ -88,6 +88,54 @@ class _ContentReportsModerationPageState
     }
   }
 
+  Future<void> _moderationAction(Map<String, dynamic> report, {required bool block}) async {
+    if (_saving) return;
+    final menuId = report['menuId'];
+    final reportId = report['id'];
+    if (menuId == null || reportId == null) return;
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialog) => AlertDialog(
+        title: Text(block ? 'Suspender carta publicada' : 'Levantar suspensión'),
+        content: Text(block
+            ? 'Esta acción ocultará inmediatamente la carta pública e impedirá '
+              'que el negocio la vuelva a publicar mientras esté suspendida. '
+              'Confirma únicamente después de revisar la denuncia.'
+            : 'Se levantará la suspensión. El negocio podrá volver a publicar '
+              'su carta, pero no se publicará automáticamente.'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialog, false),
+            child: const Text('Cancelar'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(dialog, true),
+            child: Text(block ? 'Suspender carta' : 'Levantar bloqueo'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true || !mounted) return;
+    setState(() => _saving = true);
+    try {
+      final path = block
+          ? '/api/v1/admin/content-reports/' + reportId.toString() + '/hide-menu'
+          : '/api/v1/admin/content-reports/menus/' + menuId.toString() + '/unblock';
+      await ref.read(dioProvider).post<dynamic>(path, data: const <String, dynamic>{});
+      await _load();
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(block
+            ? 'Carta suspendida y oculta.'
+            : 'Suspensión levantada. La carta continúa sin publicar.')),
+      );
+    } catch (error) {
+      if (mounted) setState(() => _error = 'No se pudo actualizar la moderación: $error');
+    } finally {
+      if (mounted) setState(() => _saving = false);
+    }
+  }
+
   Future<void> _openMenu(String slug) async {
     if (!RegExp(r'^[a-fA-F0-9-]{36}$').hasMatch(slug)) return;
     await launchUrl(
@@ -206,6 +254,20 @@ class _ContentReportsModerationPageState
                                   onPressed: _saving ? null : () =>
                                       _changeStatus(report, 'DESCARTADO'),
                                   child: const Text('Descartar'),
+                                ),
+                              if (report['blocked'] != true)
+                                OutlinedButton.icon(
+                                  onPressed: _saving ? null : () =>
+                                      _moderationAction(report, block: true),
+                                  icon: const Icon(Icons.block_outlined),
+                                  label: const Text('Ocultar y suspender carta'),
+                                )
+                              else
+                                OutlinedButton.icon(
+                                  onPressed: _saving ? null : () =>
+                                      _moderationAction(report, block: false),
+                                  icon: const Icon(Icons.lock_open_outlined),
+                                  label: const Text('Levantar suspensión'),
                                 ),
                             ],
                           ),
