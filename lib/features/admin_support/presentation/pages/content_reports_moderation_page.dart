@@ -118,20 +118,29 @@ class _ContentReportsModerationPageState
                   style: TextStyle(color: palette.textSecondary),
                 ),
                 const SizedBox(height: 14),
-                SegmentedButton<String>(
-                  showSelectedIcon: false,
-                  segments: _statuses.entries.map((entry) =>
-                    ButtonSegment<String>(
-                      value: entry.key,
-                      label: Text(entry.value),
-                    )).toList(),
-                  selected: {_status},
-                  onSelectionChanged: _saving
-                      ? null : (selection) {
-                          if (selection.isEmpty) return;
-                          setState(() => _status = selection.first);
-                          _load();
-                        },
+                Align(
+                  alignment: Alignment.centerLeft,
+                  child: ConstrainedBox(
+                    constraints: const BoxConstraints(maxWidth: 340),
+                    child: DropdownButtonFormField<String>(
+                      isExpanded: true,
+                      value: _status,
+                      decoration: const InputDecoration(
+                        labelText: 'Estado del reporte',
+                        border: OutlineInputBorder(),
+                      ),
+                      items: _statuses.entries.map((entry) =>
+                          DropdownMenuItem<String>(
+                            value: entry.key,
+                            child: Text(entry.value),
+                          )).toList(),
+                      onChanged: _saving ? null : (value) {
+                        if (value == null) return;
+                        setState(() => _status = value);
+                        _load();
+                      },
+                    ),
+                  ),
                 ),
                 if (_saving || _loading)
                   const Padding(
@@ -141,7 +150,7 @@ class _ContentReportsModerationPageState
                 if (_error != null)
                   Padding(
                     padding: const EdgeInsets.symmetric(vertical: 12),
-                    child: Text(_error!, style: TextStyle(color: palette.error)),
+                    child: Text(_error!, style: TextStyle(color: palette.danger)),
                   ),
                 if (!_loading && _reports.isEmpty)
                   const Padding(
