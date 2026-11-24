@@ -25,8 +25,10 @@
   <link rel="manifest" href="manifest.json">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-  <link rel="preload" as="image" href="branding/barlytics-logo-light.png">
+  <!-- Evitar que la hoja de estilos remota bloquee el primer render del logo. -->
+  <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;600;700;800&display=swap" rel="stylesheet" media="print" onload="this.media='all'">
+  <noscript><link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;600;700;800&display=swap" rel="stylesheet"></noscript>
+  <link rel="preload" as="image" href="branding/barlytics-logo-light.png" fetchpriority="high">
 
   <meta property="og:locale" content="es_CO">
   <meta property="og:type" content="website">
@@ -197,7 +199,7 @@
         transparent 58%), var(--event-loader-bg);
     }
 
-    #barlytics-loader.barlytics-loader--event .barlytics-loader__logo,
+    #barlytics-loader.barlytics-loader--event .barlytics-loader__brand,
     #barlytics-loader:not(.barlytics-loader--event) .barlytics-loader__event {
       display: none;
     }
@@ -255,13 +257,52 @@
       text-align: center;
     }
 
+    /* El tamaño reservado evita un salto de diseño durante la descarga. */
+    .barlytics-loader__brand {
+      position: relative;
+      width: min(640px, 86vw);
+      aspect-ratio: 10 / 3;
+      display: grid;
+      place-items: center;
+    }
+
     .barlytics-loader__logo {
       display: block;
-      width: min(640px, 86vw);
-      max-height: 230px;
+      width: 100%;
+      height: 100%;
       object-fit: contain;
       object-position: center;
       filter: drop-shadow(0 16px 36px rgba(0, 226, 213, 0.10));
+      position: relative;
+      z-index: 1;
+    }
+
+    /* Respaldo inmediato si la imagen tarda: no requiere red, fuente ni JS. */
+    .barlytics-loader__fallback {
+      position: absolute;
+      inset: 0;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 4px;
+      color: #f8fafc;
+      pointer-events: none;
+    }
+    .barlytics-loader__fallback strong {
+      font-size: clamp(36px, 8vw, 65px);
+      letter-spacing: -0.045em;
+      line-height: 1;
+      font-weight: 800;
+    }
+    .barlytics-loader__fallback strong span { color: #22d3ee; }
+    .barlytics-loader__fallback small {
+      color: #cbd5e1;
+      font-size: clamp(10px, 2vw, 14px);
+      line-height: 1.4;
+    }
+    .barlytics-loader__brand--loaded .barlytics-loader__fallback {
+      visibility: hidden;
     }
 
     .barlytics-loader__spinner {
@@ -286,7 +327,7 @@
 
     @media (max-width: 600px) {
       #barlytics-loader { padding-left: 20px; padding-right: 20px; }
-      .barlytics-loader__logo { width: min(520px, 92vw); }
+      .barlytics-loader__brand { width: min(520px, 92vw); }
       .barlytics-loader__spinner { margin-top: 20px; }
     }
 
@@ -301,7 +342,16 @@
   <div aria-hidden="true" class="barlytics-safari-chrome-sample barlytics-safari-chrome-sample--bottom"></div>
   <div id="barlytics-loader" role="status" aria-live="polite" aria-label="Cargando BarLytics">
     <div class="barlytics-loader__content">
-      <img class="barlytics-loader__logo" src="branding/barlytics-logo-light.png" alt="BarLytics">
+      <div class="barlytics-loader__brand">
+        <div class="barlytics-loader__fallback" aria-hidden="true">
+          <strong>Bar<span>Lytics</span></strong>
+          <small>Gestión inteligente para tu negocio</small>
+        </div>
+        <img class="barlytics-loader__logo"
+             src="branding/barlytics-logo-light.png"
+             width="640" height="192" loading="eager" decoding="async"
+             fetchpriority="high" alt="BarLytics">
+      </div>
       <div class="barlytics-loader__event" aria-label="Preparando el evento">
         <img class="barlytics-loader__event-logo" alt="Logo de la sucursal" />
         <h1 class="barlytics-loader__event-venue">Preparando tu evento</h1>
@@ -351,6 +401,13 @@
       });
 
       const loader = document.getElementById('barlytics-loader');
+      const brand = loader?.querySelector('.barlytics-loader__brand');
+      const brandImage = brand?.querySelector('img.barlytics-loader__logo');
+      if (brandImage && brand) {
+        const markLoaded = () => brand.classList.add('barlytics-loader__brand--loaded');
+        brandImage.addEventListener('load', markLoaded, { once: true });
+        if (brandImage.complete && brandImage.naturalWidth > 0) markLoaded();
+      }
       let hidden = false;
       const hideLoader = () => {
         if (hidden || !loader) return;
