@@ -30,7 +30,7 @@
           <div class="navigation-progress" aria-hidden="true"></div>
           <nav class="container nav" aria-label="Navegación principal">
             <a class="brand" href="/" aria-label="Ir al inicio de BarLytics Colombia">
-              <img src="/branding/barlytics-logo-light.png" alt="BarLytics Colombia" width="220" height="69">
+              <img src="/branding/barlytics-logo-light.png" alt="BarLytics Colombia" width="220" height="69" loading="eager" decoding="async" fetchpriority="high">
             </a>
             <button class="menu-toggle" type="button" aria-label="Abrir menú" aria-expanded="false">
               <span aria-hidden="true"></span><span aria-hidden="true"></span><span aria-hidden="true"></span>
@@ -77,7 +77,7 @@
         <footer class="site-footer">
           <div class="container footer-row">
             <div class="footer-brand">
-              <a href="/" aria-label="Inicio de BarLytics"><img src="/branding/barlytics-logo-light.png" alt="BarLytics Colombia" width="214" height="67"></a>
+              <a href="/" aria-label="Inicio de BarLytics"><img src="/branding/barlytics-logo-light.png" alt="BarLytics Colombia" width="214" height="67" loading="lazy" decoding="async"></a>
               <p>Gestión para bares · Ventas · Inventario · Caja · Reportes</p>
               <nav class="footer-links" aria-label="Enlaces del pie de página">
                 <a href="/software-para-bares/">Software para bares</a>
