@@ -49,38 +49,9 @@
     return VIDEO_DEMO_SLUGS[deviceKey]?.has(slug) ? `/demos/${device.dir}/${slug}.mp4` : '';
   };
 
-  let demoPreloadStarted = false;
-  const preloadDemoVideos = () => {
-    if (demoPreloadStarted) return;
-    demoPreloadStarted = true;
-    const queue = ['desktop','phone','tablet'].flatMap((deviceKey) =>
-      [...VIDEO_DEMO_SLUGS[deviceKey]].map((slug) => demoMediaPath(deviceKey, slug))
-    );
-    let index = 0;
-    const next = () => {
-      if (index >= queue.length) return;
-      const video = document.createElement('video');
-      video.preload = 'auto';
-      video.muted = true;
-      video.playsInline = true;
-      video.src = queue[index++];
-      video.style.display = 'none';
-      video.setAttribute('aria-hidden', 'true');
-      document.body.appendChild(video);
-      video.load();
-      const advance = () => {
-        video.removeEventListener('canplaythrough', advance);
-        video.removeEventListener('error', advance);
-        setTimeout(next, 120);
-      };
-      video.addEventListener('canplaythrough', advance, {once:true});
-      video.addEventListener('error', advance, {once:true});
-      setTimeout(advance, 1800);
-    };
-    const start = () => next();
-    if ('requestIdleCallback' in window) window.requestIdleCallback(start, {timeout:1200});
-    else setTimeout(start, 400);
-  };
+  // No descargar todas las demostraciones al abrir el sitio.
+  // Solo se cargan los videos del módulo visible cuando el usuario
+  // llega a la sección y elige el dispositivo.
 
   const DEVICES = {
     desktop: {label:'Escritorio', dir:'desktop', cls:'desktop', icon:ICONS.desktop},
@@ -688,7 +659,7 @@
     initMobileAppPrompt();
     renderProtectedDownload();
     renderFeatureExplorer();
-    preloadDemoVideos();
+    // Sin precargas masivas: el video activo inicia al ser visible.
     initFaq();
     initDocsSearch();
   };
