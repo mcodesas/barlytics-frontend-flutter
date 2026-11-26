@@ -47,11 +47,15 @@ class InventoryAdminBalance {
     // una venta posterior no debe mostrar un faltante ficticio del pasado.
     final live = latestCount &&
         hasCurrentStock &&
-        (persistedStatus == 'PENDIENTE' || persistedStatus == 'CUADRA');
+        (persistedStatus == 'PENDIENTE' ||
+            persistedStatus == 'CUADRA' ||
+            persistedStatus == 'ANULADO');
     final expected = live ? currentStock : historicalExpected;
     final difference = counted - expected;
     final status = live
-        ? (difference.abs() <= 0.0001 ? 'CUADRA' : 'PENDIENTE')
+        ? (persistedStatus == 'ANULADO'
+            ? 'ANULADO'
+            : (difference.abs() <= 0.0001 ? 'CUADRA' : 'PENDIENTE'))
         : persistedStatus;
 
     if (!live) {
