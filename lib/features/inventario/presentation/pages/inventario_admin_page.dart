@@ -20,6 +20,7 @@ import '../../../sucursales/data/models/sucursales_response_model.dart';
 import '../../../auth/presentation/providers/auth_provider.dart';
 import '../utils/inventory_count_history_filter.dart';
 import '../utils/inventory_history_xlsx.dart';
+import '../../utils/inventory_admin_balance.dart';
 
 enum _InventoryHistoryView { cards, table }
 
@@ -45,6 +46,9 @@ class _InventarioAdminPageState extends ConsumerState<InventarioAdminPage> {
   int? _selectedProductId;
 
   late DateTimeRange _range;
+  CountHistoryPeriod _period = CountHistoryPeriod.custom;
+  int _loadGeneration = 0;
+  bool _hasLoaded = false;
   int? _branchId;
   bool _loading = true;
   bool _exportingExcel = false;
@@ -75,7 +79,9 @@ class _InventarioAdminPageState extends ConsumerState<InventarioAdminPage> {
       end: today,
     );
     _branchId = ref.read(branchScopeProvider).activeBranchId;
-    WidgetsBinding.instance.addPostFrameCallback((_) => _load());
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) _load();
+    });
   }
 
   @override
@@ -85,9 +91,13 @@ class _InventarioAdminPageState extends ConsumerState<InventarioAdminPage> {
   }
 
   Future<void> _load() async {
+    if (!mounted) return;
+    final generation = ++_loadGeneration;
+    final range = _range;
+    final allSynchronizationHistory = _allSynchronizationHistory;
     final branchId = _branchId ?? ref.read(branchScopeProvider).activeBranchId;
     if (branchId == null) {
-      if (!mounted) return;
+      if (!mounted || generation != _loadGeneration) return;
       setState(() {
         _loading = false;
         _error = 'Selecciona una sucursal para consultar el control de inventario.';
@@ -103,7 +113,8 @@ class _InventarioAdminPageState extends ConsumerState<InventarioAdminPage> {
     }
 
     try {
-      final response = await ref.read(apiClientProvider).get<
+      final api = ref.read(apiClientProvider);
+      final response = await api.get<
           List<Map<String, dynamic>>>(
         '${ApiPaths.inventario}/administracion',
         (json) => (json as List? ?? const <Object>[])
@@ -112,8 +123,8 @@ class _InventarioAdminPageState extends ConsumerState<InventarioAdminPage> {
             .toList(growable: false),
         queryParameters: {
           'sucursalId': branchId,
-          'desde': DateFormat('yyyy-MM-dd').format(_range.start),
-          'hasta': DateFormat('yyyy-MM-dd').format(_range.end),
+          'desde': DateFormat('yyyy-MM-dd').format(range.start),
+          'hasta': DateFormat('yyyy-MM-dd').format(range.end),
         },
       );
 
@@ -121,10 +132,11 @@ class _InventarioAdminPageState extends ConsumerState<InventarioAdminPage> {
           .map(_InventoryAuditRow.fromJson)
           .toList(growable: false);
 
+      if (!mounted || generation != _loadGeneration) return;
       List<Map<String, dynamic>> syncRows = const [];
       String? warning;
       try {
-        final history = await ref.read(apiClientProvider).get<List<Map<String, dynamic>>>(
+        final history = await api.get<List<Map<String, dynamic>>>(
           '${ApiPaths.inventario}/administracion/sincronizaciones',
           (json) => (json as List? ?? const <Object>[])
               .whereType<Map>()
@@ -132,10 +144,10 @@ class _InventarioAdminPageState extends ConsumerState<InventarioAdminPage> {
               .toList(),
           queryParameters: {
             'sucursalId': branchId,
-            if (!_allSynchronizationHistory)
-              'desde': DateFormat('yyyy-MM-dd').format(_range.start),
-            if (!_allSynchronizationHistory)
-              'hasta': DateFormat('yyyy-MM-dd').format(_range.end),
+            if (!allSynchronizationHistory)
+              'desde': DateFormat('yyyy-MM-dd').format(range.start),
+            if (!allSynchronizationHistory)
+              'hasta': DateFormat('yyyy-MM-dd').format(range.end),
           },
         );
         syncRows = history.data ?? const [];
@@ -145,8 +157,9 @@ class _InventarioAdminPageState extends ConsumerState<InventarioAdminPage> {
             'Revisa la conexión o la versión del backend y reintenta.';
       }
 
-      if (!mounted) return;
+      if (!mounted || generation != _loadGeneration) return;
       setState(() {
+        _hasLoaded = true;
         _rows = rows;
         _synchronizations = syncRows;
         _synchronizationWarning = warning;
@@ -154,8 +167,12 @@ class _InventarioAdminPageState extends ConsumerState<InventarioAdminPage> {
         _loading = false;
       });
     } catch (error) {
-      if (!mounted) return;
+      if (!mounted || generation != _loadGeneration) return;
       setState(() {
+        _hasLoaded = true;
+        _rows = const [];
+        _synchronizations = const [];
+        _synchronizationWarning = null;
         _loading = false;
         _error = ErrorMapper.map(error).message;
       });
@@ -273,8 +290,8 @@ class _InventarioAdminPageState extends ConsumerState<InventarioAdminPage> {
     final details = <List<Object?>>[
       const [
         'Fecha y hora del conteo', 'Producto', 'Código producto',
-        'ID conteo', 'Contado por', 'Esperado al conteo',
-        'Cantidad contada', 'Diferencia unidades',
+        'ID conteo', 'Contado por', 'Referencia de comparación',
+        'Esperado histórico al conteo', 'Cantidad contada', 'Diferencia unidades',
         'Stock actual del sistema', 'Costo compra unitario',
         'Valor esperado', 'Valor contado', 'Valor faltante',
         'Valor sobrante', 'Impacto neto', 'Estado del conteo',
@@ -285,7 +302,7 @@ class _InventarioAdminPageState extends ConsumerState<InventarioAdminPage> {
         [
           DateFormat('dd/MM/yyyy HH:mm').format(row.countDate),
           row.product, row.productId, row.countId, row.countedBy,
-          row.expected, row.counted, row.difference,
+          row.expected, row.historicalExpected, row.counted, row.difference,
           row.hasCurrentSystemStock
               ? row.currentSystemStock : 'Sin movimientos',
           row.unitPurchaseCost, row.expectedValue, row.countedValue,
@@ -574,21 +591,79 @@ class _InventarioAdminPageState extends ConsumerState<InventarioAdminPage> {
   }
 
   Future<void> _pickRange() async {
-    final selected = await showDateRangePicker(
+    if (_loading || _exportingExcel || _undoingSynchronization) return;
+    final period = await showDialog<CountHistoryPeriod>(
       context: context,
-      firstDate: DateTime(2020),
-      lastDate: DateTime.now(),
-      initialDateRange: _range,
-      helpText: 'Periodo del reporte de inventario',
-      saveText: 'Aplicar',
+      builder: (dialogContext) => SimpleDialog(
+        title: const Text('Fecha del historial de conteos'),
+        children: [
+          for (final option in CountHistoryPeriod.values)
+            SimpleDialogOption(
+              onPressed: () => Navigator.pop(dialogContext, option),
+              child: Text(countHistoryPeriodLabel(option)),
+            ),
+        ],
+      ),
     );
+    if (period == null || !mounted) return;
+    final now = DateTime.now();
+    final today = DateTime(now.year, now.month, now.day);
+    final first = DateTime(2020);
+    DateTimeRange? selected;
+    if (period == CountHistoryPeriod.custom) {
+      selected = await showDateRangePicker(
+        context: context,
+        firstDate: first,
+        lastDate: today,
+        initialDateRange: _range,
+        helpText: 'Selecciona el período personalizado',
+        saveText: 'Aplicar',
+      );
+    } else {
+      final day = await showDatePicker(
+        context: context,
+        firstDate: first,
+        lastDate: today,
+        initialDate: _range.end,
+        helpText: switch (period) {
+          CountHistoryPeriod.day => 'Selecciona el día',
+          CountHistoryPeriod.fortnight => 'Selecciona un día de la quincena',
+          CountHistoryPeriod.month => 'Selecciona un día del mes',
+          CountHistoryPeriod.custom => 'Selecciona la fecha',
+        },
+      );
+      if (day == null || !mounted) return;
+      final dates = countHistoryCalendarRange(
+        period: period, selected: day, today: today,
+      );
+      selected = DateTimeRange(start: dates.start, end: dates.end);
+    }
     if (selected == null || !mounted) return;
     setState(() {
-      _range = selected;
+      _period = period;
+      _range = selected!;
       _selectedDayKey = null;
       _selectedProductId = null;
+      _rows = const [];
+      _synchronizations = const [];
+      _synchronizationWarning = null;
     });
     await _load();
+  }
+
+  /// Vista informativa de cada jornada, sin ajustar inventario ni
+  /// modificar conteos. Un clic en una prioridad abre el producto filtrado.
+  void _showDayDifferenceDetails(_InventoryCountDay day, {int? productId}) {
+    if (!mounted) return;
+    final palette = ref.read(selectedAppPaletteProvider);
+    showDialog<void>(
+      context: context,
+      builder: (_) => _DayDifferenceDetails(
+        day: day,
+        palette: palette,
+        initialProductId: productId,
+      ),
+    );
   }
 
   Future<void> _reviewReconciliation(_InventoryCountDay day) async {
@@ -596,6 +671,10 @@ class _InventarioAdminPageState extends ConsumerState<InventarioAdminPage> {
         day.rows.where((row) => row.reconciliable).toList(growable: false);
     if (candidates.isEmpty) return;
 
+    if (!mounted) return;
+    // El diálogo se reconstruye después de desmontar la página.
+    // Capturar la paleta ahora evita read() sobre un ref ya desechado.
+    final palette = ref.read(selectedAppPaletteProvider);
     final result = await showDialog<_ReconcileDecision>(
       context: context,
       barrierDismissible: false,
@@ -608,7 +687,7 @@ class _InventarioAdminPageState extends ConsumerState<InventarioAdminPage> {
         child: _ReconcileDialog(
           candidates: candidates,
           date: day.date,
-          palette: ref.read(selectedAppPaletteProvider),
+          palette: palette,
         ),
       ),
     );
@@ -666,7 +745,7 @@ class _InventarioAdminPageState extends ConsumerState<InventarioAdminPage> {
       }
     });
 
-    if (_loading && _rows.isEmpty) {
+    if (_loading && !_hasLoaded) {
       return const Scaffold(
         backgroundColor: Colors.transparent,
         body: TechBackground(
@@ -679,7 +758,7 @@ class _InventarioAdminPageState extends ConsumerState<InventarioAdminPage> {
       );
     }
 
-    if (_error != null && _rows.isEmpty) {
+    if (_error != null && !_hasLoaded) {
       return Scaffold(
         backgroundColor: Colors.transparent,
         body: TechBackground(
@@ -690,22 +769,17 @@ class _InventarioAdminPageState extends ConsumerState<InventarioAdminPage> {
 
     final days = _visibleDays;
     final allDays = _days;
-    final missing = allDays.fold<double>(
-      0,
-      (sum, day) => sum + day.missingValue,
-    );
-    final surplus = allDays.fold<double>(
-      0,
-      (sum, day) => sum + day.surplusValue,
-    );
-    final pending = allDays.fold<int>(
-      0,
-      (sum, day) => sum + day.pendingCount,
-    );
-    final exact = _rows.where((row) => !row.hasDifference).length;
-    final accuracy = _rows.isEmpty ? 0.0 : exact * 100 / _rows.length;
-    final withoutCost =
-        _rows.where((row) => row.hasDifference && row.unitPurchaseCost <= 0).length;
+    // El resumen ejecutivo considera SOLO la última jornada del período;
+    // los faltantes históricos no se vuelven a sumar como pendientes actuales.
+    final ultimoConteo = allDays.isEmpty ? null : allDays.first;
+    final ultimosProductos = ultimoConteo?.latestProductRows ?? const <_InventoryAuditRow>[];
+    final missing = ultimoConteo?.missingValue ?? 0.0;
+    final surplus = ultimoConteo?.surplusValue ?? 0.0;
+    final pending = ultimoConteo?.pendingCount ?? 0;
+    final accuracy = ultimoConteo?.accuracy ?? 0.0;
+    final withoutCost = ultimosProductos
+        .where((row) => row.hasDifference && row.unitPurchaseCost <= 0)
+        .length;
 
     return Scaffold(
       backgroundColor: Colors.transparent,
@@ -727,6 +801,7 @@ class _InventarioAdminPageState extends ConsumerState<InventarioAdminPage> {
                       branches: branchState.branches,
                       branchId: _branchId,
                       range: _range,
+                      period: _period,
                       onBranchChanged: (value) {
                         if (value == null || value == _branchId) return;
                         setState(() {
@@ -736,7 +811,8 @@ class _InventarioAdminPageState extends ConsumerState<InventarioAdminPage> {
                         });
                         _load();
                       },
-                      onRange: _pickRange,
+                      onRange: _loading || _exportingExcel || _undoingSynchronization
+                          ? null : _pickRange,
                       onRefresh: _load,
                     ),
                   ),
@@ -746,7 +822,8 @@ class _InventarioAdminPageState extends ConsumerState<InventarioAdminPage> {
                     child: _ExecutiveKpis(
                       palette: palette,
                       days: allDays.length,
-                      products: _rows.length,
+                      products: ultimosProductos.length,
+                      lastCountDate: ultimoConteo?.date,
                       missing: missing,
                       surplus: surplus,
                       accuracy: accuracy,
@@ -767,8 +844,10 @@ class _InventarioAdminPageState extends ConsumerState<InventarioAdminPage> {
                   child: _PageWidth(
                     child: _AdminInsights(
                       days: allDays,
-                      rows: _rows,
                       palette: palette,
+                      onDayTap: (day) => _showDayDifferenceDetails(day),
+                      onProductTap: (day, productId) =>
+                          _showDayDifferenceDetails(day, productId: productId),
                     ),
                   ),
                 ),
@@ -926,7 +1005,7 @@ class _InventarioAdminPageState extends ConsumerState<InventarioAdminPage> {
               ],
             ),
           ),
-          if (_loading && _rows.isNotEmpty)
+          if (_loading && _hasLoaded)
             Positioned(
               left: 0,
               right: 0,
@@ -952,6 +1031,8 @@ class _InventoryAuditRow {
     required this.countDate,
     required this.countedBy,
     required this.expected,
+    required this.historicalExpected,
+    required this.usesCurrentStock,
     required this.counted,
     required this.difference,
     required this.currentSystemStock,
@@ -985,6 +1066,8 @@ class _InventoryAuditRow {
   final DateTime countDate;
   final String countedBy;
   final double expected;
+  final double historicalExpected;
+  final bool usesCurrentStock;
   final double counted;
   final double difference;
   final double currentSystemStock;
@@ -1015,9 +1098,30 @@ class _InventoryAuditRow {
   // Un conteo cuya sincronización fue anulada puede reconciliarse otra vez
   // si sigue siendo el último conteo físico de ese producto.
   bool get reconciliable =>
-      (status == 'PENDIENTE' || status == 'ANULADO') && latestCount;
+      hasDifference &&
+      (status == 'PENDIENTE' || status == 'ANULADO') &&
+      latestCount;
 
   factory _InventoryAuditRow.fromJson(Map<String, dynamic> json) {
+    final persistedStatus = json['estado']?.toString() ?? 'CUADRA';
+    final latest = json['es_ultimo_conteo'] == true ||
+        json['es_ultimo_conteo']?.toString() == 'true';
+    final available = json['stock_actual_disponible'] == true ||
+        json['stock_actual_disponible']?.toString() == 'true';
+    final balance = InventoryAdminBalance.resolve(
+      historicalExpected: _num(json['esperado_historico'] ?? json['esperado']),
+      counted: _num(json['contado']),
+      currentStock: _num(json['stock_actual_sistema']),
+      hasCurrentStock: available,
+      latestCount: latest,
+      persistedStatus: persistedStatus,
+      unitCost: _num(json['costo_unitario_compra']),
+      persistedExpectedValue: _num(json['valor_esperado_compra']),
+      persistedCountedValue: _num(json['valor_contado_compra']),
+      persistedMissingValue: _num(json['valor_faltante_compra']),
+      persistedSurplusValue: _num(json['valor_sobrante_compra']),
+      persistedNetImpact: _num(json['impacto_neto_compra']),
+    );
     return _InventoryAuditRow(
       countId: _int(json['conteo_id']),
       productId: _int(json['producto_id']),
@@ -1026,9 +1130,11 @@ class _InventoryAuditRow {
           DateTime.tryParse(json['fecha_conteo']?.toString() ?? '') ??
               DateTime.now(),
       countedBy: _actor(json['contado_por']),
-      expected: _num(json['esperado']),
-      counted: _num(json['contado']),
-      difference: _num(json['diferencia_unidades']),
+      expected: balance.expected,
+      historicalExpected: balance.historicalExpected,
+      usesCurrentStock: balance.usesCurrentStock,
+      counted: balance.counted,
+      difference: balance.difference,
       currentSystemStock: _num(json['stock_actual_sistema']),
       hasCurrentSystemStock: json['stock_actual_disponible'] == true ||
           json['stock_actual_disponible']?.toString() == 'true',
@@ -1040,12 +1146,12 @@ class _InventoryAuditRow {
       unitsPerPresentation: _num(json['unidades_por_presentacion']),
       purchasePresentation:
           json['presentacion_compra']?.toString() ?? 'Unidad',
-      expectedValue: _num(json['valor_esperado_compra']),
-      countedValue: _num(json['valor_contado_compra']),
-      missingValue: _num(json['valor_faltante_compra']),
-      surplusValue: _num(json['valor_sobrante_compra']),
-      netImpact: _num(json['impacto_neto_compra']),
-      status: json['estado']?.toString() ?? 'CUADRA',
+      expectedValue: balance.expectedValue,
+      countedValue: balance.countedValue,
+      missingValue: balance.missingValue,
+      surplusValue: balance.surplusValue,
+      netImpact: balance.netImpact,
+      status: balance.status,
       latestCount: json['es_ultimo_conteo'] == true ||
           json['es_ultimo_conteo']?.toString() == 'true',
       adjustmentId: _nullableInt(json['movimiento_ajuste_id']),
@@ -1072,6 +1178,23 @@ class _InventoryCountDay {
   final DateTime date;
   final List<_InventoryAuditRow> rows;
 
+  /// Dentro de una jornada puede existir más de un conteo del mismo
+  /// producto. Para los indicadores se usa el registro físico más reciente,
+  /// sin sumar dos veces un reconteo. El historial completo sigue en rows.
+  List<_InventoryAuditRow> get latestProductRows {
+    final result = <int, _InventoryAuditRow>{};
+    for (final row in rows) {
+      final last = result[row.productId];
+      if (last == null ||
+          row.countDate.isAfter(last.countDate) ||
+          (row.countDate.isAtSameMomentAs(last.countDate) &&
+              row.countId > last.countId)) {
+        result[row.productId] = row;
+      }
+    }
+    return result.values.toList(growable: false);
+  }
+
   Set<String> get counters => rows
       .map((row) => row.countedBy)
       .where((value) => value.trim().isNotEmpty)
@@ -1092,26 +1215,32 @@ class _InventoryCountDay {
 
   int get salesDay => rows.isEmpty ? 0 : rows.first.salesDay;
   double get totalSoldDay => rows.isEmpty ? 0 : rows.first.totalSoldDay;
-  int get differenceCount => rows.where((row) => row.hasDifference).length;
+  int get differenceCount =>
+      latestProductRows.where((row) => row.hasDifference).length;
   int get pendingCount =>
-      rows.where((row) => row.reconciliable).length;
-  int get reconciliableCount => rows.where((row) => row.reconciliable).length;
+      latestProductRows.where((row) => row.reconciliable).length;
+  int get reconciliableCount =>
+      latestProductRows.where((row) => row.reconciliable).length;
   int get syncedCount =>
-      rows.where((row) => row.status == 'SINCRONIZADO').length;
-  int get exactCount => rows.where((row) => !row.hasDifference).length;
-  int get withoutCost =>
-      rows.where((row) => row.hasDifference && row.unitPurchaseCost <= 0).length;
+      latestProductRows.where((row) => row.status == 'SINCRONIZADO').length;
+  int get exactCount =>
+      latestProductRows.where((row) => !row.hasDifference).length;
+  int get withoutCost => latestProductRows
+      .where((row) => row.hasDifference && row.unitPurchaseCost <= 0).length;
 
   double get missingValue =>
-      rows.fold(0, (sum, row) => sum + row.missingValue);
+      latestProductRows.fold<double>(0, (sum, row) => sum + row.missingValue);
   double get surplusValue =>
-      rows.fold(0, (sum, row) => sum + row.surplusValue);
-  double get netImpact => rows.fold(0, (sum, row) => sum + row.netImpact);
+      latestProductRows.fold<double>(0, (sum, row) => sum + row.surplusValue);
+  double get netImpact =>
+      latestProductRows.fold<double>(0, (sum, row) => sum + row.netImpact);
   double get expectedValue =>
-      rows.fold(0, (sum, row) => sum + row.expectedValue);
+      latestProductRows.fold<double>(0, (sum, row) => sum + row.expectedValue);
   double get countedValue =>
-      rows.fold(0, (sum, row) => sum + row.countedValue);
-  double get accuracy => rows.isEmpty ? 0 : exactCount * 100 / rows.length;
+      latestProductRows.fold<double>(0, (sum, row) => sum + row.countedValue);
+  double get accuracy => latestProductRows.isEmpty
+      ? 0
+      : exactCount * 100 / latestProductRows.length;
 }
 
 class _ReconcileDialog extends StatefulWidget {
@@ -1347,9 +1476,10 @@ class _ReconcileDialogState extends State<_ReconcileDialog> {
                 const SizedBox(width: 9),
                 Expanded(
                   child: Text(
-                    'Se crearán ${_selected.length} movimiento(s) de ajuste. '
-                    'Las ventas, compras y movimientos posteriores al conteo '
-                    'se conservan.',
+                    'Se aplicará lo contado como nuevo stock en cada producto '
+                    'seleccionado. Cuando coincida, no se generará ningún '
+                    'movimiento. Si hubo ventas o compras posteriores, '
+                    'se pedirá reconfirmar el conteo antes de ajustarlo.',
                     style: TextStyle(
                       color: palette.textPrimary,
                       fontWeight: FontWeight.w600,
@@ -1756,7 +1886,7 @@ class _ReconcileProductCard extends StatelessWidget {
                       runSpacing: 6,
                       children: [
                         _MiniAuditChip(
-                          label: 'Esperado',
+                          label: row.usesCurrentStock ? 'Stock actual' : 'Esperado histórico',
                           value: _qty(row.expected),
                           color: palette.secondary,
                           palette: palette,
@@ -1937,6 +2067,7 @@ class _InventoryAdminHeader extends StatelessWidget {
     required this.branches,
     required this.branchId,
     required this.range,
+    required this.period,
     required this.onBranchChanged,
     required this.onRange,
     required this.onRefresh,
@@ -1946,8 +2077,9 @@ class _InventoryAdminHeader extends StatelessWidget {
   final List<SucursalesResponseModel> branches;
   final int? branchId;
   final DateTimeRange range;
+  final CountHistoryPeriod period;
   final ValueChanged<int?> onBranchChanged;
-  final VoidCallback onRange;
+  final VoidCallback? onRange;
   final VoidCallback onRefresh;
 
   @override
@@ -2036,6 +2168,7 @@ class _InventoryAdminHeader extends StatelessWidget {
           onPressed: onRange,
           icon: const Icon(Icons.date_range_rounded),
           label: Text(
+            '${countHistoryPeriodLabel(period)}: '
             '${DateFormat('dd/MM/yy').format(range.start)} - '
             '${DateFormat('dd/MM/yy').format(range.end)}',
           ),
@@ -2075,6 +2208,7 @@ class _ExecutiveKpis extends StatelessWidget {
     required this.palette,
     required this.days,
     required this.products,
+    required this.lastCountDate,
     required this.missing,
     required this.surplus,
     required this.accuracy,
@@ -2084,6 +2218,7 @@ class _ExecutiveKpis extends StatelessWidget {
   final AppPalette palette;
   final int days;
   final int products;
+  final DateTime? lastCountDate;
   final double missing;
   final double surplus;
   final double accuracy;
@@ -2092,18 +2227,21 @@ class _ExecutiveKpis extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final net = surplus - missing;
+    final fecha = lastCountDate == null
+        ? 'Sin conteos en el período'
+        : 'Último conteo: ${DateFormat('dd/MM/yyyy').format(lastCountDate!)}';
     final items = [
       (
         'Faltante a costo',
         CurrencyUtils.format(missing),
-        'Valor de compra de unidades que debían estar y no se encontraron.',
+        'Unidades faltantes a costo del último conteo.',
         Icons.trending_down_rounded,
         Colors.redAccent,
       ),
       (
         'Sobrante a costo',
         CurrencyUtils.format(surplus),
-        'Valor de compra de unidades encontradas por encima del sistema.',
+        'Unidades sobrantes a costo del último conteo.',
         Icons.trending_up_rounded,
         palette.success,
       ),
@@ -2119,7 +2257,7 @@ class _ExecutiveKpis extends StatelessWidget {
       (
         'Exactitud',
         '${accuracy.toStringAsFixed(1)} %',
-        '$products productos auditados en $days jornada(s).',
+        '$products productos del último conteo · $days jornada(s) en historial.',
         Icons.verified_rounded,
         accuracy >= 95 ? palette.success : palette.warning,
       ),
@@ -2127,7 +2265,7 @@ class _ExecutiveKpis extends StatelessWidget {
         'Por administrar',
         '$pending',
         pending == 0
-            ? 'No hay diferencias vigentes pendientes.'
+            ? 'No hay diferencias pendientes en el último conteo.'
             : 'Diferencias del último conteo que pueden revisarse.',
         Icons.pending_actions_rounded,
         pending == 0 ? palette.success : palette.warning,
@@ -2210,6 +2348,15 @@ class _ExecutiveKpis extends StatelessWidget {
                       ),
                       const SizedBox(height: 5),
                       Text(
+                        fecha,
+                        style: TextStyle(
+                          color: palette.secondary,
+                          fontWeight: FontWeight.w800,
+                          fontSize: 10,
+                        ),
+                      ),
+                      const SizedBox(height: 5),
+                      Text(
                         item.$3,
                         maxLines: 2,
                         overflow: TextOverflow.ellipsis,
@@ -2271,81 +2418,99 @@ class _CostWarning extends StatelessWidget {
 class _AdminInsights extends StatelessWidget {
   const _AdminInsights({
     required this.days,
-    required this.rows,
     required this.palette,
+    required this.onDayTap,
+    required this.onProductTap,
   });
 
   final List<_InventoryCountDay> days;
-  final List<_InventoryAuditRow> rows;
   final AppPalette palette;
+  final ValueChanged<_InventoryCountDay> onDayTap;
+  final void Function(_InventoryCountDay day, int productId) onProductTap;
 
   @override
   Widget build(BuildContext context) {
-    final missingProducts = [...rows]
-      ..sort((a, b) => b.missingValue.compareTo(a.missingValue));
-    final top = missingProducts
-        .where((row) => row.missingValue > 0)
-        .take(6)
-        .toList(growable: false);
-
+    final ultimo = days.isEmpty ? null : days.first;
+    // Las prioridades son únicamente del último conteo, no del histórico
+    // completo; se muestran faltantes y sobrantes según impacto económico.
+    final hallazgos = [...?ultimo?.latestProductRows.where(
+      (row) => row.hasDifference &&
+          (row.status == 'PENDIENTE' || row.status == 'ANULADO'),
+    )]
+      ..sort((a, b) {
+        final impacto = b.netImpact.abs().compareTo(a.netImpact.abs());
+        if (impacto != 0) return impacto;
+        return b.difference.abs().compareTo(a.difference.abs());
+      });
+    final prioritarios = hallazgos.take(6).toList(growable: false);
     final dayCards = days.take(8).toList(growable: false);
+    final ultimoFecha = ultimo == null
+        ? 'Sin conteos'
+        : DateFormat('dd/MM/yyyy').format(ultimo.date);
 
     return LayoutBuilder(
       builder: (context, constraints) {
         final compact = constraints.maxWidth < 900;
-
         final trend = _AdminPanel(
           title: 'Diferencias por jornada',
-          subtitle:
-              'Compara en dinero cuánto faltó y cuánto sobró en cada conteo.',
+          subtitle: 'Pulsa una jornada para ver productos, cantidades, '
+              'faltantes, sobrantes, valores y responsables.',
           icon: Icons.bar_chart_rounded,
           palette: palette,
           child: dayCards.isEmpty
               ? _EmptyAdminState(
                   palette: palette,
-                  text: 'Aún no hay jornadas en el periodo.',
+                  text: 'Aún no hay jornadas en el período.',
                 )
               : Column(
                   children: [
                     for (final day in dayCards) ...[
-                      _DayValueBar(day: day, palette: palette),
-                      if (day != dayCards.last) const SizedBox(height: 10),
+                      _DayValueBar(
+                        day: day,
+                        palette: palette,
+                        onTap: () => onDayTap(day),
+                      ),
+                      if (day != dayCards.last) const SizedBox(height: 8),
                     ],
                   ],
                 ),
         );
-
         final products = _AdminPanel(
-          title: 'Productos con mayor faltante',
-          subtitle:
-              'Prioriza dónde investigar primero según impacto a costo de compra.',
+          title: 'Hallazgos prioritarios · último conteo',
+          subtitle: 'Conteo $ultimoFecha · Ordenados por mayor '
+              'impacto económico pendiente. Pulsa para inspeccionar.',
           icon: Icons.crisis_alert_rounded,
           palette: palette,
-          child: top.isEmpty
+          child: prioritarios.isEmpty
               ? _EmptyAdminState(
                   palette: palette,
-                  text: 'No hay faltantes valorizados en el periodo.',
+                  text: ultimo == null
+                      ? 'No hay conteos en el período.'
+                      : 'El último conteo no tiene diferencias pendientes '
+                          'de revisar.',
                 )
               : Column(
                   children: [
-                    for (final row in top) ...[
-                      _TopMissingProduct(row: row, palette: palette),
-                      if (row != top.last) const SizedBox(height: 8),
+                    for (final row in prioritarios) ...[
+                      _PriorityInventoryProduct(
+                        row: row,
+                        palette: palette,
+                        onTap: () => onProductTap(ultimo!, row.productId),
+                      ),
+                      if (row != prioritarios.last)
+                        const SizedBox(height: 8),
                     ],
                   ],
                 ),
         );
 
         if (compact) {
-          return Column(
-            children: [
-              trend,
-              const SizedBox(height: 12),
-              products,
-            ],
-          );
+          return Column(children: [
+            trend,
+            const SizedBox(height: 12),
+            products,
+          ]);
         }
-
         return Row(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -2422,142 +2587,627 @@ class _DayValueBar extends StatelessWidget {
   const _DayValueBar({
     required this.day,
     required this.palette,
+    required this.onTap,
   });
 
   final _InventoryCountDay day;
   final AppPalette palette;
+  final VoidCallback onTap;
 
   @override
   Widget build(BuildContext context) {
     final maxValue = math.max(day.missingValue, day.surplusValue);
-    final missingRatio =
-        maxValue <= 0 ? 0.0 : day.missingValue / maxValue;
-    final surplusRatio =
-        maxValue <= 0 ? 0.0 : day.surplusValue / maxValue;
-
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        Row(
-          children: [
-            Expanded(
-              child: Text(
-                DateFormat('dd/MM/yyyy').format(day.date),
-                style: TextStyle(
-                  color: palette.textPrimary,
-                  fontWeight: FontWeight.w800,
-                  fontSize: 11,
-                ),
-              ),
-            ),
-            Text(
-              'Falta ${CurrencyUtils.format(day.missingValue)} · '
-              'Sobra ${CurrencyUtils.format(day.surplusValue)}',
-              style: TextStyle(
-                color: palette.textSecondary,
-                fontWeight: FontWeight.w700,
-                fontSize: 9.5,
-              ),
-            ),
-          ],
-        ),
-        const SizedBox(height: 5),
-        Row(
-          children: [
-            Expanded(
-              child: ClipRRect(
-                borderRadius: BorderRadius.circular(999),
-                child: LinearProgressIndicator(
-                  value: missingRatio,
-                  minHeight: 7,
-                  backgroundColor: palette.cardBorder.withOpacity(.35),
-                  valueColor:
-                      const AlwaysStoppedAnimation<Color>(Colors.redAccent),
-                ),
-              ),
-            ),
-            const SizedBox(width: 7),
-            Expanded(
-              child: ClipRRect(
-                borderRadius: BorderRadius.circular(999),
-                child: LinearProgressIndicator(
-                  value: surplusRatio,
-                  minHeight: 7,
-                  backgroundColor: palette.cardBorder.withOpacity(.35),
-                  valueColor:
-                      AlwaysStoppedAnimation<Color>(palette.success),
-                ),
-              ),
-            ),
-          ],
-        ),
-      ],
-    );
-  }
-}
-
-class _TopMissingProduct extends StatelessWidget {
-  const _TopMissingProduct({
-    required this.row,
-    required this.palette,
-  });
-
-  final _InventoryAuditRow row;
-  final AppPalette palette;
-
-  @override
-  Widget build(BuildContext context) => Container(
-        padding: const EdgeInsets.all(10),
-        decoration: BoxDecoration(
-          color: Colors.redAccent.withOpacity(.05),
-          borderRadius: BorderRadius.circular(13),
-          border: Border.all(color: Colors.redAccent.withOpacity(.14)),
-        ),
-        child: Row(
-          children: [
-            const Icon(
-              Icons.remove_circle_outline_rounded,
-              color: Colors.redAccent,
-              size: 18,
-            ),
-            const SizedBox(width: 8),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
+    final missingRatio = maxValue <= 0 ? 0.0 : day.missingValue / maxValue;
+    final surplusRatio = maxValue <= 0 ? 0.0 : day.surplusValue / maxValue;
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(12),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 10),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Row(
                 children: [
-                  Text(
-                    row.product,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: TextStyle(
-                      color: palette.textPrimary,
-                      fontWeight: FontWeight.w800,
-                      fontSize: 11,
+                  Icon(Icons.calendar_today_outlined,
+                      size: 14, color: palette.secondary),
+                  const SizedBox(width: 7),
+                  Expanded(
+                    child: Text(
+                      DateFormat('dd/MM/yyyy').format(day.date),
+                      style: TextStyle(
+                        color: palette.textPrimary,
+                        fontWeight: FontWeight.w800,
+                        fontSize: 11,
+                      ),
                     ),
                   ),
-                  Text(
-                    'Faltan ${_qty(math.max(0, -row.difference))} unid. · '
-                    'Costo unit. ${CurrencyUtils.format(row.unitPurchaseCost)}',
-                    style: TextStyle(
-                      color: palette.textSecondary,
-                      fontWeight: FontWeight.w600,
-                      fontSize: 9.5,
+                  Flexible(
+                    flex: 3,
+                    child: Text(
+                      'Falta ${CurrencyUtils.format(day.missingValue)} · '
+                      'Sobra ${CurrencyUtils.format(day.surplusValue)}',
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        color: palette.textSecondary,
+                        fontWeight: FontWeight.w700,
+                        fontSize: 9.5,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 6),
+                  Icon(Icons.open_in_new_rounded,
+                      color: palette.secondary, size: 16),
+                ],
+              ),
+              const SizedBox(height: 7),
+              Row(
+                children: [
+                  Expanded(
+                    child: ClipRRect(
+                      borderRadius: BorderRadius.circular(999),
+                      child: LinearProgressIndicator(
+                        value: missingRatio,
+                        minHeight: 7,
+                        backgroundColor: palette.cardBorder.withOpacity(.35),
+                        valueColor:
+                            const AlwaysStoppedAnimation<Color>(Colors.redAccent),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 7),
+                  Expanded(
+                    child: ClipRRect(
+                      borderRadius: BorderRadius.circular(999),
+                      child: LinearProgressIndicator(
+                        value: surplusRatio,
+                        minHeight: 7,
+                        backgroundColor: palette.cardBorder.withOpacity(.35),
+                        valueColor:
+                            AlwaysStoppedAnimation<Color>(palette.success),
+                      ),
                     ),
                   ),
                 ],
               ),
+              const SizedBox(height: 5),
+              Text(
+                '${day.latestProductRows.length} producto(s) · '
+                '${day.differenceCount} con diferencia · '
+                '${day.pendingCount} pendientes · Ver detalles',
+                style: TextStyle(
+                  color: palette.textSecondary,
+                  fontWeight: FontWeight.w600,
+                  fontSize: 9.5,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// Prioriza faltantes Y sobrantes del último conteo; muestra la unidad
+/// afectada, su impacto real y permite abrir el panel detallado.
+class _PriorityInventoryProduct extends StatelessWidget {
+  const _PriorityInventoryProduct({
+    required this.row,
+    required this.palette,
+    required this.onTap,
+  });
+
+  final _InventoryAuditRow row;
+  final AppPalette palette;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final missing = row.difference < 0;
+    final color = missing ? Colors.redAccent : palette.success;
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(13),
+        child: Container(
+          padding: const EdgeInsets.all(10),
+          decoration: BoxDecoration(
+            color: color.withOpacity(.05),
+            borderRadius: BorderRadius.circular(13),
+            border: Border.all(color: color.withOpacity(.17)),
+          ),
+          child: Row(
+            children: [
+              Icon(
+                missing
+                    ? Icons.remove_circle_outline_rounded
+                    : Icons.add_circle_outline_rounded,
+                color: color, size: 18,
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      row.product,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        color: palette.textPrimary,
+                        fontWeight: FontWeight.w800,
+                        fontSize: 11,
+                      ),
+                    ),
+                    Text(
+                      '${missing ? "Faltan" : "Sobran"} '
+                      '${_qty(row.difference.abs())} unid. · '
+                      'Costo unit. ${CurrencyUtils.format(row.unitPurchaseCost)}',
+                      style: TextStyle(
+                        color: palette.textSecondary,
+                        fontWeight: FontWeight.w600,
+                        fontSize: 9.5,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(width: 6),
+              Text(
+                CurrencyUtils.format(row.netImpact.abs()),
+                style: TextStyle(color: color,
+                    fontWeight: FontWeight.w900, fontSize: 11),
+              ),
+              const SizedBox(width: 4),
+              Icon(Icons.chevron_right_rounded,
+                  color: palette.secondary, size: 18),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+enum _DayDifferenceFilter { todos, faltantes, sobrantes, cuadrados }
+
+/// Panel de consulta de la jornada: no sincroniza ni modifica el inventario.
+/// Cada cifra conserva la referencia usada al contar y la histórica original.
+class _DayDifferenceDetails extends StatefulWidget {
+  const _DayDifferenceDetails({
+    required this.day,
+    required this.palette,
+    this.initialProductId,
+  });
+
+  final _InventoryCountDay day;
+  final AppPalette palette;
+  final int? initialProductId;
+
+  @override
+  State<_DayDifferenceDetails> createState() => _DayDifferenceDetailsState();
+}
+
+class _DayDifferenceDetailsState extends State<_DayDifferenceDetails> {
+  final TextEditingController _search = TextEditingController();
+  _DayDifferenceFilter _filter = _DayDifferenceFilter.todos;
+  bool _includeRecounts = false;
+
+  @override
+  void initState() {
+    super.initState();
+    final selected = widget.initialProductId;
+    if (selected != null) {
+      final coincidencias = widget.day.rows
+          .where((row) => row.productId == selected).toList();
+      if (coincidencias.isNotEmpty) _search.text = coincidencias.first.product;
+    }
+  }
+
+  @override
+  void dispose() {
+    _search.dispose();
+    super.dispose();
+  }
+
+  List<_InventoryAuditRow> get _filtered {
+    final term = _search.text.trim().toLowerCase();
+    final source = _includeRecounts
+        ? widget.day.rows
+        : widget.day.latestProductRows;
+    final result = source.where((row) {
+      final matches = term.isEmpty ||
+          row.product.toLowerCase().contains(term) ||
+          row.countedBy.toLowerCase().contains(term) ||
+          row.productId.toString() == term ||
+          row.countId.toString() == term;
+      if (!matches) return false;
+      return switch (_filter) {
+        _DayDifferenceFilter.todos => true,
+        _DayDifferenceFilter.faltantes => row.difference < -0.0001,
+        _DayDifferenceFilter.sobrantes => row.difference > 0.0001,
+        _DayDifferenceFilter.cuadrados => !row.hasDifference,
+      };
+    }).toList();
+    // Arriba aparecen primero los casos con mayor impacto para investigar.
+    result.sort((a, b) {
+      final byValue = b.netImpact.abs().compareTo(a.netImpact.abs());
+      if (byValue != 0) return byValue;
+      return b.difference.abs().compareTo(a.difference.abs());
+    });
+    return result;
+  }
+
+  Widget _summary(String title, String value, Color color) {
+    final palette = widget.palette;
+    return Container(
+      width: 178,
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: color.withOpacity(.07),
+        borderRadius: BorderRadius.circular(13),
+        border: Border.all(color: color.withOpacity(.17)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(title, style: TextStyle(color: palette.textSecondary,
+              fontSize: 10, fontWeight: FontWeight.w700)),
+          const SizedBox(height: 4),
+          Text(value, maxLines: 1, overflow: TextOverflow.ellipsis,
+              style: TextStyle(color: palette.textPrimary,
+                  fontSize: 16, fontWeight: FontWeight.w900)),
+        ],
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final palette = widget.palette;
+    final day = widget.day;
+    final size = MediaQuery.sizeOf(context);
+    final mobile = size.width < 720;
+    final width = math.min(size.width - 20, 1050).toDouble();
+    final height = math.min(size.height - 24, 840).toDouble();
+    final visible = _filtered;
+    final rows = _includeRecounts ? day.rows : day.latestProductRows;
+    final missing = rows.where((r) => r.difference < -0.0001).length;
+    final extra = rows.where((r) => r.difference > 0.0001).length;
+    final exact = rows.where((r) => !r.hasDifference).length;
+
+    return Dialog(
+      insetPadding: const EdgeInsets.all(10),
+      clipBehavior: Clip.antiAlias,
+      backgroundColor: palette.surface,
+      child: SizedBox(
+        width: width,
+        height: height,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Padding(
+              padding: EdgeInsets.fromLTRB(
+                  mobile ? 14 : 20, 14, mobile ? 10 : 16, 10),
+              child: Row(
+                children: [
+                  Icon(Icons.manage_search_rounded,
+                      color: palette.secondary, size: 26),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text('Detalle de diferencias de la jornada',
+                            maxLines: 2,
+                            style: TextStyle(color: palette.textPrimary,
+                                fontWeight: FontWeight.w900,
+                                fontSize: mobile ? 16 : 20)),
+                        const SizedBox(height: 3),
+                        Text(
+                          '${DateFormat('dd/MM/yyyy').format(day.date)} · '
+                          '${day.rows.length} registro(s) · '
+                          '${day.pendingCount} pendiente(s)',
+                          style: TextStyle(color: palette.textSecondary,
+                              fontSize: 11, fontWeight: FontWeight.w600),
+                        ),
+                      ],
+                    ),
+                  ),
+                  IconButton(
+                    tooltip: 'Cerrar detalle',
+                    onPressed: () => Navigator.of(context).pop(),
+                    icon: const Icon(Icons.close_rounded),
+                  ),
+                ],
+              ),
             ),
-            Text(
-              CurrencyUtils.format(row.missingValue),
-              style: const TextStyle(
-                color: Colors.redAccent,
-                fontWeight: FontWeight.w900,
-                fontSize: 11,
+            Divider(height: 1, color: palette.cardBorder.withOpacity(.6)),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(12, 12, 12, 8),
+              child: SingleChildScrollView(
+                scrollDirection: Axis.horizontal,
+                child: Row(
+                  children: [
+                    _summary('Faltante a costo',
+                        CurrencyUtils.format(day.missingValue),
+                        Colors.redAccent),
+                    const SizedBox(width: 8),
+                    _summary('Sobrante a costo',
+                        CurrencyUtils.format(day.surplusValue),
+                        palette.success),
+                    const SizedBox(width: 8),
+                    _summary('Impacto neto',
+                        CurrencyUtils.format(day.netImpact),
+                        day.netImpact < 0 ? Colors.orangeAccent : palette.success),
+                    const SizedBox(width: 8),
+                    _summary('Exactitud',
+                        '${day.accuracy.toStringAsFixed(1)} %',
+                        palette.secondary),
+                    const SizedBox(width: 8),
+                    _summary('Por administrar',
+                        '${day.pendingCount}', palette.warning),
+                  ],
+                ),
+              ),
+            ),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 14),
+              child: TextField(
+                controller: _search,
+                onChanged: (_) => setState(() {}),
+                decoration: InputDecoration(
+                  isDense: true,
+                  prefixIcon: const Icon(Icons.search_rounded),
+                  hintText: 'Buscar producto, responsable o ID del conteo',
+                  suffixIcon: _search.text.isEmpty
+                      ? null
+                      : IconButton(
+                          tooltip: 'Limpiar búsqueda',
+                          onPressed: () => setState(_search.clear),
+                          icon: const Icon(Icons.close_rounded),
+                        ),
+                ),
+              ),
+            ),
+            const SizedBox(height: 8),
+            SizedBox(
+              height: 40,
+              child: ListView(
+                scrollDirection: Axis.horizontal,
+                padding: const EdgeInsets.symmetric(horizontal: 14),
+                children: [
+                  for (final option in _DayDifferenceFilter.values) ...[
+                    ChoiceChip(
+                      label: Text(switch (option) {
+                        _DayDifferenceFilter.todos =>
+                          'Todos (${rows.length})',
+                        _DayDifferenceFilter.faltantes =>
+                          'Faltantes ($missing)',
+                        _DayDifferenceFilter.sobrantes =>
+                          'Sobrantes ($extra)',
+                        _DayDifferenceFilter.cuadrados =>
+                          'Cuadrados ($exact)',
+                      }),
+                      selected: _filter == option,
+                      onSelected: (_) => setState(() => _filter = option),
+                    ),
+                    const SizedBox(width: 8),
+                  ],
+                  FilterChip(
+                    label: const Text('Incluir reconteos anteriores'),
+                    selected: _includeRecounts,
+                    onSelected: (enabled) =>
+                        setState(() => _includeRecounts = enabled),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 5),
+            Expanded(
+              child: visible.isEmpty
+                  ? Center(child: Text('No hay productos para este filtro.',
+                      style: TextStyle(color: palette.textSecondary)))
+                  : ListView.separated(
+                      padding: const EdgeInsets.fromLTRB(12, 6, 12, 14),
+                      itemCount: visible.length,
+                      separatorBuilder: (_, __) =>
+                          const SizedBox(height: 8),
+                      itemBuilder: (_, index) => _DayDifferenceProductCard(
+                        key: ValueKey('auditoria-detalle-${visible[index].countId}'),
+                        row: visible[index],
+                        palette: palette,
+                        expandedInitially: widget.initialProductId ==
+                            visible[index].productId,
+                      ),
+                    ),
+            ),
+            Divider(height: 1, color: palette.cardBorder.withOpacity(.6)),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(14, 10, 14, 12),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: Text(
+                      'Ventas del día: ${day.salesDay} · '
+                      'Total vendido: ${CurrencyUtils.format(day.totalSoldDay)} · '
+                      'Mostrando ${visible.length} producto(s)',
+                      maxLines: 2,
+                      style: TextStyle(color: palette.textSecondary,
+                          fontWeight: FontWeight.w600, fontSize: 10),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  TextButton.icon(
+                    onPressed: () => Navigator.of(context).pop(),
+                    icon: const Icon(Icons.check_rounded, size: 16),
+                    label: const Text('Cerrar'),
+                  ),
+                ],
               ),
             ),
           ],
         ),
+      ),
+    );
+  }
+}
+
+class _DayDifferenceProductCard extends StatelessWidget {
+  const _DayDifferenceProductCard({
+    super.key,
+    required this.row,
+    required this.palette,
+    required this.expandedInitially,
+  });
+
+  final _InventoryAuditRow row;
+  final AppPalette palette;
+  final bool expandedInitially;
+
+  Widget _detail(String title, String value, {Color? color}) => Container(
+        constraints: const BoxConstraints(minWidth: 140),
+        padding: const EdgeInsets.symmetric(vertical: 5, horizontal: 7),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(title, style: TextStyle(
+                color: palette.textSecondary,
+                fontSize: 9.5, fontWeight: FontWeight.w600)),
+            const SizedBox(height: 3),
+            Text(value, style: TextStyle(
+                color: color ?? palette.textPrimary,
+                fontSize: 12, fontWeight: FontWeight.w900)),
+          ],
+        ),
       );
+
+  @override
+  Widget build(BuildContext context) {
+    final missing = row.difference < -0.0001;
+    final surplus = row.difference > 0.0001;
+    final color = missing ? Colors.redAccent
+        : surplus ? palette.success : palette.secondary;
+    final status = _statusLabel(row.status);
+    final amount = missing ? row.missingValue : row.surplusValue;
+
+    return Container(
+      decoration: BoxDecoration(
+        color: color.withOpacity(.035),
+        border: Border.all(color: color.withOpacity(.20)),
+        borderRadius: BorderRadius.circular(14),
+      ),
+      child: ExpansionTile(
+        initiallyExpanded: expandedInitially,
+        tilePadding: const EdgeInsets.symmetric(horizontal: 12),
+        childrenPadding: const EdgeInsets.fromLTRB(10, 0, 10, 12),
+        leading: Icon(
+          missing ? Icons.remove_circle_outline_rounded
+              : surplus ? Icons.add_circle_outline_rounded
+              : Icons.check_circle_outline_rounded,
+          color: color,
+        ),
+        title: Text(row.product, maxLines: 2,
+            style: TextStyle(color: palette.textPrimary,
+                fontWeight: FontWeight.w800, fontSize: 12)),
+        subtitle: Text(
+          '${missing ? "Faltan" : surplus ? "Sobran" : "Sin diferencia"} '
+          '${_qty(row.difference.abs())} · '
+          'Base ${_qty(row.expected)} · Físico ${_qty(row.counted)} · '
+          '$status',
+          maxLines: 2, overflow: TextOverflow.ellipsis,
+          style: TextStyle(color: palette.textSecondary, fontSize: 10),
+        ),
+        trailing: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.end,
+          children: [
+            Text(CurrencyUtils.format(amount),
+                style: TextStyle(color: color, fontWeight: FontWeight.w900,
+                    fontSize: 12)),
+            Text('Ver detalle', style: TextStyle(
+                color: palette.textSecondary, fontSize: 9)),
+          ],
+        ),
+        children: [
+          Align(
+            alignment: Alignment.centerLeft,
+            child: Text(
+              'Producto #${row.productId} · Registro de conteo #${row.countId} · '
+              'Fecha: ${DateFormat('dd/MM/yyyy HH:mm').format(row.countDate)}',
+              style: TextStyle(color: palette.textSecondary,
+                  fontSize: 10, fontWeight: FontWeight.w700),
+            ),
+          ),
+          const SizedBox(height: 8),
+          Wrap(
+            spacing: 6,
+            runSpacing: 4,
+            children: [
+              _detail(
+                row.usesCurrentStock ? 'Stock base actual' : 'Base histórica',
+                _qty(row.expected), color: palette.secondary),
+              _detail('Físico contado', _qty(row.counted)),
+              _detail('Diferencia', _signedQty(row.difference), color: color),
+              _detail('Stock actual de Productos',
+                  row.hasCurrentSystemStock
+                      ? _qty(row.currentSystemStock) : 'Sin datos'),
+              _detail('Esperado guardado al contar',
+                  _qty(row.historicalExpected)),
+              _detail('Costo unitario de compra',
+                  CurrencyUtils.format(row.unitPurchaseCost)),
+              _detail('Valor esperado a costo',
+                  CurrencyUtils.format(row.expectedValue)),
+              _detail('Valor contado a costo',
+                  CurrencyUtils.format(row.countedValue)),
+              _detail('Valor faltante a costo',
+                  CurrencyUtils.format(row.missingValue),
+                  color: Colors.redAccent),
+              _detail('Valor sobrante a costo',
+                  CurrencyUtils.format(row.surplusValue),
+                  color: palette.success),
+              _detail('Impacto neto a costo',
+                  CurrencyUtils.format(row.netImpact)),
+              _detail('Estado del conteo', status),
+              if (row.adjustmentId != null)
+                _detail('ID movimiento conciliación',
+                    '#${row.adjustmentId}'),
+              if (row.adjustmentOperation != null)
+                _detail('Operación de ajuste',
+                    '${row.adjustmentOperation} · ${_qty(row.adjustmentQuantity)}'),
+              if (row.unitsPerPresentation > 1)
+                _detail('Presentación de compra',
+                    '${row.purchasePresentation} · '
+                    '${_qty(row.unitsPerPresentation)} unidades'),
+            ],
+          ),
+          const SizedBox(height: 6),
+          Align(
+            alignment: Alignment.centerLeft,
+            child: Text(
+              'Contado por: ${row.countedBy}\n'
+              'Último registro del producto: '
+              '${row.latestCount ? "Sí" : "No, hay un conteo posterior"}\n'
+              'Actualización del stock: ${row.currentSystemStockDate == null ? "Sin datos" : DateFormat('dd/MM/yyyy HH:mm').format(row.currentSystemStockDate!)}\n'
+              'Conciliación: ${row.synchronizedAt == null ? "No registrada" : DateFormat('dd/MM/yyyy HH:mm').format(row.synchronizedAt!)}'
+              '${row.synchronizedBy == null ? "" : " · Por ${row.synchronizedBy}"}'
+              '${row.adjustmentReason == null ? "" : " · Motivo: ${row.adjustmentReason}"}\n'
+              'Ventas de la jornada: ${row.salesDay} · '
+              'Total: ${CurrencyUtils.format(row.totalSoldDay)}\n'
+              'Atendieron: ${row.attendedBy}',
+              style: TextStyle(color: palette.textSecondary,
+                  fontSize: 10.5, fontWeight: FontWeight.w600,
+                  height: 1.5),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
 }
 
 class _AdminToolbar extends StatelessWidget {
@@ -3277,7 +3927,7 @@ class _InventoryAuditTable extends StatelessWidget {
                   MaterialStateProperty.all(palette.secondary.withOpacity(.08)),
               columns: [
                 column('Producto', numeric: false),
-                column('Esperado'),
+                column('Base del conteo'),
                 column('Contado'),
                 column('Diferencia'),
                 column('Stock actual sistema'),
@@ -3875,10 +4525,17 @@ class _ProductAuditRow extends StatelessWidget {
             runSpacing: 7,
             children: [
               _AuditValue(
-                label: 'Esperado',
+                label: row.usesCurrentStock ? 'Stock actual' : 'Esperado histórico',
                 value: _qty(row.expected),
                 palette: palette,
               ),
+              if (row.usesCurrentStock &&
+                  (row.historicalExpected - row.expected).abs() > 0.0001)
+                _AuditValue(
+                  label: 'Referencia histórica guardada',
+                  value: _qty(row.historicalExpected),
+                  palette: palette,
+                ),
               _AuditValue(
                 label: 'Contado',
                 value: _qty(row.counted),
