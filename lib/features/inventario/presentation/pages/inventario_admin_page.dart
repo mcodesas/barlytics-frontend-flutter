@@ -757,7 +757,7 @@ class _InventarioAdminPageState extends ConsumerState<InventarioAdminPage> {
     // El resumen ejecutivo considera SOLO la última jornada del período;
     // los faltantes históricos no se vuelven a sumar como pendientes actuales.
     final ultimoConteo = allDays.isEmpty ? null : allDays.first;
-    final ultimosProductos = ultimoConteo?.rows ?? const <_InventoryAuditRow>[];
+    final ultimosProductos = ultimoConteo?.latestProductRows ?? const <_InventoryAuditRow>[];
     final missing = ultimoConteo?.missingValue ?? 0.0;
     final surplus = ultimoConteo?.surplusValue ?? 0.0;
     final pending = ultimoConteo?.pendingCount ?? 0;
@@ -1163,6 +1163,23 @@ class _InventoryCountDay {
   final DateTime date;
   final List<_InventoryAuditRow> rows;
 
+  /// Dentro de una jornada puede existir más de un conteo del mismo
+  /// producto. Para los indicadores se usa el registro físico más reciente,
+  /// sin sumar dos veces un reconteo. El historial completo sigue en rows.
+  List<_InventoryAuditRow> get latestProductRows {
+    final result = <int, _InventoryAuditRow>{};
+    for (final row in rows) {
+      final last = result[row.productId];
+      if (last == null ||
+          row.countDate.isAfter(last.countDate) ||
+          (row.countDate.isAtSameMomentAs(last.countDate) &&
+              row.countId > last.countId)) {
+        result[row.productId] = row;
+      }
+    }
+    return result.values.toList(growable: false);
+  }
+
   Set<String> get counters => rows
       .map((row) => row.countedBy)
       .where((value) => value.trim().isNotEmpty)
@@ -1183,26 +1200,32 @@ class _InventoryCountDay {
 
   int get salesDay => rows.isEmpty ? 0 : rows.first.salesDay;
   double get totalSoldDay => rows.isEmpty ? 0 : rows.first.totalSoldDay;
-  int get differenceCount => rows.where((row) => row.hasDifference).length;
+  int get differenceCount =>
+      latestProductRows.where((row) => row.hasDifference).length;
   int get pendingCount =>
-      rows.where((row) => row.reconciliable).length;
-  int get reconciliableCount => rows.where((row) => row.reconciliable).length;
+      latestProductRows.where((row) => row.reconciliable).length;
+  int get reconciliableCount =>
+      latestProductRows.where((row) => row.reconciliable).length;
   int get syncedCount =>
-      rows.where((row) => row.status == 'SINCRONIZADO').length;
-  int get exactCount => rows.where((row) => !row.hasDifference).length;
-  int get withoutCost =>
-      rows.where((row) => row.hasDifference && row.unitPurchaseCost <= 0).length;
+      latestProductRows.where((row) => row.status == 'SINCRONIZADO').length;
+  int get exactCount =>
+      latestProductRows.where((row) => !row.hasDifference).length;
+  int get withoutCost => latestProductRows
+      .where((row) => row.hasDifference && row.unitPurchaseCost <= 0).length;
 
   double get missingValue =>
-      rows.fold(0, (sum, row) => sum + row.missingValue);
+      latestProductRows.fold<double>(0, (sum, row) => sum + row.missingValue);
   double get surplusValue =>
-      rows.fold(0, (sum, row) => sum + row.surplusValue);
-  double get netImpact => rows.fold(0, (sum, row) => sum + row.netImpact);
+      latestProductRows.fold<double>(0, (sum, row) => sum + row.surplusValue);
+  double get netImpact =>
+      latestProductRows.fold<double>(0, (sum, row) => sum + row.netImpact);
   double get expectedValue =>
-      rows.fold(0, (sum, row) => sum + row.expectedValue);
+      latestProductRows.fold<double>(0, (sum, row) => sum + row.expectedValue);
   double get countedValue =>
-      rows.fold(0, (sum, row) => sum + row.countedValue);
-  double get accuracy => rows.isEmpty ? 0 : exactCount * 100 / rows.length;
+      latestProductRows.fold<double>(0, (sum, row) => sum + row.countedValue);
+  double get accuracy => latestProductRows.isEmpty
+      ? 0
+      : exactCount * 100 / latestProductRows.length;
 }
 
 class _ReconcileDialog extends StatefulWidget {
@@ -2395,7 +2418,7 @@ class _AdminInsights extends StatelessWidget {
     final ultimo = days.isEmpty ? null : days.first;
     // Las prioridades son únicamente del último conteo, no del histórico
     // completo; se muestran faltantes y sobrantes según impacto económico.
-    final hallazgos = [...?ultimo?.rows.where(
+    final hallazgos = [...?ultimo?.latestProductRows.where(
       (row) => row.hasDifference &&
           (row.status == 'PENDIENTE' || row.status == 'ANULADO'),
     )]
@@ -2636,7 +2659,7 @@ class _DayValueBar extends StatelessWidget {
               ),
               const SizedBox(height: 5),
               Text(
-                '${day.rows.length} producto(s) · '
+                '${day.latestProductRows.length} producto(s) · '
                 '${day.differenceCount} con diferencia · '
                 '${day.pendingCount} pendientes · Ver detalles',
                 style: TextStyle(
@@ -2757,6 +2780,7 @@ class _DayDifferenceDetails extends StatefulWidget {
 class _DayDifferenceDetailsState extends State<_DayDifferenceDetails> {
   final TextEditingController _search = TextEditingController();
   _DayDifferenceFilter _filter = _DayDifferenceFilter.todos;
+  bool _includeRecounts = false;
 
   @override
   void initState() {
@@ -2777,7 +2801,10 @@ class _DayDifferenceDetailsState extends State<_DayDifferenceDetails> {
 
   List<_InventoryAuditRow> get _filtered {
     final term = _search.text.trim().toLowerCase();
-    final result = widget.day.rows.where((row) {
+    final source = _includeRecounts
+        ? widget.day.rows
+        : widget.day.latestProductRows;
+    final result = source.where((row) {
       final matches = term.isEmpty ||
           row.product.toLowerCase().contains(term) ||
           row.countedBy.toLowerCase().contains(term) ||
@@ -2833,9 +2860,10 @@ class _DayDifferenceDetailsState extends State<_DayDifferenceDetails> {
     final width = math.min(size.width - 20, 1050).toDouble();
     final height = math.min(size.height - 24, 840).toDouble();
     final visible = _filtered;
-    final missing = day.rows.where((r) => r.difference < -0.0001).length;
-    final extra = day.rows.where((r) => r.difference > 0.0001).length;
-    final exact = day.rows.where((r) => !r.hasDifference).length;
+    final rows = _includeRecounts ? day.rows : day.latestProductRows;
+    final missing = rows.where((r) => r.difference < -0.0001).length;
+    final extra = rows.where((r) => r.difference > 0.0001).length;
+    final exact = rows.where((r) => !r.hasDifference).length;
 
     return Dialog(
       insetPadding: const EdgeInsets.all(10),
@@ -2942,7 +2970,7 @@ class _DayDifferenceDetailsState extends State<_DayDifferenceDetails> {
                     ChoiceChip(
                       label: Text(switch (option) {
                         _DayDifferenceFilter.todos =>
-                          'Todos (${day.rows.length})',
+                          'Todos (${rows.length})',
                         _DayDifferenceFilter.faltantes =>
                           'Faltantes ($missing)',
                         _DayDifferenceFilter.sobrantes =>
@@ -2955,6 +2983,12 @@ class _DayDifferenceDetailsState extends State<_DayDifferenceDetails> {
                     ),
                     const SizedBox(width: 8),
                   ],
+                  FilterChip(
+                    label: const Text('Incluir reconteos anteriores'),
+                    selected: _includeRecounts,
+                    onSelected: (enabled) =>
+                        setState(() => _includeRecounts = enabled),
+                  ),
                 ],
               ),
             ),
