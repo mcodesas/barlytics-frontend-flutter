@@ -79,7 +79,9 @@ class _InventarioAdminPageState extends ConsumerState<InventarioAdminPage> {
       end: today,
     );
     _branchId = ref.read(branchScopeProvider).activeBranchId;
-    WidgetsBinding.instance.addPostFrameCallback((_) => _load());
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) _load();
+    });
   }
 
   @override
