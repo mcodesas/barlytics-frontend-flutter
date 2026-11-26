@@ -697,22 +697,17 @@ class _InventarioAdminPageState extends ConsumerState<InventarioAdminPage> {
 
     final days = _visibleDays;
     final allDays = _days;
-    final missing = allDays.fold<double>(
-      0,
-      (sum, day) => sum + day.missingValue,
-    );
-    final surplus = allDays.fold<double>(
-      0,
-      (sum, day) => sum + day.surplusValue,
-    );
-    final pending = allDays.fold<int>(
-      0,
-      (sum, day) => sum + day.pendingCount,
-    );
-    final exact = _rows.where((row) => !row.hasDifference).length;
-    final accuracy = _rows.isEmpty ? 0.0 : exact * 100 / _rows.length;
-    final withoutCost =
-        _rows.where((row) => row.hasDifference && row.unitPurchaseCost <= 0).length;
+    // El resumen ejecutivo considera SOLO la última jornada del período;
+    // los faltantes históricos no se vuelven a sumar como pendientes actuales.
+    final ultimoConteo = allDays.isEmpty ? null : allDays.first;
+    final ultimosProductos = ultimoConteo?.rows ?? const <_InventoryAuditRow>[];
+    final missing = ultimoConteo?.missingValue ?? 0.0;
+    final surplus = ultimoConteo?.surplusValue ?? 0.0;
+    final pending = ultimoConteo?.pendingCount ?? 0;
+    final accuracy = ultimoConteo?.accuracy ?? 0.0;
+    final withoutCost = ultimosProductos
+        .where((row) => row.hasDifference && row.unitPurchaseCost <= 0)
+        .length;
 
     return Scaffold(
       backgroundColor: Colors.transparent,
@@ -753,7 +748,8 @@ class _InventarioAdminPageState extends ConsumerState<InventarioAdminPage> {
                     child: _ExecutiveKpis(
                       palette: palette,
                       days: allDays.length,
-                      products: _rows.length,
+                      products: ultimosProductos.length,
+                      lastCountDate: ultimoConteo?.date,
                       missing: missing,
                       surplus: surplus,
                       accuracy: accuracy,
@@ -774,8 +770,10 @@ class _InventarioAdminPageState extends ConsumerState<InventarioAdminPage> {
                   child: _PageWidth(
                     child: _AdminInsights(
                       days: allDays,
-                      rows: _rows,
                       palette: palette,
+                      onDayTap: (day) => _showDayDifferenceDetails(day),
+                      onProductTap: (day, productId) =>
+                          _showDayDifferenceDetails(day, productId: productId),
                     ),
                   ),
                 ),
@@ -2110,6 +2108,7 @@ class _ExecutiveKpis extends StatelessWidget {
     required this.palette,
     required this.days,
     required this.products,
+    required this.lastCountDate,
     required this.missing,
     required this.surplus,
     required this.accuracy,
@@ -2119,6 +2118,7 @@ class _ExecutiveKpis extends StatelessWidget {
   final AppPalette palette;
   final int days;
   final int products;
+  final DateTime? lastCountDate;
   final double missing;
   final double surplus;
   final double accuracy;
@@ -2127,18 +2127,21 @@ class _ExecutiveKpis extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final net = surplus - missing;
+    final fecha = lastCountDate == null
+        ? 'Sin conteos en el período'
+        : 'Último conteo: ${DateFormat('dd/MM/yyyy').format(lastCountDate!)}';
     final items = [
       (
         'Faltante a costo',
         CurrencyUtils.format(missing),
-        'Valor de compra de unidades que debían estar y no se encontraron.',
+        'Unidades faltantes a costo del último conteo.',
         Icons.trending_down_rounded,
         Colors.redAccent,
       ),
       (
         'Sobrante a costo',
         CurrencyUtils.format(surplus),
-        'Valor de compra de unidades encontradas por encima del sistema.',
+        'Unidades sobrantes a costo del último conteo.',
         Icons.trending_up_rounded,
         palette.success,
       ),
@@ -2154,7 +2157,7 @@ class _ExecutiveKpis extends StatelessWidget {
       (
         'Exactitud',
         '${accuracy.toStringAsFixed(1)} %',
-        '$products productos auditados en $days jornada(s).',
+        '$products productos del último conteo · $days jornada(s) en historial.',
         Icons.verified_rounded,
         accuracy >= 95 ? palette.success : palette.warning,
       ),
@@ -2162,7 +2165,7 @@ class _ExecutiveKpis extends StatelessWidget {
         'Por administrar',
         '$pending',
         pending == 0
-            ? 'No hay diferencias vigentes pendientes.'
+            ? 'No hay diferencias pendientes en el último conteo.'
             : 'Diferencias del último conteo que pueden revisarse.',
         Icons.pending_actions_rounded,
         pending == 0 ? palette.success : palette.warning,
@@ -2241,6 +2244,15 @@ class _ExecutiveKpis extends StatelessWidget {
                             fontWeight: FontWeight.w900,
                             fontSize: 21,
                           ),
+                        ),
+                      ),
+                      const SizedBox(height: 5),
+                      Text(
+                        fecha,
+                        style: TextStyle(
+                          color: palette.secondary,
+                          fontWeight: FontWeight.w800,
+                          fontSize: 10,
                         ),
                       ),
                       const SizedBox(height: 5),
