@@ -409,9 +409,10 @@ class _InventarioListPageState extends ConsumerState<InventarioListPage> {
             child: SingleChildScrollView(
               child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.stretch, children: [
                 Text(
-                  'Se conciliará cada diferencia contra su último conteo físico. '
-                  'Si el conteo fue hace varios días, las ventas, compras y demás movimientos posteriores se conservan; '
-                  'solo se registra la diferencia detectada en ese conteo.',
+                  'El stock de cada producto seleccionado quedará exactamente '
+                  'igual a su cantidad física contada. Si el stock actual ya '
+                  'coincide, no se sumará ni restará nada. El historial de '
+                  'compras y ventas no se elimina.',
                   style: TextStyle(
                     color: palette.textSecondary,
                     fontWeight: FontWeight.w600,
@@ -423,17 +424,25 @@ class _InventarioListPageState extends ConsumerState<InventarioListPage> {
                   for (final item in products) {
                     if (item.prodId == record.prodId) { product = item; break; }
                   }
-                  final diff = record.invtDiferencia ?? 0;
+                  final actual = product?.inventarioActual;
+                  final fisico = record.invtCantidad ?? 0;
+                  final ajuste = actual == null ? null : fisico - actual;
                   return ListTile(
                     contentPadding: EdgeInsets.zero,
-                    leading: Icon(diff > 0 ? Icons.add_circle_outline : Icons.remove_circle_outline,
-                        color: diff > 0 ? palette.success : palette.warning),
+                    leading: Icon(
+                      ajuste == null || ajuste == 0
+                          ? Icons.check_circle_outline
+                          : ajuste > 0 ? Icons.add_circle_outline : Icons.remove_circle_outline,
+                      color: ajuste == null || ajuste == 0
+                          ? palette.success
+                          : ajuste > 0 ? palette.success : palette.warning,
+                    ),
                     title: Text(product?.prodNombre ?? 'Producto ${record.prodId}', style: const TextStyle(fontWeight: FontWeight.w800)),
                     subtitle: Text(
                       'Conteo ${_shortDate(record.invtFecha)} · '
-                      'Sistema ${_formatQuantity(record.invtCantidadEsperada ?? 0)} · '
-                      'Físico ${_formatQuantity(record.invtCantidad ?? 0)} · '
-                      'Diferencia ${diff > 0 ? '+' : ''}${_formatQuantity(diff)}',
+                      'Stock actual ${actual == null ? "no disponible" : _formatQuantity(actual)} · '
+                      'Físico ${_formatQuantity(fisico)} · '
+                      'Cambio al sincronizar ${ajuste == null ? "por calcular" : "${ajuste > 0 ? "+" : ""}${_formatQuantity(ajuste)}"}',
                     ),
                   );
                 }),
@@ -475,7 +484,7 @@ class _InventarioListPageState extends ConsumerState<InventarioListPage> {
     );
     if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-      content: Text(ok ? 'Inventario sincronizado. Los ajustes quedaron registrados en movimientos.'
+      content: Text(ok ? 'Inventario sincronizado con las cantidades físicas registradas.'
           : (ref.read(inventarioConteoProvider).failure?.message ?? 'No fue posible sincronizar el inventario.')),
     ));
   }
@@ -500,7 +509,7 @@ class _InventoryReconcileBanner extends StatelessWidget {
             Text('$differences diferencia(s) por conciliar', style: TextStyle(color: palette.textPrimary, fontWeight: FontWeight.w900)),
             const SizedBox(height: 3),
             Text(
-              'Puede incluir conteos de días anteriores. Al conciliar se conservan todos los movimientos posteriores al conteo.',
+              'Sincronizar establece el stock igual a lo contado. El historial anterior se conserva.',
               style: TextStyle(
                 color: palette.textSecondary,
                 fontWeight: FontWeight.w600,
@@ -1479,8 +1488,8 @@ class _InventoryCountSheetState extends State<_InventoryCountSheet> {
   @override
   Widget build(BuildContext context) {
     final palette = widget.palette;
-    final systemStock = widget.previousRecord?.invtCantidadEsperada ??
-        widget.product.inventarioActual ??
+    final systemStock = widget.product.inventarioActual ??
+        widget.previousRecord?.invtCantidadEsperada ??
         0;
     final difference = _value == null ? null : _value! - systemStock;
     final keyboard = MediaQuery.viewInsetsOf(context).bottom;
