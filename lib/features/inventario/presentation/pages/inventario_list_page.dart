@@ -409,9 +409,9 @@ class _InventarioListPageState extends ConsumerState<InventarioListPage> {
             child: SingleChildScrollView(
               child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.stretch, children: [
                 Text(
-                  'Se conciliará cada diferencia contra su último conteo físico. '
-                  'Si el conteo fue hace varios días, las ventas, compras y demás movimientos posteriores se conservan; '
-                  'solo se registra la diferencia detectada en ese conteo.',
+                  'Al confirmar, el stock del producto quedará igual a la cantidad '
+                  'física contada. Las recepciones y ventas quedan en el historial; '
+                  'no se vuelve a aplicar una diferencia histórica.',
                   style: TextStyle(
                     color: palette.textSecondary,
                     fontWeight: FontWeight.w600,
@@ -423,17 +423,23 @@ class _InventarioListPageState extends ConsumerState<InventarioListPage> {
                   for (final item in products) {
                     if (item.prodId == record.prodId) { product = item; break; }
                   }
-                  final diff = record.invtDiferencia ?? 0;
+                  final actual = product?.inventarioActual;
+                  final fisico = record.invtCantidad ?? 0;
+                  final delta = actual == null ? null : fisico - actual;
                   return ListTile(
                     contentPadding: EdgeInsets.zero,
-                    leading: Icon(diff > 0 ? Icons.add_circle_outline : Icons.remove_circle_outline,
-                        color: diff > 0 ? palette.success : palette.warning),
+                    leading: Icon(
+                      delta == null || delta == 0
+                          ? Icons.check_circle_outline
+                          : delta > 0 ? Icons.add_circle_outline : Icons.remove_circle_outline,
+                      color: delta == null || delta >= 0 ? palette.success : palette.warning,
+                    ),
                     title: Text(product?.prodNombre ?? 'Producto ${record.prodId}', style: const TextStyle(fontWeight: FontWeight.w800)),
                     subtitle: Text(
                       'Conteo ${_shortDate(record.invtFecha)} · '
-                      'Sistema ${_formatQuantity(record.invtCantidadEsperada ?? 0)} · '
-                      'Físico ${_formatQuantity(record.invtCantidad ?? 0)} · '
-                      'Diferencia ${diff > 0 ? '+' : ''}${_formatQuantity(diff)}',
+                      'Sistema actual ${actual == null ? "-" : _formatQuantity(actual)} · '
+                      'Físico ${_formatQuantity(fisico)} · '
+                      'Ajuste real ${delta == null ? "-" : "${delta > 0 ? "+" : ""}${_formatQuantity(delta)}"}',
                     ),
                   );
                 }),
@@ -475,7 +481,7 @@ class _InventarioListPageState extends ConsumerState<InventarioListPage> {
     );
     if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-      content: Text(ok ? 'Inventario sincronizado. Los ajustes quedaron registrados en movimientos.'
+      content: Text(ok ? 'Inventario sincronizado con las cantidades físicas registradas.'
           : (ref.read(inventarioConteoProvider).failure?.message ?? 'No fue posible sincronizar el inventario.')),
     ));
   }
@@ -500,7 +506,7 @@ class _InventoryReconcileBanner extends StatelessWidget {
             Text('$differences diferencia(s) por conciliar', style: TextStyle(color: palette.textPrimary, fontWeight: FontWeight.w900)),
             const SizedBox(height: 3),
             Text(
-              'Puede incluir conteos de días anteriores. Al conciliar se conservan todos los movimientos posteriores al conteo.',
+              'Sincronizar aplica el físico al stock actual. Los movimientos previos permanecen auditados.',
               style: TextStyle(
                 color: palette.textSecondary,
                 fontWeight: FontWeight.w600,
@@ -1479,9 +1485,9 @@ class _InventoryCountSheetState extends State<_InventoryCountSheet> {
   @override
   Widget build(BuildContext context) {
     final palette = widget.palette;
-    final systemStock = widget.previousRecord?.invtCantidadEsperada ??
-        widget.product.inventarioActual ??
-        0;
+    // Mostrar exactamente el stock de Administrar productos.
+    // El esperado de un conteo guardado no es un stock operativo vigente.
+    final systemStock = widget.product.inventarioActual ?? 0;
     final difference = _value == null ? null : _value! - systemStock;
     final keyboard = MediaQuery.viewInsetsOf(context).bottom;
 
