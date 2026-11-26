@@ -1488,9 +1488,9 @@ class _InventoryCountSheetState extends State<_InventoryCountSheet> {
   @override
   Widget build(BuildContext context) {
     final palette = widget.palette;
-    final systemStock = widget.product.inventarioActual ??
-        widget.previousRecord?.invtCantidadEsperada ??
-        0;
+    // La pantalla de conteo usa exactamente el mismo valor que Productos.
+    // Un esperado histórico (122) nunca sustituye el stock actual (92).
+    final systemStock = widget.product.inventarioActual ?? 0;
     final difference = _value == null ? null : _value! - systemStock;
     final keyboard = MediaQuery.viewInsetsOf(context).bottom;
 
