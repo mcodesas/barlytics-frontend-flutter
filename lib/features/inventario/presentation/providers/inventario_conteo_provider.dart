@@ -407,28 +407,7 @@ class InventarioConteoNotifier extends StateNotifier<InventarioConteoState> {
   bool _sameDay(DateTime a, DateTime b) =>
       a.year == b.year && a.month == b.month && a.day == b.day;
 
-  ProductosResponseModel _productWithInventory(
-    ProductosResponseModel product,
-    double inventory,
-  ) {
-    return ProductosResponseModel(
-      prodId: product.prodId,
-      sucuId: product.sucuId,
-      tpprId: product.tpprId,
-      mrcaId: product.mrcaId,
-      prodNombre: product.prodNombre,
-      prodDescripcion: product.prodDescripcion,
-      prodFoto: product.prodFoto,
-      prodFechaVencimiento: product.prodFechaVencimiento,
-      prodCompraPorCantidad: product.prodCompraPorCantidad,
-      prodCantidadCompra: product.prodCantidadCompra,
-      prodPresentacionCompra: product.prodPresentacionCompra,
-      inventarioActual: inventory,
-      ventasAyer: product.ventasAyer,
-      prodCreadoPor: product.prodCreadoPor,
-      prodFechaCambio: product.prodFechaCambio,
-    );
-  }
+
 }
 
 final inventarioConteoProvider = StateNotifierProvider.autoDispose<
