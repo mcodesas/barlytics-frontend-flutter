@@ -2733,6 +2733,432 @@ class _PriorityInventoryProduct extends StatelessWidget {
   }
 }
 
+enum _DayDifferenceFilter { todos, faltantes, sobrantes, cuadrados }
+
+/// Panel de consulta de la jornada: no sincroniza ni modifica el inventario.
+/// Cada cifra conserva la referencia usada al contar y la histórica original.
+class _DayDifferenceDetails extends StatefulWidget {
+  const _DayDifferenceDetails({
+    required this.day,
+    required this.palette,
+    this.initialProductId,
+  });
+
+  final _InventoryCountDay day;
+  final AppPalette palette;
+  final int? initialProductId;
+
+  @override
+  State<_DayDifferenceDetails> createState() => _DayDifferenceDetailsState();
+}
+
+class _DayDifferenceDetailsState extends State<_DayDifferenceDetails> {
+  final TextEditingController _search = TextEditingController();
+  _DayDifferenceFilter _filter = _DayDifferenceFilter.todos;
+
+  @override
+  void initState() {
+    super.initState();
+    final selected = widget.initialProductId;
+    if (selected != null) {
+      final coincidencias = widget.day.rows
+          .where((row) => row.productId == selected).toList();
+      if (coincidencias.isNotEmpty) _search.text = coincidencias.first.product;
+    }
+  }
+
+  @override
+  void dispose() {
+    _search.dispose();
+    super.dispose();
+  }
+
+  List<_InventoryAuditRow> get _filtered {
+    final term = _search.text.trim().toLowerCase();
+    final result = widget.day.rows.where((row) {
+      final matches = term.isEmpty ||
+          row.product.toLowerCase().contains(term) ||
+          row.countedBy.toLowerCase().contains(term) ||
+          row.productId.toString() == term ||
+          row.countId.toString() == term;
+      if (!matches) return false;
+      return switch (_filter) {
+        _DayDifferenceFilter.todos => true,
+        _DayDifferenceFilter.faltantes => row.difference < -0.0001,
+        _DayDifferenceFilter.sobrantes => row.difference > 0.0001,
+        _DayDifferenceFilter.cuadrados => !row.hasDifference,
+      };
+    }).toList();
+    // Arriba aparecen primero los casos con mayor impacto para investigar.
+    result.sort((a, b) {
+      final byValue = b.netImpact.abs().compareTo(a.netImpact.abs());
+      if (byValue != 0) return byValue;
+      return b.difference.abs().compareTo(a.difference.abs());
+    });
+    return result;
+  }
+
+  Widget _summary(String title, String value, Color color) {
+    final palette = widget.palette;
+    return Container(
+      width: 178,
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: color.withOpacity(.07),
+        borderRadius: BorderRadius.circular(13),
+        border: Border.all(color: color.withOpacity(.17)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(title, style: TextStyle(color: palette.textSecondary,
+              fontSize: 10, fontWeight: FontWeight.w700)),
+          const SizedBox(height: 4),
+          Text(value, maxLines: 1, overflow: TextOverflow.ellipsis,
+              style: TextStyle(color: palette.textPrimary,
+                  fontSize: 16, fontWeight: FontWeight.w900)),
+        ],
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final palette = widget.palette;
+    final day = widget.day;
+    final size = MediaQuery.sizeOf(context);
+    final mobile = size.width < 720;
+    final width = math.min(size.width - 20, 1050).toDouble();
+    final height = math.min(size.height - 24, 840).toDouble();
+    final visible = _filtered;
+    final missing = day.rows.where((r) => r.difference < -0.0001).length;
+    final extra = day.rows.where((r) => r.difference > 0.0001).length;
+    final exact = day.rows.where((r) => !r.hasDifference).length;
+
+    return Dialog(
+      insetPadding: const EdgeInsets.all(10),
+      clipBehavior: Clip.antiAlias,
+      backgroundColor: palette.surface,
+      child: SizedBox(
+        width: width,
+        height: height,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Padding(
+              padding: EdgeInsets.fromLTRB(
+                  mobile ? 14 : 20, 14, mobile ? 10 : 16, 10),
+              child: Row(
+                children: [
+                  Icon(Icons.manage_search_rounded,
+                      color: palette.secondary, size: 26),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text('Detalle de diferencias de la jornada',
+                            maxLines: 2,
+                            style: TextStyle(color: palette.textPrimary,
+                                fontWeight: FontWeight.w900,
+                                fontSize: mobile ? 16 : 20)),
+                        const SizedBox(height: 3),
+                        Text(
+                          '${DateFormat('dd/MM/yyyy').format(day.date)} · '
+                          '${day.rows.length} registro(s) · '
+                          '${day.pendingCount} pendiente(s)',
+                          style: TextStyle(color: palette.textSecondary,
+                              fontSize: 11, fontWeight: FontWeight.w600),
+                        ),
+                      ],
+                    ),
+                  ),
+                  IconButton(
+                    tooltip: 'Cerrar detalle',
+                    onPressed: () => Navigator.of(context).pop(),
+                    icon: const Icon(Icons.close_rounded),
+                  ),
+                ],
+              ),
+            ),
+            Divider(height: 1, color: palette.cardBorder.withOpacity(.6)),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(12, 12, 12, 8),
+              child: SingleChildScrollView(
+                scrollDirection: Axis.horizontal,
+                child: Row(
+                  children: [
+                    _summary('Faltante a costo',
+                        CurrencyUtils.format(day.missingValue),
+                        Colors.redAccent),
+                    const SizedBox(width: 8),
+                    _summary('Sobrante a costo',
+                        CurrencyUtils.format(day.surplusValue),
+                        palette.success),
+                    const SizedBox(width: 8),
+                    _summary('Impacto neto',
+                        CurrencyUtils.format(day.netImpact),
+                        day.netImpact < 0 ? Colors.orangeAccent : palette.success),
+                    const SizedBox(width: 8),
+                    _summary('Exactitud',
+                        '${day.accuracy.toStringAsFixed(1)} %',
+                        palette.secondary),
+                    const SizedBox(width: 8),
+                    _summary('Por administrar',
+                        '${day.pendingCount}', palette.warning),
+                  ],
+                ),
+              ),
+            ),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 14),
+              child: TextField(
+                controller: _search,
+                onChanged: (_) => setState(() {}),
+                decoration: InputDecoration(
+                  isDense: true,
+                  prefixIcon: const Icon(Icons.search_rounded),
+                  hintText: 'Buscar producto, responsable o ID del conteo',
+                  suffixIcon: _search.text.isEmpty
+                      ? null
+                      : IconButton(
+                          tooltip: 'Limpiar búsqueda',
+                          onPressed: () => setState(_search.clear),
+                          icon: const Icon(Icons.close_rounded),
+                        ),
+                ),
+              ),
+            ),
+            const SizedBox(height: 8),
+            SizedBox(
+              height: 40,
+              child: ListView(
+                scrollDirection: Axis.horizontal,
+                padding: const EdgeInsets.symmetric(horizontal: 14),
+                children: [
+                  for (final option in _DayDifferenceFilter.values) ...[
+                    ChoiceChip(
+                      label: Text(switch (option) {
+                        _DayDifferenceFilter.todos =>
+                          'Todos (${day.rows.length})',
+                        _DayDifferenceFilter.faltantes =>
+                          'Faltantes ($missing)',
+                        _DayDifferenceFilter.sobrantes =>
+                          'Sobrantes ($extra)',
+                        _DayDifferenceFilter.cuadrados =>
+                          'Cuadrados ($exact)',
+                      }),
+                      selected: _filter == option,
+                      onSelected: (_) => setState(() => _filter = option),
+                    ),
+                    const SizedBox(width: 8),
+                  ],
+                ],
+              ),
+            ),
+            const SizedBox(height: 5),
+            Expanded(
+              child: visible.isEmpty
+                  ? Center(child: Text('No hay productos para este filtro.',
+                      style: TextStyle(color: palette.textSecondary)))
+                  : ListView.separated(
+                      padding: const EdgeInsets.fromLTRB(12, 6, 12, 14),
+                      itemCount: visible.length,
+                      separatorBuilder: (_, __) =>
+                          const SizedBox(height: 8),
+                      itemBuilder: (_, index) => _DayDifferenceProductCard(
+                        key: ValueKey('auditoria-detalle-${visible[index].countId}'),
+                        row: visible[index],
+                        palette: palette,
+                        expandedInitially: widget.initialProductId ==
+                            visible[index].productId,
+                      ),
+                    ),
+            ),
+            Divider(height: 1, color: palette.cardBorder.withOpacity(.6)),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(14, 10, 14, 12),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: Text(
+                      'Ventas del día: ${day.salesDay} · '
+                      'Total vendido: ${CurrencyUtils.format(day.totalSoldDay)} · '
+                      'Mostrando ${visible.length} producto(s)',
+                      maxLines: 2,
+                      style: TextStyle(color: palette.textSecondary,
+                          fontWeight: FontWeight.w600, fontSize: 10),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  TextButton.icon(
+                    onPressed: () => Navigator.of(context).pop(),
+                    icon: const Icon(Icons.check_rounded, size: 16),
+                    label: const Text('Cerrar'),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _DayDifferenceProductCard extends StatelessWidget {
+  const _DayDifferenceProductCard({
+    super.key,
+    required this.row,
+    required this.palette,
+    required this.expandedInitially,
+  });
+
+  final _InventoryAuditRow row;
+  final AppPalette palette;
+  final bool expandedInitially;
+
+  Widget _detail(String title, String value, {Color? color}) => Container(
+        constraints: const BoxConstraints(minWidth: 140),
+        padding: const EdgeInsets.symmetric(vertical: 5, horizontal: 7),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(title, style: TextStyle(
+                color: palette.textSecondary,
+                fontSize: 9.5, fontWeight: FontWeight.w600)),
+            const SizedBox(height: 3),
+            Text(value, style: TextStyle(
+                color: color ?? palette.textPrimary,
+                fontSize: 12, fontWeight: FontWeight.w900)),
+          ],
+        ),
+      );
+
+  @override
+  Widget build(BuildContext context) {
+    final missing = row.difference < -0.0001;
+    final surplus = row.difference > 0.0001;
+    final color = missing ? Colors.redAccent
+        : surplus ? palette.success : palette.secondary;
+    final status = _statusLabel(row.status);
+    final amount = missing ? row.missingValue : row.surplusValue;
+
+    return Container(
+      decoration: BoxDecoration(
+        color: color.withOpacity(.035),
+        border: Border.all(color: color.withOpacity(.20)),
+        borderRadius: BorderRadius.circular(14),
+      ),
+      child: ExpansionTile(
+        initiallyExpanded: expandedInitially,
+        tilePadding: const EdgeInsets.symmetric(horizontal: 12),
+        childrenPadding: const EdgeInsets.fromLTRB(10, 0, 10, 12),
+        leading: Icon(
+          missing ? Icons.remove_circle_outline_rounded
+              : surplus ? Icons.add_circle_outline_rounded
+              : Icons.check_circle_outline_rounded,
+          color: color,
+        ),
+        title: Text(row.product, maxLines: 2,
+            style: TextStyle(color: palette.textPrimary,
+                fontWeight: FontWeight.w800, fontSize: 12)),
+        subtitle: Text(
+          '${missing ? "Faltan" : surplus ? "Sobran" : "Sin diferencia"} '
+          '${_qty(row.difference.abs())} · '
+          'Base ${_qty(row.expected)} · Físico ${_qty(row.counted)} · '
+          '$status',
+          maxLines: 2, overflow: TextOverflow.ellipsis,
+          style: TextStyle(color: palette.textSecondary, fontSize: 10),
+        ),
+        trailing: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.end,
+          children: [
+            Text(CurrencyUtils.format(amount),
+                style: TextStyle(color: color, fontWeight: FontWeight.w900,
+                    fontSize: 12)),
+            Text('Ver detalle', style: TextStyle(
+                color: palette.textSecondary, fontSize: 9)),
+          ],
+        ),
+        children: [
+          Align(
+            alignment: Alignment.centerLeft,
+            child: Text(
+              'Producto #${row.productId} · Registro de conteo #${row.countId} · '
+              'Fecha: ${DateFormat('dd/MM/yyyy HH:mm').format(row.countDate)}',
+              style: TextStyle(color: palette.textSecondary,
+                  fontSize: 10, fontWeight: FontWeight.w700),
+            ),
+          ),
+          const SizedBox(height: 8),
+          Wrap(
+            spacing: 6,
+            runSpacing: 4,
+            children: [
+              _detail(
+                row.usesCurrentStock ? 'Stock base actual' : 'Base histórica',
+                _qty(row.expected), color: palette.secondary),
+              _detail('Físico contado', _qty(row.counted)),
+              _detail('Diferencia', _signedQty(row.difference), color: color),
+              _detail('Stock actual de Productos',
+                  row.hasCurrentSystemStock
+                      ? _qty(row.currentSystemStock) : 'Sin datos'),
+              _detail('Esperado guardado al contar',
+                  _qty(row.historicalExpected)),
+              _detail('Costo unitario de compra',
+                  CurrencyUtils.format(row.unitPurchaseCost)),
+              _detail('Valor esperado a costo',
+                  CurrencyUtils.format(row.expectedValue)),
+              _detail('Valor contado a costo',
+                  CurrencyUtils.format(row.countedValue)),
+              _detail('Valor faltante a costo',
+                  CurrencyUtils.format(row.missingValue),
+                  color: Colors.redAccent),
+              _detail('Valor sobrante a costo',
+                  CurrencyUtils.format(row.surplusValue),
+                  color: palette.success),
+              _detail('Impacto neto a costo',
+                  CurrencyUtils.format(row.netImpact)),
+              _detail('Estado del conteo', status),
+              if (row.adjustmentId != null)
+                _detail('ID movimiento conciliación',
+                    '#${row.adjustmentId}'),
+              if (row.adjustmentOperation != null)
+                _detail('Operación de ajuste',
+                    '${row.adjustmentOperation} · ${_qty(row.adjustmentQuantity)}'),
+              if (row.unitsPerPresentation > 1)
+                _detail('Presentación de compra',
+                    '${row.purchasePresentation} · '
+                    '${_qty(row.unitsPerPresentation)} unidades'),
+            ],
+          ),
+          const SizedBox(height: 6),
+          Align(
+            alignment: Alignment.centerLeft,
+            child: Text(
+              'Contado por: ${row.countedBy}\n'
+              'Último registro del producto: '
+              '${row.latestCount ? "Sí" : "No, hay un conteo posterior"}\n'
+              'Actualización del stock: ${row.currentSystemStockDate == null ? "Sin datos" : DateFormat('dd/MM/yyyy HH:mm').format(row.currentSystemStockDate!)}\n'
+              'Conciliación: ${row.synchronizedAt == null ? "No registrada" : DateFormat('dd/MM/yyyy HH:mm').format(row.synchronizedAt!)}'
+              '${row.synchronizedBy == null ? "" : " · Por ${row.synchronizedBy}"}'
+              '${row.adjustmentReason == null ? "" : " · Motivo: ${row.adjustmentReason}"}\n'
+              'Ventas de la jornada: ${row.salesDay} · '
+              'Total: ${CurrencyUtils.format(row.totalSoldDay)}\n'
+              'Atendieron: ${row.attendedBy}',
+              style: TextStyle(color: palette.textSecondary,
+                  fontSize: 10.5, fontWeight: FontWeight.w600,
+                  height: 1.5),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
 class _AdminToolbar extends StatelessWidget {
   const _AdminToolbar({
     required this.palette,
