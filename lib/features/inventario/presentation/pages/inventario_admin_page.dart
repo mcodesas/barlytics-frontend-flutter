@@ -1347,9 +1347,10 @@ class _ReconcileDialogState extends State<_ReconcileDialog> {
                 const SizedBox(width: 9),
                 Expanded(
                   child: Text(
-                    'Se crearán ${_selected.length} movimiento(s) de ajuste. '
-                    'Las ventas, compras y movimientos posteriores al conteo '
-                    'se conservan.',
+                    'Se aplicará la cantidad física contada como nuevo '
+                    'stock para cada producto seleccionado. Solo se crea '
+                    'un movimiento cuando el stock actual difiere; las '
+                    'compras y ventas anteriores permanecen en el historial.',
                     style: TextStyle(
                       color: palette.textPrimary,
                       fontWeight: FontWeight.w600,
