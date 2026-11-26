@@ -19,8 +19,8 @@ InventoryAdminBalance balance({
       unitCost: cost,
       persistedExpectedValue: historical * cost,
       persistedCountedValue: counted * cost,
-      persistedMissingValue: (historical - counted).clamp(0, double.infinity) * cost,
-      persistedSurplusValue: (counted - historical).clamp(0, double.infinity) * cost,
+      persistedMissingValue: (historical > counted ? historical - counted : 0.0) * cost,
+      persistedSurplusValue: (counted > historical ? counted - historical : 0.0) * cost,
       persistedNetImpact: (counted - historical) * cost,
     );
 
