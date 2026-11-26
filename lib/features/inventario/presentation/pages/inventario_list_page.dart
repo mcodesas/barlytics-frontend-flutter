@@ -342,6 +342,27 @@ class _InventarioListPageState extends ConsumerState<InventarioListPage> {
     ProductosResponseModel product,
     InventarioResponseModel? previousRecord,
   ) async {
+    // La sucursal pudo recibir un pedido mientras el conteo estaba abierto.
+    // Actualizar el producto antes de enseñar el saldo evita reutilizar el
+    // esperado histórico o un stock en caché.
+    await ref.read(inventarioConteoProvider.notifier).load();
+    if (!mounted) return;
+    final refreshed = ref.read(inventarioConteoProvider);
+    if (refreshed.failure != null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(
+          refreshed.failure?.message ?? 'No fue posible actualizar el inventario.',
+        )),
+      );
+      return;
+    }
+    final currentProduct = refreshed.productos.firstWhere(
+      (item) => item.prodId == product.prodId,
+      orElse: () => product,
+    );
+    final currentRecord = product.prodId == null
+        ? previousRecord : refreshed.registrosHoy[product.prodId];
+
     final palette = ref.read(selectedAppPaletteProvider);
     final quantity = await showModalBottomSheet<double>(
       context: context,
@@ -356,8 +377,8 @@ class _InventarioListPageState extends ConsumerState<InventarioListPage> {
       ),
       clipBehavior: Clip.none,
       builder: (sheetContext) => _InventoryCountSheet(
-        product: product,
-        previousRecord: previousRecord,
+        product: currentProduct,
+        previousRecord: currentRecord,
         palette: palette,
       ),
     );
@@ -365,7 +386,7 @@ class _InventarioListPageState extends ConsumerState<InventarioListPage> {
     if (quantity == null || !mounted) return;
     final ok = await ref
         .read(inventarioConteoProvider.notifier)
-        .registrarConteo(producto: product, cantidad: quantity);
+        .registrarConteo(producto: currentProduct, cantidad: quantity);
     if (!mounted) return;
 
     if (!ok) {
@@ -377,7 +398,7 @@ class _InventarioListPageState extends ConsumerState<InventarioListPage> {
       return;
     }
 
-    final id = product.prodId;
+    final id = currentProduct.prodId;
     if (id != null) {
       setState(() => _justCompleted.add(id));
       await Future<void>.delayed(const Duration(milliseconds: 900));
