@@ -2502,142 +2502,190 @@ class _DayValueBar extends StatelessWidget {
   const _DayValueBar({
     required this.day,
     required this.palette,
+    required this.onTap,
   });
 
   final _InventoryCountDay day;
   final AppPalette palette;
+  final VoidCallback onTap;
 
   @override
   Widget build(BuildContext context) {
     final maxValue = math.max(day.missingValue, day.surplusValue);
-    final missingRatio =
-        maxValue <= 0 ? 0.0 : day.missingValue / maxValue;
-    final surplusRatio =
-        maxValue <= 0 ? 0.0 : day.surplusValue / maxValue;
-
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        Row(
-          children: [
-            Expanded(
-              child: Text(
-                DateFormat('dd/MM/yyyy').format(day.date),
-                style: TextStyle(
-                  color: palette.textPrimary,
-                  fontWeight: FontWeight.w800,
-                  fontSize: 11,
-                ),
-              ),
-            ),
-            Text(
-              'Falta ${CurrencyUtils.format(day.missingValue)} · '
-              'Sobra ${CurrencyUtils.format(day.surplusValue)}',
-              style: TextStyle(
-                color: palette.textSecondary,
-                fontWeight: FontWeight.w700,
-                fontSize: 9.5,
-              ),
-            ),
-          ],
-        ),
-        const SizedBox(height: 5),
-        Row(
-          children: [
-            Expanded(
-              child: ClipRRect(
-                borderRadius: BorderRadius.circular(999),
-                child: LinearProgressIndicator(
-                  value: missingRatio,
-                  minHeight: 7,
-                  backgroundColor: palette.cardBorder.withOpacity(.35),
-                  valueColor:
-                      const AlwaysStoppedAnimation<Color>(Colors.redAccent),
-                ),
-              ),
-            ),
-            const SizedBox(width: 7),
-            Expanded(
-              child: ClipRRect(
-                borderRadius: BorderRadius.circular(999),
-                child: LinearProgressIndicator(
-                  value: surplusRatio,
-                  minHeight: 7,
-                  backgroundColor: palette.cardBorder.withOpacity(.35),
-                  valueColor:
-                      AlwaysStoppedAnimation<Color>(palette.success),
-                ),
-              ),
-            ),
-          ],
-        ),
-      ],
-    );
-  }
-}
-
-class _TopMissingProduct extends StatelessWidget {
-  const _TopMissingProduct({
-    required this.row,
-    required this.palette,
-  });
-
-  final _InventoryAuditRow row;
-  final AppPalette palette;
-
-  @override
-  Widget build(BuildContext context) => Container(
-        padding: const EdgeInsets.all(10),
-        decoration: BoxDecoration(
-          color: Colors.redAccent.withOpacity(.05),
-          borderRadius: BorderRadius.circular(13),
-          border: Border.all(color: Colors.redAccent.withOpacity(.14)),
-        ),
-        child: Row(
-          children: [
-            const Icon(
-              Icons.remove_circle_outline_rounded,
-              color: Colors.redAccent,
-              size: 18,
-            ),
-            const SizedBox(width: 8),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
+    final missingRatio = maxValue <= 0 ? 0.0 : day.missingValue / maxValue;
+    final surplusRatio = maxValue <= 0 ? 0.0 : day.surplusValue / maxValue;
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(12),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 10),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Row(
                 children: [
-                  Text(
-                    row.product,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: TextStyle(
-                      color: palette.textPrimary,
-                      fontWeight: FontWeight.w800,
-                      fontSize: 11,
+                  Icon(Icons.calendar_today_outlined,
+                      size: 14, color: palette.secondary),
+                  const SizedBox(width: 7),
+                  Expanded(
+                    child: Text(
+                      DateFormat('dd/MM/yyyy').format(day.date),
+                      style: TextStyle(
+                        color: palette.textPrimary,
+                        fontWeight: FontWeight.w800,
+                        fontSize: 11,
+                      ),
                     ),
                   ),
-                  Text(
-                    'Faltan ${_qty(math.max(0, -row.difference))} unid. · '
-                    'Costo unit. ${CurrencyUtils.format(row.unitPurchaseCost)}',
-                    style: TextStyle(
-                      color: palette.textSecondary,
-                      fontWeight: FontWeight.w600,
-                      fontSize: 9.5,
+                  Flexible(
+                    flex: 3,
+                    child: Text(
+                      'Falta ${CurrencyUtils.format(day.missingValue)} · '
+                      'Sobra ${CurrencyUtils.format(day.surplusValue)}',
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        color: palette.textSecondary,
+                        fontWeight: FontWeight.w700,
+                        fontSize: 9.5,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 6),
+                  Icon(Icons.open_in_new_rounded,
+                      color: palette.secondary, size: 16),
+                ],
+              ),
+              const SizedBox(height: 7),
+              Row(
+                children: [
+                  Expanded(
+                    child: ClipRRect(
+                      borderRadius: BorderRadius.circular(999),
+                      child: LinearProgressIndicator(
+                        value: missingRatio,
+                        minHeight: 7,
+                        backgroundColor: palette.cardBorder.withOpacity(.35),
+                        valueColor:
+                            const AlwaysStoppedAnimation<Color>(Colors.redAccent),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 7),
+                  Expanded(
+                    child: ClipRRect(
+                      borderRadius: BorderRadius.circular(999),
+                      child: LinearProgressIndicator(
+                        value: surplusRatio,
+                        minHeight: 7,
+                        backgroundColor: palette.cardBorder.withOpacity(.35),
+                        valueColor:
+                            AlwaysStoppedAnimation<Color>(palette.success),
+                      ),
                     ),
                   ),
                 ],
               ),
-            ),
-            Text(
-              CurrencyUtils.format(row.missingValue),
-              style: const TextStyle(
-                color: Colors.redAccent,
-                fontWeight: FontWeight.w900,
-                fontSize: 11,
+              const SizedBox(height: 5),
+              Text(
+                '${day.rows.length} producto(s) · '
+                '${day.differenceCount} con diferencia · '
+                '${day.pendingCount} pendientes · Ver detalles',
+                style: TextStyle(
+                  color: palette.textSecondary,
+                  fontWeight: FontWeight.w600,
+                  fontSize: 9.5,
+                ),
               ),
-            ),
-          ],
+            ],
+          ),
         ),
-      );
+      ),
+    );
+  }
+}
+
+/// Prioriza faltantes Y sobrantes del último conteo; muestra la unidad
+/// afectada, su impacto real y permite abrir el panel detallado.
+class _PriorityInventoryProduct extends StatelessWidget {
+  const _PriorityInventoryProduct({
+    required this.row,
+    required this.palette,
+    required this.onTap,
+  });
+
+  final _InventoryAuditRow row;
+  final AppPalette palette;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final missing = row.difference < 0;
+    final color = missing ? Colors.redAccent : palette.success;
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(13),
+        child: Container(
+          padding: const EdgeInsets.all(10),
+          decoration: BoxDecoration(
+            color: color.withOpacity(.05),
+            borderRadius: BorderRadius.circular(13),
+            border: Border.all(color: color.withOpacity(.17)),
+          ),
+          child: Row(
+            children: [
+              Icon(
+                missing
+                    ? Icons.remove_circle_outline_rounded
+                    : Icons.add_circle_outline_rounded,
+                color: color, size: 18,
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      row.product,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        color: palette.textPrimary,
+                        fontWeight: FontWeight.w800,
+                        fontSize: 11,
+                      ),
+                    ),
+                    Text(
+                      '${missing ? "Faltan" : "Sobran"} '
+                      '${_qty(row.difference.abs())} unid. · '
+                      'Costo unit. ${CurrencyUtils.format(row.unitPurchaseCost)}',
+                      style: TextStyle(
+                        color: palette.textSecondary,
+                        fontWeight: FontWeight.w600,
+                        fontSize: 9.5,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(width: 6),
+              Text(
+                CurrencyUtils.format(row.netImpact.abs()),
+                style: TextStyle(color: color,
+                    fontWeight: FontWeight.w900, fontSize: 11),
+              ),
+              const SizedBox(width: 4),
+              Icon(Icons.chevron_right_rounded,
+                  color: palette.secondary, size: 18),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
 }
 
 class _AdminToolbar extends StatelessWidget {
