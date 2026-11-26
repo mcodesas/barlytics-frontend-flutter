@@ -1757,7 +1757,7 @@ class _ReconcileProductCard extends StatelessWidget {
                       runSpacing: 6,
                       children: [
                         _MiniAuditChip(
-                          label: 'Esperado',
+                          label: 'Esperado histórico',
                           value: _qty(row.expected),
                           color: palette.secondary,
                           palette: palette,
@@ -3876,7 +3876,7 @@ class _ProductAuditRow extends StatelessWidget {
             runSpacing: 7,
             children: [
               _AuditValue(
-                label: 'Esperado',
+                label: 'Esperado histórico',
                 value: _qty(row.expected),
                 palette: palette,
               ),
