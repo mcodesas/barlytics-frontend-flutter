@@ -206,13 +206,9 @@ class InventarioConteoNotifier extends StateNotifier<InventarioConteoState> {
         updatedPending.remove(productId);
       }
 
-      final updatedProducts = state.productos
-          .map(
-            (item) => item.prodId == productId
-                ? _productWithInventory(item, cantidad)
-                : item,
-          )
-          .toList(growable: false);
+      // Un conteo físico NO sustituye inventarioActual antes de sincronizar.
+      // Esta lista mantiene el stock operativo que entregó Productos.
+      final updatedProducts = state.productos;
       final saving = {...state.guardandoProductos}..remove(productId);
       final savedDate = DateTime.tryParse(saved.invtFecha ?? '');
 
