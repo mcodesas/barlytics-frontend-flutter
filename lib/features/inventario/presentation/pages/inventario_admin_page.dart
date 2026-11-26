@@ -594,6 +594,21 @@ class _InventarioAdminPageState extends ConsumerState<InventarioAdminPage> {
     await _load();
   }
 
+  /// Vista informativa de cada jornada, sin ajustar inventario ni
+  /// modificar conteos. Un clic en una prioridad abre el producto filtrado.
+  void _showDayDifferenceDetails(_InventoryCountDay day, {int? productId}) {
+    if (!mounted) return;
+    final palette = ref.read(selectedAppPaletteProvider);
+    showDialog<void>(
+      context: context,
+      builder: (_) => _DayDifferenceDetails(
+        day: day,
+        palette: palette,
+        initialProductId: productId,
+      ),
+    );
+  }
+
   Future<void> _reviewReconciliation(_InventoryCountDay day) async {
     final candidates =
         day.rows.where((row) => row.reconciliable).toList(growable: false);
@@ -2318,81 +2333,99 @@ class _CostWarning extends StatelessWidget {
 class _AdminInsights extends StatelessWidget {
   const _AdminInsights({
     required this.days,
-    required this.rows,
     required this.palette,
+    required this.onDayTap,
+    required this.onProductTap,
   });
 
   final List<_InventoryCountDay> days;
-  final List<_InventoryAuditRow> rows;
   final AppPalette palette;
+  final ValueChanged<_InventoryCountDay> onDayTap;
+  final void Function(_InventoryCountDay day, int productId) onProductTap;
 
   @override
   Widget build(BuildContext context) {
-    final missingProducts = [...rows]
-      ..sort((a, b) => b.missingValue.compareTo(a.missingValue));
-    final top = missingProducts
-        .where((row) => row.missingValue > 0)
-        .take(6)
-        .toList(growable: false);
-
+    final ultimo = days.isEmpty ? null : days.first;
+    // Las prioridades son únicamente del último conteo, no del histórico
+    // completo; se muestran faltantes y sobrantes según impacto económico.
+    final hallazgos = [...?ultimo?.rows.where(
+      (row) => row.hasDifference &&
+          (row.status == 'PENDIENTE' || row.status == 'ANULADO'),
+    )]
+      ..sort((a, b) {
+        final impacto = b.netImpact.abs().compareTo(a.netImpact.abs());
+        if (impacto != 0) return impacto;
+        return b.difference.abs().compareTo(a.difference.abs());
+      });
+    final prioritarios = hallazgos.take(6).toList(growable: false);
     final dayCards = days.take(8).toList(growable: false);
+    final ultimoFecha = ultimo == null
+        ? 'Sin conteos'
+        : DateFormat('dd/MM/yyyy').format(ultimo.date);
 
     return LayoutBuilder(
       builder: (context, constraints) {
         final compact = constraints.maxWidth < 900;
-
         final trend = _AdminPanel(
           title: 'Diferencias por jornada',
-          subtitle:
-              'Compara en dinero cuánto faltó y cuánto sobró en cada conteo.',
+          subtitle: 'Pulsa una jornada para ver productos, cantidades, '
+              'faltantes, sobrantes, valores y responsables.',
           icon: Icons.bar_chart_rounded,
           palette: palette,
           child: dayCards.isEmpty
               ? _EmptyAdminState(
                   palette: palette,
-                  text: 'Aún no hay jornadas en el periodo.',
+                  text: 'Aún no hay jornadas en el período.',
                 )
               : Column(
                   children: [
                     for (final day in dayCards) ...[
-                      _DayValueBar(day: day, palette: palette),
-                      if (day != dayCards.last) const SizedBox(height: 10),
+                      _DayValueBar(
+                        day: day,
+                        palette: palette,
+                        onTap: () => onDayTap(day),
+                      ),
+                      if (day != dayCards.last) const SizedBox(height: 8),
                     ],
                   ],
                 ),
         );
-
         final products = _AdminPanel(
-          title: 'Productos con mayor faltante',
-          subtitle:
-              'Prioriza dónde investigar primero según impacto a costo de compra.',
+          title: 'Hallazgos prioritarios · último conteo',
+          subtitle: 'Conteo $ultimoFecha · Ordenados por mayor '
+              'impacto económico pendiente. Pulsa para inspeccionar.',
           icon: Icons.crisis_alert_rounded,
           palette: palette,
-          child: top.isEmpty
+          child: prioritarios.isEmpty
               ? _EmptyAdminState(
                   palette: palette,
-                  text: 'No hay faltantes valorizados en el periodo.',
+                  text: ultimo == null
+                      ? 'No hay conteos en el período.'
+                      : 'El último conteo no tiene diferencias pendientes '
+                          'de revisar.',
                 )
               : Column(
                   children: [
-                    for (final row in top) ...[
-                      _TopMissingProduct(row: row, palette: palette),
-                      if (row != top.last) const SizedBox(height: 8),
+                    for (final row in prioritarios) ...[
+                      _PriorityInventoryProduct(
+                        row: row,
+                        palette: palette,
+                        onTap: () => onProductTap(ultimo!, row.productId),
+                      ),
+                      if (row != prioritarios.last)
+                        const SizedBox(height: 8),
                     ],
                   ],
                 ),
         );
 
         if (compact) {
-          return Column(
-            children: [
-              trend,
-              const SizedBox(height: 12),
-              products,
-            ],
-          );
+          return Column(children: [
+            trend,
+            const SizedBox(height: 12),
+            products,
+          ]);
         }
-
         return Row(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
