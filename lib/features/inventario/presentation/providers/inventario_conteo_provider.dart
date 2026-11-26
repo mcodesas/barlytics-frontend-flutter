@@ -102,10 +102,20 @@ class InventarioConteoNotifier extends StateNotifier<InventarioConteoState> {
           await _loadReconciliationStatuses(selectedSucursalId);
       final registrosHoy = _latestRecordsToday(registros);
       final ultimosConteos = _latestPhysicalCounts(registros);
+      // El esperado pertenece al conteo histórico, NO representa el stock
+      // del catálogo. Para mostrar diferencias pendientes se compara siempre
+      // contra inventarioActual, obtenido del mismo endpoint que Productos.
+      final stockActualPorProducto = <int, double>{
+        for (final product in productos)
+          if (product.prodId != null)
+            product.prodId!: product.inventarioActual ?? 0,
+      };
       final conteosPendientes = <int, InventarioResponseModel>{
         for (final entry in ultimosConteos.entries)
           if (entry.value.invtOrigen == 'CONTEO_FISICO' &&
-              (entry.value.invtDiferencia ?? 0).abs() > 0.0001 &&
+              stockActualPorProducto.containsKey(entry.key) &&
+              ((entry.value.invtCantidad ?? 0) -
+                  stockActualPorProducto[entry.key]!).abs() > 0.0001 &&
               estadosConciliacion[entry.value.invtId] == 'PENDIENTE')
             entry.key: entry.value,
       };
@@ -199,8 +209,10 @@ class InventarioConteoNotifier extends StateNotifier<InventarioConteoState> {
       final updatedPending = <int, InventarioResponseModel>{
         ...state.conteosPendientes,
       };
+      // No confundir diferencia histórica con el stock actual visible.
+      final stockActual = producto.inventarioActual ?? 0;
       if (saved.invtOrigen == 'CONTEO_FISICO' &&
-          (saved.invtDiferencia ?? 0).abs() > 0.0001) {
+          ((saved.invtCantidad ?? 0) - stockActual).abs() > 0.0001) {
         updatedPending[productId] = saved;
       } else {
         updatedPending.remove(productId);
