@@ -72,8 +72,8 @@ class InventoryAdminBalance {
 
     final expectedValue = expected * unitCost;
     final countedValue = counted * unitCost;
-    final missingValue = (expected - counted > 0 ? expected - counted : 0) * unitCost;
-    final surplusValue = (difference > 0 ? difference : 0) * unitCost;
+    final missingValue = (expected > counted ? expected - counted : 0.0) * unitCost;
+    final surplusValue = (difference > 0 ? difference : 0.0) * unitCost;
     return InventoryAdminBalance(
       expected: expected,
       historicalExpected: historicalExpected,
