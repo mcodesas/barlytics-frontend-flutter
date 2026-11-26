@@ -4,6 +4,8 @@ import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
+import '../../../navigation/presentation/providers/user_menu_provider.dart';
 
 import '../../../../app/theme/app_control_metrics.dart';
 import '../../../../app/theme/app_palette.dart';
@@ -48,6 +50,10 @@ class _InventarioListPageState extends ConsumerState<InventarioListPage> {
         body: Center(child: Text('Esta funcionalidad no está incluida en tu plan actual.')),
       );
     }
+    final canAdministerInventory = ref.watch(userMenuProvider).maybeWhen(
+      data: (items) => items.any((item) => item.path == '/inventario_admin'),
+      orElse: () => false,
+    );
     final palette = ref.watch(selectedAppPaletteProvider);
     final branchState = ref.watch(branchScopeProvider);
     final state = ref.watch(inventarioConteoProvider);
@@ -84,16 +90,6 @@ class _InventarioListPageState extends ConsumerState<InventarioListPage> {
     final pending = math.max(0, total - completed).toInt();
     final progress = total == 0 ? 0.0 : completed / total;
     final query = _searchController.text.trim().toLowerCase();
-    final diferenciasPendientes =
-        state.conteosPendientes.values.toList(growable: false)
-          ..sort((a, b) {
-            final ad = DateTime.tryParse(a.invtFecha ?? '');
-            final bd = DateTime.tryParse(b.invtFecha ?? '');
-            if (ad == null && bd == null) return 0;
-            if (ad == null) return 1;
-            if (bd == null) return -1;
-            return ad.compareTo(bd);
-          });
 
     final visible = state.productos.where((product) {
       final id = product.prodId;
@@ -197,7 +193,7 @@ class _InventarioListPageState extends ConsumerState<InventarioListPage> {
                   ),
                 ),
               ),
-              if (diferenciasPendientes.isNotEmpty)
+              if (canAdministerInventory)
                 SliverToBoxAdapter(
                   child: Center(
                     child: ConstrainedBox(
@@ -206,8 +202,8 @@ class _InventarioListPageState extends ConsumerState<InventarioListPage> {
                         padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
                         child: _InventoryReconcileBanner(
                           palette: palette,
-                          differences: diferenciasPendientes.length,
-                          onPressed: loading ? null : () => _openReconcileDialog(context, diferenciasPendientes, state.productos),
+                          differences: state.conteosPendientes.length,
+                          onPressed: loading ? null : () => context.push('/inventario_admin'),
                         ),
                       ),
                     ),
@@ -415,97 +411,7 @@ class _InventarioListPageState extends ConsumerState<InventarioListPage> {
     );
   }
 
-  Future<void> _openReconcileDialog(BuildContext context, List<InventarioResponseModel> differences, List<ProductosResponseModel> products) async {
-    final observation = TextEditingController();
-    String reason = 'Diferencia de conteo';
-    final palette = ref.read(selectedAppPaletteProvider);
-    final confirmed = await showDialog<bool>(
-      context: context,
-      builder: (dialogContext) => StatefulBuilder(
-        builder: (context, setDialogState) => AlertDialog(
-      scrollable: true,
-          title: const Text('Sincronizar diferencias'),
-          content: SizedBox(
-            width: 560,
-            child: SingleChildScrollView(
-              child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-                Text(
-                  'Al confirmar, el stock del producto quedará igual a la cantidad '
-                  'física contada. Las recepciones y ventas quedan en el historial; '
-                  'no se vuelve a aplicar una diferencia histórica.',
-                  style: TextStyle(
-                    color: palette.textSecondary,
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-                const SizedBox(height: 14),
-                ...differences.map((record) {
-                  ProductosResponseModel? product;
-                  for (final item in products) {
-                    if (item.prodId == record.prodId) { product = item; break; }
-                  }
-                  final actual = product?.inventarioActual;
-                  final fisico = record.invtCantidad ?? 0;
-                  final delta = actual == null ? null : fisico - actual;
-                  return ListTile(
-                    contentPadding: EdgeInsets.zero,
-                    leading: Icon(
-                      delta == null || delta == 0
-                          ? Icons.check_circle_outline
-                          : delta > 0 ? Icons.add_circle_outline : Icons.remove_circle_outline,
-                      color: delta == null || delta >= 0 ? palette.success : palette.warning,
-                    ),
-                    title: Text(product?.prodNombre ?? 'Producto ${record.prodId}', style: const TextStyle(fontWeight: FontWeight.w800)),
-                    subtitle: Text(
-                      'Conteo ${_shortDate(record.invtFecha)} · '
-                      'Sistema actual ${actual == null ? "-" : _formatQuantity(actual)} · '
-                      'Físico ${_formatQuantity(fisico)} · '
-                      'Ajuste real ${delta == null ? "-" : "${delta > 0 ? "+" : ""}${_formatQuantity(delta)}"}',
-                    ),
-                  );
-                }),
-                const SizedBox(height: 12),
-                DropdownButtonFormField<String>(
-                  value: reason,
-                  decoration: const InputDecoration(labelText: 'Motivo del ajuste'),
-                  items: const ['Diferencia de conteo','Merma','Rotura','Consumo interno','Pérdida','Sobrante','Error de registro','Otro']
-                      .map((value) => DropdownMenuItem(value: value, child: Text(value))).toList(),
-                  onChanged: (value) { if (value != null) setDialogState(() => reason = value); },
-                ),
-                const SizedBox(height: 12),
-                TextField(
-                  controller: observation,
-                  onChanged: (_) => setDialogState(() {}),
-                  maxLength: 300,
-                  minLines: 2,
-                  maxLines: 4,
-                  decoration: const InputDecoration(labelText: 'Sustentación obligatoria', hintText: 'Explica por qué se ajustará el inventario.'),
-                ),
-              ]),
-            ),
-          ),
-          actions: [
-            TextButton(onPressed: () => Navigator.pop(dialogContext, false), child: const Text('Cancelar')),
-            FilledButton.icon(
-              onPressed: observation.text.trim().isEmpty ? null : () => Navigator.pop(dialogContext, true),
-              icon: const Icon(Icons.sync_rounded),
-              label: const Text('Sincronizar inventario'),
-            ),
-          ],
-        ),
-      ),
-    );
-    final note = observation.text.trim();
-    if (confirmed != true || note.isEmpty || !mounted) return;
-    final ok = await ref.read(inventarioConteoProvider.notifier).sincronizarDiferencias(
-      registros: differences, motivo: reason, observacion: note,
-    );
-    if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-      content: Text(ok ? 'Inventario sincronizado con las cantidades físicas registradas.'
-          : (ref.read(inventarioConteoProvider).failure?.message ?? 'No fue posible sincronizar el inventario.')),
-    ));
-  }
+
 }
 
 class _InventoryReconcileBanner extends StatelessWidget {
@@ -527,7 +433,7 @@ class _InventoryReconcileBanner extends StatelessWidget {
             Text('$differences diferencia(s) por conciliar', style: TextStyle(color: palette.textPrimary, fontWeight: FontWeight.w900)),
             const SizedBox(height: 3),
             Text(
-              'Sincronizar aplica el físico al stock actual. Los movimientos previos permanecen auditados.',
+              'Consulta y concilia los conteos desde Administración de inventario. Registrar un conteo no modifica el stock.',
               style: TextStyle(
                 color: palette.textSecondary,
                 fontWeight: FontWeight.w600,
@@ -535,7 +441,7 @@ class _InventoryReconcileBanner extends StatelessWidget {
             ),
           ])),
         ]);
-        final button = FilledButton.icon(onPressed: onPressed, icon: const Icon(Icons.sync_rounded), label: const Text('Conciliar conteos'));
+        final button = FilledButton.icon(onPressed: onPressed, icon: const Icon(Icons.fact_check_rounded), label: const Text('Administrar inventario'));
         if (constraints.maxWidth < 650) {
           return Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [info, const SizedBox(height: 12), button]);
         }

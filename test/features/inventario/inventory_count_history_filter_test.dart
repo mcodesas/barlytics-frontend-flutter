@@ -113,4 +113,43 @@ void main() {
       isTrue,
     );
   });
+  group('Períodos del historial', () {
+    final today = DateTime(2026, 11, 26);
+    test('Día único incluye solo la fecha elegida', () {
+      final dates = countHistoryCalendarRange(period: CountHistoryPeriod.day,
+          selected: DateTime(2026, 11, 5, 23), today: today);
+      expect(dates.start, DateTime(2026, 11, 5));
+      expect(dates.end, dates.start);
+    });
+    test('Quincenas civiles y fin de mes bisiesto', () {
+      final first = countHistoryCalendarRange(period: CountHistoryPeriod.fortnight,
+          selected: DateTime(2024, 2, 15), today: today);
+      expect(first.start, DateTime(2024, 2, 1));
+      expect(first.end, DateTime(2024, 2, 15));
+      final second = countHistoryCalendarRange(period: CountHistoryPeriod.fortnight,
+          selected: DateTime(2024, 2, 16), today: today);
+      expect(second.start, DateTime(2024, 2, 16));
+      expect(second.end, DateTime(2024, 2, 29));
+    });
+    test('Mes completo anterior y mes actual limitado a hoy', () {
+      final previous = countHistoryCalendarRange(period: CountHistoryPeriod.month,
+          selected: DateTime(2025, 12, 31), today: today);
+      expect(previous.start, DateTime(2025, 12, 1));
+      expect(previous.end, DateTime(2025, 12, 31));
+      final current = countHistoryCalendarRange(period: CountHistoryPeriod.month,
+          selected: today, today: today);
+      expect(current.start, DateTime(2026, 11, 1));
+      expect(current.end, today);
+      final currentHalf = countHistoryCalendarRange(period: CountHistoryPeriod.fortnight,
+          selected: today, today: today);
+      expect(currentHalf.start, DateTime(2026, 11, 16));
+      expect(currentHalf.end, today);
+    });
+    test('No permite fechas futuras', () {
+      expect(() => countHistoryCalendarRange(period: CountHistoryPeriod.day,
+          selected: DateTime(2026, 11, 27), today: today),
+          throwsArgumentError);
+    });
+  });
+
 }

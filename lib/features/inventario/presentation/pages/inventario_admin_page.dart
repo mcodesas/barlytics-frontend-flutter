@@ -46,6 +46,9 @@ class _InventarioAdminPageState extends ConsumerState<InventarioAdminPage> {
   int? _selectedProductId;
 
   late DateTimeRange _range;
+  CountHistoryPeriod _period = CountHistoryPeriod.custom;
+  int _loadGeneration = 0;
+  bool _hasLoaded = false;
   int? _branchId;
   bool _loading = true;
   bool _exportingExcel = false;
@@ -86,9 +89,13 @@ class _InventarioAdminPageState extends ConsumerState<InventarioAdminPage> {
   }
 
   Future<void> _load() async {
+    if (!mounted) return;
+    final generation = ++_loadGeneration;
+    final range = _range;
+    final allSynchronizationHistory = _allSynchronizationHistory;
     final branchId = _branchId ?? ref.read(branchScopeProvider).activeBranchId;
     if (branchId == null) {
-      if (!mounted) return;
+      if (!mounted || generation != _loadGeneration) return;
       setState(() {
         _loading = false;
         _error = 'Selecciona una sucursal para consultar el control de inventario.';
@@ -114,8 +121,8 @@ class _InventarioAdminPageState extends ConsumerState<InventarioAdminPage> {
             .toList(growable: false),
         queryParameters: {
           'sucursalId': branchId,
-          'desde': DateFormat('yyyy-MM-dd').format(_range.start),
-          'hasta': DateFormat('yyyy-MM-dd').format(_range.end),
+          'desde': DateFormat('yyyy-MM-dd').format(range.start),
+          'hasta': DateFormat('yyyy-MM-dd').format(range.end),
         },
       );
 
@@ -123,7 +130,7 @@ class _InventarioAdminPageState extends ConsumerState<InventarioAdminPage> {
           .map(_InventoryAuditRow.fromJson)
           .toList(growable: false);
 
-      if (!mounted) return;
+      if (!mounted || generation != _loadGeneration) return;
       List<Map<String, dynamic>> syncRows = const [];
       String? warning;
       try {
@@ -135,10 +142,10 @@ class _InventarioAdminPageState extends ConsumerState<InventarioAdminPage> {
               .toList(),
           queryParameters: {
             'sucursalId': branchId,
-            if (!_allSynchronizationHistory)
-              'desde': DateFormat('yyyy-MM-dd').format(_range.start),
-            if (!_allSynchronizationHistory)
-              'hasta': DateFormat('yyyy-MM-dd').format(_range.end),
+            if (!allSynchronizationHistory)
+              'desde': DateFormat('yyyy-MM-dd').format(range.start),
+            if (!allSynchronizationHistory)
+              'hasta': DateFormat('yyyy-MM-dd').format(range.end),
           },
         );
         syncRows = history.data ?? const [];
@@ -148,8 +155,9 @@ class _InventarioAdminPageState extends ConsumerState<InventarioAdminPage> {
             'Revisa la conexión o la versión del backend y reintenta.';
       }
 
-      if (!mounted) return;
+      if (!mounted || generation != _loadGeneration) return;
       setState(() {
+        _hasLoaded = true;
         _rows = rows;
         _synchronizations = syncRows;
         _synchronizationWarning = warning;
@@ -157,8 +165,12 @@ class _InventarioAdminPageState extends ConsumerState<InventarioAdminPage> {
         _loading = false;
       });
     } catch (error) {
-      if (!mounted) return;
+      if (!mounted || generation != _loadGeneration) return;
       setState(() {
+        _hasLoaded = true;
+        _rows = const [];
+        _synchronizations = const [];
+        _synchronizationWarning = null;
         _loading = false;
         _error = ErrorMapper.map(error).message;
       });
@@ -577,36 +589,64 @@ class _InventarioAdminPageState extends ConsumerState<InventarioAdminPage> {
   }
 
   Future<void> _pickRange() async {
-    final selected = await showDateRangePicker(
+    if (_loading || _exportingExcel || _undoingSynchronization) return;
+    final period = await showDialog<CountHistoryPeriod>(
       context: context,
-      firstDate: DateTime(2020),
-      lastDate: DateTime.now(),
-      initialDateRange: _range,
-      helpText: 'Periodo del reporte de inventario',
-      saveText: 'Aplicar',
-    );
-    if (selected == null || !mounted) return;
-    setState(() {
-      _range = selected;
-      _selectedDayKey = null;
-      _selectedProductId = null;
-    });
-    await _load();
-  }
-
-  /// Vista informativa de cada jornada, sin ajustar inventario ni
-  /// modificar conteos. Un clic en una prioridad abre el producto filtrado.
-  void _showDayDifferenceDetails(_InventoryCountDay day, {int? productId}) {
-    if (!mounted) return;
-    final palette = ref.read(selectedAppPaletteProvider);
-    showDialog<void>(
-      context: context,
-      builder: (_) => _DayDifferenceDetails(
-        day: day,
-        palette: palette,
-        initialProductId: productId,
+      builder: (dialogContext) => SimpleDialog(
+        title: const Text('Fecha del historial de conteos'),
+        children: [
+          for (final option in CountHistoryPeriod.values)
+            SimpleDialogOption(
+              onPressed: () => Navigator.pop(dialogContext, option),
+              child: Text(countHistoryPeriodLabel(option)),
+            ),
+        ],
       ),
     );
+    if (period == null || !mounted) return;
+    final now = DateTime.now();
+    final today = DateTime(now.year, now.month, now.day);
+    final first = DateTime(2020);
+    DateTimeRange? selected;
+    if (period == CountHistoryPeriod.custom) {
+      selected = await showDateRangePicker(
+        context: context,
+        firstDate: first,
+        lastDate: today,
+        initialDateRange: _range,
+        helpText: 'Selecciona el período personalizado',
+        saveText: 'Aplicar',
+      );
+    } else {
+      final day = await showDatePicker(
+        context: context,
+        firstDate: first,
+        lastDate: today,
+        initialDate: _range.end,
+        helpText: switch (period) {
+          CountHistoryPeriod.day => 'Selecciona el día',
+          CountHistoryPeriod.fortnight => 'Selecciona un día de la quincena',
+          CountHistoryPeriod.month => 'Selecciona un día del mes',
+          CountHistoryPeriod.custom => 'Selecciona la fecha',
+        },
+      );
+      if (day == null || !mounted) return;
+      final dates = countHistoryCalendarRange(
+        period: period, selected: day, today: today,
+      );
+      selected = DateTimeRange(start: dates.start, end: dates.end);
+    }
+    if (selected == null || !mounted) return;
+    setState(() {
+      _period = period;
+      _range = selected!;
+      _selectedDayKey = null;
+      _selectedProductId = null;
+      _rows = const [];
+      _synchronizations = const [];
+      _synchronizationWarning = null;
+    });
+    await _load();
   }
 
   Future<void> _reviewReconciliation(_InventoryCountDay day) async {
@@ -688,7 +728,7 @@ class _InventarioAdminPageState extends ConsumerState<InventarioAdminPage> {
       }
     });
 
-    if (_loading && _rows.isEmpty) {
+    if (_loading && !_hasLoaded) {
       return const Scaffold(
         backgroundColor: Colors.transparent,
         body: TechBackground(
@@ -701,7 +741,7 @@ class _InventarioAdminPageState extends ConsumerState<InventarioAdminPage> {
       );
     }
 
-    if (_error != null && _rows.isEmpty) {
+    if (_error != null && !_hasLoaded) {
       return Scaffold(
         backgroundColor: Colors.transparent,
         body: TechBackground(
@@ -744,6 +784,7 @@ class _InventarioAdminPageState extends ConsumerState<InventarioAdminPage> {
                       branches: branchState.branches,
                       branchId: _branchId,
                       range: _range,
+                      period: _period,
                       onBranchChanged: (value) {
                         if (value == null || value == _branchId) return;
                         setState(() {
@@ -753,7 +794,8 @@ class _InventarioAdminPageState extends ConsumerState<InventarioAdminPage> {
                         });
                         _load();
                       },
-                      onRange: _pickRange,
+                      onRange: _loading || _exportingExcel || _undoingSynchronization
+                          ? null : _pickRange,
                       onRefresh: _load,
                     ),
                   ),
@@ -946,7 +988,7 @@ class _InventarioAdminPageState extends ConsumerState<InventarioAdminPage> {
               ],
             ),
           ),
-          if (_loading && _rows.isNotEmpty)
+          if (_loading && _hasLoaded)
             Positioned(
               left: 0,
               right: 0,
@@ -1985,6 +2027,7 @@ class _InventoryAdminHeader extends StatelessWidget {
     required this.branches,
     required this.branchId,
     required this.range,
+    required this.period,
     required this.onBranchChanged,
     required this.onRange,
     required this.onRefresh,
@@ -1994,8 +2037,9 @@ class _InventoryAdminHeader extends StatelessWidget {
   final List<SucursalesResponseModel> branches;
   final int? branchId;
   final DateTimeRange range;
+  final CountHistoryPeriod period;
   final ValueChanged<int?> onBranchChanged;
-  final VoidCallback onRange;
+  final VoidCallback? onRange;
   final VoidCallback onRefresh;
 
   @override
@@ -2084,6 +2128,7 @@ class _InventoryAdminHeader extends StatelessWidget {
           onPressed: onRange,
           icon: const Icon(Icons.date_range_rounded),
           label: Text(
+            '${countHistoryPeriodLabel(period)}: '
             '${DateFormat('dd/MM/yy').format(range.start)} - '
             '${DateFormat('dd/MM/yy').format(range.end)}',
           ),
