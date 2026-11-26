@@ -45,4 +45,15 @@ void main() {
     expect(code, contains("context.push('/inventario_admin')"));
     expect(code, contains('Administrar inventario'));
   });
+  test('Historial conserva import correcto y diálogo de diferencias por jornada', () {
+    final code = File(
+      'lib/features/inventario/presentation/pages/inventario_admin_page.dart',
+    ).readAsStringSync();
+    expect(code, contains("import '../../utils/inventory_admin_balance.dart';"));
+    expect(code, contains('void _showDayDifferenceDetails('));
+    expect(code, contains('initialProductId: productId'));
+    expect(code, contains('builder: (_) => _DayDifferenceDetails('));
+    expect(code, contains('CountHistoryPeriod.fortnight'));
+  });
+
 }

@@ -20,7 +20,7 @@ import '../../../sucursales/data/models/sucursales_response_model.dart';
 import '../../../auth/presentation/providers/auth_provider.dart';
 import '../utils/inventory_count_history_filter.dart';
 import '../utils/inventory_history_xlsx.dart';
-import '../utils/inventory_admin_balance.dart';
+import '../../utils/inventory_admin_balance.dart';
 
 enum _InventoryHistoryView { cards, table }
 
@@ -649,6 +649,21 @@ class _InventarioAdminPageState extends ConsumerState<InventarioAdminPage> {
       _synchronizationWarning = null;
     });
     await _load();
+  }
+
+  /// Vista informativa de cada jornada, sin ajustar inventario ni
+  /// modificar conteos. Un clic en una prioridad abre el producto filtrado.
+  void _showDayDifferenceDetails(_InventoryCountDay day, {int? productId}) {
+    if (!mounted) return;
+    final palette = ref.read(selectedAppPaletteProvider);
+    showDialog<void>(
+      context: context,
+      builder: (_) => _DayDifferenceDetails(
+        day: day,
+        palette: palette,
+        initialProductId: productId,
+      ),
+    );
   }
 
   Future<void> _reviewReconciliation(_InventoryCountDay day) async {
