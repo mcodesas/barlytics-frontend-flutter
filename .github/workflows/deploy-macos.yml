@@ -36,6 +36,15 @@ jobs:
           channel: stable
           cache: true
 
+      - name: Configurar Python para los iconos
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Generar y verificar iconos BarLytics (macos)
+        run: |
+          python -m pip install Pillow==11.3.0
+          python scripts/branding/generate-app-icons.py --platform macos
+
       - name: Compilar y generar DMG
         shell: bash
         run: |

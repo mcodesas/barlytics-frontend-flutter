@@ -25,7 +25,7 @@ mkdir -p \
 
 cp -a "$BUNDLE_DIR/." "$STAGE_DIR/opt/barlytics/"
 ln -s /opt/barlytics/$EXECUTABLE_NAME "$STAGE_DIR/usr/bin/barlytics"
-cp "$PROJECT_ROOT/assets/branding/barlytics_app_icon_1024.png" \
+cp "$PROJECT_ROOT/web/icons/Icon-512.png" \
   "$STAGE_DIR/usr/share/icons/hicolor/512x512/apps/barlytics.png"
 
 cat > "$STAGE_DIR/DEBIAN/control" <<CONTROL

@@ -27,7 +27,10 @@ let context = NSGraphicsContext(cgContext: bitmap, flipped: false)
 NSGraphicsContext.saveGraphicsState()
 NSGraphicsContext.current = context
 context.imageInterpolation = .high
-let bounds = NSRect(x: 0, y: 0, width: side, height: side)
+// Keep the original artwork and outer canvas; reduce the symbol by 20%.
+let logoSide = CGFloat(side) * 0.8
+let inset = (CGFloat(side) - logoSide) / 2.0
+let bounds = NSRect(x: inset, y: inset, width: logoSide, height: logoSide)
 source.draw(in: bounds, from: NSRect(origin: .zero, size: source.size),
             operation: .sourceOver, fraction: 1)
 context.flushGraphics()
