@@ -102,10 +102,20 @@ class InventarioConteoNotifier extends StateNotifier<InventarioConteoState> {
           await _loadReconciliationStatuses(selectedSucursalId);
       final registrosHoy = _latestRecordsToday(registros);
       final ultimosConteos = _latestPhysicalCounts(registros);
+      // Solo el stock real del catálogo determina la diferencia vigente.
+      // La cantidad esperada histórica puede corresponder al momento previo
+      // a la recepción de un pedido, por lo que no reemplaza al catálogo.
+      final stockActual = <int, double>{
+        for (final item in productos)
+          if (item.prodId != null)
+            item.prodId!: item.inventarioActual ?? 0,
+      };
       final conteosPendientes = <int, InventarioResponseModel>{
         for (final entry in ultimosConteos.entries)
           if (entry.value.invtOrigen == 'CONTEO_FISICO' &&
-              (entry.value.invtDiferencia ?? 0).abs() > 0.0001 &&
+              stockActual.containsKey(entry.key) &&
+              ((entry.value.invtCantidad ?? 0) -
+                      stockActual[entry.key]!).abs() > 0.0001 &&
               estadosConciliacion[entry.value.invtId] == 'PENDIENTE')
             entry.key: entry.value,
       };
@@ -199,20 +209,18 @@ class InventarioConteoNotifier extends StateNotifier<InventarioConteoState> {
       final updatedPending = <int, InventarioResponseModel>{
         ...state.conteosPendientes,
       };
+      // Guardar un conteo no cambia las existencias. Comparar contra
+      // inventarioActual (no contra el esperado histórico del conteo).
       if (saved.invtOrigen == 'CONTEO_FISICO' &&
-          (saved.invtDiferencia ?? 0).abs() > 0.0001) {
+          ((saved.invtCantidad ?? 0) -
+                  (producto.inventarioActual ?? 0)).abs() > 0.0001) {
         updatedPending[productId] = saved;
       } else {
         updatedPending.remove(productId);
       }
 
-      final updatedProducts = state.productos
-          .map(
-            (item) => item.prodId == productId
-                ? _productWithInventory(item, cantidad)
-                : item,
-          )
-          .toList(growable: false);
+      // Nunca simular una sincronización modificando inventarioActual.
+      final updatedProducts = state.productos;
       final saving = {...state.guardandoProductos}..remove(productId);
       final savedDate = DateTime.tryParse(saved.invtFecha ?? '');
 
@@ -411,28 +419,7 @@ class InventarioConteoNotifier extends StateNotifier<InventarioConteoState> {
   bool _sameDay(DateTime a, DateTime b) =>
       a.year == b.year && a.month == b.month && a.day == b.day;
 
-  ProductosResponseModel _productWithInventory(
-    ProductosResponseModel product,
-    double inventory,
-  ) {
-    return ProductosResponseModel(
-      prodId: product.prodId,
-      sucuId: product.sucuId,
-      tpprId: product.tpprId,
-      mrcaId: product.mrcaId,
-      prodNombre: product.prodNombre,
-      prodDescripcion: product.prodDescripcion,
-      prodFoto: product.prodFoto,
-      prodFechaVencimiento: product.prodFechaVencimiento,
-      prodCompraPorCantidad: product.prodCompraPorCantidad,
-      prodCantidadCompra: product.prodCantidadCompra,
-      prodPresentacionCompra: product.prodPresentacionCompra,
-      inventarioActual: inventory,
-      ventasAyer: product.ventasAyer,
-      prodCreadoPor: product.prodCreadoPor,
-      prodFechaCambio: product.prodFechaCambio,
-    );
-  }
+
 }
 
 final inventarioConteoProvider = StateNotifierProvider.autoDispose<
