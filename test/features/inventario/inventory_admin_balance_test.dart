@@ -72,6 +72,18 @@ void main() {
     }
   });
 
+  test('Una conciliación anulada vuelve a comparar con stock vigente '
+      'sin ocultar la anulación', () {
+    final actual = balance(
+      historical: 122, counted: 92, stock: 92, status: 'ANULADO',
+    );
+    expect(actual.expected, 92);
+    expect(actual.difference, 0);
+    expect(actual.status, 'ANULADO');
+    expect(actual.usesCurrentStock, isTrue);
+    expect(actual.missingValue, 0);
+  });
+
   test('Sin stock operativo disponible no se inventa una referencia cero', () {
     final actual = balance(historical: 122, counted: 92, stock: 0, available: false);
     expect(actual.expected, 122);
