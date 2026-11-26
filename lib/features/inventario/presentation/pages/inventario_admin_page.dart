@@ -20,6 +20,7 @@ import '../../../sucursales/data/models/sucursales_response_model.dart';
 import '../../../auth/presentation/providers/auth_provider.dart';
 import '../utils/inventory_count_history_filter.dart';
 import '../utils/inventory_history_xlsx.dart';
+import '../utils/inventory_admin_balance.dart';
 
 enum _InventoryHistoryView { cards, table }
 
@@ -103,7 +104,8 @@ class _InventarioAdminPageState extends ConsumerState<InventarioAdminPage> {
     }
 
     try {
-      final response = await ref.read(apiClientProvider).get<
+      final api = ref.read(apiClientProvider);
+      final response = await api.get<
           List<Map<String, dynamic>>>(
         '${ApiPaths.inventario}/administracion',
         (json) => (json as List? ?? const <Object>[])
@@ -121,10 +123,11 @@ class _InventarioAdminPageState extends ConsumerState<InventarioAdminPage> {
           .map(_InventoryAuditRow.fromJson)
           .toList(growable: false);
 
+      if (!mounted) return;
       List<Map<String, dynamic>> syncRows = const [];
       String? warning;
       try {
-        final history = await ref.read(apiClientProvider).get<List<Map<String, dynamic>>>(
+        final history = await api.get<List<Map<String, dynamic>>>(
           '${ApiPaths.inventario}/administracion/sincronizaciones',
           (json) => (json as List? ?? const <Object>[])
               .whereType<Map>()
@@ -273,8 +276,8 @@ class _InventarioAdminPageState extends ConsumerState<InventarioAdminPage> {
     final details = <List<Object?>>[
       const [
         'Fecha y hora del conteo', 'Producto', 'Código producto',
-        'ID conteo', 'Contado por', 'Esperado al conteo',
-        'Cantidad contada', 'Diferencia unidades',
+        'ID conteo', 'Contado por', 'Referencia de comparación',
+        'Esperado histórico al conteo', 'Cantidad contada', 'Diferencia unidades',
         'Stock actual del sistema', 'Costo compra unitario',
         'Valor esperado', 'Valor contado', 'Valor faltante',
         'Valor sobrante', 'Impacto neto', 'Estado del conteo',
@@ -285,7 +288,7 @@ class _InventarioAdminPageState extends ConsumerState<InventarioAdminPage> {
         [
           DateFormat('dd/MM/yyyy HH:mm').format(row.countDate),
           row.product, row.productId, row.countId, row.countedBy,
-          row.expected, row.counted, row.difference,
+          row.expected, row.historicalExpected, row.counted, row.difference,
           row.hasCurrentSystemStock
               ? row.currentSystemStock : 'Sin movimientos',
           row.unitPurchaseCost, row.expectedValue, row.countedValue,
@@ -596,6 +599,10 @@ class _InventarioAdminPageState extends ConsumerState<InventarioAdminPage> {
         day.rows.where((row) => row.reconciliable).toList(growable: false);
     if (candidates.isEmpty) return;
 
+    if (!mounted) return;
+    // El diálogo se reconstruye después de desmontar la página.
+    // Capturar la paleta ahora evita read() sobre un ref ya desechado.
+    final palette = ref.read(selectedAppPaletteProvider);
     final result = await showDialog<_ReconcileDecision>(
       context: context,
       barrierDismissible: false,
@@ -608,7 +615,7 @@ class _InventarioAdminPageState extends ConsumerState<InventarioAdminPage> {
         child: _ReconcileDialog(
           candidates: candidates,
           date: day.date,
-          palette: ref.read(selectedAppPaletteProvider),
+          palette: palette,
         ),
       ),
     );
@@ -952,6 +959,8 @@ class _InventoryAuditRow {
     required this.countDate,
     required this.countedBy,
     required this.expected,
+    required this.historicalExpected,
+    required this.usesCurrentStock,
     required this.counted,
     required this.difference,
     required this.currentSystemStock,
@@ -985,6 +994,8 @@ class _InventoryAuditRow {
   final DateTime countDate;
   final String countedBy;
   final double expected;
+  final double historicalExpected;
+  final bool usesCurrentStock;
   final double counted;
   final double difference;
   final double currentSystemStock;
@@ -1015,9 +1026,30 @@ class _InventoryAuditRow {
   // Un conteo cuya sincronización fue anulada puede reconciliarse otra vez
   // si sigue siendo el último conteo físico de ese producto.
   bool get reconciliable =>
-      (status == 'PENDIENTE' || status == 'ANULADO') && latestCount;
+      hasDifference &&
+      (status == 'PENDIENTE' || status == 'ANULADO') &&
+      latestCount;
 
   factory _InventoryAuditRow.fromJson(Map<String, dynamic> json) {
+    final persistedStatus = json['estado']?.toString() ?? 'CUADRA';
+    final latest = json['es_ultimo_conteo'] == true ||
+        json['es_ultimo_conteo']?.toString() == 'true';
+    final available = json['stock_actual_disponible'] == true ||
+        json['stock_actual_disponible']?.toString() == 'true';
+    final balance = InventoryAdminBalance.resolve(
+      historicalExpected: _num(json['esperado_historico'] ?? json['esperado']),
+      counted: _num(json['contado']),
+      currentStock: _num(json['stock_actual_sistema']),
+      hasCurrentStock: available,
+      latestCount: latest,
+      persistedStatus: persistedStatus,
+      unitCost: _num(json['costo_unitario_compra']),
+      persistedExpectedValue: _num(json['valor_esperado_compra']),
+      persistedCountedValue: _num(json['valor_contado_compra']),
+      persistedMissingValue: _num(json['valor_faltante_compra']),
+      persistedSurplusValue: _num(json['valor_sobrante_compra']),
+      persistedNetImpact: _num(json['impacto_neto_compra']),
+    );
     return _InventoryAuditRow(
       countId: _int(json['conteo_id']),
       productId: _int(json['producto_id']),
@@ -1026,9 +1058,11 @@ class _InventoryAuditRow {
           DateTime.tryParse(json['fecha_conteo']?.toString() ?? '') ??
               DateTime.now(),
       countedBy: _actor(json['contado_por']),
-      expected: _num(json['esperado']),
-      counted: _num(json['contado']),
-      difference: _num(json['diferencia_unidades']),
+      expected: balance.expected,
+      historicalExpected: balance.historicalExpected,
+      usesCurrentStock: balance.usesCurrentStock,
+      counted: balance.counted,
+      difference: balance.difference,
       currentSystemStock: _num(json['stock_actual_sistema']),
       hasCurrentSystemStock: json['stock_actual_disponible'] == true ||
           json['stock_actual_disponible']?.toString() == 'true',
@@ -1040,12 +1074,12 @@ class _InventoryAuditRow {
       unitsPerPresentation: _num(json['unidades_por_presentacion']),
       purchasePresentation:
           json['presentacion_compra']?.toString() ?? 'Unidad',
-      expectedValue: _num(json['valor_esperado_compra']),
-      countedValue: _num(json['valor_contado_compra']),
-      missingValue: _num(json['valor_faltante_compra']),
-      surplusValue: _num(json['valor_sobrante_compra']),
-      netImpact: _num(json['impacto_neto_compra']),
-      status: json['estado']?.toString() ?? 'CUADRA',
+      expectedValue: balance.expectedValue,
+      countedValue: balance.countedValue,
+      missingValue: balance.missingValue,
+      surplusValue: balance.surplusValue,
+      netImpact: balance.netImpact,
+      status: balance.status,
       latestCount: json['es_ultimo_conteo'] == true ||
           json['es_ultimo_conteo']?.toString() == 'true',
       adjustmentId: _nullableInt(json['movimiento_ajuste_id']),
@@ -1347,9 +1381,10 @@ class _ReconcileDialogState extends State<_ReconcileDialog> {
                 const SizedBox(width: 9),
                 Expanded(
                   child: Text(
-                    'Se crearán ${_selected.length} movimiento(s) de ajuste. '
-                    'Las ventas, compras y movimientos posteriores al conteo '
-                    'se conservan.',
+                    'Se aplicará lo contado como nuevo stock en cada producto '
+                    'seleccionado. Cuando coincida, no se generará ningún '
+                    'movimiento. Si hubo ventas o compras posteriores, '
+                    'se pedirá reconfirmar el conteo antes de ajustarlo.',
                     style: TextStyle(
                       color: palette.textPrimary,
                       fontWeight: FontWeight.w600,
@@ -1756,7 +1791,7 @@ class _ReconcileProductCard extends StatelessWidget {
                       runSpacing: 6,
                       children: [
                         _MiniAuditChip(
-                          label: 'Esperado',
+                          label: row.usesCurrentStock ? 'Stock actual' : 'Esperado histórico',
                           value: _qty(row.expected),
                           color: palette.secondary,
                           palette: palette,
@@ -3277,7 +3312,7 @@ class _InventoryAuditTable extends StatelessWidget {
                   MaterialStateProperty.all(palette.secondary.withOpacity(.08)),
               columns: [
                 column('Producto', numeric: false),
-                column('Esperado'),
+                column('Base del conteo'),
                 column('Contado'),
                 column('Diferencia'),
                 column('Stock actual sistema'),
@@ -3875,10 +3910,17 @@ class _ProductAuditRow extends StatelessWidget {
             runSpacing: 7,
             children: [
               _AuditValue(
-                label: 'Esperado',
+                label: row.usesCurrentStock ? 'Stock actual' : 'Esperado histórico',
                 value: _qty(row.expected),
                 palette: palette,
               ),
+              if (row.usesCurrentStock &&
+                  (row.historicalExpected - row.expected).abs() > 0.0001)
+                _AuditValue(
+                  label: 'Referencia histórica guardada',
+                  value: _qty(row.historicalExpected),
+                  palette: palette,
+                ),
               _AuditValue(
                 label: 'Contado',
                 value: _qty(row.counted),
