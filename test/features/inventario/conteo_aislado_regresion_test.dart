@@ -32,12 +32,17 @@ void main() {
     expect(code, contains('stockActual[entry.key]!'));
   });
 
-  test('La conciliación muestra la diferencia real y no la histórica', () {
+  test('Conteo no sincroniza y abre administración solo con menú autorizado', () {
     final code = File(
       'lib/features/inventario/presentation/pages/inventario_list_page.dart',
     ).readAsStringSync();
-    expect(code, contains('final actual = product?.inventarioActual;'));
-    expect(code, contains('final delta = actual == null ? null : fisico - actual;'));
-    expect(code, contains('Ajuste real'));
+    expect(code, isNot(contains('sincronizarDiferencias(')));
+    expect(code, isNot(contains('_openReconcileDialog')));
+    expect(code, contains('ref.watch(userMenuProvider).maybeWhen('));
+    expect(code, contains("item.path == '/inventario_admin'"));
+    expect(code, contains('orElse: () => false'));
+    expect(code, contains('if (canAdministerInventory)'));
+    expect(code, contains("context.push('/inventario_admin')"));
+    expect(code, contains('Administrar inventario'));
   });
 }
