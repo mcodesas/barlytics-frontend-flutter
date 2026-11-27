@@ -26,6 +26,8 @@ final _windowKey=GlobalKey<_IntelligenceWindowState>();
 
 Future<void> showIntelligenceChat(BuildContext context) async {
   final container=ProviderScope.containerOf(context,listen:false);
+  final menu=await container.read(userMenuProvider.future);
+  if(!menu.any((item)=>item.keyName=='intelligence'))return;
   container.read(intelligenceWindowProvider.notifier).state=true;
   _windowKey.currentState?.restore();
 }
@@ -38,6 +40,7 @@ class IntelligenceWindowHost extends ConsumerWidget {
     final auth=ref.watch(authControllerProvider);
     final branch=ref.watch(branchScopeProvider).activeBranchId;
     final open=ref.watch(intelligenceWindowProvider);
+    final authorized=ref.watch(userMenuProvider).valueOrNull?.any((item)=>item.keyName=='intelligence')??false;
     ref.listen(authControllerProvider,(old,next){
       if(!next.authenticated||!next.subscriptionActive||next.restoringSession){
         ref.read(intelligenceWindowProvider.notifier).state=false;
@@ -50,7 +53,7 @@ class IntelligenceWindowHost extends ConsumerWidget {
     });
     return Stack(fit:StackFit.expand,children:[
       child,
-      if(open&&auth.authenticated&&auth.subscriptionActive&&!auth.restoringSession&&branch!=null)
+      if(open&&authorized&&auth.authenticated&&auth.subscriptionActive&&!auth.restoringSession&&branch!=null)
         _IntelligenceLayer(onClose:()=>ref.read(intelligenceWindowProvider.notifier).state=false),
     ]);
   }
