@@ -1,3 +1,4 @@
+import '../../../intelligence/domain/assistant_screen_context.dart';
 import 'dart:async';
 import 'dart:convert';
 import 'dart:math' as math;
@@ -62,8 +63,22 @@ class _ProductosListPageState extends ConsumerState<ProductosListPage> {
   final Set<int> _selectedProductIds = <int>{};
   bool _bulkDeleting = false;
 
+  late final AssistantScreenContextRegistry _assistantContext;
+  
+  @override
+  void initState(){
+    super.initState();
+    _assistantContext=ref.read(assistantScreenContextProvider);
+    
+    _assistantContext.register(this,(module,branch){
+      if(!mounted||module!='productos'||branch!=_selectedSucursalId||branch!=ref.read(branchScopeProvider).activeBranchId||ModalRoute.of(context)?.isCurrent!=true)return null;
+      if(ref.read(productosPagedProvider).sucursalId!=branch)return null;
+      return AssistantScreenContextRegistry.catalog(module,productId:_selectedProductIds.length==1?_selectedProductIds.single:null,typeId:_selectedTipoId,brandId:_selectedMarcaId);
+    });
+  }
   @override
   void dispose() {
+    _assistantContext.unregister(this);
     _searchDebounce?.cancel();
     _searchController.dispose();
     super.dispose();

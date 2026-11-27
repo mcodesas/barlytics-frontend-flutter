@@ -1,3 +1,4 @@
+import '../../../intelligence/domain/assistant_screen_context.dart';
 import 'dart:async';
 import 'dart:convert';
 import 'dart:math' as math;
@@ -65,8 +66,22 @@ class _PreciosListPageState extends ConsumerState<PreciosListPage> {
   bool _savingAll = false;
   bool _downloading = false;
 
+  late final AssistantScreenContextRegistry _assistantContext;
+  
+  @override
+  void initState(){
+    super.initState();
+    _assistantContext=ref.read(assistantScreenContextProvider);
+    
+    _assistantContext.register(this,(module,branch){
+      if(!mounted||module!='precios'||branch!=_initializedBranchId||branch!=_sucursalId||branch!=ref.read(branchScopeProvider).activeBranchId||ModalRoute.of(context)?.isCurrent!=true)return null;
+      if(ref.read(_preciosProductosPagedProvider).sucursalId!=branch)return null;
+      return AssistantScreenContextRegistry.catalog(module,typeId:_selectedTipoId,brandId:_selectedMarcaId,status:_filter.name);
+    });
+  }
   @override
   void dispose() {
+    _assistantContext.unregister(this);
     _searchDebounce?.cancel();
     _searchController.dispose();
     for (final draft in _drafts.values) {

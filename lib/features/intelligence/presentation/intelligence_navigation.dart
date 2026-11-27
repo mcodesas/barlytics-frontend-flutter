@@ -5,6 +5,7 @@ import '../../../app/theme/app_palette.dart';
 import '../../auth/presentation/providers/auth_provider.dart';
 import '../../../core/branch/branch_scope_provider.dart';
 import 'intelligence_chat.dart';
+import '../../navigation/presentation/providers/user_menu_provider.dart';
 
 const intelligenceEnabled = bool.fromEnvironment('BARLYTICS_INTELLIGENCE', defaultValue: true);
 
@@ -36,7 +37,8 @@ class IntelligenceBottomNavigation extends ConsumerWidget {
   @override
   Widget build(BuildContext context,WidgetRef ref){
     final auth=ref.watch(authControllerProvider);
-    if(!intelligenceEnabled||!auth.authenticated||!auth.subscriptionActive){
+    final menuAllowed=ref.watch(userMenuProvider).valueOrNull?.any((item)=>item.keyName=='intelligence')??false;
+    if(!intelligenceEnabled||!auth.authenticated||!auth.subscriptionActive||!menuAllowed){
       return BottomNavigationBar(items:items,onTap:onTap,currentIndex:currentIndex,type:type,
         backgroundColor:backgroundColor,elevation:elevation,selectedItemColor:selectedItemColor,
         unselectedItemColor:unselectedItemColor,selectedFontSize:selectedFontSize,

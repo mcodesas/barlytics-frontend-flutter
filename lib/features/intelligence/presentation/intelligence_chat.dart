@@ -5,9 +5,17 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import '../../../core/errors/app_exception.dart';
 import 'intelligence_composer.dart';
+import 'intelligence_export_card.dart';
+import 'intelligence_alerts_card.dart';
+import 'intelligence_forecast_card.dart';
+import 'intelligence_catalog_sync_card.dart';
+import 'intelligence_purchase_review.dart';
+import '../../navigation/presentation/providers/menu_preferences_provider.dart';
+import '../../navigation/presentation/providers/active_role_provider.dart';
 import '../../../app/router/app_router.dart';
 import '../../navigation/presentation/providers/user_menu_provider.dart';
 import '../domain/assistant_navigation.dart';
+import '../domain/assistant_screen_context.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:record/record.dart';
@@ -26,6 +34,8 @@ final _windowKey=GlobalKey<_IntelligenceWindowState>();
 
 Future<void> showIntelligenceChat(BuildContext context) async {
   final container=ProviderScope.containerOf(context,listen:false);
+  final menu=await container.read(userMenuProvider.future);
+  if(!menu.any((item)=>item.keyName=='intelligence'))return;
   container.read(intelligenceWindowProvider.notifier).state=true;
   _windowKey.currentState?.restore();
 }
@@ -38,11 +48,13 @@ class IntelligenceWindowHost extends ConsumerWidget {
     final auth=ref.watch(authControllerProvider);
     final branch=ref.watch(branchScopeProvider).activeBranchId;
     final open=ref.watch(intelligenceWindowProvider);
+    final authorized=ref.watch(userMenuProvider).valueOrNull?.any((item)=>item.keyName=='intelligence')??false;
     ref.listen(authControllerProvider,(old,next){
       if(!next.authenticated||!next.subscriptionActive||next.restoringSession){
         ref.read(intelligenceWindowProvider.notifier).state=false;
       }
     });
+    ref.listen(selectedRolesProvider,(old,next){if(old!=next)ref.read(intelligenceWindowProvider.notifier).state=false;});
     ref.listen(branchScopeProvider,(old,next){
       if(old?.activeBranchId!=next.activeBranchId){
         ref.read(intelligenceWindowProvider.notifier).state=false;
@@ -50,7 +62,7 @@ class IntelligenceWindowHost extends ConsumerWidget {
     });
     return Stack(fit:StackFit.expand,children:[
       child,
-      if(open&&auth.authenticated&&auth.subscriptionActive&&!auth.restoringSession&&branch!=null)
+      if(open&&authorized&&auth.authenticated&&auth.subscriptionActive&&!auth.restoringSession&&branch!=null)
         _IntelligenceLayer(onClose:()=>ref.read(intelligenceWindowProvider.notifier).state=false),
     ]);
   }
@@ -150,13 +162,14 @@ class _IntelligenceChatState extends ConsumerState<IntelligenceChat> with Widget
     });
   });
   Future<void> _openHistory(String id,{bool more=false}) async=>_run((e) async{
+    if(_pendingAction!=null)return;
     final offset=more?_messageOffset:0;
     if(offset==null||_branch==null)return;
     final r=await ref.read(intelligenceApiProvider).history(_branch!,conversation:id,offset:offset);
     if(!_active(e))return;
     final rows=(r['items'] as List).reversed.map((x)=>(role:x['role'] as String,text:x['content'] as String)).toList();
     setState((){
-      if(!more){_messages.clear();_text.clear();_attachment=null;_extracted='';_partialAnswer='';}
+      if(!more){_messages.clear();_exportPlan=null;_showAlerts=false;_forecastPlan=null;_showCatalogSync=false;_text.clear();_attachment=null;_pendingAction=null;_extracted='';_documentWarnings=[];_partialAnswer='';}
       _messages.insertAll(0,rows);_conversation=id;_messageOffset=r['nextOffset'] as int?;_showHistory=false;
     });
     if(!more)_scrollToEnd();
@@ -276,6 +289,13 @@ class _IntelligenceChatState extends ConsumerState<IntelligenceChat> with Widget
   StreamSubscription<Uint8List>? _audioSubscription;
   Timer? _timer;
   _Attachment? _attachment;
+  List<String> _documentWarnings=[];
+  Map<String,dynamic>? _pendingAction;
+  Map<String,dynamic>? _exportPlan;
+  bool _showAlerts=false;
+  bool _showCatalogSync=false;
+  Map<String,dynamic>? _forecastPlan;
+  bool _actionSubmitting=false;
   String? _conversation;
   String _error='',_extracted='';
   int? _branch;
@@ -298,7 +318,7 @@ class _IntelligenceChatState extends ConsumerState<IntelligenceChat> with Widget
     unawaited(_recorder.cancel().catchError((Object _){}));
     unawaited(_liveSubscription?.cancel()??Future<void>.value());
     unawaited(_player.stop().catchError((Object _){}));
-    _pcm.clear();_attachment=null;_extracted='';_messages.clear();_text.clear();
+    _pcm.clear();_attachment=null;_pendingAction=null;_extracted='';_documentWarnings=[];_messages.clear();_exportPlan=null;_showAlerts=false;_forecastPlan=null;_showCatalogSync=false;_text.clear();
     if(mounted)WidgetsBinding.instance.addPostFrameCallback((_){if(mounted)widget.onClose();});
   }
   Future<void> _select(String kind,{bool camera=false}) async=>_run((e) async {
@@ -318,7 +338,7 @@ class _IntelligenceChatState extends ConsumerState<IntelligenceChat> with Widget
     final bytes=await file.readAsBytes();
     if(!_active(e))return;
     if(bytes.isEmpty||bytes.length>limit){setState(()=>_error='Archivo vacío o demasiado grande.');return;}
-    setState((){_attachment=_Attachment(kind,file!.name,bytes);_extracted='';});
+    setState((){_attachment=_Attachment(kind,file!.name,bytes);_extracted='';_documentWarnings=[];});
   });
   Future<void> _startAudio() async {
     if(_busy||_recording||_closed)return;
@@ -344,26 +364,241 @@ class _IntelligenceChatState extends ConsumerState<IntelligenceChat> with Widget
     try{
       await _recorder.stop();await _audioSubscription?.cancel();_audioSubscription=null;
       final wav=pcmWav(_pcm.takeBytes());
-      if(_active(e))setState((){_attachment=_Attachment('audio','grabacion.wav',wav);_extracted='';});
+      if(_active(e))setState((){_attachment=_Attachment('audio','grabacion.wav',wav);_extracted='';_documentWarnings=[];});
     }catch(_){if(_active(e))setState(()=>_error='Graba entre 0,25 y 30 segundos.');}
     finally{if(_active(e))setState(()=>_busy=false);}
   }
   Future<void> _analyze() async=>_run((e) async{
     final a=_attachment;
     if(a==null||_branch==null)return;
-    if(a.kind=='video'){setState(()=>_error='El vídeo está seleccionado. El procesamiento de vídeo aún no está habilitado.');return;}
     final result=await ref.read(intelligenceApiProvider).media(_branch!,a.kind,a.name,a.bytes);
-    if(_active(e))setState(()=>_extracted=result['text']?.toString()??'');
+    if(_active(e))setState((){_extracted=result['text']?.toString()??'';_documentWarnings=(result['warnings'] as List?)?.whereType<String>().toList()??[];});
   });
+  Future<void> _reviewProductImport() async {
+    final branch=_branch,e=_epoch;
+    if(branch==null||_busy||_pendingAction!=null||_closed)return;
+    final controller=TextEditingController(text:_extracted.length<=16000?_extracted:'');
+    bool checked=false;
+    String? reviewed;
+    try{
+      reviewed=await showDialog<String>(context:context,builder:(dialogContext)=>StatefulBuilder(builder:(ctx,localSetState)=>AlertDialog(
+        title:const Text('Importar catálogo Excel/CSV'),
+        content:SizedBox(width:560,child:SingleChildScrollView(child:Column(mainAxisSize:MainAxisSize.min,crossAxisAlignment:CrossAxisAlignment.start,children:[
+          const Text('Encabezado: producto;descripcion;marca_id;tipo_id;costo;precio. Máximo 25 productos normales, con marca y tipo existentes. Usa pesos enteros sin separadores.'),
+          const Text('Los productos existentes se identifican por nombre exacto, marca y tipo. No cambia el stock, fotos ni recetas. Los precios nuevos conservan el historial.'),
+          const SizedBox(height:8),
+          TextField(controller:controller,maxLength:16000,minLines:4,maxLines:10,onChanged:(_)=>localSetState(()=>checked=false),
+            decoration:const InputDecoration(labelText:'Catálogo revisado')),
+          CheckboxListTile(contentPadding:EdgeInsets.zero,value:checked,onChanged:(v)=>localSetState(()=>checked=v==true),
+            title:const Text('Revisé todos los productos, descripciones, identificadores y precios.')),
+        ]))),
+        actions:[TextButton(onPressed:()=>Navigator.of(dialogContext).pop(),child:const Text('Cancelar')),
+          FilledButton(onPressed:checked?()=>Navigator.of(dialogContext).pop(controller.text.trim()):null,child:const Text('Preparar borrador'))],
+      )));
+    }finally{controller.dispose();}
+    if(reviewed==null||reviewed.isEmpty||!_active(e))return;
+    final csv=reviewed;
+    await _run((epoch) async{
+      final draft=await ref.read(intelligenceApiProvider).prepareProductImport(branch,csv);
+      if(!_active(epoch))return;
+      if(draft['draftId'] is! String||draft['productImport'] is! Map)throw const FormatException('Borrador inválido');
+      setState(()=>_pendingAction=draft);_scrollToEnd();
+    });
+  }
+  Future<void> _reviewCountCsv() async {
+    final branch=_branch,e=_epoch;
+    if(branch==null||_busy||_pendingAction!=null||_closed)return;
+    final initial=_extracted.trim();
+    final controller=TextEditingController(text:initial.length<=8000?initial:'');
+    bool checked=false;
+    String? reviewed;
+    try{
+      reviewed=await showDialog<String>(context:context,builder:(dialogContext)=>StatefulBuilder(builder:(ctx,localSetState)=>AlertDialog(
+        title:const Text('Importar conteo físico Excel/CSV'),
+        content:SizedBox(width:560,child:SingleChildScrollView(child:Column(mainAxisSize:MainAxisSize.min,crossAxisAlignment:CrossAxisAlignment.start,children:[
+          const Text('Encabezado: producto;cantidad o producto_id;cantidad. Hasta 25 productos únicos, cantidades enteras desde cero. Usa nombres exactos de productos normales.'),
+          const Text('Solo registra conteos de hoy. No sincroniza ni modifica el stock; si ya se contó un producto hoy, se rechazará la operación.'),
+          const SizedBox(height:8),
+          TextField(controller:controller,maxLength:8000,minLines:4,maxLines:10,
+            onChanged:(_)=>localSetState(()=>checked=false),decoration:const InputDecoration(labelText:'CSV revisado',hintText:'producto;cantidad\\nPoker;12\\nCorona;0')),
+          CheckboxListTile(contentPadding:EdgeInsets.zero,value:checked,onChanged:(v)=>localSetState(()=>checked=v==true),
+            title:const Text('Revisé todos los nombres y cantidades del conteo actual.')),
+        ]))),
+        actions:[TextButton(onPressed:()=>Navigator.of(dialogContext).pop(),child:const Text('Cancelar')),
+          FilledButton(onPressed:checked?()=>Navigator.of(dialogContext).pop(controller.text.trim()):null,child:const Text('Preparar borrador'))],
+      )));
+    }finally{controller.dispose();}
+    if(reviewed==null||reviewed.isEmpty||!_active(e))return;
+    final csv=reviewed;
+    await _run((epoch) async{
+      final draft=await ref.read(intelligenceApiProvider).prepareCountCsv(branch,csv);
+      if(!_active(epoch))return;
+      if(draft['draftId'] is! String)throw const FormatException('Borrador inválido');
+      setState(()=>_pendingAction=draft);_scrollToEnd();
+    });
+  }
+  Future<void> _reviewPurchase() async {
+    final branch=_branch,e=_epoch;
+    if(branch==null||_extracted.isEmpty||_busy||_pendingAction!=null||_closed)return;
+    await showDialog<void>(context:context,barrierDismissible:false,builder:(dialogContext)=>Dialog(
+      child:ConstrainedBox(constraints:const BoxConstraints(maxWidth:650),child:Column(mainAxisSize:MainAxisSize.min,children:[
+        Row(children:[const Expanded(child:Padding(padding:EdgeInsets.all(12),child:Text('Revisión del documento'))),
+          IconButton(onPressed:()=>Navigator.of(dialogContext).pop(),icon:const Icon(Icons.close))]),
+        Flexible(child:SingleChildScrollView(child:IntelligencePurchaseReview(branch:branch,source:_extracted,onPrepare:(plan) async{
+          if(!_active(e)||!dialogContext.mounted||_pendingAction!=null||_busy)throw StateError('Revisión no disponible');
+          setState(()=>_busy=true);
+          try{
+            final draft=await ref.read(intelligenceApiProvider).prepareAction(branch,plan);
+            if(!_active(e)||!dialogContext.mounted)throw StateError('Revisión cerrada');
+            if(draft['draftId'] is! String||draft['documentPurchase'] is! Map)throw const FormatException('Borrador inválido');
+            setState(()=>_pendingAction=draft);
+            Navigator.of(dialogContext).pop();
+            _scrollToEnd();
+          }finally{if(_active(e))setState(()=>_busy=false);}
+        }))),
+      ])),
+    ));
+  }
+  Future<void> _resolveAction(bool confirm) async {
+    final pending=_pendingAction;
+    final branch=_branch;
+    if(pending==null||branch==null||_busy||_actionSubmitting)return;
+    final id=pending['draftId'];
+    if(id is! String)return;
+    await _run((e) async {
+      setState(()=>_actionSubmitting=true);
+      try{
+        final api=ref.read(intelligenceApiProvider);
+        final result=confirm?await api.confirmAction(branch,id):await api.cancelAction(branch,id);
+        if(!_active(e))return;
+        final expected=confirm?'APPLIED':'CANCELLED';
+        if(result['draftId']!=id||result['status']!=expected)throw const FormatException('Resultado no confirmado');
+        if(confirm&&(pending['action']=='menu.personal_favorito'||pending['action']=='menu.personal_ubicacion'))ref.invalidate(menuPreferencesProvider);
+        setState((){
+          _pendingAction=null;
+          if(confirm&&(pending['hasImage']==true||pending['documentPurchase'] is Map||pending['productImport'] is Map)){_attachment=null;_extracted='';_documentWarnings=[];}
+          _messages.add((role:'assistant',text:confirm?(result['orderId']!=null?'Pedido ${result['orderId']} creado y confirmado por BarLytics. No se registró recepción ni pago.':'Acción ejecutada y confirmada por BarLytics.'):'Acción cancelada sin modificar los datos.'));
+        });
+        _scrollToEnd();
+      }catch(error){
+        if(!_active(e))return;
+        final status=error is AppException?error.statusCode:null;
+        setState((){
+          _error=status==409?'El borrador venció, ya se cerró o los datos cambiaron. Revisa el estado en BarLytics.':
+          'No se confirmó el resultado. No se reintentará automáticamente. Puedes consultar el estado o volver a confirmar el mismo borrador.';
+        });
+      }finally{if(_active(e))setState(()=>_actionSubmitting=false);}
+    });
+  }
+  Future<void> _checkActionStatus() async {
+    final branch=_branch,pending=_pendingAction;
+    if(branch==null||pending==null||_busy||_actionSubmitting||_closed)return;
+    final id=pending['draftId'];
+    if(id is! String)return;
+    await _run((e) async{
+      final result=await ref.read(intelligenceApiProvider).actionStatus(branch,id);
+      if(!_active(e)||_pendingAction?['draftId']!=id)return;
+      if(result['draftId']!=id)throw const FormatException('Resultado no confirmado');
+      final status=result['status'];
+      if(!const {'PENDING','APPLIED','CANCELLED','EXPIRED'}.contains(status))throw const FormatException('Estado inválido');
+      setState((){
+        if(status!='PENDING'){
+          _pendingAction=null;
+          if(status=='APPLIED'&&(pending['hasImage']==true||pending['documentPurchase'] is Map||pending['productImport'] is Map)){
+            _attachment=null;_extracted='';_documentWarnings=[];
+          }
+        }
+        _error='';
+        _messages.add((role:'assistant',text:status=='APPLIED'?'BarLytics confirma que la operación ya fue aplicada. No se ejecutó de nuevo.':
+          status=='CANCELLED'?'BarLytics confirma que el borrador fue cancelado.':
+          status=='EXPIRED'?'El borrador venció sin ejecutarse. Prepara una nueva acción.':
+          'La operación sigue pendiente; todavía no ha sido aplicada.'));
+      });
+      if(status=='APPLIED'&&(pending['action']=='menu.personal_favorito'||pending['action']=='menu.personal_ubicacion'))ref.invalidate(menuPreferencesProvider);
+      _scrollToEnd();
+    });
+  }
+  Widget _actionCard(bool locked){
+    final p=_pendingAction!;
+    final changes=p['changes'];
+    final replenishment=p['replenishment'];
+    final purchase=p['documentPurchase'];
+    final catalog=p['productImport'];
+    return Card(child:Padding(padding:const EdgeInsets.all(12),child:Column(crossAxisAlignment:CrossAxisAlignment.start,children:[
+      Text(p['steps'] is List?'Confirmar todas las operaciones':'Confirmar operación',style:const TextStyle(fontWeight:FontWeight.bold)),
+      ConstrainedBox(constraints:const BoxConstraints(maxHeight:240),child:SingleChildScrollView(child:Column(crossAxisAlignment:CrossAxisAlignment.start,children:[
+        Text(p['effect'].toString()),
+        Text('Registro: ${p['target']}'),
+        if(changes is Map)for(final entry in changes.entries)SelectableText('${entry.key}: ${entry.value}'),
+        if(catalog is Map)...[
+          Text('Crear: ${catalog['creates']} · Actualizar: ${catalog['updates']} · Sin cambios: ${catalog['unchanged']}'),
+          if(catalog['products'] is List)for(final row in catalog['products'])if(row is Map)...[
+            const Divider(),
+            Text('${row['name']} · ${row['action']}',style:const TextStyle(fontWeight:FontWeight.w600)),
+            Text('${row['brand']} / ${row['type']}'),
+            if(row['previousDescription']!=null&&row['previousDescription']!=row['description'])Text("Descripción anterior: ${row['previousDescription']}"),
+            Text('${row['description']}'),
+            Text("Costo: ${row['previousCost']??'—'} → ${row['cost']}"),
+            Text("Venta: ${row['previousSale']??'—'} → ${row['sale']}"),
+          ],
+          const Text('Se aplicará en una transacción. No modifica existencias.'),
+        ],
+        if(purchase is Map)...[
+          Text('Proveedor: ${purchase['supplier']}'),
+          Text('Referencia: ${purchase['reference']}'),
+          if(purchase['lines'] is List)for(final line in purchase['lines'])if(line is Map)...[
+            const Divider(),
+            Text('${line['product']} — ${line['units']} ${line['baseUnit']}'),
+            Text('${line['packs']} × ${line['presentation']} de ${line['unitsPerPack']} · costo por presentación ${line['costPerPack']}'),
+            Text('Subtotal estimado: ${line['subtotal']}'),
+          ],
+          Text('Total estimado: ${purchase['total']}',style:const TextStyle(fontWeight:FontWeight.bold)),
+          const Text('Usa el costo registrado en BarLytics. No contabiliza una factura, no recibe existencias ni registra pagos.'),
+        ],
+        if(replenishment is Map)...[
+          Text('Costo estimado total: ${replenishment['totalEstimado']}',style:const TextStyle(fontWeight:FontWeight.w600)),
+          if(replenishment['orders'] is List)for(final order in replenishment['orders'])
+            if(order is Map)...[
+              const Divider(),
+              Text('${order['proveedor']} · ${order['totalEstimado']}',style:const TextStyle(fontWeight:FontWeight.w600)),
+              if(order['productos'] is List)for(final product in order['productos'])
+                if(product is Map)Text('${product['producto']} — ${product['unidades']} unidades · ${product['subtotalEstimado']}'),
+            ],
+          if(replenishment['excluded'] is List&&(replenishment['excluded'] as List).isNotEmpty)...[
+            const Divider(),const Text('Productos excluidos',style:TextStyle(fontWeight:FontWeight.w600)),
+            for(final item in replenishment['excluded'])if(item is Map)Text('${item['producto']}: ${item['motivo']}'),
+          ],
+          const Text('El servidor volverá a comprobar la reposición al confirmar. No se enviarán pedidos por WhatsApp ni se recibirá inventario.'),
+        ],
+        if(replenishment is! Map&&p['steps'] is List)for(final entry in (p['steps'] as List).asMap().entries)
+          if(entry.value is Map) ...[
+            const Divider(),
+            Text('${entry.key+1}. ${entry.value['effect']}',style:const TextStyle(fontWeight:FontWeight.w600)),
+            Text('Registro: ${entry.value['target']}'),
+            if(entry.value['changes'] is Map)for(final field in (entry.value['changes'] as Map).entries)
+              SelectableText('${field.key}: ${field.value}'),
+          ],
+        if(p['steps'] is List)const Text('Se aplicarán juntas o se revertirán si alguna falla.'),
+        if(p['hasImage']==true)const Text('Se asociará únicamente la imagen adjunta al destino indicado.'),
+        const Text('El borrador vence en 10 minutos.'),
+      ]))),
+      Wrap(spacing:8,children:[
+        OutlinedButton(onPressed:locked||_actionSubmitting?null:()=>_resolveAction(false),child:const Text('Cancelar')),
+        OutlinedButton(onPressed:locked||_actionSubmitting?null:_checkActionStatus,child:const Text('Consultar estado')),
+        FilledButton(onPressed:locked||_actionSubmitting?null:()=>_resolveAction(true),child:const Text('Confirmar y ejecutar')),
+      ])
+    ])));
+  }
   Future<void> _send() => _sendMessage();
   Future<void> _sendMessage({int? retryIndex}) async {
     if(retryIndex!=null&&(retryIndex!=_messages.length-1||retryIndex<0||_messages[retryIndex].role!='failed'))return;
     final text=retryIndex==null?_text.text.trim():_messages[retryIndex].text;
     if(_busy||_recording||_live||_closed||_branch==null||text.isEmpty||text.length>2000)return;
+    if(_pendingAction!=null){setState(()=>_error='Confirma o cancela primero la acción pendiente.');return;}
     await _run((e) async {
       final index=retryIndex??_messages.length;
       setState((){
-        _sending=true;_cancelRequested=false;_partialAnswer='';
+        _sending=true;_cancelRequested=false;_partialAnswer='';_exportPlan=null;_showAlerts=false;_forecastPlan=null;_showCatalogSync=false;
         if(retryIndex==null){
           _messages.add((role:'user',text:text));
           _text.clear();
@@ -381,24 +616,63 @@ class _IntelligenceChatState extends ConsumerState<IntelligenceChat> with Widget
           final allowed=await ref.read(userMenuProvider.future);
           if(!_active(e))return;
           final item=AssistantNavigation.resolve(destination,allowed);
-          if(item==null){
-            setState(()=>_messages.add((role:'assistant',text:'No encontré una opción autorizada con ese nombre. Indica el nombre exacto del menú.')));
-          }else{
+          if(item!=null){
             router.go(item.path);
             setState(()=>_messages.add((role:'assistant',text:'Abriendo ${item.title} desde tu menú autorizado.')));
+            return;
           }
+          // No coincidencia literal: Intelligence puede resolver la intención mediante el catálogo.
+        }
+        final allowed=await ref.read(userMenuProvider.future);
+        if(!_active(e))return;
+        final normalized=AssistantNavigation.normalize(text);
+        if(const {'regresa','regresar','vuelve','volver','regresa al menu anterior','vuelve al menu anterior','atras'}.contains(normalized)){
+          if(router.canPop()){router.pop();setState(()=>_messages.add((role:'assistant',text:'Volví a la pantalla anterior.')));}
+          else{setState(()=>_messages.add((role:'assistant',text:'No hay una pantalla anterior disponible.')));}
           return;
         }
-        final allowed=ref.read(userMenuProvider).valueOrNull??[];
-        final module=AssistantNavigation.module(router.routerDelegate.currentConfiguration.uri.path,allowed);
+        final routeModule=AssistantNavigation.context(router.routerDelegate.currentConfiguration.uri.path,allowed);
+        final module=ref.read(assistantScreenContextProvider).resolve(routeModule,_branch!);
         final reply=await ref.read(intelligenceApiProvider).chatProgressive(_branch!,_conversation,text,
           currentModule:module.isEmpty?null:module,
+          menuCatalog:allowed.take(100).map((item)=><String,String>{'key':item.keyName,'title':item.title.length>100?item.title.substring(0,100):item.title}).toList(),
           isActive:()=>_active(e),shouldCancel:()=>_cancelRequested,
           onPartial:(value){if(_active(e)){setState(()=>_partialAnswer=value);_scrollToEnd();}});
         if(!_active(e))return;
         final id=reply['conversationId'],answer=reply['answer'];
         if(id is! String||answer is! String)throw StateError('Respuesta inválida');
-        setState((){_conversation=id;_partialAnswer='';_messages.add((role:'assistant',text:answer));if(_messageOffset!=null)_messageOffset=_messageOffset!+2;});
+        var finalAnswer=answer;
+        if(reply['catalogSyncPanel']==true&&!_cancelRequested)setState(()=>_showCatalogSync=true);
+        if(reply['alerts']==true&&!_cancelRequested)setState(()=>_showAlerts=true);
+        final forecast=reply['forecast'];
+        if(forecast is Map&&!_cancelRequested)setState(()=>_forecastPlan=Map<String,dynamic>.from(forecast));
+        final export=reply['export'];
+        if(export is Map&&!_cancelRequested)setState(()=>_exportPlan=Map<String,dynamic>.from(export));
+        final action=reply['action'];
+        if(action is Map&&!_cancelRequested){
+          final plan=Map<String,dynamic>.from(action);
+          final attachment=_attachment;
+          final needsImage=const {'producto.imagen','sucursal.imagen','medio_pago.imagen_qr'}.contains(plan['action']);
+          if(needsImage&&(attachment==null||attachment.kind!='photo')){
+            finalAnswer='Adjunta la imagen JPEG o PNG correspondiente y vuelve a solicitar la operación.';
+          }else{
+            final draft=await ref.read(intelligenceApiProvider).prepareAction(_branch!,plan,image:needsImage?attachment!.bytes:null);
+            if(!_active(e)||_cancelRequested)return;
+            if(draft['draftId'] is! String||draft['effect'] is! String||draft['target'] is! String)throw const FormatException('Borrador inválido');
+            setState(()=>_pendingAction=draft);
+            finalAnswer=draft['steps'] is List?'Revisa todas las operaciones del lote antes de confirmar. No se han modificado datos.':'Revisa la acción preparada en BarLytics. No se han modificado datos todavía.';
+          }
+        }
+        final navigation=reply['navigation'];
+        if(navigation is String){
+          ref.invalidate(userMenuProvider);
+          final refreshed=await ref.read(userMenuProvider.future);
+          if(!_active(e)||_cancelRequested)return;
+          final item=AssistantNavigation.resolveKey(navigation,refreshed);
+          if(item==null){finalAnswer='La opción solicitada no está disponible en tu menú actual.';}
+          else{router.go(item.path);finalAnswer='Abriendo ${item.title} desde tu menú autorizado.';}
+        }
+        setState((){_conversation=id;_partialAnswer='';_messages.add((role:'assistant',text:finalAnswer));if(_messageOffset!=null)_messageOffset=_messageOffset!+2;});
       }catch(error){
         if(!_active(e))return;
         setState((){
@@ -461,6 +735,7 @@ class _IntelligenceChatState extends ConsumerState<IntelligenceChat> with Widget
     final branch=ref.watch(branchScopeProvider).activeBranch;
     ref.listen(authControllerProvider,(prev,next){if(!next.authenticated||!next.subscriptionActive)_invalidate();});
     ref.listen(branchScopeProvider,(prev,next){if(next.activeBranchId!=_branch)_invalidate();});
+    ref.listen(selectedRolesProvider,(prev,next){if(prev!=next)_invalidate();});
     final locked=_busy||_recording||_live;
     return Material(color:palette.surface,child:Column(children:[
         Padding(padding:const EdgeInsets.symmetric(horizontal:10,vertical:8),child:Row(children:[
@@ -475,8 +750,8 @@ class _IntelligenceChatState extends ConsumerState<IntelligenceChat> with Widget
               ]),
               Text('Arrastra para mover',maxLines:1,overflow:TextOverflow.ellipsis,style:TextStyle(color:palette.textSecondary,fontSize:10)),
             ])))),
-          IconButton(tooltip:'Historial de conversaciones',onPressed:locked?null:()=>_loadHistory(),icon:const Icon(Icons.history_rounded,size:20)),
-          IconButton(tooltip:'Nueva conversación',onPressed:locked?null:()=>setState((){_conversation=null;_messages.clear();_messageOffset=null;_showHistory=false;_partialAnswer='';_attachment=null;_extracted='';_text.clear();_error='';}),icon:const Icon(Icons.add_comment_rounded,size:20)),
+          IconButton(tooltip:'Historial de conversaciones',onPressed:locked||_pendingAction!=null?null:()=>_loadHistory(),icon:const Icon(Icons.history_rounded,size:20)),
+          IconButton(tooltip:'Nueva conversación',onPressed:locked||_pendingAction!=null?null:()=>setState((){_conversation=null;_messages.clear();_exportPlan=null;_showAlerts=false;_forecastPlan=null;_showCatalogSync=false;_messageOffset=null;_showHistory=false;_partialAnswer='';_attachment=null;_pendingAction=null;_extracted='';_documentWarnings=[];_text.clear();_error='';}),icon:const Icon(Icons.add_comment_rounded,size:20)),
           IconButton(tooltip:'Minimizar chat',onPressed:_recording||_live?null:(){_composerFocus.unfocus();widget.onMinimize();},icon:const Icon(Icons.minimize_rounded,size:20)),
           IconButton(tooltip:'Cerrar chat',onPressed:_invalidate,icon:const Icon(Icons.close,size:20))])),
         if(_busy)const LinearProgressIndicator(),
@@ -502,13 +777,25 @@ class _IntelligenceChatState extends ConsumerState<IntelligenceChat> with Widget
             const SizedBox(width:16,height:16,child:CircularProgressIndicator(strokeWidth:2)),const SizedBox(width:10),
             Expanded(child:Text(_cancelRequested?'Solicitando cancelación…':_partialAnswer.isEmpty?'Intelligence está preparando la respuesta…':'Generando respuesta…')),
           ])),
+          if(_pendingAction!=null)_actionCard(locked),
+          if(_showCatalogSync&&_branch!=null)ConstrainedBox(constraints:const BoxConstraints(maxHeight:420),child:SingleChildScrollView(child:IntelligenceCatalogSyncCard(branch:_branch!,initiallyExpanded:true))),
+          if(_forecastPlan!=null&&_branch!=null)ConstrainedBox(constraints:const BoxConstraints(maxHeight:420),child:SingleChildScrollView(child:IntelligenceForecastCard(key:ValueKey(_forecastPlan),branch:_branch!,initialPlan:_forecastPlan))),
+          if(_showAlerts&&_branch!=null)ConstrainedBox(constraints:const BoxConstraints(maxHeight:300),child:SingleChildScrollView(child:IntelligenceAlertsCard(branch:_branch!,initiallyExpanded:true))),
+          if(_exportPlan!=null&&_branch!=null)IntelligenceExportCard(branch:_branch!,plan:_exportPlan!,disabled:locked),
           if(_attachment!=null)Card(child:Padding(padding:const EdgeInsets.all(10),child:Column(crossAxisAlignment:CrossAxisAlignment.start,children:[
             Row(children:[const Icon(Icons.attach_file),Expanded(child:Text(_attachment!.name,maxLines:1,overflow:TextOverflow.ellipsis)),
-              IconButton(tooltip:'Quitar adjunto',onPressed:locked?null:()=>setState((){_attachment=null;_extracted='';}),icon:const Icon(Icons.close))]),
+              IconButton(tooltip:'Quitar adjunto',onPressed:locked?null:()=>setState((){_attachment=null;_extracted='';_documentWarnings=[];}),icon:const Icon(Icons.close))]),
             if(_attachment!.kind=='photo')ClipRRect(borderRadius:BorderRadius.circular(10),child:Image.memory(_attachment!.bytes,height:120,fit:BoxFit.contain,errorBuilder:(_,__,___)=>const Text('Vista previa no disponible'))),
-            if(_attachment!.kind=='video')const Text('Vídeo preparado localmente. Análisis de vídeo pendiente.'),
-            if(_attachment!.kind!='video')OutlinedButton(onPressed:locked?null:_analyze,child:const Text('Extraer contenido')),
-            if(_extracted.isNotEmpty)...[SelectableText(_extracted),TextButton(onPressed:locked?null:(){
+            if(_attachment!.kind=='video')const Text('Análisis experimental: hasta 30 segundos y 5 MiB. Se examinan tres fotogramas, sin audio. Solo disponible si el servidor lo habilita.'),
+            OutlinedButton(onPressed:locked?null:_analyze,child:Text(_attachment!.kind=='video'?'Analizar fotogramas':'Extraer contenido')),
+            if(_extracted.isNotEmpty)...[for(final warning in _documentWarnings)Text(warning,style:TextStyle(color:palette.warning)),SelectableText(_extracted),
+              if(_attachment!.kind=='file'||_attachment!.kind=='photo')
+                OutlinedButton.icon(onPressed:locked||_pendingAction!=null?null:_reviewPurchase,icon:const Icon(Icons.receipt_long),label:const Text('Preparar pedido desde documento')),
+              if(_attachment!.kind=='file'&&['.csv','.xlsx'].any((ext)=>_attachment!.name.toLowerCase().endsWith(ext)))
+                OutlinedButton.icon(onPressed:locked||_pendingAction!=null?null:_reviewCountCsv,icon:const Icon(Icons.fact_check_outlined),label:const Text('Importar conteo físico CSV')),
+              if(_attachment!.kind=='file'&&['.csv','.xlsx'].any((ext)=>_attachment!.name.toLowerCase().endsWith(ext)))
+                OutlinedButton.icon(onPressed:locked||_pendingAction!=null?null:_reviewProductImport,icon:const Icon(Icons.inventory_2_outlined),label:const Text('Importar catálogo y precios')),
+              if(_attachment!.kind!='video')TextButton(onPressed:locked?null:(){
               final combined=[_text.text.trim(),_extracted].where((x)=>x.isNotEmpty).join('\n\n');
               if(combined.length>2000){setState(()=>_error='Copia un fragmento de hasta 2000 caracteres para enviar.');return;}
               setState(()=>_text.text=combined);

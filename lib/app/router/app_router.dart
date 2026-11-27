@@ -46,6 +46,7 @@ import '../../core/widgets/dynamic_crud_detail_page.dart';
 import '../../core/widgets/dynamic_crud_form_page.dart';
 import '../../core/widgets/dynamic_crud_list_page.dart';
 import 'module_registry.dart';
+import '../../features/intelligence/presentation/intelligence_workspace_page.dart';
 import '../../features/ciudades/presentation/pages/ciudades_list_page.dart';
 import '../../features/ciudades/presentation/pages/ciudades_form_page.dart';
 import '../../features/ciudades/presentation/pages/ciudades_detail_page.dart';
@@ -237,19 +238,19 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       // activos, no deben poder abrir por URL módulos administrativos que no
       // aparecen en su menú.
       if (authState.authenticated && !isDigitalMenuPublic && inventoryOnly) {
-        final allowed = path == '/home' || path == '/profile' || path == '/personalizar_menu' || path.startsWith('/inventario');
+        final allowed = path == '/home' || path == '/profile' || path == '/personalizar_menu' || path == '/intelligence' || path.startsWith('/inventario');
         if (!allowed) return '/inventario';
       }
       if (authState.authenticated && !isDigitalMenuPublic && movementsOnly) {
-        final allowed = path == '/home' || path == '/profile' || path == '/personalizar_menu' || path == '/productos' || path.startsWith('/movimientos');
+        final allowed = path == '/home' || path == '/profile' || path == '/personalizar_menu' || path == '/intelligence' || path == '/productos' || path.startsWith('/movimientos');
         if (!allowed) return '/movimientos';
       }
       if (authState.authenticated && !isDigitalMenuPublic && pricesOnly) {
-        final allowed = path == '/home' || path == '/profile' || path == '/personalizar_menu' || path.startsWith('/precios');
+        final allowed = path == '/home' || path == '/profile' || path == '/personalizar_menu' || path == '/intelligence' || path.startsWith('/precios');
         if (!allowed) return '/precios';
       }
       if (authState.authenticated && !isDigitalMenuPublic && commandsOnly) {
-        final allowed = path == '/home' || path == '/profile' || path == '/personalizar_menu' || path.startsWith('/comandas');
+        final allowed = path == '/home' || path == '/profile' || path == '/personalizar_menu' || path == '/intelligence' || path.startsWith('/comandas');
         if (!allowed) return '/comandas';
       }
       if (authState.authenticated && !isDigitalMenuPublic &&
@@ -259,7 +260,7 @@ final appRouterProvider = Provider<GoRouter>((ref) {
           !pricesOnly) {
         final allowed = path == '/home' ||
             path == '/profile' ||
-            path == '/personalizar_menu' ||
+            path == '/personalizar_menu' || path == '/intelligence' ||
             (isInventario && path.startsWith('/inventario')) ||
             (hasMovementRole && (path == '/productos' || path.startsWith('/movimientos'))) ||
             (hasPriceRole && path.startsWith('/precios'));
@@ -314,6 +315,7 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       GoRoute(path: '/forgot-password', builder: (context, state) => const ForgotPasswordPage()),
       GoRoute(path: '/reset-password', builder: (context, state) => ResetPasswordPage(code: _recoveryCodeFromState(state))),
       GoRoute(path: '/home', builder: (context, state) => const HomePage()),
+      GoRoute(path: '/intelligence', builder: (context, state) => const AppScaffold(child: IntelligenceWorkspacePage())),
       GoRoute(path: '/personalizar_menu', builder: (context, state) =>
           const AppScaffold(child: PersonalizarMenuPage())),
       GoRoute(path: '/soporte_global', builder: (context, state) => AppScaffold(child: const AdminSupportPage())),

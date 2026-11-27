@@ -8,10 +8,10 @@ class ProgressiveChat {
   final Duration interval,maxWait;
 
   Future<Map<String,dynamic>> send({required int branch,required String? conversation,required String text,
-    required void Function(String) onPartial,required bool Function() isActive,required bool Function() shouldCancel,String? currentModule}) async {
+    required void Function(String) onPartial,required bool Function() isActive,required bool Function() shouldCancel,String? currentModule,List<Map<String,String>>? menuCatalog}) async {
     if(!isActive())throw const ApiException('Conversación cerrada',code:'CHAT_CLOSED');
     final clock=Stopwatch()..start();
-    var snapshot=await request('chat-start',{'branchId':branch,'conversationId':conversation,'message':text,if(currentModule!=null)'currentModule':currentModule});
+    var snapshot=await request('chat-start',{'branchId':branch,'conversationId':conversation,'message':text,if(currentModule!=null)'currentModule':currentModule,if(menuCatalog!=null&&menuCatalog.isNotEmpty)'menuCatalog':menuCatalog});
     final id=snapshot['jobId'];
     if(id is! String||id.isEmpty)throw const FormatException('Trabajo inválido');
     final scope={'branchId':branch,'jobId':id};
@@ -27,7 +27,7 @@ class ProgressiveChat {
       if(status=='done'){
         final conversationId=snapshot['conversationId'];
         if(conversationId is! String||conversationId.isEmpty||partial.trim().isEmpty)throw const FormatException('Respuesta no confirmada');
-        return {'conversationId':conversationId,'answer':partial};
+        return {'conversationId':conversationId,'answer':partial,if(snapshot['navigation'] is String)'navigation':snapshot['navigation'],if(snapshot['action'] is Map)'action':snapshot['action'],if(snapshot['export'] is Map)'export':snapshot['export'],if(snapshot['alerts']==true)'alerts':true,if(snapshot['forecast'] is Map)'forecast':snapshot['forecast'],if(snapshot['catalogSyncPanel']==true)'catalogSyncPanel':true};
       }
       if(status=='cancelled')throw const ApiException('Generación cancelada',code:'CHAT_CANCELLED');
       if(status=='failed'){

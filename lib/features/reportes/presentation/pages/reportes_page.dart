@@ -1,3 +1,4 @@
+import '../../../intelligence/domain/assistant_screen_context.dart';
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
@@ -660,6 +661,7 @@ class _ReporteDetailState extends ConsumerState<_ReporteDetail> {
   bool _exporting = false;
   _ReportPayload? _lastPayload;
   int _loadVersion = 0;
+  late final AssistantScreenContextRegistry _assistantContext;
   _ProfitPeriodMode _profitPeriodMode = _ProfitPeriodMode.month;
 
   @override
@@ -676,8 +678,16 @@ class _ReporteDetailState extends ConsumerState<_ReporteDetail> {
             end: today,
           );
     _branchId = ref.read(branchScopeProvider).activeBranchId;
+    _assistantContext=ref.read(assistantScreenContextProvider);
+    _assistantContext.register(this,(module,branch){
+      if(!mounted||branch!=_branchId||branch!=ref.read(branchScopeProvider).activeBranchId||ModalRoute.of(context)?.isCurrent!=true||!_activeDefinition.requiresDates)return null;
+      return AssistantScreenContextRegistry.period(module,_activeDefinition.keyName,_range.start,_range.end);
+    });
     _future = _load();
   }
+
+  @override
+  void dispose(){_assistantContext.unregister(this);super.dispose();}
 
   bool get _isProfitReport => widget.definition.kind == _ReportKind.profit;
 

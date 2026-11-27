@@ -25,6 +25,7 @@ import '../../../../core/widgets/app_loader.dart';
 import '../../../../core/widgets/app_scaffold.dart';
 import '../../../../core/widgets/tech_background.dart';
 import '../../../auth/presentation/providers/auth_provider.dart';
+import '../../../intelligence/domain/assistant_screen_context.dart';
 import '../../../navigation/presentation/providers/active_role_provider.dart';
 import '../../../navigation/presentation/providers/user_menu_provider.dart';
 import '../../../pagos/presentation/pages/pagos_list_page.dart';
@@ -259,6 +260,8 @@ class MeseroPage extends ConsumerStatefulWidget {
 class _MeseroPageState extends ConsumerState<MeseroPage> {
   AppPalette get palette => ref.watch(selectedAppPaletteProvider);
   late MeseroRemoteDataSource _dataSource;
+  late final AssistantScreenContextRegistry _assistantContext;
+  int? _assistantBranch;
   late Future<void> _future;
   List<MeseroMesaResumenModel> _mesas = const [];
   List<MeseroProductoModel> _productos = const [];
@@ -298,6 +301,16 @@ class _MeseroPageState extends ConsumerState<MeseroPage> {
     final today = DateTime.now();
     _historialDiaFiltro = DateTime(today.year, today.month, today.day);
     _dataSource = MeseroRemoteDataSource(ref.read(apiClientProvider));
+    _assistantContext=ref.read(assistantScreenContextProvider);
+    _assistantBranch=ref.read(branchScopeProvider).activeBranchId;
+    _assistantContext.register(this,(module,branch){
+      if(!mounted||branch!=_assistantBranch||branch!=ref.read(branchScopeProvider).activeBranchId||
+          ModalRoute.of(context)?.isCurrent!=true||ref.read(meseroSelectedModeProvider)!=MeseroPageMode.mesas||
+          !_mostrandoDetalleVenta||_ventaActiva==null)return null;
+      final sale=_ventaActiva!;
+      final account=_resolverCuentaSeleccionada(sale);
+      return AssistantScreenContextRegistry.sale(module,sale.ventaId,account?.cuentaId,tableId:sale.mesaId);
+    });
     _scheduleInitialMode(widget.initialMode);
     _future = _load();
   }
@@ -316,6 +329,7 @@ class _MeseroPageState extends ConsumerState<MeseroPage> {
 
   @override
   void dispose() {
+    _assistantContext.unregister(this);
     _productoFiltroController.dispose();
     _mesaBuscarController.dispose();
     _historialBuscarController.dispose();

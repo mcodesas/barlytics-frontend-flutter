@@ -15,6 +15,12 @@ void main(){
     expect(AssistantNavigation.module('/inventario/123?token=secret',menus),'inventario');
     expect(AssistantNavigation.module('/usuarios/99',menus),'');
   });
+  test('contexto de registro excluye tokens y rutas desconocidas',(){
+    expect(AssistantNavigation.context('/inventario/123/editar?token=secret',menus),'inventario/123/editar');
+    expect(AssistantNavigation.context('/inventario/nuevo',menus),'inventario/nuevo');
+    expect(AssistantNavigation.context('/inventario/abc-secret',menus),'inventario');
+    expect(AssistantNavigation.context('/usuarios/99',menus),'');
+  });
   test('no permite navegación externa',(){
     expect(AssistantNavigation.resolve('inventario',[const UserMenuItem(keyName:'inventario',title:'Inventario',path:'//example.com')]),isNull);
   });

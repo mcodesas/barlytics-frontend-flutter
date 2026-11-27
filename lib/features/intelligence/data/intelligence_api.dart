@@ -4,27 +4,89 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/network/api_client.dart';
 import 'progressive_chat.dart';
 import '../../../core/providers/core_providers.dart';
+import '../../navigation/presentation/providers/active_role_provider.dart';
+import '../../navigation/presentation/providers/user_assigned_roles_provider.dart';
 
-final intelligenceApiProvider=Provider<IntelligenceApi>((ref)=>IntelligenceApi(ref.watch(apiClientProvider)));
+final intelligenceApiProvider=Provider<IntelligenceApi>((ref){
+  final api=ref.watch(apiClientProvider);
+  // Rebuild workspace resources when the active role changes; each request
+  // also reads the current selection, including polling and confirmation.
+  ref.watch(selectedRolesProvider);
+  ref.watch(userAssignedRolesProvider);
+  return IntelligenceApi(api,roleHeaders:(){
+    final selection=ref.read(selectedRolesProvider);
+    if(selection==null)return const <String,dynamic>{};
+    final roles=ref.read(userAssignedRolesProvider).valueOrNull??const <UserAssignedRole>[];
+    final ids=<int>{};
+    for(final key in selection){
+      final id=systemRoleIdFromSelection(key)??customRoleIdFromSelection(key);
+      if(id!=null){ids.add(id);continue;}
+      for(final r in roles){
+        if(normalizeRoleName(r.name)==normalizeRoleName(key))ids.add(r.roleId);
+      }
+    }
+    final ordered=ids.toList()..sort();
+    return {'X-Intelligence-Role-Ids':ordered.isEmpty?'none':ordered.join(',')};
+  });
+});
 
 class IntelligenceApi {
-  IntelligenceApi(this._api);
+  IntelligenceApi(this._api,{this.roleHeaders});
   final ApiClient _api;
+  final Map<String,dynamic> Function()? roleHeaders;
   static const _path='/api/v1/intelligence/embedded';
   Future<Map<String,dynamic>> _post(String path,Map<String,dynamic> body,{Duration timeout=const Duration(seconds:210)}) async {
     final result=await _api.post<Map<String,dynamic>>('$_path/$path',body,
-      (data)=>Map<String,dynamic>.from(data as Map),receiveTimeout:timeout);
+      (data)=>Map<String,dynamic>.from(data as Map),receiveTimeout:timeout,headers:roleHeaders?.call());
     if(result.data==null)throw StateError('El asistente no devolvió información.');
     return result.data!;
   }
+  Future<Map<String,dynamic>> catalogSyncOptions(int branch,{String search=''})=>_post('catalog-sync-options',{'branchId':branch,if(search.trim().isNotEmpty)'search':search.trim()},timeout:const Duration(seconds:20));
+  Future<Map<String,dynamic>> catalogSyncCompare(int branch,Map<String,dynamic> selection)=>_post('catalog-sync-compare',{'branchId':branch,'selection':selection},timeout:const Duration(seconds:30));
+  Future<bool> purchaseAvailable(int branch) async=>(await _post('purchase-options',{'branchId':branch},timeout:const Duration(seconds:15)))['available']==true;
+  Future<Map<String,dynamic>> extractPurchase(int branch,String text)=>
+    _post('purchase-extract',{'branchId':branch,'text':text},timeout:const Duration(seconds:210));
+  Future<Map<String,dynamic>> memory(int branch)=>_post('memory',{'branchId':branch},timeout:const Duration(seconds:15));
+  Future<Map<String,dynamic>> configureMemory(int branch,{required bool recallHistory,required bool recallNotes,bool resetHistory=false})=>
+    _post('memory-config',{'branchId':branch,'recallHistory':recallHistory,'recallNotes':recallNotes,'resetHistory':resetHistory},timeout:const Duration(seconds:15));
+  Future<Map<String,dynamic>> saveMemory(int branch,String title,String content,{String? noteId})=>
+    _post('memory-save',{'branchId':branch,'title':title,'content':content,if(noteId!=null)'noteId':noteId},timeout:const Duration(seconds:15));
+  Future<Map<String,dynamic>> deleteMemory(int branch,String noteId)=>_post('memory-delete',{'branchId':branch,'noteId':noteId},timeout:const Duration(seconds:15));
+  Future<Map<String,dynamic>> forecastOptions(int branch)=>_post('forecast-options',{'branchId':branch},timeout:const Duration(seconds:15));
+  Future<Map<String,dynamic>> forecast(int branch,Map<String,dynamic> plan)=>_post('forecast',{'branchId':branch,'forecast':plan},timeout:const Duration(seconds:40));
+  Future<Map<String,dynamic>> alertDeliverySettings(int branch)=>_post('alert-delivery-settings',{'branchId':branch},timeout:const Duration(seconds:10));
+  Future<Map<String,dynamic>> saveAlertDelivery(int branch,bool enabled)=>_post('alert-delivery-save',{'branchId':branch,'notifyInApp':enabled},timeout:const Duration(seconds:10));
+  Future<Map<String,dynamic>> alertNotifications(int branch)=>_post('alert-notifications',{'branchId':branch},timeout:const Duration(seconds:10));
+  Future<Map<String,dynamic>> resolveAlertNotification(int branch,int id,int minutes)=>_post('alert-notification-resolve',{'branchId':branch,'id':id,'minutes':minutes},timeout:const Duration(seconds:10));
+  Future<Map<String,dynamic>> alertSettings(int branch)=>_post('alert-settings',{'branchId':branch},timeout:const Duration(seconds:15));
+  Future<Map<String,dynamic>> saveAlertSettings(int branch,Map<String,dynamic> settings)=>_post('alert-settings-save',{'branchId':branch,'settings':settings},timeout:const Duration(seconds:15));
+  Future<Map<String,dynamic>> alerts(int branch,{bool includeFinance=false})=>_post('alerts',{'branchId':branch,'includeFinance':includeFinance},timeout:const Duration(seconds:40));
+  Future<Map<String,dynamic>> exportData(int branch,Map<String,dynamic> plan)=>
+    _post('export',{'branchId':branch,'export':plan},timeout:const Duration(seconds:45));
+  Future<Map<String,dynamic>> workspaceCatalog(int branch)=>
+    _post('workspace-catalog',{'branchId':branch},timeout:const Duration(seconds:15));
+  Future<Map<String,dynamic>> workspaceQuery(int branch,Map<String,dynamic> plan)=>
+    _post('workspace-query',{'branchId':branch,'plan':plan},timeout:const Duration(seconds:15));
   Future<Map<String,dynamic>> history(int branch,{String? conversation,int offset=0})=>
     _post('history',{'branchId':branch,'conversationId':conversation,'offset':offset});
   Future<Map<String,dynamic>> chat(int branch,String? conversation,String text)=>
     _post('chat',{'branchId':branch,'conversationId':conversation,'message':text});
   Future<Map<String,dynamic>> chatProgressive(int branch,String? conversation,String text,{
-    required void Function(String) onPartial,required bool Function() isActive,required bool Function() shouldCancel,String? currentModule,
+    required void Function(String) onPartial,required bool Function() isActive,required bool Function() shouldCancel,String? currentModule,List<Map<String,String>>? menuCatalog,
   })=>ProgressiveChat((path,body)=>_post(path,body,timeout:const Duration(seconds:15))).send(
-    branch:branch,conversation:conversation,text:text,onPartial:onPartial,isActive:isActive,shouldCancel:shouldCancel,currentModule:currentModule);
+    branch:branch,conversation:conversation,text:text,onPartial:onPartial,isActive:isActive,shouldCancel:shouldCancel,currentModule:currentModule,menuCatalog:menuCatalog);
+  Future<Map<String,dynamic>> prepareProductImport(int branch,String text)=>
+    _post('product-import-prepare',{'branchId':branch,'text':text},timeout:const Duration(seconds:30));
+  Future<Map<String,dynamic>> prepareCountCsv(int branch,String text)=>
+    _post('count-import-prepare',{'branchId':branch,'text':text},timeout:const Duration(seconds:30));
+  Future<Map<String,dynamic>> prepareAction(int branch,Map<String,dynamic> plan,{Uint8List? image})=>
+    _post('action-prepare',{'branchId':branch,'plan':plan,if(image!=null)'imageBase64':base64Encode(image)},timeout:const Duration(seconds:30));
+  Future<Map<String,dynamic>> actionStatus(int branch,String draft)=>
+    _post('action-status',{'branchId':branch,'draftId':draft},timeout:const Duration(seconds:15));
+  Future<Map<String,dynamic>> confirmAction(int branch,String draft)=>
+    _post('action-confirm',{'branchId':branch,'draftId':draft},timeout:const Duration(seconds:45));
+  Future<Map<String,dynamic>> cancelAction(int branch,String draft)=>
+    _post('action-cancel',{'branchId':branch,'draftId':draft},timeout:const Duration(seconds:15));
   Future<Uint8List> speech(int branch,String text) async {
     final r=await _post('speech',{'branchId':branch,'text':text});
     if(r['format']!='wav'||r['audioBase64'] is! String)throw const FormatException('Audio no válido.');

@@ -25,6 +25,27 @@ class AssistantNavigation {
     final unique={for(final item in matches)item.path:item};
     return unique.length==1?unique.values.single:null;
   }
+  static UserMenuItem? resolveKey(String key,Iterable<UserMenuItem> allowed){
+    final matches=allowed.where((item)=>item.keyName==key&&item.path.startsWith('/')&&
+      !item.path.startsWith('//')&&!item.path.contains('://')&&!item.path.contains('?')&&!item.path.contains('#')).toList();
+    final unique={for(final item in matches)item.path:item};
+    return unique.length==1?unique.values.single:null;
+  }
+  /// A detail/edit screen may contribute a numeric record reference, but never
+  /// a public token, arbitrary segment or query string. Backend reauthorizes it.
+  static String context(String route,Iterable<UserMenuItem> allowed){
+    final key=module(route,allowed);
+    if(key.isEmpty)return '';
+    final path=Uri.tryParse(route)?.path??'';
+    final item=resolveKey(key,allowed);
+    if(item==null||!path.startsWith('${item.path}/'))return key;
+    final suffix=path.substring(item.path.length+1);
+    if(RegExp(r'^(?:nuevo|[1-9][0-9]{0,17}(?:/editar)?)$').hasMatch(suffix)){
+      final result='$key/$suffix';
+      if(result.length<=120)return result;
+    }
+    return key;
+  }
   static String module(String route,Iterable<UserMenuItem> allowed){
     // Only the route path (no query parameters, IDs or user data).
     final path=Uri.tryParse(route)?.path??'';

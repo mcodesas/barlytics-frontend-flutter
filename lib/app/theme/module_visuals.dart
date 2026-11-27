@@ -23,6 +23,8 @@ class ModuleVisuals {
         return const ModuleVisual(
           icon: Icons.tune_rounded, color: Color(0xFF0D9488),
           description: 'Organiza tus módulos y selecciona tus favoritos');
+      case 'intelligence':
+        return const ModuleVisual(icon: Icons.auto_awesome_rounded, color: Color(0xFF0891B2), description: 'Asistente y explorador de datos autorizados del negocio');
       case 'soporte_global':
         return const ModuleVisual(icon: Icons.help_outline_rounded, color: Color(0xFF2563EB), description: 'Centro global para atender cualquier cliente');
       case 'soporte_clientes':
