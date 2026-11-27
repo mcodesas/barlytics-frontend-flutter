@@ -128,7 +128,8 @@ class _IntelligenceChatState extends ConsumerState<IntelligenceChat> with Widget
   final List<({String role,String text})> _messages=[];
   final _scroll=ScrollController();
   final _composerFocus=FocusNode();
-  bool _sending=false,_enterSends=true,_showHistory=false;
+  bool _sending=false,_enterSends=true,_showHistory=false,_cancelRequested=false;
+  String _partialAnswer='';
   final List<Map<String,dynamic>> _history=[];
   int? _historyOffset,_messageOffset;
   Future<void> _loadHistory({bool more=false}) async=>_run((e) async{
@@ -151,7 +152,7 @@ class _IntelligenceChatState extends ConsumerState<IntelligenceChat> with Widget
     if(!_active(e))return;
     final rows=(r['items'] as List).reversed.map((x)=>(role:x['role'] as String,text:x['content'] as String)).toList();
     setState((){
-      if(!more){_messages.clear();_text.clear();_attachment=null;_extracted='';}
+      if(!more){_messages.clear();_text.clear();_attachment=null;_extracted='';_partialAnswer='';}
       _messages.insertAll(0,rows);_conversation=id;_messageOffset=r['nextOffset'] as int?;_showHistory=false;
     });
     if(!more)_scrollToEnd();
@@ -358,7 +359,7 @@ class _IntelligenceChatState extends ConsumerState<IntelligenceChat> with Widget
     await _run((e) async {
       final index=retryIndex??_messages.length;
       setState((){
-        _sending=true;
+        _sending=true;_cancelRequested=false;_partialAnswer='';
         if(retryIndex==null){
           _messages.add((role:'user',text:text));
           _text.clear();
@@ -368,11 +369,13 @@ class _IntelligenceChatState extends ConsumerState<IntelligenceChat> with Widget
       });
       _scrollToEnd();
       try{
-        final reply=await ref.read(intelligenceApiProvider).chat(_branch!,_conversation,text);
+        final reply=await ref.read(intelligenceApiProvider).chatProgressive(_branch!,_conversation,text,
+          isActive:()=>_active(e),shouldCancel:()=>_cancelRequested,
+          onPartial:(value){if(_active(e)){setState(()=>_partialAnswer=value);_scrollToEnd();}});
         if(!_active(e))return;
         final id=reply['conversationId'],answer=reply['answer'];
         if(id is! String||answer is! String)throw StateError('Respuesta inválida');
-        setState((){_conversation=id;_messages.add((role:'assistant',text:answer));if(_messageOffset!=null)_messageOffset=_messageOffset!+2;});
+        setState((){_conversation=id;_partialAnswer='';_messages.add((role:'assistant',text:answer));if(_messageOffset!=null)_messageOffset=_messageOffset!+2;});
       }catch(error){
         if(!_active(e))return;
         setState((){
@@ -388,6 +391,7 @@ class _IntelligenceChatState extends ConsumerState<IntelligenceChat> with Widget
             502||503||504=>'El asistente no está disponible o tardó demasiado. Intenta nuevamente.',
             _=>'No se confirmó una respuesta del servidor. Tu mensaje permanece en el chat.'
           };
+          if(error is AppException&&error.code=='CHAT_CANCELLED')_error='Generación cancelada. La respuesta parcial no fue guardada.';
           if(status!=null)_error+=' (HTTP $status)';
         });
       }finally{
@@ -444,7 +448,7 @@ class _IntelligenceChatState extends ConsumerState<IntelligenceChat> with Widget
               Text('Inteligencia BarLytics',maxLines:1,overflow:TextOverflow.ellipsis,style:TextStyle(color:palette.textPrimary,fontWeight:FontWeight.w800,fontSize:15)),
               Text(branch?.label()??'Sucursal no disponible',maxLines:1,overflow:TextOverflow.ellipsis,style:TextStyle(color:palette.textSecondary,fontSize:11))]))),
           IconButton(tooltip:'Historial de conversaciones',onPressed:locked?null:()=>_loadHistory(),icon:const Icon(Icons.history_rounded,size:20)),
-          IconButton(tooltip:'Nueva conversación',onPressed:locked?null:()=>setState((){_conversation=null;_messages.clear();_messageOffset=null;_showHistory=false;_attachment=null;_extracted='';_text.clear();_error='';}),icon:const Icon(Icons.add_comment_rounded,size:20)),
+          IconButton(tooltip:'Nueva conversación',onPressed:locked?null:()=>setState((){_conversation=null;_messages.clear();_messageOffset=null;_showHistory=false;_partialAnswer='';_attachment=null;_extracted='';_text.clear();_error='';}),icon:const Icon(Icons.add_comment_rounded,size:20)),
           IconButton(tooltip:'Minimizar chat',onPressed:_recording||_live?null:(){_composerFocus.unfocus();widget.onMinimize();},icon:const Icon(Icons.minimize_rounded,size:20)),
           IconButton(tooltip:'Cerrar chat',onPressed:_invalidate,icon:const Icon(Icons.close,size:20))])),
         if(_busy)const LinearProgressIndicator(),
@@ -459,7 +463,17 @@ class _IntelligenceChatState extends ConsumerState<IntelligenceChat> with Widget
           if(_messageOffset!=null&&_conversation!=null)TextButton(onPressed:locked?null:()=>_openHistory(_conversation!,more:true),child:const Text('Cargar mensajes anteriores')),
           if(_messages.isEmpty)const Center(child:Padding(padding:EdgeInsets.symmetric(vertical:32),child:Text('¿En qué puedo ayudarte hoy?\nConsulta o adjunta un archivo para revisar su contenido.',textAlign:TextAlign.center))),
           for(var i=0;i<_messages.length;i++) _messageBubble(i,palette,locked),
-          if(_sending)const Padding(padding:EdgeInsets.symmetric(vertical:12),child:Row(children:[SizedBox(width:16,height:16,child:CircularProgressIndicator(strokeWidth:2)),SizedBox(width:10),Expanded(child:Text('Intelligence está preparando la respuesta…'))])),
+          if(_partialAnswer.isNotEmpty)Align(alignment:Alignment.centerLeft,child:Container(
+            margin:const EdgeInsets.symmetric(vertical:5),padding:const EdgeInsets.all(12),
+            constraints:const BoxConstraints(maxWidth:540),decoration:BoxDecoration(color:palette.background,borderRadius:BorderRadius.circular(16)),
+            child:Column(crossAxisAlignment:CrossAxisAlignment.start,mainAxisSize:MainAxisSize.min,children:[
+              SelectableText(_partialAnswer,style:TextStyle(color:palette.textPrimary)),
+              if(!_sending)Text('Respuesta parcial no confirmada',style:TextStyle(color:palette.warning,fontSize:11)),
+            ]))),
+          if(_sending)Padding(padding:const EdgeInsets.symmetric(vertical:12),child:Row(children:[
+            const SizedBox(width:16,height:16,child:CircularProgressIndicator(strokeWidth:2)),const SizedBox(width:10),
+            Expanded(child:Text(_cancelRequested?'Solicitando cancelación…':_partialAnswer.isEmpty?'Intelligence está preparando la respuesta…':'Generando respuesta…')),
+          ])),
           if(_attachment!=null)Card(child:Padding(padding:const EdgeInsets.all(10),child:Column(crossAxisAlignment:CrossAxisAlignment.start,children:[
             Row(children:[const Icon(Icons.attach_file),Expanded(child:Text(_attachment!.name,maxLines:1,overflow:TextOverflow.ellipsis)),
               IconButton(tooltip:'Quitar adjunto',onPressed:locked?null:()=>setState((){_attachment=null;_extracted='';}),icon:const Icon(Icons.close))]),
@@ -494,7 +508,9 @@ class _IntelligenceChatState extends ConsumerState<IntelligenceChat> with Widget
             const Spacer(),
             IconButton.filledTonal(tooltip:'Conversación por voz continua',onPressed:locked||_branch==null?null:_startLive,icon:const Icon(Icons.graphic_eq_rounded)),
             const SizedBox(width:6),
-            IconButton.filled(tooltip:'Enviar mensaje',onPressed:locked||_branch==null?null:_send,icon:const Icon(Icons.arrow_upward_rounded)),
+            IconButton.filled(tooltip:_sending?'Detener generación':'Enviar mensaje',
+              onPressed:_sending?(_cancelRequested?null:()=>setState(()=>_cancelRequested=true)):locked||_branch==null?null:_send,
+              icon:Icon(_sending?Icons.stop_rounded:Icons.arrow_upward_rounded)),
           ]),if(_recording)const Text('Grabando audio · máximo 30 segundos'),
           if(_enterSends)const Align(alignment:Alignment.centerLeft,child:Text('Enter: enviar · Shift + Enter: nueva línea',style:TextStyle(fontSize:10))),
           const Text('Revisa los adjuntos antes de enviarlos. No se ejecutan operaciones comerciales desde este chat.',textAlign:TextAlign.center,style:TextStyle(fontSize:10))
