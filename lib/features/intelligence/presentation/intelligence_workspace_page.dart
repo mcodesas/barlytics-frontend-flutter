@@ -61,7 +61,7 @@ class _WorkspaceState extends ConsumerState<_Workspace>{
         if(_filterField!=null&&_filter.text.trim().isNotEmpty)
           'filters':[{'field':_filterField,'operator':_operator,'value':_filter.text.trim()}]};
       final result=await ref.read(intelligenceApiProvider).workspaceQuery(widget.branch,plan);
-      if(mounted&&generation==_generation&&ref.read(branchScopeProvider).activeBranchId==widget.branch)setState((){_answer=result['answer']?.toString()??'Sin respuesta.';_exportPlan={'format':'table','query':plan};});
+      if(mounted&&generation==_generation&&ref.read(branchScopeProvider).activeBranchId==widget.branch)setState((){_answer=result['answer']?.toString()??'Sin respuesta.';_exportPlan={'format':'table','query':Map<String,dynamic>.from(plan)..remove('limit')};});
     }catch(_){if(mounted&&generation==_generation)setState(()=>_answer='No se pudo realizar la consulta. Verifica tus permisos y filtros.');}
     finally{if(mounted&&generation==_generation)setState(()=>_busy=false);}
   }
