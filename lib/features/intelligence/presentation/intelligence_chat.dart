@@ -490,6 +490,34 @@ class _IntelligenceChatState extends ConsumerState<IntelligenceChat> with Widget
       }finally{if(_active(e))setState(()=>_actionSubmitting=false);}
     });
   }
+  Future<void> _checkActionStatus() async {
+    final branch=_branch,pending=_pendingAction;
+    if(branch==null||pending==null||_busy||_actionSubmitting||_closed)return;
+    final id=pending['draftId'];
+    if(id is! String)return;
+    await _run((e) async{
+      final result=await ref.read(intelligenceApiProvider).actionStatus(branch,id);
+      if(!_active(e)||_pendingAction?['draftId']!=id)return;
+      if(result['draftId']!=id)throw const FormatException('Resultado no confirmado');
+      final status=result['status'];
+      if(!const {'PENDING','APPLIED','CANCELLED','EXPIRED'}.contains(status))throw const FormatException('Estado inválido');
+      setState((){
+        if(status!='PENDING'){
+          _pendingAction=null;
+          if(status=='APPLIED'&&(pending['hasImage']==true||pending['documentPurchase'] is Map||pending['productImport'] is Map)){
+            _attachment=null;_extracted='';_documentWarnings=[];
+          }
+        }
+        _error='';
+        _messages.add((role:'assistant',text:status=='APPLIED'?'BarLytics confirma que la operación ya fue aplicada. No se ejecutó de nuevo.':
+          status=='CANCELLED'?'BarLytics confirma que el borrador fue cancelado.':
+          status=='EXPIRED'?'El borrador venció sin ejecutarse. Prepara una nueva acción.':
+          'La operación sigue pendiente; todavía no ha sido aplicada.'));
+      });
+      if(status=='APPLIED'&&(pending['action']=='menu.personal_favorito'||pending['action']=='menu.personal_ubicacion'))ref.invalidate(menuPreferencesProvider);
+      _scrollToEnd();
+    });
+  }
   Widget _actionCard(bool locked){
     final p=_pendingAction!;
     final changes=p['changes'];
@@ -556,6 +584,7 @@ class _IntelligenceChatState extends ConsumerState<IntelligenceChat> with Widget
       ]))),
       Wrap(spacing:8,children:[
         OutlinedButton(onPressed:locked||_actionSubmitting?null:()=>_resolveAction(false),child:const Text('Cancelar')),
+        OutlinedButton(onPressed:locked||_actionSubmitting?null:_checkActionStatus,child:const Text('Consultar estado')),
         FilledButton(onPressed:locked||_actionSubmitting?null:()=>_resolveAction(true),child:const Text('Confirmar y ejecutar')),
       ])
     ])));
