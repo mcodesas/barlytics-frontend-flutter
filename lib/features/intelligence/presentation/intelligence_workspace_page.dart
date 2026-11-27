@@ -94,7 +94,7 @@ class _WorkspaceState extends ConsumerState<_Workspace>{
           const SizedBox(height:8),
           const Text('Consulta los datos de tu negocio, según los permisos de tu usuario y la sucursal seleccionada.'),
           const SizedBox(height:12),
-          Align(alignment:Alignment.centerLeft,child:FilledButton.icon(onPressed:()=>showIntelligenceChat(context),icon:const Icon(Icons.chat_bubble_outline),label:const Text('Abrir asistente Intelligence'))),
+          Align(alignment:Alignment.centerLeft,child:Builder(builder:(anchorContext)=>FilledButton.icon(onPressed:()=>showIntelligenceChat(anchorContext),icon:const Icon(Icons.chat_bubble_outline),label:const Text('Abrir asistente Intelligence')))),
           const SizedBox(height:16),
           IntelligenceAlertsCard(key:ValueKey('alerts-${widget.branch}'),branch:widget.branch,initiallyExpanded:true),
           const SizedBox(height:16),

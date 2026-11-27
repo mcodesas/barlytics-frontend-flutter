@@ -5,6 +5,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import '../domain/intelligence_attachment.dart';
+import '../domain/assistant_window_layout.dart';
 import '../../../core/errors/app_exception.dart';
 import 'intelligence_composer.dart';
 import 'intelligence_export_card.dart';
@@ -33,11 +34,25 @@ import '../domain/pcm_wav.dart';
 /// The window belongs to the app shell, not to any individual route.
 final intelligenceWindowProvider=StateProvider<bool>((ref)=>false);
 final _windowKey=GlobalKey<_IntelligenceWindowState>();
+final _hostKey=GlobalKey();
+final _windowAnchorProvider=StateProvider<Rect?>((ref)=>null);
 
 Future<void> showIntelligenceChat(BuildContext context) async {
   final container=ProviderScope.containerOf(context,listen:false);
+  // Capture the actual button before the async permission lookup. Coordinates
+  // are relative to the same host that owns the floating window.
+  final trigger=context.findRenderObject();
+  final host=_hostKey.currentContext?.findRenderObject();
+  Rect? anchor;
+  if(trigger is RenderBox&&host is RenderBox&&trigger.attached&&host.attached&&trigger.hasSize&&host.hasSize){
+    final origin=host.globalToLocal(trigger.localToGlobal(Offset.zero));
+    anchor=origin&trigger.size;
+  }
   final menu=await container.read(userMenuProvider.future);
-  if(!menu.any((item)=>item.keyName=='intelligence'))return;
+  if(!context.mounted||!menu.any((item)=>item.keyName=='intelligence'))return;
+  if(!container.read(intelligenceWindowProvider)){
+    container.read(_windowAnchorProvider.notifier).state=anchor;
+  }
   container.read(intelligenceWindowProvider.notifier).state=true;
   _windowKey.currentState?.restore();
 }
@@ -62,7 +77,7 @@ class IntelligenceWindowHost extends ConsumerWidget {
         ref.read(intelligenceWindowProvider.notifier).state=false;
       }
     });
-    return Stack(fit:StackFit.expand,children:[
+    return Stack(key:_hostKey,fit:StackFit.expand,children:[
       child,
       if(open&&authorized&&auth.authenticated&&auth.subscriptionActive&&!auth.restoringSession&&branch!=null)
         _IntelligenceLayer(onClose:()=>ref.read(intelligenceWindowProvider.notifier).state=false),
@@ -101,17 +116,13 @@ class _IntelligenceWindowState extends ConsumerState<_IntelligenceWindow>{
   Widget build(BuildContext context){
     final palette=ref.watch(selectedAppPaletteProvider);
     final media=MediaQuery.of(context);
+    final anchor=ref.watch(_windowAnchorProvider);
     return LayoutBuilder(builder:(context,c){
       final w=c.maxWidth,h=c.maxHeight;
       // Leave the entire navigation bar exposed; keyboard inset takes precedence.
       final bottom=(media.viewInsets.bottom>0?media.viewInsets.bottom:media.padding.bottom+82)+12;
-      final top=(media.padding.top+8).clamp(0.0,h).toDouble();
-      final width=(w-24).clamp(0.0,470.0).toDouble();
-      final height=(h-top-bottom-8).clamp(0.0,650.0).toDouble();
-      final maxX=(w-width-12).clamp(0.0,w).toDouble();
-      final maxY=(h-bottom-height).clamp(top,h).toDouble();
-      final desired=position??Offset((w-width)/2,(top+maxY)/2);
-      final actual=Offset(desired.dx.clamp(0.0,maxX).toDouble(),desired.dy.clamp(top,maxY).toDouble());
+      final bounds=assistantWindowBounds(viewport:Size(w,h),topInset:media.padding.top+8,bottomInset:bottom,anchor:anchor,draggedPosition:position);
+      final actual=bounds.topLeft,width=bounds.width,height=bounds.height;
       return Stack(children:[
         Positioned(left:actual.dx,top:actual.dy,width:width,height:height,
           child:Visibility(visible:!minimized,maintainState:true,child:Material(
