@@ -222,14 +222,21 @@ class _IntelligenceChatState extends ConsumerState<IntelligenceChat> with Widget
     final result=await ref.read(intelligenceApiProvider).media(_branch!,a.kind,a.name,a.bytes);
     if(_active(e))setState(()=>_extracted=result['text']?.toString()??'');
   });
-  Future<void> _send() async {
-    final text=_text.text.trim();
+  Future<void> _send() => _sendMessage();
+  Future<void> _sendMessage({int? retryIndex}) async {
+    if(retryIndex!=null&&(retryIndex!=_messages.length-1||retryIndex<0||_messages[retryIndex].role!='failed'))return;
+    final text=retryIndex==null?_text.text.trim():_messages[retryIndex].text;
     if(_busy||_recording||_live||_closed||_branch==null||text.isEmpty||text.length>2000)return;
     await _run((e) async {
+      final index=retryIndex??_messages.length;
       setState((){
         _sending=true;
-        _messages.add((role:'user',text:text));
-        _text.clear();
+        if(retryIndex==null){
+          _messages.add((role:'user',text:text));
+          _text.clear();
+        }else{
+          _messages[index]=(role:'user',text:text);
+        }
       });
       _scrollToEnd();
       try{
@@ -241,15 +248,17 @@ class _IntelligenceChatState extends ConsumerState<IntelligenceChat> with Widget
       }catch(error){
         if(!_active(e))return;
         setState((){
-          _messages.removeLast();
-          _text.text=text;
+          // Keep the failed message visible; retry is explicit, never automatic.
+          _messages[index]=(role:'failed',text:text);
           final status=error is AppException?error.statusCode:null;
           _error=switch(status){
+            400||422=>'No se pudo procesar la consulta. Revisa los datos.',
             401=>'Sesión vencida. Inicia sesión nuevamente.',
             403=>'No tienes acceso al asistente en esta sucursal.',
+            404=>'La conversación o el servicio no está disponible. Puedes iniciar una nueva conversación.',
             429=>'El asistente está ocupado. Intenta nuevamente.',
             502||503||504=>'El asistente no está disponible o tardó demasiado. Intenta nuevamente.',
-            _=>'No se recibió una respuesta. Tu mensaje se conservó.'
+            _=>'No se confirmó una respuesta del servidor. Tu mensaje permanece en el chat.'
           };
           if(status!=null)_error+=' (HTTP $status)';
         });
@@ -264,6 +273,24 @@ class _IntelligenceChatState extends ConsumerState<IntelligenceChat> with Widget
        (kIsWeb||{TargetPlatform.windows,TargetPlatform.macOS,TargetPlatform.linux}.contains(defaultTargetPlatform))){
       WidgetsBinding.instance.addPostFrameCallback((_){if(mounted&&!_closed&&!_busy)_composerFocus.requestFocus();});
     }
+  }
+  Widget _messageBubble(int index,AppPalette palette,bool locked){
+    final m=_messages[index],failed=m.role=='failed',isUser=m.role!='assistant';
+    return Align(alignment:isUser?Alignment.centerRight:Alignment.centerLeft,child:Container(
+      margin:const EdgeInsets.symmetric(vertical:5),padding:const EdgeInsets.all(12),
+      constraints:const BoxConstraints(maxWidth:540),
+      decoration:BoxDecoration(color:isUser?palette.primary.withOpacity(.16):palette.background,borderRadius:BorderRadius.circular(16)),
+      child:Column(crossAxisAlignment:CrossAxisAlignment.start,mainAxisSize:MainAxisSize.min,children:[
+        SelectableText(m.text,style:TextStyle(color:palette.textPrimary)),
+        if(failed)...[
+          const SizedBox(height:6),
+          Text('Respuesta no confirmada',style:TextStyle(color:palette.danger,fontSize:11)),
+          if(index==_messages.length-1)TextButton.icon(
+            onPressed:locked?null:()=>_sendMessage(retryIndex:index),
+            icon:const Icon(Icons.refresh,size:16),label:const Text('Reintentar')),
+        ],
+      ]),
+    ));
   }
   @override
   void dispose(){
@@ -300,10 +327,7 @@ class _IntelligenceChatState extends ConsumerState<IntelligenceChat> with Widget
         ])),
         Expanded(child:ListView(controller:_scroll,padding:const EdgeInsets.all(16),children:[
           if(_messages.isEmpty)const Center(child:Padding(padding:EdgeInsets.symmetric(vertical:32),child:Text('¿En qué puedo ayudarte hoy?\nConsulta o adjunta un archivo para revisar su contenido.',textAlign:TextAlign.center))),
-          for(final m in _messages)Align(alignment:m.role=='user'?Alignment.centerRight:Alignment.centerLeft,child:Container(
-            margin:const EdgeInsets.symmetric(vertical:5),padding:const EdgeInsets.all(12),constraints:const BoxConstraints(maxWidth:540),
-            decoration:BoxDecoration(color:m.role=='user'?palette.primary.withOpacity(.16):palette.background,borderRadius:BorderRadius.circular(16)),
-            child:SelectableText(m.text,style:TextStyle(color:palette.textPrimary)))),
+          for(var i=0;i<_messages.length;i++) _messageBubble(i,palette,locked),
           if(_sending)const Padding(padding:EdgeInsets.symmetric(vertical:12),child:Row(children:[SizedBox(width:16,height:16,child:CircularProgressIndicator(strokeWidth:2)),SizedBox(width:10),Expanded(child:Text('Intelligence está preparando la respuesta…'))])),
           if(_attachment!=null)Card(child:Padding(padding:const EdgeInsets.all(10),child:Column(crossAxisAlignment:CrossAxisAlignment.start,children:[
             Row(children:[const Icon(Icons.attach_file),Expanded(child:Text(_attachment!.name,maxLines:1,overflow:TextOverflow.ellipsis)),
