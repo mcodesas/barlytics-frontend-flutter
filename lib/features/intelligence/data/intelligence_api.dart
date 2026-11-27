@@ -41,6 +41,12 @@ class IntelligenceApi {
     if(result.data==null)throw StateError('El asistente no devolvió información.');
     return result.data!;
   }
+  Future<Map<String,dynamic>> memory(int branch)=>_post('memory',{'branchId':branch},timeout:const Duration(seconds:15));
+  Future<Map<String,dynamic>> configureMemory(int branch,{required bool recallHistory,required bool recallNotes,bool resetHistory=false})=>
+    _post('memory-config',{'branchId':branch,'recallHistory':recallHistory,'recallNotes':recallNotes,'resetHistory':resetHistory},timeout:const Duration(seconds:15));
+  Future<Map<String,dynamic>> saveMemory(int branch,String title,String content,{String? noteId})=>
+    _post('memory-save',{'branchId':branch,'title':title,'content':content,if(noteId!=null)'noteId':noteId},timeout:const Duration(seconds:15));
+  Future<Map<String,dynamic>> deleteMemory(int branch,String noteId)=>_post('memory-delete',{'branchId':branch,'noteId':noteId},timeout:const Duration(seconds:15));
   Future<Map<String,dynamic>> forecastOptions(int branch)=>_post('forecast-options',{'branchId':branch},timeout:const Duration(seconds:15));
   Future<Map<String,dynamic>> forecast(int branch,Map<String,dynamic> plan)=>_post('forecast',{'branchId':branch,'forecast':plan},timeout:const Duration(seconds:40));
   Future<Map<String,dynamic>> alertSettings(int branch)=>_post('alert-settings',{'branchId':branch},timeout:const Duration(seconds:15));
