@@ -27,7 +27,7 @@ class ProgressiveChat {
       if(status=='done'){
         final conversationId=snapshot['conversationId'];
         if(conversationId is! String||conversationId.isEmpty||partial.trim().isEmpty)throw const FormatException('Respuesta no confirmada');
-        return {'conversationId':conversationId,'answer':partial,if(snapshot['navigation'] is String)'navigation':snapshot['navigation'],if(snapshot['action'] is Map)'action':snapshot['action']};
+        return {'conversationId':conversationId,'answer':partial,if(snapshot['navigation'] is String)'navigation':snapshot['navigation'],if(snapshot['action'] is Map)'action':snapshot['action'],if(snapshot['export'] is Map)'export':snapshot['export']};
       }
       if(status=='cancelled')throw const ApiException('Generación cancelada',code:'CHAT_CANCELLED');
       if(status=='failed'){
