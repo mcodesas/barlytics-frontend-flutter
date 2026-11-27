@@ -40,23 +40,7 @@ class AssistantNavigation {
     final item=resolveKey(key,allowed);
     if(item==null||!path.startsWith('${item.path}/'))return key;
     final suffix=path.substring(item.path.length+1);
-    if(RegExp(r'^(?:nuevo|[1-9][0-9]{0,17}(?:/editar)?)String route,Iterable<UserMenuItem> allowed){
-    // Only the route path (no query parameters, IDs or user data).
-    final path=Uri.tryParse(route)?.path??'';
-    final candidates=allowed.where((item)=>path==item.path||
-      (item.path!='/'&&item.path.isNotEmpty&&path.startsWith('${item.path}/'))).toList()
-      ..sort((a,b)=>b.path.length.compareTo(a.path.length));
-    if(candidates.isNotEmpty)return candidates.first.keyName;
-    if(path=='/home')return 'home';
-    if(path.startsWith('/mesero/')){
-      const aliases={'/mesero/productos':'mesero_productos','/mesero/historial':'historial_ventas','/mesero/cierre-caja':'cierre_caja','/mesero/resumen':'mesero'};
-      final key=aliases[path];
-      if(key!=null&&allowed.any((item)=>item.keyName==key))return key;
-    }
-    return '';
-  }
-}
-).hasMatch(suffix)){
+    if(RegExp(r'^(?:nuevo|[1-9][0-9]{0,17}(?:/editar)?)$').hasMatch(suffix)){
       final result='$key/$suffix';
       if(result.length<=120)return result;
     }
