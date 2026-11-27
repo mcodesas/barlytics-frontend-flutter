@@ -27,6 +27,7 @@ class _IntelligenceAlertsCardState extends ConsumerState<IntelligenceAlertsCard>
   final expiry=TextEditingController(text:'7'),orders=TextEditingController(text:'3'),
     cash=TextEditingController(text:'0'),decline=TextEditingController(text:'20');
   bool busy=false,editing=false,loaded=false,expanded=false,foreground=true;
+  bool? notifyInApp;
   int generation=0;
   String? error;
   Timer? timer;
@@ -46,7 +47,7 @@ class _IntelligenceAlertsCardState extends ConsumerState<IntelligenceAlertsCard>
   bool active(int g)=>mounted&&g==generation&&ref.read(branchScopeProvider).activeBranchId==widget.branch;
   void reset(){
     generation++;
-    if(mounted)setState((){busy=false;editing=false;loaded=false;available={};enabled={};categories=[];error=null;});
+    if(mounted)setState((){busy=false;editing=false;loaded=false;notifyInApp=null;available={};enabled={};categories=[];error=null;});
     if(mounted&&expanded)WidgetsBinding.instance.addPostFrameCallback((_){if(mounted)_load(finance:true);});
   }
   void readSettings(Map<String,dynamic> response){
@@ -62,9 +63,12 @@ class _IntelligenceAlertsCardState extends ConsumerState<IntelligenceAlertsCard>
     try{
       final result=await ref.read(intelligenceApiProvider).alerts(widget.branch,includeFinance:finance);
       if(!active(g))return;
+      final delivery=await ref.read(intelligenceApiProvider).alertDeliverySettings(widget.branch);
+      if(!active(g))return;
       final next=(result['categories'] as List).whereType<Map>().map((x)=>Map<String,dynamic>.from(x)).toList();
       setState((){
         readSettings(result);
+        notifyInApp=delivery['notifyInApp']==true;
         final previousFinance=categories.where((c)=>c['rule']=='FINANCE').toList();
         categories=next;
         if(!finance&&enabled.contains('FINANCE')&&available.contains('FINANCE'))categories.addAll(previousFinance);
@@ -97,6 +101,17 @@ class _IntelligenceAlertsCardState extends ConsumerState<IntelligenceAlertsCard>
     finally{if(active(g))setState(()=>busy=false);}
     if(active(g)&&!editing)await _load(finance:true);
   }
+  Future<void> _delivery(bool enabled) async{
+    if(busy||notifyInApp==null)return;
+    final g=++generation;setState((){busy=true;error=null;});
+    try{
+      final result=await ref.read(intelligenceApiProvider).saveAlertDelivery(widget.branch,enabled);
+      if(!active(g))return;
+      if(result['notifyInApp']!=enabled)throw const FormatException('Preferencia no confirmada');
+      setState(()=>notifyInApp=enabled);
+    }catch(_){if(active(g))setState(()=>error='No se confirmó el cambio de notificaciones.');}
+    finally{if(active(g))setState(()=>busy=false);}
+  }
   Widget field(TextEditingController controller,String label)=>Padding(padding:const EdgeInsets.only(bottom:8),child:TextField(
     controller:controller,enabled:!busy,keyboardType:const TextInputType.numberWithOptions(decimal:true),
     decoration:InputDecoration(labelText:label,border:const OutlineInputBorder())));
@@ -117,6 +132,7 @@ class _IntelligenceAlertsCardState extends ConsumerState<IntelligenceAlertsCard>
         if(error!=null)Text(error!,style:TextStyle(color:colors.error)),
         if(!loaded&&!busy)TextButton(onPressed:()=>_load(finance:true),child:const Text('Cargar alertas')),
         if(loaded&&!editing) ...[
+          if(notifyInApp!=null)SwitchListTile(contentPadding:EdgeInsets.zero,title:const Text('Avisarme dentro de BarLytics'),subtitle:const Text('Avisos operativos mientras la aplicación está abierta. No incluye push con la aplicación cerrada ni alertas financieras.'),value:notifyInApp!,onChanged:busy?null:_delivery),
           Wrap(spacing:8,children:[
             OutlinedButton.icon(onPressed:busy?null:()=>_load(finance:true),icon:const Icon(Icons.refresh),label:const Text('Actualizar todo')),
             OutlinedButton.icon(onPressed:busy?null:()=>setState(()=>editing=true),icon:const Icon(Icons.settings_outlined),label:const Text('Configurar')),
