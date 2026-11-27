@@ -8,6 +8,7 @@ import 'intelligence_composer.dart';
 import 'intelligence_export_card.dart';
 import 'intelligence_alerts_card.dart';
 import 'intelligence_forecast_card.dart';
+import 'intelligence_catalog_sync_card.dart';
 import 'intelligence_purchase_review.dart';
 import '../../navigation/presentation/providers/menu_preferences_provider.dart';
 import '../../navigation/presentation/providers/active_role_provider.dart';
@@ -167,7 +168,7 @@ class _IntelligenceChatState extends ConsumerState<IntelligenceChat> with Widget
     if(!_active(e))return;
     final rows=(r['items'] as List).reversed.map((x)=>(role:x['role'] as String,text:x['content'] as String)).toList();
     setState((){
-      if(!more){_messages.clear();_exportPlan=null;_showAlerts=false;_forecastPlan=null;_text.clear();_attachment=null;_pendingAction=null;_extracted='';_documentWarnings=[];_partialAnswer='';}
+      if(!more){_messages.clear();_exportPlan=null;_showAlerts=false;_forecastPlan=null;_showCatalogSync=false;_text.clear();_attachment=null;_pendingAction=null;_extracted='';_documentWarnings=[];_partialAnswer='';}
       _messages.insertAll(0,rows);_conversation=id;_messageOffset=r['nextOffset'] as int?;_showHistory=false;
     });
     if(!more)_scrollToEnd();
@@ -291,6 +292,7 @@ class _IntelligenceChatState extends ConsumerState<IntelligenceChat> with Widget
   Map<String,dynamic>? _pendingAction;
   Map<String,dynamic>? _exportPlan;
   bool _showAlerts=false;
+  bool _showCatalogSync=false;
   Map<String,dynamic>? _forecastPlan;
   bool _actionSubmitting=false;
   String? _conversation;
@@ -315,7 +317,7 @@ class _IntelligenceChatState extends ConsumerState<IntelligenceChat> with Widget
     unawaited(_recorder.cancel().catchError((Object _){}));
     unawaited(_liveSubscription?.cancel()??Future<void>.value());
     unawaited(_player.stop().catchError((Object _){}));
-    _pcm.clear();_attachment=null;_pendingAction=null;_extracted='';_documentWarnings=[];_messages.clear();_exportPlan=null;_showAlerts=false;_forecastPlan=null;_text.clear();
+    _pcm.clear();_attachment=null;_pendingAction=null;_extracted='';_documentWarnings=[];_messages.clear();_exportPlan=null;_showAlerts=false;_forecastPlan=null;_showCatalogSync=false;_text.clear();
     if(mounted)WidgetsBinding.instance.addPostFrameCallback((_){if(mounted)widget.onClose();});
   }
   Future<void> _select(String kind,{bool camera=false}) async=>_run((e) async {
@@ -523,7 +525,7 @@ class _IntelligenceChatState extends ConsumerState<IntelligenceChat> with Widget
     await _run((e) async {
       final index=retryIndex??_messages.length;
       setState((){
-        _sending=true;_cancelRequested=false;_partialAnswer='';_exportPlan=null;_showAlerts=false;_forecastPlan=null;
+        _sending=true;_cancelRequested=false;_partialAnswer='';_exportPlan=null;_showAlerts=false;_forecastPlan=null;_showCatalogSync=false;
         if(retryIndex==null){
           _messages.add((role:'user',text:text));
           _text.clear();
@@ -567,6 +569,7 @@ class _IntelligenceChatState extends ConsumerState<IntelligenceChat> with Widget
         final id=reply['conversationId'],answer=reply['answer'];
         if(id is! String||answer is! String)throw StateError('Respuesta inválida');
         var finalAnswer=answer;
+        if(reply['catalogSyncPanel']==true&&!_cancelRequested)setState(()=>_showCatalogSync=true);
         if(reply['alerts']==true&&!_cancelRequested)setState(()=>_showAlerts=true);
         final forecast=reply['forecast'];
         if(forecast is Map&&!_cancelRequested)setState(()=>_forecastPlan=Map<String,dynamic>.from(forecast));
@@ -675,7 +678,7 @@ class _IntelligenceChatState extends ConsumerState<IntelligenceChat> with Widget
               Text('Arrastra para mover',maxLines:1,overflow:TextOverflow.ellipsis,style:TextStyle(color:palette.textSecondary,fontSize:10)),
             ])))),
           IconButton(tooltip:'Historial de conversaciones',onPressed:locked?null:()=>_loadHistory(),icon:const Icon(Icons.history_rounded,size:20)),
-          IconButton(tooltip:'Nueva conversación',onPressed:locked?null:()=>setState((){_conversation=null;_messages.clear();_exportPlan=null;_showAlerts=false;_forecastPlan=null;_messageOffset=null;_showHistory=false;_partialAnswer='';_attachment=null;_pendingAction=null;_extracted='';_documentWarnings=[];_text.clear();_error='';}),icon:const Icon(Icons.add_comment_rounded,size:20)),
+          IconButton(tooltip:'Nueva conversación',onPressed:locked?null:()=>setState((){_conversation=null;_messages.clear();_exportPlan=null;_showAlerts=false;_forecastPlan=null;_showCatalogSync=false;_messageOffset=null;_showHistory=false;_partialAnswer='';_attachment=null;_pendingAction=null;_extracted='';_documentWarnings=[];_text.clear();_error='';}),icon:const Icon(Icons.add_comment_rounded,size:20)),
           IconButton(tooltip:'Minimizar chat',onPressed:_recording||_live?null:(){_composerFocus.unfocus();widget.onMinimize();},icon:const Icon(Icons.minimize_rounded,size:20)),
           IconButton(tooltip:'Cerrar chat',onPressed:_invalidate,icon:const Icon(Icons.close,size:20))])),
         if(_busy)const LinearProgressIndicator(),
@@ -702,6 +705,7 @@ class _IntelligenceChatState extends ConsumerState<IntelligenceChat> with Widget
             Expanded(child:Text(_cancelRequested?'Solicitando cancelación…':_partialAnswer.isEmpty?'Intelligence está preparando la respuesta…':'Generando respuesta…')),
           ])),
           if(_pendingAction!=null)_actionCard(locked),
+          if(_showCatalogSync&&_branch!=null)ConstrainedBox(constraints:const BoxConstraints(maxHeight:420),child:SingleChildScrollView(child:IntelligenceCatalogSyncCard(branch:_branch!,initiallyExpanded:true))),
           if(_forecastPlan!=null&&_branch!=null)ConstrainedBox(constraints:const BoxConstraints(maxHeight:420),child:SingleChildScrollView(child:IntelligenceForecastCard(key:ValueKey(_forecastPlan),branch:_branch!,initialPlan:_forecastPlan))),
           if(_showAlerts&&_branch!=null)ConstrainedBox(constraints:const BoxConstraints(maxHeight:300),child:SingleChildScrollView(child:IntelligenceAlertsCard(branch:_branch!,initiallyExpanded:true))),
           if(_exportPlan!=null&&_branch!=null)IntelligenceExportCard(branch:_branch!,plan:_exportPlan!,disabled:locked),
