@@ -59,11 +59,11 @@ class _IntelligenceExportCardState extends ConsumerState<IntelligenceExportCard>
         if(format=='chart'||format=='table'){
           final numeric=_numericColumns(columns,rows);
           final categories=columns.where((c)=>!numeric.contains(c)).toList();
-          setState(()=>{dataset=result,value=numeric.firstOrNull,label=categories.firstOrNull??columns.firstOrNull});
+          setState((){dataset=result;value=numeric.firstOrNull;label=categories.firstOrNull??columns.firstOrNull;});
         }else{
           final bytes=await _pdf(result,columns,rows);
           if(!_active(g))return;
-          final saved=await downloadBytesFile(fileName:'intelligence-${widget.branch}.pdf',bytes:bytes,mimeType:'application/pdf');
+          final saved=await downloadBytesFile(fileName:'intelligence-${widget.branch}${partial?'-parcial':''}.pdf',bytes:bytes,mimeType:'application/pdf');
           if(_active(g))setState(()=>status=saved?'PDF guardado.':'Guardado cancelado.');
         }
       }else{
@@ -71,7 +71,7 @@ class _IntelligenceExportCardState extends ConsumerState<IntelligenceExportCard>
         if(raw is! String||raw.length>6*1024*1024)throw const FormatException('Archivo inválido');
         final bytes=base64Decode(raw);
         if(!_active(g))return;
-        final saved=await downloadBytesFile(fileName:'intelligence-${widget.branch}.$format',bytes:bytes,
+        final saved=await downloadBytesFile(fileName:'intelligence-${widget.branch}${partial?'-parcial':''}.$format',bytes:bytes,
           mimeType:format=='xlsx'?'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet':'text/csv;charset=utf-8');
         if(_active(g))setState(()=>status=saved?'Archivo guardado.':'Guardado cancelado.');
       }
@@ -121,10 +121,10 @@ class _IntelligenceExportCardState extends ConsumerState<IntelligenceExportCard>
   Widget _preview(Map<String,dynamic> data){
     final cols=_columns(data),rows=_rows(data);
     if(rows.isEmpty||cols.isEmpty)return const Text('No hay datos para mostrar.');
-    if(data['format']=='table')return SingleChildScrollView(scrollDirection:Axis.horizontal,child:DataTable(
+    if(data['format']=='table')return Column(crossAxisAlignment:CrossAxisAlignment.start,children:[Text('Vista previa: ${math.min(20,rows.length)} de ${rows.length} filas.'),SingleChildScrollView(scrollDirection:Axis.horizontal,child:DataTable(
       columns:[for(final c in cols)DataColumn(label:Text(c))],
       rows:[for(final r in rows.take(20))DataRow(cells:[for(final v in r)DataCell(Text(_cell(v),maxLines:3,overflow:TextOverflow.ellipsis))])],
-    ));
+    ))]);
     final numeric=_numericColumns(cols,rows);
     if(numeric.isEmpty)return const Text('La consulta no contiene valores numéricos para graficar. Usa una agregación o reporte.');
     final selectedValue=value??numeric.first,selectedLabel=label??cols.first;
