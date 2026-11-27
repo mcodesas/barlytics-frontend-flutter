@@ -41,6 +41,8 @@ class IntelligenceApi {
     if(result.data==null)throw StateError('El asistente no devolvió información.');
     return result.data!;
   }
+  Future<Map<String,dynamic>> catalogSyncOptions(int branch,{String search=''})=>_post('catalog-sync-options',{'branchId':branch,if(search.trim().isNotEmpty)'search':search.trim()},timeout:const Duration(seconds:20));
+  Future<Map<String,dynamic>> catalogSyncCompare(int branch,Map<String,dynamic> selection)=>_post('catalog-sync-compare',{'branchId':branch,'selection':selection},timeout:const Duration(seconds:30));
   Future<bool> purchaseAvailable(int branch) async=>(await _post('purchase-options',{'branchId':branch},timeout:const Duration(seconds:15)))['available']==true;
   Future<Map<String,dynamic>> extractPurchase(int branch,String text)=>
     _post('purchase-extract',{'branchId':branch,'text':text},timeout:const Duration(seconds:210));
