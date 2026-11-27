@@ -18,6 +18,13 @@ class IntelligenceApi {
   }
   Future<Map<String,dynamic>> chat(int branch,String? conversation,String text)=>
     _post('chat',{'branchId':branch,'conversationId':conversation,'message':text});
+  Future<Uint8List> speech(int branch,String text) async {
+    final r=await _post('speech',{'branchId':branch,'text':text});
+    if(r['format']!='wav'||r['audioBase64'] is! String)throw const FormatException('Audio no válido.');
+    final raw=r['audioBase64'] as String;
+    if(raw.length>8*1024*1024)throw const FormatException('Audio demasiado grande.');
+    return base64Decode(raw);
+  }
   Future<Map<String,dynamic>> media(int branch,String kind,String filename,Uint8List bytes)=>
     _post('media',{'branchId':branch,'kind':kind,'filename':filename,'contentBase64':base64Encode(bytes)});
 }

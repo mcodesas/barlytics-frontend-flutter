@@ -6,7 +6,7 @@ import '../../auth/presentation/providers/auth_provider.dart';
 import '../../../core/branch/branch_scope_provider.dart';
 import 'intelligence_chat.dart';
 
-const intelligenceEnabled = bool.fromEnvironment('BARLYTICS_INTELLIGENCE', defaultValue: false);
+const intelligenceEnabled = bool.fromEnvironment('BARLYTICS_INTELLIGENCE', defaultValue: true);
 
 /// Preserves every original destination and its index. Center button is not a route.
 class IntelligenceBottomNavigation extends ConsumerWidget {
