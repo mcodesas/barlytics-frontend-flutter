@@ -13,7 +13,7 @@ import '../../../../core/constants/api_paths.dart';
 import '../../../../core/errors/error_mapper.dart';
 import '../../../../core/providers/core_providers.dart';
 import '../../../../core/utils/currency_utils.dart';
-import '../../../deportes/presentation/widgets/sports_agenda_widget.dart';
+import '../../../intelligence/presentation/intelligence_home_alerts.dart';
 import '../../../../core/widgets/app_error_view.dart';
 import '../../../../core/widgets/app_loader.dart';
 import '../../../../core/widgets/tech_background.dart';
@@ -113,6 +113,7 @@ class _ManagerHomePageState extends ConsumerState<ManagerHomePage> {
     final puedeMenuDigital = widget.items.any((item) => item.keyName == 'menu_digital');
     final puedeTesoreria = widget.items.any((item) => item.keyName == 'tesoreria');
     final puedeAgendaDeportiva = widget.items.any((item) => item.keyName == 'agenda_deportiva');
+    final puedeIntelligence = widget.items.any((item) => item.keyName == 'intelligence');
     final branchName = branchState.activeBranch?.sucuNombre?.trim();
     final safeBranchName = branchName == null || branchName.isEmpty ? 'Sucursal activa' : branchName;
     final todaySales = _managerNumber(_today, 'total_vendido');
@@ -285,14 +286,19 @@ class _ManagerHomePageState extends ConsumerState<ManagerHomePage> {
                     ),
                   ),
                 ),
-                if (puedeAgendaDeportiva)
+                if (puedeAgendaDeportiva || puedeIntelligence)
                   SliverToBoxAdapter(
                     child: Center(
                       child: ConstrainedBox(
                         constraints: const BoxConstraints(maxWidth: 1440),
-                        child: const Padding(
-                          padding: EdgeInsets.symmetric(horizontal: 16, vertical: 5),
-                          child: SportsAgendaWidget(compact: true),
+                        child: Padding(
+                          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 5),
+                          child: IntelligenceHomeAlerts(
+                            key: ValueKey(branchId),
+                            branch: branchId,
+                            showBusiness: puedeIntelligence,
+                            showSports: puedeAgendaDeportiva,
+                          ),
                         ),
                       ),
                     ),

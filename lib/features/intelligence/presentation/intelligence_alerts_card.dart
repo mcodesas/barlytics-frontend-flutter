@@ -16,6 +16,7 @@ class IntelligenceAlertsCard extends ConsumerStatefulWidget {
 class _IntelligenceAlertsCardState extends ConsumerState<IntelligenceAlertsCard> with WidgetsBindingObserver{
   static const names={'STOCK':'Stock bajo o negativo','EXPIRY':'Productos próximos a vencer','CASH':'Diferencias de caja',
     'ORDERS':'Pedidos pendientes','COUNT':'Diferencias del último conteo físico','FINANCE':'Ganancias, ingresos y gastos'};
+  static const recommendations={'STOCK':'Revisa existencias y compras antes de reponer.', 'EXPIRY':'Comprueba el lote y la fecha antes de vender.', 'CASH':'Contrasta los pagos y el arqueo original.', 'ORDERS':'Verifica la recepción con el proveedor.', 'COUNT':'Revisa el conteo físico y sus movimientos.', 'FINANCE':'Consulta los reportes de los periodos comparados.'};
   static const descriptions={'STOCK':'Último saldo operativo, sin mezclar conteos físicos.',
     'EXPIRY':'Productos activos con existencias y fecha de vencimiento.',
     'CASH':'Arqueos con diferencias de los últimos 30 días.',
@@ -125,7 +126,7 @@ class _IntelligenceAlertsCardState extends ConsumerState<IntelligenceAlertsCard>
       initiallyExpanded:widget.initiallyExpanded,
       onExpansionChanged:(open){setState(()=>expanded=open);if(open&&!loaded)_load(finance:true);},
       leading:Icon(Icons.notifications_active_outlined,color:colors.primary),
-      title:const Text('Alertas de Intelligence'),
+      title:const Text('Alertas del negocio'),
       subtitle:Text(error!=null?'Revisión no confirmada':loaded?'$total hallazgos mostrados · Sucursal ${widget.branch}':'Monitoreo configurable por usuario'),
       childrenPadding:const EdgeInsets.all(12),children:[
         if(busy)const LinearProgressIndicator(),
@@ -149,7 +150,7 @@ class _IntelligenceAlertsCardState extends ConsumerState<IntelligenceAlertsCard>
                 leading:Icon(item['severity']=='CRITICAL'?Icons.error_outline:Icons.warning_amber_rounded,
                   color:item['severity']=='CRITICAL'?colors.error:colors.tertiary),
                 title:Text(item['title'].toString()),
-                subtitle:Text('Valor: ${item['value']} · Referencia: ${item['reference']}\n${item['detail']}')),
+                subtitle:Text('Valor: ${item['value']} · Referencia: ${item['reference']}\n${item['detail']}\n${recommendations[c['rule']] ?? ''}')),
           ],
           const Text('Las alertas no cambian el inventario, la caja ni los pedidos. Las financieras se actualizan al abrir o pulsar Actualizar todo.'),
         ],
