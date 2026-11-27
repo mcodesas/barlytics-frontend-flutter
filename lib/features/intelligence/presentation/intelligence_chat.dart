@@ -293,7 +293,7 @@ class _IntelligenceChatState extends ConsumerState<IntelligenceChat> with Widget
   Map<String,dynamic>? _forecastPlan;
   bool _actionSubmitting=false;
   String? _conversation;
-  String _error='',_extracted='';_documentWarnings=[];
+  String _error='',_extracted='';
   int? _branch;
   bool _busy=false,_recording=false,_closed=false;
   int _epoch=0;
