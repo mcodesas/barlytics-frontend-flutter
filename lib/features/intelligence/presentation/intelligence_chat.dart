@@ -166,7 +166,7 @@ class _IntelligenceChatState extends ConsumerState<IntelligenceChat> with Widget
     if(!_active(e))return;
     final rows=(r['items'] as List).reversed.map((x)=>(role:x['role'] as String,text:x['content'] as String)).toList();
     setState((){
-      if(!more){_messages.clear();_exportPlan=null;_showAlerts=false;_forecastPlan=null;_text.clear();_attachment=null;_pendingAction=null;_extracted='';_partialAnswer='';}
+      if(!more){_messages.clear();_exportPlan=null;_showAlerts=false;_forecastPlan=null;_text.clear();_attachment=null;_pendingAction=null;_extracted='';_documentWarnings=[];_partialAnswer='';}
       _messages.insertAll(0,rows);_conversation=id;_messageOffset=r['nextOffset'] as int?;_showHistory=false;
     });
     if(!more)_scrollToEnd();
@@ -286,13 +286,14 @@ class _IntelligenceChatState extends ConsumerState<IntelligenceChat> with Widget
   StreamSubscription<Uint8List>? _audioSubscription;
   Timer? _timer;
   _Attachment? _attachment;
+  List<String> _documentWarnings=[];
   Map<String,dynamic>? _pendingAction;
   Map<String,dynamic>? _exportPlan;
   bool _showAlerts=false;
   Map<String,dynamic>? _forecastPlan;
   bool _actionSubmitting=false;
   String? _conversation;
-  String _error='',_extracted='';
+  String _error='',_extracted='';_documentWarnings=[];
   int? _branch;
   bool _busy=false,_recording=false,_closed=false;
   int _epoch=0;
@@ -313,7 +314,7 @@ class _IntelligenceChatState extends ConsumerState<IntelligenceChat> with Widget
     unawaited(_recorder.cancel().catchError((Object _){}));
     unawaited(_liveSubscription?.cancel()??Future<void>.value());
     unawaited(_player.stop().catchError((Object _){}));
-    _pcm.clear();_attachment=null;_pendingAction=null;_extracted='';_messages.clear();_exportPlan=null;_showAlerts=false;_forecastPlan=null;_text.clear();
+    _pcm.clear();_attachment=null;_pendingAction=null;_extracted='';_documentWarnings=[];_messages.clear();_exportPlan=null;_showAlerts=false;_forecastPlan=null;_text.clear();
     if(mounted)WidgetsBinding.instance.addPostFrameCallback((_){if(mounted)widget.onClose();});
   }
   Future<void> _select(String kind,{bool camera=false}) async=>_run((e) async {
@@ -333,7 +334,7 @@ class _IntelligenceChatState extends ConsumerState<IntelligenceChat> with Widget
     final bytes=await file.readAsBytes();
     if(!_active(e))return;
     if(bytes.isEmpty||bytes.length>limit){setState(()=>_error='Archivo vacío o demasiado grande.');return;}
-    setState((){_attachment=_Attachment(kind,file!.name,bytes);_extracted='';});
+    setState((){_attachment=_Attachment(kind,file!.name,bytes);_extracted='';_documentWarnings=[];});
   });
   Future<void> _startAudio() async {
     if(_busy||_recording||_closed)return;
@@ -359,7 +360,7 @@ class _IntelligenceChatState extends ConsumerState<IntelligenceChat> with Widget
     try{
       await _recorder.stop();await _audioSubscription?.cancel();_audioSubscription=null;
       final wav=pcmWav(_pcm.takeBytes());
-      if(_active(e))setState((){_attachment=_Attachment('audio','grabacion.wav',wav);_extracted='';});
+      if(_active(e))setState((){_attachment=_Attachment('audio','grabacion.wav',wav);_extracted='';_documentWarnings=[];});
     }catch(_){if(_active(e))setState(()=>_error='Graba entre 0,25 y 30 segundos.');}
     finally{if(_active(e))setState(()=>_busy=false);}
   }
@@ -368,7 +369,7 @@ class _IntelligenceChatState extends ConsumerState<IntelligenceChat> with Widget
     if(a==null||_branch==null)return;
     if(a.kind=='video'){setState(()=>_error='El vídeo está seleccionado. El procesamiento de vídeo aún no está habilitado.');return;}
     final result=await ref.read(intelligenceApiProvider).media(_branch!,a.kind,a.name,a.bytes);
-    if(_active(e))setState(()=>_extracted=result['text']?.toString()??'');
+    if(_active(e))setState((){_extracted=result['text']?.toString()??'';_documentWarnings=(result['warnings'] as List?)?.whereType<String>().toList()??[];});
   });
   Future<void> _reviewPurchase() async {
     final branch=_branch,e=_epoch;
@@ -408,7 +409,7 @@ class _IntelligenceChatState extends ConsumerState<IntelligenceChat> with Widget
         if(result['draftId']!=id||result['status']!=expected)throw const FormatException('Resultado no confirmado');
         setState((){
           _pendingAction=null;
-          if(confirm&&(pending['hasImage']==true||pending['documentPurchase'] is Map)){_attachment=null;_extracted='';}
+          if(confirm&&(pending['hasImage']==true||pending['documentPurchase'] is Map)){_attachment=null;_extracted='';_documentWarnings=[];}
           _messages.add((role:'assistant',text:confirm?(result['orderId']!=null?'Pedido ${result['orderId']} creado y confirmado por BarLytics. No se registró recepción ni pago.':'Acción ejecutada y confirmada por BarLytics.'):'Acción cancelada sin modificar los datos.'));
         });
         _scrollToEnd();
@@ -640,7 +641,7 @@ class _IntelligenceChatState extends ConsumerState<IntelligenceChat> with Widget
               Text('Arrastra para mover',maxLines:1,overflow:TextOverflow.ellipsis,style:TextStyle(color:palette.textSecondary,fontSize:10)),
             ])))),
           IconButton(tooltip:'Historial de conversaciones',onPressed:locked?null:()=>_loadHistory(),icon:const Icon(Icons.history_rounded,size:20)),
-          IconButton(tooltip:'Nueva conversación',onPressed:locked?null:()=>setState((){_conversation=null;_messages.clear();_exportPlan=null;_showAlerts=false;_forecastPlan=null;_messageOffset=null;_showHistory=false;_partialAnswer='';_attachment=null;_pendingAction=null;_extracted='';_text.clear();_error='';}),icon:const Icon(Icons.add_comment_rounded,size:20)),
+          IconButton(tooltip:'Nueva conversación',onPressed:locked?null:()=>setState((){_conversation=null;_messages.clear();_exportPlan=null;_showAlerts=false;_forecastPlan=null;_messageOffset=null;_showHistory=false;_partialAnswer='';_attachment=null;_pendingAction=null;_extracted='';_documentWarnings=[];_text.clear();_error='';}),icon:const Icon(Icons.add_comment_rounded,size:20)),
           IconButton(tooltip:'Minimizar chat',onPressed:_recording||_live?null:(){_composerFocus.unfocus();widget.onMinimize();},icon:const Icon(Icons.minimize_rounded,size:20)),
           IconButton(tooltip:'Cerrar chat',onPressed:_invalidate,icon:const Icon(Icons.close,size:20))])),
         if(_busy)const LinearProgressIndicator(),
@@ -672,11 +673,11 @@ class _IntelligenceChatState extends ConsumerState<IntelligenceChat> with Widget
           if(_exportPlan!=null&&_branch!=null)IntelligenceExportCard(branch:_branch!,plan:_exportPlan!,disabled:locked),
           if(_attachment!=null)Card(child:Padding(padding:const EdgeInsets.all(10),child:Column(crossAxisAlignment:CrossAxisAlignment.start,children:[
             Row(children:[const Icon(Icons.attach_file),Expanded(child:Text(_attachment!.name,maxLines:1,overflow:TextOverflow.ellipsis)),
-              IconButton(tooltip:'Quitar adjunto',onPressed:locked?null:()=>setState((){_attachment=null;_extracted='';}),icon:const Icon(Icons.close))]),
+              IconButton(tooltip:'Quitar adjunto',onPressed:locked?null:()=>setState((){_attachment=null;_extracted='';_documentWarnings=[];}),icon:const Icon(Icons.close))]),
             if(_attachment!.kind=='photo')ClipRRect(borderRadius:BorderRadius.circular(10),child:Image.memory(_attachment!.bytes,height:120,fit:BoxFit.contain,errorBuilder:(_,__,___)=>const Text('Vista previa no disponible'))),
             if(_attachment!.kind=='video')const Text('Vídeo preparado localmente. Análisis de vídeo pendiente.'),
             if(_attachment!.kind!='video')OutlinedButton(onPressed:locked?null:_analyze,child:const Text('Extraer contenido')),
-            if(_extracted.isNotEmpty)...[SelectableText(_extracted),
+            if(_extracted.isNotEmpty)...[for(final warning in _documentWarnings)Text(warning,style:TextStyle(color:palette.warning)),SelectableText(_extracted),
               if(_attachment!.kind=='file'||_attachment!.kind=='photo')
                 OutlinedButton.icon(onPressed:locked||_pendingAction!=null?null:_reviewPurchase,icon:const Icon(Icons.receipt_long),label:const Text('Preparar pedido desde documento')),
               TextButton(onPressed:locked?null:(){
