@@ -156,7 +156,7 @@ class _IntelligenceChatState extends ConsumerState<IntelligenceChat> with Widget
     if(!_active(e))return;
     final rows=(r['items'] as List).reversed.map((x)=>(role:x['role'] as String,text:x['content'] as String)).toList();
     setState((){
-      if(!more){_messages.clear();_text.clear();_attachment=null;_extracted='';_partialAnswer='';}
+      if(!more){_messages.clear();_text.clear();_attachment=null;_pendingAction=null;_extracted='';_partialAnswer='';}
       _messages.insertAll(0,rows);_conversation=id;_messageOffset=r['nextOffset'] as int?;_showHistory=false;
     });
     if(!more)_scrollToEnd();
@@ -276,6 +276,8 @@ class _IntelligenceChatState extends ConsumerState<IntelligenceChat> with Widget
   StreamSubscription<Uint8List>? _audioSubscription;
   Timer? _timer;
   _Attachment? _attachment;
+  Map<String,dynamic>? _pendingAction;
+  bool _actionSubmitting=false;
   String? _conversation;
   String _error='',_extracted='';
   int? _branch;
@@ -298,7 +300,7 @@ class _IntelligenceChatState extends ConsumerState<IntelligenceChat> with Widget
     unawaited(_recorder.cancel().catchError((Object _){}));
     unawaited(_liveSubscription?.cancel()??Future<void>.value());
     unawaited(_player.stop().catchError((Object _){}));
-    _pcm.clear();_attachment=null;_extracted='';_messages.clear();_text.clear();
+    _pcm.clear();_attachment=null;_pendingAction=null;_extracted='';_messages.clear();_text.clear();
     if(mounted)WidgetsBinding.instance.addPostFrameCallback((_){if(mounted)widget.onClose();});
   }
   Future<void> _select(String kind,{bool camera=false}) async=>_run((e) async {
@@ -355,11 +357,61 @@ class _IntelligenceChatState extends ConsumerState<IntelligenceChat> with Widget
     final result=await ref.read(intelligenceApiProvider).media(_branch!,a.kind,a.name,a.bytes);
     if(_active(e))setState(()=>_extracted=result['text']?.toString()??'');
   });
+  Future<void> _resolveAction(bool confirm) async {
+    final pending=_pendingAction;
+    final branch=_branch;
+    if(pending==null||branch==null||_busy||_actionSubmitting)return;
+    final id=pending['draftId'];
+    if(id is! String)return;
+    await _run((e) async {
+      setState(()=>_actionSubmitting=true);
+      try{
+        final api=ref.read(intelligenceApiProvider);
+        final result=confirm?await api.confirmAction(branch,id):await api.cancelAction(branch,id);
+        if(!_active(e))return;
+        final expected=confirm?'APPLIED':'CANCELLED';
+        if(result['draftId']!=id||result['status']!=expected)throw const FormatException('Resultado no confirmado');
+        setState((){
+          _pendingAction=null;
+          if(confirm&&pending['hasImage']==true){_attachment=null;_extracted='';}
+          _messages.add((role:'assistant',text:confirm?'Acción ejecutada y confirmada por BarLytics.':'Acción cancelada sin modificar los datos.'));
+        });
+        _scrollToEnd();
+      }catch(error){
+        if(!_active(e))return;
+        final status=error is AppException?error.statusCode:null;
+        setState((){
+          if(status==409&&!confirm)_pendingAction=null;
+          _error=status==409?'El borrador venció, ya se cerró o los datos cambiaron. Revisa el estado en BarLytics.':
+          'No se confirmó el resultado. No se reintentará automáticamente. Puedes consultar el estado o volver a confirmar el mismo borrador.';
+        });
+      }finally{if(_active(e))setState(()=>_actionSubmitting=false);}
+    });
+  }
+  Widget _actionCard(bool locked){
+    final p=_pendingAction!;
+    final changes=p['changes'];
+    return Card(child:Padding(padding:const EdgeInsets.all(12),child:Column(crossAxisAlignment:CrossAxisAlignment.start,children:[
+      const Text('Confirmar operación',style:TextStyle(fontWeight:FontWeight.bold)),
+      ConstrainedBox(constraints:const BoxConstraints(maxHeight:160),child:SingleChildScrollView(child:Column(crossAxisAlignment:CrossAxisAlignment.start,children:[
+        Text(p['effect'].toString()),
+        Text('Registro: ${p['target']}'),
+        if(changes is Map)for(final entry in changes.entries)SelectableText('${entry.key}: ${entry.value}'),
+        if(p['hasImage']==true)const Text('Se asociará únicamente la foto adjunta.'),
+        const Text('El borrador vence en 10 minutos.'),
+      ]))),
+      Wrap(spacing:8,children:[
+        OutlinedButton(onPressed:locked||_actionSubmitting?null:()=>_resolveAction(false),child:const Text('Cancelar')),
+        FilledButton(onPressed:locked||_actionSubmitting?null:()=>_resolveAction(true),child:const Text('Confirmar y ejecutar')),
+      ])
+    ])));
+  }
   Future<void> _send() => _sendMessage();
   Future<void> _sendMessage({int? retryIndex}) async {
     if(retryIndex!=null&&(retryIndex!=_messages.length-1||retryIndex<0||_messages[retryIndex].role!='failed'))return;
     final text=retryIndex==null?_text.text.trim():_messages[retryIndex].text;
     if(_busy||_recording||_live||_closed||_branch==null||text.isEmpty||text.length>2000)return;
+    if(_pendingAction!=null){setState(()=>_error='Confirma o cancela primero la acción pendiente.');return;}
     await _run((e) async {
       final index=retryIndex??_messages.length;
       setState((){
@@ -406,6 +458,21 @@ class _IntelligenceChatState extends ConsumerState<IntelligenceChat> with Widget
         final id=reply['conversationId'],answer=reply['answer'];
         if(id is! String||answer is! String)throw StateError('Respuesta inválida');
         var finalAnswer=answer;
+        final action=reply['action'];
+        if(action is Map&&!_cancelRequested){
+          final plan=Map<String,dynamic>.from(action);
+          final attachment=_attachment;
+          final needsImage=plan['action']=='producto.imagen';
+          if(needsImage&&(attachment==null||attachment.kind!='photo')){
+            finalAnswer='Adjunta una foto JPEG o PNG del producto y vuelve a solicitar la operación.';
+          }else{
+            final draft=await ref.read(intelligenceApiProvider).prepareAction(_branch!,plan,image:needsImage?attachment!.bytes:null);
+            if(!_active(e)||_cancelRequested)return;
+            if(draft['draftId'] is! String||draft['effect'] is! String||draft['target'] is! String)throw const FormatException('Borrador inválido');
+            setState(()=>_pendingAction=draft);
+            finalAnswer='Revisa la acción preparada en BarLytics. No se han modificado datos todavía.';
+          }
+        }
         final navigation=reply['navigation'];
         if(navigation is String){
           ref.invalidate(userMenuProvider);
@@ -493,7 +560,7 @@ class _IntelligenceChatState extends ConsumerState<IntelligenceChat> with Widget
               Text('Arrastra para mover',maxLines:1,overflow:TextOverflow.ellipsis,style:TextStyle(color:palette.textSecondary,fontSize:10)),
             ])))),
           IconButton(tooltip:'Historial de conversaciones',onPressed:locked?null:()=>_loadHistory(),icon:const Icon(Icons.history_rounded,size:20)),
-          IconButton(tooltip:'Nueva conversación',onPressed:locked?null:()=>setState((){_conversation=null;_messages.clear();_messageOffset=null;_showHistory=false;_partialAnswer='';_attachment=null;_extracted='';_text.clear();_error='';}),icon:const Icon(Icons.add_comment_rounded,size:20)),
+          IconButton(tooltip:'Nueva conversación',onPressed:locked?null:()=>setState((){_conversation=null;_messages.clear();_messageOffset=null;_showHistory=false;_partialAnswer='';_attachment=null;_pendingAction=null;_extracted='';_text.clear();_error='';}),icon:const Icon(Icons.add_comment_rounded,size:20)),
           IconButton(tooltip:'Minimizar chat',onPressed:_recording||_live?null:(){_composerFocus.unfocus();widget.onMinimize();},icon:const Icon(Icons.minimize_rounded,size:20)),
           IconButton(tooltip:'Cerrar chat',onPressed:_invalidate,icon:const Icon(Icons.close,size:20))])),
         if(_busy)const LinearProgressIndicator(),
@@ -519,6 +586,7 @@ class _IntelligenceChatState extends ConsumerState<IntelligenceChat> with Widget
             const SizedBox(width:16,height:16,child:CircularProgressIndicator(strokeWidth:2)),const SizedBox(width:10),
             Expanded(child:Text(_cancelRequested?'Solicitando cancelación…':_partialAnswer.isEmpty?'Intelligence está preparando la respuesta…':'Generando respuesta…')),
           ])),
+          if(_pendingAction!=null)_actionCard(locked),
           if(_attachment!=null)Card(child:Padding(padding:const EdgeInsets.all(10),child:Column(crossAxisAlignment:CrossAxisAlignment.start,children:[
             Row(children:[const Icon(Icons.attach_file),Expanded(child:Text(_attachment!.name,maxLines:1,overflow:TextOverflow.ellipsis)),
               IconButton(tooltip:'Quitar adjunto',onPressed:locked?null:()=>setState((){_attachment=null;_extracted='';}),icon:const Icon(Icons.close))]),
