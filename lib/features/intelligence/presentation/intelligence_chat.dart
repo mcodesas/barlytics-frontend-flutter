@@ -8,6 +8,7 @@ import 'intelligence_composer.dart';
 import '../../../app/router/app_router.dart';
 import '../../navigation/presentation/providers/user_menu_provider.dart';
 import '../domain/assistant_navigation.dart';
+import '../domain/assistant_screen_context.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:record/record.dart';
@@ -451,7 +452,8 @@ class _IntelligenceChatState extends ConsumerState<IntelligenceChat> with Widget
           else{setState(()=>_messages.add((role:'assistant',text:'No hay una pantalla anterior disponible.')));}
           return;
         }
-        final module=AssistantNavigation.context(router.routerDelegate.currentConfiguration.uri.path,allowed);
+        final routeModule=AssistantNavigation.context(router.routerDelegate.currentConfiguration.uri.path,allowed);
+        final module=ref.read(assistantScreenContextProvider).resolve(routeModule,_branch!);
         final reply=await ref.read(intelligenceApiProvider).chatProgressive(_branch!,_conversation,text,
           currentModule:module.isEmpty?null:module,
           menuCatalog:allowed.take(100).map((item)=><String,String>{'key':item.keyName,'title':item.title.length>100?item.title.substring(0,100):item.title}).toList(),
