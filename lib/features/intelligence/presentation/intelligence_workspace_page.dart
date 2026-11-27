@@ -4,6 +4,8 @@ import '../../../core/branch/branch_scope_provider.dart';
 import '../../navigation/presentation/providers/user_menu_provider.dart';
 import '../data/intelligence_api.dart';
 import 'intelligence_chat.dart';
+import 'intelligence_export_card.dart';
+import '../../navigation/presentation/providers/active_role_provider.dart';
 
 final _workspaceCatalog=FutureProvider.autoDispose.family<Map<String,dynamic>,int>((ref,branch) async {
   return ref.watch(intelligenceApiProvider).workspaceCatalog(branch);
@@ -42,6 +44,8 @@ class _WorkspaceState extends ConsumerState<_Workspace>{
   final _search=TextEditingController();
   bool _busy=false;
   String? _answer;
+  Map<String,dynamic>? _exportPlan;
+  int _generation=0;
   @override
   void dispose(){_filter.dispose();_search.dispose();super.dispose();}
   List<String> _strings(dynamic x)=>x is List?x.whereType<String>().toList():<String>[];
@@ -49,19 +53,21 @@ class _WorkspaceState extends ConsumerState<_Workspace>{
     final resource=_resource;
     if(resource==null||_busy)return;
     if(_operation!='list'&&_operation!='count'&&_field==null)return;
-    setState((){_busy=true;_answer=null;});
+    final generation=++_generation;
+    setState((){_busy=true;_answer=null;_exportPlan=null;});
     try{
       final plan=<String,dynamic>{'resource':resource,'operation':_operation,'limit':30,
         if(_operation!='list'&&_operation!='count')'field':_field,
         if(_filterField!=null&&_filter.text.trim().isNotEmpty)
           'filters':[{'field':_filterField,'operator':_operator,'value':_filter.text.trim()}]};
       final result=await ref.read(intelligenceApiProvider).workspaceQuery(widget.branch,plan);
-      if(mounted&&ref.read(branchScopeProvider).activeBranchId==widget.branch)setState(()=>_answer=result['answer']?.toString()??'Sin respuesta.');
-    }catch(_){if(mounted)setState(()=>_answer='No se pudo realizar la consulta. Verifica tus permisos y filtros.');}
-    finally{if(mounted)setState(()=>_busy=false);}
+      if(mounted&&generation==_generation&&ref.read(branchScopeProvider).activeBranchId==widget.branch)setState((){_answer=result['answer']?.toString()??'Sin respuesta.';_exportPlan={'format':'table','query':plan};});
+    }catch(_){if(mounted&&generation==_generation)setState(()=>_answer='No se pudo realizar la consulta. Verifica tus permisos y filtros.');}
+    finally{if(mounted&&generation==_generation)setState(()=>_busy=false);}
   }
   @override
   Widget build(BuildContext context){
+    ref.listen(selectedRolesProvider,(old,next){if(old!=next){_generation++;setState((){_resource=null;_field=null;_filterField=null;_operation='list';_answer=null;_exportPlan=null;_exportPlan=null;_busy=false;});}});
     final data=ref.watch(_workspaceCatalog(widget.branch));
     return data.when(
       loading:()=>const Center(child:CircularProgressIndicator()),
@@ -79,7 +85,7 @@ class _WorkspaceState extends ConsumerState<_Workspace>{
           Row(children:[
             Icon(Icons.auto_awesome,color:Theme.of(context).colorScheme.primary,size:32),
             const SizedBox(width:12),Expanded(child:Text('Intelligence',style:Theme.of(context).textTheme.headlineSmall)),
-            IconButton(tooltip:'Actualizar catálogo',onPressed:_busy?null:(){setState((){_resource=null;_field=null;_filterField=null;_answer=null;_operation='list';});ref.invalidate(_workspaceCatalog(widget.branch));},icon:const Icon(Icons.refresh)),
+            IconButton(tooltip:'Actualizar catálogo',onPressed:_busy?null:(){setState((){_resource=null;_field=null;_filterField=null;_answer=null;_exportPlan=null;_operation='list';});ref.invalidate(_workspaceCatalog(widget.branch));},icon:const Icon(Icons.refresh)),
           ]),
           const SizedBox(height:8),
           const Text('Consulta los datos de tu negocio, según los permisos de tu usuario y la sucursal seleccionada.'),
@@ -97,7 +103,7 @@ class _WorkspaceState extends ConsumerState<_Workspace>{
               isExpanded:true,value:selected?['name'] as String?,
               decoration:const InputDecoration(labelText:'Recurso autorizado'),
               items:[for(final r in shown)DropdownMenuItem(value:r['name'] as String,child:Text('${r['name']} — ${r['description']}',overflow:TextOverflow.ellipsis))],
-              onChanged:_busy?null:(v)=>setState((){_resource=v;_field=null;_filterField=null;_operation='list';_answer=null;}),
+              onChanged:_busy?null:(v)=>setState((){_resource=v;_field=null;_filterField=null;_operation='list';_answer=null;_exportPlan=null;}),
             ),
             if(selected!=null)...[
               const SizedBox(height:8),
@@ -105,7 +111,7 @@ class _WorkspaceState extends ConsumerState<_Workspace>{
               const SizedBox(height:12),
               DropdownButtonFormField<String>(value:_operation,decoration:const InputDecoration(labelText:'Operación'),
                 items:[for(final op in ['list','count',if(numeric.isNotEmpty)...['sum','avg','min','max']])DropdownMenuItem(value:op,child:Text(const {'list':'Listar registros','count':'Contar','sum':'Sumar','avg':'Promedio','min':'Mínimo','max':'Máximo'}[op]!))],
-                onChanged:_busy?null:(v)=>setState((){_operation=v!;_field=null;_answer=null;})),
+                onChanged:_busy?null:(v)=>setState((){_operation=v!;_field=null;_answer=null;_exportPlan=null;})),
               if(_operation!='list'&&_operation!='count')DropdownButtonFormField<String>(value:_field,decoration:const InputDecoration(labelText:'Campo numérico'),items:[for(final f in numeric)DropdownMenuItem(value:f,child:Text(f))],onChanged:_busy?null:(v)=>setState(()=>_field=v)),
               const SizedBox(height:12),
               DropdownButtonFormField<String>(value:_filterField,decoration:const InputDecoration(labelText:'Campo para filtrar (opcional)'),items:[const DropdownMenuItem<String>(value:null,child:Text('Sin filtro')),for(final f in columns)DropdownMenuItem(value:f,child:Text(f))],onChanged:_busy?null:(v)=>setState(()=>_filterField=v)),
@@ -117,6 +123,7 @@ class _WorkspaceState extends ConsumerState<_Workspace>{
               Align(alignment:Alignment.centerLeft,child:FilledButton.icon(onPressed:_busy||(_operation!='list'&&_operation!='count'&&_field==null)?null:_query,icon:const Icon(Icons.search),label:const Text('Consultar'))),
               if(_busy)const LinearProgressIndicator(),
               if(_answer!=null)Card(child:Padding(padding:const EdgeInsets.all(16),child:SelectableText(_answer!))),
+              if(_exportPlan!=null)IntelligenceExportCard(branch:widget.branch,plan:_exportPlan!,disabled:_busy),
             ],
           ],
         ]);
