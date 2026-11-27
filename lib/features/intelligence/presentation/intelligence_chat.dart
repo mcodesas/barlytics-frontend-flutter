@@ -371,6 +371,38 @@ class _IntelligenceChatState extends ConsumerState<IntelligenceChat> with Widget
     final result=await ref.read(intelligenceApiProvider).media(_branch!,a.kind,a.name,a.bytes);
     if(_active(e))setState((){_extracted=result['text']?.toString()??'';_documentWarnings=(result['warnings'] as List?)?.whereType<String>().toList()??[];});
   });
+  Future<void> _reviewCountCsv() async {
+    final branch=_branch,e=_epoch;
+    if(branch==null||_busy||_pendingAction!=null||_closed)return;
+    final initial=_extracted.trim();
+    final controller=TextEditingController(text:initial.length<=8000?initial:'');
+    bool checked=false;
+    String? reviewed;
+    try{
+      reviewed=await showDialog<String>(context:context,builder:(dialogContext)=>StatefulBuilder(builder:(ctx,localSetState)=>AlertDialog(
+        title:const Text('Importar conteo físico CSV'),
+        content:SizedBox(width:560,child:SingleChildScrollView(child:Column(mainAxisSize:MainAxisSize.min,crossAxisAlignment:CrossAxisAlignment.start,children:[
+          const Text('Encabezado: producto;cantidad o producto_id;cantidad. Hasta 10 productos únicos, cantidades enteras desde cero. Usa nombres exactos de productos normales.'),
+          const Text('Solo registra conteos de hoy. No sincroniza ni modifica el stock; si ya se contó un producto hoy, se rechazará la operación.'),
+          const SizedBox(height:8),
+          TextField(controller:controller,maxLength:8000,minLines:4,maxLines:10,
+            onChanged:(_)=>localSetState(()=>checked=false),decoration:const InputDecoration(labelText:'CSV revisado',hintText:'producto;cantidad\\nPoker;12\\nCorona;0')),
+          CheckboxListTile(contentPadding:EdgeInsets.zero,value:checked,onChanged:(v)=>localSetState(()=>checked=v==true),
+            title:const Text('Revisé todos los nombres y cantidades del conteo actual.')),
+        ]))),
+        actions:[TextButton(onPressed:()=>Navigator.of(dialogContext).pop(),child:const Text('Cancelar')),
+          FilledButton(onPressed:checked?()=>Navigator.of(dialogContext).pop(controller.text.trim()):null,child:const Text('Preparar borrador'))],
+      )));
+    }finally{controller.dispose();}
+    if(reviewed==null||reviewed.isEmpty||!_active(e))return;
+    final csv=reviewed;
+    await _run((epoch) async{
+      final draft=await ref.read(intelligenceApiProvider).prepareCountCsv(branch,csv);
+      if(!_active(epoch))return;
+      if(draft['draftId'] is! String)throw const FormatException('Borrador inválido');
+      setState(()=>_pendingAction=draft);_scrollToEnd();
+    });
+  }
   Future<void> _reviewPurchase() async {
     final branch=_branch,e=_epoch;
     if(branch==null||_extracted.isEmpty||_busy||_pendingAction!=null||_closed)return;
@@ -680,6 +712,8 @@ class _IntelligenceChatState extends ConsumerState<IntelligenceChat> with Widget
             if(_extracted.isNotEmpty)...[for(final warning in _documentWarnings)Text(warning,style:TextStyle(color:palette.warning)),SelectableText(_extracted),
               if(_attachment!.kind=='file'||_attachment!.kind=='photo')
                 OutlinedButton.icon(onPressed:locked||_pendingAction!=null?null:_reviewPurchase,icon:const Icon(Icons.receipt_long),label:const Text('Preparar pedido desde documento')),
+              if(_attachment!.kind=='file'&&_attachment!.name.toLowerCase().endsWith('.csv'))
+                OutlinedButton.icon(onPressed:locked||_pendingAction!=null?null:_reviewCountCsv,icon:const Icon(Icons.fact_check_outlined),label:const Text('Importar conteo físico CSV')),
               TextButton(onPressed:locked?null:(){
               final combined=[_text.text.trim(),_extracted].where((x)=>x.isNotEmpty).join('\n\n');
               if(combined.length>2000){setState(()=>_error='Copia un fragmento de hasta 2000 caracteres para enviar.');return;}
