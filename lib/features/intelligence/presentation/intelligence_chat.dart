@@ -104,7 +104,7 @@ class _IntelligenceWindowState extends ConsumerState<_IntelligenceWindow>{
               onDrag:(delta)=>setState(()=>position=actual+delta))))),
         if(minimized)Positioned(right:16,bottom:bottom,child:FloatingActionButton.extended(
           heroTag:null,onPressed:restore,backgroundColor:palette.primary,foregroundColor:palette.onPrimary,
-          icon:const Icon(Icons.auto_awesome_rounded),label:const Text('Inteligencia'))),
+          icon:const Icon(Icons.auto_awesome_rounded),label:const Text('Asistente'))),
       ]);
     });
   }

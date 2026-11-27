@@ -54,12 +54,12 @@ class IntelligenceBottomNavigation extends ConsumerWidget {
       child:Row(children:[
         half(0,midpoint),
         SizedBox(width:72,child:Column(mainAxisSize:MainAxisSize.min,children:[
-          Tooltip(message:'Abrir asistente de inteligencia',child:Material(
+          Tooltip(message:'Abrir asistente',child:Material(
             color:palette.primary,shape:const CircleBorder(),elevation:3,child:InkWell(
               key:const Key('intelligence-center-button'),customBorder:const CircleBorder(),
               onTap:branch==null?null:()=>showIntelligenceChat(context),
               child:SizedBox(width:52,height:52,child:Icon(Icons.auto_awesome_rounded,color:palette.onPrimary,size:27))))),
-          Text('Inteligencia',maxLines:1,style:TextStyle(color:palette.textPrimary,fontSize:10,fontWeight:FontWeight.w700)),
+          Text('Asistente',maxLines:1,style:TextStyle(color:palette.textPrimary,fontSize:10,fontWeight:FontWeight.w700)),
         ])),
         half(midpoint,items.length),
       ]),
