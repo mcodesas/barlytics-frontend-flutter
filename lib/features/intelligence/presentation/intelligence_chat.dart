@@ -382,9 +382,9 @@ class _IntelligenceChatState extends ConsumerState<IntelligenceChat> with Widget
     String? reviewed;
     try{
       reviewed=await showDialog<String>(context:context,builder:(dialogContext)=>StatefulBuilder(builder:(ctx,localSetState)=>AlertDialog(
-        title:const Text('Importar conteo físico CSV'),
+        title:const Text('Importar conteo físico Excel/CSV'),
         content:SizedBox(width:560,child:SingleChildScrollView(child:Column(mainAxisSize:MainAxisSize.min,crossAxisAlignment:CrossAxisAlignment.start,children:[
-          const Text('Encabezado: producto;cantidad o producto_id;cantidad. Hasta 10 productos únicos, cantidades enteras desde cero. Usa nombres exactos de productos normales.'),
+          const Text('Encabezado: producto;cantidad o producto_id;cantidad. Hasta 25 productos únicos, cantidades enteras desde cero. Usa nombres exactos de productos normales.'),
           const Text('Solo registra conteos de hoy. No sincroniza ni modifica el stock; si ya se contó un producto hoy, se rechazará la operación.'),
           const SizedBox(height:8),
           TextField(controller:controller,maxLength:8000,minLines:4,maxLines:10,
@@ -506,7 +506,7 @@ class _IntelligenceChatState extends ConsumerState<IntelligenceChat> with Widget
               SelectableText('${field.key}: ${field.value}'),
           ],
         if(p['steps'] is List)const Text('Se aplicarán juntas o se revertirán si alguna falla.'),
-        if(p['hasImage']==true)const Text('Se asociará únicamente la foto adjunta.'),
+        if(p['hasImage']==true)const Text('Se asociará únicamente la imagen adjunta al destino indicado.'),
         const Text('El borrador vence en 10 minutos.'),
       ]))),
       Wrap(spacing:8,children:[
@@ -578,9 +578,9 @@ class _IntelligenceChatState extends ConsumerState<IntelligenceChat> with Widget
         if(action is Map&&!_cancelRequested){
           final plan=Map<String,dynamic>.from(action);
           final attachment=_attachment;
-          final needsImage=plan['action']=='producto.imagen';
+          final needsImage=const {'producto.imagen','sucursal.imagen','medio_pago.imagen_qr'}.contains(plan['action']);
           if(needsImage&&(attachment==null||attachment.kind!='photo')){
-            finalAnswer='Adjunta una foto JPEG o PNG del producto y vuelve a solicitar la operación.';
+            finalAnswer='Adjunta la imagen JPEG o PNG correspondiente y vuelve a solicitar la operación.';
           }else{
             final draft=await ref.read(intelligenceApiProvider).prepareAction(_branch!,plan,image:needsImage?attachment!.bytes:null);
             if(!_active(e)||_cancelRequested)return;
@@ -717,7 +717,7 @@ class _IntelligenceChatState extends ConsumerState<IntelligenceChat> with Widget
             if(_extracted.isNotEmpty)...[for(final warning in _documentWarnings)Text(warning,style:TextStyle(color:palette.warning)),SelectableText(_extracted),
               if(_attachment!.kind=='file'||_attachment!.kind=='photo')
                 OutlinedButton.icon(onPressed:locked||_pendingAction!=null?null:_reviewPurchase,icon:const Icon(Icons.receipt_long),label:const Text('Preparar pedido desde documento')),
-              if(_attachment!.kind=='file'&&_attachment!.name.toLowerCase().endsWith('.csv'))
+              if(_attachment!.kind=='file'&&['.csv','.xlsx'].any((ext)=>_attachment!.name.toLowerCase().endsWith(ext)))
                 OutlinedButton.icon(onPressed:locked||_pendingAction!=null?null:_reviewCountCsv,icon:const Icon(Icons.fact_check_outlined),label:const Text('Importar conteo físico CSV')),
               if(_attachment!.kind!='video')TextButton(onPressed:locked?null:(){
               final combined=[_text.text.trim(),_extracted].where((x)=>x.isNotEmpty).join('\n\n');
