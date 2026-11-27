@@ -41,6 +41,8 @@ class IntelligenceApi {
     if(result.data==null)throw StateError('El asistente no devolvió información.');
     return result.data!;
   }
+  Future<Map<String,dynamic>> exportData(int branch,Map<String,dynamic> plan)=>
+    _post('export',{'branchId':branch,'export':plan},timeout:const Duration(seconds:45));
   Future<Map<String,dynamic>> workspaceCatalog(int branch)=>
     _post('workspace-catalog',{'branchId':branch},timeout:const Duration(seconds:15));
   Future<Map<String,dynamic>> workspaceQuery(int branch,Map<String,dynamic> plan)=>
