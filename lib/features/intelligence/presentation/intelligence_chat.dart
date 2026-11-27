@@ -9,6 +9,7 @@ import 'intelligence_export_card.dart';
 import 'intelligence_alerts_card.dart';
 import 'intelligence_forecast_card.dart';
 import 'intelligence_purchase_review.dart';
+import '../../navigation/presentation/providers/menu_preferences_provider.dart';
 import '../../navigation/presentation/providers/active_role_provider.dart';
 import '../../../app/router/app_router.dart';
 import '../../navigation/presentation/providers/user_menu_provider.dart';
@@ -439,6 +440,7 @@ class _IntelligenceChatState extends ConsumerState<IntelligenceChat> with Widget
         if(!_active(e))return;
         final expected=confirm?'APPLIED':'CANCELLED';
         if(result['draftId']!=id||result['status']!=expected)throw const FormatException('Resultado no confirmado');
+        if(confirm&&(pending['action']=='menu.personal_favorito'||pending['action']=='menu.personal_ubicacion'))ref.invalidate(menuPreferencesProvider);
         setState((){
           _pendingAction=null;
           if(confirm&&(pending['hasImage']==true||pending['documentPurchase'] is Map)){_attachment=null;_extracted='';_documentWarnings=[];}
