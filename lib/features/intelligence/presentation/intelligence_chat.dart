@@ -162,6 +162,7 @@ class _IntelligenceChatState extends ConsumerState<IntelligenceChat> with Widget
     });
   });
   Future<void> _openHistory(String id,{bool more=false}) async=>_run((e) async{
+    if(_pendingAction!=null)return;
     final offset=more?_messageOffset:0;
     if(offset==null||_branch==null)return;
     final r=await ref.read(intelligenceApiProvider).history(_branch!,conversation:id,offset:offset);
@@ -483,7 +484,6 @@ class _IntelligenceChatState extends ConsumerState<IntelligenceChat> with Widget
         if(!_active(e))return;
         final status=error is AppException?error.statusCode:null;
         setState((){
-          if(status==409&&!confirm)_pendingAction=null;
           _error=status==409?'El borrador venció, ya se cerró o los datos cambiaron. Revisa el estado en BarLytics.':
           'No se confirmó el resultado. No se reintentará automáticamente. Puedes consultar el estado o volver a confirmar el mismo borrador.';
         });
@@ -750,8 +750,8 @@ class _IntelligenceChatState extends ConsumerState<IntelligenceChat> with Widget
               ]),
               Text('Arrastra para mover',maxLines:1,overflow:TextOverflow.ellipsis,style:TextStyle(color:palette.textSecondary,fontSize:10)),
             ])))),
-          IconButton(tooltip:'Historial de conversaciones',onPressed:locked?null:()=>_loadHistory(),icon:const Icon(Icons.history_rounded,size:20)),
-          IconButton(tooltip:'Nueva conversación',onPressed:locked?null:()=>setState((){_conversation=null;_messages.clear();_exportPlan=null;_showAlerts=false;_forecastPlan=null;_showCatalogSync=false;_messageOffset=null;_showHistory=false;_partialAnswer='';_attachment=null;_pendingAction=null;_extracted='';_documentWarnings=[];_text.clear();_error='';}),icon:const Icon(Icons.add_comment_rounded,size:20)),
+          IconButton(tooltip:'Historial de conversaciones',onPressed:locked||_pendingAction!=null?null:()=>_loadHistory(),icon:const Icon(Icons.history_rounded,size:20)),
+          IconButton(tooltip:'Nueva conversación',onPressed:locked||_pendingAction!=null?null:()=>setState((){_conversation=null;_messages.clear();_exportPlan=null;_showAlerts=false;_forecastPlan=null;_showCatalogSync=false;_messageOffset=null;_showHistory=false;_partialAnswer='';_attachment=null;_pendingAction=null;_extracted='';_documentWarnings=[];_text.clear();_error='';}),icon:const Icon(Icons.add_comment_rounded,size:20)),
           IconButton(tooltip:'Minimizar chat',onPressed:_recording||_live?null:(){_composerFocus.unfocus();widget.onMinimize();},icon:const Icon(Icons.minimize_rounded,size:20)),
           IconButton(tooltip:'Cerrar chat',onPressed:_invalidate,icon:const Icon(Icons.close,size:20))])),
         if(_busy)const LinearProgressIndicator(),
