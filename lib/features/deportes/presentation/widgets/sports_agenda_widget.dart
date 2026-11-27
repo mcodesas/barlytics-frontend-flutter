@@ -67,7 +67,7 @@ class _SportsAgendaWidgetState extends ConsumerState<SportsAgendaWidget> {
     if (widget.compact) {
       // La tarjeta de Inicio siempre representa HOY en Colombia,
       // incluso si el panel gerencial permanece abierto toda la noche.
-      _todayTimer = Timer.periodic(const Duration(minutes: 1), (_) {
+      _todayTimer = Timer.periodic(const Duration(minutes: 1), (timer) {
         if (!mounted) return;
         final today = sportsTodayBogota();
         if (!DateUtils.isSameDay(_date, today)) {
@@ -75,6 +75,8 @@ class _SportsAgendaWidgetState extends ConsumerState<SportsAgendaWidget> {
             _date = today;
             _data = {};
           });
+          _load();
+        } else if (!_busy && (timer.tick % 2 == 0 || _data['intelligenceEstado']=='pendiente')) {
           _load();
         }
       });
@@ -237,6 +239,21 @@ class _SportsAgendaWidgetState extends ConsumerState<SportsAgendaWidget> {
     );
   }
 
+  String _sourceLabel() {
+    final state = _data['intelligenceEstado']?.toString();
+    final count = _data['intelligencePartidos'] as num? ?? 0;
+    if (state == 'desactualizado' && count > 0) {
+      return 'Intelligence: última agenda disponible · respaldo deportivo';
+    }
+    if (count > 0) return 'Intelligence + fuentes de respaldo';
+    if (state == 'pendiente') return 'Intelligence actualizando · respaldo deportivo';
+    if (state != null) return 'Fuentes de respaldo · Intelligence sin datos verificados';
+    return 'OpenLigaDB · Liga colombiana: ESPN';
+  }
+
+  String _matchSource(Map<String, dynamic> match) =>
+      (match['fuenteIntelligenceUrl'] ?? match['fuenteUrl'] ?? '').toString();
+
   Widget _matchCard(Map<String, dynamic> match) {
     final palette = ref.watch(selectedAppPaletteProvider);
     final local = match['local']?.toString().trim() ?? '';
@@ -290,6 +307,11 @@ class _SportsAgendaWidgetState extends ConsumerState<SportsAgendaWidget> {
             const SizedBox(height: 6),
             Text(status, style: TextStyle(color: palette.textSecondary, fontSize: 11)),
           ],
+          if (_matchSource(match).startsWith('https://'))
+            TextButton.icon(onPressed: () => _open(_matchSource(match)),
+              icon: const Icon(Icons.open_in_new_rounded, size: 14),
+              label: const Text('Fuente consultada por Intelligence'),
+              style: TextButton.styleFrom(visualDensity: VisualDensity.compact)),
         ])),
       ]),
     );
@@ -418,7 +440,7 @@ class _SportsAgendaWidgetState extends ConsumerState<SportsAgendaWidget> {
             Padding(
               padding: const EdgeInsets.only(top: 8),
               child: Text(
-                'La fuente de Liga BetPlay no respondió. '
+                'El proveedor de respaldo de Liga BetPlay no respondió. '
                 'La agenda colombiana puede estar incompleta.',
                 style: TextStyle(color: palette.warning, fontSize: 11),
               ),
@@ -451,16 +473,9 @@ class _SportsAgendaWidgetState extends ConsumerState<SportsAgendaWidget> {
           ],
           const SizedBox(height: 3),
           Row(children: [
-            Expanded(child: TextButton(
-              onPressed: () => _open('https://www.openligadb.de/'),
-              style: TextButton.styleFrom(
-                alignment: Alignment.centerLeft,
-                visualDensity: VisualDensity.compact,
-                padding: EdgeInsets.zero),
-              child: Text('Datos: OpenLigaDB · Liga colombiana: ESPN',
-                style: TextStyle(color: palette.textSecondary,
-                  fontSize: 10)),
-            )),
+            Expanded(child: Text(_sourceLabel(),
+              maxLines: 2, overflow: TextOverflow.ellipsis,
+              style: TextStyle(color: palette.textSecondary, fontSize: 10))),
             TextButton.icon(
               onPressed: () => context.go('/agenda_deportiva'),
               style: TextButton.styleFrom(
@@ -727,10 +742,10 @@ class _SportsAgendaWidgetState extends ConsumerState<SportsAgendaWidget> {
                   fontWeight: FontWeight.w900, letterSpacing: 1.1)),
             const SizedBox(height: 8),
             Text(
-              'Programación comunitaria europea de OpenLigaDB (ODbL) y '
-              'Liga BetPlay desde datos públicos de ESPN (fuente no oficial). '
-              'Disponibilidad variable; verificar el calendario y los derechos '
-              'de exhibición comercial en Colombia.',
+              _sourceLabel() + '. Intelligence consulta fuentes públicas y comparte '
+              'la agenda almacenada entre usuarios. OpenLigaDB (ODbL) y '
+              'ESPN son fuentes de respaldo; cobertura parcial. Verifica '
+              'horarios y derechos de exhibición comercial en Colombia.',
               style: TextStyle(color: palette.textSecondary, fontSize: 12),
             ),
             Wrap(spacing: 10, children: [
