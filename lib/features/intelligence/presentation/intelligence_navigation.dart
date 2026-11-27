@@ -39,13 +39,8 @@ class IntelligenceBottomNavigation extends ConsumerWidget {
     final palette=ref.watch(selectedAppPaletteProvider);
     final branch=ref.watch(branchScopeProvider).activeBranch;
     final midpoint=(items.length+1)~/2;
-    Widget half(int from,int to)=>Expanded(child:LayoutBuilder(builder:(context,c){
-      final count=to-from;
-      if(count==0)return const SizedBox();
-      final width=(c.maxWidth/count).clamp(58.0,120.0).toDouble();
-      return SingleChildScrollView(scrollDirection:Axis.horizontal,child:Row(mainAxisSize:MainAxisSize.min,
-        children:[for(var i=from;i<to;i++) SizedBox(width:width,child:_destination(i,palette))]));
-    }));
+    Widget half(int from,int to)=>Expanded(child:IntelligenceNavigationHalf(
+      children:[for(var i=from;i<to;i++) _destination(i,palette)]));
     return Material(color:backgroundColor??Colors.transparent,child:Padding(
       padding:const EdgeInsets.symmetric(vertical:5),
       child:Row(children:[
@@ -75,4 +70,25 @@ class IntelligenceBottomNavigation extends ConsumerWidget {
                 ??TextStyle(color:color,fontSize:selected?selectedFontSize:unselectedFontSize)),
         ]))));
   }
+}
+
+/// Fill the whole half of the bar on wide screens; keep usable hit targets
+/// and horizontal scrolling only when compact screens actually need it.
+class IntelligenceNavigationHalf extends StatelessWidget {
+  const IntelligenceNavigationHalf({super.key,required this.children});
+  final List<Widget> children;
+  @override
+  Widget build(BuildContext context) => LayoutBuilder(builder:(context,c){
+    if(children.isEmpty)return const SizedBox.shrink();
+    final width=c.maxWidth/children.length;
+    if(width>=58){
+      return Row(children:[for(final child in children) Expanded(child:child)]);
+    }
+    return SingleChildScrollView(
+      scrollDirection:Axis.horizontal,
+      child:Row(mainAxisSize:MainAxisSize.min,children:[
+        for(final child in children) SizedBox(width:58,child:child),
+      ]),
+    );
+  });
 }
