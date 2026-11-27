@@ -1,3 +1,4 @@
+import '../../../intelligence/domain/assistant_screen_context.dart';
 import 'dart:convert';
 import 'dart:math' as math;
 
@@ -35,8 +36,21 @@ class _InventarioListPageState extends ConsumerState<InventarioListPage> {
   final Set<int> _justCompleted = <int>{};
   _ConteoFilter _filter = _ConteoFilter.pendientes;
 
+  late final AssistantScreenContextRegistry _assistantContext;
+  int? _assistantBranch;
+  @override
+  void initState(){
+    super.initState();
+    _assistantContext=ref.read(assistantScreenContextProvider);
+    _assistantBranch=ref.read(branchScopeProvider).activeBranchId;
+    _assistantContext.register(this,(module,branch){
+      if(!mounted||module!='inventario'||branch!=_assistantBranch||branch!=ref.read(branchScopeProvider).activeBranchId||ModalRoute.of(context)?.isCurrent!=true)return null;
+      return AssistantScreenContextRegistry.count(module,_filter.name);
+    });
+  }
   @override
   void dispose() {
+    _assistantContext.unregister(this);
     _searchController.dispose();
     super.dispose();
   }
