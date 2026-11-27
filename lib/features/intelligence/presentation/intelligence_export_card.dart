@@ -9,6 +9,7 @@ import '../../../core/utils/file_download_helper.dart';
 import '../../../core/branch/branch_scope_provider.dart';
 import '../../navigation/presentation/providers/active_role_provider.dart';
 import '../data/intelligence_api.dart';
+import '../domain/intelligence_result_format.dart';
 
 /// No data from the language model is used as a report cell.
 /// Every format is fetched again from Commerce under the current role and branch.
@@ -27,10 +28,12 @@ class _IntelligenceExportCardState extends ConsumerState<IntelligenceExportCard>
   String? status;
   Map<String,dynamic>? dataset;
   String? label,value;
+  int page=0;
+  String get resource=>(widget.plan['query'] as Map?)?['resource']?.toString()??'';
   bool _active(int g)=>mounted&&generation==g&&ref.read(branchScopeProvider).activeBranchId==widget.branch;
   void _reset(){
     generation++;
-    if(mounted)setState((){busy=false;status=null;dataset=null;label=null;value=null;});
+    if(mounted)setState((){busy=false;status=null;dataset=null;label=null;value=null;page=0;});
   }
   @override
   void didUpdateWidget(covariant IntelligenceExportCard oldWidget){
@@ -42,7 +45,7 @@ class _IntelligenceExportCardState extends ConsumerState<IntelligenceExportCard>
   Future<void> _request(String format) async {
     if(busy||widget.disabled||ref.read(branchScopeProvider).activeBranchId!=widget.branch)return;
     final g=++generation;
-    setState((){busy=true;status=null;dataset=null;label=null;value=null;});
+    setState((){busy=true;status=null;dataset=null;label=null;value=null;page=0;});
     try{
       final result=await ref.read(intelligenceApiProvider).exportData(widget.branch,{
         'format':format,'query':widget.plan['query'],
@@ -58,8 +61,8 @@ class _IntelligenceExportCardState extends ConsumerState<IntelligenceExportCard>
         if(columns.length>80||rows.length!=count||rows.any((r)=>r.length!=columns.length))throw const FormatException('Datos inconsistentes');
         if(format=='chart'||format=='table'){
           final numeric=_numericColumns(columns,rows);
-          final categories=columns.where((c)=>!numeric.contains(c)).toList();
-          setState((){dataset=result;value=numeric.firstOrNull;label=categories.firstOrNull??columns.firstOrNull;});
+          final categories=columns.where((c)=>!numeric.contains(c)&&!IntelligenceResultFormat.identifier(c)).toList();
+          setState((){dataset=result;value=numeric.contains('total')?'total':numeric.firstOrNull;label=categories.contains('fecha')?'fecha':categories.firstOrNull??columns.firstOrNull;page=0;});
         }else{
           final bytes=await _pdf(result,columns,rows);
           if(!_active(g))return;
@@ -82,8 +85,8 @@ class _IntelligenceExportCardState extends ConsumerState<IntelligenceExportCard>
   }
   static List<String> _columns(Map<String,dynamic> d)=>(d['columns'] as List).cast<String>();
   static List<List<dynamic>> _rows(Map<String,dynamic> d)=>(d['rows'] as List).map((r)=>(r as List).cast<dynamic>()).toList();
-  static List<String> _numericColumns(List<String> columns,List<List<dynamic>> rows)=>[
-    for(int i=0;i<columns.length;i++)if(rows.any((r)=>r[i] is num&&(r[i] as num).isFinite)&&rows.every((r)=>r[i]==null||(r[i] is num&&(r[i] as num).isFinite)))columns[i]
+  List<String> _numericColumns(List<String> columns,List<List<dynamic>> rows)=>[
+    for(int i=0;i<columns.length;i++)if(!IntelligenceResultFormat.identifier(columns[i])&&rows.any((r)=>IntelligenceResultFormat.measure(columns[i],r[i],resource)!=null)&&rows.every((r)=>r[i]==null||IntelligenceResultFormat.measure(columns[i],r[i],resource)!=null))columns[i]
   ];
   static String _cell(dynamic value)=>value?.toString()??'';
   Future<Uint8List> _pdf(Map<String,dynamic> d,List<String> cols,List<List<dynamic>> rows) async {
@@ -118,50 +121,84 @@ class _IntelligenceExportCardState extends ConsumerState<IntelligenceExportCard>
     }
     return doc.save();
   }
+  Widget _pageControls(int count,int size){
+    final pages=math.max(1,(count/size).ceil());
+    return Row(mainAxisAlignment:MainAxisAlignment.center,children:[
+      IconButton(tooltip:'Anterior',onPressed:page>0?()=>setState(()=>page--):null,icon:const Icon(Icons.chevron_left)),
+      Expanded(child:Text('Página '+(page+1).toString()+' de '+pages.toString(),textAlign:TextAlign.center)),
+      IconButton(tooltip:'Siguiente',onPressed:page+1<pages?()=>setState(()=>page++):null,icon:const Icon(Icons.chevron_right)),
+    ]);
+  }
   Widget _preview(Map<String,dynamic> data){
     final cols=_columns(data),rows=_rows(data);
     if(rows.isEmpty||cols.isEmpty)return const Text('No hay datos para mostrar.');
-    if(data['format']=='table')return Column(crossAxisAlignment:CrossAxisAlignment.start,children:[Text('Vista previa: ${math.min(20,rows.length)} de ${rows.length} filas.'),SingleChildScrollView(scrollDirection:Axis.horizontal,child:DataTable(
-      columns:[for(final c in cols)DataColumn(label:Text(c))],
-      rows:[for(final r in rows.take(20))DataRow(cells:[for(final v in r)DataCell(Text(_cell(v),maxLines:3,overflow:TextOverflow.ellipsis))])],
-    ))]);
+    const size=12;
+    if(data['format']=='table'){
+      return Column(crossAxisAlignment:CrossAxisAlignment.start,children:[
+        Text(rows.length.toString()+' registros disponibles'+(data['partial']==true?' · resultado parcial':'')),
+        SingleChildScrollView(scrollDirection:Axis.horizontal,child:DataTable(
+          columns:[for(final c in cols)DataColumn(label:Text(IntelligenceResultFormat.label(c)))],
+          rows:[for(final r in rows.skip(page*size).take(size))DataRow(cells:[
+            for(int i=0;i<cols.length;i++)DataCell(Text(IntelligenceResultFormat.cell(cols[i],r[i],resource),maxLines:3,overflow:TextOverflow.ellipsis))
+          ])],
+        )),
+        _pageControls(rows.length,size),
+      ]);
+    }
     final numeric=_numericColumns(cols,rows);
     if(numeric.isEmpty)return const Text('La consulta no contiene valores numéricos para graficar. Usa una agregación o reporte.');
-    final selectedValue=value??numeric.first,selectedLabel=label??cols.first;
+    if(rows.length==1&&const {'ganancias','reporte_resumen_ejecutivo'}.contains(resource)){
+      final keys=['ingresos_periodo','costo_ventas_periodo','ganancia_bruta_periodo','gastos_operativos_periodo','ganancia_neta_estimada_periodo'].where(numeric.contains).toList();
+      if(keys.isNotEmpty){
+        final points=keys.map((k)=>(label:IntelligenceResultFormat.label(k),value:IntelligenceResultFormat.measure(k,rows.first[cols.indexOf(k)],resource)!,formatted:IntelligenceResultFormat.cell(k,rows.first[cols.indexOf(k)],resource))).toList();
+        return _bars(points);
+      }
+    }
+    final selectedValue=numeric.contains(value)?value!:numeric.first,selectedLabel=cols.contains(label)?label!:cols.first;
     final vi=cols.indexOf(selectedValue),li=cols.indexOf(selectedLabel);
-    final points=rows.where((r)=>r[vi] is num).take(20).toList();
-    final scale=points.fold<double>(0,(max,r)=>math.max(max,(r[vi] as num).toDouble().abs()));
-    final theme=Theme.of(context);
+    final points=rows.where((r)=>IntelligenceResultFormat.measure(selectedValue,r[vi],resource)!=null).map((r)=>(
+      label:IntelligenceResultFormat.cell(selectedLabel,r[li],resource),
+      value:IntelligenceResultFormat.measure(selectedValue,r[vi],resource)!,
+      formatted:IntelligenceResultFormat.cell(selectedValue,r[vi],resource),
+    )).toList();
+    final scale=points.fold<double>(0,(max,r)=>math.max(max,r.value.toDouble().abs()));
     return Column(crossAxisAlignment:CrossAxisAlignment.start,children:[
       DropdownButtonFormField<String>(value:selectedLabel,isExpanded:true,decoration:const InputDecoration(labelText:'Categoría'),
-        items:[for(final c in cols)DropdownMenuItem(value:c,child:Text(c,overflow:TextOverflow.ellipsis))],onChanged:(v)=>setState(()=>label=v)),
-      DropdownButtonFormField<String>(value:selectedValue,isExpanded:true,decoration:const InputDecoration(labelText:'Valor'),
-        items:[for(final c in numeric)DropdownMenuItem(value:c,child:Text(c,overflow:TextOverflow.ellipsis))],onChanged:(v)=>setState(()=>value=v)),
+        items:[for(final c in cols)DropdownMenuItem(value:c,child:Text(IntelligenceResultFormat.label(c),overflow:TextOverflow.ellipsis))],onChanged:(v)=>setState((){label=v;page=0;})),
+      DropdownButtonFormField<String>(value:selectedValue,isExpanded:true,decoration:const InputDecoration(labelText:'Indicador'),
+        items:[for(final c in numeric)DropdownMenuItem(value:c,child:Text(IntelligenceResultFormat.label(c),overflow:TextOverflow.ellipsis))],onChanged:(v)=>setState((){value=v;page=0;})),
       const SizedBox(height:8),
+      _bars(points.skip(page*size).take(size).toList(),scale:scale),
+      _pageControls(points.length,size),
+      Text(points.length.toString()+' valores disponibles. Escala común en todas las páginas'+(data['partial']==true?' · resultado parcial':'')+'.'),
+    ]);
+  }
+  Widget _bars(List<({String label,num value,String formatted})> points,{double? scale}){
+    final maxValue=scale??points.fold<double>(0,(max,r)=>math.max(max,r.value.toDouble().abs()));
+    final theme=Theme.of(context);
+    return Column(crossAxisAlignment:CrossAxisAlignment.start,children:[
       for(final r in points)...[
-        Text('${_cell(r[li])} · ${_cell(r[vi])}',maxLines:2,overflow:TextOverflow.ellipsis),
+        Row(children:[Expanded(child:Text(r.label,maxLines:2,overflow:TextOverflow.ellipsis)),const SizedBox(width:8),Flexible(child:Text(r.formatted,textAlign:TextAlign.end,style:const TextStyle(fontWeight:FontWeight.w600)))]),
+        const SizedBox(height:4),
         LayoutBuilder(builder:(context,box){
-          final n=(r[vi] as num).toDouble();
-          final width=scale==0?0.0:box.maxWidth/2*(n.abs()/scale);
-          return SizedBox(height:13,child:Stack(children:[
+          final n=r.value.toDouble();
+          final width=maxValue==0?0.0:box.maxWidth/2*(n.abs()/maxValue);
+          return SizedBox(height:14,child:Stack(children:[
             Positioned(left:box.maxWidth/2,top:0,bottom:0,child:Container(width:1,color:theme.dividerColor)),
             Positioned(left:n<0?box.maxWidth/2-width:box.maxWidth/2,top:1,bottom:1,width:width,
               child:ColoredBox(color:n<0?theme.colorScheme.error:theme.colorScheme.primary)),
           ]));
         }),
-        const SizedBox(height:5),
+        const SizedBox(height:8),
       ],
-      Text('Primeras ${points.length} filas numéricas; no se agrupan ni se alteran los valores.'),
     ]);
   }
   @override
   Widget build(BuildContext context){
     ref.listen(selectedRolesProvider,(old,next){if(old!=next)_reset();});
     ref.listen(branchScopeProvider,(old,next){if(old?.activeBranchId!=next.activeBranchId)_reset();});
-    final requested=widget.plan['format'];
     return Card(child:Padding(padding:const EdgeInsets.all(12),child:Column(crossAxisAlignment:CrossAxisAlignment.start,children:[
-      const Text('Informe Intelligence',style:TextStyle(fontWeight:FontWeight.bold)),
-      Text('Consulta: ${(widget.plan['query'] as Map?)?['resource']??''} · Formato solicitado: $requested'),
+      const Text('Explorar resultados',style:TextStyle(fontWeight:FontWeight.bold)),
       const Text('Cada generación consulta datos vigentes y comprueba tus permisos.'),
       const SizedBox(height:8),
       Wrap(spacing:6,runSpacing:6,children:[
