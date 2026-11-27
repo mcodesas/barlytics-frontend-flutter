@@ -381,24 +381,41 @@ class _IntelligenceChatState extends ConsumerState<IntelligenceChat> with Widget
           final allowed=await ref.read(userMenuProvider.future);
           if(!_active(e))return;
           final item=AssistantNavigation.resolve(destination,allowed);
-          if(item==null){
-            setState(()=>_messages.add((role:'assistant',text:'No encontré una opción autorizada con ese nombre. Indica el nombre exacto del menú.')));
-          }else{
+          if(item!=null){
             router.go(item.path);
             setState(()=>_messages.add((role:'assistant',text:'Abriendo ${item.title} desde tu menú autorizado.')));
+            return;
           }
+          // No coincidencia literal: Intelligence puede resolver la intención mediante el catálogo.
+        }
+        final allowed=await ref.read(userMenuProvider.future);
+        if(!_active(e))return;
+        final normalized=AssistantNavigation.normalize(text);
+        if(const {'regresa','regresar','vuelve','volver','regresa al menu anterior','vuelve al menu anterior','atras'}.contains(normalized)){
+          if(router.canPop()){router.pop();setState(()=>_messages.add((role:'assistant',text:'Volví a la pantalla anterior.')));}
+          else{setState(()=>_messages.add((role:'assistant',text:'No hay una pantalla anterior disponible.')));}
           return;
         }
-        final allowed=ref.read(userMenuProvider).valueOrNull??[];
         final module=AssistantNavigation.module(router.routerDelegate.currentConfiguration.uri.path,allowed);
         final reply=await ref.read(intelligenceApiProvider).chatProgressive(_branch!,_conversation,text,
           currentModule:module.isEmpty?null:module,
+          menuCatalog:allowed.take(100).map((item)=><String,String>{'key':item.keyName,'title':item.title.length>100?item.title.substring(0,100):item.title}).toList(),
           isActive:()=>_active(e),shouldCancel:()=>_cancelRequested,
           onPartial:(value){if(_active(e)){setState(()=>_partialAnswer=value);_scrollToEnd();}});
         if(!_active(e))return;
         final id=reply['conversationId'],answer=reply['answer'];
         if(id is! String||answer is! String)throw StateError('Respuesta inválida');
-        setState((){_conversation=id;_partialAnswer='';_messages.add((role:'assistant',text:answer));if(_messageOffset!=null)_messageOffset=_messageOffset!+2;});
+        var finalAnswer=answer;
+        final navigation=reply['navigation'];
+        if(navigation is String){
+          ref.invalidate(userMenuProvider);
+          final refreshed=await ref.read(userMenuProvider.future);
+          if(!_active(e)||_cancelRequested)return;
+          final item=AssistantNavigation.resolveKey(navigation,refreshed);
+          if(item==null){finalAnswer='La opción solicitada no está disponible en tu menú actual.';}
+          else{router.go(item.path);finalAnswer='Abriendo ${item.title} desde tu menú autorizado.';}
+        }
+        setState((){_conversation=id;_partialAnswer='';_messages.add((role:'assistant',text:finalAnswer));if(_messageOffset!=null)_messageOffset=_messageOffset!+2;});
       }catch(error){
         if(!_active(e))return;
         setState((){

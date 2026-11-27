@@ -25,6 +25,12 @@ class AssistantNavigation {
     final unique={for(final item in matches)item.path:item};
     return unique.length==1?unique.values.single:null;
   }
+  static UserMenuItem? resolveKey(String key,Iterable<UserMenuItem> allowed){
+    final matches=allowed.where((item)=>item.keyName==key&&item.path.startsWith('/')&&
+      !item.path.startsWith('//')&&!item.path.contains('://')&&!item.path.contains('?')&&!item.path.contains('#')).toList();
+    final unique={for(final item in matches)item.path:item};
+    return unique.length==1?unique.values.single:null;
+  }
   static String module(String route,Iterable<UserMenuItem> allowed){
     // Only the route path (no query parameters, IDs or user data).
     final path=Uri.tryParse(route)?.path??'';
