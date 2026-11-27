@@ -309,7 +309,7 @@ class _MeseroPageState extends ConsumerState<MeseroPage> {
           !_mostrandoDetalleVenta||_ventaActiva==null)return null;
       final sale=_ventaActiva!;
       final account=_resolverCuentaSeleccionada(sale);
-      return AssistantScreenContextRegistry.sale(module,sale.ventaId,account?.cuentaId);
+      return AssistantScreenContextRegistry.sale(module,sale.ventaId,account?.cuentaId,tableId:sale.mesaId);
     });
     _scheduleInitialMode(widget.initialMode);
     _future = _load();
