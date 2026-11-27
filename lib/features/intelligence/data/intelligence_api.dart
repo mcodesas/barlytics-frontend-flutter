@@ -4,16 +4,40 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/network/api_client.dart';
 import 'progressive_chat.dart';
 import '../../../core/providers/core_providers.dart';
+import '../../navigation/presentation/providers/active_role_provider.dart';
+import '../../navigation/presentation/providers/user_assigned_roles_provider.dart';
 
-final intelligenceApiProvider=Provider<IntelligenceApi>((ref)=>IntelligenceApi(ref.watch(apiClientProvider)));
+final intelligenceApiProvider=Provider<IntelligenceApi>((ref){
+  final api=ref.watch(apiClientProvider);
+  // Rebuild workspace resources when the active role changes; each request
+  // also reads the current selection, including polling and confirmation.
+  ref.watch(selectedRolesProvider);
+  ref.watch(userAssignedRolesProvider);
+  return IntelligenceApi(api,roleHeaders:(){
+    final selection=ref.read(selectedRolesProvider);
+    if(selection==null)return const <String,dynamic>{};
+    final roles=ref.read(userAssignedRolesProvider).valueOrNull??const <UserAssignedRole>[];
+    final ids=<int>{};
+    for(final key in selection){
+      final id=systemRoleIdFromSelection(key)??customRoleIdFromSelection(key);
+      if(id!=null){ids.add(id);continue;}
+      for(final r in roles){
+        if(normalizeRoleName(r.name)==normalizeRoleName(key))ids.add(r.roleId);
+      }
+    }
+    final ordered=ids.toList()..sort();
+    return {'X-Intelligence-Role-Ids':ordered.isEmpty?'none':ordered.join(',')};
+  });
+});
 
 class IntelligenceApi {
-  IntelligenceApi(this._api);
+  IntelligenceApi(this._api,{this.roleHeaders});
   final ApiClient _api;
+  final Map<String,dynamic> Function()? roleHeaders;
   static const _path='/api/v1/intelligence/embedded';
   Future<Map<String,dynamic>> _post(String path,Map<String,dynamic> body,{Duration timeout=const Duration(seconds:210)}) async {
     final result=await _api.post<Map<String,dynamic>>('$_path/$path',body,
-      (data)=>Map<String,dynamic>.from(data as Map),receiveTimeout:timeout);
+      (data)=>Map<String,dynamic>.from(data as Map),receiveTimeout:timeout,headers:roleHeaders?.call());
     if(result.data==null)throw StateError('El asistente no devolvió información.');
     return result.data!;
   }
