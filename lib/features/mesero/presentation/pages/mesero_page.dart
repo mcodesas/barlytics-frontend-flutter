@@ -5968,6 +5968,7 @@ class _MeseroPageState extends ConsumerState<MeseroPage> {
           unidades: unidadesVendidas,
           totalVendido: totalVendido,
           diferencia: diferencia,
+          tienePagosNoIncluidos: cierre.pagosNoIncluidos.isNotEmpty,
           onCambiarDia: _seleccionarFechaCierreCaja,
           onActualizar: _reloadCierreCaja,
           onPdf: () => _descargarReporteCierreCaja(cierre),
@@ -5993,6 +5994,39 @@ class _MeseroPageState extends ConsumerState<MeseroPage> {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             header,
+            if (!cerrado && cierre.pagosNoIncluidos.isNotEmpty) ...[
+              const SizedBox(height: 14),
+              _CierreSection(
+                icon: Icons.warning_amber_rounded,
+                title: 'Pagos recibidos fuera del cierre',
+                subtitle: 'Hay ${CurrencyUtils.format(cierre.totalPagosNoIncluidos ?? 0)} registrados que no forman parte del arqueo. Revisa estas ventas antes de cerrar.',
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    for (final pago in cierre.pagosNoIncluidos)
+                      Padding(
+                        padding: const EdgeInsets.only(bottom: 10),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text('Venta #${pago.ventaId} · ${CurrencyUtils.format(pago.totalPagado)}',
+                              style: TextStyle(color: palette.textPrimary, fontWeight: FontWeight.w900)),
+                            Text(pago.motivo == 'VENTA_SIN_FINALIZAR'
+                                ? 'Venta abierta: revisa y finaliza desde Mesas si ya está pagada.'
+                                : pago.motivo == 'VENTA_YA_VINCULADA'
+                                    ? 'Venta vinculada a otro cierre: revisa su conciliación.'
+                                    : 'Estado de venta no finalizado: revisa el historial.',
+                              style: TextStyle(color: palette.textSecondary)),
+                            for (final medio in pago.mediosPago.entries)
+                              Text('${medio.key}: ${CurrencyUtils.format(medio.value)}',
+                                style: TextStyle(color: palette.secondary, fontWeight: FontWeight.w700)),
+                          ],
+                        ),
+                      ),
+                  ],
+                ),
+              ),
+            ],
             if (cerrado && cierre.ventasPendientes.isEmpty) ...[
               const SizedBox(height: 10),
               Text(
@@ -6910,6 +6944,7 @@ class _CierrePosHeader extends ConsumerWidget {
     required this.unidades,
     required this.totalVendido,
     required this.diferencia,
+    this.tienePagosNoIncluidos = false,
     required this.onCambiarDia,
     required this.onActualizar,
     required this.onPdf,
@@ -6922,6 +6957,7 @@ class _CierrePosHeader extends ConsumerWidget {
   final double unidades;
   final double totalVendido;
   final double diferencia;
+  final bool tienePagosNoIncluidos;
   final VoidCallback onCambiarDia;
   final VoidCallback onActualizar;
   final VoidCallback onPdf;
@@ -6931,7 +6967,7 @@ class _CierrePosHeader extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final palette = ref.watch(selectedAppPaletteProvider);
     final cuadrado = diferencia.abs() < 0.01;
-    final statusColor = cuadrado ? AppColors.success : AppColors.danger;
+    final statusColor = tienePagosNoIncluidos ? palette.warning : (cuadrado ? AppColors.success : AppColors.danger);
 
     Widget actions(bool compact) => Wrap(
           spacing: 8,
@@ -7052,10 +7088,10 @@ class _CierrePosHeader extends ConsumerWidget {
                 Column(
                   crossAxisAlignment: CrossAxisAlignment.end,
                   children: [
-                    Text(cuadrado ? 'Estado' : 'Diferencia', style: TextStyle(color: palette.textSecondary, fontSize: 11, fontWeight: FontWeight.w800)),
+                    Text(tienePagosNoIncluidos || cuadrado ? 'Estado' : 'Diferencia', style: TextStyle(color: palette.textSecondary, fontSize: 11, fontWeight: FontWeight.w800)),
                     const SizedBox(height: 2),
                     Text(
-                      cuadrado ? 'Cuadrada' : CurrencyUtils.format(diferencia),
+                      tienePagosNoIncluidos ? 'Revisar' : (cuadrado ? 'Cuadrada' : CurrencyUtils.format(diferencia)),
                       style: TextStyle(color: statusColor, fontSize: 16, fontWeight: FontWeight.w900),
                     ),
                   ],

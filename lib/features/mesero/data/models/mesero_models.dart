@@ -601,6 +601,27 @@ class SalidaCajaOpcionesModel {
       );
 }
 
+class CierreCajaPagoExcluidoModel {
+  const CierreCajaPagoExcluidoModel({this.ventaId, this.estadoVenta, this.motivo, this.totalPagado, this.mediosPago = const {}});
+  final int? ventaId;
+  final String? estadoVenta;
+  final String? motivo;
+  final double? totalPagado;
+  final Map<String, double> mediosPago;
+  factory CierreCajaPagoExcluidoModel.fromJson(Map<String, dynamic> json) {
+    final medios = json['mediosPago'];
+    return CierreCajaPagoExcluidoModel(
+      ventaId: (json['ventaId'] as num?)?.toInt(),
+      estadoVenta: json['estadoVenta']?.toString(),
+      motivo: json['motivo']?.toString(),
+      totalPagado: (json['totalPagado'] as num?)?.toDouble(),
+      mediosPago: medios is Map
+          ? {for (final entry in medios.entries) if (entry.value is num) entry.key.toString(): (entry.value as num).toDouble()}
+          : const {},
+    );
+  }
+}
+
 class CierreCajaResumenModel {
   const CierreCajaResumenModel({
     this.cierreCajaId,
@@ -611,6 +632,8 @@ class CierreCajaResumenModel {
     this.ventasIncluidas,
     this.ventasPendientes = const <CierreCajaVentaIncluidaModel>[],
     this.totalVentasPendientes,
+    this.pagosNoIncluidos = const <CierreCajaPagoExcluidoModel>[],
+    this.totalPagosNoIncluidos,
     this.totalVendido,
     this.totalVentasSinPropina,
     this.totalPropinas,
@@ -638,6 +661,8 @@ class CierreCajaResumenModel {
   final int? ventasIncluidas;
   final List<CierreCajaVentaIncluidaModel> ventasPendientes;
   final double? totalVentasPendientes;
+  final List<CierreCajaPagoExcluidoModel> pagosNoIncluidos;
+  final double? totalPagosNoIncluidos;
   final double? totalVendido;
   final double? totalVentasSinPropina;
   final double? totalPropinas;
@@ -667,6 +692,10 @@ class CierreCajaResumenModel {
             .map((e) => CierreCajaVentaIncluidaModel.fromJson(Map<String, dynamic>.from(e as Map)))
             .toList(growable: false),
         totalVentasPendientes: (json['totalVentasPendientes'] as num?)?.toDouble(),
+        pagosNoIncluidos: (json['pagosNoIncluidos'] as List? ?? const [])
+            .map((e) => CierreCajaPagoExcluidoModel.fromJson(Map<String, dynamic>.from(e as Map)))
+            .toList(growable: false),
+        totalPagosNoIncluidos: (json['totalPagosNoIncluidos'] as num?)?.toDouble(),
         totalVendido: (json['totalVendido'] as num?)?.toDouble(),
         totalVentasSinPropina: (json['totalVentasSinPropina'] as num?)?.toDouble(),
         totalPropinas: (json['totalPropinas'] as num?)?.toDouble(),

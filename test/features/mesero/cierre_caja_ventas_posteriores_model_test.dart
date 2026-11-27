@@ -99,4 +99,17 @@ void main() {
     expect(cierre.totalVendido, 15000);
   });
 
+  test('lee pagos excluidos sin sumarlos al cierre', () {
+    final model = CierreCajaResumenModel.fromJson({
+      'totalVendido': 8000,
+      'totalPagosNoIncluidos': 22000,
+      'pagosNoIncluidos': [
+        {'ventaId': 1997, 'estadoVenta': 'ABIERTA', 'motivo': 'VENTA_SIN_FINALIZAR', 'totalPagado': 22000, 'mediosPago': {'NEQUI': 22000}}
+      ],
+    });
+    expect(model.totalVendido, 8000);
+    expect(model.totalPagosNoIncluidos, 22000);
+    expect(model.pagosNoIncluidos.single.ventaId, 1997);
+    expect(model.pagosNoIncluidos.single.mediosPago['NEQUI'], 22000);
+  });
 }
