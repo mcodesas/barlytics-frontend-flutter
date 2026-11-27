@@ -508,6 +508,7 @@ class _IntelligenceChatState extends ConsumerState<IntelligenceChat> with Widget
             const Divider(),
             Text('${row['name']} · ${row['action']}',style:const TextStyle(fontWeight:FontWeight.w600)),
             Text('${row['brand']} / ${row['type']}'),
+            if(row['previousDescription']!=null&&row['previousDescription']!=row['description'])Text("Descripción anterior: ${row['previousDescription']}"),
             Text('${row['description']}'),
             Text("Costo: ${row['previousCost']??'—'} → ${row['cost']}"),
             Text("Venta: ${row['previousSale']??'—'} → ${row['sale']}"),
