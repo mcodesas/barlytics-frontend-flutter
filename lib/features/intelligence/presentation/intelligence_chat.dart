@@ -3,6 +3,8 @@ import 'dart:typed_data';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+import '../domain/intelligence_attachment.dart';
 import '../../../core/errors/app_exception.dart';
 import 'intelligence_composer.dart';
 import 'intelligence_export_card.dart';
@@ -323,22 +325,43 @@ class _IntelligenceChatState extends ConsumerState<IntelligenceChat> with Widget
   }
   Future<void> _select(String kind,{bool camera=false}) async=>_run((e) async {
     final extensions=kind=='video'?['mp4','mov','webm']:kind=='photo'?['png','jpg','jpeg']:kind=='audio'?['wav']:['pdf','xlsx','csv','txt','png','jpg','jpeg'];
-    XFile? file;
-    if(camera&&_cameraAvailable){
-      file=kind=='video'?await _picker.pickVideo(source:ImageSource.camera,maxDuration:const Duration(seconds:30))
-        :await _picker.pickImage(source:ImageSource.camera,maxWidth:2400,maxHeight:2400,imageQuality:82);
-    }else{
-      final selected=await FilePicker.platform.pickFiles(type:FileType.custom,allowedExtensions:extensions,withData:false);
-      if(selected==null||selected.xFiles.isEmpty)return;
-      file=selected.xFiles.first;
-    }
-    if(file==null||!_active(e))return;
     final limit=(kind=='audio'?3:5)*1024*1024;
-    if(await file.length()>limit){if(_active(e))setState(()=>_error='Archivo superior al límite de ${limit~/1024~/1024} MiB.');return;}
-    final bytes=await file.readAsBytes();
-    if(!_active(e))return;
-    if(bytes.isEmpty||bytes.length>limit){setState(()=>_error='Archivo vacío o demasiado grande.');return;}
-    setState((){_attachment=_Attachment(kind,file!.name,bytes);_extracted='';_documentWarnings=[];});
+    try{
+      String name;
+      Uint8List bytes;
+      if(camera&&_cameraAvailable){
+        final file=kind=='video'?await _picker.pickVideo(source:ImageSource.camera,maxDuration:const Duration(seconds:30))
+          :await _picker.pickImage(source:ImageSource.camera,maxWidth:2400,maxHeight:2400,imageQuality:82);
+        if(file==null||!_active(e))return;
+        name=file.name;
+        if(await file.length()>limit)throw AttachmentReadException.tooLarge(limit);
+        if(!_active(e))return;
+        bytes=await file.readAsBytes();
+      }else{
+        // Browser file selections are not filesystem paths. Request the bytes
+        // explicitly and avoid xFiles/path on the web. Native platforms retain
+        // their ordinary path-based picker without eagerly loading large files.
+        final selected=await FilePicker.platform.pickFiles(
+          type:FileType.custom,allowedExtensions:extensions,withData:kIsWeb,
+          allowMultiple:false);
+        if(selected==null||selected.files.isEmpty||!_active(e))return;
+        final picked=selected.files.first;
+        name=picked.name;
+        bytes=await readIntelligenceAttachment(picked,web:kIsWeb,limit:limit);
+      }
+      if(!_active(e))return;
+      final validated=validateIntelligenceAttachment(kind,name,bytes,limit);
+      setState((){_attachment=_Attachment(validated.kind,validated.name,bytes);_extracted='';_documentWarnings=[];});
+      _scrollToEnd();
+    }on AttachmentReadException catch(error){
+      if(_active(e))setState(()=>_error=error.message);
+    }on PlatformException catch(error){
+      if(_active(e))setState(()=>_error=error.code.toLowerCase().contains('permission')||error.code.toLowerCase().contains('access')
+        ?'No se concedió acceso al archivo o a la cámara. Revisa los permisos del dispositivo.'
+        :'No fue posible abrir el selector de archivos. Intenta elegir una imagen PNG o JPEG.');
+    }catch(_){
+      if(_active(e))setState(()=>_error='No fue posible leer el archivo seleccionado. Intenta con otra imagen o archivo.');
+    }
   });
   Future<void> _startAudio() async {
     if(_busy||_recording||_closed)return;
@@ -371,8 +394,23 @@ class _IntelligenceChatState extends ConsumerState<IntelligenceChat> with Widget
   Future<void> _analyze() async=>_run((e) async{
     final a=_attachment;
     if(a==null||_branch==null)return;
-    final result=await ref.read(intelligenceApiProvider).media(_branch!,a.kind,a.name,a.bytes);
-    if(_active(e))setState((){_extracted=result['text']?.toString()??'';_documentWarnings=(result['warnings'] as List?)?.whereType<String>().toList()??[];});
+    try{
+      final result=await ref.read(intelligenceApiProvider).media(_branch!,a.kind,a.name,a.bytes);
+      if(_active(e))setState((){_extracted=result['text']?.toString()??'';_documentWarnings=(result['warnings'] as List?)?.whereType<String>().toList()??[];});
+    }catch(error){
+      if(!_active(e))return;
+      final status=error is AppException?error.statusCode:null;
+      setState(()=>_error=switch(status){
+        400||422=>'No se pudo interpretar el archivo. Comprueba que no esté dañado.',
+        401=>'La sesión venció. Inicia sesión nuevamente.',
+        403=>'No tienes permiso para analizar adjuntos en esta sucursal.',
+        413=>'El archivo supera el límite admitido por el servidor.',
+        415=>'El servidor no admite este formato de archivo.',
+        429=>'El asistente está ocupado. Tu archivo sigue adjunto; puedes reintentar.',
+        502||503||504=>'El análisis no está disponible o tardó demasiado. Tu archivo sigue adjunto.',
+        _=>'No se pudo analizar el archivo. Tu adjunto se conserva para reintentar.'
+      });
+    }
   });
   Future<void> _reviewProductImport() async {
     final branch=_branch,e=_epoch;
