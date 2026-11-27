@@ -3,6 +3,8 @@ import 'dart:typed_data';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import '../../../core/errors/app_exception.dart';
+import 'intelligence_composer.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:record/record.dart';
@@ -36,6 +38,14 @@ class IntelligenceChat extends ConsumerStatefulWidget {
 class _IntelligenceChatState extends ConsumerState<IntelligenceChat> with WidgetsBindingObserver {
   final _text=TextEditingController(),_picker=ImagePicker(),_recorder=AudioRecorder();
   final List<({String role,String text})> _messages=[];
+  final _scroll=ScrollController();
+  final _composerFocus=FocusNode();
+  bool _sending=false,_enterSends=true;
+  void _scrollToEnd(){
+    WidgetsBinding.instance.addPostFrameCallback((_){
+      if(mounted&&_scroll.hasClients)_scroll.jumpTo(_scroll.position.maxScrollExtent);
+    });
+  }
   final BytesBuilder _pcm=BytesBuilder(copy:false);
   final AudioPlayer _player=AudioPlayer();
   StreamSubscription<Uint8List>? _liveSubscription;
@@ -212,22 +222,56 @@ class _IntelligenceChatState extends ConsumerState<IntelligenceChat> with Widget
     final result=await ref.read(intelligenceApiProvider).media(_branch!,a.kind,a.name,a.bytes);
     if(_active(e))setState(()=>_extracted=result['text']?.toString()??'');
   });
-  Future<void> _send() async=>_run((e) async{
+  Future<void> _send() async {
     final text=_text.text.trim();
-    if(text.isEmpty||text.length>2000||_branch==null)return;
-    final reply=await ref.read(intelligenceApiProvider).chat(_branch!,_conversation,text);
-    if(!_active(e))return;
-    final id=reply['conversationId'],answer=reply['answer'];
-    if(id is! String||answer is! String)throw StateError('Respuesta inválida');
-    setState((){_conversation=id;_messages.add((role:'user',text:text));_messages.add((role:'assistant',text:answer));_text.clear();});
-  });
+    if(_busy||_recording||_live||_closed||_branch==null||text.isEmpty||text.length>2000)return;
+    await _run((e) async {
+      setState((){
+        _sending=true;
+        _messages.add((role:'user',text:text));
+        _text.clear();
+      });
+      _scrollToEnd();
+      try{
+        final reply=await ref.read(intelligenceApiProvider).chat(_branch!,_conversation,text);
+        if(!_active(e))return;
+        final id=reply['conversationId'],answer=reply['answer'];
+        if(id is! String||answer is! String)throw StateError('Respuesta inválida');
+        setState((){_conversation=id;_messages.add((role:'assistant',text:answer));});
+      }catch(error){
+        if(!_active(e))return;
+        setState((){
+          _messages.removeLast();
+          _text.text=text;
+          final status=error is AppException?error.statusCode:null;
+          _error=switch(status){
+            401=>'Sesión vencida. Inicia sesión nuevamente.',
+            403=>'No tienes acceso al asistente en esta sucursal.',
+            429=>'El asistente está ocupado. Intenta nuevamente.',
+            502||503||504=>'El asistente no está disponible o tardó demasiado. Intenta nuevamente.',
+            _=>'No se recibió una respuesta. Tu mensaje se conservó.'
+          };
+          if(status!=null)_error+=' (HTTP $status)';
+        });
+      }finally{
+        if(_active(e)){
+          setState(()=>_sending=false);
+          _scrollToEnd();
+        }
+      }
+    });
+    if(mounted&&!_closed&&!_busy&&!_live&&!_recording&&
+       (kIsWeb||{TargetPlatform.windows,TargetPlatform.macOS,TargetPlatform.linux}.contains(defaultTargetPlatform))){
+      WidgetsBinding.instance.addPostFrameCallback((_){if(mounted&&!_closed&&!_busy)_composerFocus.requestFocus();});
+    }
+  }
   @override
   void dispose(){
     WidgetsBinding.instance.removeObserver(this);
     _closed=true;_epoch++;_liveEpoch++;_liveTimeout?.cancel();_timer?.cancel();
     unawaited(_liveSubscription?.cancel()??Future<void>.value());unawaited(_player.dispose());
     unawaited(_audioSubscription?.cancel()??Future<void>.value());
-    unawaited(_recorder.dispose());_text.dispose();_pcm.clear();super.dispose();
+    unawaited(_recorder.dispose());_scroll.dispose();_composerFocus.dispose();_text.dispose();_pcm.clear();super.dispose();
   }
   @override
   Widget build(BuildContext context){
@@ -254,12 +298,13 @@ class _IntelligenceChatState extends ConsumerState<IntelligenceChat> with Widget
             const Text('Voz continua · micrófono activo solo al escuchar') ])),
           IconButton(tooltip:'Finalizar voz continua',onPressed:()=>unawaited(_endLive()),icon:Icon(Icons.call_end,color:palette.danger))
         ])),
-        Expanded(child:ListView(padding:const EdgeInsets.all(16),children:[
+        Expanded(child:ListView(controller:_scroll,padding:const EdgeInsets.all(16),children:[
           if(_messages.isEmpty)const Center(child:Padding(padding:EdgeInsets.symmetric(vertical:32),child:Text('¿En qué puedo ayudarte hoy?\nConsulta o adjunta un archivo para revisar su contenido.',textAlign:TextAlign.center))),
           for(final m in _messages)Align(alignment:m.role=='user'?Alignment.centerRight:Alignment.centerLeft,child:Container(
             margin:const EdgeInsets.symmetric(vertical:5),padding:const EdgeInsets.all(12),constraints:const BoxConstraints(maxWidth:540),
             decoration:BoxDecoration(color:m.role=='user'?palette.primary.withOpacity(.16):palette.background,borderRadius:BorderRadius.circular(16)),
             child:SelectableText(m.text,style:TextStyle(color:palette.textPrimary)))),
+          if(_sending)const Padding(padding:EdgeInsets.symmetric(vertical:12),child:Row(children:[SizedBox(width:16,height:16,child:CircularProgressIndicator(strokeWidth:2)),SizedBox(width:10),Expanded(child:Text('Intelligence está preparando la respuesta…'))])),
           if(_attachment!=null)Card(child:Padding(padding:const EdgeInsets.all(10),child:Column(crossAxisAlignment:CrossAxisAlignment.start,children:[
             Row(children:[const Icon(Icons.attach_file),Expanded(child:Text(_attachment!.name,maxLines:1,overflow:TextOverflow.ellipsis)),
               IconButton(tooltip:'Quitar adjunto',onPressed:locked?null:()=>setState((){_attachment=null;_extracted='';}),icon:const Icon(Icons.close))]),
@@ -275,7 +320,12 @@ class _IntelligenceChatState extends ConsumerState<IntelligenceChat> with Widget
           if(_error.isNotEmpty)Text(_error,style:TextStyle(color:palette.danger)),
         ])),
         Padding(padding:const EdgeInsets.fromLTRB(12,4,12,12),child:Column(children:[
-          TextField(controller:_text,enabled:!locked,minLines:1,maxLines:4,maxLength:2000,decoration:const InputDecoration(hintText:'Escribe tu consulta…',border:OutlineInputBorder())),
+          IntelligenceComposer(controller:_text,focusNode:_composerFocus,enabled:!locked,enterSends:_enterSends,onSend:_send),
+          Row(mainAxisAlignment:MainAxisAlignment.end,children:[
+            const Text('Enter para enviar',style:TextStyle(fontSize:11)),
+            Switch(value:_enterSends,onChanged:locked?null:(v)=>setState(()=>_enterSends=v)),
+            if(_enterSends)const Flexible(child:Text('Shift + Enter: nueva línea',style:TextStyle(fontSize:10),overflow:TextOverflow.ellipsis)),
+          ]),
           Wrap(alignment:WrapAlignment.center,crossAxisAlignment:WrapCrossAlignment.center,spacing:4,children:[
             IconButton(tooltip:_cameraAvailable?'Tomar foto':'Adjuntar foto',onPressed:locked?null:()=>_select('photo',camera:true),icon:const Icon(Icons.photo_camera_outlined)),
             IconButton(tooltip:'Adjuntar archivo',onPressed:locked?null:()=>_select('file'),icon:const Icon(Icons.attach_file_rounded)),
