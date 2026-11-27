@@ -64,23 +64,21 @@ class _SportsAgendaWidgetState extends ConsumerState<SportsAgendaWidget> {
   @override
   void initState() {
     super.initState();
-    if (widget.compact) {
-      // La tarjeta de Inicio siempre representa HOY en Colombia,
-      // incluso si el panel gerencial permanece abierto toda la noche.
-      _todayTimer = Timer.periodic(const Duration(minutes: 1), (timer) {
-        if (!mounted) return;
-        final today = sportsTodayBogota();
-        if (!DateUtils.isSameDay(_date, today)) {
-          setState(() {
-            _date = today;
-            _data = {};
-          });
-          _load();
-        } else if (!_busy && (timer.tick % 2 == 0 || _data['intelligenceEstado']=='pendiente')) {
-          _load();
-        }
-      });
-    }
+    _todayTimer = Timer.periodic(const Duration(minutes: 1), (timer) {
+      if (!mounted) return;
+      final today = sportsTodayBogota();
+      if (widget.compact && !DateUtils.isSameDay(_date, today)) {
+        setState(() {
+          _date = today;
+          _data = {};
+        });
+        _load();
+      } else if (!_busy && ((widget.compact && timer.tick % 2 == 0) ||
+          _data['intelligenceEstado'] == 'pendiente' ||
+          _data['intelligenceEstado'] == 'no_disponible')) {
+        _load();
+      }
+    });
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted) _load();
     });
@@ -241,18 +239,17 @@ class _SportsAgendaWidgetState extends ConsumerState<SportsAgendaWidget> {
 
   String _sourceLabel() {
     final state = _data['intelligenceEstado']?.toString();
-    final count = _data['intelligencePartidos'] as num? ?? 0;
-    if (state == 'desactualizado' && count > 0) {
-      return 'Intelligence: última agenda disponible · respaldo deportivo';
+    switch (state) {
+      case 'desactualizado': return 'Intelligence · última agenda verificada';
+      case 'disponible': return 'MCode Intelligence · fuentes verificadas';
+      case 'pendiente': return 'Intelligence · buscando y verificando partidos';
+      case 'no_disponible': return 'Intelligence · temporalmente no disponible';
+      default: return 'MCode Intelligence';
     }
-    if (count > 0) return 'Intelligence + fuentes de respaldo';
-    if (state == 'pendiente') return 'Intelligence actualizando · respaldo deportivo';
-    if (state != null) return 'Fuentes de respaldo · Intelligence sin datos verificados';
-    return 'OpenLigaDB · Liga colombiana: ESPN';
   }
 
   String _matchSource(Map<String, dynamic> match) =>
-      (match['fuenteIntelligenceUrl'] ?? match['fuenteUrl'] ?? '').toString();
+      (match['fuenteUrl'] ?? '').toString();
 
   Widget _matchCard(Map<String, dynamic> match) {
     final palette = ref.watch(selectedAppPaletteProvider);
@@ -436,15 +433,6 @@ class _SportsAgendaWidgetState extends ConsumerState<SportsAgendaWidget> {
               child: Text(_data['errorProgramacion'].toString(),
                 maxLines: 2,
                 style: TextStyle(color: palette.warning, fontSize: 11))),
-          if (_data['fuenteColombiaDisponible'] == false)
-            Padding(
-              padding: const EdgeInsets.only(top: 8),
-              child: Text(
-                'El proveedor de respaldo de Liga BetPlay no respondió. '
-                'La agenda colombiana puede estar incompleta.',
-                style: TextStyle(color: palette.warning, fontSize: 11),
-              ),
-            ),
           if (visible.isNotEmpty) ...[
             const SizedBox(height: 11),
             SizedBox(
@@ -466,7 +454,7 @@ class _SportsAgendaWidgetState extends ConsumerState<SportsAgendaWidget> {
               Icon(Icons.event_available_outlined,
                   size: 18, color: palette.textSecondary),
               const SizedBox(width: 8),
-              Expanded(child: Text('Sin encuentros disponibles por ahora.',
+              Expanded(child: Text('Intelligence aún no tiene encuentros verificados para esta fecha.',
                 style: TextStyle(color: palette.textSecondary,
                     fontSize: 12))),
             ]),
@@ -542,7 +530,8 @@ class _SportsAgendaWidgetState extends ConsumerState<SportsAgendaWidget> {
   @override
   Widget build(BuildContext context) {
     final palette = ref.watch(selectedAppPaletteProvider);
-    final matches = _rows(_data['partidos']);
+    final matches = _rows(_data['partidos'])
+        .where((row) => row['origen'] == 'intelligence').toList();
     final news = _rows(_data['noticias']);
     if (widget.compact) {
       return _compactHomeMatches(matches, palette);
@@ -692,8 +681,8 @@ class _SportsAgendaWidgetState extends ConsumerState<SportsAgendaWidget> {
             const SizedBox(width: 11),
             Expanded(child: Text(
               widget.compact
-                  ? 'Hoy no hay partidos disponibles en las ligas consultadas.'
-                  : 'No hay partidos disponibles para esta fecha en las ligas consultadas.',
+                  ? 'Intelligence aún no tiene partidos verificados para hoy.'
+                  : 'Intelligence aún no tiene partidos verificados para esta fecha.',
               style: TextStyle(color: palette.textSecondary),
             )),
           ])),
@@ -707,20 +696,6 @@ class _SportsAgendaWidgetState extends ConsumerState<SportsAgendaWidget> {
             icon: const Icon(Icons.arrow_forward_rounded),
             label: const Text('Ver agenda deportiva completa'),
           )),
-        if (widget.compact)
-          Padding(
-            padding: const EdgeInsets.only(top: 4, bottom: 8),
-            child: Wrap(spacing: 10, runSpacing: 0, children: [
-              TextButton(
-                onPressed: () => _open('https://www.openligadb.de/'),
-                child: const Text('Fuente: OpenLigaDB'),
-              ),
-              TextButton(
-                onPressed: () => _open('https://opendatacommons.org/licenses/odbl/1-0/'),
-                child: const Text('Licencia ODbL 1.0'),
-              ),
-            ]),
-          ),
         if (!widget.compact) ...[
           SizedBox(height: 12 * palette.spacingScale),
           _sectionHeading('Noticias deportivas', Icons.newspaper_rounded, news.length),
@@ -742,22 +717,11 @@ class _SportsAgendaWidgetState extends ConsumerState<SportsAgendaWidget> {
                   fontWeight: FontWeight.w900, letterSpacing: 1.1)),
             const SizedBox(height: 8),
             Text(
-              _sourceLabel() + '. Intelligence consulta fuentes públicas y comparte '
-              'la agenda almacenada entre usuarios. OpenLigaDB (ODbL) y '
-              'ESPN son fuentes de respaldo; cobertura parcial. Verifica '
-              'horarios y derechos de exhibición comercial en Colombia.',
+              _sourceLabel() + '. La IA consulta fuentes públicas y comparte '
+              'la agenda verificada entre usuarios. Cobertura parcial; '
+              'verifica horarios y derechos de exhibición comercial en Colombia.',
               style: TextStyle(color: palette.textSecondary, fontSize: 12),
             ),
-            Wrap(spacing: 10, children: [
-              TextButton(
-                onPressed: () => _open('https://www.openligadb.de/'),
-                child: const Text('Datos: OpenLigaDB'),
-              ),
-              TextButton(
-                onPressed: () => _open('https://opendatacommons.org/licenses/odbl/1-0/'),
-                child: const Text('Licencia ODbL 1.0'),
-              ),
-            ]),
           ])),
         ],
       ]);
