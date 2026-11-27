@@ -5,11 +5,11 @@ import '../../navigation/presentation/providers/active_role_provider.dart';
 import '../data/intelligence_api.dart';
 
 class _Line {
-  _Line({String product='',String quantity='',this.unit='UNKNOWN',this.evidence=''}):
+  _Line({String product='',String quantity='',this.unit='UNKNOWN',this.evidence='',this.priceText=''}):
     product=TextEditingController(text:product),quantity=TextEditingController(text:quantity);
   final TextEditingController product,quantity;
   String unit;
-  final String evidence;
+  final String evidence,priceText;
   void dispose(){product.dispose();quantity.dispose();}
 }
 
@@ -71,7 +71,7 @@ class _ReviewState extends ConsumerState<IntelligencePurchaseReview>{
         for(final row in result){
           final unit=row['unit']?.toString()??'UNKNOWN';
           lines.add(_Line(product:row['product']?.toString()??'',quantity:row['quantity']?.toString()??'',
-            unit:const ['UNITS','PACKS','UNKNOWN'].contains(unit)?unit:'UNKNOWN',evidence:row['evidence']?.toString()??''));
+            unit:const ['UNITS','PACKS','UNKNOWN'].contains(unit)?unit:'UNKNOWN',evidence:row['evidence']?.toString()??'',priceText:row['priceText']?.toString()??''));
         }
         if(result.isEmpty)error='No se identificaron líneas fiables. Puedes añadirlas manualmente.';
       });
@@ -124,6 +124,7 @@ class _ReviewState extends ConsumerState<IntelligencePurchaseReview>{
           Row(children:[Expanded(child:Text('Renglón ${entry.key+1}',style:const TextStyle(fontWeight:FontWeight.bold))),
             IconButton(onPressed:busy?null:()=>setState((){lines.removeAt(entry.key).dispose();checked=false;}),icon:const Icon(Icons.delete_outline))]),
           if(entry.value.evidence.isNotEmpty)SelectableText('Origen: ${entry.value.evidence}'),
+          if(entry.value.priceText.isNotEmpty)Text('Importe impreso (verificar si es unitario o total): ${entry.value.priceText}'),
           field(entry.value.product,'Nombre exacto del producto',160),
           field(entry.value.quantity,'Cantidad',20,number:true),
           DropdownButtonFormField<String>(value:entry.value.unit,decoration:const InputDecoration(labelText:'Tipo de cantidad'),
