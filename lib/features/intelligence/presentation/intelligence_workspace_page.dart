@@ -5,6 +5,7 @@ import '../../navigation/presentation/providers/user_menu_provider.dart';
 import '../data/intelligence_api.dart';
 import 'intelligence_chat.dart';
 import 'intelligence_export_card.dart';
+import 'intelligence_alerts_card.dart';
 import '../../navigation/presentation/providers/active_role_provider.dart';
 
 final _workspaceCatalog=FutureProvider.autoDispose.family<Map<String,dynamic>,int>((ref,branch) async {
@@ -91,6 +92,8 @@ class _WorkspaceState extends ConsumerState<_Workspace>{
           const Text('Consulta los datos de tu negocio, según los permisos de tu usuario y la sucursal seleccionada.'),
           const SizedBox(height:12),
           Align(alignment:Alignment.centerLeft,child:FilledButton.icon(onPressed:()=>showIntelligenceChat(context),icon:const Icon(Icons.chat_bubble_outline),label:const Text('Abrir asistente Intelligence'))),
+          const SizedBox(height:16),
+          IntelligenceAlertsCard(key:ValueKey('alerts-${widget.branch}'),branch:widget.branch,initiallyExpanded:true),
           const SizedBox(height:16),
           Text('${resources.length} recursos autorizados',style:Theme.of(context).textTheme.titleMedium),
           if(value['schemaTableCount']!=null)Text('Tablas físicas autorizadas y disponibles: ${value['authorizedPhysicalTables']} / ${value['schemaTableCount']} descubiertas. La diferencia incluye recursos sin permiso o sin política validada.'),
