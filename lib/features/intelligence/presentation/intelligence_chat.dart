@@ -395,13 +395,29 @@ class _IntelligenceChatState extends ConsumerState<IntelligenceChat> with Widget
   Widget _actionCard(bool locked){
     final p=_pendingAction!;
     final changes=p['changes'];
+    final replenishment=p['replenishment'];
     return Card(child:Padding(padding:const EdgeInsets.all(12),child:Column(crossAxisAlignment:CrossAxisAlignment.start,children:[
       Text(p['steps'] is List?'Confirmar todas las operaciones':'Confirmar operación',style:const TextStyle(fontWeight:FontWeight.bold)),
       ConstrainedBox(constraints:const BoxConstraints(maxHeight:240),child:SingleChildScrollView(child:Column(crossAxisAlignment:CrossAxisAlignment.start,children:[
         Text(p['effect'].toString()),
         Text('Registro: ${p['target']}'),
         if(changes is Map)for(final entry in changes.entries)SelectableText('${entry.key}: ${entry.value}'),
-        if(p['steps'] is List)for(final entry in (p['steps'] as List).asMap().entries)
+        if(replenishment is Map)...[
+          Text('Costo estimado total: ${replenishment['totalEstimado']}',style:const TextStyle(fontWeight:FontWeight.w600)),
+          if(replenishment['orders'] is List)for(final order in replenishment['orders'])
+            if(order is Map)...[
+              const Divider(),
+              Text('${order['proveedor']} · ${order['totalEstimado']}',style:const TextStyle(fontWeight:FontWeight.w600)),
+              if(order['productos'] is List)for(final product in order['productos'])
+                if(product is Map)Text('${product['producto']} — ${product['unidades']} unidades · ${product['subtotalEstimado']}'),
+            ],
+          if(replenishment['excluded'] is List&&(replenishment['excluded'] as List).isNotEmpty)...[
+            const Divider(),const Text('Productos excluidos',style:TextStyle(fontWeight:FontWeight.w600)),
+            for(final item in replenishment['excluded'])if(item is Map)Text('${item['producto']}: ${item['motivo']}'),
+          ],
+          const Text('El servidor volverá a comprobar la reposición al confirmar. No se enviarán pedidos por WhatsApp ni se recibirá inventario.'),
+        ],
+        if(replenishment is! Map&&p['steps'] is List)for(final entry in (p['steps'] as List).asMap().entries)
           if(entry.value is Map) ...[
             const Divider(),
             Text('${entry.key+1}. ${entry.value['effect']}',style:const TextStyle(fontWeight:FontWeight.w600)),
