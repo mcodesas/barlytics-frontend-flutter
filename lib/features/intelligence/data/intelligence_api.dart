@@ -41,6 +41,9 @@ class IntelligenceApi {
     if(result.data==null)throw StateError('El asistente no devolvió información.');
     return result.data!;
   }
+  Future<bool> purchaseAvailable(int branch) async=>(await _post('purchase-options',{'branchId':branch},timeout:const Duration(seconds:15)))['available']==true;
+  Future<Map<String,dynamic>> extractPurchase(int branch,String text)=>
+    _post('purchase-extract',{'branchId':branch,'text':text},timeout:const Duration(seconds:210));
   Future<Map<String,dynamic>> memory(int branch)=>_post('memory',{'branchId':branch},timeout:const Duration(seconds:15));
   Future<Map<String,dynamic>> configureMemory(int branch,{required bool recallHistory,required bool recallNotes,bool resetHistory=false})=>
     _post('memory-config',{'branchId':branch,'recallHistory':recallHistory,'recallNotes':recallNotes,'resetHistory':resetHistory},timeout:const Duration(seconds:15));
