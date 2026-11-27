@@ -2232,9 +2232,10 @@ class _OperationalBottomNavigation extends ConsumerWidget {
       ));
     }
 
-    // Inicio + 3 accesos prioritarios + Más: cinco botones legibles como
-    // en la vista web del usuario. Los excedentes continúan accesibles.
-    final displayed = candidates.take(3).toList(growable: false);
+    // Inicio y Más también cuentan para el reparto simétrico.
+    final displayed = candidates.take(
+      balancedVisibleCount(candidates.length+1,MediaQuery.sizeOf(context).width)-1
+    ).toList(growable: false);
     final navigationEntries = <({
       String path, MeseroPageMode? mode, BottomNavigationBarItem item
     })>[
@@ -2780,14 +2781,9 @@ class _InventoryBottomNavigation extends ConsumerWidget {
         if (usedPaths.add(item.path)) item,
     ];
 
-    final maxVisible = width >= 1280
-        ? 7
-        : width >= 720
-            ? 5
-            : 4;
     final hasOverflow = allItems.length > 1;
     final visibleCount = hasOverflow
-        ? (allItems.length < maxVisible ? allItems.length : maxVisible - 1)
+        ? balancedVisibleCount(allItems.length,width)
         : allItems.length;
     final visibleItems = allItems.take(visibleCount).toList(growable: false);
     final overflowItems = <({String label, IconData icon, String path})>[
@@ -3145,16 +3141,10 @@ class _CustomRoleBottomNavigation extends ConsumerWidget {
       );
     }
 
-    final maxSlots = width >= 1280
-        ? 7
-        : width >= 720
-            ? 5
-            : 4;
-    // Reservar "Más" para las opciones restantes y el acceso a personalizar,
-    // incluso cuando todos los módulos caben en la barra.
+    // Reservar Más y repartir un número par de destinos reales.
     final hasOverflow = allItems.length > 1;
     final visibleCount = hasOverflow
-        ? (allItems.length < maxSlots ? allItems.length : maxSlots - 1)
+        ? balancedVisibleCount(allItems.length,width)
         : allItems.length;
     final visibleItems =
         allItems.take(visibleCount).toList(growable: false);
@@ -3484,7 +3474,7 @@ class _AdminBottomNavigation extends ConsumerWidget {
     }
     final visibleDestinations = <_AdminNavigationItem>[
       _coreItems.first, // Inicio fijo.
-      ...unique.values.take(3),
+      ...unique.values.take(balancedVisibleCount(unique.length+1,MediaQuery.sizeOf(context).width)-1),
       _coreItems.last, // Más siempre disponible.
     ];
 
@@ -3833,10 +3823,11 @@ class _ManagerBottomNavigation extends ConsumerWidget {
         ? (menuItems.where((item) => item.isFavorite).toList()
             ..sort(_compareMenuWithPreference))
         : <UserMenuItem>[];
-    final featured = favoriteMenus.take(3).toList(growable: false);
+    final capacity=MediaQuery.sizeOf(context).width>=600?4:2;
+    final featured = favoriteMenus.take(capacity).toList(growable: false);
     final remainingGroups = allBottomGroups.where((group) =>
         !featured.any((item) => group.containsPath(item.path))).toList();
-    final visibleDestinations = <({
+    final candidates = <({
       String label, String path, IconData icon, List<UserMenuItem> members
     })>[
       for (final item in featured)
@@ -3846,7 +3837,7 @@ class _ManagerBottomNavigation extends ConsumerWidget {
           icon: _customRoleMenuIcon(item),
           members: [item],
         ),
-      for (final group in remainingGroups.take(3 - featured.length))
+      for (final group in remainingGroups.take(capacity - featured.length))
         (
           label: group.label,
           path: group.primaryPath,
@@ -3855,6 +3846,9 @@ class _ManagerBottomNavigation extends ConsumerWidget {
         ),
     ];
 
+    final visibleDestinations=candidates.take(
+      balancedVisibleCount(candidates.length+1,MediaQuery.sizeOf(context).width)-1
+    ).toList(growable:false);
     var selectedIndex = currentPath == '/home' ? 0 : -1;
     if (currentPath != '/home') {
       final selected = visibleDestinations.indexWhere((entry) =>

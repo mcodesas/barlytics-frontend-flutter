@@ -8,6 +8,14 @@ import 'intelligence_chat.dart';
 
 const intelligenceEnabled = bool.fromEnvironment('BARLYTICS_INTELLIGENCE', defaultValue: true);
 
+/// Number of actual destinations before adding the final More item.
+int balancedVisibleCount(int available,double width){
+  final cap=width>=600?6:4;
+  final total=available+1;
+  final limited=total<cap?total:cap;
+  return limited<=2?available:(limited.isEven?limited:limited-1)-1;
+}
+
 /// Preserves every original destination and its index. Center button is not a route.
 class IntelligenceBottomNavigation extends ConsumerWidget {
   const IntelligenceBottomNavigation({super.key,required this.items,required this.onTap,

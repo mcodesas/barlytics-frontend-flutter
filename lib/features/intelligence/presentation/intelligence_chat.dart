@@ -86,13 +86,14 @@ class _IntelligenceWindowState extends ConsumerState<_IntelligenceWindow>{
     final media=MediaQuery.of(context);
     return LayoutBuilder(builder:(context,c){
       final w=c.maxWidth,h=c.maxHeight;
-      final bottom=media.viewInsets.bottom+media.padding.bottom+12;
+      // Leave the entire navigation bar exposed; keyboard inset takes precedence.
+      final bottom=(media.viewInsets.bottom>0?media.viewInsets.bottom:media.padding.bottom+82)+12;
       final top=(media.padding.top+8).clamp(0.0,h).toDouble();
       final width=(w-24).clamp(0.0,470.0).toDouble();
       final height=(h-top-bottom-8).clamp(0.0,650.0).toDouble();
       final maxX=(w-width-12).clamp(0.0,w).toDouble();
       final maxY=(h-bottom-height).clamp(top,h).toDouble();
-      final desired=position??Offset(maxX,maxY);
+      final desired=position??Offset((w-width)/2,(top+maxY)/2);
       final actual=Offset(desired.dx.clamp(0.0,maxX).toDouble(),desired.dy.clamp(top,maxY).toDouble());
       return Stack(children:[
         Positioned(left:actual.dx,top:actual.dy,width:width,height:height,
@@ -101,7 +102,7 @@ class _IntelligenceWindowState extends ConsumerState<_IntelligenceWindow>{
             borderRadius:BorderRadius.circular(20),clipBehavior:Clip.antiAlias,
             child:IntelligenceChat(onClose:widget.onClose,onMinimize:()=>setState(()=>minimized=true),
               onDrag:(delta)=>setState(()=>position=actual+delta))))),
-        if(minimized)Positioned(right:16,bottom:bottom+76,child:FloatingActionButton.extended(
+        if(minimized)Positioned(right:16,bottom:bottom,child:FloatingActionButton.extended(
           heroTag:null,onPressed:restore,backgroundColor:palette.primary,foregroundColor:palette.onPrimary,
           icon:const Icon(Icons.auto_awesome_rounded),label:const Text('Inteligencia'))),
       ]);
@@ -444,9 +445,14 @@ class _IntelligenceChatState extends ConsumerState<IntelligenceChat> with Widget
           CircleAvatar(backgroundColor:palette.primary,child:Icon(Icons.auto_awesome_rounded,color:palette.onPrimary)),
           const SizedBox(width:8),Expanded(child:GestureDetector(
             behavior:HitTestBehavior.opaque,onPanUpdate:(d)=>widget.onDrag(d.delta),
-            child:Column(crossAxisAlignment:CrossAxisAlignment.start,children:[
+            child:MouseRegion(cursor:SystemMouseCursors.move,child:Column(crossAxisAlignment:CrossAxisAlignment.start,children:[
               Text('Inteligencia BarLytics',maxLines:1,overflow:TextOverflow.ellipsis,style:TextStyle(color:palette.textPrimary,fontWeight:FontWeight.w800,fontSize:15)),
-              Text(branch?.label()??'Sucursal no disponible',maxLines:1,overflow:TextOverflow.ellipsis,style:TextStyle(color:palette.textSecondary,fontSize:11))]))),
+              Row(children:[
+                Icon(Icons.drag_indicator_rounded,size:13,color:palette.textSecondary),
+                Expanded(child:Text(branch?.label()??'Sucursal no disponible',maxLines:1,overflow:TextOverflow.ellipsis,style:TextStyle(color:palette.textSecondary,fontSize:11))),
+              ]),
+              Text('Arrastra para mover',maxLines:1,overflow:TextOverflow.ellipsis,style:TextStyle(color:palette.textSecondary,fontSize:10)),
+            ])))),
           IconButton(tooltip:'Historial de conversaciones',onPressed:locked?null:()=>_loadHistory(),icon:const Icon(Icons.history_rounded,size:20)),
           IconButton(tooltip:'Nueva conversación',onPressed:locked?null:()=>setState((){_conversation=null;_messages.clear();_messageOffset=null;_showHistory=false;_partialAnswer='';_attachment=null;_extracted='';_text.clear();_error='';}),icon:const Icon(Icons.add_comment_rounded,size:20)),
           IconButton(tooltip:'Minimizar chat',onPressed:_recording||_live?null:(){_composerFocus.unfocus();widget.onMinimize();},icon:const Icon(Icons.minimize_rounded,size:20)),

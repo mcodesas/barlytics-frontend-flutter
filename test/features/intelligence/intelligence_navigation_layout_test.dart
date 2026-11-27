@@ -3,6 +3,20 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:barlytics_frontend/features/intelligence/presentation/intelligence_navigation.dart';
 
 void main(){
+  test('balanced count reserves More and preserves available destinations',(){
+    for(final width in [320.0,720.0,1737.0]){
+      for(var available=1;available<=20;available++){
+        final count=balancedVisibleCount(available,width);
+        expect(count,lessThanOrEqualTo(available));
+        expect(count+1,isEven);
+        expect(count+1,lessThanOrEqualTo(width>=600?6:4));
+      }
+    }
+    expect(balancedVisibleCount(44,1737),5);
+    expect(balancedVisibleCount(4,1737),3);
+    expect(balancedVisibleCount(2,1737),1);
+    expect(balancedVisibleCount(44,320),3);
+  });
   const a=Key('a'),b=Key('b'),c=Key('c'),center=Key('center'),d=Key('d'),e=Key('e');
   Widget tile(Key key)=>SizedBox(key:key,height:44,child:const Center(child:Icon(Icons.home)));
   Widget bar(double width)=>MaterialApp(home:Scaffold(body:Center(child:SizedBox(width:width,child:Row(children:[
