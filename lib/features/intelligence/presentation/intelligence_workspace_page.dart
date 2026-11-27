@@ -7,6 +7,7 @@ import 'intelligence_chat.dart';
 import 'intelligence_export_card.dart';
 import 'intelligence_alerts_card.dart';
 import 'intelligence_forecast_card.dart';
+import 'intelligence_memory_card.dart';
 import '../../navigation/presentation/providers/active_role_provider.dart';
 
 final _workspaceCatalog=FutureProvider.autoDispose.family<Map<String,dynamic>,int>((ref,branch) async {
@@ -97,6 +98,8 @@ class _WorkspaceState extends ConsumerState<_Workspace>{
           IntelligenceAlertsCard(key:ValueKey('alerts-${widget.branch}'),branch:widget.branch,initiallyExpanded:true),
           const SizedBox(height:16),
           IntelligenceForecastCard(key:ValueKey('forecast-${widget.branch}'),branch:widget.branch),
+          const SizedBox(height:16),
+          IntelligenceMemoryCard(key:ValueKey('memory-${widget.branch}'),branch:widget.branch),
           const SizedBox(height:16),
           Text('${resources.length} recursos autorizados',style:Theme.of(context).textTheme.titleMedium),
           if(value['schemaTableCount']!=null)Text('Tablas físicas autorizadas y disponibles: ${value['authorizedPhysicalTables']} / ${value['schemaTableCount']} descubiertas. La diferencia incluye recursos sin permiso o sin política validada.'),
