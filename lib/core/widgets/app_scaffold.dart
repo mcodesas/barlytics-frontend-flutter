@@ -25,6 +25,7 @@ import '../../features/profile/presentation/providers/profile_header_provider.da
 import '../../features/subscription/presentation/providers/subscription_provider.dart';
 import '../utils/responsive_utils.dart';
 import 'barlytics_brand.dart';
+import '../../features/intelligence/presentation/intelligence_navigation.dart';
 import 'ready_order_notification_host.dart';
 import 'tech_background.dart';
 
@@ -2326,7 +2327,7 @@ class _OperationalBottomNavigation extends ConsumerWidget {
       ),
       child: SafeArea(
         top: false,
-        child: BottomNavigationBar(
+        child: IntelligenceBottomNavigation(
           currentIndex: selectedIndex < 0 ? 0 : selectedIndex,
           selectedItemColor: palette.secondary,
           unselectedItemColor: palette.textSecondary,
@@ -2822,7 +2823,7 @@ class _InventoryBottomNavigation extends ConsumerWidget {
       ),
       child: SafeArea(
         top: false,
-        child: BottomNavigationBar(
+        child: IntelligenceBottomNavigation(
           currentIndex: selectedIndex,
           type: BottomNavigationBarType.fixed,
           backgroundColor: Colors.transparent,
@@ -3199,7 +3200,7 @@ class _CustomRoleBottomNavigation extends ConsumerWidget {
       ),
       child: SafeArea(
         top: false,
-        child: BottomNavigationBar(
+        child: IntelligenceBottomNavigation(
           currentIndex: selectedIndex,
           type: BottomNavigationBarType.fixed,
           backgroundColor: Colors.transparent,
@@ -3517,7 +3518,7 @@ class _AdminBottomNavigation extends ConsumerWidget {
       ),
       child: SafeArea(
         top: false,
-        child: BottomNavigationBar(
+        child: IntelligenceBottomNavigation(
           currentIndex: selectedIndex,
           type: BottomNavigationBarType.fixed,
           backgroundColor: Colors.transparent,
@@ -3883,7 +3884,7 @@ class _ManagerBottomNavigation extends ConsumerWidget {
       ),
       child: SafeArea(
         top: false,
-        child: BottomNavigationBar(
+        child: IntelligenceBottomNavigation(
           currentIndex: selectedIndex < 0 ? 0 : selectedIndex,
           type: BottomNavigationBarType.fixed,
           backgroundColor: Colors.transparent,

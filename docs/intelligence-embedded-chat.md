@@ -1,0 +1,13 @@
+# Chat integrado en BarLytics
+
+Rama de desarrollo. Habilitar la vista en un build de pruebas con --dart-define=BARLYTICS_INTELLIGENCE=true. Por defecto permanece deshabilitada para no exponer una función sin backend. No se cambia el orden ni permisos de los destinos originales: un botón circular central abre el panel sin navegar a otra página. Las cinco barras existentes reutilizan el mismo widget. En pantallas estrechas se puede desplazar cada mitad horizontalmente.
+
+El panel usa el ApiClient autenticado existente, JWT y X-Sucursal-Id de BarLytics; no solicita credenciales de Intelligence. Se cierra y descarta datos locales al cambiar de sucursal o finalizar la sesión. El contrato previsto es POST /api/v1/intelligence/embedded/chat con branchId, conversationId, message y /media con branchId, kind, filename, contentBase64. Respuesta ApiResponse estándar, data con conversationId y answer o text. Estos endpoints del backend deben implementarse y verificarse antes de activar. El timeout de 210s es específico del asistente. No se modifica producción ni se promete cancelación remota de solicitudes al cerrar el panel.
+
+## Multimedia
+- Foto: cámara de móvil/web cuando la plataforma lo permite, previsualización local y envío explícito para OCR. Escritorio: selector de archivo (la cámara nativa aún requiere integración).
+- Archivos: PDF de texto, XLSX, CSV, TXT, PNG, JPEG, hasta 5 MiB.
+- Vídeo: captura móvil/web o selección local, máximo 30s solicitado a la cámara y 5 MiB de archivo. Solo preparación local: no se envía ni procesa todavía. Pendiente extracción de audio y fotogramas aislada en Intelligence.
+- Audio: record con flujo PCM16 mono a 16 kHz solicitado, máximo 30s; se construye WAV en memoria para Whisper. También se permite seleccionar WAV hasta 3 MiB. Validar frecuencia real y soporte de hardware en todas las plataformas antes de producción.
+- El usuario debe pulsar Extraer contenido y revisar el texto antes de incorporarlo al chat. Nada se carga automáticamente al elegir o grabar. No se afirma visión multimodal; imágenes se procesarán por OCR. Los adjuntos se mantienen en memoria durante el panel; los plugins de cámara pueden crear archivos temporales del sistema.
+- Permisos Android/iOS/macOS de micrófono añadidos. Pendientes: pruebas de cámara, vídeo y micrófono en dispositivos reales, configuración Linux/Windows, recuperación Android de image_picker tras muerte del proceso, actualización de pubspec.lock mediante flutter pub get, comprobación de privacidad y retención, backend puente y procesamiento de vídeo, reproducción TTS y pruebas E2E. No PR/merge/despliegue.

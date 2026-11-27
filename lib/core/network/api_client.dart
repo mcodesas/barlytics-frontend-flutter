@@ -29,13 +29,14 @@ class ApiClient {
     T Function(Object? json) parser, {
     Map<String, dynamic>? headers,
     Map<String, dynamic>? queryParameters,
+    Duration? receiveTimeout,
   }) async {
     return _send(
       () => _dio.post(
         path,
         data: normalizeJsonPayload(body),
         queryParameters: normalizeJsonMap(queryParameters),
-        options: headers == null ? null : Options(headers: headers),
+        options: headers == null && receiveTimeout == null ? null : Options(headers: headers, receiveTimeout: receiveTimeout),
       ),
       parser,
     );

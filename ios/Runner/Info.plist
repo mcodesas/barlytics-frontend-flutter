@@ -41,7 +41,9 @@
 	<key>LSRequiresIPhoneOS</key>
 	<true/>
 	<key>NSCameraUsageDescription</key>
-	<string>BarLytics necesita la cámara para validar las entradas QR de eventos y registrar el ingreso de asistentes.</string>
+	<string>BarLytics utiliza la cámara para validar entradas QR y adjuntar fotos y vídeos al asistente.</string>
+	<key>NSMicrophoneUsageDescription</key>
+	<string>BarLytics utiliza el micrófono para grabar consultas de voz y vídeos del asistente.</string>
 	<key>NSPhotoLibraryUsageDescription</key>
 	<string>BarLytics necesita acceso a tus fotos para que puedas seleccionar y adjuntar imágenes dentro de la aplicación.</string>
 	<key>NSPhotoLibraryAddUsageDescription</key>
