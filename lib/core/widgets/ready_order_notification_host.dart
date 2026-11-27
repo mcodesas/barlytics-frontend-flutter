@@ -9,6 +9,9 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../app/theme/app_palette.dart';
+import '../../features/intelligence/data/intelligence_api.dart';
+import '../../features/navigation/presentation/providers/active_role_provider.dart';
+import '../../features/navigation/presentation/providers/user_menu_provider.dart';
 import '../../features/mesero/presentation/providers/mesero_tab_provider.dart';
 import '../branch/branch_scope_provider.dart';
 import '../providers/core_providers.dart';
@@ -27,8 +30,11 @@ class ReadyOrderNotificationHost extends ConsumerStatefulWidget {
 }
 
 class _ReadyOrderNotificationHostState
-    extends ConsumerState<ReadyOrderNotificationHost> {
+    extends ConsumerState<ReadyOrderNotificationHost> with WidgetsBindingObserver {
   Timer? _timer;
+  DateTime? _lastIntelligenceCheck;
+  int _alertScope=0;
+  bool _alertShowing=false,_foreground=true,_resolvingAlert=false;
   final AudioPlayer _alertPlayer = AudioPlayer();
   Uint8List? _alertTone;
   bool _checking = false;
@@ -38,6 +44,7 @@ class _ReadyOrderNotificationHostState
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     WidgetsBinding.instance.addPostFrameCallback((_) => _check());
     _timer = Timer.periodic(const Duration(seconds: 5), (_) => _check());
   }
@@ -45,12 +52,82 @@ class _ReadyOrderNotificationHostState
   @override
   void dispose() {
     _timer?.cancel();
+    WidgetsBinding.instance.removeObserver(this);
     unawaited(_alertPlayer.dispose());
     super.dispose();
   }
 
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state){
+    _foreground=state==AppLifecycleState.resumed;
+    if(!_foreground)_invalidateIntelligence();
+  }
+  void _invalidateIntelligence(){
+    _alertScope++;
+    _lastIntelligenceCheck=null;
+    if(_alertShowing&&mounted){
+      _alertShowing=false;
+      _showingId=null;
+      ScaffoldMessenger.maybeOf(context)?.hideCurrentSnackBar();
+    }
+  }
+  bool _canNotify()=>ref.read(userMenuProvider).valueOrNull?.any((m)=>m.keyName=='intelligence')??false;
+  bool _activeAlert(int branch,int scope)=>mounted&&_foreground&&scope==_alertScope&&
+      ref.read(branchScopeProvider).activeBranchId==branch&&_canNotify();
+  Future<void> _checkIntelligence(int branch) async{
+    if(!_foreground||!_canNotify())return;
+    final now=DateTime.now();
+    if(_lastIntelligenceCheck!=null&&now.difference(_lastIntelligenceCheck!)<const Duration(minutes:1))return;
+    _lastIntelligenceCheck=now;
+    final scope=_alertScope;
+    final data=await ref.read(intelligenceApiProvider).alertNotifications(branch);
+    if(!_activeAlert(branch,scope)||_showingId!=null)return;
+    final rows=data['notifications'];
+    if(rows is! List||rows.isEmpty||rows.first is! Map)return;
+    final n=Map<String,dynamic>.from(rows.first as Map);
+    final id=n['id'];
+    if(id is! int||id<=0)return;
+    _showingId=id;_alertShowing=true;
+    final messenger=ScaffoldMessenger.of(context);
+    final snack=messenger.showSnackBar(SnackBar(
+      behavior:SnackBarBehavior.floating,duration:const Duration(seconds:20),
+      content:Column(mainAxisSize:MainAxisSize.min,crossAxisAlignment:CrossAxisAlignment.start,children:[
+        Text(n['title']?.toString()??'Intelligence',style:const TextStyle(fontWeight:FontWeight.bold)),
+        Text(n['message']?.toString()??'Revisa las alertas de tu sucursal.'),
+        Wrap(spacing:8,children:[
+          TextButton(onPressed:()=>_resolveIntelligence(branch,scope,id,0,open:true),child:const Text('Ver alertas')),
+          TextButton(onPressed:()=>_resolveIntelligence(branch,scope,id,3),child:const Text('3 min')),
+          TextButton(onPressed:()=>_resolveIntelligence(branch,scope,id,5),child:const Text('5 min')),
+          TextButton(onPressed:()=>_resolveIntelligence(branch,scope,id,0),child:const Text('Marcar leída')),
+        ]),
+      ]),
+    ));
+    unawaited(snack.closed.then((_){
+      if(mounted&&_alertScope==scope&&_alertShowing&&_showingId==id){
+        _alertShowing=false;_showingId=null;
+      }
+    }));
+  }
+  Future<void> _resolveIntelligence(int branch,int scope,int id,int minutes,{bool open=false})async{
+    if(!_activeAlert(branch,scope)||_resolvingAlert)return;
+    _resolvingAlert=true;
+    try{
+      final result=await ref.read(intelligenceApiProvider).resolveAlertNotification(branch,id,minutes);
+      if(!_activeAlert(branch,scope))return;
+      if(result['id']!=id||result['status']!=(minutes==0?'READ':'SNOOZED'))throw const FormatException('Aviso no confirmado');
+      _alertShowing=false;_showingId=null;
+      ScaffoldMessenger.of(context).hideCurrentSnackBar();
+      if(open)context.go('/intelligence');
+    }catch(_){
+      if(_activeAlert(branch,scope)){
+        ScaffoldMessenger.of(context).hideCurrentSnackBar();
+        _alertShowing=false;_showingId=null;
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content:Text('No se confirmó la actualización del aviso.')));
+      }
+    }finally{_resolvingAlert=false;}
+  }
   Future<void> _check() async {
-    if (!mounted || _checking || _showingId != null) return;
+    if (!mounted || !_foreground || _checking || _showingId != null) return;
 
     final branchId = ref.read(branchScopeProvider).activeBranchId;
     if (branchId == null) return;
@@ -74,10 +151,10 @@ class _ReadyOrderNotificationHostState
                 },
               );
 
-      if (!mounted) return;
+      if (!mounted || !_foreground || ref.read(branchScopeProvider).activeBranchId!=branchId) return;
       final notifications =
           response.data ?? const <_ReadyOrderNotification>[];
-      if (notifications.isEmpty) return;
+      if (notifications.isEmpty) {await _checkIntelligence(branchId);return;}
 
       final notification = notifications.first;
       _showingId = notification.id;
@@ -531,7 +608,14 @@ class _ReadyOrderNotificationHostState
   }
 
   @override
-  Widget build(BuildContext context) => widget.child;
+  Widget build(BuildContext context) {
+    ref.listen(selectedRolesProvider,(old,next){if(old!=next)_invalidateIntelligence();});
+    ref.listen(branchScopeProvider,(old,next){if(old?.activeBranchId!=next.activeBranchId)_invalidateIntelligence();});
+    ref.listen(userMenuProvider,(old,next){
+      if(!(next.valueOrNull?.any((m)=>m.keyName=='intelligence')??false))_invalidateIntelligence();
+    });
+    return widget.child;
+  }
 }
 
 class _ReadyOrderNotification {
