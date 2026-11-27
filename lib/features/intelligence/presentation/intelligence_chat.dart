@@ -8,6 +8,7 @@ import 'intelligence_composer.dart';
 import 'intelligence_export_card.dart';
 import 'intelligence_alerts_card.dart';
 import 'intelligence_forecast_card.dart';
+import 'intelligence_purchase_review.dart';
 import '../../navigation/presentation/providers/active_role_provider.dart';
 import '../../../app/router/app_router.dart';
 import '../../navigation/presentation/providers/user_menu_provider.dart';
@@ -369,6 +370,28 @@ class _IntelligenceChatState extends ConsumerState<IntelligenceChat> with Widget
     final result=await ref.read(intelligenceApiProvider).media(_branch!,a.kind,a.name,a.bytes);
     if(_active(e))setState(()=>_extracted=result['text']?.toString()??'');
   });
+  Future<void> _reviewPurchase() async {
+    final branch=_branch,e=_epoch;
+    if(branch==null||_extracted.isEmpty||_busy||_pendingAction!=null||_closed)return;
+    await showDialog<void>(context:context,barrierDismissible:false,builder:(dialogContext)=>Dialog(
+      child:ConstrainedBox(constraints:const BoxConstraints(maxWidth:650),child:Column(mainAxisSize:MainAxisSize.min,children:[
+        Row(children:[const Expanded(child:Padding(padding:EdgeInsets.all(12),child:Text('Revisión del documento'))),
+          IconButton(onPressed:()=>Navigator.of(dialogContext).pop(),icon:const Icon(Icons.close))]),
+        Flexible(child:SingleChildScrollView(child:IntelligencePurchaseReview(branch:branch,source:_extracted,onPrepare:(plan) async{
+          if(!_active(e)||!dialogContext.mounted||_pendingAction!=null||_busy)throw StateError('Revisión no disponible');
+          setState(()=>_busy=true);
+          try{
+            final draft=await ref.read(intelligenceApiProvider).prepareAction(branch,plan);
+            if(!_active(e)||!dialogContext.mounted)throw StateError('Revisión cerrada');
+            if(draft['draftId'] is! String||draft['documentPurchase'] is! Map)throw const FormatException('Borrador inválido');
+            setState(()=>_pendingAction=draft);
+            Navigator.of(dialogContext).pop();
+            _scrollToEnd();
+          }finally{if(_active(e))setState(()=>_busy=false);}
+        }))),
+      ])),
+    ));
+  }
   Future<void> _resolveAction(bool confirm) async {
     final pending=_pendingAction;
     final branch=_branch;
@@ -385,8 +408,8 @@ class _IntelligenceChatState extends ConsumerState<IntelligenceChat> with Widget
         if(result['draftId']!=id||result['status']!=expected)throw const FormatException('Resultado no confirmado');
         setState((){
           _pendingAction=null;
-          if(confirm&&pending['hasImage']==true){_attachment=null;_extracted='';}
-          _messages.add((role:'assistant',text:confirm?'Acción ejecutada y confirmada por BarLytics.':'Acción cancelada sin modificar los datos.'));
+          if(confirm&&(pending['hasImage']==true||pending['documentPurchase'] is Map)){_attachment=null;_extracted='';}
+          _messages.add((role:'assistant',text:confirm?(result['orderId']!=null?'Pedido ${result['orderId']} creado y confirmado por BarLytics. No se registró recepción ni pago.':'Acción ejecutada y confirmada por BarLytics.'):'Acción cancelada sin modificar los datos.'));
         });
         _scrollToEnd();
       }catch(error){
@@ -404,12 +427,25 @@ class _IntelligenceChatState extends ConsumerState<IntelligenceChat> with Widget
     final p=_pendingAction!;
     final changes=p['changes'];
     final replenishment=p['replenishment'];
+    final purchase=p['documentPurchase'];
     return Card(child:Padding(padding:const EdgeInsets.all(12),child:Column(crossAxisAlignment:CrossAxisAlignment.start,children:[
       Text(p['steps'] is List?'Confirmar todas las operaciones':'Confirmar operación',style:const TextStyle(fontWeight:FontWeight.bold)),
       ConstrainedBox(constraints:const BoxConstraints(maxHeight:240),child:SingleChildScrollView(child:Column(crossAxisAlignment:CrossAxisAlignment.start,children:[
         Text(p['effect'].toString()),
         Text('Registro: ${p['target']}'),
         if(changes is Map)for(final entry in changes.entries)SelectableText('${entry.key}: ${entry.value}'),
+        if(purchase is Map)...[
+          Text('Proveedor: ${purchase['supplier']}'),
+          Text('Referencia: ${purchase['reference']}'),
+          if(purchase['lines'] is List)for(final line in purchase['lines'])if(line is Map)...[
+            const Divider(),
+            Text('${line['product']} — ${line['units']} ${line['baseUnit']}'),
+            Text('${line['packs']} × ${line['presentation']} de ${line['unitsPerPack']} · costo por presentación ${line['costPerPack']}'),
+            Text('Subtotal estimado: ${line['subtotal']}'),
+          ],
+          Text('Total estimado: ${purchase['total']}',style:const TextStyle(fontWeight:FontWeight.bold)),
+          const Text('Usa el costo registrado en BarLytics. No contabiliza una factura, no recibe existencias ni registra pagos.'),
+        ],
         if(replenishment is Map)...[
           Text('Costo estimado total: ${replenishment['totalEstimado']}',style:const TextStyle(fontWeight:FontWeight.w600)),
           if(replenishment['orders'] is List)for(final order in replenishment['orders'])
@@ -588,6 +624,7 @@ class _IntelligenceChatState extends ConsumerState<IntelligenceChat> with Widget
     final branch=ref.watch(branchScopeProvider).activeBranch;
     ref.listen(authControllerProvider,(prev,next){if(!next.authenticated||!next.subscriptionActive)_invalidate();});
     ref.listen(branchScopeProvider,(prev,next){if(next.activeBranchId!=_branch)_invalidate();});
+    ref.listen(selectedRolesProvider,(prev,next){if(prev!=next)_invalidate();});
     final locked=_busy||_recording||_live;
     return Material(color:palette.surface,child:Column(children:[
         Padding(padding:const EdgeInsets.symmetric(horizontal:10,vertical:8),child:Row(children:[
@@ -639,7 +676,10 @@ class _IntelligenceChatState extends ConsumerState<IntelligenceChat> with Widget
             if(_attachment!.kind=='photo')ClipRRect(borderRadius:BorderRadius.circular(10),child:Image.memory(_attachment!.bytes,height:120,fit:BoxFit.contain,errorBuilder:(_,__,___)=>const Text('Vista previa no disponible'))),
             if(_attachment!.kind=='video')const Text('Vídeo preparado localmente. Análisis de vídeo pendiente.'),
             if(_attachment!.kind!='video')OutlinedButton(onPressed:locked?null:_analyze,child:const Text('Extraer contenido')),
-            if(_extracted.isNotEmpty)...[SelectableText(_extracted),TextButton(onPressed:locked?null:(){
+            if(_extracted.isNotEmpty)...[SelectableText(_extracted),
+              if(_attachment!.kind=='file'||_attachment!.kind=='photo')
+                OutlinedButton.icon(onPressed:locked||_pendingAction!=null?null:_reviewPurchase,icon:const Icon(Icons.receipt_long),label:const Text('Preparar pedido desde documento')),
+              TextButton(onPressed:locked?null:(){
               final combined=[_text.text.trim(),_extracted].where((x)=>x.isNotEmpty).join('\n\n');
               if(combined.length>2000){setState(()=>_error='Copia un fragmento de hasta 2000 caracteres para enviar.');return;}
               setState(()=>_text.text=combined);
