@@ -370,7 +370,6 @@ class _IntelligenceChatState extends ConsumerState<IntelligenceChat> with Widget
   Future<void> _analyze() async=>_run((e) async{
     final a=_attachment;
     if(a==null||_branch==null)return;
-    if(a.kind=='video'){setState(()=>_error='El vídeo está seleccionado. El procesamiento de vídeo aún no está habilitado.');return;}
     final result=await ref.read(intelligenceApiProvider).media(_branch!,a.kind,a.name,a.bytes);
     if(_active(e))setState((){_extracted=result['text']?.toString()??'';_documentWarnings=(result['warnings'] as List?)?.whereType<String>().toList()??[];});
   });
@@ -713,14 +712,14 @@ class _IntelligenceChatState extends ConsumerState<IntelligenceChat> with Widget
             Row(children:[const Icon(Icons.attach_file),Expanded(child:Text(_attachment!.name,maxLines:1,overflow:TextOverflow.ellipsis)),
               IconButton(tooltip:'Quitar adjunto',onPressed:locked?null:()=>setState((){_attachment=null;_extracted='';_documentWarnings=[];}),icon:const Icon(Icons.close))]),
             if(_attachment!.kind=='photo')ClipRRect(borderRadius:BorderRadius.circular(10),child:Image.memory(_attachment!.bytes,height:120,fit:BoxFit.contain,errorBuilder:(_,__,___)=>const Text('Vista previa no disponible'))),
-            if(_attachment!.kind=='video')const Text('Vídeo preparado localmente. Análisis de vídeo pendiente.'),
-            if(_attachment!.kind!='video')OutlinedButton(onPressed:locked?null:_analyze,child:const Text('Extraer contenido')),
+            if(_attachment!.kind=='video')const Text('Análisis experimental: hasta 30 segundos y 5 MiB. Se examinan tres fotogramas, sin audio. Solo disponible si el servidor lo habilita.'),
+            OutlinedButton(onPressed:locked?null:_analyze,child:Text(_attachment!.kind=='video'?'Analizar fotogramas':'Extraer contenido')),
             if(_extracted.isNotEmpty)...[for(final warning in _documentWarnings)Text(warning,style:TextStyle(color:palette.warning)),SelectableText(_extracted),
               if(_attachment!.kind=='file'||_attachment!.kind=='photo')
                 OutlinedButton.icon(onPressed:locked||_pendingAction!=null?null:_reviewPurchase,icon:const Icon(Icons.receipt_long),label:const Text('Preparar pedido desde documento')),
               if(_attachment!.kind=='file'&&_attachment!.name.toLowerCase().endsWith('.csv'))
                 OutlinedButton.icon(onPressed:locked||_pendingAction!=null?null:_reviewCountCsv,icon:const Icon(Icons.fact_check_outlined),label:const Text('Importar conteo físico CSV')),
-              TextButton(onPressed:locked?null:(){
+              if(_attachment!.kind!='video')TextButton(onPressed:locked?null:(){
               final combined=[_text.text.trim(),_extracted].where((x)=>x.isNotEmpty).join('\n\n');
               if(combined.length>2000){setState(()=>_error='Copia un fragmento de hasta 2000 caracteres para enviar.');return;}
               setState(()=>_text.text=combined);
