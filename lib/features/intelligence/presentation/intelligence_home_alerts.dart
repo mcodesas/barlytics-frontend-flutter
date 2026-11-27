@@ -23,42 +23,44 @@ class IntelligenceHomeAlerts extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final palette = ref.watch(selectedAppPaletteProvider);
     if (!showBusiness && !showSports) return const SizedBox.shrink();
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.all(14),
-      decoration: BoxDecoration(
-        color: palette.surface,
-        borderRadius: BorderRadius.circular(22),
-        border: Border.all(color: palette.cardBorder),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          Row(
-            children: [
-              Icon(Icons.auto_awesome_rounded, color: palette.secondary),
-              const SizedBox(width: 10),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        if (showSports) const SportsAgendaWidget(compact: true),
+        if (showSports && showBusiness) const SizedBox(height: 12),
+        if (showBusiness)
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.all(14),
+            decoration: BoxDecoration(
+              color: palette.surface,
+              borderRadius: BorderRadius.circular(22),
+              border: Border.all(color: palette.cardBorder),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Row(
                   children: [
-                    Text('Alertas inteligentes', style: TextStyle(color: palette.textPrimary, fontWeight: FontWeight.w900, fontSize: 18)),
-                    Text('MCode Intelligence · Información y recomendaciones', style: TextStyle(color: palette.textSecondary, fontSize: 12)),
+                    Icon(Icons.auto_awesome_rounded, color: palette.secondary),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text('Alertas inteligentes', style: TextStyle(color: palette.textPrimary, fontWeight: FontWeight.w900, fontSize: 18)),
+                          Text('MCode Intelligence · Inventario y operación de tu negocio', style: TextStyle(color: palette.textSecondary, fontSize: 12)),
+                        ],
+                      ),
+                    ),
                   ],
                 ),
-              ),
-            ],
+                const SizedBox(height: 8),
+                IntelligenceAlertsCard(key: ValueKey('alerts-$branch'), branch: branch, initiallyExpanded: true, compact: true),
+              ],
+            ),
           ),
-          if (showBusiness) ...[
-            const SizedBox(height: 8),
-            IntelligenceAlertsCard(key: ValueKey('alerts-$branch'), branch: branch, initiallyExpanded: true),
-          ],
-          if (showSports) ...[
-            const SizedBox(height: 8),
-            const SportsAgendaWidget(compact: true),
-          ],
-        ],
-      ),
+      ],
     );
   }
 }

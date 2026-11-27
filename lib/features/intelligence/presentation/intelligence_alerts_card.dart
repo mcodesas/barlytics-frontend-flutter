@@ -6,15 +6,16 @@ import '../../navigation/presentation/providers/active_role_provider.dart';
 import '../data/intelligence_api.dart';
 
 class IntelligenceAlertsCard extends ConsumerStatefulWidget {
-  const IntelligenceAlertsCard({super.key,required this.branch,this.initiallyExpanded=false});
+  const IntelligenceAlertsCard({super.key,required this.branch,this.initiallyExpanded=false,this.compact=false});
   final int branch;
   final bool initiallyExpanded;
+  final bool compact;
   @override
   ConsumerState<IntelligenceAlertsCard> createState()=>_IntelligenceAlertsCardState();
 }
 
 class _IntelligenceAlertsCardState extends ConsumerState<IntelligenceAlertsCard> with WidgetsBindingObserver{
-  static const names={'STOCK':'Stock bajo o negativo','EXPIRY':'Productos próximos a vencer','CASH':'Diferencias de caja',
+  static const names={'STOCK':'Productos agotados o con stock bajo','EXPIRY':'Productos próximos a vencer','CASH':'Diferencias de caja',
     'ORDERS':'Pedidos pendientes','COUNT':'Diferencias del último conteo físico','FINANCE':'Ganancias, ingresos y gastos'};
   static const recommendations={'STOCK':'Revisa existencias y compras antes de reponer.', 'EXPIRY':'Comprueba el lote y la fecha antes de vender.', 'CASH':'Contrasta los pagos y el arqueo original.', 'ORDERS':'Verifica la recepción con el proveedor.', 'COUNT':'Revisa el conteo físico y sus movimientos.', 'FINANCE':'Consulta los reportes de los periodos comparados.'};
   static const descriptions={'STOCK':'Último saldo operativo, sin mezclar conteos físicos.',
@@ -29,6 +30,7 @@ class _IntelligenceAlertsCardState extends ConsumerState<IntelligenceAlertsCard>
     cash=TextEditingController(text:'0'),decline=TextEditingController(text:'20');
   bool busy=false,editing=false,loaded=false,expanded=false,foreground=true;
   bool? notifyInApp;
+  final Set<String> expandedRules={};
   int generation=0;
   String? error;
   Timer? timer;
@@ -48,7 +50,7 @@ class _IntelligenceAlertsCardState extends ConsumerState<IntelligenceAlertsCard>
   bool active(int g)=>mounted&&g==generation&&ref.read(branchScopeProvider).activeBranchId==widget.branch;
   void reset(){
     generation++;
-    if(mounted)setState((){busy=false;editing=false;loaded=false;notifyInApp=null;available={};enabled={};categories=[];error=null;});
+    if(mounted)setState((){busy=false;editing=false;loaded=false;notifyInApp=null;available={};enabled={};categories=[];expandedRules.clear();error=null;});
     if(mounted&&expanded)WidgetsBinding.instance.addPostFrameCallback((_){if(mounted)_load(finance:true);});
   }
   void readSettings(Map<String,dynamic> response){
@@ -113,6 +115,29 @@ class _IntelligenceAlertsCardState extends ConsumerState<IntelligenceAlertsCard>
     }catch(_){if(active(g))setState(()=>error='No se confirmó el cambio de notificaciones.');}
     finally{if(active(g))setState(()=>busy=false);}
   }
+  String amount(dynamic value){
+    if(value is num) return value.toStringAsFixed(value%1==0?0:2);
+    return value?.toString()??'—';
+  }
+  String findingTitle(String rule,Map item){
+    final name=item['title'].toString();
+    if(rule!='STOCK')return name;
+    final value=item['value'];
+    if(value is num&&value<0)return '$name · Stock negativo';
+    if(value is num&&value==0)return '$name · Agotado';
+    return '$name · Stock bajo';
+  }
+  String findingDetail(String rule,Map item){
+    final value=amount(item['value']),reference=amount(item['reference']);
+    return switch(rule){
+      'STOCK'=>'Stock actual: $value · Mínimo configurado: $reference',
+      'EXPIRY'=>item['value'] is num&&(item['value'] as num)<0?'Vencido hace ${amount((item['value'] as num).abs())} días':'Vence en $value días',
+      'ORDERS'=>'Pendiente de recepción desde hace $value días',
+      'COUNT'=>'Conteo: $value · Esperado: $reference · ${item['detail']}',
+      'CASH'=>'Diferencia: $value · ${item['detail']}',
+      _=>'Valor actual: $value · Referencia: $reference · ${item['detail']}',
+    };
+  }
   Widget field(TextEditingController controller,String label)=>Padding(padding:const EdgeInsets.only(bottom:8),child:TextField(
     controller:controller,enabled:!busy,keyboardType:const TextInputType.numberWithOptions(decimal:true),
     decoration:InputDecoration(labelText:label,border:const OutlineInputBorder())));
@@ -133,28 +158,38 @@ class _IntelligenceAlertsCardState extends ConsumerState<IntelligenceAlertsCard>
         if(error!=null)Text(error!,style:TextStyle(color:colors.error)),
         if(!loaded&&!busy)TextButton(onPressed:()=>_load(finance:true),child:const Text('Cargar alertas')),
         if(loaded&&!editing) ...[
-          if(notifyInApp!=null)SwitchListTile(contentPadding:EdgeInsets.zero,title:const Text('Avisarme dentro de BarLytics'),subtitle:const Text('Avisos operativos mientras la aplicación está abierta. No incluye push con la aplicación cerrada ni alertas financieras.'),value:notifyInApp!,onChanged:busy?null:_delivery),
+          if(!widget.compact&&notifyInApp!=null)SwitchListTile(contentPadding:EdgeInsets.zero,title:const Text('Avisarme dentro de BarLytics'),subtitle:const Text('Avisos operativos mientras la aplicación está abierta. No incluye push con la aplicación cerrada ni alertas financieras.'),value:notifyInApp!,onChanged:busy?null:_delivery),
           Wrap(spacing:8,children:[
             OutlinedButton.icon(onPressed:busy?null:()=>_load(finance:true),icon:const Icon(Icons.refresh),label:const Text('Actualizar todo')),
             OutlinedButton.icon(onPressed:busy?null:()=>setState(()=>editing=true),icon:const Icon(Icons.settings_outlined),label:const Text('Configurar')),
           ]),
           if(enabled.isEmpty)const Text('Activa las reglas permitidas para empezar el monitoreo.'),
+          if(enabled.isNotEmpty&&categories.isNotEmpty&&total==0&&error==null)
+            const Text('Sin incidencias en las categorías revisadas.'),
           for(final c in categories)...[
-            const Divider(),
-            Text(names[c['rule']]??'Alerta',style:const TextStyle(fontWeight:FontWeight.bold)),
-            Text('Revisado: ${c['checkedAt']}'),
-            if(c['partial']==true)const Text('Resultado parcial: hay más hallazgos disponibles en el módulo correspondiente.'),
-            if((c['findings'] as List).isEmpty)const Text('Sin hallazgos para los límites configurados en esta revisión.'),
-            for(final item in (c['findings'] as List).whereType<Map>())
-              ListTile(dense:true,contentPadding:EdgeInsets.zero,
-                leading:Icon(item['severity']=='CRITICAL'?Icons.error_outline:Icons.warning_amber_rounded,
-                  color:item['severity']=='CRITICAL'?colors.error:colors.tertiary),
-                title:Text(item['title'].toString()),
-                subtitle:Text('Valor: ${item['value']} · Referencia: ${item['reference']}\n${item['detail']}\n${recommendations[c['rule']] ?? ''}')),
+            if(!widget.compact||(c['findings'] as List).isNotEmpty)...[
+              const Divider(),
+              Text('${names[c['rule']]??'Alerta'} · ${(c['findings'] as List).length}',style:const TextStyle(fontWeight:FontWeight.bold)),
+              if(!widget.compact)Text('Revisado: ${c['checkedAt']}'),
+              if(c['partial']==true)const Text('Resultado parcial: hay más hallazgos disponibles en el módulo correspondiente.'),
+              if((c['findings'] as List).isEmpty)const Text('Sin hallazgos para los límites configurados en esta revisión.'),
+              for(final item in (c['findings'] as List).whereType<Map>().take(widget.compact&&!expandedRules.contains(c['rule'])?3:100))
+                ListTile(dense:true,contentPadding:EdgeInsets.zero,
+                  leading:Icon(item['severity']=='CRITICAL'?Icons.error_outline:Icons.warning_amber_rounded,
+                    color:item['severity']=='CRITICAL'?colors.error:colors.tertiary),
+                  title:Text(findingTitle(c['rule'].toString(),item)),
+                  subtitle:Text('${findingDetail(c['rule'].toString(),item)}\n${recommendations[c['rule']] ?? ''}')),
+              if(widget.compact&&(c['findings'] as List).length>3)
+                TextButton(onPressed:()=>setState((){
+                  final rule=c['rule'].toString();
+                  if(!expandedRules.remove(rule))expandedRules.add(rule);
+                }),child:Text(expandedRules.contains(c['rule'])?'Ver menos':'Ver todos los hallazgos (${(c['findings'] as List).length})')),
+            ],
           ],
           const Text('Las alertas no cambian el inventario, la caja ni los pedidos. Las financieras se actualizan al abrir o pulsar Actualizar todo.'),
         ],
         if(editing)...[
+          if(widget.compact&&notifyInApp!=null)SwitchListTile(contentPadding:EdgeInsets.zero,title:const Text('Avisarme dentro de BarLytics'),value:notifyInApp!,onChanged:busy?null:_delivery),
           for(final rule in names.keys.where(available.contains))
             SwitchListTile(contentPadding:EdgeInsets.zero,title:Text(names[rule]!),subtitle:Text(descriptions[rule]!),
               value:enabled.contains(rule),onChanged:busy?null:(v)=>setState((){if(v){enabled.add(rule);}else{enabled.remove(rule);}})),
