@@ -69,6 +69,8 @@ class IntelligenceApi {
     required void Function(String) onPartial,required bool Function() isActive,required bool Function() shouldCancel,String? currentModule,List<Map<String,String>>? menuCatalog,
   })=>ProgressiveChat((path,body)=>_post(path,body,timeout:const Duration(seconds:15))).send(
     branch:branch,conversation:conversation,text:text,onPartial:onPartial,isActive:isActive,shouldCancel:shouldCancel,currentModule:currentModule,menuCatalog:menuCatalog);
+  Future<Map<String,dynamic>> prepareCountCsv(int branch,String text)=>
+    _post('count-import-prepare',{'branchId':branch,'text':text},timeout:const Duration(seconds:30));
   Future<Map<String,dynamic>> prepareAction(int branch,Map<String,dynamic> plan,{Uint8List? image})=>
     _post('action-prepare',{'branchId':branch,'plan':plan,if(image!=null)'imageBase64':base64Encode(image)},timeout:const Duration(seconds:30));
   Future<Map<String,dynamic>> confirmAction(int branch,String draft)=>
