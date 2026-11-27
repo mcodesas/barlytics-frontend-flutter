@@ -60,7 +60,7 @@ final userMenuProvider = FutureProvider<List<UserMenuItem>>((ref) async {
       );
   if (commandsOnly) {
     return personalizeAuthorizedMenu(withCommands
-        .where((item) => item.keyName == 'comandas')
+        .where((item) => item.keyName == 'comandas' || item.keyName == 'intelligence')
         .toList(growable: false), preferences);
   }
 
