@@ -8,6 +8,7 @@ import 'intelligence_export_card.dart';
 import 'intelligence_alerts_card.dart';
 import 'intelligence_forecast_card.dart';
 import 'intelligence_memory_card.dart';
+import 'intelligence_catalog_sync_card.dart';
 import '../../navigation/presentation/providers/active_role_provider.dart';
 
 final _workspaceCatalog=FutureProvider.autoDispose.family<Map<String,dynamic>,int>((ref,branch) async {
@@ -98,6 +99,8 @@ class _WorkspaceState extends ConsumerState<_Workspace>{
           IntelligenceAlertsCard(key:ValueKey('alerts-${widget.branch}'),branch:widget.branch,initiallyExpanded:true),
           const SizedBox(height:16),
           IntelligenceForecastCard(key:ValueKey('forecast-${widget.branch}'),branch:widget.branch),
+          const SizedBox(height:16),
+          IntelligenceCatalogSyncCard(key:ValueKey('catalog-sync-${widget.branch}'),branch:widget.branch),
           const SizedBox(height:16),
           IntelligenceMemoryCard(key:ValueKey('memory-${widget.branch}'),branch:widget.branch),
           const SizedBox(height:16),
