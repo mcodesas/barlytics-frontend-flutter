@@ -81,6 +81,8 @@ class IntelligenceApi {
     _post('count-import-prepare',{'branchId':branch,'text':text},timeout:const Duration(seconds:30));
   Future<Map<String,dynamic>> prepareAction(int branch,Map<String,dynamic> plan,{Uint8List? image})=>
     _post('action-prepare',{'branchId':branch,'plan':plan,if(image!=null)'imageBase64':base64Encode(image)},timeout:const Duration(seconds:30));
+  Future<Map<String,dynamic>> actionStatus(int branch,String draft)=>
+    _post('action-status',{'branchId':branch,'draftId':draft},timeout:const Duration(seconds:15));
   Future<Map<String,dynamic>> confirmAction(int branch,String draft)=>
     _post('action-confirm',{'branchId':branch,'draftId':draft},timeout:const Duration(seconds:45));
   Future<Map<String,dynamic>> cancelAction(int branch,String draft)=>
