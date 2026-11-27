@@ -3,6 +3,7 @@ import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'router/app_router.dart';
+import '../features/intelligence/presentation/intelligence_chat.dart';
 import 'theme/app_palette.dart';
 import 'theme/app_theme.dart';
 import '../core/update/app_update_gate.dart';
@@ -41,7 +42,7 @@ class BarLyticsApp extends ConsumerWidget {
                 darkBackground: palette.darkBackground,
               )
             : AppUpdateGate(
-                child: child ?? const SizedBox.shrink(),
+                child: IntelligenceWindowHost(child: child ?? const SizedBox.shrink()),
               );
 
         return MediaQuery(

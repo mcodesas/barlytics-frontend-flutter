@@ -17,21 +17,57 @@ import '../../auth/presentation/providers/auth_provider.dart';
 import '../data/intelligence_api.dart';
 import '../domain/pcm_wav.dart';
 
-/// A single non-modal window per running app. No barrier or navigation route.
-OverlayEntry? _intelligenceWindow;
+/// The window belongs to the app shell, not to any individual route.
+final intelligenceWindowProvider=StateProvider<bool>((ref)=>false);
 final _windowKey=GlobalKey<_IntelligenceWindowState>();
 
 Future<void> showIntelligenceChat(BuildContext context) async {
-  if(_intelligenceWindow!=null){_windowKey.currentState?.restore();return;}
-  final overlay=Overlay.of(context,rootOverlay:true);
-  void close(){
-    final entry=_intelligenceWindow;
-    _intelligenceWindow=null;
-    if(entry!=null){entry.remove();entry.dispose();}
+  final container=ProviderScope.containerOf(context,listen:false);
+  container.read(intelligenceWindowProvider.notifier).state=true;
+  _windowKey.currentState?.restore();
+}
+
+class IntelligenceWindowHost extends ConsumerWidget {
+  const IntelligenceWindowHost({super.key,required this.child});
+  final Widget child;
+  @override
+  Widget build(BuildContext context,WidgetRef ref){
+    final auth=ref.watch(authControllerProvider);
+    final branch=ref.watch(branchScopeProvider).activeBranchId;
+    final open=ref.watch(intelligenceWindowProvider);
+    ref.listen(authControllerProvider,(old,next){
+      if(!next.authenticated||!next.subscriptionActive||next.restoringSession){
+        ref.read(intelligenceWindowProvider.notifier).state=false;
+      }
+    });
+    ref.listen(branchScopeProvider,(old,next){
+      if(old?.activeBranchId!=next.activeBranchId){
+        ref.read(intelligenceWindowProvider.notifier).state=false;
+      }
+    });
+    return Stack(fit:StackFit.expand,children:[
+      child,
+      if(open&&auth.authenticated&&auth.subscriptionActive&&!auth.restoringSession&&branch!=null)
+        _IntelligenceLayer(onClose:()=>ref.read(intelligenceWindowProvider.notifier).state=false),
+    ]);
   }
-  final entry=OverlayEntry(builder:(_)=>_IntelligenceWindow(key:_windowKey,onClose:close));
-  _intelligenceWindow=entry;
-  overlay.insert(entry);
+}
+/// Own overlay for tooltips and menus, independent of Navigator route order.
+class _IntelligenceLayer extends StatefulWidget {
+  const _IntelligenceLayer({required this.onClose});
+  final VoidCallback onClose;
+  @override
+  State<_IntelligenceLayer> createState()=>_IntelligenceLayerState();
+}
+class _IntelligenceLayerState extends State<_IntelligenceLayer>{
+  late final OverlayEntry entry;
+  @override
+  void initState(){
+    super.initState();
+    entry=OverlayEntry(builder:(_)=>_IntelligenceWindow(key:_windowKey,onClose:()=>widget.onClose()));
+  }
+  @override
+  Widget build(BuildContext context)=>Overlay(initialEntries:[entry]);
 }
 
 class _IntelligenceWindow extends ConsumerStatefulWidget {
@@ -51,7 +87,7 @@ class _IntelligenceWindowState extends ConsumerState<_IntelligenceWindow>{
     return LayoutBuilder(builder:(context,c){
       final w=c.maxWidth,h=c.maxHeight;
       final bottom=media.viewInsets.bottom+media.padding.bottom+12;
-      final top=media.padding.top+8;
+      final top=(media.padding.top+8).clamp(0.0,h).toDouble();
       final width=(w-24).clamp(0.0,470.0).toDouble();
       final height=(h-top-bottom-8).clamp(0.0,650.0).toDouble();
       final maxX=(w-width-12).clamp(0.0,w).toDouble();
@@ -204,7 +240,7 @@ class _IntelligenceChatState extends ConsumerState<IntelligenceChat> with Widget
       final id=reply['conversationId'],answer=reply['answer'];
       if(id is! String||answer is! String)throw StateError('Respuesta inválida');
       setState((){_conversation=id;_messages.add((role:'user',text:input));
-        _messages.add((role:'assistant',text:answer));_livePhase='Preparando respuesta de voz…';});
+        _messages.add((role:'assistant',text:answer));if(_messageOffset!=null)_messageOffset=_messageOffset!+2;_livePhase='Preparando respuesta de voz…';});
       final spoken=answer.characters.take(600).toString();
       if(spoken.trim().isNotEmpty){
         final wav=await service.speech(_branch!,spoken);
@@ -336,7 +372,7 @@ class _IntelligenceChatState extends ConsumerState<IntelligenceChat> with Widget
         if(!_active(e))return;
         final id=reply['conversationId'],answer=reply['answer'];
         if(id is! String||answer is! String)throw StateError('Respuesta inválida');
-        setState((){_conversation=id;_messages.add((role:'assistant',text:answer));});
+        setState((){_conversation=id;_messages.add((role:'assistant',text:answer));if(_messageOffset!=null)_messageOffset=_messageOffset!+2;});
       }catch(error){
         if(!_active(e))return;
         setState((){
@@ -441,22 +477,20 @@ class _IntelligenceChatState extends ConsumerState<IntelligenceChat> with Widget
         if(!_showHistory)Padding(padding:const EdgeInsets.fromLTRB(10,4,10,8),child:Column(children:[
           IntelligenceComposer(controller:_text,focusNode:_composerFocus,enabled:!locked,enterSends:_enterSends,onSend:_send),
           Row(children:[
-            PopupMenuButton<String>(tooltip:'Adjuntar contenido',enabled:!locked,icon:const Icon(Icons.add_circle_outline_rounded),
-              onSelected:(v){switch(v){case 'photo':_select('photo',camera:true);break;case 'image':_select('photo');break;case 'file':_select('file');break;case 'video':_select('video',camera:true);break;case 'videoFile':_select('video');break;case 'audio':_select('audio');break;}},
-              itemBuilder:(context)=>[
-                PopupMenuItem(value:'photo',child:ListTile(leading:const Icon(Icons.camera_alt_outlined),title:Text(_cameraAvailable?'Tomar foto':'Adjuntar foto'))),
-                const PopupMenuItem(value:'image',child:ListTile(leading:Icon(Icons.image_outlined),title:Text('Elegir imagen'))),
-                const PopupMenuItem(value:'file',child:ListTile(leading:Icon(Icons.description_outlined),title:Text('Documento'))),
-                PopupMenuItem(value:'video',child:ListTile(leading:const Icon(Icons.videocam_outlined),title:Text(_cameraAvailable?'Grabar vídeo':'Adjuntar vídeo'))),
-                const PopupMenuItem(value:'videoFile',child:ListTile(leading:Icon(Icons.video_file_outlined),title:Text('Elegir vídeo'))),
-                const PopupMenuItem(value:'audio',child:ListTile(leading:Icon(Icons.audio_file_outlined),title:Text('Archivo WAV'))),
-              ]),
+            MenuAnchor(
+              menuChildren:[
+                MenuItemButton(leadingIcon:const Icon(Icons.camera_alt_outlined),onPressed:()=>_select('photo',camera:true),child:Text(_cameraAvailable?'Tomar foto':'Adjuntar foto')),
+                MenuItemButton(leadingIcon:const Icon(Icons.image_outlined),onPressed:()=>_select('photo'),child:const Text('Elegir imagen')),
+                MenuItemButton(leadingIcon:const Icon(Icons.description_outlined),onPressed:()=>_select('file'),child:const Text('Documento')),
+                MenuItemButton(leadingIcon:const Icon(Icons.videocam_outlined),onPressed:()=>_select('video',camera:true),child:Text(_cameraAvailable?'Grabar vídeo':'Adjuntar vídeo')),
+                MenuItemButton(leadingIcon:const Icon(Icons.video_file_outlined),onPressed:()=>_select('video'),child:const Text('Elegir vídeo')),
+                MenuItemButton(leadingIcon:const Icon(Icons.audio_file_outlined),onPressed:()=>_select('audio'),child:const Text('Archivo WAV')),
+              ],builder:(context,controller,child)=>IconButton(tooltip:'Adjuntar contenido',onPressed:locked?null:(){controller.isOpen?controller.close():controller.open();},icon:const Icon(Icons.add_circle_outline_rounded))),
             IconButton(tooltip:_recording?'Detener audio':'Grabar nota de voz',onPressed:_busy||_live?null:_recording?_stopAudio:_startAudio,icon:Icon(_recording?Icons.stop_circle_rounded:Icons.mic_none_rounded,color:_recording?palette.danger:palette.secondary)),
-            IconButton(tooltip:'Configuración de envío',onPressed:locked?null:()=>showMenu<bool>(
-              context:context,position:const RelativeRect.fromLTRB(32,160,16,60),items:[
-                CheckedPopupMenuItem(value:true,checked:_enterSends,child:const Text('Enter para enviar')),
-                CheckedPopupMenuItem(value:false,checked:!_enterSends,child:const Text('Enter para nueva línea')),
-              ]).then((v){if(v!=null&&mounted&&!_closed)setState(()=>_enterSends=v);}),icon:const Icon(Icons.tune_rounded,size:20)),
+            MenuAnchor(menuChildren:[
+              MenuItemButton(leadingIcon:Icon(_enterSends?Icons.check:Icons.keyboard_return),onPressed:()=>setState(()=>_enterSends=true),child:const Text('Enter para enviar')),
+              MenuItemButton(leadingIcon:Icon(!_enterSends?Icons.check:Icons.keyboard_return),onPressed:()=>setState(()=>_enterSends=false),child:const Text('Enter para nueva línea')),
+            ],builder:(context,controller,child)=>IconButton(tooltip:'Configuración de envío',onPressed:locked?null:(){controller.isOpen?controller.close():controller.open();},icon:const Icon(Icons.tune_rounded,size:20))),
             const Spacer(),
             IconButton.filledTonal(tooltip:'Conversación por voz continua',onPressed:locked||_branch==null?null:_startLive,icon:const Icon(Icons.graphic_eq_rounded)),
             const SizedBox(width:6),
