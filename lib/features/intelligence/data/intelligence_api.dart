@@ -41,6 +41,8 @@ class IntelligenceApi {
     if(result.data==null)throw StateError('El asistente no devolvió información.');
     return result.data!;
   }
+  Future<Map<String,dynamic>> forecastOptions(int branch)=>_post('forecast-options',{'branchId':branch},timeout:const Duration(seconds:15));
+  Future<Map<String,dynamic>> forecast(int branch,Map<String,dynamic> plan)=>_post('forecast',{'branchId':branch,'forecast':plan},timeout:const Duration(seconds:40));
   Future<Map<String,dynamic>> alertSettings(int branch)=>_post('alert-settings',{'branchId':branch},timeout:const Duration(seconds:15));
   Future<Map<String,dynamic>> saveAlertSettings(int branch,Map<String,dynamic> settings)=>_post('alert-settings-save',{'branchId':branch,'settings':settings},timeout:const Duration(seconds:15));
   Future<Map<String,dynamic>> alerts(int branch,{bool includeFinance=false})=>_post('alerts',{'branchId':branch,'includeFinance':includeFinance},timeout:const Duration(seconds:40));
