@@ -17,10 +17,60 @@ import '../../auth/presentation/providers/auth_provider.dart';
 import '../data/intelligence_api.dart';
 import '../domain/pcm_wav.dart';
 
+/// A single non-modal window per running app. No barrier or navigation route.
+OverlayEntry? _intelligenceWindow;
+final _windowKey=GlobalKey<_IntelligenceWindowState>();
+
 Future<void> showIntelligenceChat(BuildContext context) async {
-  await showModalBottomSheet<void>(context:context,isScrollControlled:true,useSafeArea:true,
-    backgroundColor:Colors.transparent,constraints:const BoxConstraints(maxWidth:760),
-    builder:(context)=>const IntelligenceChat());
+  if(_intelligenceWindow!=null){_windowKey.currentState?.restore();return;}
+  final overlay=Overlay.of(context,rootOverlay:true);
+  void close(){
+    final entry=_intelligenceWindow;
+    _intelligenceWindow=null;
+    if(entry!=null){entry.remove();entry.dispose();}
+  }
+  final entry=OverlayEntry(builder:(_)=>_IntelligenceWindow(key:_windowKey,onClose:close));
+  _intelligenceWindow=entry;
+  overlay.insert(entry);
+}
+
+class _IntelligenceWindow extends ConsumerStatefulWidget {
+  const _IntelligenceWindow({super.key,required this.onClose});
+  final VoidCallback onClose;
+  @override
+  ConsumerState<_IntelligenceWindow> createState()=>_IntelligenceWindowState();
+}
+class _IntelligenceWindowState extends ConsumerState<_IntelligenceWindow>{
+  bool minimized=false;
+  Offset? position;
+  void restore(){if(mounted)setState(()=>minimized=false);}
+  @override
+  Widget build(BuildContext context){
+    final palette=ref.watch(selectedAppPaletteProvider);
+    final media=MediaQuery.of(context);
+    return LayoutBuilder(builder:(context,c){
+      final w=c.maxWidth,h=c.maxHeight;
+      final bottom=media.viewInsets.bottom+media.padding.bottom+12;
+      final top=media.padding.top+8;
+      final width=(w-24).clamp(0.0,470.0).toDouble();
+      final height=(h-top-bottom-8).clamp(0.0,650.0).toDouble();
+      final maxX=(w-width-12).clamp(0.0,w).toDouble();
+      final maxY=(h-bottom-height).clamp(top,h).toDouble();
+      final desired=position??Offset(maxX,maxY);
+      final actual=Offset(desired.dx.clamp(0.0,maxX).toDouble(),desired.dy.clamp(top,maxY).toDouble());
+      return Stack(children:[
+        Positioned(left:actual.dx,top:actual.dy,width:width,height:height,
+          child:Visibility(visible:!minimized,maintainState:true,child:Material(
+            elevation:18,shadowColor:palette.cardShadow,color:palette.surface,
+            borderRadius:BorderRadius.circular(20),clipBehavior:Clip.antiAlias,
+            child:IntelligenceChat(onClose:widget.onClose,onMinimize:()=>setState(()=>minimized=true),
+              onDrag:(delta)=>setState(()=>position=actual+delta))))),
+        if(minimized)Positioned(right:16,bottom:bottom+76,child:FloatingActionButton.extended(
+          heroTag:null,onPressed:restore,backgroundColor:palette.primary,foregroundColor:palette.onPrimary,
+          icon:const Icon(Icons.auto_awesome_rounded),label:const Text('Inteligencia'))),
+      ]);
+    });
+  }
 }
 
 class _Attachment {
@@ -30,7 +80,9 @@ class _Attachment {
 }
 
 class IntelligenceChat extends ConsumerStatefulWidget {
-  const IntelligenceChat({super.key});
+  const IntelligenceChat({super.key,required this.onClose,required this.onMinimize,required this.onDrag});
+  final VoidCallback onClose,onMinimize;
+  final ValueChanged<Offset> onDrag;
   @override
   ConsumerState<IntelligenceChat> createState()=>_IntelligenceChatState();
 }
@@ -40,7 +92,47 @@ class _IntelligenceChatState extends ConsumerState<IntelligenceChat> with Widget
   final List<({String role,String text})> _messages=[];
   final _scroll=ScrollController();
   final _composerFocus=FocusNode();
-  bool _sending=false,_enterSends=true;
+  bool _sending=false,_enterSends=true,_showHistory=false;
+  final List<Map<String,dynamic>> _history=[];
+  int? _historyOffset,_messageOffset;
+  Future<void> _loadHistory({bool more=false}) async=>_run((e) async{
+    final offset=more?_historyOffset:0;
+    if(offset==null||_branch==null)return;
+    final r=await ref.read(intelligenceApiProvider).history(_branch!,offset:offset);
+    if(!_active(e))return;
+    final rows=(r['items'] as List).map((x)=>Map<String,dynamic>.from(x as Map)).toList();
+    setState((){
+      if(!more)_history.clear();
+      _history.addAll(rows.where((x)=>!_history.any((y)=>y['id']==x['id'])));
+      _historyOffset=r['nextOffset'] as int?;
+      _showHistory=true;
+    });
+  });
+  Future<void> _openHistory(String id,{bool more=false}) async=>_run((e) async{
+    final offset=more?_messageOffset:0;
+    if(offset==null||_branch==null)return;
+    final r=await ref.read(intelligenceApiProvider).history(_branch!,conversation:id,offset:offset);
+    if(!_active(e))return;
+    final rows=(r['items'] as List).reversed.map((x)=>(role:x['role'] as String,text:x['content'] as String)).toList();
+    setState((){
+      if(!more){_messages.clear();_text.clear();_attachment=null;_extracted='';}
+      _messages.insertAll(0,rows);_conversation=id;_messageOffset=r['nextOffset'] as int?;_showHistory=false;
+    });
+    if(!more)_scrollToEnd();
+  });
+  Widget _historyView(AppPalette palette,bool locked)=>ListView(padding:const EdgeInsets.all(12),children:[
+    Row(children:[IconButton(tooltip:'Volver al chat',onPressed:locked?null:()=>setState(()=>_showHistory=false),icon:const Icon(Icons.arrow_back)),
+      const Expanded(child:Text('Conversaciones anteriores',style:TextStyle(fontWeight:FontWeight.w700))),
+      IconButton(tooltip:'Actualizar historial',onPressed:locked?null:()=>_loadHistory(),icon:const Icon(Icons.refresh))]),
+    if(_history.isEmpty)const Padding(padding:EdgeInsets.all(20),child:Text('Aún no hay conversaciones guardadas.')),
+    for(final row in _history)Card(color:palette.background,elevation:0,child:ListTile(
+      leading:Icon(Icons.chat_bubble_outline,color:palette.secondary),
+      title:Text(row['title']?.toString()??'Conversación',maxLines:2,overflow:TextOverflow.ellipsis),
+      subtitle:Text((row['updatedAt']?.toString()??'').split('.').first,maxLines:1),
+      trailing:const Icon(Icons.chevron_right),onTap:locked?null:()=>_openHistory(row['id'] as String))),
+    if(_historyOffset!=null)TextButton(onPressed:locked?null:()=>_loadHistory(more:true),child:const Text('Ver más conversaciones')),
+    if(_error.isNotEmpty)Text(_error,style:TextStyle(color:palette.danger)),
+  ]);
   void _scrollToEnd(){
     WidgetsBinding.instance.addPostFrameCallback((_){
       if(mounted&&_scroll.hasClients)_scroll.jumpTo(_scroll.position.maxScrollExtent);
@@ -166,7 +258,7 @@ class _IntelligenceChatState extends ConsumerState<IntelligenceChat> with Widget
     unawaited(_liveSubscription?.cancel()??Future<void>.value());
     unawaited(_player.stop().catchError((Object _){}));
     _pcm.clear();_attachment=null;_extracted='';_messages.clear();_text.clear();
-    if(mounted)Navigator.of(context).pop();
+    if(mounted)WidgetsBinding.instance.addPostFrameCallback((_){if(mounted)widget.onClose();});
   }
   Future<void> _select(String kind,{bool camera=false}) async=>_run((e) async {
     final extensions=kind=='video'?['mp4','mov','webm']:kind=='photo'?['png','jpg','jpeg']:kind=='audio'?['wav']:['pdf','xlsx','csv','txt','png','jpg','jpeg'];
@@ -307,16 +399,18 @@ class _IntelligenceChatState extends ConsumerState<IntelligenceChat> with Widget
     ref.listen(authControllerProvider,(prev,next){if(!next.authenticated||!next.subscriptionActive)_invalidate();});
     ref.listen(branchScopeProvider,(prev,next){if(next.activeBranchId!=_branch)_invalidate();});
     final locked=_busy||_recording||_live;
-    return Padding(padding:EdgeInsets.only(bottom:MediaQuery.viewInsetsOf(context).bottom),child:Material(
-      color:palette.surface,borderRadius:const BorderRadius.vertical(top:Radius.circular(24)),clipBehavior:Clip.antiAlias,
-      child:SizedBox(height:MediaQuery.sizeOf(context).height*.86,child:SafeArea(top:false,child:Column(children:[
-        Padding(padding:const EdgeInsets.all(16),child:Row(children:[
+    return Material(color:palette.surface,child:Column(children:[
+        Padding(padding:const EdgeInsets.symmetric(horizontal:10,vertical:8),child:Row(children:[
           CircleAvatar(backgroundColor:palette.primary,child:Icon(Icons.auto_awesome_rounded,color:palette.onPrimary)),
-          const SizedBox(width:12),Expanded(child:Column(crossAxisAlignment:CrossAxisAlignment.start,children:[
-            Text('Inteligencia BarLytics',style:TextStyle(color:palette.textPrimary,fontWeight:FontWeight.w800,fontSize:18)),
-            Text(branch?.label()??'Sucursal no disponible',style:TextStyle(color:palette.textSecondary))])),
-          IconButton(tooltip:'Nueva conversación',onPressed:locked?null:()=>setState((){_conversation=null;_messages.clear();_attachment=null;_extracted='';_text.clear();_error='';}),icon:const Icon(Icons.add_comment_outlined)),
-          IconButton(tooltip:'Cerrar chat',onPressed:()=>Navigator.pop(context),icon:const Icon(Icons.close))])),
+          const SizedBox(width:8),Expanded(child:GestureDetector(
+            behavior:HitTestBehavior.opaque,onPanUpdate:(d)=>widget.onDrag(d.delta),
+            child:Column(crossAxisAlignment:CrossAxisAlignment.start,children:[
+              Text('Inteligencia BarLytics',maxLines:1,overflow:TextOverflow.ellipsis,style:TextStyle(color:palette.textPrimary,fontWeight:FontWeight.w800,fontSize:15)),
+              Text(branch?.label()??'Sucursal no disponible',maxLines:1,overflow:TextOverflow.ellipsis,style:TextStyle(color:palette.textSecondary,fontSize:11))]))),
+          IconButton(tooltip:'Historial de conversaciones',onPressed:locked?null:()=>_loadHistory(),icon:const Icon(Icons.history_rounded,size:20)),
+          IconButton(tooltip:'Nueva conversación',onPressed:locked?null:()=>setState((){_conversation=null;_messages.clear();_messageOffset=null;_showHistory=false;_attachment=null;_extracted='';_text.clear();_error='';}),icon:const Icon(Icons.add_comment_rounded,size:20)),
+          IconButton(tooltip:'Minimizar chat',onPressed:_recording||_live?null:(){_composerFocus.unfocus();widget.onMinimize();},icon:const Icon(Icons.minimize_rounded,size:20)),
+          IconButton(tooltip:'Cerrar chat',onPressed:_invalidate,icon:const Icon(Icons.close,size:20))])),
         if(_busy)const LinearProgressIndicator(),
         if(_live)Container(padding:const EdgeInsets.all(14),color:palette.primary.withOpacity(.10),child:Row(children:[
           CircleAvatar(radius:25,backgroundColor:palette.primary,child:Icon(Icons.graphic_eq,color:palette.onPrimary)),
@@ -325,7 +419,8 @@ class _IntelligenceChatState extends ConsumerState<IntelligenceChat> with Widget
             const Text('Voz continua · micrófono activo solo al escuchar') ])),
           IconButton(tooltip:'Finalizar voz continua',onPressed:()=>unawaited(_endLive()),icon:Icon(Icons.call_end,color:palette.danger))
         ])),
-        Expanded(child:ListView(controller:_scroll,padding:const EdgeInsets.all(16),children:[
+        Expanded(child:_showHistory?_historyView(palette,locked):ListView(controller:_scroll,padding:const EdgeInsets.all(12),children:[
+          if(_messageOffset!=null&&_conversation!=null)TextButton(onPressed:locked?null:()=>_openHistory(_conversation!,more:true),child:const Text('Cargar mensajes anteriores')),
           if(_messages.isEmpty)const Center(child:Padding(padding:EdgeInsets.symmetric(vertical:32),child:Text('¿En qué puedo ayudarte hoy?\nConsulta o adjunta un archivo para revisar su contenido.',textAlign:TextAlign.center))),
           for(var i=0;i<_messages.length;i++) _messageBubble(i,palette,locked),
           if(_sending)const Padding(padding:EdgeInsets.symmetric(vertical:12),child:Row(children:[SizedBox(width:16,height:16,child:CircularProgressIndicator(strokeWidth:2)),SizedBox(width:10),Expanded(child:Text('Intelligence está preparando la respuesta…'))])),
@@ -343,24 +438,33 @@ class _IntelligenceChatState extends ConsumerState<IntelligenceChat> with Widget
           ]))),
           if(_error.isNotEmpty)Text(_error,style:TextStyle(color:palette.danger)),
         ])),
-        Padding(padding:const EdgeInsets.fromLTRB(12,4,12,12),child:Column(children:[
+        if(!_showHistory)Padding(padding:const EdgeInsets.fromLTRB(10,4,10,8),child:Column(children:[
           IntelligenceComposer(controller:_text,focusNode:_composerFocus,enabled:!locked,enterSends:_enterSends,onSend:_send),
-          Row(mainAxisAlignment:MainAxisAlignment.end,children:[
-            const Text('Enter para enviar',style:TextStyle(fontSize:11)),
-            Switch(value:_enterSends,onChanged:locked?null:(v)=>setState(()=>_enterSends=v)),
-            if(_enterSends)const Flexible(child:Text('Shift + Enter: nueva línea',style:TextStyle(fontSize:10),overflow:TextOverflow.ellipsis)),
-          ]),
-          Wrap(alignment:WrapAlignment.center,crossAxisAlignment:WrapCrossAlignment.center,spacing:4,children:[
-            IconButton(tooltip:_cameraAvailable?'Tomar foto':'Adjuntar foto',onPressed:locked?null:()=>_select('photo',camera:true),icon:const Icon(Icons.photo_camera_outlined)),
-            IconButton(tooltip:'Adjuntar archivo',onPressed:locked?null:()=>_select('file'),icon:const Icon(Icons.attach_file_rounded)),
-            IconButton(tooltip:_cameraAvailable?'Grabar vídeo':'Adjuntar vídeo',onPressed:locked?null:()=>_select('video',camera:true),icon:const Icon(Icons.videocam_outlined)),
-            IconButton(tooltip:_recording?'Detener audio':'Grabar audio',onPressed:_busy||_live?null:_recording?_stopAudio:_startAudio,icon:Icon(_recording?Icons.stop_circle_rounded:Icons.mic_none_rounded,color:_recording?palette.danger:palette.textPrimary)),
-            IconButton(tooltip:'Adjuntar WAV',onPressed:locked?null:()=>_select('audio'),icon:const Icon(Icons.audio_file_outlined)),
-            IconButton(tooltip:'Conversar por voz continua',onPressed:locked||_branch==null?null:_startLive,icon:const Icon(Icons.graphic_eq_rounded)),
-            FilledButton.icon(onPressed:locked||_branch==null?null:_send,icon:const Icon(Icons.send_rounded),label:const Text('Enviar'))
+          Row(children:[
+            PopupMenuButton<String>(tooltip:'Adjuntar contenido',enabled:!locked,icon:const Icon(Icons.add_circle_outline_rounded),
+              onSelected:(v){switch(v){case 'photo':_select('photo',camera:true);break;case 'image':_select('photo');break;case 'file':_select('file');break;case 'video':_select('video',camera:true);break;case 'videoFile':_select('video');break;case 'audio':_select('audio');break;}},
+              itemBuilder:(context)=>[
+                PopupMenuItem(value:'photo',child:ListTile(leading:const Icon(Icons.camera_alt_outlined),title:Text(_cameraAvailable?'Tomar foto':'Adjuntar foto'))),
+                const PopupMenuItem(value:'image',child:ListTile(leading:Icon(Icons.image_outlined),title:Text('Elegir imagen'))),
+                const PopupMenuItem(value:'file',child:ListTile(leading:Icon(Icons.description_outlined),title:Text('Documento'))),
+                PopupMenuItem(value:'video',child:ListTile(leading:const Icon(Icons.videocam_outlined),title:Text(_cameraAvailable?'Grabar vídeo':'Adjuntar vídeo'))),
+                const PopupMenuItem(value:'videoFile',child:ListTile(leading:Icon(Icons.video_file_outlined),title:Text('Elegir vídeo'))),
+                const PopupMenuItem(value:'audio',child:ListTile(leading:Icon(Icons.audio_file_outlined),title:Text('Archivo WAV'))),
+              ]),
+            IconButton(tooltip:_recording?'Detener audio':'Grabar nota de voz',onPressed:_busy||_live?null:_recording?_stopAudio:_startAudio,icon:Icon(_recording?Icons.stop_circle_rounded:Icons.mic_none_rounded,color:_recording?palette.danger:palette.secondary)),
+            IconButton(tooltip:'Configuración de envío',onPressed:locked?null:()=>showMenu<bool>(
+              context:context,position:const RelativeRect.fromLTRB(32,160,16,60),items:[
+                CheckedPopupMenuItem(value:true,checked:_enterSends,child:const Text('Enter para enviar')),
+                CheckedPopupMenuItem(value:false,checked:!_enterSends,child:const Text('Enter para nueva línea')),
+              ]).then((v){if(v!=null&&mounted&&!_closed)setState(()=>_enterSends=v);}),icon:const Icon(Icons.tune_rounded,size:20)),
+            const Spacer(),
+            IconButton.filledTonal(tooltip:'Conversación por voz continua',onPressed:locked||_branch==null?null:_startLive,icon:const Icon(Icons.graphic_eq_rounded)),
+            const SizedBox(width:6),
+            IconButton.filled(tooltip:'Enviar mensaje',onPressed:locked||_branch==null?null:_send,icon:const Icon(Icons.arrow_upward_rounded)),
           ]),if(_recording)const Text('Grabando audio · máximo 30 segundos'),
+          if(_enterSends)const Align(alignment:Alignment.centerLeft,child:Text('Enter: enviar · Shift + Enter: nueva línea',style:TextStyle(fontSize:10))),
           const Text('Revisa los adjuntos antes de enviarlos. No se ejecutan operaciones comerciales desde este chat.',textAlign:TextAlign.center,style:TextStyle(fontSize:10))
         ]))
-      ])))));
+      ]));
   }
 }

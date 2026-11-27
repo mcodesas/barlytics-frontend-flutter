@@ -16,6 +16,8 @@ class IntelligenceApi {
     if(result.data==null)throw StateError('El asistente no devolvió información.');
     return result.data!;
   }
+  Future<Map<String,dynamic>> history(int branch,{String? conversation,int offset=0})=>
+    _post('history',{'branchId':branch,'conversationId':conversation,'offset':offset});
   Future<Map<String,dynamic>> chat(int branch,String? conversation,String text)=>
     _post('chat',{'branchId':branch,'conversationId':conversation,'message':text});
   Future<Uint8List> speech(int branch,String text) async {
