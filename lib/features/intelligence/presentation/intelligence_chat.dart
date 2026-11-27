@@ -5,6 +5,9 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import '../../../core/errors/app_exception.dart';
 import 'intelligence_composer.dart';
+import '../../../app/router/app_router.dart';
+import '../../navigation/presentation/providers/user_menu_provider.dart';
+import '../domain/assistant_navigation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:record/record.dart';
@@ -370,7 +373,26 @@ class _IntelligenceChatState extends ConsumerState<IntelligenceChat> with Widget
       });
       _scrollToEnd();
       try{
+        final router=ref.read(appRouterProvider);
+        final destination=AssistantNavigation.requestedDestination(text);
+        if(destination!=null){
+          // Refresh actual menu permissions at the time of navigation.
+          ref.invalidate(userMenuProvider);
+          final allowed=await ref.read(userMenuProvider.future);
+          if(!_active(e))return;
+          final item=AssistantNavigation.resolve(destination,allowed);
+          if(item==null){
+            setState(()=>_messages.add((role:'assistant',text:'No encontré una opción autorizada con ese nombre. Indica el nombre exacto del menú.')));
+          }else{
+            router.go(item.path);
+            setState(()=>_messages.add((role:'assistant',text:'Abriendo ${item.title} desde tu menú autorizado.')));
+          }
+          return;
+        }
+        final allowed=ref.read(userMenuProvider).valueOrNull??[];
+        final module=AssistantNavigation.module(router.routerDelegate.currentConfiguration.uri.path,allowed);
         final reply=await ref.read(intelligenceApiProvider).chatProgressive(_branch!,_conversation,text,
+          currentModule:module.isEmpty?null:module,
           isActive:()=>_active(e),shouldCancel:()=>_cancelRequested,
           onPartial:(value){if(_active(e)){setState(()=>_partialAnswer=value);_scrollToEnd();}});
         if(!_active(e))return;

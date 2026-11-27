@@ -8,10 +8,10 @@ class ProgressiveChat {
   final Duration interval,maxWait;
 
   Future<Map<String,dynamic>> send({required int branch,required String? conversation,required String text,
-    required void Function(String) onPartial,required bool Function() isActive,required bool Function() shouldCancel}) async {
+    required void Function(String) onPartial,required bool Function() isActive,required bool Function() shouldCancel,String? currentModule}) async {
     if(!isActive())throw const ApiException('Conversación cerrada',code:'CHAT_CLOSED');
     final clock=Stopwatch()..start();
-    var snapshot=await request('chat-start',{'branchId':branch,'conversationId':conversation,'message':text});
+    var snapshot=await request('chat-start',{'branchId':branch,'conversationId':conversation,'message':text,if(currentModule!=null)'currentModule':currentModule});
     final id=snapshot['jobId'];
     if(id is! String||id.isEmpty)throw const FormatException('Trabajo inválido');
     final scope={'branchId':branch,'jobId':id};

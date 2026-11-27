@@ -22,9 +22,9 @@ class IntelligenceApi {
   Future<Map<String,dynamic>> chat(int branch,String? conversation,String text)=>
     _post('chat',{'branchId':branch,'conversationId':conversation,'message':text});
   Future<Map<String,dynamic>> chatProgressive(int branch,String? conversation,String text,{
-    required void Function(String) onPartial,required bool Function() isActive,required bool Function() shouldCancel,
+    required void Function(String) onPartial,required bool Function() isActive,required bool Function() shouldCancel,String? currentModule,
   })=>ProgressiveChat((path,body)=>_post(path,body,timeout:const Duration(seconds:15))).send(
-    branch:branch,conversation:conversation,text:text,onPartial:onPartial,isActive:isActive,shouldCancel:shouldCancel);
+    branch:branch,conversation:conversation,text:text,onPartial:onPartial,isActive:isActive,shouldCancel:shouldCancel,currentModule:currentModule);
   Future<Uint8List> speech(int branch,String text) async {
     final r=await _post('speech',{'branchId':branch,'text':text});
     if(r['format']!='wav'||r['audioBase64'] is! String)throw const FormatException('Audio no válido.');
