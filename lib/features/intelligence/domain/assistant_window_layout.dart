@@ -10,11 +10,14 @@ Rect assistantWindowBounds({
   required double bottomInset,
   Rect? anchor,
   Offset? draggedPosition,
+  Size? requestedSize,
 }) {
   final top=topInset.clamp(0.0,viewport.height).toDouble();
   final bottom=(viewport.height-bottomInset).clamp(top,viewport.height).toDouble();
-  final width=(viewport.width-24).clamp(0.0,470.0).toDouble();
-  final fullHeight=(bottom-top-8).clamp(0.0,650.0).toDouble();
+  final availableWidth=math.max(0.0,viewport.width-24);
+  final availableHeight=math.max(0.0,bottom-top-8);
+  final width=(requestedSize?.width??470.0).clamp(math.min(320.0,availableWidth),availableWidth).toDouble();
+  final fullHeight=(requestedSize?.height??650.0).clamp(math.min(380.0,availableHeight),availableHeight).toDouble();
   final maxX=math.max(0.0,viewport.width-width-12);
   final below=anchor==null?top:(anchor.bottom+8).clamp(top,bottom).toDouble();
   final above=anchor==null?bottom:(anchor.top-8).clamp(top,bottom).toDouble();
@@ -24,7 +27,7 @@ Rect assistantWindowBounds({
   final sideSpace=useBelow?belowSpace:aboveSpace;
   // When a trigger is near the middle of a small viewport, keep the normal
   // usable chat height rather than clipping its composer into a tiny strip.
-  final height=anchor!=null&&sideSpace>=math.min(360.0,fullHeight)
+  final height=draggedPosition==null&&anchor!=null&&sideSpace>=math.min(360.0,fullHeight)
       ?math.min(fullHeight,sideSpace):fullHeight;
   final desired=draggedPosition??(anchor==null
       ?Offset(maxX,top)

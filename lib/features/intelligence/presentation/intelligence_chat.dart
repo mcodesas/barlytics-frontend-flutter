@@ -6,6 +6,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import '../domain/intelligence_attachment.dart';
 import '../domain/assistant_window_layout.dart';
+import '../domain/assistant_image_context.dart';
 import '../../../core/errors/app_exception.dart';
 import 'intelligence_composer.dart';
 import 'intelligence_export_card.dart';
@@ -111,6 +112,7 @@ class _IntelligenceWindow extends ConsumerStatefulWidget {
 class _IntelligenceWindowState extends ConsumerState<_IntelligenceWindow>{
   bool minimized=false;
   Offset? position;
+  Size? requestedSize;
   void restore(){if(mounted)setState(()=>minimized=false);}
   @override
   Widget build(BuildContext context){
@@ -121,15 +123,28 @@ class _IntelligenceWindowState extends ConsumerState<_IntelligenceWindow>{
       final w=c.maxWidth,h=c.maxHeight;
       // Leave the entire navigation bar exposed; keyboard inset takes precedence.
       final bottom=(media.viewInsets.bottom>0?media.viewInsets.bottom:media.padding.bottom+82)+12;
-      final bounds=assistantWindowBounds(viewport:Size(w,h),topInset:media.padding.top+8,bottomInset:bottom,anchor:anchor,draggedPosition:position);
+      final bounds=assistantWindowBounds(viewport:Size(w,h),topInset:media.padding.top+8,bottomInset:bottom,anchor:anchor,draggedPosition:position,requestedSize:requestedSize);
       final actual=bounds.topLeft,width=bounds.width,height=bounds.height;
       return Stack(children:[
         Positioned(left:actual.dx,top:actual.dy,width:width,height:height,
           child:Visibility(visible:!minimized,maintainState:true,child:Material(
             elevation:18,shadowColor:palette.cardShadow,color:palette.surface,
             borderRadius:BorderRadius.circular(20),clipBehavior:Clip.antiAlias,
-            child:IntelligenceChat(onClose:widget.onClose,onMinimize:()=>setState(()=>minimized=true),
-              onDrag:(delta)=>setState(()=>position=actual+delta))))),
+            child:Column(children:[
+              Expanded(child:IntelligenceChat(onClose:widget.onClose,onMinimize:()=>setState(()=>minimized=true),
+                onDrag:(delta)=>setState(()=>position=actual+delta))),
+              if(height>=380&&media.viewInsets.bottom==0)
+                SizedBox(height:32,child:Row(mainAxisAlignment:MainAxisAlignment.end,children:[
+                  IconButton(tooltip:'Reducir chat',padding:EdgeInsets.zero,visualDensity:VisualDensity.compact,
+                    onPressed:()=>setState((){position=actual;requestedSize=Size(width-70,height-80);}),icon:const Icon(Icons.remove,size:18)),
+                  IconButton(tooltip:'Agrandar chat',padding:EdgeInsets.zero,visualDensity:VisualDensity.compact,
+                    onPressed:()=>setState((){position=actual;requestedSize=Size(width+70,height+80);}),icon:const Icon(Icons.add,size:18)),
+                  Tooltip(message:'Arrastra para cambiar el tamaño',child:MouseRegion(cursor:SystemMouseCursors.resizeDownRight,
+                    child:GestureDetector(behavior:HitTestBehavior.opaque,
+                      onPanUpdate:(d)=>setState((){position=actual;requestedSize=Size(width+d.delta.dx,height+d.delta.dy);}),
+                      child:SizedBox(width:36,height:32,child:Icon(Icons.drag_handle,color:palette.secondary,size:19))))),
+                ])),
+            ])))),
         if(minimized)Positioned(right:16,bottom:bottom,child:FloatingActionButton.extended(
           heroTag:null,onPressed:restore,backgroundColor:palette.primary,foregroundColor:palette.onPrimary,
           icon:const Icon(Icons.auto_awesome_rounded),label:const Text('Asistente'))),
@@ -641,7 +656,9 @@ class _IntelligenceChatState extends ConsumerState<IntelligenceChat> with Widget
   Future<void> _send() => _sendMessage();
   Future<void> _sendMessage({int? retryIndex}) async {
     if(retryIndex!=null&&(retryIndex!=_messages.length-1||retryIndex<0||_messages[retryIndex].role!='failed'))return;
-    final text=retryIndex==null?_text.text.trim():_messages[retryIndex].text;
+    final raw=retryIndex==null?_text.text.trim():_messages[retryIndex].text;
+    final photo=_attachment?.kind=='photo'?_attachment:null;
+    final text=raw.isEmpty&&photo!=null?'Analiza el contenido de la imagen adjunta y describe los datos que puedas leer.':raw;
     if(_busy||_recording||_live||_closed||_branch==null||text.isEmpty||text.length>2000)return;
     if(_pendingAction!=null){setState(()=>_error='Confirma o cancela primero la acción pendiente.');return;}
     await _run((e) async {
@@ -657,8 +674,33 @@ class _IntelligenceChatState extends ConsumerState<IntelligenceChat> with Widget
       });
       _scrollToEnd();
       try{
+        String requestText=text;
+        final imageReading=photo!=null&&!isImageAssignment(text);
+        if(imageReading){
+          if(_extracted.trim().isEmpty){
+            final result=await ref.read(intelligenceApiProvider).media(_branch!,'photo',photo.name,photo.bytes);
+            if(!_active(e)||_cancelRequested)return;
+            setState((){_extracted=result['text']?.toString()??'';_documentWarnings=(result['warnings'] as List?)?.whereType<String>().toList()??[];});
+          }
+          if(_extracted.trim().isEmpty){
+            setState((){
+              _messages[index]=(role:'failed',text:text);
+              _error='No se pudo leer texto de la imagen. Envía una imagen más nítida o escribe los productos que quieres consultar.';
+            });
+            return;
+          }
+          final enriched=assistantImageMessage(text,_extracted);
+          if(enriched==null){
+            setState((){
+              _messages[index]=(role:'failed',text:text);
+              _error='La imagen contiene más texto del que admite una consulta. Recorta la imagen o utiliza un fragmento del texto extraído.';
+            });
+            return;
+          }
+          requestText=enriched;
+        }
         final router=ref.read(appRouterProvider);
-        final destination=AssistantNavigation.requestedDestination(text);
+        final destination=imageReading?null:AssistantNavigation.requestedDestination(text);
         if(destination!=null){
           // Refresh actual menu permissions at the time of navigation.
           ref.invalidate(userMenuProvider);
@@ -675,14 +717,14 @@ class _IntelligenceChatState extends ConsumerState<IntelligenceChat> with Widget
         final allowed=await ref.read(userMenuProvider.future);
         if(!_active(e))return;
         final normalized=AssistantNavigation.normalize(text);
-        if(const {'regresa','regresar','vuelve','volver','regresa al menu anterior','vuelve al menu anterior','atras'}.contains(normalized)){
+        if(!imageReading&&const {'regresa','regresar','vuelve','volver','regresa al menu anterior','vuelve al menu anterior','atras'}.contains(normalized)){
           if(router.canPop()){router.pop();setState(()=>_messages.add((role:'assistant',text:'Volví a la pantalla anterior.')));}
           else{setState(()=>_messages.add((role:'assistant',text:'No hay una pantalla anterior disponible.')));}
           return;
         }
         final routeModule=AssistantNavigation.context(router.routerDelegate.currentConfiguration.uri.path,allowed);
         final module=ref.read(assistantScreenContextProvider).resolve(routeModule,_branch!);
-        final reply=await ref.read(intelligenceApiProvider).chatProgressive(_branch!,_conversation,text,
+        final reply=await ref.read(intelligenceApiProvider).chatProgressive(_branch!,_conversation,requestText,
           currentModule:module.isEmpty?null:module,
           menuCatalog:allowed.take(100).map((item)=><String,String>{'key':item.keyName,'title':item.title.length>100?item.title.substring(0,100):item.title}).toList(),
           isActive:()=>_active(e),shouldCancel:()=>_cancelRequested,
@@ -834,6 +876,7 @@ class _IntelligenceChatState extends ConsumerState<IntelligenceChat> with Widget
           if(_attachment!=null)Card(child:Padding(padding:const EdgeInsets.all(10),child:Column(crossAxisAlignment:CrossAxisAlignment.start,children:[
             Row(children:[const Icon(Icons.attach_file),Expanded(child:Text(_attachment!.name,maxLines:1,overflow:TextOverflow.ellipsis)),
               IconButton(tooltip:'Quitar adjunto',onPressed:locked?null:()=>setState((){_attachment=null;_extracted='';_documentWarnings=[];}),icon:const Icon(Icons.close))]),
+            if(_attachment!.kind=='photo')const Text('Imagen adjunta: se leerá automáticamente al enviar una consulta. El texto reconocido puede contener errores.'),
             if(_attachment!.kind=='photo')ClipRRect(borderRadius:BorderRadius.circular(10),child:Image.memory(_attachment!.bytes,height:120,fit:BoxFit.contain,errorBuilder:(_,__,___)=>const Text('Vista previa no disponible'))),
             if(_attachment!.kind=='video')const Text('Análisis experimental: hasta 30 segundos y 5 MiB. Se examinan tres fotogramas, sin audio. Solo disponible si el servidor lo habilita.'),
             OutlinedButton(onPressed:locked?null:_analyze,child:Text(_attachment!.kind=='video'?'Analizar fotogramas':'Extraer contenido')),
@@ -853,7 +896,7 @@ class _IntelligenceChatState extends ConsumerState<IntelligenceChat> with Widget
           if(_error.isNotEmpty)Text(_error,style:TextStyle(color:palette.danger)),
         ])),
         if(!_showHistory)Padding(padding:const EdgeInsets.fromLTRB(10,4,10,8),child:Column(children:[
-          IntelligenceComposer(controller:_text,focusNode:_composerFocus,enabled:!locked,enterSends:_enterSends,onSend:_send),
+          IntelligenceComposer(controller:_text,focusNode:_composerFocus,enabled:!locked,enterSends:_enterSends,onSend:_send,allowEmpty:_attachment?.kind=='photo'),
           Row(children:[
             MenuAnchor(
               menuChildren:[
@@ -877,7 +920,7 @@ class _IntelligenceChatState extends ConsumerState<IntelligenceChat> with Widget
               icon:Icon(_sending?Icons.stop_rounded:Icons.arrow_upward_rounded)),
           ]),if(_recording)const Text('Grabando audio · máximo 30 segundos'),
           if(_enterSends)const Align(alignment:Alignment.centerLeft,child:Text('Enter: enviar · Shift + Enter: nueva línea',style:TextStyle(fontSize:10))),
-          const Text('Revisa los adjuntos antes de enviarlos. No se ejecutan operaciones comerciales desde este chat.',textAlign:TextAlign.center,style:TextStyle(fontSize:10))
+          const Text('Revisa los adjuntos. Las operaciones comerciales requieren confirmación.',textAlign:TextAlign.center,style:TextStyle(fontSize:10))
         ]))
       ]));
   }

@@ -30,4 +30,16 @@ void main(){
     expect(rect.bottom,lessThanOrEqualTo(460));
     expect(rect.height,greaterThan(0));
   });
+  test('resizes in either direction without leaving the viewport',(){
+    final small=assistantWindowBounds(viewport:const Size(1440,1000),topInset:8,bottomInset:94,
+      draggedPosition:const Offset(500,100),requestedSize:const Size(350,430));
+    expect(small.size,const Size(350,430));
+    final large=assistantWindowBounds(viewport:const Size(1440,1000),topInset:8,bottomInset:94,
+      draggedPosition:const Offset(500,100),requestedSize:const Size(900,800));
+    expect(large.size,const Size(900,800));
+    final mobile=assistantWindowBounds(viewport:const Size(392,800),topInset:28,bottomInset:94,
+      draggedPosition:const Offset(500,500),requestedSize:const Size(2000,2000));
+    expect(mobile.right,lessThanOrEqualTo(392));
+    expect(mobile.bottom,lessThanOrEqualTo(706));
+  });
 }

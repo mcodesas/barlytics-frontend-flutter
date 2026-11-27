@@ -3,15 +3,15 @@ import 'package:flutter/services.dart';
 
 class IntelligenceComposer extends StatelessWidget {
   const IntelligenceComposer({super.key,required this.controller,required this.focusNode,
-    required this.enabled,required this.enterSends,required this.onSend});
+    required this.enabled,required this.enterSends,required this.onSend,this.allowEmpty=false});
   final TextEditingController controller;
   final FocusNode focusNode;
-  final bool enabled,enterSends;
+  final bool enabled,enterSends,allowEmpty;
   final VoidCallback onSend;
 
   void submit(){
     final v=controller.value;
-    if(enabled&&v.text.trim().isNotEmpty&&v.text.length<=2000&&
+    if(enabled&&(allowEmpty||v.text.trim().isNotEmpty)&&v.text.length<=2000&&
        !(v.composing.isValid&&!v.composing.isCollapsed))onSend();
   }
 
