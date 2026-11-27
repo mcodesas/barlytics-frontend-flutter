@@ -396,11 +396,20 @@ class _IntelligenceChatState extends ConsumerState<IntelligenceChat> with Widget
     final p=_pendingAction!;
     final changes=p['changes'];
     return Card(child:Padding(padding:const EdgeInsets.all(12),child:Column(crossAxisAlignment:CrossAxisAlignment.start,children:[
-      const Text('Confirmar operación',style:TextStyle(fontWeight:FontWeight.bold)),
-      ConstrainedBox(constraints:const BoxConstraints(maxHeight:160),child:SingleChildScrollView(child:Column(crossAxisAlignment:CrossAxisAlignment.start,children:[
+      Text(p['steps'] is List?'Confirmar todas las operaciones':'Confirmar operación',style:const TextStyle(fontWeight:FontWeight.bold)),
+      ConstrainedBox(constraints:const BoxConstraints(maxHeight:240),child:SingleChildScrollView(child:Column(crossAxisAlignment:CrossAxisAlignment.start,children:[
         Text(p['effect'].toString()),
         Text('Registro: ${p['target']}'),
         if(changes is Map)for(final entry in changes.entries)SelectableText('${entry.key}: ${entry.value}'),
+        if(p['steps'] is List)for(final entry in (p['steps'] as List).asMap().entries)
+          if(entry.value is Map) ...[
+            const Divider(),
+            Text('${entry.key+1}. ${entry.value['effect']}',style:const TextStyle(fontWeight:FontWeight.w600)),
+            Text('Registro: ${entry.value['target']}'),
+            if(entry.value['changes'] is Map)for(final field in (entry.value['changes'] as Map).entries)
+              SelectableText('${field.key}: ${field.value}'),
+          ],
+        if(p['steps'] is List)const Text('Se aplicarán juntas o se revertirán si alguna falla.'),
         if(p['hasImage']==true)const Text('Se asociará únicamente la foto adjunta.'),
         const Text('El borrador vence en 10 minutos.'),
       ]))),
@@ -475,7 +484,7 @@ class _IntelligenceChatState extends ConsumerState<IntelligenceChat> with Widget
             if(!_active(e)||_cancelRequested)return;
             if(draft['draftId'] is! String||draft['effect'] is! String||draft['target'] is! String)throw const FormatException('Borrador inválido');
             setState(()=>_pendingAction=draft);
-            finalAnswer='Revisa la acción preparada en BarLytics. No se han modificado datos todavía.';
+            finalAnswer=draft['steps'] is List?'Revisa todas las operaciones del lote antes de confirmar. No se han modificado datos.':'Revisa la acción preparada en BarLytics. No se han modificado datos todavía.';
           }
         }
         final navigation=reply['navigation'];
