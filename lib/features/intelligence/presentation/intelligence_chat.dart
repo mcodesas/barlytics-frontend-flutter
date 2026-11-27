@@ -451,7 +451,7 @@ class _IntelligenceChatState extends ConsumerState<IntelligenceChat> with Widget
           else{setState(()=>_messages.add((role:'assistant',text:'No hay una pantalla anterior disponible.')));}
           return;
         }
-        final module=AssistantNavigation.module(router.routerDelegate.currentConfiguration.uri.path,allowed);
+        final module=AssistantNavigation.context(router.routerDelegate.currentConfiguration.uri.path,allowed);
         final reply=await ref.read(intelligenceApiProvider).chatProgressive(_branch!,_conversation,text,
           currentModule:module.isEmpty?null:module,
           menuCatalog:allowed.take(100).map((item)=><String,String>{'key':item.keyName,'title':item.title.length>100?item.title.substring(0,100):item.title}).toList(),
