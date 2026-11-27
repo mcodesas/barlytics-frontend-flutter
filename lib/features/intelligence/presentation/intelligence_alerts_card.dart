@@ -70,7 +70,15 @@ class _IntelligenceAlertsCardState extends ConsumerState<IntelligenceAlertsCard>
         if(!finance&&enabled.contains('FINANCE')&&available.contains('FINANCE'))categories.addAll(previousFinance);
         loaded=true;
       });
-    }catch(_){if(active(g))setState((){categories=[];error='No se pudieron verificar las alertas. No significa que no existan incidencias.';});}
+    }catch(_){
+      if(active(g)){
+        setState((){categories=[];error='No se pudieron verificar las alertas. No significa que no existan incidencias.';});
+        try{
+          final config=await ref.read(intelligenceApiProvider).alertSettings(widget.branch);
+          if(active(g))setState((){readSettings(config);loaded=true;});
+        }catch(_){if(active(g))setState(()=>loaded=false);}
+      }
+    }
     finally{if(active(g))setState(()=>busy=false);}
   }
   Future<void> _save() async{
@@ -103,7 +111,7 @@ class _IntelligenceAlertsCardState extends ConsumerState<IntelligenceAlertsCard>
       onExpansionChanged:(open){setState(()=>expanded=open);if(open&&!loaded)_load(finance:true);},
       leading:Icon(Icons.notifications_active_outlined,color:colors.primary),
       title:const Text('Alertas de Intelligence'),
-      subtitle:Text(loaded?'$total hallazgos mostrados · Sucursal ${widget.branch}':'Monitoreo configurable por usuario'),
+      subtitle:Text(error!=null?'Revisión no confirmada':loaded?'$total hallazgos mostrados · Sucursal ${widget.branch}':'Monitoreo configurable por usuario'),
       childrenPadding:const EdgeInsets.all(12),children:[
         if(busy)const LinearProgressIndicator(),
         if(error!=null)Text(error!,style:TextStyle(color:colors.error)),
