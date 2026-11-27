@@ -373,6 +373,37 @@ class _IntelligenceChatState extends ConsumerState<IntelligenceChat> with Widget
     final result=await ref.read(intelligenceApiProvider).media(_branch!,a.kind,a.name,a.bytes);
     if(_active(e))setState((){_extracted=result['text']?.toString()??'';_documentWarnings=(result['warnings'] as List?)?.whereType<String>().toList()??[];});
   });
+  Future<void> _reviewProductImport() async {
+    final branch=_branch,e=_epoch;
+    if(branch==null||_busy||_pendingAction!=null||_closed)return;
+    final controller=TextEditingController(text:_extracted.length<=16000?_extracted:'');
+    bool checked=false;
+    String? reviewed;
+    try{
+      reviewed=await showDialog<String>(context:context,builder:(dialogContext)=>StatefulBuilder(builder:(ctx,localSetState)=>AlertDialog(
+        title:const Text('Importar catálogo Excel/CSV'),
+        content:SizedBox(width:560,child:SingleChildScrollView(child:Column(mainAxisSize:MainAxisSize.min,crossAxisAlignment:CrossAxisAlignment.start,children:[
+          const Text('Encabezado: producto;descripcion;marca_id;tipo_id;costo;precio. Máximo 25 productos normales, con marca y tipo existentes. Usa pesos enteros sin separadores.'),
+          const Text('Los productos existentes se identifican por nombre exacto, marca y tipo. No cambia el stock, fotos ni recetas. Los precios nuevos conservan el historial.'),
+          const SizedBox(height:8),
+          TextField(controller:controller,maxLength:16000,minLines:4,maxLines:10,onChanged:(_)=>localSetState(()=>checked=false),
+            decoration:const InputDecoration(labelText:'Catálogo revisado')),
+          CheckboxListTile(contentPadding:EdgeInsets.zero,value:checked,onChanged:(v)=>localSetState(()=>checked=v==true),
+            title:const Text('Revisé todos los productos, descripciones, identificadores y precios.')),
+        ]))),
+        actions:[TextButton(onPressed:()=>Navigator.of(dialogContext).pop(),child:const Text('Cancelar')),
+          FilledButton(onPressed:checked?()=>Navigator.of(dialogContext).pop(controller.text.trim()):null,child:const Text('Preparar borrador'))],
+      )));
+    }finally{controller.dispose();}
+    if(reviewed==null||reviewed.isEmpty||!_active(e))return;
+    final csv=reviewed;
+    await _run((epoch) async{
+      final draft=await ref.read(intelligenceApiProvider).prepareProductImport(branch,csv);
+      if(!_active(epoch))return;
+      if(draft['draftId'] is! String||draft['productImport'] is! Map)throw const FormatException('Borrador inválido');
+      setState(()=>_pendingAction=draft);_scrollToEnd();
+    });
+  }
   Future<void> _reviewCountCsv() async {
     final branch=_branch,e=_epoch;
     if(branch==null||_busy||_pendingAction!=null||_closed)return;
@@ -444,7 +475,7 @@ class _IntelligenceChatState extends ConsumerState<IntelligenceChat> with Widget
         if(confirm&&(pending['action']=='menu.personal_favorito'||pending['action']=='menu.personal_ubicacion'))ref.invalidate(menuPreferencesProvider);
         setState((){
           _pendingAction=null;
-          if(confirm&&(pending['hasImage']==true||pending['documentPurchase'] is Map)){_attachment=null;_extracted='';_documentWarnings=[];}
+          if(confirm&&(pending['hasImage']==true||pending['documentPurchase'] is Map||pending['productImport'] is Map)){_attachment=null;_extracted='';_documentWarnings=[];}
           _messages.add((role:'assistant',text:confirm?(result['orderId']!=null?'Pedido ${result['orderId']} creado y confirmado por BarLytics. No se registró recepción ni pago.':'Acción ejecutada y confirmada por BarLytics.'):'Acción cancelada sin modificar los datos.'));
         });
         _scrollToEnd();
@@ -464,12 +495,25 @@ class _IntelligenceChatState extends ConsumerState<IntelligenceChat> with Widget
     final changes=p['changes'];
     final replenishment=p['replenishment'];
     final purchase=p['documentPurchase'];
+    final catalog=p['productImport'];
     return Card(child:Padding(padding:const EdgeInsets.all(12),child:Column(crossAxisAlignment:CrossAxisAlignment.start,children:[
       Text(p['steps'] is List?'Confirmar todas las operaciones':'Confirmar operación',style:const TextStyle(fontWeight:FontWeight.bold)),
       ConstrainedBox(constraints:const BoxConstraints(maxHeight:240),child:SingleChildScrollView(child:Column(crossAxisAlignment:CrossAxisAlignment.start,children:[
         Text(p['effect'].toString()),
         Text('Registro: ${p['target']}'),
         if(changes is Map)for(final entry in changes.entries)SelectableText('${entry.key}: ${entry.value}'),
+        if(catalog is Map)...[
+          Text('Crear: ${catalog['creates']} · Actualizar: ${catalog['updates']} · Sin cambios: ${catalog['unchanged']}'),
+          if(catalog['products'] is List)for(final row in catalog['products'])if(row is Map)...[
+            const Divider(),
+            Text('${row['name']} · ${row['action']}',style:const TextStyle(fontWeight:FontWeight.w600)),
+            Text('${row['brand']} / ${row['type']}'),
+            Text('${row['description']}'),
+            Text("Costo: ${row['previousCost']??'—'} → ${row['cost']}"),
+            Text("Venta: ${row['previousSale']??'—'} → ${row['sale']}"),
+          ],
+          const Text('Se aplicará en una transacción. No modifica existencias.'),
+        ],
         if(purchase is Map)...[
           Text('Proveedor: ${purchase['supplier']}'),
           Text('Referencia: ${purchase['reference']}'),
@@ -719,6 +763,8 @@ class _IntelligenceChatState extends ConsumerState<IntelligenceChat> with Widget
                 OutlinedButton.icon(onPressed:locked||_pendingAction!=null?null:_reviewPurchase,icon:const Icon(Icons.receipt_long),label:const Text('Preparar pedido desde documento')),
               if(_attachment!.kind=='file'&&['.csv','.xlsx'].any((ext)=>_attachment!.name.toLowerCase().endsWith(ext)))
                 OutlinedButton.icon(onPressed:locked||_pendingAction!=null?null:_reviewCountCsv,icon:const Icon(Icons.fact_check_outlined),label:const Text('Importar conteo físico CSV')),
+              if(_attachment!.kind=='file'&&['.csv','.xlsx'].any((ext)=>_attachment!.name.toLowerCase().endsWith(ext)))
+                OutlinedButton.icon(onPressed:locked||_pendingAction!=null?null:_reviewProductImport,icon:const Icon(Icons.inventory_2_outlined),label:const Text('Importar catálogo y precios')),
               if(_attachment!.kind!='video')TextButton(onPressed:locked?null:(){
               final combined=[_text.text.trim(),_extracted].where((x)=>x.isNotEmpty).join('\n\n');
               if(combined.length>2000){setState(()=>_error='Copia un fragmento de hasta 2000 caracteres para enviar.');return;}
